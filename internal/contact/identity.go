@@ -20,6 +20,12 @@ var ErrEmptyChannel = errors.New("contact: empty channel")
 // ErrEmptyIdentifier reports that an identity identifier is empty or only whitespace.
 var ErrEmptyIdentifier = errors.New("contact: empty identifier")
 
+// ErrIdentityNotFound reports that no identity exists for a channel and identifier.
+var ErrIdentityNotFound = errors.New("contact: identity not found")
+
+// ErrIdentityExists reports that a channel and identifier pair is already claimed.
+var ErrIdentityExists = errors.New("contact: identity already exists")
+
 // Channel names the communication medium of an identity, such as
 // "whatsapp" or "email". Valid values are defined by channel plugins,
 // never enumerated by the core.

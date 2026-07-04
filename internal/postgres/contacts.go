@@ -17,12 +17,13 @@ import (
 
 // ContactStore persists contacts in the core schema.
 type ContactStore struct {
+	pool    *pgxpool.Pool
 	queries *db.Queries
 }
 
 // NewContactStore returns a ContactStore backed by pool.
 func NewContactStore(pool *pgxpool.Pool) *ContactStore {
-	return &ContactStore{queries: db.New(pool)}
+	return &ContactStore{pool: pool, queries: db.New(pool)}
 }
 
 // Create stores a new contact.

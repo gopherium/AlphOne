@@ -30,6 +30,36 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) er
 	return err
 }
 
+const createIdentity = `-- name: CreateIdentity :execrows
+INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (channel, identifier) DO NOTHING
+`
+
+type CreateIdentityParams struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createIdentity,
+		arg.ID,
+		arg.ContactID,
+		arg.Channel,
+		arg.Identifier,
+		arg.DisplayName,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at
 FROM core.contacts
@@ -40,5 +70,30 @@ func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (CoreContact, er
 	row := q.db.QueryRow(ctx, getContact, id)
 	var i CoreContact
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
+}
+
+const getIdentity = `-- name: GetIdentity :one
+SELECT id, contact_id, channel, identifier, display_name, created_at
+FROM core.contact_identities
+WHERE channel = $1 AND identifier = $2
+`
+
+type GetIdentityParams struct {
+	Channel    string
+	Identifier string
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreContactIdentity, error) {
+	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier)
+	var i CoreContactIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.ContactID,
+		&i.Channel,
+		&i.Identifier,
+		&i.DisplayName,
+		&i.CreatedAt,
+	)
 	return i, err
 }
