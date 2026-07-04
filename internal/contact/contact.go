@@ -28,8 +28,8 @@ type Contact struct {
 // New returns a [Contact] with the given name, trimmed of surrounding
 // whitespace.
 func New(name string) (Contact, error) {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
 		return Contact{}, ErrEmptyName
 	}
 	id, err := uuid.NewV7()
@@ -38,7 +38,7 @@ func New(name string) (Contact, error) {
 	}
 	return Contact{
 		ID:        id,
-		Name:      trimmed,
+		Name:      trimmedName,
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }

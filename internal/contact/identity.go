@@ -31,6 +31,10 @@ var ErrIdentityExists = errors.New("contact: identity already exists")
 // never enumerated by the core.
 type Channel string
 
+func normalizeChannel(channel Channel) Channel {
+	return Channel(strings.ToLower(strings.TrimSpace(string(channel))))
+}
+
 // Identity is a per-channel address of a [Contact]. Identifier is opaque
 // to the core and stored exactly as its channel delivered it.
 type Identity struct {
@@ -49,7 +53,7 @@ func NewIdentity(contactID uuid.UUID, channel Channel, identifier, displayName s
 	if contactID == uuid.Nil {
 		return Identity{}, ErrNilContactID
 	}
-	normalizedChannel := Channel(strings.ToLower(strings.TrimSpace(string(channel))))
+	normalizedChannel := normalizeChannel(channel)
 	if normalizedChannel == "" {
 		return Identity{}, ErrEmptyChannel
 	}

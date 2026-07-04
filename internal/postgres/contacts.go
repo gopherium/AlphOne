@@ -15,6 +15,8 @@ import (
 	"github.com/gopherium/alphone/internal/postgres/db"
 )
 
+var _ contact.Store = (*ContactStore)(nil)
+
 // ContactStore persists contacts in the core schema.
 type ContactStore struct {
 	pool    *pgxpool.Pool
