@@ -11,6 +11,14 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 )
 
+var errEntropy = errors.New("entropy source failed")
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errEntropy
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
@@ -38,6 +46,17 @@ func TestNew(t *testing.T) {
 				t.Errorf("New(%q).Name = %q, want %q", tc.name, got.Name, tc.want)
 			}
 		})
+	}
+}
+
+func TestNewReportsIDGenerationFailure(t *testing.T) {
+	uuid.SetRand(failingReader{})
+	defer uuid.SetRand(nil)
+
+	_, err := contact.New("María Pérez")
+
+	if !errors.Is(err, errEntropy) {
+		t.Fatalf("New() error = %v, want the entropy failure in its chain", err)
 	}
 }
 
