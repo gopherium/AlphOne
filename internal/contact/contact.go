@@ -15,6 +15,9 @@ import (
 // ErrEmptyName reports that a contact name is empty or only whitespace.
 var ErrEmptyName = errors.New("contact: empty name")
 
+// ErrNotFound reports that no contact exists for the requested ID.
+var ErrNotFound = errors.New("contact: not found")
+
 // Contact is a person tracked by the CRM.
 type Contact struct {
 	ID        uuid.UUID

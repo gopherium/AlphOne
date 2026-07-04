@@ -22,12 +22,8 @@ const (
 	foreignKeyViolation = "23503"
 )
 
-func newTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("skipping database test in short mode")
-	}
-	return pgtestdb.New(t, pgtestdb.Config{
+func testDBConfig() pgtestdb.Config {
+	return pgtestdb.Config{
 		DriverName: "pgx",
 		User:       "postgres",
 		Password:   "alphone",
@@ -35,7 +31,19 @@ func newTestDB(t *testing.T) *sql.DB {
 		Port:       "5433",
 		Database:   "postgres",
 		Options:    "sslmode=disable",
-	}, goosemigrator.New("migrations", goosemigrator.WithFS(postgres.Migrations)))
+	}
+}
+
+func testMigrator() *goosemigrator.GooseMigrator {
+	return goosemigrator.New("migrations", goosemigrator.WithFS(postgres.Migrations))
+}
+
+func newTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping database test in short mode")
+	}
+	return pgtestdb.New(t, testDBConfig(), testMigrator())
 }
 
 func mustContact(t *testing.T, name string) contact.Contact {
