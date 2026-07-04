@@ -19,7 +19,7 @@ plugins/whatsapp      first plugin
 ## Stack
 
 - Backend: Go, `net/http` + chi v5, PostgreSQL (pgx/v5, sqlc, goose migrations)
-- Frontend: React + TypeScript, Vite, TanStack Router + Query, Tailwind
+- Frontend: React + TypeScript, Vite, TanStack Router + Query, `@wordpress/ui` + `@wordpress/theme` (WordPress Design System on Base UI), Storybook
 - Testing: stdlib table-driven tests, httptest, pgtestdb (backend); Vitest, Testing Library, MSW (frontend)
 
 ## Contributing
