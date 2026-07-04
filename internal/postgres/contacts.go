@@ -21,7 +21,7 @@ type ContactStore struct {
 	queries *db.Queries
 }
 
-// NewContactStore returns a ContactStore backed by pool.
+// NewContactStore returns a [ContactStore] backed by pool.
 func NewContactStore(pool *pgxpool.Pool) *ContactStore {
 	return &ContactStore{pool: pool, queries: db.New(pool)}
 }
@@ -39,7 +39,7 @@ func (s *ContactStore) Create(ctx context.Context, c contact.Contact) error {
 	return nil
 }
 
-// Get returns the contact with the given id, or contact.ErrNotFound if
+// Get returns the contact with the given id, or [contact.ErrNotFound] if
 // none exists.
 func (s *ContactStore) Get(ctx context.Context, id uuid.UUID) (contact.Contact, error) {
 	row, err := s.queries.GetContact(ctx, id)

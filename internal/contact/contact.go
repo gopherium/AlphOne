@@ -25,7 +25,7 @@ type Contact struct {
 	CreatedAt time.Time
 }
 
-// New returns a Contact with the given name, trimmed of surrounding
+// New returns a [Contact] with the given name, trimmed of surrounding
 // whitespace.
 func New(name string) (Contact, error) {
 	trimmed := strings.TrimSpace(name)

@@ -31,7 +31,7 @@ var ErrIdentityExists = errors.New("contact: identity already exists")
 // never enumerated by the core.
 type Channel string
 
-// Identity is a per-channel address of a Contact. Identifier is opaque
+// Identity is a per-channel address of a [Contact]. Identifier is opaque
 // to the core and stored exactly as its channel delivered it.
 type Identity struct {
 	ID          uuid.UUID
@@ -42,7 +42,7 @@ type Identity struct {
 	CreatedAt   time.Time
 }
 
-// NewIdentity returns an Identity owned by contactID. The channel is
+// NewIdentity returns an [Identity] owned by contactID. The channel is
 // trimmed and lowercased; identifier and display name are trimmed but
 // otherwise stored verbatim.
 func NewIdentity(contactID uuid.UUID, channel Channel, identifier, displayName string) (Identity, error) {

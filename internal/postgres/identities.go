@@ -14,7 +14,7 @@ import (
 )
 
 // LookupIdentity returns the identity for channel and identifier, or
-// contact.ErrIdentityNotFound if none exists.
+// [contact.ErrIdentityNotFound] if none exists.
 func (s *ContactStore) LookupIdentity(ctx context.Context, channel contact.Channel, identifier string) (contact.Identity, error) {
 	row, err := s.queries.GetIdentity(ctx, db.GetIdentityParams{
 		Channel:    string(channel),
@@ -36,8 +36,8 @@ func (s *ContactStore) LookupIdentity(ctx context.Context, channel contact.Chann
 	}, nil
 }
 
-// CreateContactWithIdentity atomically stores a new contact owning its
-// first identity. It returns contact.ErrIdentityExists and leaves the
+// CreateContactWithIdentity stores a new contact owning its
+// first identity. It returns [contact.ErrIdentityExists] and leaves the
 // database unchanged when the identity is already claimed.
 func (s *ContactStore) CreateContactWithIdentity(ctx context.Context, c contact.Contact, identity contact.Identity) error {
 	err := s.createContactWithIdentity(ctx, c, identity)
