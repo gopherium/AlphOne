@@ -5,7 +5,11 @@ package contact
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // ErrEmptyName reports that a contact name is empty or only whitespace.
@@ -13,14 +17,25 @@ var ErrEmptyName = errors.New("contact: empty name")
 
 // Contact is a person tracked by the CRM.
 type Contact struct {
-	Name string
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
 }
 
-// New creates a Contact from a raw name, trimming surrounding whitespace.
+// New creates a Contact with a fresh time-ordered identity and creation
+// time, trimming surrounding whitespace from the name.
 func New(name string) (Contact, error) {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
 		return Contact{}, ErrEmptyName
 	}
-	return Contact{Name: trimmed}, nil
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Contact{}, fmt.Errorf("contact: generate id: %w", err)
+	}
+	return Contact{
+		ID:        id,
+		Name:      trimmed,
+		CreatedAt: time.Now().UTC(),
+	}, nil
 }

@@ -5,7 +5,9 @@ package contact_test
 import (
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gopherium/alphone/internal/contact"
 )
 
@@ -36,5 +38,46 @@ func TestNew(t *testing.T) {
 				t.Errorf("New(%q).Name = %q, want %q", tc.name, got.Name, tc.want)
 			}
 		})
+	}
+}
+
+func TestNewAssignsUniqueV7IDs(t *testing.T) {
+	t.Parallel()
+
+	first, err := contact.New("María Pérez")
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+	second, err := contact.New("John Doe")
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+
+	if first.ID == uuid.Nil {
+		t.Error("New().ID is uuid.Nil, want a generated UUID")
+	}
+	if first.ID.Version() != 7 {
+		t.Errorf("New().ID version = %d, want 7", first.ID.Version())
+	}
+	if first.ID == second.ID {
+		t.Errorf("two contacts share the ID %s, want unique IDs", first.ID)
+	}
+}
+
+func TestNewSetsCreatedAtToCurrentUTCTime(t *testing.T) {
+	t.Parallel()
+
+	before := time.Now().UTC()
+	got, err := contact.New("María Pérez")
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+	after := time.Now().UTC()
+
+	if got.CreatedAt.Before(before) || got.CreatedAt.After(after) {
+		t.Errorf("New().CreatedAt = %v, want between %v and %v", got.CreatedAt, before, after)
+	}
+	if got.CreatedAt.Location() != time.UTC {
+		t.Errorf("New().CreatedAt location = %v, want UTC", got.CreatedAt.Location())
 	}
 }
