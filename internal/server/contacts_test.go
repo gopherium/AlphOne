@@ -184,6 +184,26 @@ func TestGetContact(t *testing.T) {
 	}
 }
 
+func TestGetContactNormalizesTimestampToUTC(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	maria, err := contact.New("María Pérez")
+	if err != nil {
+		t.Fatalf("New() error = %v, want nil", err)
+	}
+	maria.CreatedAt = maria.CreatedAt.In(time.FixedZone("CET", 2*60*60))
+	store.contacts[maria.ID] = maria
+	srv := server.NewServer(store)
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+maria.ID.String(), "")
+
+	got := decodeBody[contactBody](t, recorder)
+	if got.CreatedAt.Location() != time.UTC {
+		t.Errorf("created_at location = %v, want UTC", got.CreatedAt.Location())
+	}
+}
+
 func TestGetContactErrors(t *testing.T) {
 	t.Parallel()
 

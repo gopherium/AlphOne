@@ -26,7 +26,7 @@ type contactResponse struct {
 }
 
 func newContactResponse(c contact.Contact) contactResponse {
-	return contactResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt}
+	return contactResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt.UTC()}
 }
 
 func (s *server) handleContactCreate() http.HandlerFunc {
