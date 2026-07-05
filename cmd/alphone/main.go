@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 )
@@ -24,13 +25,13 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Getenv, os.Stderr); err != nil {
+	if err := run(ctx, os.Getenv, os.Stderr, registerPlugins); err != nil {
 		fmt.Fprintln(os.Stderr, "alphone:", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, getenv func(string) string, stderr io.Writer) error {
+func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool) []plugin.Plugin) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")
@@ -52,6 +53,11 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		return err
 	}
 
+	host := plugin.NewHost(plugins(pool)...)
+	if err := host.Start(ctx); err != nil {
+		return fmt.Errorf("start plugins: %w", err)
+	}
+
 	httpServer := &http.Server{
 		Addr:    addr,
 		Handler: server.NewServer(postgres.NewContactStore(pool)),
@@ -64,12 +70,14 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 
 	select {
 	case err := <-serveErr:
-		return fmt.Errorf("http server: %w", err)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return errors.Join(fmt.Errorf("http server: %w", err), host.Stop(stopCtx))
 	case <-ctx.Done():
 	}
 
 	logger.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return httpServer.Shutdown(shutdownCtx)
+	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
 }

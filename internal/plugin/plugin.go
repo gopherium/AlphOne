@@ -17,27 +17,44 @@ type Plugin interface {
 	Stop(ctx context.Context) error
 }
 
+// Migrator is implemented by plugins that own database schema, which
+// the host migrates before starting any plugin.
+type Migrator interface {
+	Migrate(ctx context.Context) error
+}
+
 // Host starts and stops a fixed set of plugins.
 type Host struct {
 	plugins []Plugin
 }
 
-// NewHost returns a [Host] managing plugins, rejecting duplicate IDs.
-func NewHost(plugins ...Plugin) (*Host, error) {
+// NewHost returns a [Host] managing plugins. It panics when two
+// plugins claim the same ID, since the plugin list is wired at
+// compile time.
+func NewHost(plugins ...Plugin) *Host {
 	seen := make(map[string]struct{}, len(plugins))
 	for _, p := range plugins {
 		if _, ok := seen[p.ID()]; ok {
-			return nil, fmt.Errorf("plugin: duplicate id %q", p.ID())
+			panic(fmt.Sprintf("plugin: duplicate id %q", p.ID()))
 		}
 		seen[p.ID()] = struct{}{}
 	}
-	return &Host{plugins: plugins}, nil
+	return &Host{plugins: plugins}
 }
 
-// Start starts every plugin in registration order. When one fails, the
-// already-started plugins are stopped in reverse order and the failure
-// is returned.
+// Start migrates every [Migrator] plugin, then starts every plugin in
+// registration order. When a start fails, the already-started plugins
+// are stopped in reverse order and the failure is returned.
 func (h *Host) Start(ctx context.Context) error {
+	for _, p := range h.plugins {
+		migrator, ok := p.(Migrator)
+		if !ok {
+			continue
+		}
+		if err := safeCall(ctx, p.ID(), "migrate", migrator.Migrate); err != nil {
+			return err
+		}
+	}
 	for i, p := range h.plugins {
 		if err := safeCall(ctx, p.ID(), "start", p.Start); err != nil {
 			return errors.Join(err, h.stopDownFrom(ctx, i-1))

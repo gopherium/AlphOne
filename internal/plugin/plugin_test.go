@@ -12,7 +12,10 @@ import (
 	"github.com/gopherium/alphone/internal/plugin"
 )
 
-var _ plugin.Plugin = (*fakePlugin)(nil)
+var (
+	_ plugin.Plugin   = (*fakePlugin)(nil)
+	_ plugin.Migrator = (*migratingPlugin)(nil)
+)
 
 type fakePlugin struct {
 	id         string
@@ -43,17 +46,28 @@ func (f *fakePlugin) Stop(_ context.Context) error {
 	return f.stopErr
 }
 
+type migratingPlugin struct {
+	fakePlugin
+	migrateErr   error
+	migratePanic bool
+}
+
+func (m *migratingPlugin) Migrate(_ context.Context) error {
+	*m.calls = append(*m.calls, m.id+" migrate")
+	if m.migratePanic {
+		panic("boom")
+	}
+	return m.migrateErr
+}
+
 func TestHostStartsInOrderAndStopsInReverse(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
-	host, err := plugin.NewHost(
+	host := plugin.NewHost(
 		&fakePlugin{id: "alpha", calls: &calls},
 		&fakePlugin{id: "beta", calls: &calls},
 	)
-	if err != nil {
-		t.Fatalf("NewHost() error = %v, want nil", err)
-	}
 
 	if err := host.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v, want nil", err)
@@ -68,18 +82,72 @@ func TestHostStartsInOrderAndStopsInReverse(t *testing.T) {
 	}
 }
 
-func TestNewHostRejectsDuplicateIDs(t *testing.T) {
+func TestNewHostPanicsOnDuplicateIDs(t *testing.T) {
 	t.Parallel()
 
-	var calls []string
+	defer func() {
+		if recover() == nil {
+			t.Fatal("NewHost() did not panic, want a duplicate id panic")
+		}
+	}()
 
-	_, err := plugin.NewHost(
+	var calls []string
+	plugin.NewHost(
 		&fakePlugin{id: "whatsapp", calls: &calls},
 		&fakePlugin{id: "whatsapp", calls: &calls},
 	)
+}
 
-	if err == nil {
-		t.Fatal("NewHost() error = nil, want a duplicate id error")
+func TestHostMigratesBeforeStarting(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	host := plugin.NewHost(
+		&fakePlugin{id: "alpha", calls: &calls},
+		&migratingPlugin{fakePlugin: fakePlugin{id: "beta", calls: &calls}},
+	)
+
+	if err := host.Start(t.Context()); err != nil {
+		t.Fatalf("Start() error = %v, want nil", err)
+	}
+
+	want := []string{"beta migrate", "alpha start", "beta start"}
+	if diff := cmp.Diff(want, calls); diff != "" {
+		t.Errorf("migration ordering mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestHostAbortsWhenMigrationFails(t *testing.T) {
+	t.Parallel()
+
+	errSchema := errors.New("schema exploded")
+	var calls []string
+	host := plugin.NewHost(
+		&fakePlugin{id: "alpha", calls: &calls},
+		&migratingPlugin{fakePlugin: fakePlugin{id: "beta", calls: &calls}, migrateErr: errSchema},
+	)
+
+	startErr := host.Start(t.Context())
+
+	if !errors.Is(startErr, errSchema) {
+		t.Fatalf("Start() error = %v, want %v in its chain", startErr, errSchema)
+	}
+	want := []string{"beta migrate"}
+	if diff := cmp.Diff(want, calls); diff != "" {
+		t.Errorf("abort calls mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestHostRecoversMigrationPanic(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	host := plugin.NewHost(
+		&migratingPlugin{fakePlugin: fakePlugin{id: "beta", calls: &calls}, migratePanic: true},
+	)
+
+	if err := host.Start(t.Context()); err == nil {
+		t.Fatal("Start() error = nil, want a recovered panic error")
 	}
 }
 
@@ -88,14 +156,11 @@ func TestHostRollsBackWhenStartFails(t *testing.T) {
 
 	errBoot := errors.New("boot failed")
 	var calls []string
-	host, err := plugin.NewHost(
+	host := plugin.NewHost(
 		&fakePlugin{id: "alpha", calls: &calls},
 		&fakePlugin{id: "beta", startErr: errBoot, calls: &calls},
 		&fakePlugin{id: "gamma", calls: &calls},
 	)
-	if err != nil {
-		t.Fatalf("NewHost() error = %v, want nil", err)
-	}
 
 	startErr := host.Start(t.Context())
 
@@ -112,13 +177,10 @@ func TestHostRecoversStartPanic(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
-	host, err := plugin.NewHost(
+	host := plugin.NewHost(
 		&fakePlugin{id: "alpha", calls: &calls},
 		&fakePlugin{id: "beta", startPanic: true, calls: &calls},
 	)
-	if err != nil {
-		t.Fatalf("NewHost() error = %v, want nil", err)
-	}
 
 	startErr := host.Start(t.Context())
 
@@ -136,13 +198,10 @@ func TestHostStopCollectsAllFailures(t *testing.T) {
 
 	errAlpha := errors.New("alpha refused")
 	var calls []string
-	host, err := plugin.NewHost(
+	host := plugin.NewHost(
 		&fakePlugin{id: "alpha", stopErr: errAlpha, calls: &calls},
 		&fakePlugin{id: "beta", stopPanic: true, calls: &calls},
 	)
-	if err != nil {
-		t.Fatalf("NewHost() error = %v, want nil", err)
-	}
 	if err := host.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v, want nil", err)
 	}

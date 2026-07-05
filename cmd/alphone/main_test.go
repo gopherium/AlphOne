@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -12,11 +13,37 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 	"github.com/peterldowns/pgtestdb/migrators/goosemigrator"
 
+	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
 )
+
+var errPluginMigrate = errors.New("plugin migration exploded")
+
+type failingPlugin struct{}
+
+func (failingPlugin) ID() string {
+	return "failing"
+}
+
+func (failingPlugin) Start(_ context.Context) error {
+	return nil
+}
+
+func (failingPlugin) Stop(_ context.Context) error {
+	return nil
+}
+
+func (failingPlugin) Migrate(_ context.Context) error {
+	return errPluginMigrate
+}
+
+func failingPlugins(_ *pgxpool.Pool) []plugin.Plugin {
+	return []plugin.Plugin{failingPlugin{}}
+}
 
 func testGetenv(values map[string]string) func(string) string {
 	return func(key string) string {
@@ -73,10 +100,22 @@ func waitForServer(t *testing.T, url string) {
 func TestRunRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(nil), io.Discard)
+	err := run(t.Context(), testGetenv(nil), io.Discard, registerPlugins)
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a configuration error")
+	}
+}
+
+func TestRunReportsPluginFailure(t *testing.T) {
+	t.Parallel()
+
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
+	}), io.Discard, failingPlugins)
+
+	if !errors.Is(err, errPluginMigrate) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, errPluginMigrate)
 	}
 }
 
@@ -85,7 +124,7 @@ func TestRunRejectsMalformedDatabaseURL(t *testing.T) {
 
 	err := run(t.Context(), testGetenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "://not-a-url",
-	}), io.Discard)
+	}), io.Discard, registerPlugins)
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a parse error")
@@ -97,7 +136,7 @@ func TestRunReportsMigrationFailure(t *testing.T) {
 
 	err := run(t.Context(), testGetenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
-	}), io.Discard)
+	}), io.Discard, registerPlugins)
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a migration error")
@@ -116,7 +155,7 @@ func TestRunReportsBindFailure(t *testing.T) {
 	err = run(t.Context(), testGetenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 		"ALPHONE_ADDR":         listener.Addr().String(),
-	}), io.Discard)
+	}), io.Discard, registerPlugins)
 
 	if err == nil || !strings.Contains(err.Error(), "http server") {
 		t.Fatalf("run() error = %v, want a bind failure", err)
@@ -133,7 +172,7 @@ func TestRunServesAPI(t *testing.T) {
 		runErr <- run(ctx, testGetenv(map[string]string{
 			"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 			"ALPHONE_ADDR":         addr,
-		}), io.Discard)
+		}), io.Discard, registerPlugins)
 	}()
 
 	baseURL := "http://" + addr
