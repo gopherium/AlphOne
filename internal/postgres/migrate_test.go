@@ -9,6 +9,7 @@ import (
 	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/testdb"
 )
 
 func TestMigrateCreatesCoreSchema(t *testing.T) {
@@ -17,7 +18,7 @@ func TestMigrateCreatesCoreSchema(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testDBConfig(), pgtestdb.NoopMigrator{})
+	cfg := pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{})
 
 	if err := postgres.Migrate(t.Context(), cfg.URL()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)

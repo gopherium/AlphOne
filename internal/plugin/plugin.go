@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 // Plugin is an independently addable unit of functionality with a
@@ -21,6 +22,12 @@ type Plugin interface {
 // the host migrates before starting any plugin.
 type Migrator interface {
 	Migrate(ctx context.Context) error
+}
+
+// RouteProvider is implemented by plugins that expose HTTP endpoints
+// under their own namespace.
+type RouteProvider interface {
+	Routes() http.Handler
 }
 
 // Host starts and stops a fixed set of plugins.
@@ -61,6 +68,18 @@ func (h *Host) Start(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Routes returns the HTTP handler of every [RouteProvider] plugin,
+// keyed by plugin ID.
+func (h *Host) Routes() map[string]http.Handler {
+	routes := make(map[string]http.Handler)
+	for _, p := range h.plugins {
+		if provider, ok := p.(RouteProvider); ok {
+			routes[p.ID()] = provider.Routes()
+		}
+	}
+	return routes
 }
 
 // Stop stops every plugin in reverse registration order, continuing

@@ -4,6 +4,8 @@ package whatsapp_test
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -12,17 +14,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
-	"github.com/peterldowns/pgtestdb/migrators/goosemigrator"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/plugin"
-	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 )
 
 var (
-	_ plugin.Plugin   = (*whatsapp.Plugin)(nil)
-	_ plugin.Migrator = (*whatsapp.Plugin)(nil)
+	_ plugin.Plugin        = (*whatsapp.Plugin)(nil)
+	_ plugin.Migrator      = (*whatsapp.Plugin)(nil)
+	_ plugin.RouteProvider = (*whatsapp.Plugin)(nil)
 )
 
 const uniqueViolation = "23505"
@@ -32,15 +34,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, pgtestdb.Config{
-		DriverName: "pgx",
-		User:       "postgres",
-		Password:   "alphone",
-		Host:       "localhost",
-		Port:       "5433",
-		Database:   "postgres",
-		Options:    "sslmode=disable",
-	}, goosemigrator.New("migrations", goosemigrator.WithFS(postgres.Migrations)))
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
 	pool, err := pgxpool.New(t.Context(), cfg.URL())
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
@@ -49,10 +43,62 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+func TestWebhookVerification(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		configuredToken string
+		target          string
+		wantStatus      int
+		wantBody        string
+	}{
+		"valid handshake": {
+			configuredToken: "secret",
+			target:          "/webhook?hub.mode=subscribe&hub.verify_token=secret&hub.challenge=42",
+			wantStatus:      http.StatusOK,
+			wantBody:        "42",
+		},
+		"wrong token": {
+			configuredToken: "secret",
+			target:          "/webhook?hub.mode=subscribe&hub.verify_token=guess&hub.challenge=42",
+			wantStatus:      http.StatusForbidden,
+		},
+		"wrong mode": {
+			configuredToken: "secret",
+			target:          "/webhook?hub.mode=unsubscribe&hub.verify_token=secret&hub.challenge=42",
+			wantStatus:      http.StatusForbidden,
+		},
+		"unconfigured token never verifies": {
+			configuredToken: "",
+			target:          "/webhook?hub.mode=subscribe&hub.verify_token=&hub.challenge=42",
+			wantStatus:      http.StatusForbidden,
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			routes := whatsapp.New(nil, tc.configuredToken).Routes()
+			request := httptest.NewRequest(http.MethodGet, tc.target, nil)
+			recorder := httptest.NewRecorder()
+
+			routes.ServeHTTP(recorder, request)
+
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", recorder.Code, tc.wantStatus)
+			}
+			if tc.wantBody != "" && recorder.Body.String() != tc.wantBody {
+				t.Errorf("body = %q, want %q", recorder.Body.String(), tc.wantBody)
+			}
+		})
+	}
+}
+
 func TestPluginIdentityAndLifecycle(t *testing.T) {
 	t.Parallel()
 
-	p := whatsapp.New(nil)
+	p := whatsapp.New(nil, "")
 
 	if got := p.ID(); got != "whatsapp" {
 		t.Errorf("ID() = %q, want %q", got, "whatsapp")
@@ -69,7 +115,7 @@ func TestMigrateCreatesMessagingTables(t *testing.T) {
 	t.Parallel()
 
 	pool := newTestPool(t)
-	p := whatsapp.New(pool)
+	p := whatsapp.New(pool, "")
 
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
@@ -117,7 +163,7 @@ func TestMigrateReportsConnectionFailure(t *testing.T) {
 
 	pool := newTestPool(t)
 	pool.Close()
-	p := whatsapp.New(pool)
+	p := whatsapp.New(pool, "")
 
 	if err := p.Migrate(t.Context()); err == nil {
 		t.Fatal("Migrate() on closed pool error = nil, want an error")

@@ -15,10 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
-	"github.com/peterldowns/pgtestdb/migrators/goosemigrator"
 
 	"github.com/gopherium/alphone/internal/plugin"
-	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/testdb"
 )
 
 var errPluginMigrate = errors.New("plugin migration exploded")
@@ -41,7 +40,7 @@ func (failingPlugin) Migrate(_ context.Context) error {
 	return errPluginMigrate
 }
 
-func failingPlugins(_ *pgxpool.Pool) []plugin.Plugin {
+func failingPlugins(_ *pgxpool.Pool, _ func(string) string) []plugin.Plugin {
 	return []plugin.Plugin{failingPlugin{}}
 }
 
@@ -56,15 +55,7 @@ func testDatabaseURL(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, pgtestdb.Config{
-		DriverName: "pgx",
-		User:       "postgres",
-		Password:   "alphone",
-		Host:       "localhost",
-		Port:       "5433",
-		Database:   "postgres",
-		Options:    "sslmode=disable",
-	}, goosemigrator.New("migrations", goosemigrator.WithFS(postgres.Migrations)))
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
 	return cfg.URL()
 }
 
@@ -170,8 +161,9 @@ func TestRunServesAPI(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- run(ctx, testGetenv(map[string]string{
-			"ALPHONE_DATABASE_URL": testDatabaseURL(t),
-			"ALPHONE_ADDR":         addr,
+			"ALPHONE_DATABASE_URL":          testDatabaseURL(t),
+			"ALPHONE_ADDR":                  addr,
+			"ALPHONE_WHATSAPP_VERIFY_TOKEN": "e2e-secret",
 		}), io.Discard, registerPlugins)
 	}()
 
@@ -185,6 +177,19 @@ func TestRunServesAPI(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("POST status = %d, want %d", response.StatusCode, http.StatusCreated)
+	}
+
+	verification, err := http.Get(baseURL + "/api/plugins/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=e2e-secret&hub.challenge=42")
+	if err != nil {
+		t.Fatalf("GET webhook verification: %v", err)
+	}
+	defer verification.Body.Close()
+	challenge, err := io.ReadAll(verification.Body)
+	if err != nil {
+		t.Fatalf("reading challenge: %v", err)
+	}
+	if verification.StatusCode != http.StatusOK || string(challenge) != "42" {
+		t.Fatalf("webhook verification = %d %q, want %d %q", verification.StatusCode, challenge, http.StatusOK, "42")
 	}
 
 	cancel()

@@ -31,7 +31,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool) []plugin.Plugin) error {
+func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool, func(string) string) []plugin.Plugin) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")
@@ -53,14 +53,14 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plug
 		return err
 	}
 
-	host := plugin.NewHost(plugins(pool)...)
+	host := plugin.NewHost(plugins(pool, getenv)...)
 	if err := host.Start(ctx); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
 	httpServer := &http.Server{
 		Addr:    addr,
-		Handler: server.NewServer(postgres.NewContactStore(pool)),
+		Handler: server.NewServer(postgres.NewContactStore(pool), host.Routes()),
 	}
 	serveErr := make(chan error, 1)
 	go func() {

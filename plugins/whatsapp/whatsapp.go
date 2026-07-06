@@ -5,11 +5,14 @@ package whatsapp
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
+	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -23,12 +26,14 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	verifyToken string
 }
 
-// New returns the WhatsApp [Plugin] backed by pool.
-func New(pool *pgxpool.Pool) *Plugin {
-	return &Plugin{pool: pool}
+// New returns the WhatsApp [Plugin] backed by pool. verifyToken is the
+// secret Meta echoes back during webhook verification.
+func New(pool *pgxpool.Pool, verifyToken string) *Plugin {
+	return &Plugin{pool: pool, verifyToken: verifyToken}
 }
 
 // ID reports the plugin identifier.
@@ -44,6 +49,27 @@ func (p *Plugin) Start(_ context.Context) error {
 // Stop is a placeholder until the plugin holds running work.
 func (p *Plugin) Stop(_ context.Context) error {
 	return nil
+}
+
+// Routes returns the plugin's HTTP endpoints, served relative to its
+// namespace.
+func (p *Plugin) Routes() http.Handler {
+	router := chi.NewRouter()
+	router.Get("/webhook", p.handleVerify())
+	return router
+}
+
+func (p *Plugin) handleVerify() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		tokenMatches := subtle.ConstantTimeCompare([]byte(query.Get("hub.verify_token")), []byte(p.verifyToken)) == 1
+		if p.verifyToken == "" || query.Get("hub.mode") != "subscribe" || !tokenMatches {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(query.Get("hub.challenge")))
+	}
 }
 
 // Migrate creates and updates the plugin-owned plugin_whatsapp schema.

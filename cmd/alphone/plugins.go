@@ -10,8 +10,8 @@ import (
 )
 
 // registerPlugins wires every compiled-in plugin with its dependencies.
-func registerPlugins(pool *pgxpool.Pool) []plugin.Plugin {
+func registerPlugins(pool *pgxpool.Pool, getenv func(string) string) []plugin.Plugin {
 	return []plugin.Plugin{
-		whatsapp.New(pool),
+		whatsapp.New(pool, getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN")),
 	}
 }

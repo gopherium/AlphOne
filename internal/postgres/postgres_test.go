@@ -11,10 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
-	"github.com/peterldowns/pgtestdb/migrators/goosemigrator"
 
 	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/testdb"
 )
 
 const (
@@ -22,28 +21,12 @@ const (
 	foreignKeyViolation = "23503"
 )
 
-func testDBConfig() pgtestdb.Config {
-	return pgtestdb.Config{
-		DriverName: "pgx",
-		User:       "postgres",
-		Password:   "alphone",
-		Host:       "localhost",
-		Port:       "5433",
-		Database:   "postgres",
-		Options:    "sslmode=disable",
-	}
-}
-
-func testMigrator() *goosemigrator.GooseMigrator {
-	return goosemigrator.New("migrations", goosemigrator.WithFS(postgres.Migrations))
-}
-
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.New(t, testDBConfig(), testMigrator())
+	return pgtestdb.New(t, testdb.Config(), testdb.CoreMigrator())
 }
 
 func mustContact(t *testing.T, name string) contact.Contact {

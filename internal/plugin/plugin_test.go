@@ -5,6 +5,7 @@ package plugin_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -13,9 +14,19 @@ import (
 )
 
 var (
-	_ plugin.Plugin   = (*fakePlugin)(nil)
-	_ plugin.Migrator = (*migratingPlugin)(nil)
+	_ plugin.Plugin        = (*fakePlugin)(nil)
+	_ plugin.Migrator      = (*migratingPlugin)(nil)
+	_ plugin.RouteProvider = (*routedPlugin)(nil)
 )
+
+type routedPlugin struct {
+	fakePlugin
+	handler http.Handler
+}
+
+func (r *routedPlugin) Routes() http.Handler {
+	return r.handler
+}
 
 type fakePlugin struct {
 	id         string
@@ -96,6 +107,26 @@ func TestNewHostPanicsOnDuplicateIDs(t *testing.T) {
 		&fakePlugin{id: "whatsapp", calls: &calls},
 		&fakePlugin{id: "whatsapp", calls: &calls},
 	)
+}
+
+func TestHostCollectsRoutesFromProviders(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	host := plugin.NewHost(
+		&fakePlugin{id: "alpha", calls: &calls},
+		&routedPlugin{fakePlugin: fakePlugin{id: "beta", calls: &calls}, handler: handler},
+	)
+
+	routes := host.Routes()
+
+	if len(routes) != 1 {
+		t.Fatalf("Routes() returned %d entries, want 1", len(routes))
+	}
+	if _, ok := routes["beta"]; !ok {
+		t.Error(`Routes() has no entry for "beta", want its handler`)
+	}
 }
 
 func TestHostMigratesBeforeStarting(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/testdb"
 )
 
 func newTestPool(t *testing.T) *pgxpool.Pool {
@@ -22,7 +23,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testDBConfig(), testMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
 	pool, err := pgxpool.New(t.Context(), cfg.URL())
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
