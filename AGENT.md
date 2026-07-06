@@ -14,6 +14,7 @@ internal/contact      contact domain package
 internal/postgres     data access (pgx + sqlc)
 internal/plugin       plugin host, supervisor, registry
 plugins/whatsapp      first plugin
+sdk/                  public plugin contract — the only AlphOne import allowed in a plugin
 ```
 
 ## Stack

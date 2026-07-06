@@ -51,7 +51,7 @@ func postEvent(t *testing.T, routes http.Handler, signature string, body []byte)
 func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
 	pool := newTestPool(t)
-	resolver := contact.NewResolver(postgres.NewContactStore(pool))
+	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
 	p := whatsapp.New(pool, resolver, whatsapp.Config{AppSecret: "app-secret"})
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)

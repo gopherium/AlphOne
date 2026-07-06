@@ -8,37 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/gopherium/alphone/sdk"
 )
-
-// Plugin is an independently addable unit of functionality with a
-// managed lifecycle.
-type Plugin interface {
-	ID() string
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-}
-
-// Migrator is implemented by plugins that own database schema, which
-// the host migrates before starting any plugin.
-type Migrator interface {
-	Migrate(ctx context.Context) error
-}
-
-// RouteProvider is implemented by plugins that expose HTTP endpoints
-// under their own namespace.
-type RouteProvider interface {
-	Routes() http.Handler
-}
 
 // Host starts and stops a fixed set of plugins.
 type Host struct {
-	plugins []Plugin
+	plugins []sdk.Plugin
 }
 
 // NewHost returns a [Host] managing plugins. It panics when two
 // plugins claim the same ID, since the plugin list is wired at
 // compile time.
-func NewHost(plugins ...Plugin) *Host {
+func NewHost(plugins ...sdk.Plugin) *Host {
 	seen := make(map[string]struct{}, len(plugins))
 	for _, p := range plugins {
 		if _, ok := seen[p.ID()]; ok {
@@ -49,12 +31,12 @@ func NewHost(plugins ...Plugin) *Host {
 	return &Host{plugins: plugins}
 }
 
-// Start migrates every [Migrator] plugin, then starts every plugin in
-// registration order. When a start fails, the already-started plugins
-// are stopped in reverse order and the failure is returned.
+// Start migrates every [sdk.Migrator] plugin, then starts every plugin
+// in registration order. When a start fails, the already-started
+// plugins are stopped in reverse order and the failure is returned.
 func (h *Host) Start(ctx context.Context) error {
 	for _, p := range h.plugins {
-		migrator, ok := p.(Migrator)
+		migrator, ok := p.(sdk.Migrator)
 		if !ok {
 			continue
 		}
@@ -70,12 +52,12 @@ func (h *Host) Start(ctx context.Context) error {
 	return nil
 }
 
-// Routes returns the HTTP handler of every [RouteProvider] plugin,
+// Routes returns the HTTP handler of every [sdk.RouteProvider] plugin,
 // keyed by plugin ID.
 func (h *Host) Routes() map[string]http.Handler {
 	routes := make(map[string]http.Handler)
 	for _, p := range h.plugins {
-		if provider, ok := p.(RouteProvider); ok {
+		if provider, ok := p.(sdk.RouteProvider); ok {
 			routes[p.ID()] = provider.Routes()
 		}
 	}

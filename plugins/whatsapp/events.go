@@ -13,14 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/gopherium/alphone/internal/contact"
 )
-
-// ContactResolver finds or creates the contact owning a channel identity.
-type ContactResolver interface {
-	Resolve(ctx context.Context, channel contact.Channel, identifier, displayName string) (contact.Contact, error)
-}
 
 type inboundMessage struct {
 	externalID string

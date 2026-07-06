@@ -20,9 +20,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
-	"github.com/gopherium/alphone/internal/plugin"
+	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/sdk"
 )
+
+func TestResolverBridgePropagatesFailures(t *testing.T) {
+	t.Parallel()
+
+	bridge := resolverBridge{resolver: contact.NewResolver(nil)}
+
+	owner, err := bridge.Resolve(t.Context(), " \t ", "184467235@lid", "María")
+
+	if !errors.Is(err, contact.ErrEmptyChannel) {
+		t.Fatalf("Resolve() error = %v, want %v", err, contact.ErrEmptyChannel)
+	}
+	if owner != (sdk.Contact{}) {
+		t.Errorf("Resolve() contact = %+v, want zero value on failure", owner)
+	}
+}
 
 var errPluginMigrate = errors.New("plugin migration exploded")
 
@@ -44,8 +60,8 @@ func (failingPlugin) Migrate(_ context.Context) error {
 	return errPluginMigrate
 }
 
-func failingPlugins(_ *pgxpool.Pool, _ func(string) string) []plugin.Plugin {
-	return []plugin.Plugin{failingPlugin{}}
+func failingPlugins(_ *pgxpool.Pool, _ func(string) string) []sdk.Plugin {
+	return []sdk.Plugin{failingPlugin{}}
 }
 
 func testGetenv(values map[string]string) func(string) string {

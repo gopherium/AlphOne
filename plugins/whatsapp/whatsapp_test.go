@@ -3,6 +3,7 @@
 package whatsapp_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -16,16 +17,28 @@ import (
 	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/whatsapp"
+	"github.com/gopherium/alphone/sdk"
 )
 
 var (
-	_ plugin.Plugin        = (*whatsapp.Plugin)(nil)
-	_ plugin.Migrator      = (*whatsapp.Plugin)(nil)
-	_ plugin.RouteProvider = (*whatsapp.Plugin)(nil)
+	_ sdk.Plugin        = (*whatsapp.Plugin)(nil)
+	_ sdk.Migrator      = (*whatsapp.Plugin)(nil)
+	_ sdk.RouteProvider = (*whatsapp.Plugin)(nil)
 )
+
+type resolverBridge struct {
+	resolver *contact.Resolver
+}
+
+func (b resolverBridge) Resolve(ctx context.Context, channel sdk.Channel, identifier, displayName string) (sdk.Contact, error) {
+	owner, err := b.resolver.Resolve(ctx, contact.Channel(channel), identifier, displayName)
+	if err != nil {
+		return sdk.Contact{}, err
+	}
+	return sdk.Contact{ID: owner.ID, Name: owner.Name}, nil
+}
 
 const uniqueViolation = "23505"
 

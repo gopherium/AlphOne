@@ -11,12 +11,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/gopherium/alphone/internal/plugin"
+	"github.com/gopherium/alphone/sdk"
 )
 
 var (
-	_ plugin.Plugin        = (*fakePlugin)(nil)
-	_ plugin.Migrator      = (*migratingPlugin)(nil)
-	_ plugin.RouteProvider = (*routedPlugin)(nil)
+	_ sdk.Plugin        = (*fakePlugin)(nil)
+	_ sdk.Migrator      = (*migratingPlugin)(nil)
+	_ sdk.RouteProvider = (*routedPlugin)(nil)
 )
 
 type routedPlugin struct {

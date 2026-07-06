@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 //go:embed migrations/*.sql
@@ -33,7 +35,7 @@ type Config struct {
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
 	pool        *pgxpool.Pool
-	resolver    ContactResolver
+	resolver    sdk.ContactResolver
 	verifyToken string
 	appSecret   string
 	store       *store
@@ -41,7 +43,7 @@ type Plugin struct {
 
 // New returns the WhatsApp [Plugin] backed by pool, resolving inbound
 // senders through resolver.
-func New(pool *pgxpool.Pool, resolver ContactResolver, cfg Config) *Plugin {
+func New(pool *pgxpool.Pool, resolver sdk.ContactResolver, cfg Config) *Plugin {
 	return &Plugin{
 		pool:        pool,
 		resolver:    resolver,

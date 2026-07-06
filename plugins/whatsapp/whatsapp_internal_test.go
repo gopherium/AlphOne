@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/sdk"
 )
 
 var errEntropy = errors.New("entropy source failed")
@@ -25,10 +25,10 @@ func (failingEntropy) Read([]byte) (int, error) {
 }
 
 type staticResolver struct {
-	owner contact.Contact
+	owner sdk.Contact
 }
 
-func (s staticResolver) Resolve(_ context.Context, _ contact.Channel, _, _ string) (contact.Contact, error) {
+func (s staticResolver) Resolve(_ context.Context, _ sdk.Channel, _, _ string) (sdk.Contact, error) {
 	return s.owner, nil
 }
 

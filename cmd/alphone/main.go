@@ -20,6 +20,7 @@ import (
 	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool, func(string) string) []plugin.Plugin) error {
+func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool, func(string) string) []sdk.Plugin) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")
