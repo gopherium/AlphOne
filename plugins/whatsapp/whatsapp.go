@@ -72,6 +72,8 @@ func (p *Plugin) Routes() http.Handler {
 	router := chi.NewRouter()
 	router.Get("/webhook", p.handleVerify())
 	router.Post("/webhook", p.handleEvents())
+	router.Get("/conversations", p.handleConversationsList())
+	router.Get("/conversations/{id}/messages", p.handleMessagesList())
 	return router
 }
 

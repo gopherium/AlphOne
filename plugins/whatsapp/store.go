@@ -8,11 +8,62 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type store struct {
 	pool *pgxpool.Pool
+}
+
+type conversationRow struct {
+	ID             uuid.UUID `db:"id"`
+	ContactID      uuid.UUID `db:"contact_id"`
+	ContactName    string    `db:"contact_name"`
+	ExternalID     string    `db:"external_id"`
+	Status         string    `db:"status"`
+	LastActivityAt time.Time `db:"last_activity_at"`
+}
+
+type messageRow struct {
+	ID          uuid.UUID `db:"id"`
+	ExternalID  string    `db:"external_id"`
+	Direction   string    `db:"direction"`
+	Content     string    `db:"content"`
+	ContentType string    `db:"content_type"`
+	SentAt      time.Time `db:"sent_at"`
+}
+
+func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
+	rows, _ := s.pool.Query(ctx, `
+		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status, conv.last_activity_at
+		FROM plugin_whatsapp.conversations conv
+		JOIN core.contacts c ON c.id = conv.contact_id
+		ORDER BY conv.last_activity_at DESC
+		LIMIT $1`,
+		limit,
+	)
+	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: list conversations: %w", err)
+	}
+	return conversations, nil
+}
+
+func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
+	rows, _ := s.pool.Query(ctx, `
+		SELECT id, external_id, direction, content, content_type, sent_at
+		FROM plugin_whatsapp.messages
+		WHERE conversation_id = $1
+		ORDER BY sent_at ASC
+		LIMIT $2`,
+		conversationID, limit,
+	)
+	messages, err := pgx.CollectRows(rows, pgx.RowToStructByName[messageRow])
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: list messages: %w", err)
+	}
+	return messages, nil
 }
 
 func (s *store) upsertConversation(ctx context.Context, contactID uuid.UUID, externalID string, activityAt time.Time) (uuid.UUID, error) {
