@@ -3,7 +3,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net"
@@ -164,6 +168,7 @@ func TestRunServesAPI(t *testing.T) {
 			"ALPHONE_DATABASE_URL":          testDatabaseURL(t),
 			"ALPHONE_ADDR":                  addr,
 			"ALPHONE_WHATSAPP_VERIFY_TOKEN": "e2e-secret",
+			"ALPHONE_WHATSAPP_APP_SECRET":   "e2e-app-secret",
 		}), io.Discard, registerPlugins)
 	}()
 
@@ -190,6 +195,23 @@ func TestRunServesAPI(t *testing.T) {
 	}
 	if verification.StatusCode != http.StatusOK || string(challenge) != "42" {
 		t.Fatalf("webhook verification = %d %q, want %d %q", verification.StatusCode, challenge, http.StatusOK, "42")
+	}
+
+	event := []byte(`{"entry":[{"changes":[{"value":{"contacts":[{"wa_id":"184467235","profile":{"name":"María Pérez"}}],"messages":[{"from":"184467235","id":"wamid.e2e","timestamp":"1751791000","type":"text","text":{"body":"hola"}}]}}]}]}`)
+	mac := hmac.New(sha256.New, []byte("e2e-app-secret"))
+	mac.Write(event)
+	eventRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/plugins/whatsapp/webhook", bytes.NewReader(event))
+	if err != nil {
+		t.Fatalf("building event request: %v", err)
+	}
+	eventRequest.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	eventResponse, err := http.DefaultClient.Do(eventRequest)
+	if err != nil {
+		t.Fatalf("POST webhook event: %v", err)
+	}
+	defer eventResponse.Body.Close()
+	if eventResponse.StatusCode != http.StatusOK {
+		t.Fatalf("webhook event status = %d, want %d", eventResponse.StatusCode, http.StatusOK)
 	}
 
 	cancel()

@@ -24,16 +24,31 @@ var migrations embed.FS
 
 var migrationSource = mustSub(migrations, "migrations")
 
+// Config holds the Meta credentials the plugin needs.
+type Config struct {
+	VerifyToken string
+	AppSecret   string
+}
+
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
 	pool        *pgxpool.Pool
+	resolver    ContactResolver
 	verifyToken string
+	appSecret   string
+	store       *store
 }
 
-// New returns the WhatsApp [Plugin] backed by pool. verifyToken is the
-// secret Meta echoes back during webhook verification.
-func New(pool *pgxpool.Pool, verifyToken string) *Plugin {
-	return &Plugin{pool: pool, verifyToken: verifyToken}
+// New returns the WhatsApp [Plugin] backed by pool, resolving inbound
+// senders through resolver.
+func New(pool *pgxpool.Pool, resolver ContactResolver, cfg Config) *Plugin {
+	return &Plugin{
+		pool:        pool,
+		resolver:    resolver,
+		verifyToken: cfg.VerifyToken,
+		appSecret:   cfg.AppSecret,
+		store:       &store{pool: pool},
+	}
 }
 
 // ID reports the plugin identifier.
@@ -56,6 +71,7 @@ func (p *Plugin) Stop(_ context.Context) error {
 func (p *Plugin) Routes() http.Handler {
 	router := chi.NewRouter()
 	router.Get("/webhook", p.handleVerify())
+	router.Post("/webhook", p.handleEvents())
 	return router
 }
 

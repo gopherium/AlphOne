@@ -3,11 +3,99 @@
 package whatsapp
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/gopherium/alphone/internal/contact"
 )
+
+var errEntropy = errors.New("entropy source failed")
+
+type failingEntropy struct{}
+
+func (failingEntropy) Read([]byte) (int, error) {
+	return 0, errEntropy
+}
+
+type staticResolver struct {
+	owner contact.Contact
+}
+
+func (s staticResolver) Resolve(_ context.Context, _ contact.Channel, _, _ string) (contact.Contact, error) {
+	return s.owner, nil
+}
+
+func newUnreachablePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(t.Context(), "postgres://postgres:x@localhost:9/postgres?sslmode=disable&connect_timeout=1")
+	if err != nil {
+		t.Fatalf("building pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func TestIngestReportsConversationFailure(t *testing.T) {
+	t.Parallel()
+
+	p := &Plugin{
+		resolver: staticResolver{},
+		store:    &store{pool: newUnreachablePool(t)},
+	}
+
+	err := p.ingest(t.Context(), inboundMessage{externalID: "wamid.1", sender: "184467235"})
+
+	if err == nil {
+		t.Fatal("ingest() error = nil, want an upsert failure")
+	}
+}
+
+func TestStoreInsertMessageReportsFailure(t *testing.T) {
+	t.Parallel()
+
+	s := &store{pool: newUnreachablePool(t)}
+
+	err := s.insertMessage(t.Context(), uuid.Must(uuid.NewV7()), inboundMessage{externalID: "wamid.1"})
+
+	if err == nil {
+		t.Fatal("insertMessage() error = nil, want a connection failure")
+	}
+}
+
+func TestStoreReportsIDGenerationFailure(t *testing.T) {
+	t.Run("conversation id", func(t *testing.T) {
+		uuid.SetRand(failingEntropy{})
+		defer uuid.SetRand(nil)
+
+		s := &store{}
+
+		_, err := s.upsertConversation(t.Context(), uuid.Nil, "184467235", time.Now())
+
+		if !errors.Is(err, errEntropy) {
+			t.Fatalf("upsertConversation() error = %v, want the entropy failure in its chain", err)
+		}
+	})
+
+	t.Run("message id", func(t *testing.T) {
+		uuid.SetRand(failingEntropy{})
+		defer uuid.SetRand(nil)
+
+		s := &store{}
+
+		err := s.insertMessage(t.Context(), uuid.Nil, inboundMessage{})
+
+		if !errors.Is(err, errEntropy) {
+			t.Fatalf("insertMessage() error = %v, want the entropy failure in its chain", err)
+		}
+	})
+}
 
 func TestMigrateRequiresVersionTable(t *testing.T) {
 	t.Parallel()

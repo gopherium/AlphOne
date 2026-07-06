@@ -79,7 +79,7 @@ func TestWebhookVerification(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := whatsapp.New(nil, tc.configuredToken).Routes()
+			routes := whatsapp.New(nil, nil, whatsapp.Config{VerifyToken: tc.configuredToken}).Routes()
 			request := httptest.NewRequest(http.MethodGet, tc.target, nil)
 			recorder := httptest.NewRecorder()
 
@@ -98,7 +98,7 @@ func TestWebhookVerification(t *testing.T) {
 func TestPluginIdentityAndLifecycle(t *testing.T) {
 	t.Parallel()
 
-	p := whatsapp.New(nil, "")
+	p := whatsapp.New(nil, nil, whatsapp.Config{})
 
 	if got := p.ID(); got != "whatsapp" {
 		t.Errorf("ID() = %q, want %q", got, "whatsapp")
@@ -115,7 +115,7 @@ func TestMigrateCreatesMessagingTables(t *testing.T) {
 	t.Parallel()
 
 	pool := newTestPool(t)
-	p := whatsapp.New(pool, "")
+	p := whatsapp.New(pool, nil, whatsapp.Config{})
 
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
@@ -163,7 +163,7 @@ func TestMigrateReportsConnectionFailure(t *testing.T) {
 
 	pool := newTestPool(t)
 	pool.Close()
-	p := whatsapp.New(pool, "")
+	p := whatsapp.New(pool, nil, whatsapp.Config{})
 
 	if err := p.Migrate(t.Context()); err == nil {
 		t.Fatal("Migrate() on closed pool error = nil, want an error")
