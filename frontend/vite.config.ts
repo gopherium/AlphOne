@@ -7,6 +7,16 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
 	plugins: [react(), dsTokenFallbacks()],
+	resolve: {
+		dedupe: [
+			'react',
+			'react-dom',
+			'@tanstack/react-query',
+			'@tanstack/react-router',
+			'@wordpress/theme',
+			'@wordpress/ui',
+		],
+	},
 	server: {
 		proxy: {
 			'/api': 'http://localhost:8080',
@@ -15,10 +25,20 @@ export default defineConfig({
 	test: {
 		environment: 'jsdom',
 		setupFiles: ['./src/test/setup.ts'],
+		include: [
+			'src/**/*.test.{ts,tsx}',
+			'../sdk/frontend/*.test.{ts,tsx}',
+			'../plugins/*/frontend/*.test.{ts,tsx}',
+		],
 		coverage: {
+			include: [
+				'src/**',
+				'../sdk/frontend/**/*.{ts,tsx}',
+				'../plugins/*/frontend/**/*.{ts,tsx}',
+			],
+			exclude: ['src/main.tsx', 'src/test/**', '**/node_modules/**'],
+			allowExternal: true,
 			reporter: ['text', 'lcov'],
-			include: ['src/**'],
-			exclude: ['src/main.tsx', 'src/test/**'],
 			thresholds: {
 				statements: 100,
 				branches: 100,

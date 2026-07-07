@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { renderPluginAt, server } from '@alphone/frontend-sdk/testing'
 import { screen } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
-import { expect, test } from 'vitest'
+import { beforeEach, expect, test } from 'vitest'
 
-import { renderAt } from '../test/render'
-import { server } from '../test/setup'
+import { handlers } from './handlers'
+import { whatsapp } from './index'
+
+beforeEach(() => server.use(...handlers))
 
 test('lists conversations from the API, most recent first', async () => {
-	renderAt('/')
+	renderPluginAt(whatsapp, '/whatsapp')
 
 	expect(await screen.findByText('John Doe')).toBeInTheDocument()
 	expect(screen.getByText('María Pérez')).toBeInTheDocument()
@@ -25,7 +28,7 @@ test('shows an empty state when no conversations exist', async () => {
 		),
 	)
 
-	renderAt('/')
+	renderPluginAt(whatsapp, '/whatsapp')
 
 	expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument()
 })
@@ -37,7 +40,7 @@ test('reports when conversations cannot be loaded', async () => {
 		),
 	)
 
-	renderAt('/')
+	renderPluginAt(whatsapp, '/whatsapp')
 
 	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
 })

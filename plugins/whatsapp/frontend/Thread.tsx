@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { Badge, Text } from '@alphone/frontend-sdk'
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchMessages } from '../api/whatsapp'
-import { Badge, Text } from '../ui'
+import { fetchMessages } from './api'
 
 export function Thread({ conversationId }: { conversationId: string }) {
 	const messages = useQuery({

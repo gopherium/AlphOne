@@ -1,9 +1,8 @@
 {
-  "name": "frontend",
+  "name": "@alphone/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -12,6 +11,8 @@
     "cover": "vitest run --coverage"
   },
   "dependencies": {
+    "@alphone/frontend-sdk": "workspace:*",
+    "@alphone/plugin-whatsapp": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.17",
     "@wordpress/theme": "^0.17.0",

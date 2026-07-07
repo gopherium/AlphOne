@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { Badge, Text } from '@alphone/frontend-sdk'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
-import { fetchConversations } from '../api/whatsapp'
-import { Badge, Text } from '../ui'
+import { fetchConversations } from './api'
 
 export function Inbox() {
 	const conversations = useQuery({
@@ -26,7 +26,7 @@ export function Inbox() {
 			{conversations.data.map((conversation) => (
 				<li key={conversation.id}>
 					<Link
-						to="/conversations/$conversationId"
+						to="/whatsapp/conversations/$conversationId"
 						params={{ conversationId: conversation.id }}
 					>
 						{conversation.contact_name}

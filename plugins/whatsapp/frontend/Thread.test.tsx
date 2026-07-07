@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
-import { expect, test } from 'vitest'
+import { beforeEach, expect, test } from 'vitest'
 
-import { server } from '../test/setup'
+import { handlers } from './handlers'
 import { Thread } from './Thread'
+
+beforeEach(() => server.use(...handlers))
 
 function renderThread() {
 	const client = new QueryClient({

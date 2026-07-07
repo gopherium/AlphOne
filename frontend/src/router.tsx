@@ -7,27 +7,24 @@ import {
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
+import { Home } from './Home'
 import { Layout } from './Layout'
-import { Inbox } from './inbox/Inbox'
-import { ThreadScreen } from './thread/ThreadScreen'
+import { plugins } from './plugins'
 
 const rootRoute = createRootRoute({
 	component: Layout,
 })
 
-const inboxRoute = createRoute({
+const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
-	component: Inbox,
+	component: Home,
 })
 
-const threadRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: '/conversations/$conversationId',
-	component: ThreadScreen,
-})
-
-const routeTree = rootRoute.addChildren([inboxRoute, threadRoute])
+const routeTree = rootRoute.addChildren([
+	homeRoute,
+	...plugins.flatMap((plugin) => plugin.routes(rootRoute)),
+])
 
 export function createAppRouter(history?: RouterHistory) {
 	return createRouter({ routeTree, history })

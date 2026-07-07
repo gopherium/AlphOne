@@ -6,7 +6,7 @@ import { Thread } from './Thread'
 
 export function ThreadScreen() {
 	const { conversationId } = useParams({
-		from: '/conversations/$conversationId',
+		from: '/whatsapp/conversations/$conversationId',
 	})
 	return <Thread conversationId={conversationId} />
 }

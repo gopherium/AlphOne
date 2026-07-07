@@ -1,0 +1,4 @@
+packages:
+  - frontend
+  - sdk/frontend
+  - plugins/*/frontend
