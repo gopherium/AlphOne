@@ -28,7 +28,7 @@ sdk/                  public plugin contract — the only AlphOne import allowed
 1. Keep changes small and focused: one behavior per change.
 2. Every change ships with tests, written before the implementation.
 3. Exported identifiers carry doc comments.
-4. Run the full test suite before submitting.
+4. Run `make test` and `make lint` before submitting; CI enforces both, plus the race detector and SDK compatibility checks.
 
 ## License
 

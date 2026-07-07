@@ -31,7 +31,7 @@ func TestMigrateCreatesCoreSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	maria := mustContact(t, "María Pérez")
 	if _, err := db.Exec("INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)", maria.ID, maria.Name, maria.CreatedAt); err != nil {
 		t.Fatalf("inserting into migrated schema: %v", err)

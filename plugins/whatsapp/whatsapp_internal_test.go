@@ -120,7 +120,7 @@ func TestMigrateReportsUnreachableDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := migrate(t.Context(), db, "goose_db_version"); err == nil {
 		t.Fatal("migrate() error = nil, want a connection error")

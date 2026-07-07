@@ -98,8 +98,9 @@ func waitForServer(t *testing.T, url string) {
 	for time.Now().Before(deadline) {
 		response, err := http.Get(url)
 		if err == nil {
-			defer response.Body.Close()
-			if response.StatusCode == http.StatusNotFound {
+			ready := response.StatusCode == http.StatusNotFound
+			_ = response.Body.Close()
+			if ready {
 				return
 			}
 		}
@@ -161,7 +162,7 @@ func TestRunReportsBindFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("occupying a port: %v", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	err = run(t.Context(), testGetenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
@@ -195,7 +196,7 @@ func TestRunServesAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /api/contacts: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("POST status = %d, want %d", response.StatusCode, http.StatusCreated)
 	}
@@ -204,7 +205,7 @@ func TestRunServesAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET webhook verification: %v", err)
 	}
-	defer verification.Body.Close()
+	defer func() { _ = verification.Body.Close() }()
 	challenge, err := io.ReadAll(verification.Body)
 	if err != nil {
 		t.Fatalf("reading challenge: %v", err)
@@ -225,7 +226,7 @@ func TestRunServesAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST webhook event: %v", err)
 	}
-	defer eventResponse.Body.Close()
+	defer func() { _ = eventResponse.Body.Close() }()
 	if eventResponse.StatusCode != http.StatusOK {
 		t.Fatalf("webhook event status = %d, want %d", eventResponse.StatusCode, http.StatusOK)
 	}

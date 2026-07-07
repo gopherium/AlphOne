@@ -1,0 +1,41 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    revive:
+      rules:
+        - name: blank-imports
+          disabled: true
+    depguard:
+      rules:
+        sdk-purity:
+          list-mode: strict
+          files:
+            - "**/sdk/*.go"
+          allow:
+            - $gostd
+            - github.com/google/uuid
+        plugins-import-only-the-sdk:
+          list-mode: lax
+          files:
+            - "**/plugins/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: github.com/gopherium/alphone/internal
+              desc: plugins may import only the sdk package from AlphOne
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gopherium/alphone
