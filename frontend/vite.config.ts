@@ -16,6 +16,7 @@ export default defineConfig({
 		environment: 'jsdom',
 		setupFiles: ['./src/test/setup.ts'],
 		coverage: {
+			reporter: ['text', 'lcov'],
 			include: ['src/**'],
 			exclude: ['src/main.tsx', 'src/test/**'],
 			thresholds: {
