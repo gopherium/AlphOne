@@ -13,13 +13,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/sdk"
 )
 
-func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(*pgxpool.Pool, func(string) string) []sdk.Plugin) error {
+func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(sdk.Deps) ([]sdk.Plugin, error)) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")
@@ -41,7 +42,16 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plug
 		return err
 	}
 
-	host := plugin.NewHost(plugins(pool, getenv)...)
+	registered, err := plugins(sdk.Deps{
+		DatabaseURL: databaseURL,
+		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
+		Getenv:      getenv,
+	})
+	if err != nil {
+		return fmt.Errorf("register plugins: %w", err)
+	}
+
+	host := plugin.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}

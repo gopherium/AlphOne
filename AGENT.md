@@ -5,7 +5,7 @@ AlphOne is an open-source multichannel CRM licensed under AGPL-3.0. The backend 
 ## Architecture
 
 - **Plugin-first.** The core contains only the HTTP server, the plugin host, and identity resolution over two entities: `Contact` (the person) and `ContactIdentity` (a per-channel address, unique per channel + identifier). Every feature is a plugin; anything that can be a plugin must be a plugin.
-- **Plugins are ordinary Go packages**, compiled in and explicitly registered in `cmd/alphone`. Each plugin gets a mounted route namespace under `/api/plugins/{name}/` and its own Postgres schema with its own migrations. Plugins never import each other and reach the core only through the plugin API.
+- **Plugins live in one folder each.** A plugin is a directory under `plugins/` holding an ordinary Go package (compiled in) plus an optional `frontend/` npm package for its React screens. The Go package exports `Register(sdk.Deps) (*Plugin, error)`; the frontend package exports a `FrontendPlugin` object. Both are wired at the composition roots (`cmd/alphone`, `frontend/src/plugins`). Each plugin gets a mounted route namespace under `/api/plugins/{name}/` (and `/{name}` in the SPA) and its own Postgres schema with its own migrations. Plugins never import each other and reach the core only through the SDK.
 
 ```text
 cmd/alphone/          main: config, db pool, plugin registration
@@ -13,9 +13,10 @@ internal/server       http.Handler, routes, middleware
 internal/contact      contact domain package
 internal/postgres     data access (pgx + sqlc)
 internal/plugin       plugin host, supervisor, registry
-plugins/whatsapp      first plugin
-sdk/                  public plugin contract — the only AlphOne import allowed in a plugin
-frontend/             React SPA (Vite); app code imports UI components only via src/ui
+plugins/whatsapp      first plugin: Go package + frontend/ React package
+sdk/                  public plugin contract (Go) — the only AlphOne import allowed in a plugin
+sdk/frontend/         frontend plugin contract, UI facade, and test harness (@alphone/frontend-sdk)
+frontend/             React SPA host (Vite); plugins import UI only via @alphone/frontend-sdk
 ```
 
 ## Stack

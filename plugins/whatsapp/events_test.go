@@ -50,9 +50,12 @@ func postEvent(t *testing.T, routes http.Handler, signature string, body []byte)
 
 func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
-	pool := newTestPool(t)
+	cfg := newTestDatabase(t)
+	pool := newAssertionPool(t, cfg.URL())
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
-	p := whatsapp.New(pool, resolver, whatsapp.Config{AppSecret: "app-secret"})
+	p := newPlugin(t, cfg.URL(), resolver, map[string]string{
+		"ALPHONE_WHATSAPP_APP_SECRET": "app-secret",
+	})
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
@@ -86,7 +89,9 @@ func TestWebhookEventsRejectsInvalidSignatures(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := whatsapp.New(nil, nil, whatsapp.Config{AppSecret: tc.configuredSecret}).Routes()
+			routes := newPlugin(t, "", nil, map[string]string{
+				"ALPHONE_WHATSAPP_APP_SECRET": tc.configuredSecret,
+			}).Routes()
 
 			recorder := postEvent(t, routes, tc.signature, body)
 
@@ -113,7 +118,9 @@ func TestWebhookEventsRejectsMalformedPayloads(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := whatsapp.New(nil, nil, whatsapp.Config{AppSecret: "app-secret"}).Routes()
+			routes := newPlugin(t, "", nil, map[string]string{
+				"ALPHONE_WHATSAPP_APP_SECRET": "app-secret",
+			}).Routes()
 
 			recorder := postEvent(t, routes, sign("app-secret", tc.body), tc.body)
 

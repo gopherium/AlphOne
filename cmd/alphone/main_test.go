@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
@@ -60,8 +59,8 @@ func (failingPlugin) Migrate(_ context.Context) error {
 	return errPluginMigrate
 }
 
-func failingPlugins(_ *pgxpool.Pool, _ func(string) string) []sdk.Plugin {
-	return []sdk.Plugin{failingPlugin{}}
+func failingPlugins(_ sdk.Deps) ([]sdk.Plugin, error) {
+	return []sdk.Plugin{failingPlugin{}}, nil
 }
 
 func testGetenv(values map[string]string) func(string) string {
@@ -128,6 +127,35 @@ func TestRunReportsPluginFailure(t *testing.T) {
 
 	if !errors.Is(err, errPluginMigrate) {
 		t.Fatalf("run() error = %v, want %v in its chain", err, errPluginMigrate)
+	}
+}
+
+func TestRegisterPluginsPropagatesFailure(t *testing.T) {
+	t.Parallel()
+
+	plugins, err := registerPlugins(sdk.Deps{DatabaseURL: "://not-a-url"})
+
+	if err == nil {
+		t.Fatal("registerPlugins() error = nil, want a parse error")
+	}
+	if plugins != nil {
+		t.Errorf("registerPlugins() = %v, want nil on failure", plugins)
+	}
+}
+
+var errRegistration = errors.New("registration exploded")
+
+func TestRunReportsRegistrationFailure(t *testing.T) {
+	t.Parallel()
+
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
+	}), io.Discard, func(_ sdk.Deps) ([]sdk.Plugin, error) {
+		return nil, errRegistration
+	})
+
+	if !errors.Is(err, errRegistration) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, errRegistration)
 	}
 }
 

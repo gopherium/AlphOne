@@ -182,8 +182,7 @@ func TestListMessagesRejectsMalformedID(t *testing.T) {
 func TestReadEndpointsReportStoreFailure(t *testing.T) {
 	t.Parallel()
 
-	p, pool := newIngestingPlugin(t)
-	pool.Close()
+	p := newPlugin(t, unreachableDatabaseURL, nil, nil)
 	routes := p.Routes()
 
 	getJSON[struct{}](t, routes, "/conversations", http.StatusInternalServerError)

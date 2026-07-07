@@ -42,18 +42,51 @@ func (b resolverBridge) Resolve(ctx context.Context, channel sdk.Channel, identi
 
 const uniqueViolation = "23505"
 
-func newTestPool(t *testing.T) *pgxpool.Pool {
+const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
+
+func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
-	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	return pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+}
+
+func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(t.Context(), url)
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+func newPlugin(t *testing.T, databaseURL string, resolver sdk.ContactResolver, env map[string]string) *whatsapp.Plugin {
+	t.Helper()
+	p, err := whatsapp.Register(sdk.Deps{
+		DatabaseURL: databaseURL,
+		Resolver:    resolver,
+		Getenv:      func(key string) string { return env[key] },
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+	return p
+}
+
+func TestRegisterRejectsMalformedDatabaseURL(t *testing.T) {
+	t.Parallel()
+
+	p, err := whatsapp.Register(sdk.Deps{DatabaseURL: "://not-a-url"})
+
+	if err == nil {
+		t.Fatal("Register() error = nil, want a parse error")
+	}
+	if p != nil {
+		t.Errorf("Register() plugin = %v, want nil on failure", p)
+	}
 }
 
 func TestWebhookVerification(t *testing.T) {
@@ -92,7 +125,9 @@ func TestWebhookVerification(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := whatsapp.New(nil, nil, whatsapp.Config{VerifyToken: tc.configuredToken}).Routes()
+			routes := newPlugin(t, "", nil, map[string]string{
+				"ALPHONE_WHATSAPP_VERIFY_TOKEN": tc.configuredToken,
+			}).Routes()
 			request := httptest.NewRequest(http.MethodGet, tc.target, nil)
 			recorder := httptest.NewRecorder()
 
@@ -111,7 +146,10 @@ func TestWebhookVerification(t *testing.T) {
 func TestPluginIdentityAndLifecycle(t *testing.T) {
 	t.Parallel()
 
-	p := whatsapp.New(nil, nil, whatsapp.Config{})
+	p, err := whatsapp.Register(sdk.Deps{})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
 
 	if got := p.ID(); got != "whatsapp" {
 		t.Errorf("ID() = %q, want %q", got, "whatsapp")
@@ -127,8 +165,9 @@ func TestPluginIdentityAndLifecycle(t *testing.T) {
 func TestMigrateCreatesMessagingTables(t *testing.T) {
 	t.Parallel()
 
-	pool := newTestPool(t)
-	p := whatsapp.New(pool, nil, whatsapp.Config{})
+	cfg := newTestDatabase(t)
+	pool := newAssertionPool(t, cfg.URL())
+	p := newPlugin(t, cfg.URL(), nil, nil)
 
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
@@ -174,11 +213,9 @@ func TestMigrateCreatesMessagingTables(t *testing.T) {
 func TestMigrateReportsConnectionFailure(t *testing.T) {
 	t.Parallel()
 
-	pool := newTestPool(t)
-	pool.Close()
-	p := whatsapp.New(pool, nil, whatsapp.Config{})
+	p := newPlugin(t, unreachableDatabaseURL, nil, nil)
 
 	if err := p.Migrate(t.Context()); err == nil {
-		t.Fatal("Migrate() on closed pool error = nil, want an error")
+		t.Fatal("Migrate() on unreachable database error = nil, want an error")
 	}
 }

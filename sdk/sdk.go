@@ -34,6 +34,18 @@ type RouteProvider interface {
 	Routes() http.Handler
 }
 
+// Deps carries the host-provided dependencies a plugin receives at
+// registration. By convention every plugin package exports
+//
+//	func Register(deps Deps) (*Plugin, error)
+//
+// which the host calls once per installed plugin.
+type Deps struct {
+	DatabaseURL string
+	Resolver    ContactResolver
+	Getenv      func(string) string
+}
+
 // Channel names a communication medium, such as "whatsapp" or "email".
 type Channel string
 

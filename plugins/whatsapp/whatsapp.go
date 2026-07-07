@@ -26,12 +26,6 @@ var migrations embed.FS
 
 var migrationSource = mustSub(migrations, "migrations")
 
-// Config holds the Meta credentials the plugin needs.
-type Config struct {
-	VerifyToken string
-	AppSecret   string
-}
-
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
 	pool        *pgxpool.Pool
@@ -41,16 +35,25 @@ type Plugin struct {
 	store       *store
 }
 
-// New returns the WhatsApp [Plugin] backed by pool, resolving inbound
-// senders through resolver.
-func New(pool *pgxpool.Pool, resolver sdk.ContactResolver, cfg Config) *Plugin {
+// Register builds the WhatsApp [Plugin] from the host-provided deps,
+// reading its Meta credentials from ALPHONE_WHATSAPP_VERIFY_TOKEN and
+// ALPHONE_WHATSAPP_APP_SECRET.
+func Register(deps sdk.Deps) (*Plugin, error) {
+	getenv := deps.Getenv
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	pool, err := pgxpool.New(context.Background(), deps.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
+	}
 	return &Plugin{
 		pool:        pool,
-		resolver:    resolver,
-		verifyToken: cfg.VerifyToken,
-		appSecret:   cfg.AppSecret,
+		resolver:    deps.Resolver,
+		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
+		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
 		store:       &store{pool: pool},
-	}
+	}, nil
 }
 
 // ID reports the plugin identifier.
@@ -63,8 +66,9 @@ func (p *Plugin) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop is a placeholder until the plugin holds running work.
+// Stop releases the plugin's database resources.
 func (p *Plugin) Stop(_ context.Context) error {
+	p.pool.Close()
 	return nil
 }
 
