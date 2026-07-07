@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 
 import { fetchConversations } from '../api/whatsapp'
 import { Badge, Text } from '../ui'
@@ -24,7 +25,12 @@ export function Inbox() {
 		<ul>
 			{conversations.data.map((conversation) => (
 				<li key={conversation.id}>
-					<Text>{conversation.contact_name}</Text>
+					<Link
+						to="/conversations/$conversationId"
+						params={{ conversationId: conversation.id }}
+					>
+						{conversation.contact_name}
+					</Link>
 					<Badge>{conversation.status}</Badge>
 				</li>
 			))}
