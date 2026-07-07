@@ -130,6 +130,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.17
         version: 1.170.17(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

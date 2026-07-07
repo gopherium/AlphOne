@@ -6,12 +6,12 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from './handlers'
-import { whatsapp } from './index'
+import { plugin } from './index'
 
 beforeEach(() => server.use(...handlers))
 
 test('contributes a WhatsApp entry to the host navigation', async () => {
-	renderPluginAt(whatsapp, '/')
+	renderPluginAt(plugin, '/')
 
 	expect(
 		await screen.findByRole('link', { name: 'WhatsApp' }),
@@ -20,7 +20,7 @@ test('contributes a WhatsApp entry to the host navigation', async () => {
 
 test('navigates from the host navigation to the inbox', async () => {
 	const user = userEvent.setup()
-	renderPluginAt(whatsapp, '/')
+	renderPluginAt(plugin, '/')
 
 	await user.click(await screen.findByRole('link', { name: 'WhatsApp' }))
 
@@ -29,7 +29,7 @@ test('navigates from the host navigation to the inbox', async () => {
 
 test('serves the thread for a conversation URL', async () => {
 	renderPluginAt(
-		whatsapp,
+		plugin,
 		'/whatsapp/conversations/019f4a00-0000-7000-8000-000000000001',
 	)
 
@@ -40,7 +40,7 @@ test('serves the thread for a conversation URL', async () => {
 
 test('navigates from a conversation in the inbox to its thread', async () => {
 	const user = userEvent.setup()
-	renderPluginAt(whatsapp, '/whatsapp')
+	renderPluginAt(plugin, '/whatsapp')
 
 	await user.click(await screen.findByRole('link', { name: 'John Doe' }))
 

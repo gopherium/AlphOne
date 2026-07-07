@@ -12,3 +12,4 @@ ignore:
   - internal/postgres/db
   - internal/testdb
   - cmd/alphone/main.go
+  - cmd/pluginwire/main.go

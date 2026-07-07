@@ -1,4 +1,4 @@
-.PHONY: test test-race cover cover-html lint fmt db-up db-down
+.PHONY: test test-race cover cover-html lint fmt generate db-up db-down
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb)
 
@@ -13,6 +13,9 @@ lint:
 
 fmt:
 	golangci-lint fmt
+
+generate:
+	go run ./cmd/pluginwire
 
 db-up:
 	docker compose up -d --wait

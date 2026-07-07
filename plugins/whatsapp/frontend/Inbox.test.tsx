@@ -6,12 +6,12 @@ import { HttpResponse, http } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from './handlers'
-import { whatsapp } from './index'
+import { plugin } from './index'
 
 beforeEach(() => server.use(...handlers))
 
 test('lists conversations from the API, most recent first', async () => {
-	renderPluginAt(whatsapp, '/whatsapp')
+	renderPluginAt(plugin, '/whatsapp')
 
 	expect(await screen.findByText('John Doe')).toBeInTheDocument()
 	expect(screen.getByText('María Pérez')).toBeInTheDocument()
@@ -28,7 +28,7 @@ test('shows an empty state when no conversations exist', async () => {
 		),
 	)
 
-	renderPluginAt(whatsapp, '/whatsapp')
+	renderPluginAt(plugin, '/whatsapp')
 
 	expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument()
 })
@@ -40,7 +40,7 @@ test('reports when conversations cannot be loaded', async () => {
 		),
 	)
 
-	renderPluginAt(whatsapp, '/whatsapp')
+	renderPluginAt(plugin, '/whatsapp')
 
 	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
 })
