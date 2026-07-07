@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { z } from 'zod'
+
+const conversationSchema = z.object({
+	id: z.string(),
+	contact_id: z.string(),
+	contact_name: z.string(),
+	external_id: z.string(),
+	status: z.string(),
+	last_activity_at: z.coerce.date(),
+})
+
+export type Conversation = z.infer<typeof conversationSchema>
+
+export async function fetchConversations(): Promise<Conversation[]> {
+	const response = await fetch('/api/plugins/whatsapp/conversations')
+	if (!response.ok) {
+		throw new Error(`listing conversations failed with status ${response.status}`)
+	}
+	return z.array(conversationSchema).parse(await response.json())
+}
