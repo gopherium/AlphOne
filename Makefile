@@ -1,6 +1,6 @@
 .PHONY: test test-race cover cover-html lint fmt db-up db-down
 
-COVERPKGS = $(shell go list ./... | grep -v /internal/postgres/db)
+COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb)
 
 test:
 	go test ./...

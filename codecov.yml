@@ -10,3 +10,5 @@ coverage:
 
 ignore:
   - internal/postgres/db
+  - internal/testdb
+  - cmd/alphone/main.go
