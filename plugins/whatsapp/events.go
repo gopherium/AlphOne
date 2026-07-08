@@ -50,6 +50,7 @@ type webhookMessage struct {
 	} `json:"text"`
 }
 
+// handleEvents returns an HTTP handler that verifies the webhook signature, parses inbound text messages, and ingests them.
 func (p *Plugin) handleEvents() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -76,6 +77,7 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 	}
 }
 
+// signatureValid reports whether the given header holds a valid HMAC-SHA256 signature of body computed with the app secret.
 func (p *Plugin) signatureValid(header string, body []byte) bool {
 	if p.appSecret == "" {
 		return false
@@ -86,6 +88,7 @@ func (p *Plugin) signatureValid(header string, body []byte) bool {
 	return hmac.Equal([]byte(header), []byte(expected))
 }
 
+// parseTextMessages decodes a webhook payload and returns the inbound text messages it contains.
 func parseTextMessages(body []byte) ([]inboundMessage, error) {
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -124,6 +127,7 @@ func parseTextMessages(body []byte) ([]inboundMessage, error) {
 	return messages, nil
 }
 
+// ingest stores an inbound message and broadcasts the change.
 func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	owner, err := p.resolver.Resolve(ctx, "whatsapp", m.sender, m.senderName)
 	if err != nil {

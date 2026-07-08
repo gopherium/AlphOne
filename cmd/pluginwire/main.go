@@ -9,6 +9,7 @@ import (
 	"os"
 )
 
+// main regenerates the plugin wiring files.
 func main() {
 	if err := run("."); err != nil {
 		fmt.Fprintln(os.Stderr, err)

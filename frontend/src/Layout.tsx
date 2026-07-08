@@ -5,6 +5,10 @@ import { Link, Outlet } from '@tanstack/react-router'
 
 import { plugins } from './plugins'
 
+/**
+ * Renders the application shell with a header, plugin navigation links, and an outlet for routed content.
+ * @returns The layout element containing the branding, navigation, and a card wrapping the active route.
+ */
 export function Layout() {
 	return (
 		<Stack direction="column" gap="lg">

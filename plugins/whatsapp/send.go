@@ -38,6 +38,7 @@ type sendTextBody struct {
 	Body string `json:"body"`
 }
 
+// sendText posts a WhatsApp text message to the Cloud API and returns the resulting message id and raw response.
 func (s *sender) sendText(ctx context.Context, to, body string) (string, json.RawMessage, error) {
 	payload, _ := json.Marshal(sendTextRequest{
 		MessagingProduct: "whatsapp",
@@ -78,6 +79,7 @@ type sendMessageRequest struct {
 	Content string `json:"content"`
 }
 
+// handleMessageSend returns an HTTP handler that sends an outbound message on a conversation and persists it.
 func (p *Plugin) handleMessageSend() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conversationID, err := uuid.Parse(chi.URLParam(r, "id"))

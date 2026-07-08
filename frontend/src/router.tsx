@@ -26,6 +26,11 @@ const routeTree = rootRoute.addChildren([
 	...plugins.flatMap((plugin) => plugin.routes(rootRoute)),
 ])
 
+/**
+ * Creates the application router with the assembled route tree.
+ * @param history - Optional router history instance for controlling navigation state.
+ * @returns The configured TanStack router bound to the route tree.
+ */
 export function createAppRouter(history?: RouterHistory) {
 	return createRouter({ routeTree, history })
 }

@@ -37,6 +37,7 @@ type messageResponse struct {
 	SentAt      time.Time `json:"sent_at"`
 }
 
+// handleConversationsList returns an HTTP handler that lists conversations up to the requested limit as JSON.
 func (p *Plugin) handleConversationsList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit, err := parseListLimit(r.URL.Query())
@@ -64,6 +65,7 @@ func (p *Plugin) handleConversationsList() http.HandlerFunc {
 	}
 }
 
+// handleMessagesList returns an HTTP handler that lists messages for the conversation id in the request path as JSON.
 func (p *Plugin) handleMessagesList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conversationID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -96,6 +98,7 @@ func (p *Plugin) handleMessagesList() http.HandlerFunc {
 	}
 }
 
+// parseListLimit reads the "limit" query parameter, returning the default when absent or an error when out of range.
 func parseListLimit(query url.Values) (int, error) {
 	raw := query.Get("limit")
 	if raw == "" {
@@ -108,6 +111,7 @@ func parseListLimit(query url.Values) (int, error) {
 	return limit, nil
 }
 
+// respondJSON writes v as a JSON response body with the given status code and content type.
 func respondJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

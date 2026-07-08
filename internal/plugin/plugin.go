@@ -18,8 +18,7 @@ type Host struct {
 }
 
 // NewHost returns a [Host] managing plugins. It panics when two
-// plugins claim the same ID, since the plugin list is wired at
-// compile time.
+// plugins share an ID.
 func NewHost(plugins ...sdk.Plugin) *Host {
 	seen := make(map[string]struct{}, len(plugins))
 	for _, p := range plugins {
@@ -70,6 +69,7 @@ func (h *Host) Stop(ctx context.Context) error {
 	return h.stopDownFrom(ctx, len(h.plugins)-1)
 }
 
+// stopDownFrom stops plugins from index down to zero in reverse order, collecting and joining any errors.
 func (h *Host) stopDownFrom(ctx context.Context, index int) error {
 	var errs []error
 	for i := index; i >= 0; i-- {
@@ -80,6 +80,7 @@ func (h *Host) stopDownFrom(ctx context.Context, index int) error {
 	return errors.Join(errs...)
 }
 
+// safeCall runs fn, wrapping any returned error and converting any panic into an error tagged with the plugin id and operation.
 func safeCall(ctx context.Context, id, operation string, fn func(context.Context) error) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {

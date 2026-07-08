@@ -1,4 +1,4 @@
 {
-	"$schema": "./node_modules/knip/schema.json",
-	"ignoreBinaries": ["cover"]
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"ignoreBinaries": ["cover", "lint"]
 }

@@ -24,10 +24,17 @@ import type { FrontendPlugin } from './index'
 export class FakeEventSource {
 	static instances: FakeEventSource[] = []
 
+	/**
+	 * Resets the list of tracked FakeEventSource instances.
+	 */
 	static reset() {
 		FakeEventSource.instances = []
 	}
 
+	/**
+	 * Returns the most recently created FakeEventSource instance.
+	 * @returns The last created instance, throwing if none exists.
+	 */
 	static last() {
 		const source = FakeEventSource.instances.at(-1)
 		if (!source) {
@@ -40,15 +47,25 @@ export class FakeEventSource {
 	onmessage: ((event: MessageEvent) => void) | null = null
 	closed = false
 
+	/**
+	 * Creates a FakeEventSource for the given URL and records the instance.
+	 * @param url - The URL the EventSource would connect to.
+	 */
 	constructor(url: string) {
 		this.url = url
 		FakeEventSource.instances.push(this)
 	}
 
+	/**
+	 * Marks this EventSource as closed.
+	 */
 	close() {
 		this.closed = true
 	}
 
+	/**
+	 * Dispatches an empty JSON message event to the registered handler.
+	 */
 	emit() {
 		this.onmessage?.(new MessageEvent('message', { data: '{}' }))
 	}
@@ -56,6 +73,9 @@ export class FakeEventSource {
 
 export const server = setupServer()
 
+/**
+ * Installs global stubs and vitest lifecycle hooks for the test environment.
+ */
 export function installTestEnvironment() {
 	vi.stubGlobal('scrollTo', () => {})
 	vi.stubGlobal('EventSource', FakeEventSource)
@@ -68,6 +88,11 @@ export function installTestEnvironment() {
 	afterAll(() => server.close())
 }
 
+/**
+ * Renders the given frontend plugin mounted at a specific route path.
+ * @param plugin - The frontend plugin whose nav and routes are mounted.
+ * @param path - The initial router path to render at.
+ */
 export function renderPluginAt(plugin: FrontendPlugin, path: string) {
 	const rootRoute = createRootRoute({
 		component: function TestHost() {

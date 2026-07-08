@@ -19,6 +19,7 @@ func Migrate(ctx context.Context, databaseURL string) error {
 	return migrateDatabase(ctx, "pgx", databaseURL)
 }
 
+// migrateDatabase opens a database connection using driverName and databaseURL and applies the migrations.
 func migrateDatabase(ctx context.Context, driverName, databaseURL string) error {
 	db, err := sql.Open(driverName, databaseURL)
 	if err != nil {
@@ -28,6 +29,7 @@ func migrateDatabase(ctx context.Context, driverName, databaseURL string) error 
 	return migrate(ctx, db)
 }
 
+// migrate runs all pending up migrations against db using the goose Postgres provider.
 func migrate(ctx context.Context, db *sql.DB) error {
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrationSource)
 	if err != nil {
@@ -39,6 +41,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// mustSub returns the dir subtree of fsys and panics if it cannot be created.
 func mustSub(fsys fs.FS, dir string) fs.FS {
 	sub, err := fs.Sub(fsys, dir)
 	if err != nil {

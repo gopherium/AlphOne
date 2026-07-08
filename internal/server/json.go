@@ -15,6 +15,7 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+// respond writes v as a JSON response with the given status code, falling back to a 500 error payload if marshaling fails.
 func respond(w http.ResponseWriter, status int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -28,10 +29,12 @@ func respond(w http.ResponseWriter, status int, v any) {
 	_, _ = w.Write(data)
 }
 
+// respondError writes a JSON error response with the given status code and message.
 func respondError(w http.ResponseWriter, status int, message string) {
 	respond(w, status, errorResponse{Error: message})
 }
 
+// respondDomainError maps a domain error to an HTTP status and writes it as a JSON error response, masking internal errors.
 func respondDomainError(w http.ResponseWriter, err error) {
 	status := statusFor(err)
 	message := err.Error()
@@ -41,6 +44,7 @@ func respondDomainError(w http.ResponseWriter, err error) {
 	respondError(w, status, message)
 }
 
+// statusFor returns the HTTP status code that corresponds to the given domain error.
 func statusFor(err error) int {
 	switch {
 	case errors.Is(err, contact.ErrEmptyName):
@@ -52,6 +56,7 @@ func statusFor(err error) int {
 	}
 }
 
+// decode reads and JSON-decodes the request body into a value of type T.
 func decode[T any](r *http.Request) (T, error) {
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {

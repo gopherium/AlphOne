@@ -13,6 +13,7 @@ linters:
       rules:
         - name: blank-imports
           disabled: true
+        - name: exported
     depguard:
       rules:
         sdk-purity:

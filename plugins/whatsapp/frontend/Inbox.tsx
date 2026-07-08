@@ -7,6 +7,10 @@ import { Link } from '@tanstack/react-router'
 import { fetchConversations } from './api'
 import { useLiveUpdates } from './live'
 
+/**
+ * Renders the WhatsApp conversation inbox list with live updates.
+ * @returns A list of conversation links with status badges, or a status message while loading, on error, or when empty.
+ */
 export function Inbox() {
 	useLiveUpdates()
 	const conversations = useQuery({

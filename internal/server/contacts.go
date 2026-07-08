@@ -25,10 +25,12 @@ type contactResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// newContactResponse builds a contactResponse from a contact.Contact, normalizing the timestamp to UTC.
 func newContactResponse(c contact.Contact) contactResponse {
 	return contactResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt.UTC()}
 }
 
+// handleContactCreate returns an http.HandlerFunc that decodes a name, creates a contact, persists it, and responds with the created contact.
 func (s *server) handleContactCreate() http.HandlerFunc {
 	type request struct {
 		Name string `json:"name"`
@@ -52,6 +54,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 	}
 }
 
+// handleContactGet returns an http.HandlerFunc that parses the contact id from the URL, fetches the contact, and responds with it.
 func (s *server) handleContactGet() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))

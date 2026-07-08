@@ -47,6 +47,7 @@ func (s *ContactStore) CreateContactWithIdentity(ctx context.Context, c contact.
 	return err
 }
 
+// createContactWithIdentity inserts the contact and its identity in a single transaction, returning [contact.ErrIdentityExists] without committing when the identity is already claimed.
 func (s *ContactStore) createContactWithIdentity(ctx context.Context, c contact.Contact, identity contact.Identity) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

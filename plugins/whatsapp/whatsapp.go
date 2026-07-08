@@ -99,6 +99,7 @@ func (p *Plugin) Routes() http.Handler {
 	return router
 }
 
+// handleVerify returns a handler that answers Meta's webhook verification challenge by checking hub.verify_token and echoing hub.challenge.
 func (p *Plugin) handleVerify() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -122,6 +123,7 @@ func (p *Plugin) Migrate(ctx context.Context) error {
 	return migrate(ctx, db, "plugin_whatsapp.goose_db_version")
 }
 
+// migrate applies the embedded goose migrations to db using the given version table.
 func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 	store, err := database.NewStore(database.DialectPostgres, versionTable)
 	if err != nil {
@@ -137,6 +139,7 @@ func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 	return nil
 }
 
+// mustSub returns the sub-filesystem of fsys rooted at dir, panicking if it cannot be created.
 func mustSub(fsys fs.FS, dir string) fs.FS {
 	sub, err := fs.Sub(fsys, dir)
 	if err != nil {

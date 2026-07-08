@@ -66,6 +66,7 @@ func (r *Resolver) Resolve(ctx context.Context, channel Channel, identifier, dis
 	return created, nil
 }
 
+// owner returns the contact owning the identity for channel and identifier.
 func (r *Resolver) owner(ctx context.Context, channel Channel, identifier string) (Contact, error) {
 	identity, err := r.store.LookupIdentity(ctx, channel, identifier)
 	if err != nil {
@@ -74,6 +75,7 @@ func (r *Resolver) owner(ctx context.Context, channel Channel, identifier string
 	return r.store.Get(ctx, identity.ContactID)
 }
 
+// contactName returns a trimmed displayName, or identifier when displayName is blank.
 func contactName(displayName, identifier string) string {
 	if name := strings.TrimSpace(displayName); name != "" {
 		return name

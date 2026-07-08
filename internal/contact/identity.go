@@ -31,6 +31,7 @@ var ErrIdentityExists = errors.New("contact: identity already exists")
 // never enumerated by the core.
 type Channel string
 
+// normalizeChannel trims surrounding whitespace and lowercases channel.
 func normalizeChannel(channel Channel) Channel {
 	return Channel(strings.ToLower(strings.TrimSpace(string(channel))))
 }

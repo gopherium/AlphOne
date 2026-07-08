@@ -6,6 +6,11 @@ import type { AnyRoute } from '@tanstack/react-router'
 import { Inbox } from './Inbox'
 import { ThreadScreen } from './ThreadScreen'
 
+/**
+ * Builds the WhatsApp plugin's route tree under the given parent route.
+ * @param parent - The parent route the WhatsApp routes are mounted beneath.
+ * @returns An array containing the inbox and conversation-thread routes.
+ */
 export function routes(parent: AnyRoute): AnyRoute[] {
 	const inboxRoute = createRoute({
 		getParentRoute: () => parent,

@@ -24,6 +24,10 @@ const messageSchema = z.object({
 
 export type Message = z.infer<typeof messageSchema>
 
+/**
+ * Fetches all WhatsApp conversations from the backend API.
+ * @returns A promise resolving to the parsed list of conversations.
+ */
 export async function fetchConversations(): Promise<Conversation[]> {
 	const response = await fetch('/api/plugins/whatsapp/conversations')
 	if (!response.ok) {
@@ -32,6 +36,11 @@ export async function fetchConversations(): Promise<Conversation[]> {
 	return z.array(conversationSchema).parse(await response.json())
 }
 
+/**
+ * Fetches the messages belonging to a given conversation from the backend API.
+ * @param conversationId - The identifier of the conversation to load messages for.
+ * @returns A promise resolving to the parsed list of messages.
+ */
 export async function fetchMessages(
 	conversationId: string,
 ): Promise<Message[]> {
@@ -44,6 +53,12 @@ export async function fetchMessages(
 	return z.array(messageSchema).parse(await response.json())
 }
 
+/**
+ * Sends a text message to the given conversation via the backend API.
+ * @param conversationId - The identifier of the conversation to send the message to.
+ * @param content - The text content of the message to send.
+ * @returns A promise resolving to the parsed message created by the backend.
+ */
 export async function sendMessage(
 	conversationId: string,
 	content: string,

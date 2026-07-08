@@ -35,6 +35,7 @@ type messageRow struct {
 	SentAt      time.Time `db:"sent_at"`
 }
 
+// listConversations returns up to limit conversations with their contact names, most recently active first.
 func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, `
 		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status, conv.last_activity_at
@@ -51,6 +52,7 @@ func (s *store) listConversations(ctx context.Context, limit int) ([]conversatio
 	return conversations, nil
 }
 
+// listMessages returns up to limit messages for the given conversation, oldest first.
 func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
 	rows, _ := s.pool.Query(ctx, `
 		SELECT id, external_id, direction, content, content_type, sent_at
@@ -67,6 +69,7 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 	return messages, nil
 }
 
+// upsertConversation inserts a conversation for the contact or updates its last activity time, returning its id.
 func (s *store) upsertConversation(ctx context.Context, contactID uuid.UUID, externalID string, activityAt time.Time) (uuid.UUID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -94,6 +97,7 @@ type outboundMessage struct {
 	raw        json.RawMessage
 }
 
+// conversationExternalID returns the external id of the conversation with the given id.
 func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.UUID) (string, error) {
 	var externalID string
 	err := s.pool.QueryRow(ctx,
@@ -106,6 +110,7 @@ func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.
 	return externalID, nil
 }
 
+// appendOutboundMessage stores an outbound message and advances the conversation's last activity time, returning the stored row.
 func (s *store) appendOutboundMessage(ctx context.Context, conversationID uuid.UUID, m outboundMessage) (messageRow, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -134,6 +139,7 @@ func (s *store) appendOutboundMessage(ctx context.Context, conversationID uuid.U
 	}, nil
 }
 
+// insertMessage stores an inbound message, ignoring duplicates by external id.
 func (s *store) insertMessage(ctx context.Context, conversationID uuid.UUID, m inboundMessage) error {
 	id, err := uuid.NewV7()
 	if err != nil {

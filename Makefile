@@ -10,6 +10,7 @@ test-race:
 
 lint:
 	golangci-lint run
+	go run ./cmd/doclint
 
 fmt:
 	golangci-lint fmt

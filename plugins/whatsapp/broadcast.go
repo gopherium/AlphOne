@@ -20,6 +20,7 @@ type broadcaster struct {
 	subs map[chan event]struct{}
 }
 
+// newBroadcaster creates a broadcaster with an empty subscriber set.
 func newBroadcaster() *broadcaster {
 	return &broadcaster{subs: make(map[chan event]struct{})}
 }

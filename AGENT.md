@@ -30,7 +30,7 @@ frontend/             React SPA host (Vite); plugins import UI only via @alphone
 
 1. Keep changes small and focused: one behavior per change.
 2. Every change ships with tests, written before the implementation.
-3. Exported identifiers carry doc comments.
+3. Every function carries a doc comment: Go in canonical form, TypeScript following tsdoc standard.
 4. Run `make test` and `make lint` before submitting; CI enforces both, plus the race detector and SDK compatibility checks.
 
 ## License
