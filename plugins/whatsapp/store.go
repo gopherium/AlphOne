@@ -4,6 +4,7 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -84,6 +85,53 @@ func (s *store) upsertConversation(ctx context.Context, contactID uuid.UUID, ext
 		return uuid.Nil, fmt.Errorf("whatsapp: upsert conversation: %w", err)
 	}
 	return conversationID, nil
+}
+
+type outboundMessage struct {
+	externalID string
+	content    string
+	sentAt     time.Time
+	raw        json.RawMessage
+}
+
+func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.UUID) (string, error) {
+	var externalID string
+	err := s.pool.QueryRow(ctx,
+		`SELECT external_id FROM plugin_whatsapp.conversations WHERE id = $1`,
+		conversationID,
+	).Scan(&externalID)
+	if err != nil {
+		return "", fmt.Errorf("whatsapp: load conversation: %w", err)
+	}
+	return externalID, nil
+}
+
+func (s *store) appendOutboundMessage(ctx context.Context, conversationID uuid.UUID, m outboundMessage) (messageRow, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return messageRow{}, fmt.Errorf("whatsapp: generate message id: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `
+		WITH inserted AS (
+			INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content, content_type, sent_at, raw, created_at)
+			VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, $6, $7)
+		)
+		UPDATE plugin_whatsapp.conversations
+		SET last_activity_at = GREATEST(last_activity_at, $5)
+		WHERE id = $2`,
+		id, conversationID, m.externalID, m.content, m.sentAt, m.raw, time.Now().UTC(),
+	)
+	if err != nil {
+		return messageRow{}, fmt.Errorf("whatsapp: store outbound message: %w", err)
+	}
+	return messageRow{
+		ID:          id,
+		ExternalID:  m.externalID,
+		Direction:   "outbound",
+		Content:     m.content,
+		ContentType: "text",
+		SentAt:      m.sentAt,
+	}, nil
 }
 
 func (s *store) insertMessage(ctx context.Context, conversationID uuid.UUID, m inboundMessage) error {

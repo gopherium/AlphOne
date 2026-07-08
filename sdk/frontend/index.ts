@@ -13,5 +13,5 @@ export interface FrontendPlugin {
 	nav: NavItem[]
 }
 
-export { Badge, Card, Stack, Text } from '@wordpress/ui'
+export { Badge, Button, Card, Stack, Text } from '@wordpress/ui'
 export { ThemeProvider } from '@wordpress/theme'

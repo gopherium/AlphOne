@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +34,7 @@ type Plugin struct {
 	verifyToken string
 	appSecret   string
 	store       *store
+	sender      *sender
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
@@ -47,12 +49,22 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
 	}
+	graphURL := getenv("ALPHONE_WHATSAPP_GRAPH_URL")
+	if graphURL == "" {
+		graphURL = defaultGraphURL
+	}
 	return &Plugin{
 		pool:        pool,
 		resolver:    deps.Resolver,
 		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
 		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
 		store:       &store{pool: pool},
+		sender: &sender{
+			client:        &http.Client{Timeout: 10 * time.Second},
+			baseURL:       graphURL,
+			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
+		},
 	}, nil
 }
 
@@ -80,6 +92,7 @@ func (p *Plugin) Routes() http.Handler {
 	router.Post("/webhook", p.handleEvents())
 	router.Get("/conversations", p.handleConversationsList())
 	router.Get("/conversations/{id}/messages", p.handleMessagesList())
+	router.Post("/conversations/{id}/messages", p.handleMessageSend())
 	return router
 }
 

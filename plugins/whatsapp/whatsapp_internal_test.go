@@ -97,6 +97,18 @@ func TestStoreReportsIDGenerationFailure(t *testing.T) {
 	})
 }
 
+func TestStoreAppendOutboundMessageReportsFailure(t *testing.T) {
+	t.Parallel()
+
+	s := &store{pool: newUnreachablePool(t)}
+
+	_, err := s.appendOutboundMessage(t.Context(), uuid.Must(uuid.NewV7()), outboundMessage{externalID: "wamid.out.1"})
+
+	if err == nil {
+		t.Fatal("appendOutboundMessage() error = nil, want a connection failure")
+	}
+}
+
 func TestMigrateRequiresVersionTable(t *testing.T) {
 	t.Parallel()
 
