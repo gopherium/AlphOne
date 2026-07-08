@@ -66,6 +66,53 @@ func TestRunPassesWhenEveryFunctionIsDocumented(t *testing.T) {
 	}
 }
 
+func TestCollectViolationsReportsAMissingRoot(t *testing.T) {
+	t.Parallel()
+
+	if _, err := collectViolations(filepath.Join(t.TempDir(), "absent")); err == nil {
+		t.Fatal("collectViolations() error = nil, want a walk error for a missing root")
+	}
+}
+
+func TestCollectViolationsSkipsIgnoredDirectories(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	vendored := filepath.Join(root, "node_modules")
+	if err := os.MkdirAll(vendored, 0o755); err != nil {
+		t.Fatalf("creating node_modules: %v", err)
+	}
+	write(t, vendored, "vendored.go", "package x\n\nfunc Bare() {}\n")
+
+	violations, err := collectViolations(root)
+
+	if err != nil {
+		t.Fatalf("collectViolations() error = %v, want nil", err)
+	}
+	if len(violations) != 0 {
+		t.Errorf("violations = %v, want none from an ignored directory", violations)
+	}
+}
+
+func TestCollectViolationsReportsUnparseableFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "broken.go", "package x\n\nfunc (")
+
+	if _, err := collectViolations(root); err == nil {
+		t.Fatal("collectViolations() error = nil, want a parse error")
+	}
+}
+
+func TestRunReportsCollectionFailure(t *testing.T) {
+	t.Parallel()
+
+	if err := run(filepath.Join(t.TempDir(), "absent"), os.Stderr); err == nil {
+		t.Fatal("run() error = nil, want the walk error propagated")
+	}
+}
+
 func TestRepositoryIsFullyDocumented(t *testing.T) {
 	t.Parallel()
 
