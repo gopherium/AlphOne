@@ -35,6 +35,7 @@ type Plugin struct {
 	appSecret   string
 	store       *store
 	sender      *sender
+	events      *broadcaster
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
@@ -65,6 +66,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
 			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
 		},
+		events: newBroadcaster(),
 	}, nil
 }
 
@@ -93,6 +95,7 @@ func (p *Plugin) Routes() http.Handler {
 	router.Get("/conversations", p.handleConversationsList())
 	router.Get("/conversations/{id}/messages", p.handleMessagesList())
 	router.Post("/conversations/{id}/messages", p.handleMessageSend())
+	router.Get("/events", p.handleStream())
 	return router
 }
 

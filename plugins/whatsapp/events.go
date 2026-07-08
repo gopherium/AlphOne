@@ -133,5 +133,7 @@ func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	if err != nil {
 		return err
 	}
-	return p.store.insertMessage(ctx, conversationID, m)
+	err = p.store.insertMessage(ctx, conversationID, m)
+	p.events.broadcast(event{Conversation: conversationID})
+	return err
 }
