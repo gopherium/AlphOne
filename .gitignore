@@ -1,3 +1,4 @@
 /alphone
 cover.out
 node_modules/
+.env

@@ -9,11 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	_ = godotenv.Load()
 	if err := run(ctx, os.Getenv, os.Stderr, registerPlugins); err != nil {
 		fmt.Fprintln(os.Stderr, "alphone:", err)
 		os.Exit(1)
