@@ -5,8 +5,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
 import { fetchConversations } from './api'
+import { useLiveUpdates } from './live'
 
 export function Inbox() {
+	useLiveUpdates()
 	const conversations = useQuery({
 		queryKey: ['whatsapp', 'conversations'],
 		queryFn: fetchConversations,

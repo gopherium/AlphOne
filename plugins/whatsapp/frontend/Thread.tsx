@@ -5,8 +5,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { fetchMessages, sendMessage } from './api'
+import { useLiveUpdates } from './live'
 
 export function Thread({ conversationId }: { conversationId: string }) {
+	useLiveUpdates()
 	const queryClient = useQueryClient()
 	const [draft, setDraft] = useState('')
 	const messages = useQuery({

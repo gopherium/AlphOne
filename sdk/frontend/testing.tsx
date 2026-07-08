@@ -17,14 +17,53 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 
 import type { FrontendPlugin } from './index'
 
+/**
+ * FakeEventSource stands in for the browser EventSource, which jsdom does
+ * not implement. Tests drive it synchronously via emit().
+ */
+export class FakeEventSource {
+	static instances: FakeEventSource[] = []
+
+	static reset() {
+		FakeEventSource.instances = []
+	}
+
+	static last() {
+		const source = FakeEventSource.instances.at(-1)
+		if (!source) {
+			throw new Error('no EventSource was created')
+		}
+		return source
+	}
+
+	url: string
+	onmessage: ((event: MessageEvent) => void) | null = null
+	closed = false
+
+	constructor(url: string) {
+		this.url = url
+		FakeEventSource.instances.push(this)
+	}
+
+	close() {
+		this.closed = true
+	}
+
+	emit() {
+		this.onmessage?.(new MessageEvent('message', { data: '{}' }))
+	}
+}
+
 export const server = setupServer()
 
 export function installTestEnvironment() {
 	vi.stubGlobal('scrollTo', () => {})
+	vi.stubGlobal('EventSource', FakeEventSource)
 	beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 	afterEach(() => {
 		cleanup()
 		server.resetHandlers()
+		FakeEventSource.reset()
 	})
 	afterAll(() => server.close())
 }
