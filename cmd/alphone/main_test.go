@@ -229,7 +229,9 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatalf("POST status = %d, want %d", response.StatusCode, http.StatusCreated)
 	}
 
-	verification, err := http.Get(baseURL + "/api/plugins/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=e2e-secret&hub.challenge=42")
+	verification, err := http.Get(
+		baseURL + "/api/plugins/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=e2e-secret&hub.challenge=42",
+	)
 	if err != nil {
 		t.Fatalf("GET webhook verification: %v", err)
 	}
@@ -242,10 +244,17 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatalf("webhook verification = %d %q, want %d %q", verification.StatusCode, challenge, http.StatusOK, "42")
 	}
 
-	event := []byte(`{"entry":[{"changes":[{"value":{"contacts":[{"wa_id":"184467235","profile":{"name":"María Pérez"}}],"messages":[{"from":"184467235","id":"wamid.e2e","timestamp":"1751791000","type":"text","text":{"body":"hola"}}]}}]}]}`)
+	event := []byte(`{"entry":[{"changes":[{"value":{"contacts":[{"wa_id":"184467235",` +
+		`"profile":{"name":"María Pérez"}}],"messages":[{"from":"184467235",` +
+		`"id":"wamid.e2e","timestamp":"1751791000","type":"text","text":{"body":"hola"}}]}}]}]}`)
 	mac := hmac.New(sha256.New, []byte("e2e-app-secret"))
 	mac.Write(event)
-	eventRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/api/plugins/whatsapp/webhook", bytes.NewReader(event))
+	eventRequest, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		baseURL+"/api/plugins/whatsapp/webhook",
+		bytes.NewReader(event),
+	)
 	if err != nil {
 		t.Fatalf("building event request: %v", err)
 	}

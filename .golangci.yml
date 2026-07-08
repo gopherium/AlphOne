@@ -4,11 +4,14 @@ linters:
   default: standard
   enable:
     - depguard
+    - lll
     - misspell
     - revive
     - unconvert
     - unparam
   settings:
+    lll:
+      line-length: 120
     revive:
       rules:
         - name: blank-imports

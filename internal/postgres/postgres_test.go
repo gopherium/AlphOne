@@ -60,8 +60,15 @@ func insertContact(t *testing.T, db *sql.DB, c contact.Contact) {
 
 func insertIdentity(db *sql.DB, identity contact.Identity) error {
 	_, err := db.Exec(
-		"INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-		identity.ID, identity.ContactID, string(identity.Channel), identity.Identifier, identity.DisplayName, identity.CreatedAt,
+		"INSERT INTO core.contact_identities "+
+			"(id, contact_id, channel, identifier, display_name, created_at) "+
+			"VALUES ($1, $2, $3, $4, $5, $6)",
+		identity.ID,
+		identity.ContactID,
+		string(identity.Channel),
+		identity.Identifier,
+		identity.DisplayName,
+		identity.CreatedAt,
 	)
 	return err
 }

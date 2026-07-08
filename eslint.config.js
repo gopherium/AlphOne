@@ -12,6 +12,21 @@ export default [
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
 		],
+		ignores: ['frontend/src/plugins/index.ts'],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: { ecmaFeatures: { jsx: true } },
+		},
+		rules: {
+			'max-len': ['error', { code: 120, tabWidth: 1, ignoreUrls: true }],
+		},
+	},
+	{
+		files: [
+			'frontend/src/**/*.{ts,tsx}',
+			'sdk/frontend/**/*.{ts,tsx}',
+			'plugins/*/frontend/**/*.{ts,tsx}',
+		],
 		ignores: [
 			'**/*.test.{ts,tsx}',
 			'frontend/src/test/**',

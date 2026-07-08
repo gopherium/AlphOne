@@ -14,7 +14,11 @@ type resolverBridge struct {
 }
 
 // Resolve resolves a channel identifier to an [sdk.Contact] via the underlying contact resolver.
-func (b resolverBridge) Resolve(ctx context.Context, channel sdk.Channel, identifier, displayName string) (sdk.Contact, error) {
+func (b resolverBridge) Resolve(
+	ctx context.Context,
+	channel sdk.Channel,
+	identifier, displayName string,
+) (sdk.Contact, error) {
 	owner, err := b.resolver.Resolve(ctx, contact.Channel(channel), identifier, displayName)
 	if err != nil {
 		return sdk.Contact{}, err

@@ -99,7 +99,8 @@ func (p *Plugin) Routes() http.Handler {
 	return router
 }
 
-// handleVerify returns a handler that answers Meta's webhook verification challenge by checking hub.verify_token and echoing hub.challenge.
+// handleVerify returns a handler that answers Meta's webhook verification
+// challenge by checking hub.verify_token and echoing hub.challenge.
 func (p *Plugin) handleVerify() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()

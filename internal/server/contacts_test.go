@@ -143,7 +143,11 @@ func TestCreateContactRejectsInvalidBody(t *testing.T) {
 		wantError  string
 	}{
 		"malformed json": {body: `{"name":`, wantStatus: http.StatusBadRequest, wantError: "malformed json"},
-		"blank name":     {body: `{"name":" \t "}`, wantStatus: http.StatusUnprocessableEntity, wantError: "contact: empty name"},
+		"blank name": {
+			body:       `{"name":" \t "}`,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "contact: empty name",
+		},
 	}
 
 	for testName, tc := range tests {

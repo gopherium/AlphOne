@@ -46,7 +46,12 @@ func (s *sender) sendText(ctx context.Context, to, body string) (string, json.Ra
 		Type:             "text",
 		Text:             sendTextBody{Body: body},
 	})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+"/"+s.phoneNumberID+"/messages", bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		s.baseURL+"/"+s.phoneNumberID+"/messages",
+		bytes.NewReader(payload),
+	)
 	if err != nil {
 		return "", nil, fmt.Errorf("whatsapp: build send request: %w", err)
 	}

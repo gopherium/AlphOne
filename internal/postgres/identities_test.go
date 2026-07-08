@@ -51,7 +51,11 @@ func TestContactStoreCreateContactWithIdentityKeepsFirstOwner(t *testing.T) {
 
 	store := postgres.NewContactStore(newTestPool(t))
 	maria := mustContact(t, "María Pérez")
-	if err := store.CreateContactWithIdentity(t.Context(), maria, mustIdentity(t, maria.ID, "whatsapp", "184467235@lid")); err != nil {
+	if err := store.CreateContactWithIdentity(
+		t.Context(),
+		maria,
+		mustIdentity(t, maria.ID, "whatsapp", "184467235@lid"),
+	); err != nil {
 		t.Fatalf("CreateContactWithIdentity() error = %v, want nil", err)
 	}
 
@@ -116,10 +120,18 @@ func TestContactStoreIdentityConnectionFailure(t *testing.T) {
 	identity := mustIdentity(t, maria.ID, "whatsapp", "184467235@lid")
 	pool.Close()
 
-	if err := store.CreateContactWithIdentity(t.Context(), maria, identity); err == nil || errors.Is(err, contact.ErrIdentityExists) {
+	if err := store.CreateContactWithIdentity(
+		t.Context(),
+		maria,
+		identity,
+	); err == nil || errors.Is(err, contact.ErrIdentityExists) {
 		t.Errorf("CreateContactWithIdentity() on closed pool error = %v, want a plain error", err)
 	}
-	if _, err := store.LookupIdentity(t.Context(), "whatsapp", "184467235@lid"); err == nil || errors.Is(err, contact.ErrIdentityNotFound) {
+	if _, err := store.LookupIdentity(
+		t.Context(),
+		"whatsapp",
+		"184467235@lid",
+	); err == nil || errors.Is(err, contact.ErrIdentityNotFound) {
 		t.Errorf("LookupIdentity() on closed pool error = %v, want a plain error", err)
 	}
 }

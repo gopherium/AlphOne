@@ -33,7 +33,12 @@ func TestMigrateCreatesCoreSchema(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 	maria := mustContact(t, "María Pérez")
-	if _, err := db.Exec("INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)", maria.ID, maria.Name, maria.CreatedAt); err != nil {
+	if _, err := db.Exec(
+		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)",
+		maria.ID,
+		maria.Name,
+		maria.CreatedAt,
+	); err != nil {
 		t.Fatalf("inserting into migrated schema: %v", err)
 	}
 }
@@ -49,7 +54,10 @@ func TestMigrateRejectsMalformedURL(t *testing.T) {
 func TestMigrateReportsUnreachableDatabase(t *testing.T) {
 	t.Parallel()
 
-	err := postgres.Migrate(t.Context(), "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1")
+	err := postgres.Migrate(
+		t.Context(),
+		"postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
+	)
 
 	if err == nil {
 		t.Fatal("Migrate() error = nil, want a connection error")

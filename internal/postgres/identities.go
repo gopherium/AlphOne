@@ -15,7 +15,11 @@ import (
 
 // LookupIdentity returns the identity for channel and identifier, or
 // [contact.ErrIdentityNotFound] if none exists.
-func (s *ContactStore) LookupIdentity(ctx context.Context, channel contact.Channel, identifier string) (contact.Identity, error) {
+func (s *ContactStore) LookupIdentity(
+	ctx context.Context,
+	channel contact.Channel,
+	identifier string,
+) (contact.Identity, error) {
 	row, err := s.queries.GetIdentity(ctx, db.GetIdentityParams{
 		Channel:    string(channel),
 		Identifier: identifier,
@@ -39,7 +43,11 @@ func (s *ContactStore) LookupIdentity(ctx context.Context, channel contact.Chann
 // CreateContactWithIdentity stores a new contact owning its
 // first identity. It returns [contact.ErrIdentityExists] and leaves the
 // database unchanged when the identity is already claimed.
-func (s *ContactStore) CreateContactWithIdentity(ctx context.Context, c contact.Contact, identity contact.Identity) error {
+func (s *ContactStore) CreateContactWithIdentity(
+	ctx context.Context,
+	c contact.Contact,
+	identity contact.Identity,
+) error {
 	err := s.createContactWithIdentity(ctx, c, identity)
 	if err != nil && !errors.Is(err, contact.ErrIdentityExists) {
 		return fmt.Errorf("postgres: create contact with identity: %w", err)
@@ -47,8 +55,13 @@ func (s *ContactStore) CreateContactWithIdentity(ctx context.Context, c contact.
 	return err
 }
 
-// createContactWithIdentity inserts the contact and its identity in a single transaction, returning [contact.ErrIdentityExists] without committing when the identity is already claimed.
-func (s *ContactStore) createContactWithIdentity(ctx context.Context, c contact.Contact, identity contact.Identity) error {
+// createContactWithIdentity inserts the contact and its identity in a single transaction, returning
+// [contact.ErrIdentityExists] without committing when the identity is already claimed.
+func (s *ContactStore) createContactWithIdentity(
+	ctx context.Context,
+	c contact.Contact,
+	identity contact.Identity,
+) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err

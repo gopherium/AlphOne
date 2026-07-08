@@ -70,7 +70,12 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 }
 
 // upsertConversation inserts a conversation for the contact or updates its last activity time, returning its id.
-func (s *store) upsertConversation(ctx context.Context, contactID uuid.UUID, externalID string, activityAt time.Time) (uuid.UUID, error) {
+func (s *store) upsertConversation(
+	ctx context.Context,
+	contactID uuid.UUID,
+	externalID string,
+	activityAt time.Time,
+) (uuid.UUID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: generate conversation id: %w", err)
@@ -110,15 +115,21 @@ func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.
 	return externalID, nil
 }
 
-// appendOutboundMessage stores an outbound message and advances the conversation's last activity time, returning the stored row.
-func (s *store) appendOutboundMessage(ctx context.Context, conversationID uuid.UUID, m outboundMessage) (messageRow, error) {
+// appendOutboundMessage stores an outbound message and advances the conversation's last activity time,
+// returning the stored row.
+func (s *store) appendOutboundMessage(
+	ctx context.Context,
+	conversationID uuid.UUID,
+	m outboundMessage,
+) (messageRow, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return messageRow{}, fmt.Errorf("whatsapp: generate message id: %w", err)
 	}
 	_, err = s.pool.Exec(ctx, `
 		WITH inserted AS (
-			INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content, content_type, sent_at, raw, created_at)
+			INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+				content_type, sent_at, raw, created_at)
 			VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, $6, $7)
 		)
 		UPDATE plugin_whatsapp.conversations
@@ -146,7 +157,8 @@ func (s *store) insertMessage(ctx context.Context, conversationID uuid.UUID, m i
 		return fmt.Errorf("whatsapp: generate message id: %w", err)
 	}
 	_, err = s.pool.Exec(ctx, `
-		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content, content_type, sent_at, raw, created_at)
+		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+			content_type, sent_at, raw, created_at)
 		VALUES ($1, $2, $3, 'inbound', $4, 'text', $5, $6, $7)
 		ON CONFLICT (external_id) DO NOTHING`,
 		id, conversationID, m.externalID, m.text, m.sentAt, m.raw, time.Now().UTC(),

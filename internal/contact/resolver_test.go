@@ -46,7 +46,11 @@ func (f *fakeStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error
 	return c, nil
 }
 
-func (f *fakeStore) LookupIdentity(_ context.Context, channel contact.Channel, identifier string) (contact.Identity, error) {
+func (f *fakeStore) LookupIdentity(
+	_ context.Context,
+	channel contact.Channel,
+	identifier string,
+) (contact.Identity, error) {
 	if f.lookupErr != nil {
 		return contact.Identity{}, f.lookupErr
 	}
@@ -73,7 +77,13 @@ func (f *fakeStore) CreateContactWithIdentity(_ context.Context, c contact.Conta
 	return nil
 }
 
-func seedContact(t *testing.T, store *fakeStore, name string, channel contact.Channel, identifier string) contact.Contact {
+func seedContact(
+	t *testing.T,
+	store *fakeStore,
+	name string,
+	channel contact.Channel,
+	identifier string,
+) contact.Contact {
 	t.Helper()
 	c, err := contact.New(name)
 	if err != nil {

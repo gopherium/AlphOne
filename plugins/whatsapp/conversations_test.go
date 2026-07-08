@@ -164,7 +164,12 @@ func TestListMessagesUnknownConversationIsEmpty(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 
-	got := getJSON[[]messageBody](t, p.Routes(), "/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages", http.StatusOK)
+	got := getJSON[[]messageBody](
+		t,
+		p.Routes(),
+		"/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages",
+		http.StatusOK,
+	)
 
 	if len(got) != 0 {
 		t.Fatalf("messages = %d, want 0 for an unknown conversation", len(got))
@@ -186,5 +191,10 @@ func TestReadEndpointsReportStoreFailure(t *testing.T) {
 	routes := p.Routes()
 
 	getJSON[struct{}](t, routes, "/conversations", http.StatusInternalServerError)
-	getJSON[struct{}](t, routes, "/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages", http.StatusInternalServerError)
+	getJSON[struct{}](
+		t,
+		routes,
+		"/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages",
+		http.StatusInternalServerError,
+	)
 }

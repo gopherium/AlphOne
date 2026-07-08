@@ -32,7 +32,11 @@ type resolverBridge struct {
 	resolver *contact.Resolver
 }
 
-func (b resolverBridge) Resolve(ctx context.Context, channel sdk.Channel, identifier, displayName string) (sdk.Contact, error) {
+func (b resolverBridge) Resolve(
+	ctx context.Context,
+	channel sdk.Channel,
+	identifier, displayName string,
+) (sdk.Contact, error) {
 	owner, err := b.resolver.Resolve(ctx, contact.Channel(channel), identifier, displayName)
 	if err != nil {
 		return sdk.Contact{}, err
@@ -180,20 +184,27 @@ func TestMigrateCreatesMessagingTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	if _, err := pool.Exec(t.Context(), "INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)", maria.ID, maria.Name, maria.CreatedAt); err != nil {
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)",
+		maria.ID, maria.Name, maria.CreatedAt,
+	); err != nil {
 		t.Fatalf("inserting contact: %v", err)
 	}
 	conversationID := uuid.Must(uuid.NewV7())
 	now := time.Now().UTC()
 	if _, err := pool.Exec(t.Context(),
-		"INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status, last_activity_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		"INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, "+
+			"external_id, status, last_activity_at, created_at) "+
+			"VALUES ($1, $2, $3, $4, $5, $6, $7)",
 		conversationID, maria.ID, "whatsapp", "184467235@lid", "open", now, now,
 	); err != nil {
 		t.Fatalf("inserting conversation: %v", err)
 	}
 	insertMessage := func(messageID uuid.UUID, externalID string) error {
 		_, err := pool.Exec(t.Context(),
-			"INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content, content_type, sent_at, raw, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+			"INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, "+
+				"direction, content, content_type, sent_at, raw, created_at) "+
+				"VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
 			messageID, conversationID, externalID, "inbound", "hola", "text", now, "{}", now,
 		)
 		return err

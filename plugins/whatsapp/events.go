@@ -50,7 +50,8 @@ type webhookMessage struct {
 	} `json:"text"`
 }
 
-// handleEvents returns an HTTP handler that verifies the webhook signature, parses inbound text messages, and ingests them.
+// handleEvents returns an HTTP handler that verifies the webhook
+// signature, parses inbound text messages, and ingests them.
 func (p *Plugin) handleEvents() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -77,7 +78,8 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 	}
 }
 
-// signatureValid reports whether the given header holds a valid HMAC-SHA256 signature of body computed with the app secret.
+// signatureValid reports whether header holds a valid HMAC-SHA256
+// signature of body computed with the app secret.
 func (p *Plugin) signatureValid(header string, body []byte) bool {
 	if p.appSecret == "" {
 		return false

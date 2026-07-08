@@ -80,7 +80,8 @@ func (h *Host) stopDownFrom(ctx context.Context, index int) error {
 	return errors.Join(errs...)
 }
 
-// safeCall runs fn, wrapping any returned error and converting any panic into an error tagged with the plugin id and operation.
+// safeCall runs fn, wrapping any returned error and converting any panic into an error tagged with the
+// plugin id and operation.
 func safeCall(ctx context.Context, id, operation string, fn func(context.Context) error) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {

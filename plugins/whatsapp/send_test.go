@@ -123,7 +123,8 @@ func TestSendMessageDeliversReply(t *testing.T) {
 	if err := json.Unmarshal(stub.lastBody, &payload); err != nil {
 		t.Fatalf("decoding graph payload %q: %v", stub.lastBody, err)
 	}
-	if payload.MessagingProduct != "whatsapp" || payload.To != "184467235" || payload.Type != "text" || payload.Text.Body != "Ready at 5pm" {
+	if payload.MessagingProduct != "whatsapp" || payload.To != "184467235" ||
+		payload.Type != "text" || payload.Text.Body != "Ready at 5pm" {
 		t.Errorf("graph payload = %+v, want a whatsapp text to 184467235", payload)
 	}
 
@@ -141,7 +142,12 @@ func TestSendMessageAdvancesConversationActivity(t *testing.T) {
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
 	before := onlyConversation(t, routes).LastActivityAt
 
-	recorder := postJSON(t, routes, "/conversations/"+onlyConversation(t, routes).ID.String()+"/messages", `{"content":"Ready at 5pm"}`)
+	recorder := postJSON(
+		t,
+		routes,
+		"/conversations/"+onlyConversation(t, routes).ID.String()+"/messages",
+		`{"content":"Ready at 5pm"}`,
+	)
 
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)

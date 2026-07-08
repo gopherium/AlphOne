@@ -21,7 +21,12 @@ import (
 )
 
 // run starts the server and serves until ctx is cancelled or serving fails.
-func run(ctx context.Context, getenv func(string) string, stderr io.Writer, plugins func(sdk.Deps) ([]sdk.Plugin, error)) error {
+func run(
+	ctx context.Context,
+	getenv func(string) string,
+	stderr io.Writer,
+	plugins func(sdk.Deps) ([]sdk.Plugin, error),
+) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")

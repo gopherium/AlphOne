@@ -66,11 +66,17 @@ func TestLoadManifestsRejectsInvalidPlugins(t *testing.T) {
 		dir      string
 		manifest string
 	}{
-		"missing manifest":             {dir: "ghost", manifest: ""},
-		"malformed json":               {dir: "broken", manifest: `{`},
-		"missing id":                   {dir: "anon", manifest: `{"name": "Anon", "backend": "example.com/anon"}`},
-		"uppercase id":                 {dir: "Loud", manifest: `{"id": "Loud", "name": "Loud", "backend": "example.com/loud"}`},
-		"id and directory disagree":    {dir: "alias", manifest: `{"id": "other", "name": "Alias", "backend": "example.com/alias"}`},
+		"missing manifest": {dir: "ghost", manifest: ""},
+		"malformed json":   {dir: "broken", manifest: `{`},
+		"missing id":       {dir: "anon", manifest: `{"name": "Anon", "backend": "example.com/anon"}`},
+		"uppercase id": {
+			dir:      "Loud",
+			manifest: `{"id": "Loud", "name": "Loud", "backend": "example.com/loud"}`,
+		},
+		"id and directory disagree": {
+			dir:      "alias",
+			manifest: `{"id": "other", "name": "Alias", "backend": "example.com/alias"}`,
+		},
 		"missing name":                 {dir: "nameless", manifest: `{"id": "nameless", "backend": "example.com/nameless"}`},
 		"neither backend nor frontend": {dir: "hollow", manifest: `{"id": "hollow", "name": "Hollow"}`},
 	}
@@ -94,7 +100,12 @@ func TestGenerateGoWiresBackendPlugins(t *testing.T) {
 
 	got := string(generateGo([]manifest{
 		{ID: "sms-relay", Name: "SMS Relay", Backend: "example.com/sms"},
-		{ID: "whatsapp", Name: "WhatsApp", Backend: "github.com/gopherium/alphone/plugins/whatsapp", Frontend: "@alphone/plugin-whatsapp"},
+		{
+			ID:       "whatsapp",
+			Name:     "WhatsApp",
+			Backend:  "github.com/gopherium/alphone/plugins/whatsapp",
+			Frontend: "@alphone/plugin-whatsapp",
+		},
 	}))
 
 	want := `// SPDX-License-Identifier: AGPL-3.0-or-later
