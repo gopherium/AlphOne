@@ -33,6 +33,7 @@ jobs:
           flags: backend
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+          version: v11.3.0 # pin CLI; 'latest' can transiently fail GPG SHASUM verify
 
   frontend:
     runs-on: ubuntu-latest
@@ -58,6 +59,7 @@ jobs:
           flags: frontend
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+          version: v11.3.0 # pin CLI; 'latest' can transiently fail GPG SHASUM verify
 
   lint:
     runs-on: ubuntu-latest
