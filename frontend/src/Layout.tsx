@@ -3,7 +3,7 @@
 import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
 import { Link, Outlet } from '@tanstack/react-router'
 
-import { plugins } from './plugins'
+import { MainMenu } from './menu/MainMenu'
 
 const CHROME_COLOR = { background: '#1e1e1e' }
 const CANVAS_COLOR = { background: '#ffffff' }
@@ -19,20 +19,12 @@ export function Layout() {
 			<div className="alphone-layout">
 				<div className="alphone-layout__sidebar">
 					<Stack direction="column" gap="lg">
-						<Link to="/">
+						<Link to="/" className="alphone-layout__brand">
 							<Text variant="heading-lg" render={<h1 />}>
 								AlphOne
 							</Text>
 						</Link>
-						<Stack direction="column" gap="sm" render={<nav />}>
-							{plugins.flatMap((plugin) =>
-								plugin.nav.map((item) => (
-									<Link key={item.to} to={item.to}>
-										{item.label}
-									</Link>
-								)),
-							)}
-						</Stack>
+						<MainMenu />
 					</Stack>
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>

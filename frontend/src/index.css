@@ -38,3 +38,39 @@ body {
 	box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 	overflow: hidden;
 }
+
+.alphone-layout__brand {
+	color: inherit;
+	text-decoration: none;
+}
+
+.alphone-menu__item {
+	display: block;
+	padding: 6px 8px;
+	border-radius: var(--wpds-border-radius-md);
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	text-decoration: none;
+}
+
+.alphone-menu__item:hover {
+	background: var(--wpds-color-background-surface-neutral);
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-menu__item:focus-visible {
+	outline: var(--wpds-border-width-focus) solid var(--wpds-color-stroke-focus);
+	outline-offset: 2px;
+}
+
+.alphone-menu__item[data-status='active'] {
+	background: var(--wpds-color-background-surface-neutral-strong);
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-menu__label {
+	flex: 1;
+}
+
+.alphone-menu__chevron {
+	opacity: 0.5;
+}
