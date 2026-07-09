@@ -17,3 +17,4 @@ export interface FrontendPlugin {
 
 export { Badge, Button, Card, Icon, Stack, Text } from '@wordpress/ui'
 export { ThemeProvider } from '@wordpress/theme'
+export { SidebarNavigationScreen } from './SidebarNavigationScreen'
