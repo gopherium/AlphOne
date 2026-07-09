@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 // Package whatsapp ingests WhatsApp messages into the CRM.
 package whatsapp

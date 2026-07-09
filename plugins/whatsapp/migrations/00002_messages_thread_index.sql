@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: Elastic-2.0
 
 -- +goose Up
 CREATE INDEX messages_conversation_id_sent_at_idx

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 // Command pluginwire regenerates the plugin wiring files from the
 // plugin.json manifest of every directory under plugins/.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 // Command alphone runs the AlphOne CRM server.
 package main

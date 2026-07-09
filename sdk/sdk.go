@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 // Package sdk defines the contract between the AlphOne core and its
 // plugins. It is the only AlphOne package a plugin may import.

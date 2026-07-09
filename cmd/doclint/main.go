@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 // Command doclint fails when any Go function under the module lacks a
 // doc comment, enforcing full documentation coverage.

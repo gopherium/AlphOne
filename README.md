@@ -8,7 +8,13 @@ A plugin-first CRM. Go backend exposing a JSON API, React SPA frontend.
 
 Copyright (C) 2026 Manuel 'SirLouen' Camargo
 
-AlphOne is free software: you can redistribute it and/or modify it under
-the terms of the GNU Affero General Public License as published by the
-Free Software Foundation, either version 3 of the License, or (at your
-option) any later version. See [LICENSE](LICENSE) for the full text.
+AlphOne is source-available software under a split license:
+
+- **Backend** (all Go code and SQL migrations): the
+  [Elastic License 2.0](LICENSE). You may use, copy, modify, and
+  redistribute it, but you may not provide AlphOne to third parties as a
+  hosted or managed service.
+- **Frontend** (`frontend/`, `sdk/frontend/`, `plugins/*/frontend/`): the
+  [GNU Affero General Public License v3.0 or later](frontend/LICENSE).
+
+Each file must carry an `SPDX-License-Identifier` header naming its license.

@@ -24,7 +24,7 @@ type CreateContactParams struct {
 	CreatedAt time.Time
 }
 
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) error {
 	_, err := q.db.Exec(ctx, createContact, arg.ID, arg.Name, arg.CreatedAt)
 	return err

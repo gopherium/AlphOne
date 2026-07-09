@@ -1,6 +1,6 @@
 # AlphOne
 
-AlphOne is an open-source multichannel CRM licensed under AGPL-3.0. The backend is a Go service exposing a JSON API; the frontend is a React SPA consuming that API.
+AlphOne is a source-available multichannel CRM. The backend is a Go service exposing a JSON API; the frontend is a React SPA consuming that API.
 
 ## Architecture
 
@@ -35,4 +35,6 @@ frontend/             React SPA host (Vite); plugins import UI only via @alphone
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE) for the full text.
+Split: backend under the Elastic License 2.0 ([LICENSE](LICENSE)); frontend
+packages under AGPL-3.0-or-later ([frontend/LICENSE](frontend/LICENSE)).
+Every file must carry an `SPDX-License-Identifier` header naming its license.
