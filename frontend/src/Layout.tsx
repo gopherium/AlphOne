@@ -30,7 +30,9 @@ export function Layout() {
 								AlphOne
 							</Text>
 						</Link>
-						{Sidebar ? <Sidebar /> : <MainMenu />}
+						<nav aria-label="Navigation">
+							{Sidebar ? <Sidebar /> : <MainMenu />}
+						</nav>
 					</Stack>
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>

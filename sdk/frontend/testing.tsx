@@ -106,17 +106,17 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string) {
 			const Sidebar = sidebarMatch?.staticData.Sidebar
 			return (
 				<>
-					{Sidebar ? (
-						<Sidebar />
-					) : (
-						<nav>
-							{plugin.nav.map((item) => (
+					<nav aria-label="Navigation">
+						{Sidebar ? (
+							<Sidebar />
+						) : (
+							plugin.nav.map((item) => (
 								<Link key={item.to} to={item.to}>
 									{item.label}
 								</Link>
-							))}
-						</nav>
-					)}
+							))
+						)}
+					</nav>
 					<Outlet />
 				</>
 			)

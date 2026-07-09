@@ -34,13 +34,16 @@ test('drills the sidebar into the WhatsApp section screen', async () => {
 	expect(
 		within(screen.getByRole('main')).getByText(/select a conversation/i),
 	).toBeInTheDocument()
+	expect(
+		screen.getByRole('navigation', { name: 'Navigation' }),
+	).toBeInTheDocument()
 })
 
 test('shows the main menu, not a section screen, at the root', async () => {
 	renderAt('/')
 
 	expect(
-		await screen.findByRole('navigation', { name: 'Main menu' }),
+		await screen.findByRole('navigation', { name: 'Navigation' }),
 	).toBeInTheDocument()
 	expect(screen.queryByRole('heading', { name: 'WhatsApp' })).toBeNull()
 })

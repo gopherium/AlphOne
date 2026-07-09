@@ -21,7 +21,9 @@ function renderMenuAt(path: string) {
 		component: function MenuHost() {
 			return (
 				<>
-					<MainMenu />
+					<nav aria-label="Navigation">
+						<MainMenu />
+					</nav>
 					<Outlet />
 				</>
 			)
@@ -46,7 +48,7 @@ function renderMenuAt(path: string) {
 test('renders a menu link for every plugin nav entry', async () => {
 	renderMenuAt('/')
 
-	const nav = await screen.findByRole('navigation', { name: 'Main menu' })
+	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
 	expect(within(nav).getAllByRole('link')).toHaveLength(navItems.length)
 	for (const item of navItems) {
 		expect(

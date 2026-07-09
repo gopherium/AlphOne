@@ -55,6 +55,7 @@ test('renders the title, back link, description, actions, and content', async ()
 	expect(screen.getByText('screen content')).toBeInTheDocument()
 	expect(screen.getByText('footer text')).toBeInTheDocument()
 	expect(screen.queryByRole('contentinfo')).toBeNull()
+	expect(screen.getByRole('heading', { name: 'WhatsApp' })).toHaveFocus()
 })
 
 test('omits the back link and optional regions on a root screen', async () => {

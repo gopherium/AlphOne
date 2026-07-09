@@ -40,7 +40,7 @@ function MenuItem({ item }: { item: NavItem }) {
  */
 export function MainMenu() {
 	return (
-		<Stack direction="column" gap="xs" render={<nav aria-label="Main menu" />}>
+		<Stack direction="column" gap="xs">
 			{plugins.flatMap((plugin) =>
 				plugin.nav.map((item) => <MenuItem key={item.to} item={item} />),
 			)}

@@ -2,6 +2,7 @@
 
 import { Link } from '@tanstack/react-router'
 import { Icon, Stack, Text } from '@wordpress/ui'
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
 const chevronLeft = (
@@ -33,6 +34,10 @@ export function SidebarNavigationScreen({
 	footer,
 	children,
 }: SidebarNavigationScreenProps) {
+	const titleRef = useRef<HTMLHeadingElement>(null)
+	useEffect(() => {
+		titleRef.current?.focus()
+	}, [])
 	return (
 		<Stack direction="column" gap="md" className="alphone-nav-screen">
 			<Stack direction="row" align="flex-start" gap="sm">
@@ -46,8 +51,9 @@ export function SidebarNavigationScreen({
 					</Link>
 				)}
 				<Text
+					ref={titleRef}
 					variant="heading-md"
-					render={<h2 />}
+					render={<h2 tabIndex={-1} />}
 					className="alphone-nav-screen__title"
 				>
 					{title}

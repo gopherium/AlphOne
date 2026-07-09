@@ -20,13 +20,13 @@ export function ConversationList() {
 	})
 
 	if (conversations.isPending) {
-		return <Text>Loading conversations…</Text>
+		return <Text role="status">Loading conversations…</Text>
 	}
 	if (conversations.isError) {
-		return <Text>Conversations could not be loaded.</Text>
+		return <Text role="alert">Conversations could not be loaded.</Text>
 	}
 	if (conversations.data.length === 0) {
-		return <Text>No conversations yet.</Text>
+		return <Text role="status">No conversations yet.</Text>
 	}
 	return (
 		<ul className="alphone-conversations">

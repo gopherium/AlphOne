@@ -5,14 +5,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { fetchMessages, sendMessage } from './api'
-import { useLiveUpdates } from './live'
 
 /**
  * Renders a WhatsApp conversation thread with its messages and a reply form.
+ * The always-mounted conversation list owns the live-update stream.
  * @returns The message list and reply form, or a loading or error message.
  */
 export function Thread({ conversationId }: { conversationId: string }) {
-	useLiveUpdates()
 	const queryClient = useQueryClient()
 	const [draft, setDraft] = useState('')
 	const messages = useQuery({
@@ -30,15 +29,15 @@ export function Thread({ conversationId }: { conversationId: string }) {
 	})
 
 	if (messages.isPending) {
-		return <Text>Loading messages…</Text>
+		return <Text role="status">Loading messages…</Text>
 	}
 	if (messages.isError) {
-		return <Text>Messages could not be loaded.</Text>
+		return <Text role="alert">Messages could not be loaded.</Text>
 	}
 	return (
 		<Stack direction="column" gap="md">
 			{messages.data.length === 0 ? (
-				<Text>No messages yet.</Text>
+				<Text role="status">No messages yet.</Text>
 			) : (
 				<ul>
 					{messages.data.map((message) => (
@@ -65,7 +64,9 @@ export function Thread({ conversationId }: { conversationId: string }) {
 						Send
 					</Button>
 				</Stack>
-				{reply.isError ? <Text>The reply could not be sent.</Text> : null}
+				{reply.isError ? (
+					<Text role="alert">The reply could not be sent.</Text>
+				) : null}
 			</form>
 		</Stack>
 	)

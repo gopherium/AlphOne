@@ -30,7 +30,8 @@ test('shows an empty state when no conversations exist', async () => {
 
 	renderPluginAt(plugin, '/whatsapp')
 
-	expect(await screen.findByText(/no conversations yet/i)).toBeInTheDocument()
+	const empty = await screen.findByText(/no conversations yet/i)
+	expect(empty).toHaveAttribute('role', 'status')
 })
 
 test('reports when conversations cannot be loaded', async () => {
@@ -42,5 +43,7 @@ test('reports when conversations cannot be loaded', async () => {
 
 	renderPluginAt(plugin, '/whatsapp')
 
-	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		/could not be loaded/i,
+	)
 })
