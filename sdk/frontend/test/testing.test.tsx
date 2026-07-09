@@ -2,7 +2,7 @@
 
 import { expect, test } from 'vitest'
 
-import { FakeEventSource } from './testing'
+import { FakeEventSource } from '../testing'
 
 test('last() explains itself when no EventSource was created', () => {
 	FakeEventSource.reset()

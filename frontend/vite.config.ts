@@ -27,8 +27,8 @@ export default defineConfig({
 		setupFiles: ['./src/test/setup.ts'],
 		include: [
 			'src/**/*.test.{ts,tsx}',
-			'../sdk/frontend/*.test.{ts,tsx}',
-			'../plugins/*/frontend/*.test.{ts,tsx}',
+			'../sdk/frontend/test/*.test.{ts,tsx}',
+			'../plugins/*/frontend/test/*.test.{ts,tsx}',
 		],
 		coverage: {
 			include: [
@@ -36,7 +36,7 @@ export default defineConfig({
 				'../sdk/frontend/**/*.{ts,tsx}',
 				'../plugins/*/frontend/**/*.{ts,tsx}',
 			],
-			exclude: ['src/main.tsx', 'src/test/**', '**/node_modules/**'],
+			exclude: ['src/main.tsx', '**/test/**', '**/node_modules/**'],
 			allowExternal: true,
 			reporter: ['text', 'lcov'],
 			thresholds: {

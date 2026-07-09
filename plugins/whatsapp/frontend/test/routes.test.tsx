@@ -5,8 +5,8 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers } from './handlers'
-import { plugin } from './index'
+import { handlers } from '../handlers'
+import { plugin } from '../index'
 
 beforeEach(() => server.use(...handlers))
 

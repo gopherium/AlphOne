@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 
-import { useLiveUpdates } from './live'
+import { useLiveUpdates } from '../live'
 
 function Probe() {
 	useLiveUpdates()

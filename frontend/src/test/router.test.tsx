@@ -3,8 +3,8 @@
 import { screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
-import { plugins } from './plugins'
-import { renderAt } from './test/render'
+import { plugins } from '../plugins'
+import { renderAt } from './render'
 
 test('serves the home screen at the root path', async () => {
 	renderAt('/')

@@ -7,8 +7,8 @@ import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers } from './handlers'
-import { Thread } from './Thread'
+import { handlers } from '../handlers'
+import { Thread } from '../Thread'
 
 beforeEach(() => server.use(...handlers))
 

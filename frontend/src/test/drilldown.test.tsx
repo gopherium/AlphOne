@@ -4,7 +4,7 @@ import { HttpResponse, http, server } from '@alphone/frontend-sdk/testing'
 import { screen, within } from '@testing-library/react'
 import { beforeEach, expect, test } from 'vitest'
 
-import { renderAt } from './test/render'
+import { renderAt } from './render'
 
 beforeEach(() =>
 	server.use(

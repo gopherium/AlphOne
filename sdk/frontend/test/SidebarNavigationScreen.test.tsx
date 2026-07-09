@@ -11,7 +11,7 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { expect, test } from 'vitest'
 
-import { SidebarNavigationScreen } from './SidebarNavigationScreen'
+import { SidebarNavigationScreen } from '../SidebarNavigationScreen'
 
 function renderScreen(ui: ReactNode) {
 	const rootRoute = createRootRoute({

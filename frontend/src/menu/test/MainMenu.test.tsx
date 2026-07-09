@@ -11,8 +11,8 @@ import {
 import { render, screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
-import { plugins } from '../plugins'
-import { MainMenu } from './MainMenu'
+import { plugins } from '../../plugins'
+import { MainMenu } from '../MainMenu'
 
 const navItems = plugins.flatMap((plugin) => plugin.nav)
 
