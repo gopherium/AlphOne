@@ -8,10 +8,12 @@ import {
 	VisuallyHidden,
 } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { fetchMessages, sendMessage } from './api'
 import type { Message } from './api'
+
+const followThresholdPx = 100
 
 /**
  * Formats a message timestamp as a zero-padded 24-hour clock time.
@@ -36,7 +38,7 @@ function MessageBubble({ message }: { message: Message }) {
 				<VisuallyHidden>
 					{message.direction === 'inbound' ? 'Received' : 'Sent'}
 				</VisuallyHidden>
-				<Text>{message.content}</Text>
+				<Text className="alphone-message__content">{message.content}</Text>
 				<time
 					className="alphone-message__time"
 					dateTime={message.sent_at.toISOString()}
@@ -56,18 +58,25 @@ function MessageBubble({ message }: { message: Message }) {
 export function Thread({ conversationId }: { conversationId: string }) {
 	const queryClient = useQueryClient()
 	const [draft, setDraft] = useState('')
+	const logRef = useRef<HTMLDivElement>(null)
+	const followRef = useRef(true)
 	const messages = useQuery({
 		queryKey: ['whatsapp', 'messages', conversationId],
 		queryFn: () => fetchMessages(conversationId),
 	})
+	useEffect(() => {
+		const log = logRef.current
+		if (log && followRef.current) {
+			log.scrollTop = log.scrollHeight
+		}
+	}, [messages.data])
 	const reply = useMutation({
-		mutationFn: () => sendMessage(conversationId, draft.trim()),
-		onSuccess: () => {
-			setDraft('')
-			return queryClient.invalidateQueries({
+		mutationFn: (content: string) => sendMessage(conversationId, content),
+		onSuccess: () =>
+			queryClient.invalidateQueries({
 				queryKey: ['whatsapp', 'messages', conversationId],
-			})
-		},
+			}),
+		onError: (_error, content) => setDraft(content),
 	})
 
 	if (messages.isPending) {
@@ -78,7 +87,19 @@ export function Thread({ conversationId }: { conversationId: string }) {
 	}
 	return (
 		<div className="alphone-thread">
-			<div role="log" aria-label="Messages" className="alphone-thread__log">
+			<div
+				role="log"
+				aria-label="Messages"
+				className="alphone-thread__log"
+				tabIndex={0}
+				ref={logRef}
+				onScroll={(event) => {
+					const log = event.currentTarget
+					followRef.current =
+						log.scrollHeight - log.scrollTop - log.clientHeight <
+						followThresholdPx
+				}}
+			>
 				{messages.data.length === 0 ? (
 					<Text role="status">No messages yet.</Text>
 				) : (
@@ -93,7 +114,9 @@ export function Thread({ conversationId }: { conversationId: string }) {
 				className="alphone-composer"
 				onSubmit={(event) => {
 					event.preventDefault()
-					reply.mutate()
+					const content = draft.trim()
+					setDraft('')
+					reply.mutate(content)
 				}}
 			>
 				<Stack direction="column" gap="sm">

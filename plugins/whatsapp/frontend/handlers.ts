@@ -31,7 +31,7 @@ export const handlers = [
 				direction: 'inbound',
 				content: 'Hi, is the order ready?',
 				content_type: 'text',
-				sent_at: '2026-07-06T10:00:00Z',
+				sent_at: '2026-07-06T09:05:00Z',
 			},
 			{
 				id: '019f4a00-0000-7000-8000-0000000000b2',

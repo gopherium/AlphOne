@@ -16,7 +16,7 @@ export type Conversation = z.infer<typeof conversationSchema>
 const messageSchema = z.object({
 	id: z.string(),
 	external_id: z.string(),
-	direction: z.string(),
+	direction: z.enum(['inbound', 'outbound']),
 	content: z.string(),
 	content_type: z.string(),
 	sent_at: z.coerce.date(),
