@@ -1,0 +1,31 @@
+diff --git a/build-module/react-platform.mjs b/build-module/react-platform.mjs
+index 8ed5aef770524fe83d1a0264e00f2d2f932d4f8b..ead35f3dda0fe5d990f7303c88908757bb9f8a45 100644
+--- a/build-module/react-platform.mjs
++++ b/build-module/react-platform.mjs
+@@ -1,13 +1,16 @@
+ // packages/element/src/react-platform.ts
++// Patched for React 19: findDOMNode, render, hydrate and
++// unmountComponentAtNode no longer exist in react-dom. The names stay
++// exported so importers keep loading; calling one is an error.
+ import {
+   createPortal,
+-  findDOMNode,
+-  flushSync,
+-  render,
+-  hydrate,
+-  unmountComponentAtNode
++  flushSync
+ } from "react-dom";
+ import { createRoot, hydrateRoot } from "react-dom/client";
++const findDOMNode = undefined;
++const render = undefined;
++const hydrate = undefined;
++const unmountComponentAtNode = undefined;
+ export {
+   createPortal,
+   createRoot,
+@@ -18,4 +21,3 @@ export {
+   render,
+   unmountComponentAtNode
+ };
+-//# sourceMappingURL=react-platform.mjs.map
