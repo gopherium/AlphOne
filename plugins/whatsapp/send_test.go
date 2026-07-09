@@ -85,6 +85,25 @@ func onlyConversation(t *testing.T, routes http.Handler) conversationBody {
 	return conversations[0]
 }
 
+func TestSendMessageBroadcastsToStreamSubscribers(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newSendingPlugin(t, nil)
+	routes := p.Routes()
+	srv := httptest.NewServer(routes)
+	t.Cleanup(srv.Close)
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	conversationID := onlyConversation(t, routes).ID
+
+	lines := subscribeToEvents(t, srv)
+	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"On my way"}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+	waitForConversationEvent(t, lines)
+}
+
 func TestSendMessageDeliversReply(t *testing.T) {
 	t.Parallel()
 

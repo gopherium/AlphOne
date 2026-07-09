@@ -18,12 +18,13 @@ type store struct {
 }
 
 type conversationRow struct {
-	ID             uuid.UUID `db:"id"`
-	ContactID      uuid.UUID `db:"contact_id"`
-	ContactName    string    `db:"contact_name"`
-	ExternalID     string    `db:"external_id"`
-	Status         string    `db:"status"`
-	LastActivityAt time.Time `db:"last_activity_at"`
+	ID                 uuid.UUID `db:"id"`
+	ContactID          uuid.UUID `db:"contact_id"`
+	ContactName        string    `db:"contact_name"`
+	ExternalID         string    `db:"external_id"`
+	Status             string    `db:"status"`
+	LastActivityAt     time.Time `db:"last_activity_at"`
+	LastMessagePreview *string   `db:"last_message_preview"`
 }
 
 type messageRow struct {
@@ -35,12 +36,21 @@ type messageRow struct {
 	SentAt      time.Time `db:"sent_at"`
 }
 
-// listConversations returns up to limit conversations with their contact names, most recently active first.
+// listConversations returns up to limit conversations with their contact names and a preview of their
+// newest message, most recently active first.
 func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, `
-		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status, conv.last_activity_at
+		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
+			conv.last_activity_at, last_message.preview AS last_message_preview
 		FROM plugin_whatsapp.conversations conv
 		JOIN core.contacts c ON c.id = conv.contact_id
+		LEFT JOIN LATERAL (
+			SELECT LEFT(m.content, 140) AS preview
+			FROM plugin_whatsapp.messages m
+			WHERE m.conversation_id = conv.id
+			ORDER BY m.sent_at DESC, m.id DESC
+			LIMIT 1
+		) last_message ON TRUE
 		ORDER BY conv.last_activity_at DESC
 		LIMIT $1`,
 		limit,

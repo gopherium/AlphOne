@@ -9,17 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
 
 type conversationBody struct {
-	ID             uuid.UUID `json:"id"`
-	ContactID      uuid.UUID `json:"contact_id"`
-	ContactName    string    `json:"contact_name"`
-	ExternalID     string    `json:"external_id"`
-	Status         string    `json:"status"`
-	LastActivityAt time.Time `json:"last_activity_at"`
+	ID                 uuid.UUID `json:"id"`
+	ContactID          uuid.UUID `json:"contact_id"`
+	ContactName        string    `json:"contact_name"`
+	ExternalID         string    `json:"external_id"`
+	Status             string    `json:"status"`
+	LastActivityAt     time.Time `json:"last_activity_at"`
+	LastMessagePreview *string   `json:"last_message_preview"`
 }
 
 type messageBody struct {
@@ -78,6 +80,64 @@ func TestListConversationsOrdersByRecentActivity(t *testing.T) {
 	}
 	if got[0].LastActivityAt.Location() != time.UTC {
 		t.Errorf("last_activity_at location = %v, want UTC", got[0].LastActivityAt.Location())
+	}
+}
+
+func TestListConversationsIncludeLastMessagePreview(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newIngestingPlugin(t)
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "¿cómo estás?")
+	ingestEvent(t, routes, "wamid.3", "555000111", "John Doe", "1751791200", strings.Repeat("é", 200))
+
+	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+
+	if len(got) != 2 {
+		t.Fatalf("conversations = %d, want 2", len(got))
+	}
+	if got[1].LastMessagePreview == nil || *got[1].LastMessagePreview != "¿cómo estás?" {
+		t.Errorf("preview = %v, want the newest message of the conversation", got[1].LastMessagePreview)
+	}
+	if got[0].LastMessagePreview == nil || utf8.RuneCountInString(*got[0].LastMessagePreview) != 140 {
+		t.Errorf("preview = %v, want the long message truncated to 140 characters", got[0].LastMessagePreview)
+	}
+}
+
+func TestListConversationsPreviewPrefersTheLatestOfTiedTimestamps(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newIngestingPlugin(t)
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "first")
+	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791000", "second")
+
+	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+
+	if len(got) != 1 {
+		t.Fatalf("conversations = %d, want 1", len(got))
+	}
+	if got[0].LastMessagePreview == nil || *got[0].LastMessagePreview != "second" {
+		t.Errorf("preview = %v, want the later-ingested message of the tied pair", got[0].LastMessagePreview)
+	}
+}
+
+func TestListConversationsWithoutMessagesHasNullPreview(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newIngestingPlugin(t)
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "555000111", "John Doe", "1751791100", "stolen id")
+
+	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+
+	if len(got) != 2 {
+		t.Fatalf("conversations = %d, want 2", len(got))
+	}
+	if got[0].ContactName != "John Doe" || got[0].LastMessagePreview != nil {
+		t.Errorf("conversation = %+v, want John Doe with a null preview for a message-less conversation", got[0])
 	}
 }
 

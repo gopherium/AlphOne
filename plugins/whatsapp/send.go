@@ -126,6 +126,7 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		p.events.broadcast(event{Conversation: conversationID})
 		respondJSON(w, http.StatusCreated, messageResponse{
 			ID:          row.ID,
 			ExternalID:  row.ExternalID,

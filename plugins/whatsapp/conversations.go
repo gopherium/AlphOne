@@ -20,12 +20,13 @@ const (
 )
 
 type conversationResponse struct {
-	ID             uuid.UUID `json:"id"`
-	ContactID      uuid.UUID `json:"contact_id"`
-	ContactName    string    `json:"contact_name"`
-	ExternalID     string    `json:"external_id"`
-	Status         string    `json:"status"`
-	LastActivityAt time.Time `json:"last_activity_at"`
+	ID                 uuid.UUID `json:"id"`
+	ContactID          uuid.UUID `json:"contact_id"`
+	ContactName        string    `json:"contact_name"`
+	ExternalID         string    `json:"external_id"`
+	Status             string    `json:"status"`
+	LastActivityAt     time.Time `json:"last_activity_at"`
+	LastMessagePreview *string   `json:"last_message_preview"`
 }
 
 type messageResponse struct {
@@ -53,12 +54,13 @@ func (p *Plugin) handleConversationsList() http.HandlerFunc {
 		conversations := make([]conversationResponse, 0, len(rows))
 		for _, row := range rows {
 			conversations = append(conversations, conversationResponse{
-				ID:             row.ID,
-				ContactID:      row.ContactID,
-				ContactName:    row.ContactName,
-				ExternalID:     row.ExternalID,
-				Status:         row.Status,
-				LastActivityAt: row.LastActivityAt.UTC(),
+				ID:                 row.ID,
+				ContactID:          row.ContactID,
+				ContactName:        row.ContactName,
+				ExternalID:         row.ExternalID,
+				Status:             row.Status,
+				LastActivityAt:     row.LastActivityAt.UTC(),
+				LastMessagePreview: row.LastMessagePreview,
 			})
 		}
 		respondJSON(w, http.StatusOK, conversations)
