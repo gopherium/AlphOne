@@ -2,3 +2,23 @@ packages:
   - frontend
   - sdk/frontend
   - plugins/*/frontend
+
+overrides:
+  react: ^19.2.7
+  react-dom: ^19.2.7
+
+peerDependencyRules:
+  allowedVersions:
+    react: '19'
+    react-dom: '19'
+    '@types/react': '19'
+
+patchedDependencies:
+  '@wordpress/element@8.2.0': patches/@wordpress__element@8.2.0.patch
+
+minimumReleaseAgeExclude:
+  - vite@8.1.4
+
+allowBuilds:
+  esbuild: false
+  msw: false
