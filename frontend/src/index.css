@@ -11,3 +11,30 @@ body {
 	color: var(--wpds-color-foreground-content-neutral);
 	background: var(--wpds-color-background-surface-neutral);
 }
+
+.alphone-layout {
+	display: flex;
+	min-height: 100vh;
+	background: var(--wpds-color-background-surface-neutral-weak);
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-layout__sidebar {
+	flex-shrink: 0;
+	width: 300px;
+	padding: 16px;
+	box-sizing: border-box;
+}
+
+.alphone-layout__canvas {
+	flex: 1;
+	min-width: 0;
+	margin: 16px;
+	padding: 24px;
+	box-sizing: border-box;
+	border-radius: var(--wpds-border-radius-xl);
+	background: var(--wpds-color-background-surface-neutral);
+	color: var(--wpds-color-foreground-content-neutral);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+	overflow: hidden;
+}

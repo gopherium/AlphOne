@@ -1,38 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Card, Stack, Text } from '@alphone/frontend-sdk'
+import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
 import { Link, Outlet } from '@tanstack/react-router'
 
 import { plugins } from './plugins'
 
+const CHROME_COLOR = { background: '#1e1e1e' }
+const CANVAS_COLOR = { background: '#ffffff' }
+
 /**
- * Renders the application shell with a header, plugin navigation links, and an outlet for routed content.
- * @returns The layout element containing the branding, navigation, and a card wrapping the active route.
+ * Renders the admin layout: a dark navigation chrome holding the branding and
+ * plugin menu, wrapped around a light canvas showing the active route.
+ * @returns The layout element framing the current route.
  */
 export function Layout() {
 	return (
-		<Stack direction="column" gap="lg">
-			<Stack direction="row" gap="xl" align="baseline" render={<header />}>
-				<Link to="/">
-					<Text variant="heading-lg" render={<h1 />}>
-						AlphOne
-					</Text>
-				</Link>
-				<Stack direction="row" gap="md" render={<nav />}>
-					{plugins.flatMap((plugin) =>
-						plugin.nav.map((item) => (
-							<Link key={item.to} to={item.to}>
-								{item.label}
-							</Link>
-						)),
-					)}
-				</Stack>
-			</Stack>
-			<Card.Root>
-				<Card.Content>
-					<Outlet />
-				</Card.Content>
-			</Card.Root>
-		</Stack>
+		<ThemeProvider color={CHROME_COLOR}>
+			<div className="alphone-layout">
+				<div className="alphone-layout__sidebar">
+					<Stack direction="column" gap="lg">
+						<Link to="/">
+							<Text variant="heading-lg" render={<h1 />}>
+								AlphOne
+							</Text>
+						</Link>
+						<Stack direction="column" gap="sm" render={<nav />}>
+							{plugins.flatMap((plugin) =>
+								plugin.nav.map((item) => (
+									<Link key={item.to} to={item.to}>
+										{item.label}
+									</Link>
+								)),
+							)}
+						</Stack>
+					</Stack>
+				</div>
+				<ThemeProvider color={CANVAS_COLOR}>
+					<main className="alphone-layout__canvas">
+						<Outlet />
+					</main>
+				</ThemeProvider>
+			</div>
+		</ThemeProvider>
 	)
 }

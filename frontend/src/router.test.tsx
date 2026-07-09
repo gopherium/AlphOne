@@ -28,3 +28,11 @@ test('renders a navigation entry for every registered plugin', async () => {
 		plugins.flatMap((plugin) => plugin.nav).length,
 	)
 })
+
+test('frames the active route inside the main content region', async () => {
+	renderAt('/')
+
+	const main = await screen.findByRole('main')
+	expect(within(main).getByText(/welcome to alphone/i)).toBeInTheDocument()
+	expect(within(main).queryByRole('navigation')).toBeNull()
+})
