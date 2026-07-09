@@ -8,3 +8,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /frontend
+      - /sdk/frontend
+      - /plugins/*/frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "@wordpress/*"
