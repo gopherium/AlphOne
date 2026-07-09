@@ -37,7 +37,10 @@ test('lists the conversation messages, oldest first', async () => {
 	expect(contents[0]).toContain('Hi, is the order ready?')
 	expect(contents[1]).toContain('I can pick it up after 5pm.')
 
-	expect(screen.getAllByText('inbound')).toHaveLength(2)
+	expect(screen.getByRole('log', { name: 'Messages' })).toBeInTheDocument()
+	expect(screen.getAllByText('Received')).toHaveLength(2)
+	expect(screen.getByText('10:00')).toBeInTheDocument()
+	expect(screen.getByText('10:05')).toBeInTheDocument()
 })
 
 test('shows an empty state when the conversation has no messages', async () => {
@@ -111,7 +114,7 @@ test('sends a reply and appends it to the thread', async () => {
 	await user.click(screen.getByRole('button', { name: /send/i }))
 
 	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
-	expect(screen.getByText('outbound')).toBeInTheDocument()
+	expect(screen.getByText('Sent')).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
 })
 

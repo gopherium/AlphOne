@@ -21,6 +21,15 @@ export interface FrontendPlugin {
 	nav: NavItem[]
 }
 
-export { Badge, Button, Card, Icon, Stack, Text } from '@wordpress/ui'
+export {
+	Badge,
+	Button,
+	Card,
+	Icon,
+	InputControl,
+	Stack,
+	Text,
+	VisuallyHidden,
+} from '@wordpress/ui'
 export { ThemeProvider } from '@wordpress/theme'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
