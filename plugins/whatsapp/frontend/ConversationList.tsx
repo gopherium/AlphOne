@@ -8,10 +8,11 @@ import { fetchConversations } from './api'
 import { useLiveUpdates } from './live'
 
 /**
- * Renders the WhatsApp conversation inbox list with live updates.
- * @returns A list of conversation links with status badges, or a status message while loading, on error, or when empty.
+ * Renders the WhatsApp conversation list for the sidebar, with live updates.
+ * @returns The conversation links, or a status message while loading, on error,
+ * or when empty.
  */
-export function Inbox() {
+export function ConversationList() {
 	useLiveUpdates()
 	const conversations = useQuery({
 		queryKey: ['whatsapp', 'conversations'],
@@ -28,16 +29,19 @@ export function Inbox() {
 		return <Text>No conversations yet.</Text>
 	}
 	return (
-		<ul>
+		<ul className="alphone-conversations">
 			{conversations.data.map((conversation) => (
 				<li key={conversation.id}>
 					<Link
 						to="/whatsapp/conversations/$conversationId"
 						params={{ conversationId: conversation.id }}
+						className="alphone-conversation"
 					>
-						{conversation.contact_name}
+						<span className="alphone-conversation__name">
+							{conversation.contact_name}
+						</span>
+						<Badge>{conversation.status}</Badge>
 					</Link>
-					<Badge>{conversation.status}</Badge>
 				</li>
 			))}
 		</ul>

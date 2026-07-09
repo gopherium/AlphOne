@@ -3,24 +3,31 @@
 import { createRoute } from '@tanstack/react-router'
 import type { AnyRoute } from '@tanstack/react-router'
 
-import { Inbox } from './Inbox'
+import { Empty } from './Empty'
 import { ThreadScreen } from './ThreadScreen'
+import { WhatsAppSidebar } from './WhatsAppSidebar'
 
 /**
- * Builds the WhatsApp plugin's route tree under the given parent route.
+ * Builds the WhatsApp plugin's route tree under the given parent route. The
+ * section route carries the sidebar screen; its children fill the canvas.
  * @param parent - The parent route the WhatsApp routes are mounted beneath.
- * @returns An array containing the inbox and conversation-thread routes.
+ * @returns An array containing the WhatsApp section route and its children.
  */
 export function routes(parent: AnyRoute): AnyRoute[] {
-	const inboxRoute = createRoute({
+	const whatsappRoute = createRoute({
 		getParentRoute: () => parent,
 		path: '/whatsapp',
-		component: Inbox,
+		staticData: { Sidebar: WhatsAppSidebar },
+	})
+	const emptyRoute = createRoute({
+		getParentRoute: () => whatsappRoute,
+		path: '/',
+		component: Empty,
 	})
 	const threadRoute = createRoute({
-		getParentRoute: () => parent,
-		path: '/whatsapp/conversations/$conversationId',
+		getParentRoute: () => whatsappRoute,
+		path: 'conversations/$conversationId',
 		component: ThreadScreen,
 	})
-	return [inboxRoute, threadRoute]
+	return [whatsappRoute.addChildren([emptyRoute, threadRoute])]
 }

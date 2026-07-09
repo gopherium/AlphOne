@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
-import { Link, Outlet } from '@tanstack/react-router'
+import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
 import { MainMenu } from './menu/MainMenu'
 
@@ -10,10 +10,16 @@ const CANVAS_COLOR = { background: '#ffffff' }
 
 /**
  * Renders the admin layout: a dark navigation chrome holding the branding and
- * plugin menu, wrapped around a light canvas showing the active route.
+ * either the main menu or the active section's sidebar screen, wrapped around a
+ * light canvas showing the active route.
  * @returns The layout element framing the current route.
  */
 export function Layout() {
+	const matches = useRouterState({ select: (state) => state.matches })
+	const sidebarMatch = [...matches]
+		.reverse()
+		.find((match) => match.staticData.Sidebar)
+	const Sidebar = sidebarMatch?.staticData.Sidebar
 	return (
 		<ThemeProvider color={CHROME_COLOR}>
 			<div className="alphone-layout">
@@ -24,7 +30,7 @@ export function Layout() {
 								AlphOne
 							</Text>
 						</Link>
-						<MainMenu />
+						{Sidebar ? <Sidebar /> : <MainMenu />}
 					</Stack>
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>

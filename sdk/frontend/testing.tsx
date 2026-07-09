@@ -10,12 +10,15 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	useRouterState,
 } from '@tanstack/react-router'
 import { cleanup, render } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 
 import type { FrontendPlugin } from './index'
+
+export { http, HttpResponse } from 'msw'
 
 /**
  * FakeEventSource stands in for the browser EventSource, which jsdom does
@@ -96,15 +99,24 @@ export function installTestEnvironment() {
 export function renderPluginAt(plugin: FrontendPlugin, path: string) {
 	const rootRoute = createRootRoute({
 		component: function TestHost() {
+			const matches = useRouterState({ select: (state) => state.matches })
+			const sidebarMatch = [...matches]
+				.reverse()
+				.find((match) => match.staticData.Sidebar)
+			const Sidebar = sidebarMatch?.staticData.Sidebar
 			return (
 				<>
-					<nav>
-						{plugin.nav.map((item) => (
-							<Link key={item.to} to={item.to}>
-								{item.label}
-							</Link>
-						))}
-					</nav>
+					{Sidebar ? (
+						<Sidebar />
+					) : (
+						<nav>
+							{plugin.nav.map((item) => (
+								<Link key={item.to} to={item.to}>
+									{item.label}
+								</Link>
+							))}
+						</nav>
+					)}
 					<Outlet />
 				</>
 			)

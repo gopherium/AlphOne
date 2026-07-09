@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { AnyRoute } from '@tanstack/react-router'
-import type { ComponentProps, ReactElement } from 'react'
+import type { ComponentProps, ComponentType, ReactElement } from 'react'
+
+declare module '@tanstack/react-router' {
+	interface StaticDataRouteOption {
+		Sidebar?: ComponentType
+	}
+}
 
 export interface NavItem {
 	label: string

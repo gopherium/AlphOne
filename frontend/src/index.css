@@ -94,3 +94,35 @@ body {
 .alphone-nav-screen__description {
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
+
+.alphone-conversations {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.alphone-conversation {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px;
+	border-radius: var(--wpds-border-radius-md);
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	text-decoration: none;
+}
+
+.alphone-conversation:hover {
+	background: var(--wpds-color-background-surface-neutral);
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-conversation:focus-visible {
+	outline: var(--wpds-border-width-focus) solid var(--wpds-color-stroke-focus);
+	outline-offset: 2px;
+}
+
+.alphone-conversation[data-status='active'] {
+	background: var(--wpds-color-background-surface-neutral-strong);
+	color: var(--wpds-color-foreground-content-neutral);
+}

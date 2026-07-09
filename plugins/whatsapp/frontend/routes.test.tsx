@@ -42,7 +42,7 @@ test('navigates from a conversation in the inbox to its thread', async () => {
 	const user = userEvent.setup()
 	renderPluginAt(plugin, '/whatsapp')
 
-	await user.click(await screen.findByRole('link', { name: 'John Doe' }))
+	await user.click(await screen.findByRole('link', { name: /John Doe/ }))
 
 	expect(
 		await screen.findByText('I can pick it up after 5pm.'),
