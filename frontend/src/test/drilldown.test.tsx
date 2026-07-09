@@ -17,6 +17,7 @@ beforeEach(() =>
 					external_id: '555000111',
 					status: 'open',
 					last_activity_at: '2026-07-06T10:05:00Z',
+					last_message_preview: 'The analytical engine awaits.',
 				},
 			]),
 		),

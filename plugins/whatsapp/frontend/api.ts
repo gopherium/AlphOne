@@ -9,6 +9,7 @@ const conversationSchema = z.object({
 	external_id: z.string(),
 	status: z.string(),
 	last_activity_at: z.coerce.date(),
+	last_message_preview: z.string().nullable(),
 })
 
 export type Conversation = z.infer<typeof conversationSchema>

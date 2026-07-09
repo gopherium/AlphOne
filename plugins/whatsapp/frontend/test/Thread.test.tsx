@@ -2,7 +2,7 @@
 
 import { server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -22,6 +22,7 @@ function renderThread() {
 			<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
 		</QueryClientProvider>,
 	)
+	return client
 }
 
 test('lists the conversation messages, oldest first', async () => {
@@ -35,8 +36,13 @@ test('lists the conversation messages, oldest first', async () => {
 	const contents = screen
 		.getAllByRole('listitem')
 		.map((item) => item.textContent)
-	expect(contents[0]).toContain('Hi, is the order ready?')
-	expect(contents[1]).toContain('I can pick it up after 5pm.')
+	expect(contents[0]).toContain('Jul 6, 2026')
+	expect(contents[1]).toContain('Hi, is the order ready?')
+	expect(contents[2]).toContain('I can pick it up after 5pm.')
+	expect(screen.getByText('Jul 6, 2026').closest('time')).toHaveAttribute(
+		'datetime',
+		'2026-07-06',
+	)
 
 	const log = screen.getByRole('log', { name: 'Messages' })
 	expect(log).toHaveAttribute('tabindex', '0')
@@ -117,6 +123,7 @@ test('sends a reply and appends it to the thread', async () => {
 
 	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
 	expect(screen.getByText('Sent')).toBeInTheDocument()
+	expect(screen.getByText('Jul 7, 2026')).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
 })
 
@@ -152,6 +159,37 @@ test('refuses to send a blank reply', async () => {
 	await user.click(send)
 
 	expect(send).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('refreshes the whole plugin cache after a reply is sent', async () => {
+	const user = userEvent.setup()
+	server.use(
+		http.post(
+			'/api/plugins/whatsapp/conversations/:conversationId/messages',
+			() =>
+				HttpResponse.json(
+					{
+						id: '019f4a00-0000-7000-8000-0000000000d1',
+						external_id: 'wamid.out.9',
+						direction: 'outbound',
+						content: 'done',
+						content_type: 'text',
+						sent_at: '2026-07-07T18:00:00Z',
+					},
+					{ status: 201 },
+				),
+		),
+	)
+	const client = renderThread()
+	await screen.findByText('Hi, is the order ready?')
+	const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'done')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	await waitFor(() =>
+		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] }),
+	)
 })
 
 test('follows the newest message unless the reader scrolls up', async () => {

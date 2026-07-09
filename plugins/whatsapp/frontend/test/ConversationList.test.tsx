@@ -21,6 +21,23 @@ test('lists conversations from the API, most recent first', async () => {
 	expect(names[1]).toContain('María Pérez')
 })
 
+test('shows each conversation preview and last activity', async () => {
+	renderPluginAt(plugin, '/whatsapp')
+
+	expect(
+		await screen.findByText('I can pick it up after 5pm.'),
+	).toBeInTheDocument()
+	expect(screen.getByText('hola')).toBeInTheDocument()
+	expect(screen.getAllByText('Jul 6, 2026')).toHaveLength(2)
+	expect(screen.getByText('Jul 5, 2026')).toBeInTheDocument()
+	expect(screen.getAllByText('status')).toHaveLength(3)
+
+	const quietRow = screen.getByText('Quiet Contact').closest('li')
+	expect(
+		quietRow?.querySelector('.alphone-conversation__preview')?.textContent,
+	).toBe('')
+})
+
 test('shows an empty state when no conversations exist', async () => {
 	server.use(
 		http.get('/api/plugins/whatsapp/conversations', () =>

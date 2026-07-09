@@ -138,13 +138,52 @@ body {
 
 .alphone-conversation {
 	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
+	flex-direction: column;
+	gap: 2px;
 	padding: 8px;
 	border-radius: var(--wpds-border-radius-md);
 	color: var(--wpds-color-foreground-content-neutral-weak);
 	text-decoration: none;
+}
+
+.alphone-conversation__top {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.alphone-conversation__name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-conversation__time {
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
+	white-space: nowrap;
+}
+
+.alphone-conversation__bottom {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-height: 20px;
+}
+
+.alphone-conversation__preview {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
 }
 
 .alphone-conversation:hover {
@@ -228,6 +267,22 @@ body {
 
 .alphone-message {
 	display: flex;
+}
+
+.alphone-message-day {
+	display: flex;
+	justify-content: center;
+	padding: 8px 0;
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
+}
+
+.alphone-message-day time {
+	padding: 2px 10px;
+	border-radius: var(--wpds-border-radius-lg);
+	background: var(--wpds-color-background-surface-neutral-weak);
+	border: 1px solid var(--wpds-color-stroke-surface-neutral);
 }
 
 .alphone-message--outbound {

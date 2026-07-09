@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { renderPluginAt, server } from '@alphone/frontend-sdk/testing'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
@@ -44,7 +44,8 @@ test('navigates from a conversation in the inbox to its thread', async () => {
 
 	await user.click(await screen.findByRole('link', { name: /John Doe/ }))
 
+	const log = await screen.findByRole('log', { name: 'Messages' })
 	expect(
-		await screen.findByText('I can pick it up after 5pm.'),
+		within(log).getByText('I can pick it up after 5pm.'),
 	).toBeInTheDocument()
 })

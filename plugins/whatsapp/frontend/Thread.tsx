@@ -12,18 +12,33 @@ import { useEffect, useRef, useState } from 'react'
 
 import { fetchMessages, sendMessage } from './api'
 import type { Message } from './api'
+import { formatDay, formatDayLabel, formatTime } from './format'
 
 const followThresholdPx = 100
 
 /**
- * Formats a message timestamp as a zero-padded 24-hour clock time.
- * @param sentAt - The moment the message was sent.
- * @returns The local time in HH:MM form.
+ * Groups messages into list items, inserting a labelled day separator whenever
+ * the local calendar date changes between consecutive messages.
+ * @param messages - The conversation messages, oldest first.
+ * @param now - The current moment, anchoring the Today and Yesterday labels.
+ * @returns The list items to render inside the message log.
  */
-function formatTime(sentAt: Date): string {
-	const hours = String(sentAt.getHours()).padStart(2, '0')
-	const minutes = String(sentAt.getMinutes()).padStart(2, '0')
-	return `${hours}:${minutes}`
+function threadItems(messages: Message[], now: Date) {
+	const items = []
+	let previousDay = ''
+	for (const message of messages) {
+		const day = formatDay(message.sent_at)
+		if (day !== previousDay) {
+			items.push(
+				<li key={`day-${day}`} className="alphone-message-day">
+					<time dateTime={day}>{formatDayLabel(message.sent_at, now)}</time>
+				</li>,
+			)
+			previousDay = day
+		}
+		items.push(<MessageBubble key={message.id} message={message} />)
+	}
+	return items
 }
 
 /**
@@ -72,10 +87,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 	}, [messages.data])
 	const reply = useMutation({
 		mutationFn: (content: string) => sendMessage(conversationId, content),
-		onSuccess: () =>
-			queryClient.invalidateQueries({
-				queryKey: ['whatsapp', 'messages', conversationId],
-			}),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp'] }),
 		onError: (_error, content) => setDraft(content),
 	})
 
@@ -104,9 +116,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 					<Text role="status">No messages yet.</Text>
 				) : (
 					<ul className="alphone-messages">
-						{messages.data.map((message) => (
-							<MessageBubble key={message.id} message={message} />
-						))}
+						{threadItems(messages.data, new Date())}
 					</ul>
 				)}
 			</div>
