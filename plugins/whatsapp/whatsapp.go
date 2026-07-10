@@ -99,6 +99,12 @@ func (p *Plugin) Routes() http.Handler {
 	return router
 }
 
+// PublicPaths declares the webhook as reachable without a login session;
+// Meta authenticates it with its own signature instead.
+func (p *Plugin) PublicPaths() []string {
+	return []string{"/webhook"}
+}
+
 // handleVerify returns a handler that answers Meta's webhook verification
 // challenge by checking hub.verify_token and echoing hub.challenge.
 func (p *Plugin) handleVerify() http.HandlerFunc {
@@ -109,6 +115,7 @@ func (p *Plugin) handleVerify() http.HandlerFunc {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(query.Get("hub.challenge")))
 	}

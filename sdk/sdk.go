@@ -34,6 +34,19 @@ type RouteProvider interface {
 	Routes() http.Handler
 }
 
+// PublicPathProvider is implemented by plugins whose namespace includes
+// endpoints that must stay reachable without a login session, such as
+// webhooks verified by their own signatures.
+//
+// Each returned path is namespace-relative, must begin with "/", and is
+// matched against the request path exactly: a trailing slash is
+// significant ("/webhook" does not exempt "/webhook/"), and the exemption
+// applies to every HTTP method. Everything not listed requires a session,
+// so the safe default of forgetting a path is that it stays protected.
+type PublicPathProvider interface {
+	PublicPaths() []string
+}
+
 // Deps carries the host-provided dependencies a plugin receives at
 // registration. By convention every plugin package exports
 //

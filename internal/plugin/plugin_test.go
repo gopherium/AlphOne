@@ -15,10 +15,37 @@ import (
 )
 
 var (
-	_ sdk.Plugin        = (*fakePlugin)(nil)
-	_ sdk.Migrator      = (*migratingPlugin)(nil)
-	_ sdk.RouteProvider = (*routedPlugin)(nil)
+	_ sdk.Plugin             = (*fakePlugin)(nil)
+	_ sdk.Migrator           = (*migratingPlugin)(nil)
+	_ sdk.RouteProvider      = (*routedPlugin)(nil)
+	_ sdk.PublicPathProvider = (*publicPathsPlugin)(nil)
 )
+
+type publicPathsPlugin struct {
+	fakePlugin
+	paths []string
+}
+
+func (p *publicPathsPlugin) PublicPaths() []string {
+	return p.paths
+}
+
+func TestHostCollectsPublicPaths(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	host := plugin.NewHost(
+		&publicPathsPlugin{fakePlugin: fakePlugin{id: "hooked", calls: &calls}, paths: []string{"/webhook"}},
+		&fakePlugin{id: "plain", calls: &calls},
+	)
+
+	got := host.PublicPaths()
+
+	want := map[string][]string{"hooked": {"/webhook"}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("PublicPaths() mismatch (-want +got):\n%s", diff)
+	}
+}
 
 type routedPlugin struct {
 	fakePlugin

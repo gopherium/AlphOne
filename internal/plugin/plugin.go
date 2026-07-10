@@ -63,6 +63,18 @@ func (h *Host) Routes() map[string]http.Handler {
 	return routes
 }
 
+// PublicPaths returns the session-exempt paths of every
+// [sdk.PublicPathProvider] plugin, keyed by plugin ID.
+func (h *Host) PublicPaths() map[string][]string {
+	paths := make(map[string][]string)
+	for _, p := range h.plugins {
+		if provider, ok := p.(sdk.PublicPathProvider); ok {
+			paths[p.ID()] = provider.PublicPaths()
+		}
+	}
+	return paths
+}
+
 // Stop stops every plugin in reverse registration order, continuing
 // past failures and returning them joined.
 func (h *Host) Stop(ctx context.Context) error {
