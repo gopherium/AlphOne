@@ -85,6 +85,18 @@ func decodeBody[T any](t *testing.T, recorder *httptest.ResponseRecorder) T {
 	return v
 }
 
+func authedContactServer(t *testing.T, store server.ContactStore, plugins map[string]http.Handler) http.Handler {
+	t.Helper()
+	users := newFakeUserStore()
+	users.addUser(t)
+	srv := server.NewServer(server.Config{Contacts: store, Users: users, Plugins: plugins})
+	cookie := loginCookie(t, srv)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.AddCookie(cookie)
+		srv.ServeHTTP(w, r)
+	})
+}
+
 func TestPluginRoutesAreMountedUnderTheirNamespace(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +104,7 @@ func TestPluginRoutesAreMountedUnderTheirNamespace(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(r.URL.Path))
 	})
-	srv := server.NewServer(newFakeContactStore(), map[string]http.Handler{"demo": echoPath})
+	srv := authedContactServer(t, newFakeContactStore(), map[string]http.Handler{"demo": echoPath})
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/plugins/demo/ping", "")
 
@@ -108,7 +120,7 @@ func TestCreateContact(t *testing.T) {
 	t.Parallel()
 
 	store := newFakeContactStore()
-	srv := server.NewServer(store, nil)
+	srv := authedContactServer(t, store, nil)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts", `{"name":"  María Pérez  "}`)
 
@@ -154,7 +166,7 @@ func TestCreateContactRejectsInvalidBody(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			srv := server.NewServer(newFakeContactStore(), nil)
+			srv := authedContactServer(t, newFakeContactStore(), nil)
 
 			recorder := doRequest(t, srv, http.MethodPost, "/api/contacts", tc.body)
 
@@ -173,7 +185,7 @@ func TestCreateContactHidesStoreFailure(t *testing.T) {
 
 	store := newFakeContactStore()
 	store.createErr = errors.New("connection refused to 10.0.0.7")
-	srv := server.NewServer(store, nil)
+	srv := authedContactServer(t, store, nil)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts", `{"name":"María"}`)
 
@@ -194,7 +206,7 @@ func TestGetContact(t *testing.T) {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
 	store.contacts[maria.ID] = maria
-	srv := server.NewServer(store, nil)
+	srv := authedContactServer(t, store, nil)
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+maria.ID.String(), "")
 
@@ -217,7 +229,7 @@ func TestGetContactNormalizesTimestampToUTC(t *testing.T) {
 	}
 	maria.CreatedAt = maria.CreatedAt.In(time.FixedZone("CET", 2*60*60))
 	store.contacts[maria.ID] = maria
-	srv := server.NewServer(store, nil)
+	srv := authedContactServer(t, store, nil)
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+maria.ID.String(), "")
 
@@ -233,7 +245,7 @@ func TestGetContactErrors(t *testing.T) {
 	t.Run("malformed id", func(t *testing.T) {
 		t.Parallel()
 
-		srv := server.NewServer(newFakeContactStore(), nil)
+		srv := authedContactServer(t, newFakeContactStore(), nil)
 
 		recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/not-a-uuid", "")
 
@@ -245,7 +257,7 @@ func TestGetContactErrors(t *testing.T) {
 	t.Run("unknown contact", func(t *testing.T) {
 		t.Parallel()
 
-		srv := server.NewServer(newFakeContactStore(), nil)
+		srv := authedContactServer(t, newFakeContactStore(), nil)
 
 		recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+uuid.Must(uuid.NewV7()).String(), "")
 
@@ -262,7 +274,7 @@ func TestGetContactErrors(t *testing.T) {
 
 		store := newFakeContactStore()
 		store.getErr = errors.New("connection refused to 10.0.0.7")
-		srv := server.NewServer(store, nil)
+		srv := authedContactServer(t, store, nil)
 
 		recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+uuid.Must(uuid.NewV7()).String(), "")
 

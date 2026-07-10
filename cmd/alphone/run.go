@@ -63,8 +63,16 @@ func run(
 	}
 
 	httpServer := &http.Server{
-		Addr:    addr,
-		Handler: server.NewServer(postgres.NewContactStore(pool), host.Routes()),
+		Addr: addr,
+		Handler: server.NewServer(server.Config{
+			Contacts:          postgres.NewContactStore(pool),
+			Users:             postgres.NewUserStore(pool),
+			Plugins:           host.Routes(),
+			PluginPublicPaths: host.PublicPaths(),
+		}),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	serveErr := make(chan error, 1)
 	go func() {

@@ -17,9 +17,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
+	"github.com/gopherium/gouncer"
+
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -97,7 +101,7 @@ func waitForServer(t *testing.T, url string) {
 	for time.Now().Before(deadline) {
 		response, err := http.Get(url)
 		if err == nil {
-			ready := response.StatusCode == http.StatusNotFound
+			ready := response.StatusCode == http.StatusUnauthorized
 			_ = response.Body.Close()
 			if ready {
 				return
@@ -206,11 +210,12 @@ func TestRunServesAPI(t *testing.T) {
 	t.Parallel()
 
 	addr := freeAddr(t)
+	databaseURL := testDatabaseURL(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- run(ctx, testGetenv(map[string]string{
-			"ALPHONE_DATABASE_URL":          testDatabaseURL(t),
+			"ALPHONE_DATABASE_URL":          databaseURL,
 			"ALPHONE_ADDR":                  addr,
 			"ALPHONE_WHATSAPP_VERIFY_TOKEN": "e2e-secret",
 			"ALPHONE_WHATSAPP_APP_SECRET":   "e2e-app-secret",
@@ -220,7 +225,61 @@ func TestRunServesAPI(t *testing.T) {
 	baseURL := "http://" + addr
 	waitForServer(t, baseURL+"/api/contacts/"+uuid.Must(uuid.NewV7()).String())
 
-	response, err := http.Post(baseURL+"/api/contacts", "application/json", strings.NewReader(`{"name":"María Pérez"}`))
+	unauthorized, err := http.Post(
+		baseURL+"/api/contacts", "application/json", strings.NewReader(`{"name":"María Pérez"}`),
+	)
+	if err != nil {
+		t.Fatalf("POST /api/contacts without a session: %v", err)
+	}
+	defer func() { _ = unauthorized.Body.Close() }()
+	if unauthorized.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated POST status = %d, want %d", unauthorized.StatusCode, http.StatusUnauthorized)
+	}
+
+	pool, err := pgxpool.New(t.Context(), databaseURL)
+	if err != nil {
+		t.Fatalf("connecting pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	admin, err := gouncer.NewUser("admin@example.com", "Admin", "correct horse battery")
+	if err != nil {
+		t.Fatalf("gouncer.NewUser() error = %v, want nil", err)
+	}
+	if err := postgres.NewUserStore(pool).CreateUser(t.Context(), admin); err != nil {
+		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+
+	login, err := http.Post(
+		baseURL+"/api/auth/login",
+		"application/json",
+		strings.NewReader(`{"email":"admin@example.com","password":"correct horse battery"}`),
+	)
+	if err != nil {
+		t.Fatalf("POST /api/auth/login: %v", err)
+	}
+	defer func() { _ = login.Body.Close() }()
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want %d", login.StatusCode, http.StatusOK)
+	}
+	var session *http.Cookie
+	for _, cookie := range login.Cookies() {
+		if cookie.Name == "__Host-alphone_session" {
+			session = cookie
+		}
+	}
+	if session == nil {
+		t.Fatal("login response carries no alphone_session cookie")
+	}
+
+	createContact, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, baseURL+"/api/contacts", strings.NewReader(`{"name":"María Pérez"}`),
+	)
+	if err != nil {
+		t.Fatalf("building contact request: %v", err)
+	}
+	createContact.Header.Set("Content-Type", "application/json")
+	createContact.AddCookie(session)
+	response, err := http.DefaultClient.Do(createContact)
 	if err != nil {
 		t.Fatalf("POST /api/contacts: %v", err)
 	}

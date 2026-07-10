@@ -58,11 +58,21 @@ func statusFor(err error) int {
 	}
 }
 
-// decode reads and JSON-decodes the request body into a value of type T.
-func decode[T any](r *http.Request) (T, error) {
+// maxRequestBodyBytes caps how much of a request body the JSON decoder
+// will read, so an unauthenticated caller cannot exhaust memory.
+const maxRequestBodyBytes = 1 << 20
+
+// decode reads and JSON-decodes a single request body into a value of
+// type T, bounding the body size and rejecting trailing content.
+func decode[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 	var v T
-	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&v); err != nil {
 		return v, fmt.Errorf("decode json: %w", err)
+	}
+	if dec.More() {
+		return v, errors.New("decode json: unexpected trailing content")
 	}
 	return v, nil
 }

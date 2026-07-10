@@ -37,7 +37,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 		Name string `json:"name"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		req, err := decode[request](r)
+		req, err := decode[request](w, r)
 		if err != nil {
 			respondError(w, http.StatusBadRequest, "malformed json")
 			return
