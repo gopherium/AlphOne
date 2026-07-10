@@ -4,9 +4,11 @@ import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { expect, test } from 'vitest'
 
 import { AuthGate } from '../AuthGate'
+import { useLogout } from '../session'
 
 const ada = {
 	id: '0198b2f0-0000-7000-8000-000000000001',
@@ -14,7 +16,7 @@ const ada = {
 	name: 'Ada Lovelace',
 }
 
-function renderGate() {
+function renderGate(children: ReactNode = <p>Protected area</p>) {
 	const client = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false },
@@ -23,12 +25,19 @@ function renderGate() {
 	})
 	render(
 		<QueryClientProvider client={client}>
-			<AuthGate>
-				<p>Protected area</p>
-			</AuthGate>
+			<AuthGate>{children}</AuthGate>
 		</QueryClientProvider>,
 	)
 	return client
+}
+
+function SignOutProbe() {
+	const signOut = useLogout()
+	return (
+		<button type="button" onClick={() => signOut.mutate()}>
+			Sign out
+		</button>
+	)
 }
 
 test('shows a loading indicator while the session resolves', () => {
@@ -102,6 +111,18 @@ test('reveals the children after a successful login', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
 
 	expect(await screen.findByText('Protected area')).toBeInTheDocument()
+})
+
+test('returns to the login screen after logging out', async () => {
+	server.use(
+		http.get('/api/auth/session', () => HttpResponse.json(ada)),
+		http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
+	)
+	renderGate(<SignOutProbe />)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+
+	expect(await screen.findByLabelText('Email')).toBeInTheDocument()
 })
 
 test('ignores a stale session response that resolves after login', async () => {

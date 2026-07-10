@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { hashKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { fetchSession, logout } from './api'
 
@@ -18,8 +18,8 @@ export function useSession() {
 }
 
 /**
- * Ends the current session, dropping every cached query so no data from
- * the signed-out user survives for the next account on this browser.
+ * Ends the current session and drops all cached data belonging to the
+ * signed-out user.
  * @returns The logout mutation.
  */
 export function useLogout() {
@@ -28,8 +28,10 @@ export function useLogout() {
 		mutationFn: logout,
 		onSuccess: async () => {
 			await queryClient.cancelQueries()
-			queryClient.removeQueries()
 			queryClient.setQueryData(sessionQueryKey, null)
+			queryClient.removeQueries({
+				predicate: (query) => query.queryHash !== hashKey(sessionQueryKey),
+			})
 		},
 	})
 }

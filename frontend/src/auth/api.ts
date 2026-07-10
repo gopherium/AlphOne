@@ -17,7 +17,7 @@ export class InvalidCredentialsError extends Error {}
 
 /**
  * Returns the logged-in user, or null when no session is active.
- * @param signal - Aborts the request when the session query is cancelled.
+ * @param signal - Aborts the in-flight request.
  * @returns The current user, or null when unauthenticated.
  */
 export async function fetchSession(signal?: AbortSignal): Promise<User | null> {
