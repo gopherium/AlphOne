@@ -60,6 +60,64 @@ func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) 
 	return result.RowsAffected(), nil
 }
 
+const createSession = `-- name: CreateSession :exec
+INSERT INTO core.sessions (token_hash, user_id, created_at, expires_at)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateSessionParams struct {
+	TokenHash []byte
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.Exec(ctx, createSession,
+		arg.TokenHash,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const createUser = `-- name: CreateUser :exec
+INSERT INTO core.users (id, email, name, password_hash, disabled, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateUserParams struct {
+	ID           uuid.UUID
+	Email        string
+	Name         string
+	PasswordHash string
+	Disabled     bool
+	CreatedAt    time.Time
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
+	_, err := q.db.Exec(ctx, createUser,
+		arg.ID,
+		arg.Email,
+		arg.Name,
+		arg.PasswordHash,
+		arg.Disabled,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM core.sessions
+WHERE token_hash = $1
+`
+
+func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
+	_, err := q.db.Exec(ctx, deleteSession, tokenHash)
+	return err
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at
 FROM core.contacts
@@ -93,6 +151,52 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 		&i.Channel,
 		&i.Identifier,
 		&i.DisplayName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, email, name, password_hash, disabled, created_at
+FROM core.users
+WHERE email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (CoreUser, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i CoreUser
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.Disabled,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserBySession = `-- name: GetUserBySession :one
+SELECT u.id, u.email, u.name, u.password_hash, u.disabled, u.created_at
+FROM core.sessions s
+JOIN core.users u ON u.id = s.user_id
+WHERE s.token_hash = $1 AND s.expires_at > $2 AND NOT u.disabled
+`
+
+type GetUserBySessionParams struct {
+	TokenHash []byte
+	ExpiresAt time.Time
+}
+
+func (q *Queries) GetUserBySession(ctx context.Context, arg GetUserBySessionParams) (CoreUser, error) {
+	row := q.db.QueryRow(ctx, getUserBySession, arg.TokenHash, arg.ExpiresAt)
+	var i CoreUser
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.Disabled,
 		&i.CreatedAt,
 	)
 	return i, err

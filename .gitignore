@@ -3,3 +3,6 @@ cover.out
 node_modules/
 .env
 /pluginwire
+.playwright-mcp/
+go.work
+go.work.sum

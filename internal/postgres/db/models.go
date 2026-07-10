@@ -24,3 +24,19 @@ type CoreContactIdentity struct {
 	DisplayName string
 	CreatedAt   time.Time
 }
+
+type CoreSession struct {
+	TokenHash []byte
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+type CoreUser struct {
+	ID           uuid.UUID
+	Email        string
+	Name         string
+	PasswordHash string
+	Disabled     bool
+	CreatedAt    time.Time
+}
