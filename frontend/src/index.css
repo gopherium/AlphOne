@@ -20,6 +20,8 @@ body {
 }
 
 .alphone-layout__sidebar {
+	display: flex;
+	flex-direction: column;
 	flex-shrink: 0;
 	width: 300px;
 	padding: 16px;
@@ -27,6 +29,26 @@ body {
 	overflow-y: auto;
 	scrollbar-width: thin;
 	scrollbar-color: transparent transparent;
+}
+
+.alphone-layout__account {
+	margin-top: auto;
+	padding-top: 16px;
+	border-top: 1px solid var(--wpds-color-stroke-surface-neutral);
+}
+
+.alphone-login {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 100vh;
+	padding: 24px;
+	box-sizing: border-box;
+}
+
+.alphone-login__card {
+	width: 100%;
+	max-width: 360px;
 }
 
 .alphone-layout__sidebar:hover,

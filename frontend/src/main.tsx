@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 
 import '@wordpress/theme/design-tokens.css'
 import './index.css'
+import { AuthGate } from './auth/AuthGate'
 import { createAppRouter } from './router'
 
 const queryClient = new QueryClient()
@@ -17,7 +18,9 @@ createRoot(document.getElementById('root')!).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider isRoot>
-				<RouterProvider router={router} />
+				<AuthGate>
+					<RouterProvider router={router} />
+				</AuthGate>
 			</ThemeProvider>
 		</QueryClientProvider>
 	</StrictMode>,

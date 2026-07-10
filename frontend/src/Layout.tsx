@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
+import { Button, Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
+import { useLogout, useSession } from './auth/session'
 import { MainMenu } from './menu/MainMenu'
 
 const CHROME_COLOR = { background: '#1e1e1e' }
@@ -20,6 +21,8 @@ export function Layout() {
 		.reverse()
 		.find((match) => match.staticData.Sidebar)
 	const Sidebar = sidebarMatch?.staticData.Sidebar
+	const user = useSession().data
+	const signOut = useLogout()
 	return (
 		<ThemeProvider color={CHROME_COLOR}>
 			<div className="alphone-layout">
@@ -34,6 +37,22 @@ export function Layout() {
 							{Sidebar ? <Sidebar /> : <MainMenu />}
 						</nav>
 					</Stack>
+					{user ? (
+						<Stack
+							direction="column"
+							gap="sm"
+							className="alphone-layout__account"
+						>
+							<Text>{user.name}</Text>
+							<Button
+								variant="outline"
+								disabled={signOut.isPending}
+								onClick={() => signOut.mutate()}
+							>
+								Log out
+							</Button>
+						</Stack>
+					) : null}
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>
 					<main className="alphone-layout__canvas">

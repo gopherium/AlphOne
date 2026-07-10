@@ -4,12 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { render } from '@testing-library/react'
 
+import type { User } from '../auth/api'
+import { sessionQueryKey } from '../auth/session'
 import { createAppRouter } from '../router'
 
-export function renderAt(path: string) {
+const defaultUser: User = {
+	id: '0198b2f0-0000-7000-8000-000000000001',
+	email: 'grace@example.com',
+	name: 'Grace Hopper',
+}
+
+export function renderAt(path: string, user: User | null = defaultUser) {
 	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
+		defaultOptions: { queries: { retry: false, staleTime: Infinity } },
 	})
+	client.setQueryData(sessionQueryKey, user)
 	const router = createAppRouter(
 		createMemoryHistory({ initialEntries: [path] }),
 	)
@@ -18,4 +27,5 @@ export function renderAt(path: string) {
 			<RouterProvider router={router} />
 		</QueryClientProvider>,
 	)
+	return client
 }
