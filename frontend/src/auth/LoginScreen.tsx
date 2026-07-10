@@ -9,10 +9,15 @@ import type { User } from './api'
 
 /**
  * Renders the login form and reports the authenticated user upward.
- * @param onLogin - Called with the user after a successful login.
+ * @param onLogin - Called with the user after a successful login, the login
+ * stays pending until a returned promise settles.
  * @returns The login screen element.
  */
-export function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
+export function LoginScreen({
+	onLogin,
+}: {
+	onLogin: (user: User) => void | Promise<void>
+}) {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const attempt = useMutation({

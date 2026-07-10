@@ -2,7 +2,7 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
 
@@ -28,6 +28,7 @@ function renderGate() {
 			</AuthGate>
 		</QueryClientProvider>,
 	)
+	return client
 }
 
 test('shows a loading indicator while the session resolves', () => {
@@ -70,6 +71,23 @@ test('shows an error when the session cannot be loaded', async () => {
 	)
 })
 
+test('keeps the app mounted when a background session refetch fails', async () => {
+	server.use(http.get('/api/auth/session', () => HttpResponse.json(ada)))
+	const client = renderGate()
+	expect(await screen.findByText('Protected area')).toBeInTheDocument()
+
+	server.use(
+		http.get('/api/auth/session', () =>
+			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		),
+	)
+	await act(() => client.invalidateQueries())
+	await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+	expect(screen.getByText('Protected area')).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('reveals the children after a successful login', async () => {
 	server.use(
 		http.get('/api/auth/session', () =>
@@ -84,4 +102,37 @@ test('reveals the children after a successful login', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
 
 	expect(await screen.findByText('Protected area')).toBeInTheDocument()
+})
+
+test('ignores a stale session response that resolves after login', async () => {
+	server.use(
+		http.get('/api/auth/session', () =>
+			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		),
+		http.post('/api/auth/login', () => HttpResponse.json(ada)),
+	)
+	const client = renderGate()
+	await screen.findByLabelText('Email')
+
+	let releaseStaleSession = () => {}
+	const staleSession = new Promise<void>((resolve) => {
+		releaseStaleSession = resolve
+	})
+	server.use(
+		http.get('/api/auth/session', async () => {
+			await staleSession
+			return HttpResponse.json({ error: 'no session' }, { status: 401 })
+		}),
+	)
+	void client.invalidateQueries()
+
+	await userEvent.type(screen.getByLabelText('Email'), 'ada@example.com')
+	await userEvent.type(screen.getByLabelText('Password'), 'correct horse battery')
+	await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+	expect(await screen.findByText('Protected area')).toBeInTheDocument()
+
+	releaseStaleSession()
+	await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+	expect(screen.getByText('Protected area')).toBeInTheDocument()
 })

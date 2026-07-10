@@ -17,10 +17,11 @@ export class InvalidCredentialsError extends Error {}
 
 /**
  * Returns the logged-in user, or null when no session is active.
+ * @param signal - Aborts the request when the session query is cancelled.
  * @returns The current user, or null when unauthenticated.
  */
-export async function fetchSession(): Promise<User | null> {
-	const response = await fetch('/api/auth/session')
+export async function fetchSession(signal?: AbortSignal): Promise<User | null> {
+	const response = await fetch('/api/auth/session', { signal })
 	if (response.status === 401) {
 		return null
 	}

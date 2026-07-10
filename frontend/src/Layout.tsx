@@ -51,6 +51,9 @@ export function Layout() {
 							>
 								Log out
 							</Button>
+							{signOut.isError ? (
+								<Text role="alert">Logout failed, please try again.</Text>
+							) : null}
 						</Stack>
 					) : null}
 				</div>

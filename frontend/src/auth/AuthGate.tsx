@@ -17,16 +17,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient()
 	const session = useSession()
 
-	if (session.isPending) {
+	if (session.data === undefined) {
+		if (session.isError) {
+			return <Text role="alert">Something went wrong.</Text>
+		}
 		return <Text role="status">Loading…</Text>
-	}
-	if (session.isError) {
-		return <Text role="alert">Something went wrong.</Text>
 	}
 	if (session.data === null) {
 		return (
 			<LoginScreen
-				onLogin={(user) => queryClient.setQueryData(sessionQueryKey, user)}
+				onLogin={async (user) => {
+					await queryClient.cancelQueries({ queryKey: sessionQueryKey })
+					queryClient.setQueryData(sessionQueryKey, user)
+				}}
 			/>
 		)
 	}

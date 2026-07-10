@@ -13,18 +13,23 @@ export const sessionQueryKey = ['session'] as const
 export function useSession() {
 	return useQuery({
 		queryKey: sessionQueryKey,
-		queryFn: fetchSession,
+		queryFn: ({ signal }) => fetchSession(signal),
 	})
 }
 
 /**
- * Ends the current session and clears the cached user.
+ * Ends the current session, dropping every cached query so no data from
+ * the signed-out user survives for the next account on this browser.
  * @returns The logout mutation.
  */
 export function useLogout() {
 	const queryClient = useQueryClient()
 	return useMutation({
 		mutationFn: logout,
-		onSuccess: () => queryClient.setQueryData(sessionQueryKey, null),
+		onSuccess: async () => {
+			await queryClient.cancelQueries()
+			queryClient.removeQueries()
+			queryClient.setQueryData(sessionQueryKey, null)
+		},
 	})
 }
