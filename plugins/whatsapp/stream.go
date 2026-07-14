@@ -6,10 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
+// defaultStreamLifetime is how long an SSE connection stays open.
+const defaultStreamLifetime = 5 * time.Minute
+
 // handleStream streams conversation change events to the client as
-// Server-Sent Events until the client disconnects.
+// Server-Sent Events until the client disconnects or the connection
+// reaches its lifetime.
 func (p *Plugin) handleStream() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -26,9 +31,18 @@ func (p *Plugin) handleStream() http.HandlerFunc {
 			return
 		}
 
+		var deadline <-chan time.Time
+		if p.streamLifetime > 0 {
+			timer := time.NewTimer(p.streamLifetime)
+			defer timer.Stop()
+			deadline = timer.C
+		}
+
 		for {
 			select {
 			case <-r.Context().Done():
+				return
+			case <-deadline:
 				return
 			case e := <-subscription:
 				payload, _ := json.Marshal(e)
