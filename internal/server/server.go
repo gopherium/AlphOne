@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,9 @@ type Config struct {
 	// PluginPublicPaths maps a plugin id to the namespace-relative paths
 	// that stay reachable without a session, such as signed webhooks.
 	PluginPublicPaths map[string][]string
+	// Web serves the single-page app for non-API paths. Nil leaves those
+	// paths unhandled, which suits development behind the Vite dev server.
+	Web fs.FS
 }
 
 // NewServer returns the HTTP handler serving the CRM API. Every route
@@ -53,6 +57,9 @@ func NewServer(cfg Config) http.Handler {
 		prefix := "/api/plugins/" + id
 		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id])
 		router.Mount(prefix, http.StripPrefix(prefix, guarded))
+	}
+	if cfg.Web != nil {
+		router.NotFound(spaHandler(cfg.Web))
 	}
 	return router
 }

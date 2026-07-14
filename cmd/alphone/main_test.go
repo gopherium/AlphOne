@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -236,12 +237,17 @@ func TestRunServesAPI(t *testing.T) {
 
 	addr := freeAddr(t)
 	databaseURL := testDatabaseURL(t)
+	webDir := t.TempDir()
+	if err := os.WriteFile(webDir+"/index.html", []byte("<!doctype html><title>AlphOne</title>"), 0o644); err != nil {
+		t.Fatalf("writing index.html: %v", err)
+	}
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
 		runErr <- run(ctx, testGetenv(map[string]string{
 			"ALPHONE_DATABASE_URL":          databaseURL,
 			"ALPHONE_ADDR":                  addr,
+			"ALPHONE_WEB_DIR":               webDir,
 			"ALPHONE_WHATSAPP_VERIFY_TOKEN": "e2e-secret",
 			"ALPHONE_WHATSAPP_APP_SECRET":   "e2e-app-secret",
 		}), io.Discard, registerPlugins)
@@ -249,6 +255,16 @@ func TestRunServesAPI(t *testing.T) {
 
 	baseURL := "http://" + addr
 	waitForServer(t, baseURL+"/api/contacts/"+uuid.Must(uuid.NewV7()).String())
+
+	spa, err := http.Get(baseURL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	spaBody, _ := io.ReadAll(spa.Body)
+	_ = spa.Body.Close()
+	if spa.StatusCode != http.StatusOK || !strings.Contains(string(spaBody), "AlphOne") {
+		t.Fatalf("GET / = %d %q, want the served SPA index.html", spa.StatusCode, spaBody)
+	}
 
 	unauthorized, err := http.Post(
 		baseURL+"/api/contacts", "application/json", strings.NewReader(`{"name":"María Pérez"}`),

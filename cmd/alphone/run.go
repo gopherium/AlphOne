@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -74,14 +75,19 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
+	cfg := server.Config{
+		Contacts:          postgres.NewContactStore(pool),
+		Users:             userStore,
+		Plugins:           host.Routes(),
+		PluginPublicPaths: host.PublicPaths(),
+	}
+	if webDir := getenv("ALPHONE_WEB_DIR"); webDir != "" {
+		cfg.Web = os.DirFS(webDir)
+	}
+
 	httpServer := &http.Server{
-		Addr: addr,
-		Handler: server.NewServer(server.Config{
-			Contacts:          postgres.NewContactStore(pool),
-			Users:             userStore,
-			Plugins:           host.Routes(),
-			PluginPublicPaths: host.PublicPaths(),
-		}),
+		Addr:              addr,
+		Handler:           server.NewServer(cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,

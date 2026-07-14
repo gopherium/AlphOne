@@ -7,3 +7,4 @@ node_modules/
 .playwright-mcp/
 go.work
 go.work.sum
+/deploy/
