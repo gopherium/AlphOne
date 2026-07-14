@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -80,6 +81,7 @@ func run(
 		Users:             userStore,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
+		Version:           alphone.Version(),
 	}
 	if webDir := getenv("ALPHONE_WEB_DIR"); webDir != "" {
 		cfg.Web = os.DirFS(webDir)
