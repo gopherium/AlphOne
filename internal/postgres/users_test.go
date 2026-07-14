@@ -216,6 +216,46 @@ func TestUserStoreReportsBackendFailures(t *testing.T) {
 	if err := store.SetUserDisabled(canceled, ada.ID, true); err == nil {
 		t.Error("SetUserDisabled() error = nil, want a backend failure")
 	}
+	if _, err := store.DeleteExpiredSessions(canceled, time.Now().UTC()); err == nil {
+		t.Error("DeleteExpiredSessions() error = nil, want a backend failure")
+	}
+}
+
+func TestUserStoreDeleteExpiredSessions(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewUserStore(newTestPool(t))
+	ada := mustUser(t)
+	if err := store.CreateUser(t.Context(), ada); err != nil {
+		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+	expired := mustSession(t, ada)
+	expired.ExpiresAt = time.Now().UTC().Add(-time.Hour)
+	valid := mustSession(t, ada)
+	for _, session := range []gouncer.Session{expired, valid} {
+		if err := store.CreateSession(t.Context(), session); err != nil {
+			t.Fatalf("CreateSession() error = %v, want nil", err)
+		}
+	}
+
+	count, err := store.DeleteExpiredSessions(t.Context(), time.Now().UTC())
+
+	if err != nil {
+		t.Fatalf("DeleteExpiredSessions() error = %v, want nil", err)
+	}
+	if count != 1 {
+		t.Errorf("deleted %d sessions, want 1 (only the expired one)", count)
+	}
+	if _, err := store.UserBySession(t.Context(), gouncer.HashToken(valid.Token), time.Now().UTC()); err != nil {
+		t.Errorf("the valid session did not survive GC: UserBySession() error = %v, want nil", err)
+	}
+	again, err := store.DeleteExpiredSessions(t.Context(), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("second DeleteExpiredSessions() error = %v, want nil", err)
+	}
+	if again != 0 {
+		t.Errorf("second sweep deleted %d sessions, want 0 (nothing left to reap)", again)
+	}
 }
 
 func namedUser(t *testing.T, email, name string) gouncer.User {

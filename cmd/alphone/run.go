@@ -48,6 +48,18 @@ func run(
 		return err
 	}
 
+	userStore := postgres.NewUserStore(pool)
+	reaperCtx, stopReaper := context.WithCancel(ctx)
+	reaperDone := make(chan struct{})
+	go func() {
+		reapExpiredSessions(reaperCtx, userStore, sessionGCInterval, logger)
+		close(reaperDone)
+	}()
+	defer func() {
+		stopReaper()
+		<-reaperDone
+	}()
+
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
 		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
@@ -66,7 +78,7 @@ func run(
 		Addr: addr,
 		Handler: server.NewServer(server.Config{
 			Contacts:          postgres.NewContactStore(pool),
-			Users:             postgres.NewUserStore(pool),
+			Users:             userStore,
 			Plugins:           host.Routes(),
 			PluginPublicPaths: host.PublicPaths(),
 		}),

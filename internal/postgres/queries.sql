@@ -55,3 +55,7 @@ WHERE s.token_hash = $1 AND s.expires_at > $2 AND NOT u.disabled;
 -- name: DeleteSession :exec
 DELETE FROM core.sessions
 WHERE token_hash = $1;
+
+-- name: DeleteExpiredSessions :execrows
+DELETE FROM core.sessions
+WHERE expires_at <= $1;
