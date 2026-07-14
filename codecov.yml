@@ -11,6 +11,3 @@ coverage:
 ignore:
   - internal/postgres/db
   - internal/testdb
-  - cmd/alphone/main.go
-  - cmd/pluginwire/main.go
-  - cmd/doclint/main.go
