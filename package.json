@@ -4,10 +4,10 @@
   "type": "module",
   "packageManager": "pnpm@11.10.0",
   "devDependencies": {
-    "eslint": "^10.6.0",
-    "eslint-plugin-jsdoc": "^63.0.12",
+    "eslint": "^10.7.0",
+    "eslint-plugin-jsdoc": "^63.0.13",
     "eslint-plugin-tsdoc": "^0.5.2",
-    "knip": "^6.25.0",
-    "typescript-eslint": "^8.63.0"
+    "knip": "^6.26.0",
+    "typescript-eslint": "^8.64.0"
   }
 }
