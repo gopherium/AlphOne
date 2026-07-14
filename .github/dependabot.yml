@@ -19,6 +19,7 @@ updates:
     schedule:
       interval: weekly
     cooldown:
+      default-days: 2
       semver-major-days: 30
       semver-minor-days: 7
     groups:
