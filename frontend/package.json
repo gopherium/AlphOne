@@ -14,7 +14,7 @@
     "@alphone/frontend-sdk": "workspace:*",
     "@alphone/plugin-whatsapp": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.18",
     "@wordpress/theme": "^0.17.0",
     "@wordpress/ui": "^0.17.0",
     "react": "^19.2.7",

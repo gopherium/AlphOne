@@ -19,8 +19,8 @@ importers:
         specifier: ^10.6.0
         version: 10.6.0(jiti@2.7.0)
       eslint-plugin-jsdoc:
-        specifier: ^63.0.12
-        version: 63.0.12(eslint@10.6.0(jiti@2.7.0))
+        specifier: ^63.0.13
+        version: 63.0.13(eslint@10.6.0(jiti@2.7.0))
       eslint-plugin-tsdoc:
         specifier: ^0.5.2
         version: 0.5.2(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
@@ -43,8 +43,8 @@ importers:
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.170.17
-        version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^1.170.18
+        version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@wordpress/theme':
         specifier: ^0.17.0
         version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -107,8 +107,8 @@ importers:
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.170.17
-        version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^1.170.18
+        version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -145,8 +145,8 @@ importers:
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.170.17
-        version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^1.170.18
+        version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
@@ -1098,8 +1098,8 @@ packages:
     peerDependencies:
       react: ^19.2.7
 
-  '@tanstack/react-router@1.170.17':
-    resolution: {integrity: sha512-ppLkjCfSMaeug9rmFRYzOd4TIqWV+yTE7tzIny7alJsSnM7w4lzEZm6eqCehG0SPetpZ0R3K+UnanSmBgOAVcQ==}
+  '@tanstack/react-router@1.170.18':
+    resolution: {integrity: sha512-wpbGYZEp/fmz1q4bn7BD8VZ+/VZ7GBqSJv5V969pU+chP8y7dquWDmKTFMohvUegb9lg12m1uPVvD6kB2wORvQ==}
     engines: {node: '>=20.19'}
     peerDependencies:
       react: ^19.2.7
@@ -1111,8 +1111,8 @@ packages:
       react: ^19.2.7
       react-dom: ^19.2.7
 
-  '@tanstack/router-core@1.171.14':
-    resolution: {integrity: sha512-Mo3hwx0qB0cJsVYGDjG0+Ouf7VV74h/vsoDMGztdlyzDanp4gBA2s7IVvm6hFrmQM6GpD9F0Z7SqD7OldfLE7g==}
+  '@tanstack/router-core@1.171.15':
+    resolution: {integrity: sha512-IILCDcLaItMZQ2jEmCABHY1Nhjjn5XUvwpQp3e4Nmu+vfg0BgYFuu/QASz2SwE2ZNbVMrvt8X/wxa+Gg5aErxA==}
     engines: {node: '>=20.19'}
 
   '@tanstack/store@0.9.3':
@@ -1665,8 +1665,8 @@ packages:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
 
-  eslint-plugin-jsdoc@63.0.12:
-    resolution: {integrity: sha512-99VfBHyoLlF9n5w9wh+jLWDBzCgYd3tfw3M/aynAd+H2ylGHWLbde/GPTuo/5az3jMAN0fH7QzCYvEOY6u+Ypg==}
+  eslint-plugin-jsdoc@63.0.13:
+    resolution: {integrity: sha512-ahG1kWA8jYNwaQJtzJlnF+v4Gb9w5r+WL98gp+L8qjLN9ErpL5sevGuemN+fCYsU3Np27F36KmDc8UPi1ml/dg==}
     engines: {node: ^22.13.0 || >=24}
     peerDependencies:
       eslint: ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0
@@ -2256,14 +2256,14 @@ packages:
   sentence-case@3.0.4:
     resolution: {integrity: sha512-8LS0JInaQMCRoQ7YUytAo/xUu5W2XnQxV2HI/6uM6U7CITS1RqPElr30V6uIqyMKM9lJGRVFy5/4CuzcixNYSg==}
 
-  seroval-plugins@1.5.4:
-    resolution: {integrity: sha512-S0xQPhUTefAhNvNWFg0c1J8qJArHt5KdtJ/cFAofo06KD1MVSeFWyl4iiu+ApDIuw0WhjpOfCdgConOfAnLgkw==}
+  seroval-plugins@1.5.5:
+    resolution: {integrity: sha512-+BDhqYM6CEn3x09v44dpa9p6974FuUB2dxk+Ctn04k0cO1Zt6QODTXfmEZK0eBaTe/fJBvP4NMGuNJ+R8T+QMg==}
     engines: {node: '>=10'}
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.5.4:
-    resolution: {integrity: sha512-46uFvgrXTVxZcUorgSSRZ4y+ieqLLQRMlG4bnCZKW3qI6BZm7Rg4ntMW4p1mILEEBZWrFlcpp0AyIIlM6jD9iw==}
+  seroval@1.5.5:
+    resolution: {integrity: sha512-bSjOuPcwPKLSJNhr9+bZxA20nQxVle5J5MNsYRVE6cIg7KpRLXGupymePavu0jrxlPiPsr4xGZSB8yUY2sH2sw==}
     engines: {node: '>=10'}
 
   set-cookie-parser@3.1.1:
@@ -3225,11 +3225,11 @@ snapshots:
       '@tanstack/query-core': 5.101.2
       react: 19.2.7
 
-  '@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@tanstack/history': 1.162.0
       '@tanstack/react-store': 0.9.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tanstack/router-core': 1.171.14
+      '@tanstack/router-core': 1.171.15
       isbot: 5.2.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -3241,12 +3241,12 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
 
-  '@tanstack/router-core@1.171.14':
+  '@tanstack/router-core@1.171.15':
     dependencies:
       '@tanstack/history': 1.162.0
       cookie-es: 3.1.1
-      seroval: 1.5.4
-      seroval-plugins: 1.5.4(seroval@1.5.4)
+      seroval: 1.5.5
+      seroval-plugins: 1.5.5(seroval@1.5.5)
 
   '@tanstack/store@0.9.3': {}
 
@@ -3879,7 +3879,7 @@ snapshots:
 
   escape-string-regexp@4.0.0: {}
 
-  eslint-plugin-jsdoc@63.0.12(eslint@10.6.0(jiti@2.7.0)):
+  eslint-plugin-jsdoc@63.0.13(eslint@10.6.0(jiti@2.7.0)):
     dependencies:
       '@es-joy/jsdoccomment': 0.88.0
       '@es-joy/resolve.exports': 1.2.0
@@ -4537,11 +4537,11 @@ snapshots:
       tslib: 2.8.1
       upper-case-first: 2.0.2
 
-  seroval-plugins@1.5.4(seroval@1.5.4):
+  seroval-plugins@1.5.5(seroval@1.5.5):
     dependencies:
-      seroval: 1.5.4
+      seroval: 1.5.5
 
-  seroval@1.5.4: {}
+  seroval@1.5.5: {}
 
   set-cookie-parser@3.1.1: {}
 
