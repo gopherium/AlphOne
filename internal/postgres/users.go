@@ -22,14 +22,26 @@ var _ gouncer.Store = (*UserStore)(nil)
 
 const uniqueViolationCode = "23505"
 
+// pgxPool is the subset of [*pgxpool.Pool] the store depends on: the query
+// methods sqlc requires plus transaction control.
+type pgxPool interface {
+	db.DBTX
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 // UserStore persists users and their sessions in the core schema.
 type UserStore struct {
-	pool    *pgxpool.Pool
+	pool    pgxPool
 	queries *db.Queries
 }
 
 // NewUserStore returns a [UserStore] backed by pool.
 func NewUserStore(pool *pgxpool.Pool) *UserStore {
+	return newUserStore(pool)
+}
+
+// newUserStore builds a [UserStore] over any [pgxPool].
+func newUserStore(pool pgxPool) *UserStore {
 	return &UserStore{pool: pool, queries: db.New(pool)}
 }
 
