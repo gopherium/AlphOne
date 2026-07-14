@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func coverBinary(t *testing.T, name string) (string, []string) {
+func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
 	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
@@ -25,13 +25,13 @@ func coverBinary(t *testing.T, name string) (string, []string) {
 			env = append(env, entry)
 		}
 	}
-	return filepath.Join(bindir, name), append(env, "GOCOVERDIR="+gocoverdir)
+	return filepath.Join(bindir, "pluginwire"), append(env, "GOCOVERDIR="+gocoverdir)
 }
 
 func TestMainBinaryGeneratesWiring(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "pluginwire")
+	binary, env := coverBinary(t)
 	root := t.TempDir()
 	writePlugin(t, root, "demo", `{
 		"id": "demo",
@@ -63,7 +63,7 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 func TestMainBinaryFailsWithoutPluginsDirectory(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "pluginwire")
+	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = t.TempDir()

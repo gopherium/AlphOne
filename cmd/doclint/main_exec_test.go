@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func coverBinary(t *testing.T, name string) (string, []string) {
+func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
 	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
@@ -25,7 +25,7 @@ func coverBinary(t *testing.T, name string) (string, []string) {
 			env = append(env, entry)
 		}
 	}
-	return filepath.Join(bindir, name), append(env, "GOCOVERDIR="+gocoverdir)
+	return filepath.Join(bindir, "doclint"), append(env, "GOCOVERDIR="+gocoverdir)
 }
 
 func writeFixture(t *testing.T, dir, name, source string) {
@@ -38,7 +38,7 @@ func writeFixture(t *testing.T, dir, name, source string) {
 func TestMainBinaryPassesOnDocumentedTree(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "doclint")
+	binary, env := coverBinary(t)
 	dir := t.TempDir()
 	writeFixture(t, dir, "documented.go", "package fixture\n\n// Documented does nothing.\nfunc Documented() {}\n")
 	var stderr bytes.Buffer
@@ -55,7 +55,7 @@ func TestMainBinaryPassesOnDocumentedTree(t *testing.T) {
 func TestMainBinaryFailsOnUndocumentedFunction(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "doclint")
+	binary, env := coverBinary(t)
 	dir := t.TempDir()
 	writeFixture(t, dir, "undocumented.go", "package fixture\n\nfunc Undocumented() {}\n")
 	var stderr bytes.Buffer

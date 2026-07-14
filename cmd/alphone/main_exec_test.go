@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func coverBinary(t *testing.T, name string) (string, []string) {
+func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
 	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
@@ -29,13 +29,13 @@ func coverBinary(t *testing.T, name string) (string, []string) {
 			env = append(env, entry)
 		}
 	}
-	return filepath.Join(bindir, name), append(env, "GOCOVERDIR="+gocoverdir)
+	return filepath.Join(bindir, "alphone"), append(env, "GOCOVERDIR="+gocoverdir)
 }
 
 func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "alphone")
+	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = t.TempDir()
@@ -56,7 +56,7 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "alphone")
+	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "createadmin")
 	cmd.Dir = t.TempDir()
@@ -77,7 +77,7 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "alphone")
+	binary, env := coverBinary(t)
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
 	cmd.Dir = t.TempDir()
@@ -98,7 +98,7 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t, "alphone")
+	binary, env := coverBinary(t)
 	addr := freeAddr(t)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
