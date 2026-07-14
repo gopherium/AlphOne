@@ -1,5 +1,6 @@
 /alphone
 cover.out
+.covdata/
 node_modules/
 .env
 /pluginwire

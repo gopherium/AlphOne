@@ -34,9 +34,19 @@ db-up:
 db-down:
 	docker compose down
 
-cover:
-	go test -cover $(COVERPKGS)
+COVERDATA = .covdata
 
-cover-html:
-	go test -coverprofile=cover.out $(COVERPKGS)
-	go tool cover -html=cover.out
+cover:
+	rm -rf $(COVERDATA)
+	mkdir -p $(COVERDATA)/bin $(COVERDATA)/counters
+	go build -cover -coverpkg=./cmd/... -o $(COVERDATA)/bin ./cmd/alphone ./cmd/doclint ./cmd/pluginwire
+	ALPHONE_COVER_BINDIR=$(CURDIR)/$(COVERDATA)/bin \
+	ALPHONE_COVER_GOCOVERDIR=$(CURDIR)/$(COVERDATA)/counters \
+	go test -cover $(COVERPKGS) -args -test.gocoverdir=$(CURDIR)/$(COVERDATA)/counters
+	@echo "=== merged unit + binary coverage ==="
+	go tool covdata percent -i=$(COVERDATA)/counters
+	@go tool covdata textfmt -i=$(COVERDATA)/counters -o $(COVERDATA)/cover.out
+	@go tool cover -func=$(COVERDATA)/cover.out | tail -1
+
+cover-html: cover
+	go tool cover -html=$(COVERDATA)/cover.out
