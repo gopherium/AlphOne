@@ -118,6 +118,16 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 	return err
 }
 
+const deleteUserSessions = `-- name: DeleteUserSessions :exec
+DELETE FROM core.sessions
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserSessions, userID)
+	return err
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at
 FROM core.contacts
@@ -203,25 +213,32 @@ func (q *Queries) GetUserBySession(ctx context.Context, arg GetUserBySessionPara
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, password_hash, disabled, created_at
+SELECT id, email, name, disabled, created_at
 FROM core.users
 ORDER BY name, id
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]CoreUser, error) {
+type ListUsersRow struct {
+	ID        uuid.UUID
+	Email     string
+	Name      string
+	Disabled  bool
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	rows, err := q.db.Query(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreUser
+	var items []ListUsersRow
 	for rows.Next() {
-		var i CoreUser
+		var i ListUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Name,
-			&i.PasswordHash,
 			&i.Disabled,
 			&i.CreatedAt,
 		); err != nil {

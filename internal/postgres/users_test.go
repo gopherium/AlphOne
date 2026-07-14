@@ -245,6 +245,9 @@ func TestUserStoreListUsersOrdersByName(t *testing.T) {
 		t.Fatalf("ListUsers() error = %v, want nil", err)
 	}
 	want := []gouncer.User{ada, grace}
+	for i := range want {
+		want[i].PasswordHash = ""
+	}
 	if diff := cmp.Diff(want, got, cmpopts.EquateApproxTime(time.Microsecond)); diff != "" {
 		t.Errorf("ListUsers() mismatch (-want +got):\n%s", diff)
 	}
@@ -294,6 +297,32 @@ func TestUserStoreSetUserDisabled(t *testing.T) {
 	}
 	if enabled.Disabled {
 		t.Error("user still disabled after SetUserDisabled(false)")
+	}
+}
+
+func TestUserStoreSetUserDisabledRevokesSessions(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewUserStore(newTestPool(t))
+	ada := mustUser(t)
+	if err := store.CreateUser(t.Context(), ada); err != nil {
+		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+	session := mustSession(t, ada)
+	if err := store.CreateSession(t.Context(), session); err != nil {
+		t.Fatalf("CreateSession() error = %v, want nil", err)
+	}
+
+	if err := store.SetUserDisabled(t.Context(), ada.ID, true); err != nil {
+		t.Fatalf("SetUserDisabled(true) error = %v, want nil", err)
+	}
+	if err := store.SetUserDisabled(t.Context(), ada.ID, false); err != nil {
+		t.Fatalf("SetUserDisabled(false) error = %v, want nil", err)
+	}
+	_, err := store.UserBySession(t.Context(), gouncer.HashToken(session.Token), time.Now().UTC())
+
+	if !errors.Is(err, gouncer.ErrSessionNotFound) {
+		t.Errorf("UserBySession() after disable and re-enable error = %v, want %v", err, gouncer.ErrSessionNotFound)
 	}
 }
 

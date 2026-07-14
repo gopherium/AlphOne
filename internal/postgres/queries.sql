@@ -29,7 +29,7 @@ FROM core.users
 WHERE email = $1;
 
 -- name: ListUsers :many
-SELECT id, email, name, password_hash, disabled, created_at
+SELECT id, email, name, disabled, created_at
 FROM core.users
 ORDER BY name, id;
 
@@ -37,6 +37,10 @@ ORDER BY name, id;
 UPDATE core.users
 SET disabled = $2
 WHERE id = $1;
+
+-- name: DeleteUserSessions :exec
+DELETE FROM core.sessions
+WHERE user_id = $1;
 
 -- name: CreateSession :exec
 INSERT INTO core.sessions (token_hash, user_id, created_at, expires_at)

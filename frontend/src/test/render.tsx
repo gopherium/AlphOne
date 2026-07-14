@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { render } from '@testing-library/react'
 
 import type { User } from '../auth/api'
 import { sessionQueryKey } from '../auth/session'
+import { createQueryClient } from '../queryClient'
 import { createAppRouter } from '../router'
 
 const defaultUser: User = {
@@ -15,8 +16,8 @@ const defaultUser: User = {
 }
 
 export function renderAt(path: string, user: User | null = defaultUser) {
-	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+	const client = createQueryClient({
+		queries: { retry: false, staleTime: Infinity },
 	})
 	client.setQueryData(sessionQueryKey, user)
 	const router = createAppRouter(

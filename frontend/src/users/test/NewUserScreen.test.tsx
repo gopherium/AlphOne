@@ -90,6 +90,37 @@ test('creates a user and returns to the list', async () => {
 	})
 })
 
+test('hints browsers not to autofill saved credentials', async () => {
+	renderNewUser()
+
+	expect(await screen.findByLabelText('Email')).toHaveAttribute(
+		'autocomplete',
+		'off',
+	)
+	expect(screen.getByLabelText('Password')).toHaveAttribute(
+		'autocomplete',
+		'new-password',
+	)
+})
+
+test('shows the server validation message when the input is rejected', async () => {
+	server.use(
+		http.post('/api/users', () =>
+			HttpResponse.json(
+				{ error: 'password must be at least 12 characters' },
+				{ status: 422 },
+			),
+		),
+	)
+	renderNewUser()
+
+	await fillForm('grace@example.com', 'Grace Hopper', 'short')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'password must be at least 12 characters',
+	)
+})
+
 test('shows a message when the email is already taken', async () => {
 	server.use(
 		http.post('/api/users', () =>

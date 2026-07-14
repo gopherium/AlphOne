@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, Button, Stack, Text } from '@alphone/frontend-sdk'
+import { Badge, Button, Stack, Text, VisuallyHidden } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
 import { useSession } from '../auth/session'
-import { fetchUsers, setUserDisabled } from './api'
+import { fetchUsers, setUserDisabled, usersQueryKey } from './api'
 import type { User } from './api'
 
 /**
@@ -19,7 +19,7 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
 	const queryClient = useQueryClient()
 	const toggle = useMutation({
 		mutationFn: () => setUserDisabled(user.id, !user.disabled),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }),
 	})
 
 	return (
@@ -57,7 +57,10 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
  */
 export function UsersScreen() {
 	const currentUserId = useSession().data?.id
-	const users = useQuery({ queryKey: ['users'], queryFn: fetchUsers })
+	const users = useQuery({
+		queryKey: usersQueryKey,
+		queryFn: ({ signal }) => fetchUsers(signal),
+	})
 
 	if (users.isPending) {
 		return <Text role="status">Loading users…</Text>
@@ -71,9 +74,7 @@ export function UsersScreen() {
 				<Text variant="heading-lg" render={<h1 />}>
 					Users
 				</Text>
-				<Link to="/users/new">
-					<Button>New user</Button>
-				</Link>
+				<Button render={<Link to="/users/new" />}>New user</Button>
 			</Stack>
 			<table className="alphone-users">
 				<thead>
@@ -82,7 +83,7 @@ export function UsersScreen() {
 						<th scope="col">Email</th>
 						<th scope="col">Status</th>
 						<th scope="col">
-							<span className="alphone-users__actions-heading">Actions</span>
+							<VisuallyHidden>Actions</VisuallyHidden>
 						</th>
 					</tr>
 				</thead>

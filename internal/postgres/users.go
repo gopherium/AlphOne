@@ -24,12 +24,13 @@ const uniqueViolationCode = "23505"
 
 // UserStore persists users and their sessions in the core schema.
 type UserStore struct {
+	pool    *pgxpool.Pool
 	queries *db.Queries
 }
 
 // NewUserStore returns a [UserStore] backed by pool.
 func NewUserStore(pool *pgxpool.Pool) *UserStore {
-	return &UserStore{queries: db.New(pool)}
+	return &UserStore{pool: pool, queries: db.New(pool)}
 }
 
 // CreateUser stores a new user, or [gouncer.ErrEmailTaken] when the email is
@@ -96,7 +97,8 @@ func (s *UserStore) UserBySession(ctx context.Context, tokenHash []byte, now tim
 	return userFromRow(row), nil
 }
 
-// ListUsers returns every user ordered by name.
+// ListUsers returns every user ordered by name. The listing never reads
+// password hashes, so the returned users carry none.
 func (s *UserStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
 	rows, err := s.queries.ListUsers(ctx)
 	if err != nil {
@@ -104,20 +106,42 @@ func (s *UserStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
 	}
 	users := make([]gouncer.User, len(rows))
 	for i, row := range rows {
-		users[i] = userFromRow(row)
+		users[i] = gouncer.User{
+			ID:        row.ID,
+			Email:     row.Email,
+			Name:      row.Name,
+			Disabled:  row.Disabled,
+			CreatedAt: row.CreatedAt,
+		}
 	}
 	return users, nil
 }
 
-// SetUserDisabled updates whether the user may log in, or returns
-// [gouncer.ErrUserNotFound] when no such user exists.
+// SetUserDisabled updates whether the user may log in, revoking every
+// session the user holds when disabling so a later re-enable cannot
+// resurrect them, or returns [gouncer.ErrUserNotFound] when no such
+// user exists.
 func (s *UserStore) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error {
-	count, err := s.queries.SetUserDisabled(ctx, db.SetUserDisabledParams{ID: id, Disabled: disabled})
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("postgres: set user disabled: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := s.queries.WithTx(tx)
+	count, err := queries.SetUserDisabled(ctx, db.SetUserDisabledParams{ID: id, Disabled: disabled})
 	if err != nil {
 		return fmt.Errorf("postgres: set user disabled: %w", err)
 	}
 	if count == 0 {
 		return gouncer.ErrUserNotFound
+	}
+	if disabled {
+		if err := queries.DeleteUserSessions(ctx, id); err != nil {
+			return fmt.Errorf("postgres: revoke user sessions: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("postgres: set user disabled: %w", err)
 	}
 	return nil
 }

@@ -3,8 +3,10 @@
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { describe, expect, it } from 'vitest'
 
+import { UnauthorizedError } from '../../auth/api'
 import {
 	EmailTakenError,
+	ValidationError,
 	createUser,
 	fetchUsers,
 	setUserDisabled,
@@ -38,6 +40,16 @@ describe('fetchUsers', () => {
 
 		await expect(fetchUsers()).rejects.toThrow('500')
 	})
+
+	it('throws UnauthorizedError when the session is gone', async () => {
+		server.use(
+			http.get('/api/users', () =>
+				HttpResponse.json({ error: 'no session' }, { status: 401 }),
+			),
+		)
+
+		await expect(fetchUsers()).rejects.toBeInstanceOf(UnauthorizedError)
+	})
 })
 
 describe('createUser', () => {
@@ -67,13 +79,51 @@ describe('createUser', () => {
 	it('throws EmailTakenError on a duplicate email', async () => {
 		server.use(
 			http.post('/api/users', () =>
-				HttpResponse.json({ error: 'email already taken' }, { status: 409 }),
+				HttpResponse.json({ error: 'email already in use' }, { status: 409 }),
 			),
 		)
 
 		await expect(
 			createUser({ email: 'ada@example.com', name: 'Ada', password: 'correct horse battery' }),
 		).rejects.toBeInstanceOf(EmailTakenError)
+	})
+
+	it('throws ValidationError carrying the server message on invalid input', async () => {
+		server.use(
+			http.post('/api/users', () =>
+				HttpResponse.json(
+					{ error: 'password must be at least 12 characters' },
+					{ status: 422 },
+				),
+			),
+		)
+
+		const attempt = createUser({ email: 'ada@example.com', name: 'Ada', password: 'short' })
+
+		await expect(attempt).rejects.toBeInstanceOf(ValidationError)
+		await expect(attempt).rejects.toThrow('password must be at least 12 characters')
+	})
+
+	it('falls back to a generic message when a 422 body is unreadable', async () => {
+		server.use(
+			http.post('/api/users', () => new HttpResponse('not json', { status: 422 })),
+		)
+
+		await expect(
+			createUser({ email: 'ada@example.com', name: 'Ada', password: 'short' }),
+		).rejects.toThrow('invalid user details')
+	})
+
+	it('throws UnauthorizedError when the session is gone', async () => {
+		server.use(
+			http.post('/api/users', () =>
+				HttpResponse.json({ error: 'no session' }, { status: 401 }),
+			),
+		)
+
+		await expect(
+			createUser({ email: 'ada@example.com', name: 'Ada', password: 'correct horse battery' }),
+		).rejects.toBeInstanceOf(UnauthorizedError)
 	})
 
 	it('rejects on server failure', async () => {
@@ -115,5 +165,17 @@ describe('setUserDisabled', () => {
 		)
 
 		await expect(setUserDisabled(ada.id, false)).rejects.toThrow('500')
+	})
+
+	it('throws UnauthorizedError when the session is gone', async () => {
+		server.use(
+			http.patch('/api/users/:id', () =>
+				HttpResponse.json({ error: 'no session' }, { status: 401 }),
+			),
+		)
+
+		await expect(setUserDisabled(ada.id, true)).rejects.toBeInstanceOf(
+			UnauthorizedError,
+		)
 	})
 })

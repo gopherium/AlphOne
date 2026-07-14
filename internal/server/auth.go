@@ -18,14 +18,16 @@ type contextKey int
 
 const userContextKey contextKey = 0
 
-// withUser returns a context carrying the authenticated user.
-func withUser(ctx context.Context, u gouncer.User) context.Context {
+// withUser returns a context carrying the authenticated user's identity,
+// deliberately excluding credentials such as the password hash.
+func withUser(ctx context.Context, u userResponse) context.Context {
 	return context.WithValue(ctx, userContextKey, u)
 }
 
-// userFromContext returns the user stored by [server.requireSession].
-func userFromContext(ctx context.Context) gouncer.User {
-	u, _ := ctx.Value(userContextKey).(gouncer.User)
+// userFromContext returns the identity stored by the requireSession
+// middleware, or the zero identity outside of it.
+func userFromContext(ctx context.Context) userResponse {
+	u, _ := ctx.Value(userContextKey).(userResponse)
 	return u
 }
 
@@ -103,19 +105,11 @@ func (s *server) handleLogout() http.HandlerFunc {
 	}
 }
 
-// handleSession returns an HTTP handler reporting the logged-in user.
+// handleSession returns an HTTP handler reporting the logged-in user, whose
+// identity the requireSession middleware already resolved.
 func (s *server) handleSession() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, err := s.sessionUser(r)
-		if errors.Is(err, gouncer.ErrSessionNotFound) {
-			respondError(w, http.StatusUnauthorized, "no session")
-			return
-		}
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "internal error")
-			return
-		}
-		respond(w, http.StatusOK, userResponse{ID: u.ID, Email: u.Email, Name: u.Name})
+		respond(w, http.StatusOK, userFromContext(r.Context()))
 	}
 }
 
@@ -141,7 +135,8 @@ func (s *server) requireSession(next http.Handler) http.Handler {
 			respondError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
+		identity := userResponse{ID: u.ID, Email: u.Email, Name: u.Name}
+		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), identity)))
 	})
 }
 

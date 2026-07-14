@@ -151,13 +151,12 @@ test('surfaces an error when a toggle fails', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('Update failed.')
 })
 
-test('links to the new user form', async () => {
+test('links to the new user form as a single control', async () => {
 	server.use(http.get('/api/users', () => HttpResponse.json([ada])))
 	renderUsers()
 
 	await screen.findByRole('row', { name: /Ada Lovelace/ })
-	expect(screen.getByRole('link', { name: 'New user' })).toHaveAttribute(
-		'href',
-		'/users/new',
-	)
+	const link = screen.getByRole('link', { name: 'New user' })
+	expect(link).toHaveAttribute('href', '/users/new')
+	expect(within(link).queryByRole('button')).toBeNull()
 })

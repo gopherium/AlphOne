@@ -30,16 +30,18 @@ type userBody struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+func cookiedServer(handler http.Handler, cookie *http.Cookie) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.AddCookie(cookie)
+		handler.ServeHTTP(w, r)
+	})
+}
+
 func authedUserServer(t *testing.T, users *fakeUserStore) (http.Handler, gouncer.User) {
 	t.Helper()
 	admin := users.addUser(t)
 	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users})
-	cookie := loginCookie(t, srv)
-	authed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.AddCookie(cookie)
-		srv.ServeHTTP(w, r)
-	})
-	return authed, admin
+	return cookiedServer(srv, loginCookie(t, srv)), admin
 }
 
 func TestUserEndpointsRequireASession(t *testing.T) {
@@ -114,19 +116,23 @@ func TestCreateUserRejectsInvalidInput(t *testing.T) {
 	tests := map[string]struct {
 		body       string
 		wantStatus int
+		wantError  string
 	}{
-		"malformed json": {"{", http.StatusBadRequest},
+		"malformed json": {"{", http.StatusBadRequest, "malformed json"},
 		"invalid email": {
 			`{"email":"nope","name":"Grace","password":"correct horse battery"}`,
 			http.StatusUnprocessableEntity,
+			"invalid email address",
 		},
 		"weak password": {
 			`{"email":"grace@example.com","name":"Grace","password":"short"}`,
 			http.StatusUnprocessableEntity,
+			"password must be at least 12 characters",
 		},
 		"taken email": {
 			`{"email":"ada@example.com","name":"Ada Again","password":"correct horse battery"}`,
 			http.StatusConflict,
+			"email already in use",
 		},
 	}
 
@@ -140,6 +146,9 @@ func TestCreateUserRejectsInvalidInput(t *testing.T) {
 
 			if recorder.Code != tc.wantStatus {
 				t.Errorf("status = %d, want %d: %s", recorder.Code, tc.wantStatus, recorder.Body.String())
+			}
+			if got := decodeBody[errorBody](t, recorder); got.Error != tc.wantError {
+				t.Errorf("error = %q, want %q", got.Error, tc.wantError)
 			}
 		})
 	}
@@ -168,6 +177,32 @@ func TestSetUserDisabled(t *testing.T) {
 	}
 	if users.users[grace.ID].Disabled {
 		t.Error("user still disabled after the enable request")
+	}
+}
+
+func TestSetUserDisabledRevokesTheUserSessions(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	users.addUser(t)
+	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users})
+	asAdmin := cookiedServer(srv, loginCookie(t, srv))
+	grace := users.addNamedUser(t, "grace@example.com", "Grace Hopper")
+	graceLogin := doLogin(t, srv, `{"email":"grace@example.com","password":"correct horse battery"}`)
+	asGrace := cookiedServer(srv, sessionCookie(t, graceLogin))
+
+	target := "/api/users/" + grace.ID.String()
+	if code := doRequest(t, asAdmin, http.MethodPatch, target, `{"disabled":true}`).Code; code != http.StatusNoContent {
+		t.Fatalf("disable status = %d, want %d", code, http.StatusNoContent)
+	}
+	if code := doRequest(t, asAdmin, http.MethodPatch, target, `{"disabled":false}`).Code; code != http.StatusNoContent {
+		t.Fatalf("re-enable status = %d, want %d", code, http.StatusNoContent)
+	}
+
+	recorder := doRequest(t, asGrace, http.MethodGet, "/api/users", "")
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("pre-disable session status = %d, want %d", recorder.Code, http.StatusUnauthorized)
 	}
 }
 
@@ -221,12 +256,18 @@ func TestSetUserDisabledRejectsInvalidRequests(t *testing.T) {
 		target     string
 		body       string
 		wantStatus int
+		wantError  string
 	}{
-		"malformed id":   {"/api/users/not-a-uuid", `{"disabled":true}`, http.StatusBadRequest},
-		"unknown user":   {"/api/users/" + uuid.Must(uuid.NewV7()).String(), `{"disabled":true}`, http.StatusNotFound},
-		"malformed body": {"/api/users/" + uuid.Must(uuid.NewV7()).String(), "{", http.StatusBadRequest},
+		"malformed id": {"/api/users/not-a-uuid", `{"disabled":true}`, http.StatusBadRequest, "malformed user id"},
+		"unknown user": {
+			"/api/users/" + uuid.Must(uuid.NewV7()).String(), `{"disabled":true}`, http.StatusNotFound, "user not found",
+		},
+		"malformed body": {
+			"/api/users/" + uuid.Must(uuid.NewV7()).String(), "{", http.StatusBadRequest, "malformed json",
+		},
 		"misspelled field": {
-			"/api/users/" + uuid.Must(uuid.NewV7()).String(), `{"disabld":true}`, http.StatusUnprocessableEntity,
+			"/api/users/" + uuid.Must(uuid.NewV7()).String(), `{"disabld":true}`,
+			http.StatusUnprocessableEntity, "disabled is required",
 		},
 	}
 
@@ -240,6 +281,9 @@ func TestSetUserDisabledRejectsInvalidRequests(t *testing.T) {
 
 			if recorder.Code != tc.wantStatus {
 				t.Errorf("status = %d, want %d: %s", recorder.Code, tc.wantStatus, recorder.Body.String())
+			}
+			if got := decodeBody[errorBody](t, recorder); got.Error != tc.wantError {
+				t.Errorf("error = %q, want %q", got.Error, tc.wantError)
 			}
 		})
 	}

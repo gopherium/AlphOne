@@ -33,16 +33,16 @@ type Config struct {
 }
 
 // NewServer returns the HTTP handler serving the CRM API. Every route
-// requires a login session except the auth endpoints themselves and each
-// plugin's declared public paths.
+// requires a login session except login, logout, and each plugin's
+// declared public paths.
 func NewServer(cfg Config) http.Handler {
 	s := &server{store: cfg.Contacts, users: cfg.Users, newSession: gouncer.NewSession}
 	router := chi.NewRouter()
 	router.Post("/api/auth/login", s.handleLogin())
 	router.Post("/api/auth/logout", s.handleLogout())
-	router.Get("/api/auth/session", s.handleSession())
 	router.Group(func(protected chi.Router) {
 		protected.Use(s.requireSession)
+		protected.Get("/api/auth/session", s.handleSession())
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
 		protected.Get("/api/users", s.handleUserList())

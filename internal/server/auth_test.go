@@ -64,8 +64,14 @@ func (f *fakeUserStore) ListUsers(_ context.Context) ([]gouncer.User, error) {
 	}
 	users := slices.Collect(maps.Values(f.users))
 	slices.SortFunc(users, func(a, b gouncer.User) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID.String(), b.ID.String())
 	})
+	for i := range users {
+		users[i].PasswordHash = ""
+	}
 	return users, nil
 }
 
@@ -79,6 +85,11 @@ func (f *fakeUserStore) SetUserDisabled(_ context.Context, id uuid.UUID, disable
 	}
 	u.Disabled = disabled
 	f.users[id] = u
+	if disabled {
+		maps.DeleteFunc(f.sessions, func(_ string, s gouncer.Session) bool {
+			return s.UserID == id
+		})
+	}
 	return nil
 }
 
