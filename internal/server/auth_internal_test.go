@@ -40,6 +40,14 @@ func (s stubUserStore) DeleteSession(context.Context, []byte) error {
 	return nil
 }
 
+func (s stubUserStore) ListUsers(context.Context) ([]gouncer.User, error) {
+	return nil, nil
+}
+
+func (s stubUserStore) SetUserDisabled(context.Context, uuid.UUID, bool) error {
+	return nil
+}
+
 func TestLoginReportsSessionIssuanceFailure(t *testing.T) {
 	t.Parallel()
 

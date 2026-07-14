@@ -16,6 +16,12 @@ export type User = z.infer<typeof userSchema>
 export class InvalidCredentialsError extends Error {}
 
 /**
+ * UnauthorizedError is thrown when the backend rejects a request because
+ * the session is missing, expired, or revoked.
+ */
+export class UnauthorizedError extends Error {}
+
+/**
  * Returns the logged-in user, or null when no session is active.
  * @param signal - Aborts the in-flight request.
  * @returns The current user, or null when unauthenticated.

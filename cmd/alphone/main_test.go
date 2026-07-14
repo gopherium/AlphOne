@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -206,6 +207,30 @@ func TestRunReportsBindFailure(t *testing.T) {
 	}
 }
 
+func doAuthed(
+	t *testing.T,
+	ctx context.Context,
+	session *http.Cookie,
+	method, url, body string,
+) *http.Response {
+	t.Helper()
+	var reader io.Reader
+	if body != "" {
+		reader = strings.NewReader(body)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, url, reader)
+	if err != nil {
+		t.Fatalf("building %s %s: %v", method, url, err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(session)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, url, err)
+	}
+	return response
+}
+
 func TestRunServesAPI(t *testing.T) {
 	t.Parallel()
 
@@ -271,21 +296,38 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatal("login response carries no alphone_session cookie")
 	}
 
-	createContact, err := http.NewRequestWithContext(
-		ctx, http.MethodPost, baseURL+"/api/contacts", strings.NewReader(`{"name":"María Pérez"}`),
-	)
-	if err != nil {
-		t.Fatalf("building contact request: %v", err)
+	createContact := doAuthed(t, ctx, session, http.MethodPost, baseURL+"/api/contacts",
+		`{"name":"María Pérez"}`)
+	_ = createContact.Body.Close()
+	if createContact.StatusCode != http.StatusCreated {
+		t.Fatalf("POST status = %d, want %d", createContact.StatusCode, http.StatusCreated)
 	}
-	createContact.Header.Set("Content-Type", "application/json")
-	createContact.AddCookie(session)
-	response, err := http.DefaultClient.Do(createContact)
-	if err != nil {
-		t.Fatalf("POST /api/contacts: %v", err)
+
+	createUser := doAuthed(t, ctx, session, http.MethodPost, baseURL+"/api/users",
+		`{"email":"grace@example.com","name":"Grace Hopper","password":"correct horse battery"}`)
+	if createUser.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/users status = %d, want %d", createUser.StatusCode, http.StatusCreated)
 	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusCreated {
-		t.Fatalf("POST status = %d, want %d", response.StatusCode, http.StatusCreated)
+	var created struct {
+		ID uuid.UUID `json:"id"`
+	}
+	if err := json.NewDecoder(createUser.Body).Decode(&created); err != nil {
+		t.Fatalf("decoding created user: %v", err)
+	}
+	_ = createUser.Body.Close()
+
+	listUsers := doAuthed(t, ctx, session, http.MethodGet, baseURL+"/api/users", "")
+	body, _ := io.ReadAll(listUsers.Body)
+	_ = listUsers.Body.Close()
+	if listUsers.StatusCode != http.StatusOK || !strings.Contains(string(body), "grace@example.com") {
+		t.Fatalf("GET /api/users = %d %q, want %d listing the new user", listUsers.StatusCode, body, http.StatusOK)
+	}
+
+	disableUser := doAuthed(t, ctx, session, http.MethodPatch,
+		baseURL+"/api/users/"+created.ID.String(), `{"disabled":true}`)
+	_ = disableUser.Body.Close()
+	if disableUser.StatusCode != http.StatusNoContent {
+		t.Fatalf("PATCH /api/users status = %d, want %d", disableUser.StatusCode, http.StatusNoContent)
 	}
 
 	verification, err := http.Get(

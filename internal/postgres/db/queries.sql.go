@@ -201,3 +201,55 @@ func (q *Queries) GetUserBySession(ctx context.Context, arg GetUserBySessionPara
 	)
 	return i, err
 }
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, name, password_hash, disabled, created_at
+FROM core.users
+ORDER BY name, id
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]CoreUser, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreUser
+	for rows.Next() {
+		var i CoreUser
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.PasswordHash,
+			&i.Disabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setUserDisabled = `-- name: SetUserDisabled :execrows
+UPDATE core.users
+SET disabled = $2
+WHERE id = $1
+`
+
+type SetUserDisabledParams struct {
+	ID       uuid.UUID
+	Disabled bool
+}
+
+func (q *Queries) SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserDisabled, arg.ID, arg.Disabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

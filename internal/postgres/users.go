@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -93,6 +94,32 @@ func (s *UserStore) UserBySession(ctx context.Context, tokenHash []byte, now tim
 		return gouncer.User{}, fmt.Errorf("postgres: get user by session: %w", err)
 	}
 	return userFromRow(row), nil
+}
+
+// ListUsers returns every user ordered by name.
+func (s *UserStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
+	rows, err := s.queries.ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list users: %w", err)
+	}
+	users := make([]gouncer.User, len(rows))
+	for i, row := range rows {
+		users[i] = userFromRow(row)
+	}
+	return users, nil
+}
+
+// SetUserDisabled updates whether the user may log in, or returns
+// [gouncer.ErrUserNotFound] when no such user exists.
+func (s *UserStore) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error {
+	count, err := s.queries.SetUserDisabled(ctx, db.SetUserDisabledParams{ID: id, Disabled: disabled})
+	if err != nil {
+		return fmt.Errorf("postgres: set user disabled: %w", err)
+	}
+	if count == 0 {
+		return gouncer.ErrUserNotFound
+	}
+	return nil
 }
 
 // DeleteSession removes the session with the given token hash, if any.

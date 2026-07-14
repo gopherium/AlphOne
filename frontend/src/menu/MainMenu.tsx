@@ -5,6 +5,7 @@ import type { NavItem } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 
 import { plugins } from '../plugins'
+import { coreNav } from './coreNav'
 
 const chevronRightSmall = (
 	<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
@@ -41,6 +42,9 @@ function MenuItem({ item }: { item: NavItem }) {
 export function MainMenu() {
 	return (
 		<Stack direction="column" gap="xs">
+			{coreNav.map((item) => (
+				<MenuItem key={item.to} item={item} />
+			))}
 			{plugins.flatMap((plugin) =>
 				plugin.nav.map((item) => <MenuItem key={item.to} item={item} />),
 			)}

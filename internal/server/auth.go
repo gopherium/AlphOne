@@ -3,6 +3,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -12,6 +13,21 @@ import (
 
 	"github.com/gopherium/gouncer"
 )
+
+type contextKey int
+
+const userContextKey contextKey = 0
+
+// withUser returns a context carrying the authenticated user.
+func withUser(ctx context.Context, u gouncer.User) context.Context {
+	return context.WithValue(ctx, userContextKey, u)
+}
+
+// userFromContext returns the user stored by [server.requireSession].
+func userFromContext(ctx context.Context) gouncer.User {
+	u, _ := ctx.Value(userContextKey).(gouncer.User)
+	return u
+}
 
 // sessionCookieName uses the __Host- prefix, which browsers honor only
 // for cookies that are Secure, Path=/, and host-scoped (no Domain).
@@ -112,10 +128,11 @@ func (s *server) sessionUser(r *http.Request) (gouncer.User, error) {
 	return s.users.UserBySession(r.Context(), gouncer.HashToken(cookie.Value), time.Now().UTC())
 }
 
-// requireSession admits only requests carrying a usable session cookie.
+// requireSession admits only requests carrying a usable session cookie,
+// passing the authenticated user down through the request context.
 func (s *server) requireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := s.sessionUser(r)
+		u, err := s.sessionUser(r)
 		if errors.Is(err, gouncer.ErrSessionNotFound) {
 			respondError(w, http.StatusUnauthorized, "no session")
 			return
@@ -124,7 +141,7 @@ func (s *server) requireSession(next http.Handler) http.Handler {
 			respondError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), u)))
 	})
 }
 

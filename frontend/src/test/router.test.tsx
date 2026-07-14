@@ -3,6 +3,7 @@
 import { screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
+import { coreNav } from '../menu/coreNav'
 import { plugins } from '../plugins'
 import { renderAt } from './render'
 
@@ -20,13 +21,23 @@ test('shows the AlphOne masthead as a heading', async () => {
 	).toBeInTheDocument()
 })
 
-test('renders a navigation entry for every registered plugin', async () => {
+test('renders a navigation entry for every core and plugin section', async () => {
 	renderAt('/')
 
 	const nav = await screen.findByRole('navigation')
 	expect(within(nav).queryAllByRole('link')).toHaveLength(
-		plugins.flatMap((plugin) => plugin.nav).length,
+		coreNav.length + plugins.flatMap((plugin) => plugin.nav).length,
 	)
+})
+
+test('marks only entries that drill into a sidebar section with a chevron', async () => {
+	renderAt('/')
+
+	const nav = await screen.findByRole('navigation')
+	const users = within(nav).getByRole('link', { name: 'Users' })
+	const whatsapp = within(nav).getByRole('link', { name: 'WhatsApp' })
+	expect(users.querySelector('.alphone-menu__chevron')).toBeNull()
+	expect(whatsapp.querySelector('.alphone-menu__chevron')).not.toBeNull()
 })
 
 test('frames the active route inside the main content region', async () => {

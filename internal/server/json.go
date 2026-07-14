@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gopherium/gouncer"
+
 	"github.com/gopherium/alphone/internal/contact"
 )
 
@@ -38,23 +40,35 @@ func respondError(w http.ResponseWriter, status int, message string) {
 // respondDomainError maps a domain error to an HTTP status and writes it as a JSON error response,
 // masking internal errors.
 func respondDomainError(w http.ResponseWriter, err error) {
-	status := statusFor(err)
-	message := err.Error()
-	if status == http.StatusInternalServerError {
-		message = "internal error"
-	}
+	status, message := statusFor(err)
 	respondError(w, status, message)
 }
 
-// statusFor returns the HTTP status code that corresponds to the given domain error.
-func statusFor(err error) int {
+// statusFor returns the HTTP status code and client-facing message for the
+// given domain error, keeping third-party library wording out of the API
+// contract and masking unrecognized errors as internal ones.
+func statusFor(err error) (int, string) {
 	switch {
 	case errors.Is(err, contact.ErrEmptyName):
-		return http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, err.Error()
+	case errors.Is(err, gouncer.ErrInvalidEmail):
+		return http.StatusUnprocessableEntity, "invalid email address"
+	case errors.Is(err, gouncer.ErrEmptyName):
+		return http.StatusUnprocessableEntity, "name is required"
+	case errors.Is(err, gouncer.ErrNameTooLong):
+		return http.StatusUnprocessableEntity, "name must be at most 256 characters"
+	case errors.Is(err, gouncer.ErrWeakPassword):
+		return http.StatusUnprocessableEntity, "password must be at least 12 characters"
+	case errors.Is(err, gouncer.ErrPasswordTooLong):
+		return http.StatusUnprocessableEntity, "password must be at most 1024 characters"
 	case errors.Is(err, contact.ErrNotFound):
-		return http.StatusNotFound
+		return http.StatusNotFound, err.Error()
+	case errors.Is(err, gouncer.ErrUserNotFound):
+		return http.StatusNotFound, "user not found"
+	case errors.Is(err, gouncer.ErrEmailTaken):
+		return http.StatusConflict, "email already in use"
 	default:
-		return http.StatusInternalServerError
+		return http.StatusInternalServerError, "internal error"
 	}
 }
 

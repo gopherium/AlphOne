@@ -28,6 +28,16 @@ SELECT id, email, name, password_hash, disabled, created_at
 FROM core.users
 WHERE email = $1;
 
+-- name: ListUsers :many
+SELECT id, email, name, password_hash, disabled, created_at
+FROM core.users
+ORDER BY name, id;
+
+-- name: SetUserDisabled :execrows
+UPDATE core.users
+SET disabled = $2
+WHERE id = $1;
+
 -- name: CreateSession :exec
 INSERT INTO core.sessions (token_hash, user_id, created_at, expires_at)
 VALUES ($1, $2, $3, $4);

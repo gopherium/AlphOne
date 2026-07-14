@@ -4,6 +4,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,10 +13,17 @@ import (
 	"github.com/gopherium/gouncer"
 )
 
+// UserStore persists users for both login and administration.
+type UserStore interface {
+	gouncer.Store
+	ListUsers(ctx context.Context) ([]gouncer.User, error)
+	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error
+}
+
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
 	Contacts ContactStore
-	Users    gouncer.Store
+	Users    UserStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -37,6 +45,9 @@ func NewServer(cfg Config) http.Handler {
 		protected.Use(s.requireSession)
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
+		protected.Get("/api/users", s.handleUserList())
+		protected.Post("/api/users", s.handleUserCreate())
+		protected.Patch("/api/users/{id}", s.handleUserSetDisabled())
 	})
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id
@@ -48,7 +59,7 @@ func NewServer(cfg Config) http.Handler {
 
 type server struct {
 	store ContactStore
-	users gouncer.Store
+	users UserStore
 	// newSession issues login sessions; a field so failure paths stay
 	// testable.
 	newSession func(userID uuid.UUID) (gouncer.Session, error)

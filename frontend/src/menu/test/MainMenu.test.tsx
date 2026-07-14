@@ -12,9 +12,10 @@ import { render, screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
 import { plugins } from '../../plugins'
+import { coreNav } from '../coreNav'
 import { MainMenu } from '../MainMenu'
 
-const navItems = plugins.flatMap((plugin) => plugin.nav)
+const navItems = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
 
 function renderMenuAt(path: string) {
 	const rootRoute = createRootRoute({
@@ -45,7 +46,7 @@ function renderMenuAt(path: string) {
 	render(<RouterProvider router={router} />)
 }
 
-test('renders a menu link for every plugin nav entry', async () => {
+test('renders a menu link for every core and plugin nav entry', async () => {
 	renderMenuAt('/')
 
 	const nav = await screen.findByRole('navigation', { name: 'Navigation' })

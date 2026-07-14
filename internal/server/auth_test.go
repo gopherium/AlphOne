@@ -5,8 +5,10 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,12 +27,15 @@ var (
 )
 
 type fakeUserStore struct {
-	users      map[uuid.UUID]gouncer.User
-	sessions   map[string]gouncer.Session
-	lookupErr  error
-	sessionErr error
-	createErr  error
-	deleteErr  error
+	users          map[uuid.UUID]gouncer.User
+	sessions       map[string]gouncer.Session
+	lookupErr      error
+	sessionErr     error
+	createErr      error
+	deleteErr      error
+	listUsersErr   error
+	createUserErr  error
+	setDisabledErr error
 }
 
 func newFakeUserStore() *fakeUserStore {
@@ -41,7 +46,39 @@ func newFakeUserStore() *fakeUserStore {
 }
 
 func (f *fakeUserStore) CreateUser(_ context.Context, u gouncer.User) error {
+	if f.createUserErr != nil {
+		return f.createUserErr
+	}
+	for _, existing := range f.users {
+		if existing.Email == u.Email {
+			return gouncer.ErrEmailTaken
+		}
+	}
 	f.users[u.ID] = u
+	return nil
+}
+
+func (f *fakeUserStore) ListUsers(_ context.Context) ([]gouncer.User, error) {
+	if f.listUsersErr != nil {
+		return nil, f.listUsersErr
+	}
+	users := slices.Collect(maps.Values(f.users))
+	slices.SortFunc(users, func(a, b gouncer.User) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return users, nil
+}
+
+func (f *fakeUserStore) SetUserDisabled(_ context.Context, id uuid.UUID, disabled bool) error {
+	if f.setDisabledErr != nil {
+		return f.setDisabledErr
+	}
+	u, ok := f.users[id]
+	if !ok {
+		return gouncer.ErrUserNotFound
+	}
+	u.Disabled = disabled
+	f.users[id] = u
 	return nil
 }
 
@@ -90,7 +127,12 @@ func (f *fakeUserStore) DeleteSession(_ context.Context, tokenHash []byte) error
 
 func (f *fakeUserStore) addUser(t *testing.T) gouncer.User {
 	t.Helper()
-	u, err := gouncer.NewUser("ada@example.com", "Ada Lovelace", "correct horse battery")
+	return f.addNamedUser(t, "ada@example.com", "Ada Lovelace")
+}
+
+func (f *fakeUserStore) addNamedUser(t *testing.T, email, name string) gouncer.User {
+	t.Helper()
+	u, err := gouncer.NewUser(email, name, "correct horse battery")
 	if err != nil {
 		t.Fatalf("gouncer.NewUser() error = %v, want nil", err)
 	}
@@ -98,7 +140,7 @@ func (f *fakeUserStore) addUser(t *testing.T) gouncer.User {
 	return u
 }
 
-func newAuthServer(users gouncer.Store) http.Handler {
+func newAuthServer(users server.UserStore) http.Handler {
 	return server.NewServer(server.Config{
 		Contacts: newFakeContactStore(),
 		Users:    users,
