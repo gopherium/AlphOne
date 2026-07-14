@@ -38,7 +38,7 @@ type Config struct {
 func NewServer(cfg Config) http.Handler {
 	s := &server{store: cfg.Contacts, users: cfg.Users, newSession: gouncer.NewSession}
 	router := chi.NewRouter()
-	router.Post("/api/auth/login", s.handleLogin())
+	router.With(loginRateLimiter()).Post("/api/auth/login", s.handleLogin())
 	router.Post("/api/auth/logout", s.handleLogout())
 	router.Group(func(protected chi.Router) {
 		protected.Use(s.requireSession)

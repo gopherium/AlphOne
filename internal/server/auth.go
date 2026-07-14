@@ -5,13 +5,22 @@ package server
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/httprate"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+)
+
+// loginRateLimit and loginRateWindow cap login attempts per client IP.
+const (
+	loginRateLimit  = 10
+	loginRateWindow = time.Minute
 )
 
 type contextKey int
@@ -50,6 +59,25 @@ type userResponse struct {
 	ID    uuid.UUID `json:"id"`
 	Email string    `json:"email"`
 	Name  string    `json:"name"`
+}
+
+// keyByRemoteIP returns a request's canonical peer IP for rate limiting.
+func keyByRemoteIP(r *http.Request) (string, error) {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	return httprate.CanonicalizeIP(ip), nil
+}
+
+// loginRateLimiter returns middleware that rate-limits login attempts by client IP.
+func loginRateLimiter() func(http.Handler) http.Handler {
+	return httprate.LimitBy(loginRateLimit, loginRateWindow, keyByRemoteIP,
+		httprate.WithLimitHandler(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
+			respondError(w, http.StatusTooManyRequests, "too many login attempts, try again later")
+		}),
+	)
 }
 
 // handleLogin returns an HTTP handler that verifies credentials and
