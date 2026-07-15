@@ -217,6 +217,22 @@ func TestRunRejectsMalformedDatabaseURL(t *testing.T) {
 	}
 }
 
+func TestRunRejectsMalformedTrustedProxies(t *testing.T) {
+	t.Parallel()
+
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":    "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
+		"ALPHONE_TRUSTED_PROXIES": "not-a-cidr",
+	}), io.Discard, registerPlugins)
+
+	if err == nil {
+		t.Fatal("run() error = nil, want a trusted-proxies configuration error")
+	}
+	if !strings.Contains(err.Error(), "ALPHONE_TRUSTED_PROXIES") {
+		t.Errorf("run() error = %v, want it to name ALPHONE_TRUSTED_PROXIES", err)
+	}
+}
+
 func TestRunReportsMigrationFailure(t *testing.T) {
 	t.Parallel()
 

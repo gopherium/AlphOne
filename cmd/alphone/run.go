@@ -41,6 +41,10 @@ func run(
 	if addr == "" {
 		addr = "localhost:8080"
 	}
+	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	if err != nil {
+		return err
+	}
 
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
@@ -79,10 +83,6 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
-	if err != nil {
-		return err
-	}
 	cfg := server.Config{
 		Contacts:          contacts,
 		Users:             userStore,
