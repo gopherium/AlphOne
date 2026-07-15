@@ -141,6 +141,36 @@ func TestStreamClosesAtItsLifetime(t *testing.T) {
 	waitFor(t, func() bool { return p.events.subscriberCount() == 0 })
 }
 
+func TestStreamStaysOpenWithoutALifetime(t *testing.T) {
+	t.Parallel()
+
+	p := &Plugin{events: newBroadcaster(), streamLifetime: 0}
+	w := &fakeStreamWriter{header: http.Header{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx)
+	done := make(chan struct{})
+	go func() {
+		p.handleStream()(w, req)
+		close(done)
+	}()
+
+	waitFor(t, func() bool { return p.events.subscriberCount() == 1 })
+
+	select {
+	case <-done:
+		t.Fatal("stream closed without a lifetime or a cancelled request")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream did not close when the request was cancelled")
+	}
+}
+
 func TestStreamRejectsAnUnflushableWriter(t *testing.T) {
 	t.Parallel()
 

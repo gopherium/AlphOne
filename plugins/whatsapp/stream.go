@@ -3,6 +3,7 @@
 package whatsapp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,18 +32,16 @@ func (p *Plugin) handleStream() http.HandlerFunc {
 			return
 		}
 
-		var deadline <-chan time.Time
+		ctx := r.Context()
 		if p.streamLifetime > 0 {
-			timer := time.NewTimer(p.streamLifetime)
-			defer timer.Stop()
-			deadline = timer.C
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, p.streamLifetime)
+			defer cancel()
 		}
 
 		for {
 			select {
-			case <-r.Context().Done():
-				return
-			case <-deadline:
+			case <-ctx.Done():
 				return
 			case e := <-subscription:
 				payload, _ := json.Marshal(e)

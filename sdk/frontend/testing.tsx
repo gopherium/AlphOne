@@ -25,6 +25,10 @@ export { http, HttpResponse } from 'msw'
  * not implement. Tests drive it synchronously via emit().
  */
 export class FakeEventSource {
+	static readonly CONNECTING = 0
+	static readonly OPEN = 1
+	static readonly CLOSED = 2
+
 	static instances: FakeEventSource[] = []
 
 	/**
@@ -48,6 +52,9 @@ export class FakeEventSource {
 
 	url: string
 	onmessage: ((event: MessageEvent) => void) | null = null
+	onopen: ((event: Event) => void) | null = null
+	onerror: ((event: Event) => void) | null = null
+	readyState: number = FakeEventSource.CONNECTING
 	closed = false
 
 	/**
@@ -64,6 +71,7 @@ export class FakeEventSource {
 	 */
 	close() {
 		this.closed = true
+		this.readyState = FakeEventSource.CLOSED
 	}
 
 	/**
@@ -71,6 +79,24 @@ export class FakeEventSource {
 	 */
 	emit() {
 		this.onmessage?.(new MessageEvent('message', { data: '{}' }))
+	}
+
+	/**
+	 * Marks the connection open and dispatches an open event to the registered handler.
+	 */
+	emitOpen() {
+		this.readyState = FakeEventSource.OPEN
+		this.onopen?.(new Event('open'))
+	}
+
+	/**
+	 * Records the connection state the browser would leave after a failure and
+	 * dispatches an error event to the registered handler.
+	 * @param readyState - The state the connection is in once the error fires.
+	 */
+	emitError(readyState: number) {
+		this.readyState = readyState
+		this.onerror?.(new Event('error'))
 	}
 }
 
