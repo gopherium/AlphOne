@@ -8,8 +8,12 @@ import (
 	"time"
 )
 
-// sessionGCInterval is how often expired sessions are swept.
-const sessionGCInterval = time.Hour
+// sessionGCInterval is how often expired sessions are swept, and
+// sessionGCTimeout bounds each sweep.
+const (
+	sessionGCInterval = time.Hour
+	sessionGCTimeout  = 30 * time.Second
+)
 
 // expiredSessionReaper deletes sessions that have expired.
 type expiredSessionReaper interface {
@@ -17,14 +21,15 @@ type expiredSessionReaper interface {
 }
 
 // reapExpiredSessions sweeps expired sessions once, then every interval
-// until ctx is cancelled.
+// until ctx is cancelled, bounding each sweep to timeout.
 func reapExpiredSessions(
 	ctx context.Context,
 	reaper expiredSessionReaper,
 	interval time.Duration,
+	timeout time.Duration,
 	log *slog.Logger,
 ) {
-	reapOnce(ctx, reaper, log)
+	reapOnce(ctx, reaper, timeout, log)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -32,14 +37,16 @@ func reapExpiredSessions(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			reapOnce(ctx, reaper, log)
+			reapOnce(ctx, reaper, timeout, log)
 		}
 	}
 }
 
-// reapOnce deletes the currently expired sessions, logging the outcome.
-func reapOnce(ctx context.Context, reaper expiredSessionReaper, log *slog.Logger) {
-	count, err := reaper.DeleteExpiredSessions(ctx, time.Now().UTC())
+// reapOnce deletes the currently expired sessions within timeout, logging the outcome.
+func reapOnce(ctx context.Context, reaper expiredSessionReaper, timeout time.Duration, log *slog.Logger) {
+	sweepCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	count, err := reaper.DeleteExpiredSessions(sweepCtx, time.Now().UTC())
 	if err != nil {
 		if ctx.Err() == nil {
 			log.Error("reap expired sessions", "error", err)

@@ -41,6 +41,13 @@ func (f *fakeReaper) callCount() int {
 	return f.calls
 }
 
+type blockingReaper struct{}
+
+func (blockingReaper) DeleteExpiredSessions(ctx context.Context, _ time.Time) (int64, error) {
+	<-ctx.Done()
+	return 0, ctx.Err()
+}
+
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -73,7 +80,7 @@ func TestReapOnce(t *testing.T) {
 				cancel()
 			}
 
-			reapOnce(ctx, reaper, slog.New(slog.NewTextHandler(&buf, nil)))
+			reapOnce(ctx, reaper, sessionGCTimeout, slog.New(slog.NewTextHandler(&buf, nil)))
 
 			if reaper.callCount() != 1 {
 				t.Errorf("reapOnce made %d sweeps, want 1", reaper.callCount())
@@ -89,6 +96,48 @@ func TestReapOnce(t *testing.T) {
 	}
 }
 
+func TestReapOnceAbortsABlockedSweep(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		reapOnce(t.Context(), blockingReaper{}, 10*time.Millisecond, slog.New(slog.NewTextHandler(&buf, nil)))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reapOnce never returned from a blocked sweep")
+	}
+	if got := buf.String(); !strings.Contains(got, "level=ERROR") {
+		t.Errorf("an aborted sweep logged %q, want an ERROR entry", got)
+	}
+}
+
+func TestReapOnceStaysQuietWhenShutdownInterruptsASweep(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		reapOnce(ctx, blockingReaper{}, time.Minute, slog.New(slog.NewTextHandler(&buf, nil)))
+		close(done)
+	}()
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reapOnce never returned after shutdown cancelled the sweep")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("a shutdown-cancelled sweep logged %q, want no output", buf.String())
+	}
+}
+
 func TestReapExpiredSessionsSweepsUntilCancelled(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +145,7 @@ func TestReapExpiredSessionsSweepsUntilCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
-		reapExpiredSessions(ctx, reaper, time.Millisecond, discardLogger())
+		reapExpiredSessions(ctx, reaper, time.Millisecond, sessionGCTimeout, discardLogger())
 		close(done)
 	}()
 

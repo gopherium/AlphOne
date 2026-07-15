@@ -56,7 +56,7 @@ func run(
 	reaperCtx, stopReaper := context.WithCancel(ctx)
 	reaperDone := make(chan struct{})
 	go func() {
-		reapExpiredSessions(reaperCtx, userStore, sessionGCInterval, logger)
+		reapExpiredSessions(reaperCtx, userStore, sessionGCInterval, sessionGCTimeout, logger)
 		close(reaperDone)
 	}()
 	defer func() {
