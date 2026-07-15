@@ -51,7 +51,7 @@ func TestLoginRateLimitBlocksRepeatedAttempts(t *testing.T) {
 	}
 
 	var last *httptest.ResponseRecorder
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		last = loginFrom(t, handler, "198.51.100.7:40000", wrong)
 		if last.Code == http.StatusTooManyRequests {
 			break
@@ -81,7 +81,7 @@ func TestLoginRateLimitIsPerIP(t *testing.T) {
 	handler := newAuthServer(users)
 	const wrong = `{"email":"ada@example.com","password":"wrong password!"}`
 
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		loginFrom(t, handler, "198.51.100.8:40000", wrong)
 	}
 
