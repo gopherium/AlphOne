@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -62,9 +63,7 @@ type userResponse struct {
 	Name  string    `json:"name"`
 }
 
-// clientIPResolver returns middleware recording a request's real client IP
-// for rate limiting: from X-Forwarded-For when the request arrived through
-// a trusted proxy, otherwise from the direct connection.
+// clientIPResolver returns middleware that records a request's client IP for rate limiting.
 func clientIPResolver(trustedProxies []string) func(http.Handler) http.Handler {
 	if len(trustedProxies) == 0 {
 		return middleware.ClientIPFromRemoteAddr
@@ -72,10 +71,8 @@ func clientIPResolver(trustedProxies []string) func(http.Handler) http.Handler {
 	return middleware.ClientIPFromXFF(trustedProxies...)
 }
 
-// keyByRemoteIP returns a request's canonical client IP for rate limiting,
-// preferring the address resolved by [clientIPResolver] and falling back to
-// the direct connection.
-func keyByRemoteIP(r *http.Request) (string, error) {
+// keyByRemoteIP returns a request's canonical client IP for rate limiting.
+func keyByRemoteIP(r *http.Request) string {
 	ip := middleware.GetClientIP(r.Context())
 	if ip == "" {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -84,17 +81,35 @@ func keyByRemoteIP(r *http.Request) (string, error) {
 		}
 		ip = host
 	}
-	return httprate.CanonicalizeIP(ip), nil
+	return httprate.CanonicalizeIP(ip)
 }
 
-// loginRateLimiter returns middleware that rate-limits login attempts by client IP.
+// loginRateLimiter returns middleware that limits failed login attempts per client IP.
 func loginRateLimiter() func(http.Handler) http.Handler {
-	return httprate.LimitBy(loginRateLimit, loginRateWindow, keyByRemoteIP,
-		httprate.WithLimitHandler(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
-			respondError(w, http.StatusTooManyRequests, "too many login attempts, try again later")
-		}),
+	limiter := httprate.NewRateLimiter(loginRateLimit, loginRateWindow,
+		httprate.WithLimitCounter(httprate.NewLocalLimitCounter(loginRateWindow)),
 	)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := keyByRemoteIP(r)
+			_, rate, err := limiter.Status(key)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "internal error")
+				return
+			}
+			if int(math.Round(rate)) >= loginRateLimit {
+				w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
+				respondError(w, http.StatusTooManyRequests, "too many login attempts, try again later")
+				return
+			}
+			recorder := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(recorder, r)
+			if recorder.Status() == http.StatusUnauthorized {
+				window := time.Now().UTC().Truncate(loginRateWindow)
+				_ = limiter.Counter().IncrementBy(key, window, 1)
+			}
+		})
+	}
 }
 
 // handleLogin returns an HTTP handler that verifies credentials and

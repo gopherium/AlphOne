@@ -121,8 +121,7 @@ func run(
 	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
 }
 
-// parseTrustedProxies splits ALPHONE_TRUSTED_PROXIES into CIDR ranges,
-// rejecting any entry that is not a valid prefix.
+// parseTrustedProxies parses raw into trusted-proxy CIDR ranges.
 func parseTrustedProxies(raw string) ([]string, error) {
 	var prefixes []string
 	for _, part := range strings.Split(raw, ",") {

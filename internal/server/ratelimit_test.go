@@ -66,6 +66,11 @@ func TestLoginRateLimitBlocksRepeatedAttempts(t *testing.T) {
 	if last.Header().Get("Retry-After") == "" {
 		t.Error("rate-limit response is missing a Retry-After header")
 	}
+	for _, header := range []string{"X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"} {
+		if value := last.Header().Get(header); value != "" {
+			t.Errorf("rate-limit response leaks %s = %q", header, value)
+		}
+	}
 }
 
 func TestLoginRateLimitIsPerIP(t *testing.T) {
@@ -85,6 +90,21 @@ func TestLoginRateLimitIsPerIP(t *testing.T) {
 
 	if fresh.Code != http.StatusOK {
 		t.Fatalf("a login from an untouched IP got status %d, want %d", fresh.Code, http.StatusOK)
+	}
+}
+
+func TestLoginRateLimitDoesNotCountSuccessfulLogins(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	users.addUser(t)
+	handler := newAuthServer(users)
+	const good = `{"email":"ada@example.com","password":"correct horse battery"}`
+
+	for i := range 30 {
+		if code := loginFrom(t, handler, "198.51.100.40:5000", good).Code; code != http.StatusOK {
+			t.Fatalf("successful login %d got status %d, want %d", i+1, code, http.StatusOK)
+		}
 	}
 }
 
