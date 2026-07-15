@@ -69,6 +69,22 @@ test('shows an error on rejected credentials', async () => {
 	expect(onLogin).not.toHaveBeenCalled()
 })
 
+test('shows a rate-limit message when too many attempts are made', async () => {
+	server.use(
+		http.post('/api/auth/login', () =>
+			HttpResponse.json({ error: 'too many login attempts' }, { status: 429 }),
+		),
+	)
+	const onLogin = renderLogin()
+
+	await submitCredentials('ada@example.com', 'correct horse battery')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'Too many attempts. Please wait a minute and try again.',
+	)
+	expect(onLogin).not.toHaveBeenCalled()
+})
+
 test('shows a generic error when the backend fails', async () => {
 	server.use(
 		http.post('/api/auth/login', () =>

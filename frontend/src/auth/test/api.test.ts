@@ -3,7 +3,13 @@
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { describe, expect, it } from 'vitest'
 
-import { InvalidCredentialsError, fetchSession, login, logout } from '../api'
+import {
+	InvalidCredentialsError,
+	RateLimitedError,
+	fetchSession,
+	login,
+	logout,
+} from '../api'
 
 const ada = {
 	id: '0198b2f0-0000-7000-8000-000000000001',
@@ -68,6 +74,18 @@ describe('login', () => {
 		await expect(login('ada@example.com', 'wrong')).rejects.toBeInstanceOf(
 			InvalidCredentialsError,
 		)
+	})
+
+	it('throws RateLimitedError when the client is rate limited', async () => {
+		server.use(
+			http.post('/api/auth/login', () =>
+				HttpResponse.json({ error: 'too many login attempts' }, { status: 429 }),
+			),
+		)
+
+		await expect(
+			login('ada@example.com', 'correct horse battery'),
+		).rejects.toBeInstanceOf(RateLimitedError)
 	})
 
 	it('rejects on server failure', async () => {

@@ -22,6 +22,12 @@ export class InvalidCredentialsError extends Error {}
 export class UnauthorizedError extends Error {}
 
 /**
+ * RateLimitedError is thrown when the backend rejects a login for too many
+ * attempts.
+ */
+export class RateLimitedError extends Error {}
+
+/**
  * Returns the logged-in user, or null when no session is active.
  * @param signal - Aborts the in-flight request.
  * @returns The current user, or null when unauthenticated.
@@ -51,6 +57,9 @@ export async function login(email: string, password: string): Promise<User> {
 	})
 	if (response.status === 401) {
 		throw new InvalidCredentialsError('invalid credentials')
+	}
+	if (response.status === 429) {
+		throw new RateLimitedError('too many login attempts')
 	}
 	if (!response.ok) {
 		throw new Error(`login failed with status ${response.status}`)

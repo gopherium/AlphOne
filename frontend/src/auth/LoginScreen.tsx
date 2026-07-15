@@ -4,8 +4,23 @@ import { Button, Card, InputControl, Stack, Text } from '@alphone/frontend-sdk'
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { InvalidCredentialsError, login } from './api'
+import { InvalidCredentialsError, RateLimitedError, login } from './api'
 import type { User } from './api'
+
+/**
+ * Maps a login attempt error to the message shown to the user.
+ * @param error - The error thrown by the login attempt.
+ * @returns The message to display.
+ */
+function loginErrorMessage(error: unknown): string {
+	if (error instanceof InvalidCredentialsError) {
+		return 'Invalid email or password.'
+	}
+	if (error instanceof RateLimitedError) {
+		return 'Too many attempts. Please wait a minute and try again.'
+	}
+	return 'Login failed, please try again.'
+}
 
 /**
  * Renders the login form and reports the authenticated user upward.
@@ -59,11 +74,7 @@ export function LoginScreen({
 								Log in
 							</Button>
 							{attempt.isError ? (
-								<Text role="alert">
-									{attempt.error instanceof InvalidCredentialsError
-										? 'Invalid email or password.'
-										: 'Login failed, please try again.'}
-								</Text>
+								<Text role="alert">{loginErrorMessage(attempt.error)}</Text>
 							) : null}
 						</Stack>
 					</form>
