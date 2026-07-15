@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -46,10 +45,6 @@ type blockingReaper struct{}
 func (blockingReaper) DeleteExpiredSessions(ctx context.Context, _ time.Time) (int64, error) {
 	<-ctx.Done()
 	return 0, ctx.Err()
-}
-
-func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestReapOnce(t *testing.T) {
@@ -141,11 +136,11 @@ func TestReapOnceStaysQuietWhenShutdownInterruptsASweep(t *testing.T) {
 func TestReapExpiredSessionsSweepsUntilCancelled(t *testing.T) {
 	t.Parallel()
 
-	reaper := &fakeReaper{called: make(chan struct{}, 128)}
+	reaper := &fakeReaper{called: make(chan struct{}, 1)}
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
-		reapExpiredSessions(ctx, reaper, time.Millisecond, sessionGCTimeout, discardLogger())
+		reapExpiredSessions(ctx, reaper, time.Millisecond, sessionGCTimeout, slog.New(slog.DiscardHandler))
 		close(done)
 	}()
 

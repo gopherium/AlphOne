@@ -53,6 +53,7 @@ func run(
 	}
 
 	userStore := postgres.NewUserStore(pool)
+	contacts := postgres.NewContactStore(pool)
 	reaperCtx, stopReaper := context.WithCancel(ctx)
 	reaperDone := make(chan struct{})
 	go func() {
@@ -66,7 +67,7 @@ func run(
 
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
-		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
+		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts)},
 		Getenv:      getenv,
 	})
 	if err != nil {
@@ -83,7 +84,7 @@ func run(
 		return err
 	}
 	cfg := server.Config{
-		Contacts:          postgres.NewContactStore(pool),
+		Contacts:          contacts,
 		Users:             userStore,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
