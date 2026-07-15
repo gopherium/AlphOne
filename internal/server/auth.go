@@ -98,7 +98,7 @@ func loginRateLimiter() func(http.Handler) http.Handler {
 				return
 			}
 			if int(math.Round(rate)) >= loginRateLimit {
-				w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
+				w.Header().Set("Retry-After", strconv.Itoa(int((2 * loginRateWindow).Seconds())))
 				respondError(w, http.StatusTooManyRequests, "too many login attempts, try again later")
 				return
 			}
