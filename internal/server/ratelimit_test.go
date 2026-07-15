@@ -3,20 +3,39 @@
 package server_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gopherium/alphone/internal/server"
 )
 
-func loginFrom(t *testing.T, handler http.Handler, ip, body string) *httptest.ResponseRecorder {
+func loginVia(t *testing.T, handler http.Handler, remoteAddr, forwardedFor, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	request.RemoteAddr = ip
+	request.RemoteAddr = remoteAddr
+	if forwardedFor != "" {
+		request.Header.Set("X-Forwarded-For", forwardedFor)
+	}
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func loginFrom(t *testing.T, handler http.Handler, ip, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	return loginVia(t, handler, ip, "", body)
+}
+
+func newProxiedAuthServer(users server.UserStore, trustedProxies ...string) http.Handler {
+	return server.NewServer(server.Config{
+		Contacts:       newFakeContactStore(),
+		Users:          users,
+		TrustedProxies: trustedProxies,
+	})
 }
 
 func TestLoginRateLimitBlocksRepeatedAttempts(t *testing.T) {
@@ -66,6 +85,82 @@ func TestLoginRateLimitIsPerIP(t *testing.T) {
 
 	if fresh.Code != http.StatusOK {
 		t.Fatalf("a login from an untouched IP got status %d, want %d", fresh.Code, http.StatusOK)
+	}
+}
+
+func TestLoginRateLimitKeysForwardedClientBehindTrustedProxy(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	users.addUser(t)
+	handler := newProxiedAuthServer(users, "192.0.2.0/24")
+	const proxy = "192.0.2.1:9000"
+	const wrong = `{"email":"ada@example.com","password":"wrong password!"}`
+
+	var blocked bool
+	for range 50 {
+		if loginVia(t, handler, proxy, "203.0.113.10", wrong).Code == http.StatusTooManyRequests {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Fatal("one forwarded client was never rate limited")
+	}
+
+	other := loginVia(t, handler, proxy, "203.0.113.20",
+		`{"email":"ada@example.com","password":"correct horse battery"}`)
+	if other.Code == http.StatusTooManyRequests {
+		t.Fatal("a different forwarded client was locked out by another client's attempts")
+	}
+	if other.Code != http.StatusOK {
+		t.Fatalf("the second forwarded client got status %d, want %d", other.Code, http.StatusOK)
+	}
+}
+
+func TestLoginRateLimitResistsForwardedForSpoofingBehindProxy(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	users.addUser(t)
+	handler := newProxiedAuthServer(users, "10.0.0.0/8")
+	const proxy = "10.0.0.2:5000"
+	const realClientAppendedByProxy = "203.0.113.50"
+	const wrong = `{"email":"ada@example.com","password":"wrong password!"}`
+
+	var blocked bool
+	for i := range 50 {
+		spoofedHead := fmt.Sprintf("%d.%d.%d.%d", i%250+1, i%100+1, i%50+1, i%200+1)
+		forwardedFor := spoofedHead + ", " + realClientAppendedByProxy
+		if loginVia(t, handler, proxy, forwardedFor, wrong).Code == http.StatusTooManyRequests {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Fatal("rotating a spoofed X-Forwarded-For head bypassed the per-client rate limit")
+	}
+}
+
+func TestLoginRateLimitIgnoresForwardedForWithoutTrustedProxy(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	users.addUser(t)
+	handler := newAuthServer(users)
+	const proxy = "198.51.100.30:7000"
+	const wrong = `{"email":"ada@example.com","password":"wrong password!"}`
+
+	var blocked bool
+	for i := range 50 {
+		spoofed := fmt.Sprintf("203.0.113.%d", i%200+1)
+		if loginVia(t, handler, proxy, spoofed, wrong).Code == http.StatusTooManyRequests {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Fatal("rotating X-Forwarded-For bypassed the rate limit with no trusted proxy configured")
 	}
 }
 

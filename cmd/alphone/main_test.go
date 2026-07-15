@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,6 +122,45 @@ func TestRunRequiresDatabaseURL(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a configuration error")
+	}
+}
+
+func TestParseTrustedProxies(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		raw     string
+		want    []string
+		wantErr bool
+	}{
+		"empty":            {raw: "", want: nil},
+		"whitespace only":  {raw: "  ,  ", want: nil},
+		"single cidr":      {raw: "10.0.0.0/8", want: []string{"10.0.0.0/8"}},
+		"trims and splits": {raw: " 10.0.0.0/8 , 192.168.0.0/16 ", want: []string{"10.0.0.0/8", "192.168.0.0/16"}},
+		"ipv6 cidr":        {raw: "::1/128", want: []string{"::1/128"}},
+		"invalid cidr":     {raw: "10.0.0.0/8,nonsense", wantErr: true},
+		"bare ip rejected": {raw: "10.0.0.1", wantErr: true},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := parseTrustedProxies(tc.raw)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseTrustedProxies(%q) error = nil, want an error", tc.raw)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseTrustedProxies(%q) error = %v, want nil", tc.raw, err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("parseTrustedProxies(%q) = %v, want %v", tc.raw, got, tc.want)
+			}
+		})
 	}
 }
 

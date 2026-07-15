@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/google/uuid"
 
@@ -61,11 +62,27 @@ type userResponse struct {
 	Name  string    `json:"name"`
 }
 
-// keyByRemoteIP returns a request's canonical peer IP for rate limiting.
+// clientIPResolver returns middleware recording a request's real client IP
+// for rate limiting: from X-Forwarded-For when the request arrived through
+// a trusted proxy, otherwise from the direct connection.
+func clientIPResolver(trustedProxies []string) func(http.Handler) http.Handler {
+	if len(trustedProxies) == 0 {
+		return middleware.ClientIPFromRemoteAddr
+	}
+	return middleware.ClientIPFromXFF(trustedProxies...)
+}
+
+// keyByRemoteIP returns a request's canonical client IP for rate limiting,
+// preferring the address resolved by [clientIPResolver] and falling back to
+// the direct connection.
 func keyByRemoteIP(r *http.Request) (string, error) {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		ip = r.RemoteAddr
+	ip := middleware.GetClientIP(r.Context())
+	if ip == "" {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		ip = host
 	}
 	return httprate.CanonicalizeIP(ip), nil
 }

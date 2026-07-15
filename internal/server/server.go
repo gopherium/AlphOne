@@ -34,6 +34,9 @@ type Config struct {
 	// Web serves the single-page app for non-API paths. Nil leaves those
 	// paths unhandled, which suits development behind the Vite dev server.
 	Web fs.FS
+	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
+	// set X-Forwarded-For for the login rate limiter.
+	TrustedProxies []string
 	// Version is the application version reported at /api/version.
 	Version string
 }
@@ -44,7 +47,8 @@ type Config struct {
 func NewServer(cfg Config) http.Handler {
 	s := &server{store: cfg.Contacts, users: cfg.Users, newSession: gouncer.NewSession, version: cfg.Version}
 	router := chi.NewRouter()
-	router.With(loginRateLimiter()).Post("/api/auth/login", s.handleLogin())
+	router.With(clientIPResolver(cfg.TrustedProxies), loginRateLimiter()).
+		Post("/api/auth/login", s.handleLogin())
 	router.Post("/api/auth/logout", s.handleLogout())
 	router.Group(func(protected chi.Router) {
 		protected.Use(s.requireSession)

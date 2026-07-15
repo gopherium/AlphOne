@@ -9,7 +9,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -76,12 +78,17 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
+	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	if err != nil {
+		return err
+	}
 	cfg := server.Config{
 		Contacts:          postgres.NewContactStore(pool),
 		Users:             userStore,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           alphone.Version(),
+		TrustedProxies:    trustedProxies,
 	}
 	if webDir := getenv("ALPHONE_WEB_DIR"); webDir != "" {
 		cfg.Web = os.DirFS(webDir)
@@ -112,4 +119,21 @@ func run(
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
+}
+
+// parseTrustedProxies splits ALPHONE_TRUSTED_PROXIES into CIDR ranges,
+// rejecting any entry that is not a valid prefix.
+func parseTrustedProxies(raw string) ([]string, error) {
+	var prefixes []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(part); err != nil {
+			return nil, fmt.Errorf("ALPHONE_TRUSTED_PROXIES: invalid CIDR %q: %w", part, err)
+		}
+		prefixes = append(prefixes, part)
+	}
+	return prefixes, nil
 }
