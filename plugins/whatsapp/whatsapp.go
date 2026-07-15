@@ -36,6 +36,9 @@ type Plugin struct {
 	store       *store
 	sender      *sender
 	events      *broadcaster
+	// streamLifetime caps how long one SSE connection stays open. Zero
+	// leaves it unbounded.
+	streamLifetime time.Duration
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
@@ -66,7 +69,8 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
 			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
 		},
-		events: newBroadcaster(),
+		events:         newBroadcaster(),
+		streamLifetime: defaultStreamLifetime,
 	}, nil
 }
 

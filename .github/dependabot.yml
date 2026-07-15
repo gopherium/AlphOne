@@ -4,6 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: gomod
     directory: /
     schedule:
@@ -16,6 +18,10 @@ updates:
       - /plugins/*/frontend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 2
+      semver-major-days: 30
+      semver-minor-days: 7
     groups:
       frontend:
         patterns:

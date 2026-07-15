@@ -158,6 +158,16 @@ func (s *UserStore) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled 
 	return nil
 }
 
+// DeleteExpiredSessions removes sessions that expired at or before now and
+// returns how many it removed.
+func (s *UserStore) DeleteExpiredSessions(ctx context.Context, now time.Time) (int64, error) {
+	count, err := s.queries.DeleteExpiredSessions(ctx, now)
+	if err != nil {
+		return 0, fmt.Errorf("postgres: delete expired sessions: %w", err)
+	}
+	return count, nil
+}
+
 // DeleteSession removes the session with the given token hash, if any.
 func (s *UserStore) DeleteSession(ctx context.Context, tokenHash []byte) error {
 	if err := s.queries.DeleteSession(ctx, tokenHash); err != nil {

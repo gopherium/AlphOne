@@ -9,10 +9,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -48,6 +52,18 @@ func run(
 		return err
 	}
 
+	userStore := postgres.NewUserStore(pool)
+	reaperCtx, stopReaper := context.WithCancel(ctx)
+	reaperDone := make(chan struct{})
+	go func() {
+		reapExpiredSessions(reaperCtx, userStore, sessionGCInterval, logger)
+		close(reaperDone)
+	}()
+	defer func() {
+		stopReaper()
+		<-reaperDone
+	}()
+
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
 		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
@@ -62,14 +78,25 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
+	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	if err != nil {
+		return err
+	}
+	cfg := server.Config{
+		Contacts:          postgres.NewContactStore(pool),
+		Users:             userStore,
+		Plugins:           host.Routes(),
+		PluginPublicPaths: host.PublicPaths(),
+		Version:           alphone.Version(),
+		TrustedProxies:    trustedProxies,
+	}
+	if webDir := getenv("ALPHONE_WEB_DIR"); webDir != "" {
+		cfg.Web = os.DirFS(webDir)
+	}
+
 	httpServer := &http.Server{
-		Addr: addr,
-		Handler: server.NewServer(server.Config{
-			Contacts:          postgres.NewContactStore(pool),
-			Users:             postgres.NewUserStore(pool),
-			Plugins:           host.Routes(),
-			PluginPublicPaths: host.PublicPaths(),
-		}),
+		Addr:              addr,
+		Handler:           server.NewServer(cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -92,4 +119,21 @@ func run(
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
+}
+
+// parseTrustedProxies splits ALPHONE_TRUSTED_PROXIES into CIDR ranges,
+// rejecting any entry that is not a valid prefix.
+func parseTrustedProxies(raw string) ([]string, error) {
+	var prefixes []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(part); err != nil {
+			return nil, fmt.Errorf("ALPHONE_TRUSTED_PROXIES: invalid CIDR %q: %w", part, err)
+		}
+		prefixes = append(prefixes, part)
+	}
+	return prefixes, nil
 }

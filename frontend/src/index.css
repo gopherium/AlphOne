@@ -37,6 +37,12 @@ body {
 	border-top: 1px solid var(--wpds-color-stroke-surface-neutral);
 }
 
+.alphone-layout__version {
+	padding-top: 8px;
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	font-size: var(--wpds-typography-font-size-sm);
+}
+
 .alphone-login {
 	display: flex;
 	align-items: center;

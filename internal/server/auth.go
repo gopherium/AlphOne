@@ -5,13 +5,23 @@ package server
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httprate"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+)
+
+// loginRateLimit and loginRateWindow cap login attempts per client IP.
+const (
+	loginRateLimit  = 10
+	loginRateWindow = time.Minute
 )
 
 type contextKey int
@@ -50,6 +60,41 @@ type userResponse struct {
 	ID    uuid.UUID `json:"id"`
 	Email string    `json:"email"`
 	Name  string    `json:"name"`
+}
+
+// clientIPResolver returns middleware recording a request's real client IP
+// for rate limiting: from X-Forwarded-For when the request arrived through
+// a trusted proxy, otherwise from the direct connection.
+func clientIPResolver(trustedProxies []string) func(http.Handler) http.Handler {
+	if len(trustedProxies) == 0 {
+		return middleware.ClientIPFromRemoteAddr
+	}
+	return middleware.ClientIPFromXFF(trustedProxies...)
+}
+
+// keyByRemoteIP returns a request's canonical client IP for rate limiting,
+// preferring the address resolved by [clientIPResolver] and falling back to
+// the direct connection.
+func keyByRemoteIP(r *http.Request) (string, error) {
+	ip := middleware.GetClientIP(r.Context())
+	if ip == "" {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		ip = host
+	}
+	return httprate.CanonicalizeIP(ip), nil
+}
+
+// loginRateLimiter returns middleware that rate-limits login attempts by client IP.
+func loginRateLimiter() func(http.Handler) http.Handler {
+	return httprate.LimitBy(loginRateLimit, loginRateWindow, keyByRemoteIP,
+		httprate.WithLimitHandler(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", strconv.Itoa(int(loginRateWindow.Seconds())))
+			respondError(w, http.StatusTooManyRequests, "too many login attempts, try again later")
+		}),
+	)
 }
 
 // handleLogin returns an HTTP handler that verifies credentials and

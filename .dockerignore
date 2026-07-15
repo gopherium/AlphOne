@@ -1,0 +1,15 @@
+.git
+.github
+**/node_modules
+frontend/dist
+**/*_test.go
+.env
+.env.*
+.covdata
+cover.out
+/alphone
+/pluginwire
+go.work
+go.work.sum
+deploy
+*.md

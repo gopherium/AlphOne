@@ -8,6 +8,7 @@ import type { User } from '../auth/api'
 import { sessionQueryKey } from '../auth/session'
 import { createQueryClient } from '../queryClient'
 import { createAppRouter } from '../router'
+import { versionQueryKey } from '../version'
 
 const defaultUser: User = {
 	id: '0198b2f0-0000-7000-8000-000000000001',
@@ -15,11 +16,18 @@ const defaultUser: User = {
 	name: 'Grace Hopper',
 }
 
-export function renderAt(path: string, user: User | null = defaultUser) {
+export function renderAt(
+	path: string,
+	user: User | null = defaultUser,
+	version: string | null = '0.1.0',
+) {
 	const client = createQueryClient({
 		queries: { retry: false, staleTime: Infinity },
 	})
 	client.setQueryData(sessionQueryKey, user)
+	if (version !== null) {
+		client.setQueryData(versionQueryKey, version)
+	}
 	const router = createAppRouter(
 		createMemoryHistory({ initialEntries: [path] }),
 	)

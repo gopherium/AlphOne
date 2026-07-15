@@ -5,6 +5,7 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
 import { useLogout, useSession } from './auth/session'
 import { MainMenu } from './menu/MainMenu'
+import { useAppVersion } from './version'
 
 const CHROME_COLOR = { background: '#1e1e1e' }
 const CANVAS_COLOR = { background: '#ffffff' }
@@ -23,6 +24,7 @@ export function Layout() {
 	const Sidebar = sidebarMatch?.staticData.Sidebar
 	const user = useSession().data
 	const signOut = useLogout()
+	const version = useAppVersion().data
 	return (
 		<ThemeProvider color={CHROME_COLOR}>
 			<div className="alphone-layout">
@@ -55,6 +57,9 @@ export function Layout() {
 								<Text role="alert">Logout failed, please try again.</Text>
 							) : null}
 						</Stack>
+					) : null}
+					{version ? (
+						<Text className="alphone-layout__version">v{version}</Text>
 					) : null}
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>

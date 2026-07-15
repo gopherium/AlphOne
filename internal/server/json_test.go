@@ -43,7 +43,12 @@ func TestStatusForMapsDomainErrors(t *testing.T) {
 		{"empty user name", gouncer.ErrEmptyName, http.StatusUnprocessableEntity, "name is required"},
 		{"name too long", gouncer.ErrNameTooLong, http.StatusUnprocessableEntity, "name must be at most 256 characters"},
 		{"weak password", gouncer.ErrWeakPassword, http.StatusUnprocessableEntity, "password must be at least 12 characters"},
-		{"password too long", gouncer.ErrPasswordTooLong, http.StatusUnprocessableEntity, "password must be at most 1024 characters"},
+		{
+			"password too long",
+			gouncer.ErrPasswordTooLong,
+			http.StatusUnprocessableEntity,
+			"password must be at most 1024 characters",
+		},
 		{"contact not found", contact.ErrNotFound, http.StatusNotFound, contact.ErrNotFound.Error()},
 		{"user not found", gouncer.ErrUserNotFound, http.StatusNotFound, "user not found"},
 		{"email taken", gouncer.ErrEmailTaken, http.StatusConflict, "email already in use"},
