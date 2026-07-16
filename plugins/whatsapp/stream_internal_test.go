@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +42,28 @@ func (f *fakeStreamWriter) Write(b []byte) (int, error) {
 }
 func (f *fakeStreamWriter) WriteHeader(int) {}
 func (f *fakeStreamWriter) Flush()          {}
+
+type gatedFlushWriter struct {
+	header  http.Header
+	release chan struct{}
+	mu      sync.Mutex
+	buf     strings.Builder
+}
+
+func (g *gatedFlushWriter) Header() http.Header { return g.header }
+func (g *gatedFlushWriter) Write(b []byte) (int, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.buf.Write(b)
+}
+func (g *gatedFlushWriter) WriteHeader(int) {}
+func (g *gatedFlushWriter) Flush()          { <-g.release }
+
+func (g *gatedFlushWriter) written() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.buf.String()
+}
 
 func (b *broadcaster) subscriberCount() int {
 	b.mu.Lock()
@@ -139,6 +162,42 @@ func TestStreamClosesAtItsLifetime(t *testing.T) {
 		t.Errorf("stream closed after %v, want it to stay open at least %v", elapsed, p.streamLifetime)
 	}
 	waitFor(t, func() bool { return p.events.subscriberCount() == 0 })
+}
+
+func TestStreamWritesBufferedEventsBeforeClosing(t *testing.T) {
+	t.Parallel()
+
+	p := &Plugin{events: newBroadcaster()}
+	w := &gatedFlushWriter{header: http.Header{}, release: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx)
+	done := make(chan struct{})
+	go func() {
+		p.handleStream()(w, req)
+		close(done)
+	}()
+
+	waitFor(t, func() bool { return p.events.subscriberCount() == 1 })
+	wants := make([]uuid.UUID, 8)
+	for i := range wants {
+		wants[i] = uuid.Must(uuid.NewV7())
+		p.events.broadcast(event{Conversation: wants[i]})
+	}
+	cancel()
+	close(w.release)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after the stream closed")
+	}
+	got := w.written()
+	for _, want := range wants {
+		if !strings.Contains(got, want.String()) {
+			t.Errorf("buffered event %s was discarded on close", want)
+		}
+	}
 }
 
 func TestStreamStaysOpenWithoutALifetime(t *testing.T) {

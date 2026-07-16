@@ -42,14 +42,27 @@ func (p *Plugin) handleStream() http.HandlerFunc {
 		for {
 			select {
 			case <-ctx.Done():
+				for range len(subscription) {
+					if err := writeEvent(w, controller, <-subscription); err != nil {
+						return
+					}
+				}
 				return
 			case e := <-subscription:
-				payload, _ := json.Marshal(e)
-				if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+				if err := writeEvent(w, controller, e); err != nil {
 					return
 				}
-				_ = controller.Flush()
 			}
 		}
 	}
+}
+
+// writeEvent writes one event to the stream as an SSE data frame.
+func writeEvent(w http.ResponseWriter, controller *http.ResponseController, e event) error {
+	payload, _ := json.Marshal(e)
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+		return err
+	}
+	_ = controller.Flush()
+	return nil
 }
