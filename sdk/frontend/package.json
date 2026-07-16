@@ -8,17 +8,17 @@
     "./testing": "./testing.tsx"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
     "@wordpress/theme": "^0.17.0",
-    "@wordpress/ui": "^0.17.0"
+    "@wordpress/ui": "^0.17.0",
+    "react": "^19.2.7"
   },
   "devDependencies": {
-    "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.17",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.17",
     "msw": "^2.15.0",
-    "react": "^19.2.7",
     "vitest": "^4.1.10"
   }
 }

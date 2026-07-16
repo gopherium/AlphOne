@@ -33,3 +33,4 @@ export {
 } from '@wordpress/ui'
 export { ThemeProvider } from '@wordpress/theme'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
+export { sessionQueryKey, useEventStream } from './stream'

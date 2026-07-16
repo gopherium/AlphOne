@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { sessionQueryKey } from '@alphone/frontend-sdk'
 import { hashKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { fetchSession, logout } from './api'
 
-export const sessionQueryKey = ['session'] as const
+export { sessionQueryKey }
 
 /**
  * Loads the current session as a react-query result.
