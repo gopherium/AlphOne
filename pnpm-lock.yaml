@@ -31,15 +31,6 @@ importers:
         specifier: ^8.63.0
         version: 8.63.0(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
 
-  e2e:
-    devDependencies:
-      '@playwright/test':
-        specifier: 1.61.1
-        version: 1.61.1
-      '@types/node':
-        specifier: ^26.1.1
-        version: 26.1.1
-
   frontend:
     dependencies:
       '@alphone/frontend-sdk':
@@ -174,6 +165,15 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  test/e2e:
+    devDependencies:
+      '@playwright/test':
+        specifier: 1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.1.1
 
 packages:
 

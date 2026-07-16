@@ -1,4 +1,5 @@
-.PHONY: test test-race cover cover-html lint fmt generate outdated db-up db-down
+.PHONY: test test-race cover cover-html lint fmt generate outdated db-up db-down \
+	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb)
 
@@ -50,3 +51,31 @@ cover:
 
 cover-html: cover
 	go tool cover -html=$(COVERDATA)/cover.out
+
+E2E_DB ?= alphone_e2e
+E2E_DATABASE_URL ?= postgres://postgres:alphone@localhost:5433/$(E2E_DB)?sslmode=disable
+E2E_EMAIL ?= e2e@example.com
+E2E_NAME ?= Grace Hopper
+E2E_PASSWORD ?= correct horse battery
+
+e2e-build:
+	pnpm --filter @alphone/frontend build
+	go build -o alphone ./cmd/alphone
+
+e2e-serve: db-up e2e-build
+	ALPHONE_WEB_DIR=frontend/dist ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone
+
+e2e-db-reset: db-up
+	docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
+		-c "DROP DATABASE IF EXISTS $(E2E_DB) WITH (FORCE)" \
+		-c "CREATE DATABASE $(E2E_DB)"
+
+e2e-seed: db-up e2e-build
+	printf '%s\n' "$(E2E_PASSWORD)" | \
+		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone createadmin \
+		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)"
+
+e2e-reset: e2e-db-reset e2e-seed
+
+e2e:
+	pnpm --filter @alphone/e2e exec playwright test

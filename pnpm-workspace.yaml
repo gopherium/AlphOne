@@ -2,6 +2,7 @@ packages:
   - frontend
   - sdk/frontend
   - plugins/*/frontend
+  - test/e2e
 
 overrides:
   react: ^19.2.7
