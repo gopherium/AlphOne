@@ -162,6 +162,46 @@ func TestLoginRateLimitResistsForwardedForSpoofingBehindProxy(t *testing.T) {
 	}
 }
 
+func TestLoginRateLimitFallsBackToRemoteAddrWithoutForwardedFor(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		blockedAddr string
+		freshAddr   string
+	}{
+		"host and port": {blockedAddr: "192.0.2.10:4000", freshAddr: "192.0.2.20:4000"},
+		"bare ip":       {blockedAddr: "192.0.2.30", freshAddr: "192.0.2.40"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			users := newFakeUserStore()
+			users.addUser(t)
+			handler := newProxiedAuthServer(users, "192.0.2.0/24")
+			const wrong = `{"email":"ada@example.com","password":"wrong password!"}`
+
+			var blocked bool
+			for range 50 {
+				if loginFrom(t, handler, tc.blockedAddr, wrong).Code == http.StatusTooManyRequests {
+					blocked = true
+					break
+				}
+			}
+			if !blocked {
+				t.Fatal("attempts without X-Forwarded-For were never rate limited by connecting address")
+			}
+
+			fresh := loginFrom(t, handler, tc.freshAddr,
+				`{"email":"ada@example.com","password":"correct horse battery"}`)
+			if fresh.Code != http.StatusOK {
+				t.Fatalf("a login from a different connecting address got status %d, want %d", fresh.Code, http.StatusOK)
+			}
+		})
+	}
+}
+
 func TestLoginRateLimitIgnoresForwardedForWithoutTrustedProxy(t *testing.T) {
 	t.Parallel()
 
