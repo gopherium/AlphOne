@@ -141,29 +141,6 @@ func TestStreamDeliversEventsThenCleansUp(t *testing.T) {
 	waitFor(t, func() bool { return p.events.subscriberCount() == 0 })
 }
 
-func TestStreamClosesAtItsLifetime(t *testing.T) {
-	t.Parallel()
-
-	p := &Plugin{events: newBroadcaster(), streamLifetime: 20 * time.Millisecond}
-	w := &fakeStreamWriter{header: http.Header{}}
-	start := time.Now()
-	done := make(chan struct{})
-	go func() {
-		p.handleStream()(w, httptest.NewRequest(http.MethodGet, "/events", nil))
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream did not close at its configured lifetime")
-	}
-	if elapsed := time.Since(start); elapsed < p.streamLifetime {
-		t.Errorf("stream closed after %v, want it to stay open at least %v", elapsed, p.streamLifetime)
-	}
-	waitFor(t, func() bool { return p.events.subscriberCount() == 0 })
-}
-
 func TestStreamWritesBufferedEventsBeforeClosing(t *testing.T) {
 	t.Parallel()
 
@@ -200,10 +177,25 @@ func TestStreamWritesBufferedEventsBeforeClosing(t *testing.T) {
 	}
 }
 
-func TestStreamStaysOpenWithoutALifetime(t *testing.T) {
+func TestStreamDrainStopsAfterAFailedWrite(t *testing.T) {
 	t.Parallel()
 
-	p := &Plugin{events: newBroadcaster(), streamLifetime: 0}
+	w := &fakeStreamWriter{header: http.Header{}, writeErr: errBoom}
+	subscription := make(chan event, 2)
+	subscription <- event{Conversation: uuid.Must(uuid.NewV7())}
+	subscription <- event{Conversation: uuid.Must(uuid.NewV7())}
+
+	drainSubscription(w, http.NewResponseController(w), subscription)
+
+	if got := len(subscription); got != 1 {
+		t.Fatalf("events left buffered = %d, want 1 after the first write fails", got)
+	}
+}
+
+func TestStreamStaysOpenUntilRequestCancelled(t *testing.T) {
+	t.Parallel()
+
+	p := &Plugin{events: newBroadcaster()}
 	w := &fakeStreamWriter{header: http.Header{}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -218,7 +210,7 @@ func TestStreamStaysOpenWithoutALifetime(t *testing.T) {
 
 	select {
 	case <-done:
-		t.Fatal("stream closed without a lifetime or a cancelled request")
+		t.Fatal("stream closed before the request was cancelled")
 	case <-time.After(50 * time.Millisecond):
 	}
 

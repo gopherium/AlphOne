@@ -42,19 +42,6 @@ func newUnreachablePool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func TestRegisterBoundsStreamLifetime(t *testing.T) {
-	t.Parallel()
-
-	p, err := Register(sdk.Deps{})
-	if err != nil {
-		t.Fatalf("Register() error = %v, want nil", err)
-	}
-
-	if p.streamLifetime != defaultStreamLifetime {
-		t.Errorf("streamLifetime = %v, want %v", p.streamLifetime, defaultStreamLifetime)
-	}
-}
-
 func TestIngestReportsConversationFailure(t *testing.T) {
 	t.Parallel()
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -37,6 +38,12 @@ type Config struct {
 	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
 	// set X-Forwarded-For for the login rate limiter.
 	TrustedProxies []string
+	// MaxStreamLifetime bounds how long any authenticated plugin request,
+	// including an SSE stream, may stay open. Zero applies the host default.
+	MaxStreamLifetime time.Duration
+	// MaxStreamsPerUser caps concurrent authenticated plugin requests per
+	// user. Zero applies the host default.
+	MaxStreamsPerUser int
 	// Version is the application version reported at /api/version.
 	Version string
 }
@@ -45,7 +52,15 @@ type Config struct {
 // requires a login session except login, logout, and each plugin's
 // declared public paths.
 func NewServer(cfg Config) http.Handler {
-	s := &server{store: cfg.Contacts, users: cfg.Users, newSession: gouncer.NewSession, version: cfg.Version}
+	maxStreamLifetime, maxStreamsPerUser := streamDefaults(cfg)
+	s := &server{
+		store:             cfg.Contacts,
+		users:             cfg.Users,
+		newSession:        gouncer.NewSession,
+		version:           cfg.Version,
+		maxStreamLifetime: maxStreamLifetime,
+		streams:           newStreamLimiter(maxStreamsPerUser),
+	}
 	router := chi.NewRouter()
 	router.With(clientIPResolver(cfg.TrustedProxies), loginRateLimiter()).
 		Post("/api/auth/login", s.handleLogin())
@@ -76,6 +91,8 @@ type server struct {
 	users UserStore
 	// newSession issues login sessions; a field so failure paths stay
 	// testable.
-	newSession func(userID uuid.UUID) (gouncer.Session, error)
-	version    string
+	newSession        func(userID uuid.UUID) (gouncer.Session, error)
+	version           string
+	maxStreamLifetime time.Duration
+	streams           *streamLimiter
 }

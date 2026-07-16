@@ -3,19 +3,13 @@
 package whatsapp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 )
 
-// defaultStreamLifetime is how long an SSE connection stays open.
-const defaultStreamLifetime = 5 * time.Minute
-
 // handleStream streams conversation change events to the client as
-// Server-Sent Events until the client disconnects or the connection
-// reaches its lifetime.
+// Server-Sent Events until the request context ends.
 func (p *Plugin) handleStream() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -33,26 +27,25 @@ func (p *Plugin) handleStream() http.HandlerFunc {
 		}
 
 		ctx := r.Context()
-		if p.streamLifetime > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, p.streamLifetime)
-			defer cancel()
-		}
-
 		for {
 			select {
 			case <-ctx.Done():
-				for range len(subscription) {
-					if err := writeEvent(w, controller, <-subscription); err != nil {
-						return
-					}
-				}
+				drainSubscription(w, controller, subscription)
 				return
 			case e := <-subscription:
 				if err := writeEvent(w, controller, e); err != nil {
 					return
 				}
 			}
+		}
+	}
+}
+
+// drainSubscription writes the events still buffered in subscription to the stream.
+func drainSubscription(w http.ResponseWriter, controller *http.ResponseController, subscription chan event) {
+	for range len(subscription) {
+		if err := writeEvent(w, controller, <-subscription); err != nil {
+			return
 		}
 	}
 }

@@ -213,7 +213,7 @@ func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.
 	for _, path := range publicPaths {
 		public[path] = struct{}{}
 	}
-	protected := s.requireSession(handler)
+	protected := s.requireSession(s.boundPluginRequest(handler))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := public[r.URL.Path]; ok {
 			handler.ServeHTTP(w, r)
