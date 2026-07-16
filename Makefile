@@ -57,13 +57,20 @@ E2E_DATABASE_URL ?= postgres://postgres:alphone@localhost:5433/$(E2E_DB)?sslmode
 E2E_EMAIL ?= e2e@example.com
 E2E_NAME ?= Grace Hopper
 E2E_PASSWORD ?= correct horse battery
+E2E_WHATSAPP_APP_SECRET ?= e2e-app-secret
+E2E_WHATSAPP_GRAPH_URL ?= http://localhost:1
 
 e2e-build:
 	pnpm --filter @alphone/frontend build
 	go build -o alphone ./cmd/alphone
 
 e2e-serve: db-up e2e-build
-	ALPHONE_WEB_DIR=frontend/dist ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone
+	ALPHONE_WEB_DIR=frontend/dist ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" \
+		ALPHONE_WHATSAPP_APP_SECRET="$(E2E_WHATSAPP_APP_SECRET)" \
+		ALPHONE_WHATSAPP_GRAPH_URL="$(E2E_WHATSAPP_GRAPH_URL)" \
+		ALPHONE_WHATSAPP_ACCESS_TOKEN=e2e-not-a-real-token \
+		ALPHONE_WHATSAPP_PHONE_NUMBER_ID=e2e-phone-number-id \
+		./alphone
 
 e2e-db-reset: db-up
 	docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
