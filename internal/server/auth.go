@@ -86,8 +86,14 @@ func keyByRemoteIP(r *http.Request) string {
 
 // loginRateLimiter returns middleware that limits failed login attempts per client IP.
 func loginRateLimiter() func(http.Handler) http.Handler {
+	return loginRateLimiterUsing(httprate.NewLocalLimitCounter(loginRateWindow))
+}
+
+// loginRateLimiterUsing returns middleware that limits failed login attempts
+// per client IP, tracking them in counter.
+func loginRateLimiterUsing(counter httprate.LimitCounter) func(http.Handler) http.Handler {
 	limiter := httprate.NewRateLimiter(loginRateLimit, loginRateWindow,
-		httprate.WithLimitCounter(httprate.NewLocalLimitCounter(loginRateWindow)),
+		httprate.WithLimitCounter(counter),
 	)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
