@@ -61,18 +61,24 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
 		}
 
 		/**
+		 * Refetches every query the stream reports on.
+		 */
+		function invalidateAll() {
+			for (const queryKey of invalidateKeys) {
+				void queryClient.invalidateQueries({ queryKey })
+			}
+		}
+
+		/**
 		 * Opens the event stream and installs its lifecycle handlers.
 		 */
 		function connect() {
 			source = new EventSource(url)
 			source.onopen = () => {
 				attempts = 0
+				invalidateAll()
 			}
-			source.onmessage = () => {
-				for (const queryKey of invalidateKeys) {
-					void queryClient.invalidateQueries({ queryKey })
-				}
-			}
+			source.onmessage = invalidateAll
 			source.onerror = () => {
 				if (source.readyState !== EventSource.CLOSED) {
 					return

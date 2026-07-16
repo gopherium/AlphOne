@@ -101,6 +101,22 @@ test('recreates the stream after a transient failure with growing backoff', asyn
 	expect(FakeEventSource.instances).toHaveLength(3)
 })
 
+test('refetches the given queries when a reconnect opens', async () => {
+	const { client } = renderProbe()
+	fetchMock.mockResolvedValue(new Response(null, { status: 200 }))
+
+	FakeEventSource.last().emitError(FakeEventSource.CLOSED)
+	await vi.advanceTimersByTimeAsync(0)
+	await vi.advanceTimersByTimeAsync(1000)
+	expect(FakeEventSource.instances).toHaveLength(2)
+
+	const invalidate = vi.spyOn(client, 'invalidateQueries')
+	FakeEventSource.last().emitOpen()
+
+	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['alpha'] })
+	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['beta'] })
+})
+
 test('a successful reconnect resets the backoff', async () => {
 	renderProbe()
 	fetchMock.mockResolvedValue(new Response(null, { status: 200 }))
