@@ -4,22 +4,22 @@ go 1.26.5
 
 require (
 	github.com/go-chi/chi/v5 v5.3.1
-	github.com/go-chi/httprate v0.16.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
+	github.com/gopherium/gouncer/authkit v0.1.0
+	github.com/gopherium/gouncer/authkit/postgres v0.1.0
+	github.com/gopherium/gouncer/authkit/ratelimit v0.1.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
-	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/peterldowns/pgtestdb/migrators/goosemigrator v0.1.1
 	github.com/pressly/goose/v3 v3.27.2
 )
 
 require (
-	github.com/gopherium/gouncer/authkit v0.1.0 // indirect
-	github.com/gopherium/gouncer/authkit/postgres v0.1.0 // indirect
-	github.com/gopherium/gouncer/authkit/ratelimit v0.1.0 // indirect
+	github.com/go-chi/httprate v0.16.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 

@@ -4,6 +4,11 @@
 
 A plugin-first CRM. Go backend exposing a JSON API, React SPA frontend.
 
+## Documentation
+
+Setup, self-hosting, and reference guides live at
+[docs.alph.one](https://docs.alph.one/).
+
 ## License
 
 Copyright (C) 2026 Manuel 'SirLouen' Camargo
