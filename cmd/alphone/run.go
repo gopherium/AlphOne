@@ -9,12 +9,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/netip"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/gouncer/authkit"
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone"
 	"github.com/gopherium/alphone/internal/contact"
@@ -52,22 +54,18 @@ func run(
 	}
 	defer pool.Close()
 
+	if err := authkitpg.Migrate(ctx, databaseURL); err != nil {
+		return err
+	}
 	if err := postgres.Migrate(ctx, databaseURL); err != nil {
 		return err
 	}
 
-	userStore := postgres.NewUserStore(pool)
+	userStore := authkitpg.NewUserStore(pool)
 	contacts := postgres.NewContactStore(pool)
-	reaperCtx, stopReaper := context.WithCancel(ctx)
-	reaperDone := make(chan struct{})
-	go func() {
-		reapExpiredSessions(reaperCtx, userStore, sessionGCInterval, sessionGCTimeout, logger)
-		close(reaperDone)
-	}()
-	defer func() {
-		stopReaper()
-		<-reaperDone
-	}()
+	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
+	reaper.Start()
+	defer reaper.Stop()
 
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
@@ -124,16 +122,9 @@ func run(
 
 // parseTrustedProxies parses raw into trusted-proxy CIDR ranges.
 func parseTrustedProxies(raw string) ([]string, error) {
-	var prefixes []string
-	for _, part := range strings.Split(raw, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if _, err := netip.ParsePrefix(part); err != nil {
-			return nil, fmt.Errorf("ALPHONE_TRUSTED_PROXIES: invalid CIDR %q: %w", part, err)
-		}
-		prefixes = append(prefixes, part)
+	prefixes, err := ratelimit.ParseTrustedProxies(raw)
+	if err != nil {
+		return nil, fmt.Errorf("ALPHONE_TRUSTED_PROXIES: %w", err)
 	}
 	return prefixes, nil
 }

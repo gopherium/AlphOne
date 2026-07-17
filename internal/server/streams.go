@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gopherium/gouncer/authkit"
 )
 
 // defaultMaxStreamLifetime and defaultMaxStreamsPerUser bound authenticated
@@ -72,10 +73,10 @@ func (l *streamLimiter) release(userID uuid.UUID) {
 // lifetime and the per-user concurrency budget.
 func (s *server) boundPluginRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := userFromContext(r.Context())
+		user := authkit.IdentityFromContext(r.Context())
 		if !s.streams.acquire(user.ID) {
 			w.Header().Set("Retry-After", strconv.Itoa(int(s.maxStreamLifetime.Seconds())))
-			respondError(w, http.StatusTooManyRequests, "too many concurrent requests")
+			authkit.RespondError(w, http.StatusTooManyRequests, "too many concurrent requests")
 			return
 		}
 		defer s.streams.release(user.ID)

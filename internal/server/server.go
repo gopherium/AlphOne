@@ -4,28 +4,23 @@
 package server
 
 import (
-	"context"
 	"io/fs"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
-	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
+	"github.com/gopherium/gouncer/authkit/ratelimit"
 )
 
-// UserStore persists users for both login and administration.
-type UserStore interface {
-	gouncer.Store
-	ListUsers(ctx context.Context) ([]gouncer.User, error)
-	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error
-}
+// sessionCookieName scopes the login cookie to this product.
+const sessionCookieName = "__Host-alphone_session"
 
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
 	Contacts ContactStore
-	Users    UserStore
+	Users    authkit.AdminStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -53,26 +48,27 @@ type Config struct {
 // declared public paths.
 func NewServer(cfg Config) http.Handler {
 	maxStreamLifetime, maxStreamsPerUser := streamDefaults(cfg)
+	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: sessionCookieName})
+	admin := authkit.NewAdmin(cfg.Users)
 	s := &server{
 		store:             cfg.Contacts,
-		users:             cfg.Users,
-		newSession:        gouncer.NewSession,
+		auth:              auth,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
 	router := chi.NewRouter()
-	router.With(clientIPResolver(cfg.TrustedProxies), loginRateLimiter()).
-		Post("/api/auth/login", s.handleLogin())
-	router.Post("/api/auth/logout", s.handleLogout())
+	router.With(ratelimit.Middleware(ratelimit.Config{TrustedProxies: cfg.TrustedProxies})).
+		Post("/api/auth/login", auth.Login)
+	router.Post("/api/auth/logout", auth.Logout)
 	router.Group(func(protected chi.Router) {
-		protected.Use(s.requireSession)
-		protected.Get("/api/auth/session", s.handleSession())
+		protected.Use(auth.RequireSession)
+		protected.Get("/api/auth/session", auth.Session)
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
-		protected.Get("/api/users", s.handleUserList())
-		protected.Post("/api/users", s.handleUserCreate())
-		protected.Patch("/api/users/{id}", s.handleUserSetDisabled())
+		protected.Get("/api/users", admin.List)
+		protected.Post("/api/users", admin.Create)
+		protected.Patch("/api/users/{id}", admin.SetDisabled)
 		protected.Get("/api/version", s.handleVersion())
 	})
 	for id, handler := range cfg.Plugins {
@@ -87,12 +83,26 @@ func NewServer(cfg Config) http.Handler {
 }
 
 type server struct {
-	store ContactStore
-	users UserStore
-	// newSession issues login sessions; a field so failure paths stay
-	// testable.
-	newSession        func(userID uuid.UUID) (gouncer.Session, error)
+	store             ContactStore
+	auth              *authkit.Handlers
 	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
+}
+
+// protectPlugin wraps a plugin handler in the session middleware, letting
+// the plugin's declared public paths through untouched.
+func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
+	public := make(map[string]struct{}, len(publicPaths))
+	for _, path := range publicPaths {
+		public[path] = struct{}{}
+	}
+	protected := s.auth.RequireSession(s.boundPluginRequest(handler))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := public[r.URL.Path]; ok {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		protected.ServeHTTP(w, r)
+	})
 }

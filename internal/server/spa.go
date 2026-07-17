@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/gopherium/gouncer/authkit"
 )
 
 // spaHandler serves the single-page app from webFS, falling back to
@@ -15,7 +17,7 @@ func spaHandler(webFS fs.FS) http.HandlerFunc {
 	fileServer := http.FileServerFS(webFS)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			respondError(w, http.StatusNotFound, "not found")
+			authkit.RespondError(w, http.StatusNotFound, "not found")
 			return
 		}
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")

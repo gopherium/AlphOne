@@ -88,7 +88,7 @@ func decodeBody[T any](t *testing.T, recorder *httptest.ResponseRecorder) T {
 func authedContactServer(t *testing.T, store server.ContactStore, plugins map[string]http.Handler) http.Handler {
 	t.Helper()
 	users := newFakeUserStore()
-	users.addUser(t)
+	addAda(t, users)
 	srv := server.NewServer(server.Config{Contacts: store, Users: users, Plugins: plugins})
 	cookie := loginCookie(t, srv)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

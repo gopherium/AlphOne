@@ -16,6 +16,9 @@ require (
 )
 
 require (
+	github.com/gopherium/gouncer/authkit v0.1.0 // indirect
+	github.com/gopherium/gouncer/authkit/postgres v0.1.0 // indirect
+	github.com/gopherium/gouncer/authkit/ratelimit v0.1.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )

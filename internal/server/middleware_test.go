@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gopherium/gouncer/authkit/testkit"
+
 	"github.com/gopherium/alphone/internal/server"
 )
 
@@ -19,10 +21,10 @@ func echoHandler(status int, body string) http.Handler {
 	})
 }
 
-func newProtectedServer(t *testing.T) (http.Handler, *fakeUserStore) {
+func newProtectedServer(t *testing.T) (http.Handler, *testkit.Store) {
 	t.Helper()
 	users := newFakeUserStore()
-	users.addUser(t)
+	addAda(t, users)
 	handler := server.NewServer(server.Config{
 		Contacts: newFakeContactStore(),
 		Users:    users,
@@ -96,7 +98,7 @@ func TestMiddlewareReportsSessionStoreFailure(t *testing.T) {
 
 	handler, users := newProtectedServer(t)
 	cookie := loginCookie(t, handler)
-	users.sessionErr = context.DeadlineExceeded
+	users.SessionErr = context.DeadlineExceeded
 
 	request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/anything", nil)
 	request.AddCookie(cookie)

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/gouncer/authkit/testkit"
+
 	"github.com/gopherium/alphone/internal/server"
 )
 
@@ -21,7 +23,7 @@ func blockingPlugin(entered chan<- struct{}) http.Handler {
 	})
 }
 
-func newStreamServer(users server.UserStore, entered chan struct{}, lifetime time.Duration, perUser int) http.Handler {
+func newStreamServer(users *testkit.Store, entered chan struct{}, lifetime time.Duration, perUser int) http.Handler {
 	return server.NewServer(server.Config{
 		Contacts:          newFakeContactStore(),
 		Users:             users,
@@ -55,7 +57,7 @@ func TestHostBoundsPluginStreamLifetime(t *testing.T) {
 	t.Parallel()
 
 	users := newFakeUserStore()
-	users.addUser(t)
+	addAda(t, users)
 	entered := make(chan struct{}, 8)
 	handler := newStreamServer(users, entered, 30*time.Millisecond, 5)
 	cookie := sessionCookie(t, doLogin(t, handler, streamLogin))
@@ -75,8 +77,8 @@ func TestHostCapsConcurrentPluginStreamsPerUser(t *testing.T) {
 	t.Parallel()
 
 	users := newFakeUserStore()
-	users.addUser(t)
-	users.addNamedUser(t, "grace@example.com", "Grace Hopper")
+	addAda(t, users)
+	users.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
 	entered := make(chan struct{}, 8)
 	handler := newStreamServer(users, entered, 2*time.Second, 2)
 	ada := sessionCookie(t, doLogin(t, handler, streamLogin))

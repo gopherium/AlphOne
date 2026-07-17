@@ -11,17 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer"
-
-	"github.com/gopherium/alphone/internal/postgres"
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 )
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
-
-type failingStdin struct{}
-
-func (failingStdin) Read([]byte) (int, error) {
-	return 0, errors.New("stdin exploded")
-}
 
 func TestCreateAdminProvisionsAUser(t *testing.T) {
 	t.Parallel()
@@ -50,7 +43,7 @@ func TestCreateAdminProvisionsAUser(t *testing.T) {
 		t.Fatalf("connecting pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	created, err := postgres.NewUserStore(pool).UserByEmail(t.Context(), "admin@example.com")
+	created, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), "admin@example.com")
 	if err != nil {
 		t.Fatalf("UserByEmail() error = %v, want the created user", err)
 	}
@@ -98,26 +91,6 @@ func TestCreateAdminValidatesItsInput(t *testing.T) {
 			env:   map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/db"},
 			args:  []string{"-bogus"},
 			stdin: strings.NewReader("correct horse battery\n"),
-		},
-		"invalid email": {
-			env:   map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/db"},
-			args:  []string{"-email", "not-an-email", "-name", "Admin"},
-			stdin: strings.NewReader("correct horse battery\n"),
-		},
-		"short password": {
-			env:   map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/db"},
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
-			stdin: strings.NewReader("short\n"),
-		},
-		"no password input": {
-			env:   map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/db"},
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
-			stdin: strings.NewReader(""),
-		},
-		"failing stdin": {
-			env:   map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/db"},
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
-			stdin: failingStdin{},
 		},
 		"malformed database url": {
 			env:   map[string]string{"ALPHONE_DATABASE_URL": "not a url \x00"},

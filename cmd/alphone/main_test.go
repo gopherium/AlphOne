@@ -25,8 +25,9 @@ import (
 
 	"github.com/gopherium/gouncer"
 
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+
 	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -342,7 +343,7 @@ func TestRunServesAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gouncer.NewUser() error = %v, want nil", err)
 	}
-	if err := postgres.NewUserStore(pool).CreateUser(t.Context(), admin); err != nil {
+	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), admin); err != nil {
 		t.Fatalf("CreateUser() error = %v, want nil", err)
 	}
 

@@ -17,7 +17,7 @@ func TestVersionEndpoint(t *testing.T) {
 	t.Parallel()
 
 	users := newFakeUserStore()
-	users.addUser(t)
+	addAda(t, users)
 	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 
 	if code := doRequest(t, srv, http.MethodGet, "/api/version", "").Code; code != http.StatusUnauthorized {

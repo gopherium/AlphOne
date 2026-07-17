@@ -5,7 +5,6 @@ package postgres_test
 import (
 	"database/sql"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -105,24 +104,6 @@ func TestMigrationsEnforceIdentityUniquenessAcrossContacts(t *testing.T) {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != uniqueViolation {
 		t.Fatalf("inserting duplicate identity: %v, want unique violation %s", err, uniqueViolation)
-	}
-}
-
-func TestMigrationsIndexSessionsExpiresAt(t *testing.T) {
-	t.Parallel()
-
-	db := newTestDB(t)
-
-	var indexdef string
-	err := db.QueryRow(
-		"SELECT indexdef FROM pg_indexes WHERE schemaname = 'core' AND indexname = 'sessions_expires_at_idx'",
-	).Scan(&indexdef)
-
-	if err != nil {
-		t.Fatalf("looking up sessions_expires_at_idx: %v, want the index to exist", err)
-	}
-	if !strings.Contains(indexdef, "(expires_at)") {
-		t.Errorf("indexdef = %q, want an index on (expires_at)", indexdef)
 	}
 }
 

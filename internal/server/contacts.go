@@ -10,6 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/contact"
 )
 
@@ -37,9 +39,9 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 		Name string `json:"name"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		req, err := decode[request](w, r)
+		req, err := authkit.Decode[request](w, r)
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "malformed json")
+			authkit.RespondError(w, http.StatusBadRequest, "malformed json")
 			return
 		}
 		c, err := contact.New(req.Name)
@@ -51,7 +53,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
-		respond(w, http.StatusCreated, newContactResponse(c))
+		authkit.Respond(w, http.StatusCreated, newContactResponse(c))
 	}
 }
 
@@ -61,7 +63,7 @@ func (s *server) handleContactGet() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
-			respondError(w, http.StatusBadRequest, "malformed contact id")
+			authkit.RespondError(w, http.StatusBadRequest, "malformed contact id")
 			return
 		}
 		c, err := s.store.Get(r.Context(), id)
@@ -69,6 +71,6 @@ func (s *server) handleContactGet() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
-		respond(w, http.StatusOK, newContactResponse(c))
+		authkit.Respond(w, http.StatusOK, newContactResponse(c))
 	}
 }

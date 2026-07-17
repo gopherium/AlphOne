@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -12,9 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gopherium/gouncer"
-
-	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/gouncer/authkit"
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 )
 
 // createAdmin provisions a user account from the command line, reading
@@ -38,33 +36,14 @@ func createAdmin(
 	if databaseURL == "" {
 		return errors.New("ALPHONE_DATABASE_URL is required")
 	}
-
-	_, _ = fmt.Fprint(stdout, "Password: ")
-	scanner := bufio.NewScanner(stdin)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("read password: %w", err)
-		}
-		return errors.New("read password: no input")
-	}
-
-	u, err := gouncer.NewUser(*email, *name, scanner.Text())
-	if err != nil {
-		return err
-	}
-
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := postgres.Migrate(ctx, databaseURL); err != nil {
-		return err
-	}
-	if err := postgres.NewUserStore(pool).CreateUser(ctx, u); err != nil {
+	if err := authkitpg.Migrate(ctx, databaseURL); err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(stdout, "created user %s\n", u.Email)
-	return nil
+	return authkit.CreateAdmin(ctx, authkitpg.NewUserStore(pool), *email, *name, stdin, stdout)
 }
