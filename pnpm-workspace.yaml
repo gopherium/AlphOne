@@ -19,6 +19,7 @@ patchedDependencies:
 
 minimumReleaseAgeExclude:
   - vite@8.1.4
+  - '@gopherium/react-auth@0.1.1'
 
 allowBuilds:
   esbuild: false

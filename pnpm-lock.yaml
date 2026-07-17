@@ -39,6 +39,9 @@ importers:
       '@alphone/plugin-whatsapp':
         specifier: workspace:*
         version: link:../plugins/whatsapp/frontend
+      '@gopherium/react-auth':
+        specifier: ^0.1.1
+        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -134,6 +137,9 @@ importers:
 
   sdk/frontend:
     dependencies:
+      '@gopherium/react-auth':
+        specifier: ^0.1.1
+        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -523,6 +529,28 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@gopherium/react-auth@0.1.1':
+    resolution: {integrity: sha512-Of5mHfmkSfIRMOR0MLQEdX5mLEhsKPfKly4pHwITXvVKgEUiX5NrU7Zpw9avTOSmsudVekScw8hX2C1SfYid1Q==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.101.2
+      '@testing-library/jest-dom': ^6.9.1
+      '@testing-library/react': ^16.3.2
+      '@wordpress/ui': ^0.17.0
+      msw: ^2.15.0
+      react: ^19.2.7
+      vitest: ^4.1.10
+    peerDependenciesMeta:
+      '@testing-library/jest-dom':
+        optional: true
+      '@testing-library/react':
+        optional: true
+      '@wordpress/ui':
+        optional: true
+      msw:
+        optional: true
+      vitest:
+        optional: true
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -2893,6 +2921,18 @@ snapshots:
       react-dom: 19.2.7(react@19.2.7)
 
   '@floating-ui/utils@0.2.11': {}
+
+  '@gopherium/react-auth@0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)':
+    dependencies:
+      '@tanstack/react-query': 5.101.2(react@19.2.7)
+      react: 19.2.7
+      zod: 4.4.3
+    optionalDependencies:
+      '@testing-library/jest-dom': 6.9.1
+      '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@wordpress/ui': 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+      msw: 2.15.0(@types/node@26.1.1)(typescript@6.0.3)
+      vitest: 4.1.10(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
 
   '@humanfs/core@0.19.2':
     dependencies:

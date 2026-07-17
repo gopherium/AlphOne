@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { sessionQueryKey, useEventStream } from '../stream'
+import { sessionQueryKey } from '@gopherium/react-auth'
+import { useEventStream } from '../stream'
 import { FakeEventSource } from '../testing'
 
 function Probe() {

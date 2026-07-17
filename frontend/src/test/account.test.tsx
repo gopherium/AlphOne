@@ -5,7 +5,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
 
-import { sessionQueryKey } from '../auth/session'
+import { sessionQueryKey } from '@gopherium/react-auth'
 import { renderAt } from './render'
 
 test('shows the signed-in user and a logout control', async () => {

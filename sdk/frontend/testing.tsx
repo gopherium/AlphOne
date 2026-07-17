@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import '@testing-library/jest-dom/vitest'
+import { installTestEnvironment as installAuthTestEnvironment } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	Link,
@@ -12,13 +13,12 @@ import {
 	createRouter,
 	useRouterState,
 } from '@tanstack/react-router'
-import { cleanup, render } from '@testing-library/react'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, vi } from 'vitest'
+import { render } from '@testing-library/react'
+import { afterEach, vi } from 'vitest'
 
 import type { FrontendPlugin } from './index'
 
-export { http, HttpResponse } from 'msw'
+export { HttpResponse, http, server } from '@gopherium/react-auth/testing'
 
 /**
  * FakeEventSource stands in for the browser EventSource, which jsdom does
@@ -100,21 +100,16 @@ export class FakeEventSource {
 	}
 }
 
-export const server = setupServer()
-
 /**
  * Installs global stubs and vitest lifecycle hooks for the test environment.
  */
 export function installTestEnvironment() {
 	vi.stubGlobal('scrollTo', () => {})
 	vi.stubGlobal('EventSource', FakeEventSource)
-	beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+	installAuthTestEnvironment()
 	afterEach(() => {
-		cleanup()
-		server.resetHandlers()
 		FakeEventSource.reset()
 	})
-	afterAll(() => server.close())
 }
 
 /**

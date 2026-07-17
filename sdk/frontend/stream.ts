@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { isSessionRevoked, sessionQueryKey } from '@gopherium/react-auth'
 import { useQueryClient } from '@tanstack/react-query'
 import type { QueryKey } from '@tanstack/react-query'
 import { useEffect } from 'react'
-
-/**
- * sessionQueryKey is the react-query key the host app stores the login
- * session under.
- */
-export const sessionQueryKey = ['session'] as const
 
 const initialRetryDelay = 1_000
 const maxRetryDelay = 30_000
@@ -49,9 +44,9 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
 		 */
 		function probeSession() {
 			probe = new AbortController()
-			fetch('/api/auth/session', { credentials: 'include', signal: probe.signal })
-				.then((response) => {
-					if (response.status === 401) {
+			isSessionRevoked(probe.signal)
+				.then((revoked) => {
+					if (revoked) {
 						void queryClient.invalidateQueries({ queryKey: sessionQueryKey })
 						return
 					}

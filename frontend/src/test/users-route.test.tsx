@@ -5,7 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { sessionQueryKey } from '../auth/session'
+import { sessionQueryKey } from '@gopherium/react-auth'
 import { renderAt } from './render'
 
 beforeEach(() =>
@@ -43,6 +43,39 @@ test('navigates to the users screen from the main menu', async () => {
 	await userEvent.click(
 		await screen.findByRole('link', { name: 'Users' }),
 	)
+
+	expect(
+		await screen.findByRole('heading', { name: 'Users' }),
+	).toBeInTheDocument()
+})
+
+test('returns to the user list after creating a user', async () => {
+	server.use(
+		http.post('/api/users', () =>
+			HttpResponse.json(
+				{
+					id: '0198b2f0-0000-7000-8000-000000000002',
+					email: 'ada@example.com',
+					name: 'Ada Lovelace',
+					disabled: false,
+					created_at: '2026-07-16T10:00:00Z',
+				},
+				{ status: 201 },
+			),
+		),
+	)
+	renderAt('/users/new')
+
+	await userEvent.type(
+		await screen.findByLabelText('Email'),
+		'ada@example.com',
+	)
+	await userEvent.type(screen.getByLabelText('Name'), 'Ada Lovelace')
+	await userEvent.type(
+		screen.getByLabelText('Password'),
+		'correct horse battery',
+	)
+	await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
 
 	expect(
 		await screen.findByRole('heading', { name: 'Users' }),

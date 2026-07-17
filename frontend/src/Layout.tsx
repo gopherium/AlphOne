@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
+import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
+import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
-import { useLogout, useSession } from './auth/session'
 import { MainMenu } from './menu/MainMenu'
 import { useAppVersion } from './version'
 
@@ -22,8 +22,6 @@ export function Layout() {
 		.reverse()
 		.find((match) => match.staticData.Sidebar)
 	const Sidebar = sidebarMatch?.staticData.Sidebar
-	const user = useSession().data
-	const signOut = useLogout()
 	const version = useAppVersion().data
 	return (
 		<ThemeProvider color={CHROME_COLOR}>
@@ -39,25 +37,7 @@ export function Layout() {
 							{Sidebar ? <Sidebar /> : <MainMenu />}
 						</nav>
 					</Stack>
-					{user ? (
-						<Stack
-							direction="column"
-							gap="sm"
-							className="alphone-layout__account"
-						>
-							<Text>{user.name}</Text>
-							<Button
-								variant="outline"
-								disabled={signOut.isPending}
-								onClick={() => signOut.mutate()}
-							>
-								Log out
-							</Button>
-							{signOut.isError ? (
-								<Text role="alert">Logout failed, please try again.</Text>
-							) : null}
-						</Stack>
-					) : null}
+					<AccountPanel className="alphone-layout__account" />
 					{version ? (
 						<Text className="alphone-layout__version">v{version}</Text>
 					) : null}

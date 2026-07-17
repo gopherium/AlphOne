@@ -32,5 +32,6 @@ export {
 	VisuallyHidden,
 } from '@wordpress/ui'
 export { ThemeProvider } from '@wordpress/theme'
+export { sessionQueryKey } from '@gopherium/react-auth'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
-export { sessionQueryKey, useEventStream } from './stream'
+export { useEventStream } from './stream'

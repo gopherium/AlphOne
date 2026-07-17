@@ -13,6 +13,7 @@
   "dependencies": {
     "@alphone/frontend-sdk": "workspace:*",
     "@alphone/plugin-whatsapp": "workspace:*",
+    "@gopherium/react-auth": "^0.1.1",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.17",
     "@wordpress/theme": "^0.17.0",

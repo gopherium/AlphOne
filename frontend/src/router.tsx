@@ -10,8 +10,7 @@ import type { RouterHistory } from '@tanstack/react-router'
 import { Home } from './Home'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
-import { NewUserScreen } from './users/NewUserScreen'
-import { UsersScreen } from './users/UsersScreen'
+import { NewUserRoute, UsersRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -26,13 +25,13 @@ const homeRoute = createRoute({
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users',
-	component: UsersScreen,
+	component: UsersRoute,
 })
 
 const newUserRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users/new',
-	component: NewUserScreen,
+	component: NewUserRoute,
 })
 
 const routeTree = rootRoute.addChildren([
