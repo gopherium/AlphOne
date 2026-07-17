@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" font-family="system-ui, sans-serif">
+  <rect width="1200" height="675" fill="#f2f3f5"/>
+  <rect x="1" y="1" width="1198" height="673" fill="none" stroke="#c9ccd1" stroke-width="2" stroke-dasharray="12 8"/>
+  <rect x="0" y="0" width="1200" height="56" fill="#e4e6ea"/>
+  <circle cx="28" cy="28" r="7" fill="#c9ccd1"/>
+  <circle cx="52" cy="28" r="7" fill="#c9ccd1"/>
+  <circle cx="76" cy="28" r="7" fill="#c9ccd1"/>
+  <rect x="240" y="120" width="720" height="90" rx="8" fill="#e4e6ea"/>
+  <rect x="240" y="240" width="340" height="180" rx="8" fill="#e4e6ea"/>
+  <rect x="620" y="240" width="340" height="180" rx="8" fill="#e4e6ea"/>
+  <text x="600" y="500" text-anchor="middle" font-size="34" fill="#7a7f87">Placeholder screenshot</text>
+  <text x="600" y="545" text-anchor="middle" font-size="22" fill="#9aa0a8">Replace with a real capture in docs/src/assets/whatsapp/</text>
+</svg>

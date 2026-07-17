@@ -1,0 +1,40 @@
+---
+title: AlphOne
+description: A plugin-first CRM. Self-hosted, conversations first, built in Go and React.
+template: splash
+hero:
+  tagline: A plugin-first CRM that keeps customer conversations in one self-hosted place. One container, one database, your server.
+  actions:
+    - text: Get started
+      link: /start/local-development/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/gopherium/AlphOne
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Pick your path
+
+<CardGrid stagger>
+	<Card title="Self-host it" icon="seti:docker">
+		One image from ghcr.io, one PostgreSQL container, and any HTTPS
+		proxy in front. Start at the [install guide](/self-hosting/install/).
+	</Card>
+	<Card title="WhatsApp inbox" icon="comment">
+		Messages to your WhatsApp business number appear live in the CRM
+		and are answered from it. [Connect your
+		number](/whatsapp/meta-setup/).
+	</Card>
+	<Card title="Plugin-first" icon="puzzle">
+		Channels are plugins that own their routes, schema, and screens.
+		The WhatsApp plugin is the reference. [How it is
+		built](/start/what-is-alphone/).
+	</Card>
+	<Card title="Hack on it" icon="seti:go">
+		Go backend, React frontend, real tests end to end. From clone to
+		first login in [Local development](/start/local-development/).
+	</Card>
+</CardGrid>
