@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
@@ -243,6 +244,37 @@ func TestRunReportsMigrationFailure(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a migration error")
+	}
+}
+
+const duplicateSchema = "42P06"
+
+// forgetCoreMigrations clears the core migration lineage from the database at databaseURL.
+func forgetCoreMigrations(t *testing.T, databaseURL string) {
+	t.Helper()
+	pool, err := pgxpool.New(t.Context(), databaseURL)
+	if err != nil {
+		t.Fatalf("connecting pool: %v", err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(t.Context(), "DELETE FROM goose_db_version WHERE version_id > 0"); err != nil {
+		t.Fatalf("clearing the core migration lineage: %v", err)
+	}
+}
+
+func TestRunReportsCoreMigrationFailure(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	forgetCoreMigrations(t, databaseURL)
+
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": databaseURL,
+	}), io.Discard, registerPlugins)
+
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != duplicateSchema {
+		t.Fatalf("run() error = %v, want duplicate schema %s", err, duplicateSchema)
 	}
 }
 
