@@ -25,6 +25,7 @@ type mediaDescriptor struct {
 // pgxExecutor runs SQL statements on a pool or inside a transaction.
 type pgxExecutor interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 // pendingMediaRow carries a claimed media download job.

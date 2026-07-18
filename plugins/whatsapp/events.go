@@ -253,19 +253,18 @@ func contactsContent(cards []webhookContactCard) string {
 	return strings.Join(names, ", ")
 }
 
-// ingest stores an inbound message and broadcasts the change.
+// ingest stores an inbound message and broadcasts newly stored arrivals.
 func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	owner, err := p.resolver.Resolve(ctx, "whatsapp", m.sender, m.senderName)
 	if err != nil {
 		return fmt.Errorf("whatsapp: resolve sender: %w", err)
 	}
-	conversationID, err := p.store.upsertConversation(ctx, owner.ID, m.sender, m.sentAt)
+	conversationID, stored, err := p.store.persistInbound(ctx, owner.ID, m)
 	if err != nil {
 		return err
 	}
-	if err := p.store.insertMessage(ctx, conversationID, m); err != nil {
-		return err
+	if stored {
+		p.events.broadcast(event{Conversation: conversationID})
 	}
-	p.events.broadcast(event{Conversation: conversationID})
 	return nil
 }

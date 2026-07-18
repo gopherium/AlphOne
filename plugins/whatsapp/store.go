@@ -5,6 +5,7 @@ package whatsapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,8 +81,9 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 }
 
 // upsertConversation inserts a conversation for the contact or updates its last activity time, returning its id.
-func (s *store) upsertConversation(
+func upsertConversation(
 	ctx context.Context,
+	exec pgxExecutor,
 	contactID uuid.UUID,
 	externalID string,
 	activityAt time.Time,
@@ -91,7 +93,7 @@ func (s *store) upsertConversation(
 		return uuid.Nil, fmt.Errorf("whatsapp: generate conversation id: %w", err)
 	}
 	var conversationID uuid.UUID
-	err = s.pool.QueryRow(ctx, `
+	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status, last_activity_at, created_at)
 		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5)
 		ON CONFLICT (external_id) DO UPDATE
@@ -103,6 +105,34 @@ func (s *store) upsertConversation(
 		return uuid.Nil, fmt.Errorf("whatsapp: upsert conversation: %w", err)
 	}
 	return conversationID, nil
+}
+
+// persistInbound stores an inbound message, its conversation, and any pending
+// media in one transaction, reporting the conversation id and whether the
+// message is new rather than a redelivery.
+func (s *store) persistInbound(ctx context.Context, contactID uuid.UUID, m inboundMessage) (uuid.UUID, bool, error) {
+	var conversationID uuid.UUID
+	var stored bool
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var err error
+		conversationID, err = upsertConversation(ctx, tx, contactID, m.sender, m.sentAt)
+		if err != nil {
+			return err
+		}
+		var messageID uuid.UUID
+		messageID, stored, err = insertMessage(ctx, tx, conversationID, m)
+		if err != nil {
+			return err
+		}
+		if !stored || m.media == nil {
+			return nil
+		}
+		return insertMediaPending(ctx, tx, messageID, *m.media)
+	})
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("whatsapp: persist inbound: %w", err)
+	}
+	return conversationID, stored, nil
 }
 
 type outboundMessage struct {
@@ -160,21 +190,32 @@ func (s *store) appendOutboundMessage(
 	}, nil
 }
 
-// insertMessage stores an inbound message, ignoring duplicates by external id.
-func (s *store) insertMessage(ctx context.Context, conversationID uuid.UUID, m inboundMessage) error {
+// insertMessage stores an inbound message, reporting its id and whether it
+// was newly stored rather than deduplicated by external id.
+func insertMessage(
+	ctx context.Context,
+	exec pgxExecutor,
+	conversationID uuid.UUID,
+	m inboundMessage,
+) (uuid.UUID, bool, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return fmt.Errorf("whatsapp: generate message id: %w", err)
+		return uuid.Nil, false, fmt.Errorf("whatsapp: generate message id: %w", err)
 	}
-	_, err = s.pool.Exec(ctx, `
+	var insertedID uuid.UUID
+	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
 		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8)
-		ON CONFLICT (external_id) DO NOTHING`,
+		ON CONFLICT (external_id) DO NOTHING
+		RETURNING id`,
 		id, conversationID, m.externalID, m.content, m.contentType, m.sentAt, m.raw, time.Now().UTC(),
-	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: insert message: %w", err)
+	).Scan(&insertedID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
 	}
-	return nil
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("whatsapp: insert message: %w", err)
+	}
+	return insertedID, true, nil
 }

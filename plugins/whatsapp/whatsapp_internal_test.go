@@ -60,12 +60,24 @@ func TestIngestReportsConversationFailure(t *testing.T) {
 func TestStoreInsertMessageReportsFailure(t *testing.T) {
 	t.Parallel()
 
-	s := &store{pool: newUnreachablePool(t)}
+	pool := newUnreachablePool(t)
 
-	err := s.insertMessage(t.Context(), uuid.Must(uuid.NewV7()), inboundMessage{externalID: "wamid.1"})
+	_, _, err := insertMessage(t.Context(), pool, uuid.Must(uuid.NewV7()), inboundMessage{externalID: "wamid.1"})
 
 	if err == nil {
 		t.Fatal("insertMessage() error = nil, want a connection failure")
+	}
+}
+
+func TestStoreUpsertConversationReportsFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := newUnreachablePool(t)
+
+	_, err := upsertConversation(t.Context(), pool, uuid.Must(uuid.NewV7()), "184467235", time.Now().UTC())
+
+	if err == nil {
+		t.Fatal("upsertConversation() error = nil, want a connection failure")
 	}
 }
 
@@ -74,9 +86,7 @@ func TestStoreReportsIDGenerationFailure(t *testing.T) {
 		uuid.SetRand(failingEntropy{})
 		defer uuid.SetRand(nil)
 
-		s := &store{}
-
-		_, err := s.upsertConversation(t.Context(), uuid.Nil, "184467235", time.Now())
+		_, err := upsertConversation(t.Context(), nil, uuid.Nil, "184467235", time.Now())
 
 		if !errors.Is(err, errEntropy) {
 			t.Fatalf("upsertConversation() error = %v, want the entropy failure in its chain", err)
@@ -87,9 +97,7 @@ func TestStoreReportsIDGenerationFailure(t *testing.T) {
 		uuid.SetRand(failingEntropy{})
 		defer uuid.SetRand(nil)
 
-		s := &store{}
-
-		err := s.insertMessage(t.Context(), uuid.Nil, inboundMessage{})
+		_, _, err := insertMessage(t.Context(), nil, uuid.Nil, inboundMessage{})
 
 		if !errors.Is(err, errEntropy) {
 			t.Fatalf("insertMessage() error = %v, want the entropy failure in its chain", err)
