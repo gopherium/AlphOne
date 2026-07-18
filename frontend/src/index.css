@@ -339,3 +339,36 @@ body {
 .alphone-composer__input {
 	flex: 1;
 }
+
+.alphone-message__media {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.alphone-message__image {
+	display: block;
+	max-width: 260px;
+	max-height: 320px;
+	border-radius: 6px;
+}
+
+.alphone-message__image--sticker {
+	max-width: 120px;
+	max-height: 120px;
+}
+
+.alphone-message__media audio,
+.alphone-message__media video {
+	max-width: 280px;
+}
+
+.alphone-message__caption {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.alphone-message__document {
+	overflow-wrap: anywhere;
+}

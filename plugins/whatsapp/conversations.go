@@ -30,12 +30,45 @@ type conversationResponse struct {
 }
 
 type messageResponse struct {
-	ID          uuid.UUID `json:"id"`
-	ExternalID  string    `json:"external_id"`
-	Direction   string    `json:"direction"`
-	Content     string    `json:"content"`
-	ContentType string    `json:"content_type"`
-	SentAt      time.Time `json:"sent_at"`
+	ID          uuid.UUID      `json:"id"`
+	ExternalID  string         `json:"external_id"`
+	Direction   string         `json:"direction"`
+	Content     string         `json:"content"`
+	ContentType string         `json:"content_type"`
+	SentAt      time.Time      `json:"sent_at"`
+	Media       *mediaResponse `json:"media"`
+}
+
+type mediaResponse struct {
+	Status   string  `json:"status"`
+	MimeType string  `json:"mime_type"`
+	Filename *string `json:"filename"`
+	FileSize *int64  `json:"file_size"`
+	Voice    bool    `json:"voice"`
+	Animated bool    `json:"animated"`
+}
+
+// mediaFromRow builds the media payload for a message row, or nil for
+// messages without a media asset.
+func mediaFromRow(row messageRow) *mediaResponse {
+	if row.MediaStatus == nil {
+		return nil
+	}
+	media := &mediaResponse{
+		Status:   *row.MediaStatus,
+		Filename: row.MediaFilename,
+		FileSize: row.MediaFileSize,
+	}
+	if row.MediaMimeType != nil {
+		media.MimeType = *row.MediaMimeType
+	}
+	if row.MediaVoice != nil {
+		media.Voice = *row.MediaVoice
+	}
+	if row.MediaAnimated != nil {
+		media.Animated = *row.MediaAnimated
+	}
+	return media
 }
 
 // handleConversationsList returns an HTTP handler that lists conversations up to the requested limit as JSON.
@@ -94,6 +127,7 @@ func (p *Plugin) handleMessagesList() http.HandlerFunc {
 				Content:     row.Content,
 				ContentType: row.ContentType,
 				SentAt:      row.SentAt.UTC(),
+				Media:       mediaFromRow(row),
 			})
 		}
 		respondJSON(w, http.StatusOK, messages)

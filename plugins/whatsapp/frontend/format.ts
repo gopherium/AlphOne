@@ -47,6 +47,21 @@ export function formatDayLabel(at: Date, now: Date): string {
 }
 
 /**
+ * Formats a byte count as a compact human readable size.
+ * @param bytes - The size in bytes.
+ * @returns The size label in B, KB, or MB.
+ */
+export function formatFileSize(bytes: number): string {
+	if (bytes < 1024) {
+		return `${bytes} B`
+	}
+	if (bytes < 1024 * 1024) {
+		return `${Math.round(bytes / 1024)} KB`
+	}
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
  * Formats a conversation's last activity for its list row: the clock time when
  * the activity happened today, the labelled day otherwise.
  * @param at - The moment of the last activity.

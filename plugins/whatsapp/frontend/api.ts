@@ -14,6 +14,17 @@ const conversationSchema = z.object({
 
 export type Conversation = z.infer<typeof conversationSchema>
 
+const mediaSchema = z.object({
+	status: z.string(),
+	mime_type: z.string(),
+	filename: z.string().nullable(),
+	file_size: z.number().nullable(),
+	voice: z.boolean(),
+	animated: z.boolean(),
+})
+
+export type MessageMedia = z.infer<typeof mediaSchema>
+
 const messageSchema = z.object({
 	id: z.string(),
 	external_id: z.string(),
@@ -21,9 +32,20 @@ const messageSchema = z.object({
 	content: z.string(),
 	content_type: z.string(),
 	sent_at: z.coerce.date(),
+	media: mediaSchema.nullish(),
 })
 
 export type Message = z.infer<typeof messageSchema>
+
+/**
+ * Builds the download URL for a message's stored media blob.
+ * @param conversationId - The conversation owning the message.
+ * @param messageId - The message whose blob to address.
+ * @returns The media endpoint URL.
+ */
+export function mediaURL(conversationId: string, messageId: string): string {
+	return `/api/plugins/whatsapp/conversations/${conversationId}/messages/${messageId}/media`
+}
 
 /**
  * Fetches all WhatsApp conversations from the backend API.

@@ -29,12 +29,18 @@ type conversationRow struct {
 }
 
 type messageRow struct {
-	ID          uuid.UUID `db:"id"`
-	ExternalID  string    `db:"external_id"`
-	Direction   string    `db:"direction"`
-	Content     string    `db:"content"`
-	ContentType string    `db:"content_type"`
-	SentAt      time.Time `db:"sent_at"`
+	ID            uuid.UUID `db:"id"`
+	ExternalID    string    `db:"external_id"`
+	Direction     string    `db:"direction"`
+	Content       string    `db:"content"`
+	ContentType   string    `db:"content_type"`
+	SentAt        time.Time `db:"sent_at"`
+	MediaStatus   *string   `db:"media_status"`
+	MediaMimeType *string   `db:"media_mime_type"`
+	MediaFilename *string   `db:"media_filename"`
+	MediaFileSize *int64    `db:"media_file_size"`
+	MediaVoice    *bool     `db:"media_voice"`
+	MediaAnimated *bool     `db:"media_animated"`
 }
 
 // listConversations returns up to limit conversations with their contact names and a preview of their
@@ -74,13 +80,17 @@ func (s *store) listConversations(ctx context.Context, limit int) ([]conversatio
 	return conversations, nil
 }
 
-// listMessages returns up to limit messages for the given conversation, oldest first.
+// listMessages returns up to limit messages for the given conversation with
+// their media state, oldest first.
 func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
 	rows, _ := s.pool.Query(ctx, `
-		SELECT id, external_id, direction, content, content_type, sent_at
-		FROM plugin_whatsapp.messages
-		WHERE conversation_id = $1
-		ORDER BY sent_at ASC, id ASC
+		SELECT m.id, m.external_id, m.direction, m.content, m.content_type, m.sent_at,
+			med.status AS media_status, med.mime_type AS media_mime_type, med.filename AS media_filename,
+			med.file_size AS media_file_size, med.voice AS media_voice, med.animated AS media_animated
+		FROM plugin_whatsapp.messages m
+		LEFT JOIN plugin_whatsapp.media med ON med.message_id = m.id
+		WHERE m.conversation_id = $1
+		ORDER BY m.sent_at ASC, m.id ASC
 		LIMIT $2`,
 		conversationID, limit,
 	)

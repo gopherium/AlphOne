@@ -10,9 +10,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
-import { fetchMessages, sendMessage } from './api'
-import type { Message } from './api'
-import { formatDay, formatDayLabel, formatTime } from './format'
+import { fetchMessages, mediaURL, sendMessage } from './api'
+import type { Message, MessageMedia } from './api'
+import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
+import { useMediaBlob } from './media'
 
 const followThresholdPx = 100
 
@@ -21,9 +22,10 @@ const followThresholdPx = 100
  * the local calendar date changes between consecutive messages.
  * @param messages - The conversation messages, oldest first.
  * @param now - The current moment, anchoring the Today and Yesterday labels.
+ * @param conversationId - The conversation the messages belong to.
  * @returns The list items to render inside the message log.
  */
-function threadItems(messages: Message[], now: Date) {
+function threadItems(messages: Message[], now: Date, conversationId: string) {
 	const items = []
 	let previousDay = ''
 	for (const message of messages) {
@@ -36,7 +38,13 @@ function threadItems(messages: Message[], now: Date) {
 			)
 			previousDay = day
 		}
-		items.push(<MessageBubble key={message.id} message={message} />)
+		items.push(
+			<MessageBubble
+				key={message.id}
+				conversationId={conversationId}
+				message={message}
+			/>,
+		)
 	}
 	return items
 }
@@ -46,14 +54,20 @@ function threadItems(messages: Message[], now: Date) {
  * screen-reader-only direction label plus the sent time.
  * @returns The message list item.
  */
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+	conversationId,
+	message,
+}: {
+	conversationId: string
+	message: Message
+}) {
 	return (
 		<li className={`alphone-message alphone-message--${message.direction}`}>
 			<div className="alphone-message__bubble">
 				<VisuallyHidden>
 					{message.direction === 'inbound' ? 'Received' : 'Sent'}
 				</VisuallyHidden>
-				<Text className="alphone-message__content">{message.content}</Text>
+				<MessageBody conversationId={conversationId} message={message} />
 				<time
 					className="alphone-message__time"
 					dateTime={message.sent_at.toISOString()}
@@ -62,6 +76,188 @@ function MessageBubble({ message }: { message: Message }) {
 				</time>
 			</div>
 		</li>
+	)
+}
+
+/**
+ * Renders a message's body by content type: plain text, a media element, or
+ * a typed placeholder.
+ * @returns The bubble body.
+ */
+function MessageBody({
+	conversationId,
+	message,
+}: {
+	conversationId: string
+	message: Message
+}) {
+	switch (message.content_type) {
+		case 'text':
+			return <Text className="alphone-message__content">{message.content}</Text>
+		case 'image':
+		case 'sticker':
+		case 'audio':
+		case 'video':
+		case 'document':
+			return <MediaBody conversationId={conversationId} message={message} />
+		case 'location':
+			return (
+				<Text className="alphone-message__content">
+					{`📍 ${message.content}`}
+				</Text>
+			)
+		case 'contacts':
+			return (
+				<Text className="alphone-message__content">
+					{`👤 ${message.content || 'Contact card'}`}
+				</Text>
+			)
+		case 'reaction':
+			return (
+				<Text className="alphone-message__content">
+					{message.content || 'Reaction removed'}
+				</Text>
+			)
+		default:
+			return <Text className="alphone-message__content">Unsupported message.</Text>
+	}
+}
+
+/**
+ * Renders a media message's attachment by its download state and kind,
+ * followed by any caption.
+ * @returns The attachment body.
+ */
+function MediaBody({
+	conversationId,
+	message,
+}: {
+	conversationId: string
+	message: Message
+}) {
+	const media = message.media
+	if (!media || media.status === 'failed') {
+		if (message.content_type === 'document' && media) {
+			return <DocumentChip media={media} caption={message.content} />
+		}
+		return <Text className="alphone-message__content">Attachment unavailable.</Text>
+	}
+	if (media.status === 'pending') {
+		return (
+			<Text role="status" className="alphone-message__content">
+				Downloading…
+			</Text>
+		)
+	}
+	const source = mediaURL(conversationId, message.id)
+	switch (message.content_type) {
+		case 'image':
+		case 'sticker':
+			return <MediaImage conversationId={conversationId} message={message} />
+		case 'audio':
+			return (
+				<div className="alphone-message__media">
+					{media.voice ? (
+						<Text className="alphone-message__media-label">Voice message</Text>
+					) : null}
+					<audio
+						controls
+						preload="metadata"
+						src={source}
+						aria-label={media.voice ? 'Voice message' : 'Audio message'}
+					/>
+				</div>
+			)
+		case 'video':
+			return (
+				<div className="alphone-message__media">
+					<video controls preload="metadata" src={source} aria-label="Video message" />
+					{message.content ? (
+						<Text className="alphone-message__caption">{message.content}</Text>
+					) : null}
+				</div>
+			)
+		default:
+			return <DocumentChip media={media} caption={message.content} href={source} />
+	}
+}
+
+/**
+ * Renders an image or sticker attachment from its cached blob, with loading
+ * and failure states.
+ * @returns The image body.
+ */
+function MediaImage({
+	conversationId,
+	message,
+}: {
+	conversationId: string
+	message: Message
+}) {
+	const blob = useMediaBlob(conversationId, message.id)
+	if (blob.isPending) {
+		return (
+			<Text role="status" className="alphone-message__content">
+				Downloading…
+			</Text>
+		)
+	}
+	if (blob.isError) {
+		return <Text className="alphone-message__content">Attachment unavailable.</Text>
+	}
+	const sticker = message.content_type === 'sticker'
+	return (
+		<div className="alphone-message__media">
+			<img
+				className={
+					sticker
+						? 'alphone-message__image alphone-message__image--sticker'
+						: 'alphone-message__image'
+				}
+				src={blob.data}
+				alt={sticker ? 'Sticker' : 'Photo'}
+			/>
+			{message.content ? (
+				<Text className="alphone-message__caption">{message.content}</Text>
+			) : null}
+		</div>
+	)
+}
+
+/**
+ * Renders a document attachment as a named chip, linking to the download
+ * when one is available.
+ * @returns The document body.
+ */
+function DocumentChip({
+	media,
+	caption,
+	href,
+}: {
+	media: MessageMedia
+	caption: string
+	href?: string
+}) {
+	const name = media.filename ?? 'Document'
+	const label =
+		media.file_size === null ? name : `${name} (${formatFileSize(media.file_size)})`
+	return (
+		<div className="alphone-message__media">
+			{href ? (
+				<a
+					className="alphone-message__document"
+					href={href}
+					download={media.filename ?? undefined}
+				>
+					{`📄 ${label}`}
+				</a>
+			) : (
+				<Text className="alphone-message__content">{`📄 ${label} (unavailable)`}</Text>
+			)}
+			{caption ? (
+				<Text className="alphone-message__caption">{caption}</Text>
+			) : null}
+		</div>
 	)
 }
 
@@ -116,7 +312,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 					<Text role="status">No messages yet.</Text>
 				) : (
 					<ul className="alphone-messages">
-						{threadItems(messages.data, new Date())}
+						{threadItems(messages.data, new Date(), conversationId)}
 					</ul>
 				)}
 			</div>

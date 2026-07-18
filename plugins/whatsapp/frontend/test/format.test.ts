@@ -2,7 +2,14 @@
 
 import { expect, test } from 'vitest'
 
-import { formatDay, formatDayLabel, formatListTime, formatTime } from '../format'
+import { formatDay, formatDayLabel, formatFileSize, formatListTime, formatTime } from '../format'
+
+test('formatFileSize scales through bytes, kilobytes, and megabytes', () => {
+	expect(formatFileSize(512)).toBe('512 B')
+	expect(formatFileSize(1024)).toBe('1 KB')
+	expect(formatFileSize(2048)).toBe('2 KB')
+	expect(formatFileSize(5 * 1024 * 1024)).toBe('5.0 MB')
+})
 
 test('formatDay renders the local calendar date', () => {
 	expect(formatDay(new Date('2026-07-06T23:30:00Z'))).toBe('2026-07-06')
