@@ -58,7 +58,7 @@ E2E_EMAIL ?= e2e@example.com
 E2E_NAME ?= Grace Hopper
 E2E_PASSWORD ?= correct horse battery
 E2E_WHATSAPP_APP_SECRET ?= e2e-app-secret
-E2E_WHATSAPP_GRAPH_URL ?= http://localhost:1
+E2E_WHATSAPP_GRAPH_URL ?= http://127.0.0.1:4791
 
 e2e-build:
 	pnpm --filter @alphone/frontend build
