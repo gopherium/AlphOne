@@ -38,6 +38,32 @@ type pendingMediaRow struct {
 	CreatedAt      time.Time `db:"created_at"`
 }
 
+// storedMediaRow carries a stored blob and its serving metadata.
+type storedMediaRow struct {
+	Data     []byte
+	MimeType string
+	Filename *string
+	SHA256   string
+	StoredAt time.Time
+}
+
+// storedMedia returns the stored media blob for the message within the
+// conversation.
+func (s *store) storedMedia(ctx context.Context, conversationID, messageID uuid.UUID) (storedMediaRow, error) {
+	var media storedMediaRow
+	err := s.pool.QueryRow(ctx, `
+		SELECT med.data, med.mime_type, med.filename, med.sha256, med.stored_at
+		FROM plugin_whatsapp.media med
+		JOIN plugin_whatsapp.messages msg ON msg.id = med.message_id
+		WHERE med.message_id = $1 AND msg.conversation_id = $2 AND med.status = 'stored'`,
+		messageID, conversationID,
+	).Scan(&media.Data, &media.MimeType, &media.Filename, &media.SHA256, &media.StoredAt)
+	if err != nil {
+		return storedMediaRow{}, fmt.Errorf("whatsapp: load stored media: %w", err)
+	}
+	return media, nil
+}
+
 // insertMediaPending records a message's media asset as awaiting download.
 func insertMediaPending(ctx context.Context, exec pgxExecutor, messageID uuid.UUID, d mediaDescriptor) error {
 	now := time.Now().UTC()
