@@ -37,12 +37,18 @@ see [Meta setup](/whatsapp/meta-setup/).
 | `ALPHONE_WHATSAPP_ACCESS_TOKEN` | Bearer token for sending messages through the Graph API. |
 | `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` | The phone number ID (not the phone number itself) messages are sent from. |
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
+| `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
 
 ## Behavior worth knowing
 
 - **Sessions** last 30 days, are stored server-side, and expired ones are
   garbage-collected hourly. Disabling a user revokes all of their
   sessions immediately.
+- **Media attachments** (photos, voice notes, videos, documents,
+  stickers) are downloaded from Meta shortly after each message arrives
+  and stored in the PostgreSQL database, so a database backup contains
+  the complete conversation history including attachments. Expect backup
+  size to grow with media traffic.
 - **Login rate limiting** allows 10 failed attempts per client address
   per minute. Successful logins never consume the budget. Over the limit
   the API answers `429` with a `Retry-After` header.
