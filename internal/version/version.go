@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
-// Package alphone exposes application-wide metadata.
-package alphone
+// Package version exposes application-wide metadata.
+package version
 
 import (
 	_ "embed"
@@ -9,9 +9,9 @@ import (
 )
 
 //go:embed VERSION
-var version string
+var raw string
 
 // Version returns the application version.
 func Version() string {
-	return strings.TrimSpace(version)
+	return strings.TrimSpace(raw)
 }
