@@ -42,6 +42,10 @@ export default defineConfig({
 					label: 'Reference',
 					items: [{ slug: 'reference/rest-api' }],
 				},
+				{
+					label: 'Legal',
+					items: [{ slug: 'legal/privacy-policy' }],
+				},
 			],
 		}),
 	],

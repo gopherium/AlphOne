@@ -72,6 +72,13 @@ which needs the app secret. Go to **App settings → Basic** (1), press
 
 ![The App settings Basic page with the App secret field and its Show button highlighted.](../../../assets/whatsapp/try-it-out-app-settings-basic-2.png)
 
+:::note[While you are on this page]
+Publishing the app later requires a **Privacy Policy URL** and **data
+deletion instructions**. Adapt the [privacy policy](/legal/privacy-policy/)
+for your deployment, host it at a URL you control, and paste that URL
+into both fields.
+:::
+
 ## 4. Configure the webhook
 
 :::note[Order matters here]
