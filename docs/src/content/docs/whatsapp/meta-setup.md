@@ -8,12 +8,26 @@ end of this guide you will have filled in every `ALPHONE_WHATSAPP_*`
 variable from [Configuration](/self-hosting/configuration/) and received
 your first message in the CRM inbox.
 
+:::danger[This guide is for a number that is not yet on WhatsApp]
+A phone number can be used with the WhatsApp Business **app** or with the
+Cloud API, never both. Following this guide with a number that is already
+in use in the WhatsApp Business app takes that number away from the app
+**permanently**, and its message history is lost.
+
+If someone currently answers customers from a phone, do not use this
+guide. Meta's Coexistence flow connects a number that is already live in
+the WhatsApp Business app, keeping the phone working, but it only works
+in that direction. A number registered on the Cloud API can never be
+moved back into the app.
+:::
+
 You need:
 
 - a [Meta developer account](https://developers.facebook.com/)
 - your AlphOne instance reachable over HTTPS (Meta refuses plain-HTTP
   webhooks)
-- a phone number for the business line, one that is **not** already
+- a phone number **that is not currently registered with WhatsApp or
+  WhatsApp Business**: a new SIM or an unused line, one that is **not** already
   registered on the consumer WhatsApp app
 
 ## 1. Create the Meta app
