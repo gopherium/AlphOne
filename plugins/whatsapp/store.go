@@ -68,7 +68,7 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 		SELECT id, external_id, direction, content, content_type, sent_at
 		FROM plugin_whatsapp.messages
 		WHERE conversation_id = $1
-		ORDER BY sent_at ASC
+		ORDER BY sent_at ASC, id ASC
 		LIMIT $2`,
 		conversationID, limit,
 	)
