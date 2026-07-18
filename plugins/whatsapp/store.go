@@ -169,9 +169,9 @@ func (s *store) insertMessage(ctx context.Context, conversationID uuid.UUID, m i
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'inbound', $4, 'text', $5, $6, $7)
+		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8)
 		ON CONFLICT (external_id) DO NOTHING`,
-		id, conversationID, m.externalID, m.text, m.sentAt, m.raw, time.Now().UTC(),
+		id, conversationID, m.externalID, m.content, m.contentType, m.sentAt, m.raw, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: insert message: %w", err)

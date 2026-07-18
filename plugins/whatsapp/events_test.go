@@ -108,10 +108,8 @@ func TestWebhookEventsRejectsMalformedPayloads(t *testing.T) {
 	tests := map[string]struct {
 		body []byte
 	}{
-		"garbage json":       {body: []byte(`{"entry":`)},
-		"bad timestamp":      {body: eventBody("wamid.1", "184467235", "María", "not-a-number", "hola")},
-		"non-object message": {body: []byte(`{"entry":[{"changes":[{"value":{"messages":[42]}}]}]}`)},
-		"oversized":          {body: []byte(strings.Repeat("x", 1<<20+1))},
+		"garbage json": {body: []byte(`{"entry":`)},
+		"oversized":    {body: []byte(strings.Repeat("x", 1<<20+1))},
 	}
 
 	for testName, tc := range tests {
@@ -178,7 +176,38 @@ func TestWebhookEventsIngestTextMessages(t *testing.T) {
 	}
 }
 
-func TestWebhookEventsSkipNonTextEvents(t *testing.T) {
+func TestWebhookEventsIngestMediaMessages(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newIngestingPlugin(t)
+	routes := p.Routes()
+	body := []byte(`{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"contacts": [{"wa_id": "184467235", "profile": {"name": "María Pérez"}}],
+			"messages": [{"from": "184467235", "id": "wamid.img", "timestamp": "1751791000", "type": "image",
+				"image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh", "caption": "la factura"}}]
+		}}]}]
+	}`)
+
+	recorder := postEvent(t, routes, sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	var content, contentType string
+	row := pool.QueryRow(t.Context(),
+		`SELECT content, content_type FROM plugin_whatsapp.messages WHERE external_id = 'wamid.img'`)
+	if err := row.Scan(&content, &contentType); err != nil {
+		t.Fatalf("loading ingested message: %v", err)
+	}
+	if content != "la factura" || contentType != "image" {
+		t.Errorf("ingested (%q, %q), want (%q, %q)", content, contentType, "la factura", "image")
+	}
+}
+
+func TestWebhookEventsSkipStatusOnlyEvents(t *testing.T) {
 	t.Parallel()
 
 	p, pool := newIngestingPlugin(t)
@@ -186,8 +215,7 @@ func TestWebhookEventsSkipNonTextEvents(t *testing.T) {
 		"object": "whatsapp_business_account",
 		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
 			"messaging_product": "whatsapp",
-			"statuses": [{"id": "wamid.9", "status": "delivered"}],
-			"messages": [{"from": "184467235", "id": "wamid.8", "timestamp": "1751791000", "type": "image"}]
+			"statuses": [{"id": "wamid.9", "status": "delivered"}]
 		}}]}]
 	}`)
 

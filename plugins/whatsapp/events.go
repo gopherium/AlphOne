@@ -12,16 +12,19 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type inboundMessage struct {
-	externalID string
-	sender     string
-	senderName string
-	text       string
-	sentAt     time.Time
-	raw        json.RawMessage
+	externalID  string
+	sender      string
+	senderName  string
+	content     string
+	contentType string
+	media       *mediaDescriptor
+	sentAt      time.Time
+	raw         json.RawMessage
 }
 
 type webhookPayload struct {
@@ -48,10 +51,45 @@ type webhookMessage struct {
 	Text      struct {
 		Body string `json:"body"`
 	} `json:"text"`
+	Image    *webhookMedia        `json:"image"`
+	Audio    *webhookMedia        `json:"audio"`
+	Video    *webhookMedia        `json:"video"`
+	Document *webhookMedia        `json:"document"`
+	Sticker  *webhookMedia        `json:"sticker"`
+	Location *webhookLocation     `json:"location"`
+	Contacts []webhookContactCard `json:"contacts"`
+	Reaction *webhookReaction     `json:"reaction"`
+}
+
+type webhookMedia struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mime_type"`
+	SHA256   string `json:"sha256"`
+	Caption  string `json:"caption"`
+	Filename string `json:"filename"`
+	Voice    bool   `json:"voice"`
+	Animated bool   `json:"animated"`
+}
+
+type webhookLocation struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Name      string  `json:"name"`
+	Address   string  `json:"address"`
+}
+
+type webhookContactCard struct {
+	Name struct {
+		FormattedName string `json:"formatted_name"`
+	} `json:"name"`
+}
+
+type webhookReaction struct {
+	Emoji string `json:"emoji"`
 }
 
 // handleEvents returns an HTTP handler that verifies the webhook
-// signature, parses inbound text messages, and ingests them.
+// signature, parses the inbound messages, and ingests them.
 func (p *Plugin) handleEvents() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -63,7 +101,7 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		messages, err := parseTextMessages(body)
+		messages, err := parseMessages(body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -90,8 +128,9 @@ func (p *Plugin) signatureValid(header string, body []byte) bool {
 	return hmac.Equal([]byte(header), []byte(expected))
 }
 
-// parseTextMessages decodes a webhook payload and returns the inbound text messages it contains.
-func parseTextMessages(body []byte) ([]inboundMessage, error) {
+// parseMessages decodes a webhook payload and returns an inbound message for
+// every attributable entry it contains.
+func parseMessages(body []byte) ([]inboundMessage, error) {
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, fmt.Errorf("whatsapp: decode payload: %w", err)
@@ -104,29 +143,114 @@ func parseTextMessages(body []byte) ([]inboundMessage, error) {
 				names[sender.WaID] = sender.Profile.Name
 			}
 			for _, raw := range change.Value.Messages {
-				var m webhookMessage
-				if err := json.Unmarshal(raw, &m); err != nil {
-					return nil, fmt.Errorf("whatsapp: decode message: %w", err)
+				if m, ok := parseMessage(names, raw); ok {
+					messages = append(messages, m)
 				}
-				if m.Type != "text" {
-					continue
-				}
-				seconds, err := strconv.ParseInt(m.Timestamp, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("whatsapp: parse timestamp %q: %w", m.Timestamp, err)
-				}
-				messages = append(messages, inboundMessage{
-					externalID: m.ID,
-					sender:     m.From,
-					senderName: names[m.From],
-					text:       m.Text.Body,
-					sentAt:     time.Unix(seconds, 0).UTC(),
-					raw:        raw,
-				})
 			}
 		}
 	}
 	return messages, nil
+}
+
+// parseMessage converts one webhook message into an inbound message,
+// reporting whether the message carries enough identity to store.
+func parseMessage(names map[string]string, raw json.RawMessage) (inboundMessage, bool) {
+	var m webhookMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return inboundMessage{}, false
+	}
+	if m.From == "" || m.ID == "" {
+		return inboundMessage{}, false
+	}
+	message := inboundMessage{
+		externalID: m.ID,
+		sender:     m.From,
+		senderName: names[m.From],
+		sentAt:     parseTimestamp(m.Timestamp),
+		raw:        raw,
+	}
+	message.contentType, message.content, message.media = classifyMessage(m)
+	return message, true
+}
+
+// parseTimestamp converts a webhook Unix timestamp, falling back to the
+// current time when it does not parse.
+func parseTimestamp(value string) time.Time {
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return time.Now().UTC()
+	}
+	return time.Unix(seconds, 0).UTC()
+}
+
+// classifyMessage maps a webhook message to its content type, content text,
+// and media descriptor.
+func classifyMessage(m webhookMessage) (string, string, *mediaDescriptor) {
+	switch m.Type {
+	case "text":
+		return "text", m.Text.Body, nil
+	case "image":
+		return classifyMedia("image", m.Image)
+	case "audio":
+		return classifyMedia("audio", m.Audio)
+	case "video":
+		return classifyMedia("video", m.Video)
+	case "document":
+		return classifyMedia("document", m.Document)
+	case "sticker":
+		return classifyMedia("sticker", m.Sticker)
+	case "location":
+		if m.Location == nil {
+			return "unsupported", "", nil
+		}
+		return "location", locationContent(*m.Location), nil
+	case "contacts":
+		return "contacts", contactsContent(m.Contacts), nil
+	case "reaction":
+		if m.Reaction == nil {
+			return "unsupported", "", nil
+		}
+		return "reaction", m.Reaction.Emoji, nil
+	default:
+		return "unsupported", "", nil
+	}
+}
+
+// classifyMedia builds the classification for a media message of the given
+// kind, degrading to unsupported when the asset reference is missing.
+func classifyMedia(kind string, media *webhookMedia) (string, string, *mediaDescriptor) {
+	if media == nil || media.ID == "" {
+		return "unsupported", "", nil
+	}
+	return kind, media.Caption, &mediaDescriptor{
+		mediaID:  media.ID,
+		mimeType: media.MimeType,
+		sha256:   media.SHA256,
+		filename: media.Filename,
+		voice:    media.Voice,
+		animated: media.Animated,
+	}
+}
+
+// locationContent renders a shared location as its place text or its
+// coordinates.
+func locationContent(l webhookLocation) string {
+	place := strings.TrimSpace(strings.TrimSpace(l.Name) + " " + strings.TrimSpace(l.Address))
+	if place != "" {
+		return place
+	}
+	return strconv.FormatFloat(l.Latitude, 'f', -1, 64) + ", " + strconv.FormatFloat(l.Longitude, 'f', -1, 64)
+}
+
+// contactsContent joins shared contact cards into a name list.
+func contactsContent(cards []webhookContactCard) string {
+	names := make([]string, 0, len(cards))
+	for _, card := range cards {
+		if name := strings.TrimSpace(card.Name.FormattedName); name != "" {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // ingest stores an inbound message and broadcasts the change.
