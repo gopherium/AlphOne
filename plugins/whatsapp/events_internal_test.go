@@ -30,6 +30,7 @@ func newMigratedPlugin(t *testing.T) *Plugin {
 	}
 	t.Cleanup(pool.Close)
 	p := &Plugin{pool: pool, store: &store{pool: pool}, events: newBroadcaster()}
+	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{})
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
@@ -145,6 +146,42 @@ func TestIngestStoresMediaMessagesWithPendingDownload(t *testing.T) {
 	}
 	if pending[0].MediaID != "MEDIA1" {
 		t.Errorf("pending MediaID = %q, want %q", pending[0].MediaID, "MEDIA1")
+	}
+}
+
+func TestIngestNudgesTheFetcherForMedia(t *testing.T) {
+	t.Parallel()
+
+	p := newIngestReadyPlugin(t)
+
+	if err := p.ingest(t.Context(), imageMessage("wamid.nudge")); err != nil {
+		t.Fatalf("ingest() error = %v, want nil", err)
+	}
+
+	select {
+	case <-p.fetcher.nudge:
+	default:
+		t.Error("fetcher not nudged after a media ingest")
+	}
+}
+
+func TestIngestDoesNotNudgeTheFetcherForText(t *testing.T) {
+	t.Parallel()
+
+	p := newIngestReadyPlugin(t)
+	message := imageMessage("wamid.plain")
+	message.contentType = "text"
+	message.content = "hola"
+	message.media = nil
+
+	if err := p.ingest(t.Context(), message); err != nil {
+		t.Fatalf("ingest() error = %v, want nil", err)
+	}
+
+	select {
+	case <-p.fetcher.nudge:
+		t.Error("fetcher nudged for a text message, want no nudge")
+	default:
 	}
 }
 

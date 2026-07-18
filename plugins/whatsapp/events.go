@@ -265,6 +265,9 @@ func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	}
 	if stored {
 		p.events.broadcast(event{Conversation: conversationID})
+		if m.media != nil {
+			p.fetcher.poke()
+		}
 	}
 	return nil
 }

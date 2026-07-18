@@ -117,6 +117,69 @@ func TestStoreAppendOutboundMessageReportsFailure(t *testing.T) {
 	}
 }
 
+func TestRegisterConfiguresTheMediaFetcher(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"ALPHONE_WHATSAPP_GRAPH_URL":       "http://localhost:1",
+		"ALPHONE_WHATSAPP_ACCESS_TOKEN":    "tok",
+		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "PN9",
+		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "1024",
+	}
+	p, err := Register(sdk.Deps{Getenv: func(key string) string { return env[key] }})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	f := p.fetcher
+	if f == nil {
+		t.Fatal("fetcher = nil, want it wired by Register")
+	}
+	if f.baseURL != "http://localhost:1" || f.accessToken != "tok" || f.phoneNumberID != "PN9" {
+		t.Errorf("graph wiring = (%q, %q, %q), want the configured values", f.baseURL, f.accessToken, f.phoneNumberID)
+	}
+	if f.maxBytes != 1024 {
+		t.Errorf("maxBytes = %d, want 1024", f.maxBytes)
+	}
+}
+
+func TestRegisterAppliesTheDefaultMediaCap(t *testing.T) {
+	t.Parallel()
+
+	p, err := Register(sdk.Deps{})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	if p.fetcher.maxBytes != defaultMediaMaxBytes {
+		t.Errorf("maxBytes = %d, want the default %d", p.fetcher.maxBytes, int64(defaultMediaMaxBytes))
+	}
+}
+
+func TestRegisterRejectsAMalformedMediaCap(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"not a number": "abc",
+		"negative":     "-5",
+		"zero":         "0",
+	}
+
+	for testName, value := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": value}
+
+			if _, err := Register(sdk.Deps{Getenv: func(key string) string { return env[key] }}); err == nil {
+				t.Fatal("Register() error = nil, want a media cap failure")
+			}
+		})
+	}
+}
+
 func TestMigrateRequiresVersionTable(t *testing.T) {
 	t.Parallel()
 

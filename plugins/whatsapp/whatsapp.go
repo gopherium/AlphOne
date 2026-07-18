@@ -8,9 +8,11 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -36,6 +38,7 @@ type Plugin struct {
 	store       *store
 	sender      *sender
 	events      *broadcaster
+	fetcher     *mediaFetcher
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
@@ -46,6 +49,10 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	maxBytes, err := mediaCap(getenv("ALPHONE_WHATSAPP_MEDIA_MAX_BYTES"))
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.New(context.Background(), deps.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
@@ -54,7 +61,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if graphURL == "" {
 		graphURL = defaultGraphURL
 	}
-	return &Plugin{
+	p := &Plugin{
 		pool:        pool,
 		resolver:    deps.Resolver,
 		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
@@ -67,7 +74,30 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
 		},
 		events: newBroadcaster(),
-	}, nil
+	}
+	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
+		baseURL:       graphURL,
+		accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+		phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
+		maxBytes:      maxBytes,
+	})
+	return p, nil
+}
+
+// mediaCap parses the stored media size limit, applying the default when raw
+// is empty.
+func mediaCap(raw string) (int64, error) {
+	if raw == "" {
+		return defaultMediaMaxBytes, nil
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("whatsapp: parse ALPHONE_WHATSAPP_MEDIA_MAX_BYTES: %w", err)
+	}
+	if parsed <= 0 {
+		return 0, errors.New("whatsapp: ALPHONE_WHATSAPP_MEDIA_MAX_BYTES must be positive")
+	}
+	return parsed, nil
 }
 
 // ID reports the plugin identifier.
@@ -75,13 +105,16 @@ func (p *Plugin) ID() string {
 	return "whatsapp"
 }
 
-// Start is a placeholder until the plugin serves live traffic.
+// Start launches the plugin's media download loop.
 func (p *Plugin) Start(_ context.Context) error {
+	p.fetcher.Start()
 	return nil
 }
 
-// Stop releases the plugin's database resources.
+// Stop halts the media download loop and releases the plugin's database
+// resources.
 func (p *Plugin) Stop(_ context.Context) error {
+	p.fetcher.Stop()
 	p.pool.Close()
 	return nil
 }
