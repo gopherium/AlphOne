@@ -3,6 +3,9 @@
 package whatsapp
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -228,6 +231,60 @@ func TestApplyStatusGuardsInboundMessages(t *testing.T) {
 	status, _ := messageStatusOf(t, p, "wamid.in.guard")
 	if status != nil {
 		t.Fatalf("inbound status = %q, want NULL", *status)
+	}
+}
+
+func TestMessagesListCarriesDeliveryStatus(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID := seedOutboundMessage(t, p, "wamid.out.list")
+	applyStatusOK(t, p, statusUpdate{
+		wamid: "wamid.out.list", status: "failed", detail: "131047 Re-engagement message",
+	})
+
+	rows, err := p.store.listMessages(t.Context(), conversationID, 50)
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if rows[0].Status == nil || *rows[0].Status != "failed" {
+		t.Errorf("row Status = %v, want failed", rows[0].Status)
+	}
+	if rows[0].StatusDetail == nil || *rows[0].StatusDetail != "131047 Re-engagement message" {
+		t.Errorf("row StatusDetail = %v, want the failure detail", rows[0].StatusDetail)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/conversations/"+conversationID.String()+"/messages", nil)
+	recorder := httptest.NewRecorder()
+	p.Routes().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	var payload []struct {
+		Status       *string `json:"status"`
+		StatusDetail *string `json:"status_detail"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decoding messages: %v", err)
+	}
+	if len(payload) != 1 || payload[0].Status == nil || *payload[0].Status != "failed" {
+		t.Fatalf("payload status = %+v, want failed", payload)
+	}
+	if payload[0].StatusDetail == nil || *payload[0].StatusDetail != "131047 Re-engagement message" {
+		t.Errorf("payload status_detail = %v, want the failure detail", payload[0].StatusDetail)
+	}
+
+	inboundConversation, _ := seedMessage(t, p, "wamid.in.nullstatus")
+	inboundRows, err := p.store.listMessages(t.Context(), inboundConversation, 50)
+	if err != nil {
+		t.Fatalf("listMessages() for the inbound thread error = %v, want nil", err)
+	}
+	if len(inboundRows) != 1 || inboundRows[0].Status != nil {
+		t.Fatalf("inbound row Status = %+v, want nil", inboundRows)
 	}
 }
 

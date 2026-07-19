@@ -30,13 +30,15 @@ type conversationResponse struct {
 }
 
 type messageResponse struct {
-	ID          uuid.UUID      `json:"id"`
-	ExternalID  string         `json:"external_id"`
-	Direction   string         `json:"direction"`
-	Content     string         `json:"content"`
-	ContentType string         `json:"content_type"`
-	SentAt      time.Time      `json:"sent_at"`
-	Media       *mediaResponse `json:"media"`
+	ID           uuid.UUID      `json:"id"`
+	ExternalID   string         `json:"external_id"`
+	Direction    string         `json:"direction"`
+	Content      string         `json:"content"`
+	ContentType  string         `json:"content_type"`
+	SentAt       time.Time      `json:"sent_at"`
+	Status       *string        `json:"status"`
+	StatusDetail *string        `json:"status_detail"`
+	Media        *mediaResponse `json:"media"`
 }
 
 type mediaResponse struct {
@@ -121,13 +123,15 @@ func (p *Plugin) handleMessagesList() http.HandlerFunc {
 		messages := make([]messageResponse, 0, len(rows))
 		for _, row := range rows {
 			messages = append(messages, messageResponse{
-				ID:          row.ID,
-				ExternalID:  row.ExternalID,
-				Direction:   row.Direction,
-				Content:     row.Content,
-				ContentType: row.ContentType,
-				SentAt:      row.SentAt.UTC(),
-				Media:       mediaFromRow(row),
+				ID:           row.ID,
+				ExternalID:   row.ExternalID,
+				Direction:    row.Direction,
+				Content:      row.Content,
+				ContentType:  row.ContentType,
+				SentAt:       row.SentAt.UTC(),
+				Status:       row.Status,
+				StatusDetail: row.StatusDetail,
+				Media:        mediaFromRow(row),
 			})
 		}
 		respondJSON(w, http.StatusOK, messages)

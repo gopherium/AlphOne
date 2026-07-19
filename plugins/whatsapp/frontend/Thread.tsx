@@ -14,6 +14,15 @@ import { fetchMessages, mediaURL, sendMessage } from './api'
 import type { Message, MessageMedia } from './api'
 import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
 import { useMediaBlob } from './media'
+import { copyForFailureDetail } from './status'
+
+const tickGlyphs: Record<string, { glyph: string; label: string; modifier?: string }> = {
+	sent: { glyph: '✓', label: 'Message sent' },
+	delivered: { glyph: '✓✓', label: 'Message delivered' },
+	read: { glyph: '✓✓', label: 'Message read', modifier: 'read' },
+	played: { glyph: '✓✓', label: 'Message played', modifier: 'read' },
+	failed: { glyph: '!', label: 'Message not delivered', modifier: 'failed' },
+}
 
 const followThresholdPx = 100
 
@@ -74,8 +83,36 @@ function MessageBubble({
 				>
 					{formatTime(message.sent_at)}
 				</time>
+				<DeliveryStatus message={message} />
+				{message.direction === 'outbound' && message.status === 'failed' ? (
+					<Text className="alphone-message__failure">
+						{copyForFailureDetail(message.status_detail)}
+					</Text>
+				) : null}
 			</div>
 		</li>
+	)
+}
+
+/**
+ * Renders the delivery tick for an outbound message, or nothing before the
+ * first status arrives.
+ * @returns The tick indicator, or null when there is nothing to show.
+ */
+function DeliveryStatus({ message }: { message: Message }) {
+	if (message.direction !== 'outbound' || !message.status) {
+		return null
+	}
+	const tick = tickGlyphs[message.status]
+	if (!tick) {
+		return null
+	}
+	const modifier = tick.modifier ? ` alphone-message__ticks--${tick.modifier}` : ''
+	return (
+		<span className={`alphone-message__ticks${modifier}`}>
+			<span aria-hidden="true">{tick.glyph}</span>
+			<VisuallyHidden>{tick.label}</VisuallyHidden>
+		</span>
 	)
 }
 

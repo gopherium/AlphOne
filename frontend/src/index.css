@@ -306,6 +306,7 @@ body {
 .alphone-message__bubble {
 	position: relative;
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-end;
 	gap: 8px;
 	max-width: 72%;
@@ -334,6 +335,32 @@ body {
 
 .alphone-message--outbound .alphone-message__time {
 	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-message__ticks {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
+	white-space: nowrap;
+}
+
+.alphone-message--outbound .alphone-message__ticks {
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-message__ticks.alphone-message__ticks--read {
+	color: var(--wpds-color-foreground-content-info);
+}
+
+.alphone-message__ticks.alphone-message__ticks--failed {
+	color: var(--wpds-color-foreground-content-error);
+}
+
+.alphone-message__failure {
+	flex-basis: 100%;
+	color: var(--wpds-color-foreground-content-error);
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
 }
 
 .alphone-composer__input {

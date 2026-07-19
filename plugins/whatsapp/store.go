@@ -35,6 +35,8 @@ type messageRow struct {
 	Content       string    `db:"content"`
 	ContentType   string    `db:"content_type"`
 	SentAt        time.Time `db:"sent_at"`
+	Status        *string   `db:"status"`
+	StatusDetail  *string   `db:"status_detail"`
 	MediaStatus   *string   `db:"media_status"`
 	MediaMimeType *string   `db:"media_mime_type"`
 	MediaFilename *string   `db:"media_filename"`
@@ -85,6 +87,7 @@ func (s *store) listConversations(ctx context.Context, limit int) ([]conversatio
 func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
 	rows, _ := s.pool.Query(ctx, `
 		SELECT m.id, m.external_id, m.direction, m.content, m.content_type, m.sent_at,
+			m.status, m.status_detail,
 			med.status AS media_status, med.mime_type AS media_mime_type, med.filename AS media_filename,
 			med.file_size AS media_file_size, med.voice AS media_voice, med.animated AS media_animated
 		FROM plugin_whatsapp.messages m

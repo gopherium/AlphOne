@@ -32,6 +32,8 @@ const messageSchema = z.object({
 	content: z.string(),
 	content_type: z.string(),
 	sent_at: z.coerce.date(),
+	status: z.string().nullish(),
+	status_detail: z.string().nullish(),
 	media: mediaSchema.nullish(),
 })
 
