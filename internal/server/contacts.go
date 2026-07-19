@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -89,6 +90,17 @@ func parseContactListLimit(query url.Values) (int, error) {
 	return limit, nil
 }
 
+// digitsOf keeps only the decimal digits of a search query.
+func digitsOf(query string) string {
+	var digits strings.Builder
+	for _, r := range query {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+	return digits.String()
+}
+
 type contactListResponse struct {
 	Contacts   []contactResponse `json:"contacts"`
 	NextCursor *string           `json:"next_cursor"`
@@ -108,7 +120,8 @@ func (s *server) handleContactList() http.HandlerFunc {
 			authkit.RespondError(w, http.StatusBadRequest, "malformed cursor")
 			return
 		}
-		rows, err := s.store.ListContacts(r.Context(), "", "", cursor.Name, cursor.ID, limit+1)
+		query := r.URL.Query().Get("q")
+		rows, err := s.store.ListContacts(r.Context(), query, digitsOf(query), cursor.Name, cursor.ID, limit+1)
 		if err != nil {
 			respondDomainError(w, err)
 			return

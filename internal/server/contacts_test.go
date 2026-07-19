@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"strings"
 	"testing"
@@ -28,14 +29,30 @@ var (
 )
 
 type fakeContactStore struct {
-	contacts  map[uuid.UUID]contact.Contact
-	createErr error
-	getErr    error
-	listErr   error
+	contacts      map[uuid.UUID]contact.Contact
+	identities    map[uuid.UUID][]contact.Identity
+	createErr     error
+	getErr        error
+	listErr       error
+	identitiesErr error
+	lastQuery     string
+	lastDigits    string
 }
 
 func newFakeContactStore() *fakeContactStore {
-	return &fakeContactStore{contacts: map[uuid.UUID]contact.Contact{}}
+	return &fakeContactStore{
+		contacts:   map[uuid.UUID]contact.Contact{},
+		identities: map[uuid.UUID][]contact.Identity{},
+	}
+}
+
+func (f *fakeContactStore) ListContactIdentities(
+	_ context.Context, contactID uuid.UUID,
+) ([]contact.Identity, error) {
+	if f.identitiesErr != nil {
+		return nil, f.identitiesErr
+	}
+	return f.identities[contactID], nil
 }
 
 func (f *fakeContactStore) Create(_ context.Context, c contact.Contact) error {
@@ -58,8 +75,10 @@ func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 }
 
 func (f *fakeContactStore) ListContacts(
-	_ context.Context, _, _ string, afterName string, afterID uuid.UUID, limit int,
+	_ context.Context, query, digits string, afterName string, afterID uuid.UUID, limit int,
 ) ([]contact.Contact, error) {
+	f.lastQuery = query
+	f.lastDigits = digits
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -173,6 +192,134 @@ func TestListContactsEndpointRoundTripsUnicodeCursors(t *testing.T) {
 	secondPage := decodeBody[contactListBody](t, second)
 	if len(secondPage.Contacts) != 1 || secondPage.Contacts[0].Name != "Zoe" {
 		t.Fatalf("second page = %+v, want Zoe", secondPage.Contacts)
+	}
+}
+
+type identityBody struct {
+	Channel     string `json:"channel"`
+	Identifier  string `json:"identifier"`
+	DisplayName string `json:"display_name"`
+}
+
+type contactDetailBody struct {
+	ID         uuid.UUID      `json:"id"`
+	Name       string         `json:"name"`
+	Identities []identityBody `json:"identities"`
+}
+
+func TestGetContactIncludesIdentities(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada, err := contact.New("Ada")
+	if err != nil {
+		t.Fatalf("contact.New() error = %v, want nil", err)
+	}
+	if err := store.Create(t.Context(), ada); err != nil {
+		t.Fatalf("seeding Ada: %v", err)
+	}
+	identity, err := contact.NewIdentity(ada.ID, "whatsapp", "184467235", "Ada L")
+	if err != nil {
+		t.Fatalf("contact.NewIdentity() error = %v, want nil", err)
+	}
+	store.identities[ada.ID] = []contact.Identity{identity}
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+ada.ID.String(), "")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	detail := decodeBody[contactDetailBody](t, recorder)
+	if detail.Name != "Ada" || len(detail.Identities) != 1 {
+		t.Fatalf("detail = %+v, want Ada with one identity", detail)
+	}
+	got := detail.Identities[0]
+	if got.Channel != "whatsapp" || got.Identifier != "184467235" || got.DisplayName != "Ada L" {
+		t.Errorf("identity = %+v, want the seeded whatsapp identity", got)
+	}
+}
+
+func TestGetContactReturnsAnEmptyIdentitiesArray(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	bruno, err := contact.New("Bruno")
+	if err != nil {
+		t.Fatalf("contact.New() error = %v, want nil", err)
+	}
+	if err := store.Create(t.Context(), bruno); err != nil {
+		t.Fatalf("seeding Bruno: %v", err)
+	}
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+bruno.ID.String(), "")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, `"identities":[]`) {
+		t.Errorf("body = %s, want an empty identities array rather than null", body)
+	}
+}
+
+func TestGetContactReportsIdentityStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada, err := contact.New("Ada")
+	if err != nil {
+		t.Fatalf("contact.New() error = %v, want nil", err)
+	}
+	if err := store.Create(t.Context(), ada); err != nil {
+		t.Fatalf("seeding Ada: %v", err)
+	}
+	store.identitiesErr = errors.New("boom")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+ada.ID.String(), "")
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestListContactsEndpointForwardsSearchQueries(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		target     string
+		wantQuery  string
+		wantDigits string
+	}{
+		"phone with formatting": {
+			target:     "/api/contacts?q=" + url.QueryEscape("+1 844 672"),
+			wantQuery:  "+1 844 672",
+			wantDigits: "1844672",
+		},
+		"plain name": {target: "/api/contacts?q=ana", wantQuery: "ana", wantDigits: ""},
+		"no query":   {target: "/api/contacts", wantQuery: "", wantDigits: ""},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeContactStore()
+			srv := authedContactServer(t, store, nil)
+
+			recorder := doRequest(t, srv, http.MethodGet, tc.target, "")
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+			}
+			if store.lastQuery != tc.wantQuery {
+				t.Errorf("store received query %q, want %q", store.lastQuery, tc.wantQuery)
+			}
+			if store.lastDigits != tc.wantDigits {
+				t.Errorf("store received digits %q, want %q", store.lastDigits, tc.wantDigits)
+			}
+		})
 	}
 }
 
