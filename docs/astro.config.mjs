@@ -27,6 +27,10 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Using AlphOne',
+					items: [{ slug: 'guides/contacts' }],
+				},
+				{
 					label: 'Self-hosting',
 					items: [
 						{ slug: 'self-hosting/install' },
