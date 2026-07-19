@@ -211,6 +211,50 @@ func (s *store) appendOutboundMessage(
 	}, nil
 }
 
+// statusRanks orders delivery statuses so stale and duplicate webhook
+// updates never move a message backwards.
+var statusRanks = map[string]int{
+	"accepted":  1,
+	"sent":      2,
+	"delivered": 3,
+	"read":      4,
+	"played":    5,
+	"failed":    6,
+}
+
+// applyMessageStatus advances an outbound message's delivery status when the
+// update outranks the stored one, reporting the owning conversation.
+func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UUID, bool, error) {
+	rank, ranked := statusRanks[u.status]
+	if !ranked {
+		return uuid.Nil, false, nil
+	}
+	var conversationID uuid.UUID
+	err := s.pool.QueryRow(ctx, `
+		UPDATE plugin_whatsapp.messages
+		SET status = $2, status_detail = NULLIF($3, '')
+		WHERE external_id = $1
+			AND direction = 'outbound'
+			AND (status IS NULL OR $4 > CASE status
+				WHEN 'accepted' THEN 1
+				WHEN 'sent' THEN 2
+				WHEN 'delivered' THEN 3
+				WHEN 'read' THEN 4
+				WHEN 'played' THEN 5
+				WHEN 'failed' THEN 6
+				ELSE 0 END)
+		RETURNING conversation_id`,
+		u.wamid, u.status, u.detail, rank,
+	).Scan(&conversationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("whatsapp: apply message status: %w", err)
+	}
+	return conversationID, true, nil
+}
+
 // insertMessage stores an inbound message, reporting its id and whether it
 // was newly stored rather than deduplicated by external id.
 func insertMessage(

@@ -143,15 +143,15 @@ func TestParseMessagesClassifiesEveryType(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			messages, err := parseMessages(webhookBody(tc.message))
+			batch, err := parseWebhook(webhookBody(tc.message))
 			if err != nil {
-				t.Fatalf("parseMessages() error = %v, want nil", err)
+				t.Fatalf("parseWebhook() error = %v, want nil", err)
 			}
 
-			if got, want := len(messages), 1; got != want {
+			if got, want := len(batch.messages), 1; got != want {
 				t.Fatalf("len(messages) = %d, want %d", got, want)
 			}
-			got := messages[0]
+			got := batch.messages[0]
 			if got.contentType != tc.contentType {
 				t.Errorf("contentType = %q, want %q", got.contentType, tc.contentType)
 			}
@@ -176,15 +176,15 @@ func TestParseMessagesCarriesEnvelopeMetadata(t *testing.T) {
 	message := envelope("wamid.meta", "image",
 		`, "image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh"}`)
 
-	messages, err := parseMessages(webhookBody(message))
+	batch, err := parseWebhook(webhookBody(message))
 	if err != nil {
-		t.Fatalf("parseMessages() error = %v, want nil", err)
+		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
 
-	if got, want := len(messages), 1; got != want {
+	if got, want := len(batch.messages), 1; got != want {
 		t.Fatalf("len(messages) = %d, want %d", got, want)
 	}
-	got := messages[0]
+	got := batch.messages[0]
 	if got.externalID != "wamid.meta" {
 		t.Errorf("externalID = %q, want %q", got.externalID, "wamid.meta")
 	}
@@ -209,16 +209,16 @@ func TestParseMessagesFallsBackOnBadTimestamps(t *testing.T) {
 	message := `{"from": "184467235", "id": "wamid.bad", "timestamp": "not-a-number", "type": "text",` +
 		` "text": {"body": "hola"}}`
 
-	messages, err := parseMessages(webhookBody(message))
+	batch, err := parseWebhook(webhookBody(message))
 	if err != nil {
-		t.Fatalf("parseMessages() error = %v, want nil", err)
+		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
 
 	after := time.Now().UTC()
-	if got, want := len(messages), 1; got != want {
+	if got, want := len(batch.messages), 1; got != want {
 		t.Fatalf("len(messages) = %d, want %d", got, want)
 	}
-	sentAt := messages[0].sentAt
+	sentAt := batch.messages[0].sentAt
 	if sentAt.Before(before) || sentAt.After(after) {
 		t.Errorf("sentAt = %v, want a now fallback between %v and %v", sentAt, before, after)
 	}
@@ -229,23 +229,115 @@ func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 
 	message := `42, {"type": "poll"}, ` + envelope("wamid.kept", "text", `, "text": {"body": "hola"}`)
 
-	messages, err := parseMessages(webhookBody(message))
+	batch, err := parseWebhook(webhookBody(message))
 	if err != nil {
-		t.Fatalf("parseMessages() error = %v, want nil", err)
+		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
 
-	if got, want := len(messages), 1; got != want {
+	if got, want := len(batch.messages), 1; got != want {
 		t.Fatalf("len(messages) = %d, want %d", got, want)
 	}
-	if messages[0].externalID != "wamid.kept" {
-		t.Errorf("externalID = %q, want %q", messages[0].externalID, "wamid.kept")
+	if batch.messages[0].externalID != "wamid.kept" {
+		t.Errorf("externalID = %q, want %q", batch.messages[0].externalID, "wamid.kept")
 	}
 }
 
 func TestParseMessagesRejectsEnvelopeGarbage(t *testing.T) {
 	t.Parallel()
 
-	if _, err := parseMessages([]byte(`{"entry":`)); err == nil {
-		t.Fatal("parseMessages() error = nil, want a decode failure")
+	if _, err := parseWebhook([]byte(`{"entry":`)); err == nil {
+		t.Fatal("parseWebhook() error = nil, want a decode failure")
+	}
+}
+
+func statusEnvelope(statuses string) []byte {
+	return fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"statuses": [%s]
+		}}]}]
+	}`, statuses)
+}
+
+func TestParseWebhookStatuses(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		status string
+		want   []statusUpdate
+	}{
+		"delivered": {
+			status: `{"id": "wamid.out.1", "status": "delivered", "timestamp": "1751791000",` +
+				` "recipient_id": "184467235"}`,
+			want: []statusUpdate{{wamid: "wamid.out.1", status: "delivered"}},
+		},
+		"failed with error": {
+			status: `{"id": "wamid.out.2", "status": "failed", "errors": [{"code": 131047,` +
+				` "title": "Re-engagement message"}]}`,
+			want: []statusUpdate{{wamid: "wamid.out.2", status: "failed", detail: "131047 Re-engagement message"}},
+		},
+		"failed without errors": {
+			status: `{"id": "wamid.out.3", "status": "failed"}`,
+			want:   []statusUpdate{{wamid: "wamid.out.3", status: "failed"}},
+		},
+		"missing id skipped": {
+			status: `{"status": "delivered"}`,
+			want:   nil,
+		},
+		"missing status skipped": {
+			status: `{"id": "wamid.out.4"}`,
+			want:   nil,
+		},
+		"garbage element skipped": {
+			status: `42`,
+			want:   nil,
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			batch, err := parseWebhook(statusEnvelope(tc.status))
+			if err != nil {
+				t.Fatalf("parseWebhook() error = %v, want nil", err)
+			}
+
+			if got, want := len(batch.statuses), len(tc.want); got != want {
+				t.Fatalf("len(statuses) = %d, want %d", got, want)
+			}
+			for i, want := range tc.want {
+				if batch.statuses[i] != want {
+					t.Errorf("statuses[%d] = %+v, want %+v", i, batch.statuses[i], want)
+				}
+			}
+		})
+	}
+}
+
+func TestParseWebhookCarriesMessagesAndStatusesTogether(t *testing.T) {
+	t.Parallel()
+
+	body := fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"contacts": [{"wa_id": "184467235", "profile": {"name": "María Pérez"}}],
+			"messages": [%s],
+			"statuses": [{"id": "wamid.out.9", "status": "read"}]
+		}}]}]
+	}`, envelope("wamid.in.9", "text", `, "text": {"body": "hola"}`))
+
+	batch, err := parseWebhook(body)
+	if err != nil {
+		t.Fatalf("parseWebhook() error = %v, want nil", err)
+	}
+
+	if len(batch.messages) != 1 || batch.messages[0].externalID != "wamid.in.9" {
+		t.Errorf("messages = %+v, want the one inbound text", batch.messages)
+	}
+	if len(batch.statuses) != 1 || batch.statuses[0] != (statusUpdate{wamid: "wamid.out.9", status: "read"}) {
+		t.Errorf("statuses = %+v, want the one read update", batch.statuses)
 	}
 }

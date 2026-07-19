@@ -38,9 +38,30 @@ type webhookPayload struct {
 					} `json:"profile"`
 				} `json:"contacts"`
 				Messages []json.RawMessage `json:"messages"`
+				Statuses []json.RawMessage `json:"statuses"`
 			} `json:"value"`
 		} `json:"changes"`
 	} `json:"entry"`
+}
+
+type statusUpdate struct {
+	wamid  string
+	status string
+	detail string
+}
+
+type webhookStatus struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Errors []struct {
+		Code  int    `json:"code"`
+		Title string `json:"title"`
+	} `json:"errors"`
+}
+
+type webhookBatch struct {
+	messages []inboundMessage
+	statuses []statusUpdate
 }
 
 type webhookMessage struct {
@@ -101,13 +122,19 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		messages, err := parseMessages(body)
+		batch, err := parseWebhook(body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		for _, m := range messages {
+		for _, m := range batch.messages {
 			if err := p.ingest(r.Context(), m); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		for _, u := range batch.statuses {
+			if err := p.applyStatus(r.Context(), u); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -128,14 +155,14 @@ func (p *Plugin) signatureValid(header string, body []byte) bool {
 	return hmac.Equal([]byte(header), []byte(expected))
 }
 
-// parseMessages decodes a webhook payload and returns an inbound message for
-// every attributable entry it contains.
-func parseMessages(body []byte) ([]inboundMessage, error) {
+// parseWebhook decodes a webhook payload into the attributable inbound
+// messages and delivery status updates it contains.
+func parseWebhook(body []byte) (webhookBatch, error) {
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, fmt.Errorf("whatsapp: decode payload: %w", err)
+		return webhookBatch{}, fmt.Errorf("whatsapp: decode payload: %w", err)
 	}
-	var messages []inboundMessage
+	var batch webhookBatch
 	for _, entry := range payload.Entry {
 		for _, change := range entry.Changes {
 			names := make(map[string]string, len(change.Value.Contacts))
@@ -144,12 +171,47 @@ func parseMessages(body []byte) ([]inboundMessage, error) {
 			}
 			for _, raw := range change.Value.Messages {
 				if m, ok := parseMessage(names, raw); ok {
-					messages = append(messages, m)
+					batch.messages = append(batch.messages, m)
+				}
+			}
+			for _, raw := range change.Value.Statuses {
+				if u, ok := parseStatus(raw); ok {
+					batch.statuses = append(batch.statuses, u)
 				}
 			}
 		}
 	}
-	return messages, nil
+	return batch, nil
+}
+
+// parseStatus converts one webhook status entry into a status update,
+// reporting whether it carries enough identity to apply.
+func parseStatus(raw json.RawMessage) (statusUpdate, bool) {
+	var s webhookStatus
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return statusUpdate{}, false
+	}
+	if s.ID == "" || s.Status == "" {
+		return statusUpdate{}, false
+	}
+	update := statusUpdate{wamid: s.ID, status: s.Status}
+	if s.Status == "failed" && len(s.Errors) > 0 {
+		update.detail = strings.TrimSpace(fmt.Sprintf("%d %s", s.Errors[0].Code, s.Errors[0].Title))
+	}
+	return update, true
+}
+
+// applyStatus records a delivery status update and broadcasts the change
+// when it advanced a message.
+func (p *Plugin) applyStatus(ctx context.Context, u statusUpdate) error {
+	conversationID, applied, err := p.store.applyMessageStatus(ctx, u)
+	if err != nil {
+		return err
+	}
+	if applied {
+		p.events.broadcast(event{Conversation: conversationID})
+	}
+	return nil
 }
 
 // parseMessage converts one webhook message into an inbound message,

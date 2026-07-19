@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/internal/contact"
@@ -207,17 +208,63 @@ func TestWebhookEventsIngestMediaMessages(t *testing.T) {
 	}
 }
 
-func TestWebhookEventsSkipStatusOnlyEvents(t *testing.T) {
-	t.Parallel()
-
-	p, pool := newIngestingPlugin(t)
-	body := []byte(`{
+func statusEventBody(wamid, status string) []byte {
+	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
 		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
 			"messaging_product": "whatsapp",
-			"statuses": [{"id": "wamid.9", "status": "delivered"}]
+			"statuses": [{"id": %q, "status": %q, "timestamp": "1751791000",
+				"recipient_id": "184467235"}]
 		}}]}]
-	}`)
+	}`, wamid, status)
+}
+
+func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string) {
+	t.Helper()
+	ctx := t.Context()
+	contactID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO core.contacts (id, name, created_at) VALUES ($1, 'María Pérez', now())`,
+		contactID,
+	); err != nil {
+		t.Fatalf("inserting contact: %v", err)
+	}
+	conversationID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status,
+			last_activity_at, created_at)
+		VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now())`,
+		conversationID, contactID, wamid,
+	); err != nil {
+		t.Fatalf("inserting conversation: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+			content_type, sent_at, raw, created_at)
+		VALUES ($1, $2, $3, 'outbound', 'hola', 'text', now(), '{}', now())`,
+		uuid.Must(uuid.NewV7()), conversationID, wamid,
+	); err != nil {
+		t.Fatalf("inserting outbound message: %v", err)
+	}
+}
+
+func messageStatus(t *testing.T, pool *pgxpool.Pool, wamid string) *string {
+	t.Helper()
+	var status *string
+	err := pool.QueryRow(t.Context(),
+		`SELECT status FROM plugin_whatsapp.messages WHERE external_id = $1`, wamid,
+	).Scan(&status)
+	if err != nil {
+		t.Fatalf("loading message status: %v", err)
+	}
+	return status
+}
+
+func TestWebhookEventsTolerateUnknownStatusWamids(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newIngestingPlugin(t)
+	body := statusEventBody("wamid.9", "delivered")
 
 	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
 
@@ -225,7 +272,42 @@ func TestWebhookEventsSkipStatusOnlyEvents(t *testing.T) {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 	if got := countRows(t, pool, "plugin_whatsapp.conversations"); got != 0 {
-		t.Errorf("conversations = %d, want 0 for status-only events", got)
+		t.Errorf("conversations = %d, want 0 for unknown status wamids", got)
+	}
+}
+
+func TestWebhookEventsApplyDeliveryStatuses(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newIngestingPlugin(t)
+	seedOutboundRow(t, pool, "wamid.out.e2e")
+	body := statusEventBody("wamid.out.e2e", "delivered")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	status := messageStatus(t, pool, "wamid.out.e2e")
+	if status == nil || *status != "delivered" {
+		t.Fatalf("message status = %v, want delivered", status)
+	}
+}
+
+func TestWebhookEventsReportStatusFailure(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newIngestingPlugin(t)
+	seedOutboundRow(t, pool, "wamid.out.down")
+	if err := p.Stop(t.Context()); err != nil {
+		t.Fatalf("Stop() error = %v, want nil", err)
+	}
+	body := statusEventBody("wamid.out.down", "delivered")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d so Meta retries", recorder.Code, http.StatusInternalServerError)
 	}
 }
 
