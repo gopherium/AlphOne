@@ -12,6 +12,14 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Verify the embedded version matches the tag
+        run: |
+          embedded="$(cat internal/version/VERSION)"
+          tagged="${GITHUB_REF_NAME#v}"
+          if [ "$embedded" != "$tagged" ]; then
+            echo "internal/version/VERSION is $embedded but the tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
