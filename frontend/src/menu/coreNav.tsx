@@ -3,4 +3,6 @@
 import type { NavItem } from '@alphone/frontend-sdk'
 import { usersNavItem } from '@gopherium/react-auth/wpds'
 
-export const coreNav: NavItem[] = [usersNavItem]
+import { contactsNavItem } from '../contacts/nav'
+
+export const coreNav: NavItem[] = [contactsNavItem, usersNavItem]

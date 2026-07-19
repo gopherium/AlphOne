@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
+import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
 import { Home } from './Home'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
@@ -20,6 +21,24 @@ const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
 	component: Home,
+})
+
+const contactsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/contacts',
+	component: ContactsRoute,
+})
+
+const newContactRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/contacts/new',
+	component: NewContactRoute,
+})
+
+const contactRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/contacts/$contactId',
+	component: ContactRoute,
 })
 
 const usersRoute = createRoute({
@@ -36,6 +55,9 @@ const newUserRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
 	homeRoute,
+	contactsRoute,
+	newContactRoute,
+	contactRoute,
 	usersRoute,
 	newUserRoute,
 	...plugins.flatMap((plugin) => plugin.routes(rootRoute)),

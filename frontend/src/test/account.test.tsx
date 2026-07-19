@@ -35,12 +35,12 @@ test('drops all cached data when logging out', async () => {
 		http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
 	)
 	const client = renderAt('/')
-	client.setQueryData(['contacts'], [{ id: '1', name: 'Ada Lovelace' }])
+	client.setQueryData(['dummy'], [{ id: '1', name: 'Ada Lovelace' }])
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Log out' }))
 
 	await waitFor(() =>
-		expect(client.getQueryData(['contacts'])).toBeUndefined(),
+		expect(client.getQueryData(['dummy'])).toBeUndefined(),
 	)
 	expect(client.getQueryData(sessionQueryKey)).toBeNull()
 })

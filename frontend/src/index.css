@@ -399,3 +399,48 @@ body {
 .alphone-message__document {
 	overflow-wrap: anywhere;
 }
+
+.alphone-contacts {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	max-width: 720px;
+}
+
+.alphone-contacts__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.alphone-contacts__search {
+	max-width: 320px;
+}
+
+.alphone-contacts__table {
+	border-collapse: collapse;
+	text-align: left;
+}
+
+.alphone-contacts__table th,
+.alphone-contacts__table td {
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+}
+
+.alphone-contacts__form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-width: 320px;
+}
+
+.alphone-contacts__identities {
+	margin: 0;
+	padding-left: 20px;
+}
+
+.alphone-contacts__created {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
