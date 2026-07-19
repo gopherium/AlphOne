@@ -49,6 +49,12 @@ see [Meta setup](/whatsapp/meta-setup/).
   and stored in the PostgreSQL database, so a database backup contains
   the complete conversation history including attachments. Expect backup
   size to grow with media traffic.
+- **Delivery status** for outbound replies (sent, delivered, read) is
+  updated live from Meta's status webhooks and shown as ticks on each
+  message. Failed deliveries, such as replying outside WhatsApp's
+  24-hour customer service window, are surfaced on the message with an
+  explanation. Statuses arrive through the same `messages` webhook
+  field, so no extra Meta configuration is needed.
 - **Login rate limiting** allows 10 failed attempts per client address
   per minute. Successful logins never consume the budget. Over the limit
   the API answers `429` with a `Retry-After` header.
