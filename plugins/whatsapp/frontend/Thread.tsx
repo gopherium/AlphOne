@@ -10,11 +10,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
-import { fetchMessages, mediaURL, sendMessage } from './api'
+import { SendFailedError, fetchMessages, mediaURL, sendMessage } from './api'
 import type { Message, MessageMedia } from './api'
 import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
 import { useMediaBlob } from './media'
-import { copyForFailureDetail } from './status'
+import { copyForFailureCode, copyForFailureDetail } from './status'
 
 const tickGlyphs: Record<string, { glyph: string; label: string; modifier?: string }> = {
 	sent: { glyph: '✓', label: 'Message sent' },
@@ -92,6 +92,19 @@ function MessageBubble({
 			</div>
 		</li>
 	)
+}
+
+/**
+ * Copy for a failed reply attempt, using the Graph code when the backend
+ * surfaced one.
+ * @param error - The reply mutation error.
+ * @returns The operator-facing line under the composer.
+ */
+function replyErrorCopy(error: unknown): string {
+	if (error instanceof SendFailedError && error.code !== null) {
+		return copyForFailureCode(error.code) ?? 'The reply could not be sent.'
+	}
+	return 'The reply could not be sent.'
 }
 
 /**
@@ -376,7 +389,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 						</Button>
 					</Stack>
 					{reply.isError ? (
-						<Text role="alert">The reply could not be sent.</Text>
+						<Text role="alert">{replyErrorCopy(reply.error)}</Text>
 					) : null}
 				</Stack>
 			</form>

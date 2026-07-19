@@ -7,6 +7,15 @@ const failureCopy: Record<number, string> = {
 const genericFailureCopy = 'Not delivered.'
 
 /**
+ * Maps a Graph failure code to operator-facing copy.
+ * @param code - The Graph error code.
+ * @returns The mapped copy, or null when the code is unknown.
+ */
+export function copyForFailureCode(code: number): string | null {
+	return failureCopy[code] ?? null
+}
+
+/**
  * Maps a stored delivery failure detail, whose first token is the Graph
  * error code, to operator-facing copy.
  * @param detail - The stored failure detail, if any.
@@ -20,5 +29,5 @@ export function copyForFailureDetail(detail: string | null | undefined): string 
 	if (Number.isNaN(code)) {
 		return genericFailureCopy
 	}
-	return failureCopy[code] ?? genericFailureCopy
+	return copyForFailureCode(code) ?? genericFailureCopy
 }

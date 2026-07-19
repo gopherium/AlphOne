@@ -258,6 +258,33 @@ func TestSendMessageReportsUpstreamFailure(t *testing.T) {
 	}
 }
 
+func TestSendMessageSurfacesGraphErrors(t *testing.T) {
+	t.Parallel()
+
+	p, stub := newSendingPlugin(t, nil)
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	conversationID := onlyConversation(t, routes).ID
+	stub.status = http.StatusBadRequest
+	stub.body = `{"error":{"message":"Re-engagement message","code":131047}}`
+
+	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
+
+	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadGateway)
+	}
+	var failure struct {
+		Error string `json:"error"`
+		Code  int    `json:"code"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &failure); err != nil {
+		t.Fatalf("decoding failure payload: %v", err)
+	}
+	if failure.Code != 131047 || failure.Error != "Re-engagement message" {
+		t.Fatalf("failure = %+v, want the graph error surfaced", failure)
+	}
+}
+
 func TestSendMessageRejectsMisconfiguredGraphURL(t *testing.T) {
 	t.Parallel()
 

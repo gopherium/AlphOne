@@ -79,6 +79,42 @@ export async function fetchMessages(
 }
 
 /**
+ * SendFailedError reports a rejected reply, carrying the Graph error code
+ * when the backend surfaced one.
+ */
+export class SendFailedError extends Error {
+	readonly code: number | null
+
+	/**
+	 * Builds the error from the response status and any surfaced Graph code.
+	 * @param status - The HTTP status of the failed send.
+	 * @param code - The Graph error code, or null when none was surfaced.
+	 */
+	constructor(status: number, code: number | null) {
+		super(`sending message failed with status ${status}`)
+		this.name = 'SendFailedError'
+		this.code = code
+	}
+}
+
+const sendFailureSchema = z.object({ code: z.number() })
+
+/**
+ * Reads the Graph failure code from a rejected send response, if the
+ * backend surfaced one.
+ * @param response - The non-ok send response.
+ * @returns The Graph error code, or null.
+ */
+async function failureCode(response: Response): Promise<number | null> {
+	try {
+		const parsed = sendFailureSchema.safeParse(await response.json())
+		return parsed.success ? parsed.data.code : null
+	} catch {
+		return null
+	}
+}
+
+/**
  * Sends a text message to the given conversation via the backend API.
  * @param conversationId - The identifier of the conversation to send the message to.
  * @param content - The text content of the message to send.
@@ -97,7 +133,7 @@ export async function sendMessage(
 		},
 	)
 	if (!response.ok) {
-		throw new Error(`sending message failed with status ${response.status}`)
+		throw new SendFailedError(response.status, await failureCode(response))
 	}
 	return messageSchema.parse(await response.json())
 }

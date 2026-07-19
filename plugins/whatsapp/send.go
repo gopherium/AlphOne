@@ -38,6 +38,17 @@ type sendTextBody struct {
 	Body string `json:"body"`
 }
 
+// graphError reports a Graph API send rejection with its error code.
+type graphError struct {
+	Code    int
+	Message string
+}
+
+// Error formats the rejection.
+func (e graphError) Error() string {
+	return fmt.Sprintf("graph error %d: %s", e.Code, e.Message)
+}
+
 // sendText posts a WhatsApp text message to the Cloud API and returns the resulting message id and raw response.
 func (s *sender) sendText(ctx context.Context, to, body string) (string, json.RawMessage, error) {
 	payload, _ := json.Marshal(sendTextRequest{
@@ -64,6 +75,16 @@ func (s *sender) sendText(ctx context.Context, to, body string) (string, json.Ra
 	defer func() { _ = response.Body.Close() }()
 	raw, _ := io.ReadAll(response.Body)
 	if response.StatusCode != http.StatusOK {
+		var failure struct {
+			Error struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(raw, &failure); err == nil && failure.Error.Code != 0 {
+			return "", nil, fmt.Errorf("whatsapp: send message: %w",
+				graphError{Code: failure.Error.Code, Message: failure.Error.Message})
+		}
 		return "", nil, fmt.Errorf("whatsapp: send message: status %d", response.StatusCode)
 	}
 	var decoded struct {
@@ -82,6 +103,11 @@ func (s *sender) sendText(ctx context.Context, to, body string) (string, json.Ra
 
 type sendMessageRequest struct {
 	Content string `json:"content"`
+}
+
+type sendFailureResponse struct {
+	Error string `json:"error"`
+	Code  int    `json:"code"`
 }
 
 // handleMessageSend returns an HTTP handler that sends an outbound message on a conversation and persists it.
@@ -113,6 +139,14 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 		}
 		externalID, raw, err := p.sender.sendText(r.Context(), to, content)
 		if err != nil {
+			var rejection graphError
+			if errors.As(err, &rejection) {
+				respondJSON(w, http.StatusBadGateway, sendFailureResponse{
+					Error: rejection.Message,
+					Code:  rejection.Code,
+				})
+				return
+			}
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}

@@ -1,6 +1,7 @@
 import { server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
@@ -140,4 +141,63 @@ test('renders no tick on inbound messages', async () => {
 
 	await screen.findByText('hola')
 	expect(tickElement()).not.toBeInTheDocument()
+})
+
+/**
+ * Types a reply and submits it through the composer.
+ */
+async function sendReply() {
+	const user = userEvent.setup()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'un mensaje')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+}
+
+test('shows the mapped explanation when a send is rejected with a known code', async () => {
+	renderThreadOf(message({ direction: 'inbound' }))
+	server.use(
+		http.post(messagesPath, () =>
+			HttpResponse.json({ error: 'Re-engagement message', code: 131047 }, { status: 502 }),
+		),
+	)
+	await screen.findByText('hola')
+
+	await sendReply()
+
+	expect(
+		await screen.findByText('Outside the 24-hour window. The customer must message first.'),
+	).toBeInTheDocument()
+})
+
+test('shows the generic line when a send is rejected with an unknown code', async () => {
+	renderThreadOf(message({ direction: 'inbound' }))
+	server.use(
+		http.post(messagesPath, () =>
+			HttpResponse.json({ error: 'strange', code: 999 }, { status: 502 }),
+		),
+	)
+	await screen.findByText('hola')
+
+	await sendReply()
+
+	expect(await screen.findByText('The reply could not be sent.')).toBeInTheDocument()
+})
+
+test('shows the generic line when a rejection carries no JSON body', async () => {
+	renderThreadOf(message({ direction: 'inbound' }))
+	server.use(http.post(messagesPath, () => new HttpResponse('bad gateway', { status: 502 })))
+	await screen.findByText('hola')
+
+	await sendReply()
+
+	expect(await screen.findByText('The reply could not be sent.')).toBeInTheDocument()
+})
+
+test('shows the generic line when the send fails on the network', async () => {
+	renderThreadOf(message({ direction: 'inbound' }))
+	server.use(http.post(messagesPath, () => HttpResponse.error()))
+	await screen.findByText('hola')
+
+	await sendReply()
+
+	expect(await screen.findByText('The reply could not be sent.')).toBeInTheDocument()
 })
