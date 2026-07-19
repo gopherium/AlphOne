@@ -18,6 +18,7 @@ fmt:
 
 generate:
 	go run ./cmd/pluginwire
+	go tool sqlc generate
 
 outdated:
 	@echo "=== direct Go modules with updates ==="

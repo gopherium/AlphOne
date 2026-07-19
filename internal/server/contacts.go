@@ -4,7 +4,12 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,7 +24,17 @@ import (
 type ContactStore interface {
 	Create(ctx context.Context, c contact.Contact) error
 	Get(ctx context.Context, id uuid.UUID) (contact.Contact, error)
+	ListContacts(
+		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
+	) ([]contact.Contact, error)
 }
+
+// defaultContactListLimit and maxContactListLimit bound the contacts page
+// size.
+const (
+	defaultContactListLimit = 50
+	maxContactListLimit     = 200
+)
 
 type contactResponse struct {
 	ID        uuid.UUID `json:"id"`
@@ -30,6 +45,86 @@ type contactResponse struct {
 // newContactResponse builds a contactResponse from a contact.Contact, normalizing the timestamp to UTC.
 func newContactResponse(c contact.Contact) contactResponse {
 	return contactResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt.UTC()}
+}
+
+type contactCursor struct {
+	Name string    `json:"name"`
+	ID   uuid.UUID `json:"id"`
+}
+
+// decodeContactCursor parses the opaque list cursor, returning zero values
+// for an absent one.
+func decodeContactCursor(raw string) (contactCursor, error) {
+	if raw == "" {
+		return contactCursor{}, nil
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return contactCursor{}, fmt.Errorf("server: decode cursor: %w", err)
+	}
+	var cursor contactCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return contactCursor{}, fmt.Errorf("server: decode cursor: %w", err)
+	}
+	return cursor, nil
+}
+
+// encodeContactCursor renders the position after c as an opaque cursor.
+func encodeContactCursor(c contact.Contact) string {
+	encoded, _ := json.Marshal(contactCursor{Name: c.Name, ID: c.ID})
+	return base64.RawURLEncoding.EncodeToString(encoded)
+}
+
+// parseContactListLimit reads the "limit" query parameter, returning the
+// default when absent or an error when out of range.
+func parseContactListLimit(query url.Values) (int, error) {
+	raw := query.Get("limit")
+	if raw == "" {
+		return defaultContactListLimit, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit < 1 || limit > maxContactListLimit {
+		return 0, fmt.Errorf("server: invalid limit %q", raw)
+	}
+	return limit, nil
+}
+
+type contactListResponse struct {
+	Contacts   []contactResponse `json:"contacts"`
+	NextCursor *string           `json:"next_cursor"`
+}
+
+// handleContactList returns an HTTP handler listing contacts as a cursor
+// paginated page.
+func (s *server) handleContactList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit, err := parseContactListLimit(r.URL.Query())
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		cursor, err := decodeContactCursor(r.URL.Query().Get("cursor"))
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed cursor")
+			return
+		}
+		rows, err := s.store.ListContacts(r.Context(), "", "", cursor.Name, cursor.ID, limit+1)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		var nextCursor *string
+		if len(rows) > limit {
+			rows = rows[:limit]
+			encoded := encodeContactCursor(rows[limit-1])
+			nextCursor = &encoded
+		}
+		contacts := make([]contactResponse, len(rows))
+		for i, c := range rows {
+			contacts[i] = newContactResponse(c)
+		}
+		authkit.Respond(w, http.StatusOK, contactListResponse{Contacts: contacts, NextCursor: nextCursor})
+	}
 }
 
 // handleContactCreate returns an http.HandlerFunc that decodes a name, creates a contact, persists it, and

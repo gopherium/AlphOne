@@ -4,11 +4,13 @@ package server_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ type fakeContactStore struct {
 	contacts  map[uuid.UUID]contact.Contact
 	createErr error
 	getErr    error
+	listErr   error
 }
 
 func newFakeContactStore() *fakeContactStore {
@@ -52,6 +55,165 @@ func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 		return contact.Contact{}, contact.ErrNotFound
 	}
 	return c, nil
+}
+
+func (f *fakeContactStore) ListContacts(
+	_ context.Context, _, _ string, afterName string, afterID uuid.UUID, limit int,
+) ([]contact.Contact, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	all := make([]contact.Contact, 0, len(f.contacts))
+	for _, c := range f.contacts {
+		all = append(all, c)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Name != all[j].Name {
+			return all[i].Name < all[j].Name
+		}
+		return all[i].ID.String() < all[j].ID.String()
+	})
+	page := make([]contact.Contact, 0, limit)
+	for _, c := range all {
+		if c.Name < afterName || (c.Name == afterName && c.ID.String() <= afterID.String()) {
+			continue
+		}
+		page = append(page, c)
+		if len(page) == limit {
+			break
+		}
+	}
+	return page, nil
+}
+
+type contactListBody struct {
+	Contacts   []contactBody `json:"contacts"`
+	NextCursor *string       `json:"next_cursor"`
+}
+
+func seedContacts(t *testing.T, store *fakeContactStore, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		c, err := contact.New(name)
+		if err != nil {
+			t.Fatalf("contact.New(%q) error = %v, want nil", name, err)
+		}
+		if err := store.Create(t.Context(), c); err != nil {
+			t.Fatalf("seeding %q: %v", name, err)
+		}
+	}
+}
+
+func TestListContactsEndpointPaginates(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "Ana", "Bruno", "Carla")
+	srv := authedContactServer(t, store, nil)
+
+	full := doRequest(t, srv, http.MethodGet, "/api/contacts", "")
+	if full.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", full.Code, http.StatusOK)
+	}
+	fullPage := decodeBody[contactListBody](t, full)
+	if len(fullPage.Contacts) != 3 || fullPage.NextCursor != nil {
+		t.Fatalf("default page = %d contacts with cursor %v, want all 3 and no cursor",
+			len(fullPage.Contacts), fullPage.NextCursor)
+	}
+
+	first := doRequest(t, srv, http.MethodGet, "/api/contacts?limit=2", "")
+	firstPage := decodeBody[contactListBody](t, first)
+	if len(firstPage.Contacts) != 2 || firstPage.NextCursor == nil {
+		t.Fatalf("first page = %d contacts with cursor %v, want 2 and a cursor",
+			len(firstPage.Contacts), firstPage.NextCursor)
+	}
+	if firstPage.Contacts[0].Name != "Ana" || firstPage.Contacts[1].Name != "Bruno" {
+		t.Errorf("first page = %q, %q, want Ana, Bruno", firstPage.Contacts[0].Name, firstPage.Contacts[1].Name)
+	}
+
+	second := doRequest(t, srv, http.MethodGet, "/api/contacts?limit=2&cursor="+*firstPage.NextCursor, "")
+	secondPage := decodeBody[contactListBody](t, second)
+	if len(secondPage.Contacts) != 1 || secondPage.NextCursor != nil {
+		t.Fatalf("second page = %d contacts with cursor %v, want 1 and no cursor",
+			len(secondPage.Contacts), secondPage.NextCursor)
+	}
+	if secondPage.Contacts[0].Name != "Carla" {
+		t.Errorf("second page contact = %q, want Carla", secondPage.Contacts[0].Name)
+	}
+}
+
+func TestListContactsEndpointRoundTripsUnicodeCursors(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez", "Zoe")
+	srv := authedContactServer(t, store, nil)
+
+	first := doRequest(t, srv, http.MethodGet, "/api/contacts?limit=1", "")
+	firstPage := decodeBody[contactListBody](t, first)
+	if firstPage.NextCursor == nil {
+		t.Fatal("first page cursor = nil, want a cursor")
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(*firstPage.NextCursor)
+	if err != nil {
+		t.Fatalf("decoding cursor: %v", err)
+	}
+	var cursor struct {
+		Name string    `json:"name"`
+		ID   uuid.UUID `json:"id"`
+	}
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		t.Fatalf("unmarshaling cursor %q: %v", decoded, err)
+	}
+	if cursor.Name != "María Pérez" {
+		t.Errorf("cursor name = %q, want %q", cursor.Name, "María Pérez")
+	}
+
+	second := doRequest(t, srv, http.MethodGet, "/api/contacts?limit=1&cursor="+*firstPage.NextCursor, "")
+	secondPage := decodeBody[contactListBody](t, second)
+	if len(secondPage.Contacts) != 1 || secondPage.Contacts[0].Name != "Zoe" {
+		t.Fatalf("second page = %+v, want Zoe", secondPage.Contacts)
+	}
+}
+
+func TestListContactsEndpointRejectsBadInput(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"limit zero":        "/api/contacts?limit=0",
+		"limit too big":     "/api/contacts?limit=201",
+		"limit junk":        "/api/contacts?limit=abc",
+		"cursor bad base64": "/api/contacts?cursor=%21%21%21",
+		"cursor bad json":   "/api/contacts?cursor=" + base64.RawURLEncoding.EncodeToString([]byte("not json")),
+	}
+
+	for testName, target := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			srv := authedContactServer(t, newFakeContactStore(), nil)
+
+			recorder := doRequest(t, srv, http.MethodGet, target, "")
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
+func TestListContactsEndpointReportsStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	store.listErr = errors.New("boom")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts", "")
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
 }
 
 type contactBody struct {

@@ -64,6 +64,7 @@ func NewServer(cfg Config) http.Handler {
 	router.Group(func(protected chi.Router) {
 		protected.Use(auth.RequireSession)
 		protected.Get("/api/auth/session", auth.Session)
+		protected.Get("/api/contacts", s.handleContactList())
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
 		protected.Get("/api/users", admin.List)

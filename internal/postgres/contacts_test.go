@@ -77,4 +77,68 @@ func TestContactStoreReportsConnectionFailure(t *testing.T) {
 	if _, err := store.Get(t.Context(), maria.ID); err == nil || errors.Is(err, contact.ErrNotFound) {
 		t.Errorf("Get() on closed pool error = %v, want a non-ErrNotFound error", err)
 	}
+	if _, err := store.ListContacts(t.Context(), "", "", "", uuid.Nil, 10); err == nil {
+		t.Error("ListContacts() on closed pool error = nil, want error")
+	}
+}
+
+func TestListContactsWalksPagesInDictionaryOrder(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+	for _, name := range []string{"maría", "Ana", "zoe", "Ángel", "Ana", "Bruno"} {
+		if err := store.Create(t.Context(), mustContact(t, name)); err != nil {
+			t.Fatalf("creating %q: %v", name, err)
+		}
+	}
+
+	var collected []contact.Contact
+	afterName, afterID := "", uuid.Nil
+	for {
+		page, err := store.ListContacts(t.Context(), "", "", afterName, afterID, 2)
+		if err != nil {
+			t.Fatalf("ListContacts() error = %v, want nil", err)
+		}
+		collected = append(collected, page...)
+		if len(page) < 2 {
+			break
+		}
+		last := page[len(page)-1]
+		afterName, afterID = last.Name, last.ID
+	}
+
+	wantOrder := []string{"Ana", "Ana", "Ángel", "Bruno", "maría", "zoe"}
+	if got, want := len(collected), len(wantOrder); got != want {
+		t.Fatalf("collected %d contacts over the walk, want %d", got, want)
+	}
+	for i, want := range wantOrder {
+		if collected[i].Name != want {
+			t.Errorf("collected[%d].Name = %q, want %q", i, collected[i].Name, want)
+		}
+	}
+	if collected[0].ID.String() > collected[1].ID.String() {
+		t.Error("duplicate names not tie-broken by id")
+	}
+	seen := make(map[uuid.UUID]bool, len(collected))
+	for _, c := range collected {
+		if seen[c.ID] {
+			t.Errorf("contact %s returned twice across pages", c.ID)
+		}
+		seen[c.ID] = true
+	}
+}
+
+func TestListContactsReturnsAnEmptyPageOnAnEmptyTable(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+
+	page, err := store.ListContacts(t.Context(), "", "", "", uuid.Nil, 50)
+
+	if err != nil {
+		t.Fatalf("ListContacts() error = %v, want nil", err)
+	}
+	if len(page) != 0 {
+		t.Fatalf("len(page) = %d, want 0", len(page))
+	}
 }

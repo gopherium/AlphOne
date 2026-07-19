@@ -73,6 +73,25 @@ func insertIdentity(db *sql.DB, identity contact.Identity) error {
 	return err
 }
 
+func TestMigrationsCreateContactsNameIndex(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+
+	var count int
+	err := db.QueryRow(
+		`SELECT count(*) FROM pg_indexes
+		WHERE schemaname = 'core' AND tablename = 'contacts' AND indexname = 'contacts_name_id_idx'`,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("querying pg_indexes: %v", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("contacts_name_id_idx count = %d, want 1", count)
+	}
+}
+
 func TestMigrationsStoreContactWithIdentity(t *testing.T) {
 	t.Parallel()
 

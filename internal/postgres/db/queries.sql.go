@@ -97,3 +97,51 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 	)
 	return i, err
 }
+
+const listContacts = `-- name: ListContacts :many
+SELECT id, name, created_at
+FROM core.contacts c
+WHERE (c.name, c.id) > ($1::text, $2::uuid)
+    AND ($3::text = '' OR c.name ILIKE '%' || $3 || '%'
+        OR EXISTS (
+            SELECT 1 FROM core.contact_identities i
+            WHERE i.contact_id = c.id
+                AND (i.display_name ILIKE '%' || $3 || '%'
+                    OR ($4::text <> '' AND i.identifier LIKE '%' || $4 || '%'))))
+ORDER BY c.name, c.id
+LIMIT $5
+`
+
+type ListContactsParams struct {
+	AfterName string
+	AfterID   uuid.UUID
+	Query     string
+	Digits    string
+	RowLimit  int32
+}
+
+func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]CoreContact, error) {
+	rows, err := q.db.Query(ctx, listContacts,
+		arg.AfterName,
+		arg.AfterID,
+		arg.Query,
+		arg.Digits,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreContact
+	for rows.Next() {
+		var i CoreContact
+		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
