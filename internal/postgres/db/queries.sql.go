@@ -98,6 +98,40 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 	return i, err
 }
 
+const listContactIdentities = `-- name: ListContactIdentities :many
+SELECT id, contact_id, channel, identifier, display_name, created_at
+FROM core.contact_identities
+WHERE contact_id = $1
+ORDER BY channel, identifier
+`
+
+func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]CoreContactIdentity, error) {
+	rows, err := q.db.Query(ctx, listContactIdentities, contactID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreContactIdentity
+	for rows.Next() {
+		var i CoreContactIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.Channel,
+			&i.Identifier,
+			&i.DisplayName,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listContacts = `-- name: ListContacts :many
 SELECT id, name, created_at
 FROM core.contacts c

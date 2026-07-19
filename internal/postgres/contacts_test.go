@@ -80,6 +80,9 @@ func TestContactStoreReportsConnectionFailure(t *testing.T) {
 	if _, err := store.ListContacts(t.Context(), "", "", "", uuid.Nil, 10); err == nil {
 		t.Error("ListContacts() on closed pool error = nil, want error")
 	}
+	if _, err := store.ListContactIdentities(t.Context(), maria.ID); err == nil {
+		t.Error("ListContactIdentities() on closed pool error = nil, want error")
+	}
 }
 
 func TestListContactsWalksPagesInDictionaryOrder(t *testing.T) {
@@ -232,7 +235,8 @@ func TestListContactIdentitiesOrdersByChannelAndIdentifier(t *testing.T) {
 	pool := newTestPool(t)
 	store := postgres.NewContactStore(pool)
 	ada := mustContact(t, "Ada")
-	if err := store.CreateContactWithIdentity(t.Context(), ada, mustIdentity(t, ada.ID, "whatsapp", "200111222")); err != nil {
+	adaIdentity := mustIdentity(t, ada.ID, "whatsapp", "200111222")
+	if err := store.CreateContactWithIdentity(t.Context(), ada, adaIdentity); err != nil {
 		t.Fatalf("seeding Ada: %v", err)
 	}
 	extra := []contact.Identity{

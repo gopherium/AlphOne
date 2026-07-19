@@ -28,6 +28,7 @@ type ContactStore interface {
 	ListContacts(
 		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 	) ([]contact.Contact, error)
+	ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]contact.Identity, error)
 }
 
 // defaultContactListLimit and maxContactListLimit bound the contacts page
@@ -165,8 +166,19 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 	}
 }
 
+type identityResponse struct {
+	Channel     string `json:"channel"`
+	Identifier  string `json:"identifier"`
+	DisplayName string `json:"display_name"`
+}
+
+type contactDetailResponse struct {
+	contactResponse
+	Identities []identityResponse `json:"identities"`
+}
+
 // handleContactGet returns an http.HandlerFunc that parses the contact id from the URL, fetches the contact,
-// and responds with it.
+// and responds with it and its identities.
 func (s *server) handleContactGet() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -179,6 +191,22 @@ func (s *server) handleContactGet() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
-		authkit.Respond(w, http.StatusOK, newContactResponse(c))
+		identities, err := s.store.ListContactIdentities(r.Context(), id)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		detail := contactDetailResponse{
+			contactResponse: newContactResponse(c),
+			Identities:      make([]identityResponse, len(identities)),
+		}
+		for i, identity := range identities {
+			detail.Identities[i] = identityResponse{
+				Channel:     string(identity.Channel),
+				Identifier:  identity.Identifier,
+				DisplayName: identity.DisplayName,
+			}
+		}
+		authkit.Respond(w, http.StatusOK, detail)
 	}
 }

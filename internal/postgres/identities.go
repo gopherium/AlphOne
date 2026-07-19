@@ -7,11 +7,35 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres/db"
 )
+
+// ListContactIdentities returns the contact's identities ordered by channel
+// and identifier.
+func (s *ContactStore) ListContactIdentities(
+	ctx context.Context, contactID uuid.UUID,
+) ([]contact.Identity, error) {
+	rows, err := s.queries.ListContactIdentities(ctx, contactID)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list contact identities: %w", err)
+	}
+	identities := make([]contact.Identity, len(rows))
+	for i, row := range rows {
+		identities[i] = contact.Identity{
+			ID:          row.ID,
+			ContactID:   row.ContactID,
+			Channel:     contact.Channel(row.Channel),
+			Identifier:  row.Identifier,
+			DisplayName: row.DisplayName,
+			CreatedAt:   row.CreatedAt,
+		}
+	}
+	return identities, nil
+}
 
 // LookupIdentity returns the identity for channel and identifier, or
 // [contact.ErrIdentityNotFound] if none exists.

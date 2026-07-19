@@ -22,6 +22,12 @@ SELECT id, name, created_at
 FROM core.contacts
 WHERE id = $1;
 
+-- name: ListContactIdentities :many
+SELECT id, contact_id, channel, identifier, display_name, created_at
+FROM core.contact_identities
+WHERE contact_id = $1
+ORDER BY channel, identifier;
+
 -- name: GetIdentity :one
 SELECT id, contact_id, channel, identifier, display_name, created_at
 FROM core.contact_identities
