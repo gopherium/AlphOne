@@ -179,3 +179,20 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 	}
 	return items, nil
 }
+
+const updateContactName = `-- name: UpdateContactName :one
+UPDATE core.contacts SET name = $2 WHERE id = $1
+RETURNING id, name, created_at
+`
+
+type UpdateContactNameParams struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (CoreContact, error) {
+	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name)
+	var i CoreContact
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
+}

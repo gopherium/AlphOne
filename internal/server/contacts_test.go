@@ -35,6 +35,7 @@ type fakeContactStore struct {
 	getErr        error
 	listErr       error
 	identitiesErr error
+	renameErr     error
 	lastQuery     string
 	lastDigits    string
 }
@@ -53,6 +54,21 @@ func (f *fakeContactStore) ListContactIdentities(
 		return nil, f.identitiesErr
 	}
 	return f.identities[contactID], nil
+}
+
+func (f *fakeContactStore) RenameContact(
+	_ context.Context, id uuid.UUID, name string,
+) (contact.Contact, error) {
+	if f.renameErr != nil {
+		return contact.Contact{}, f.renameErr
+	}
+	c, ok := f.contacts[id]
+	if !ok {
+		return contact.Contact{}, contact.ErrNotFound
+	}
+	c.Name = name
+	f.contacts[id] = c
+	return c, nil
 }
 
 func (f *fakeContactStore) Create(_ context.Context, c contact.Contact) error {
@@ -278,6 +294,118 @@ func TestGetContactReportsIdentityStoreFailure(t *testing.T) {
 	srv := authedContactServer(t, store, nil)
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/contacts/"+ada.ID.String(), "")
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+func seedOneContact(t *testing.T, store *fakeContactStore, name string) contact.Contact {
+	t.Helper()
+	c, err := contact.New(name)
+	if err != nil {
+		t.Fatalf("contact.New(%q) error = %v, want nil", name, err)
+	}
+	if err := store.Create(t.Context(), c); err != nil {
+		t.Fatalf("seeding %q: %v", name, err)
+	}
+	return c
+}
+
+func TestRenameContactEndpoint(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada := seedOneContact(t, store, "34600111222")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPatch, "/api/contacts/"+ada.ID.String(),
+		`{"name":"  Ada Lovelace  "}`)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	body := decodeBody[contactBody](t, recorder)
+	if body.ID != ada.ID || body.Name != "Ada Lovelace" {
+		t.Errorf("body = %+v, want the contact renamed and trimmed", body)
+	}
+	if store.contacts[ada.ID].Name != "Ada Lovelace" {
+		t.Errorf("stored name = %q, want %q", store.contacts[ada.ID].Name, "Ada Lovelace")
+	}
+}
+
+func TestRenameContactEndpointTreatsOmittedNameAsNoOp(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada := seedOneContact(t, store, "Ada")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPatch, "/api/contacts/"+ada.ID.String(), `{}`)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	body := decodeBody[contactBody](t, recorder)
+	if body.Name != "Ada" {
+		t.Errorf("body name = %q, want the unchanged %q", body.Name, "Ada")
+	}
+}
+
+func TestRenameContactEndpointRejectsBadRequests(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada := seedOneContact(t, store, "Ada")
+
+	tests := map[string]struct {
+		target string
+		body   string
+		want   int
+	}{
+		"blank name": {
+			target: "/api/contacts/" + ada.ID.String(),
+			body:   `{"name":"   "}`,
+			want:   http.StatusUnprocessableEntity,
+		},
+		"unknown id": {
+			target: "/api/contacts/" + uuid.Must(uuid.NewV7()).String(),
+			body:   `{"name":"Ada"}`,
+			want:   http.StatusNotFound,
+		},
+		"omitted name unknown id": {
+			target: "/api/contacts/" + uuid.Must(uuid.NewV7()).String(),
+			body:   `{}`,
+			want:   http.StatusNotFound,
+		},
+		"malformed id":   {target: "/api/contacts/not-a-uuid", body: `{"name":"Ada"}`, want: http.StatusBadRequest},
+		"malformed json": {target: "/api/contacts/" + ada.ID.String(), body: `{`, want: http.StatusBadRequest},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			srv := authedContactServer(t, store, nil)
+
+			recorder := doRequest(t, srv, http.MethodPatch, tc.target, tc.body)
+
+			if recorder.Code != tc.want {
+				t.Fatalf("status = %d, want %d", recorder.Code, tc.want)
+			}
+		})
+	}
+}
+
+func TestRenameContactEndpointReportsStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	ada := seedOneContact(t, store, "Ada")
+	store.renameErr = errors.New("boom")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPatch, "/api/contacts/"+ada.ID.String(), `{"name":"Ada L"}`)
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)

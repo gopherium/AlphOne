@@ -67,6 +67,7 @@ func NewServer(cfg Config) http.Handler {
 		protected.Get("/api/contacts", s.handleContactList())
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
+		protected.Patch("/api/contacts/{id}", s.handleContactRename())
 		protected.Get("/api/users", admin.List)
 		protected.Post("/api/users", admin.Create)
 		protected.Patch("/api/users/{id}", admin.SetDisabled)

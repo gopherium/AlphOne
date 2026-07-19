@@ -29,6 +29,7 @@ type ContactStore interface {
 		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 	) ([]contact.Contact, error)
 	ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]contact.Identity, error)
+	RenameContact(ctx context.Context, id uuid.UUID, name string) (contact.Contact, error)
 }
 
 // defaultContactListLimit and maxContactListLimit bound the contacts page
@@ -163,6 +164,46 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 			return
 		}
 		authkit.Respond(w, http.StatusCreated, newContactResponse(c))
+	}
+}
+
+// handleContactRename returns an http.HandlerFunc that applies a partial
+// update to a contact, treating an omitted name as unchanged.
+func (s *server) handleContactRename() http.HandlerFunc {
+	type request struct {
+		Name *string `json:"name"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed contact id")
+			return
+		}
+		req, err := authkit.Decode[request](w, r)
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed json")
+			return
+		}
+		if req.Name == nil {
+			c, err := s.store.Get(r.Context(), id)
+			if err != nil {
+				respondDomainError(w, err)
+				return
+			}
+			authkit.Respond(w, http.StatusOK, newContactResponse(c))
+			return
+		}
+		name, err := contact.Rename(*req.Name)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		c, err := s.store.RenameContact(r.Context(), id, name)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		authkit.Respond(w, http.StatusOK, newContactResponse(c))
 	}
 }
 

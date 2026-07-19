@@ -25,6 +25,16 @@ type Contact struct {
 	CreatedAt time.Time
 }
 
+// Rename validates a contact's replacement name, returning it trimmed or
+// [ErrEmptyName] when blank.
+func Rename(name string) (string, error) {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return "", ErrEmptyName
+	}
+	return trimmedName, nil
+}
+
 // New returns a [Contact] with the given name, trimmed of surrounding
 // whitespace.
 func New(name string) (Contact, error) {

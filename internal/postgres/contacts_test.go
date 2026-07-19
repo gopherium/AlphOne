@@ -83,6 +83,47 @@ func TestContactStoreReportsConnectionFailure(t *testing.T) {
 	if _, err := store.ListContactIdentities(t.Context(), maria.ID); err == nil {
 		t.Error("ListContactIdentities() on closed pool error = nil, want error")
 	}
+	if _, err := store.RenameContact(t.Context(), maria.ID, "María"); err == nil {
+		t.Error("RenameContact() on closed pool error = nil, want error")
+	}
+}
+
+func TestRenameContactPersistsAndReturnsTheContact(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+	ada := mustContact(t, "34600111222")
+	if err := store.Create(t.Context(), ada); err != nil {
+		t.Fatalf("seeding contact: %v", err)
+	}
+
+	renamed, err := store.RenameContact(t.Context(), ada.ID, "Ada Lovelace")
+
+	if err != nil {
+		t.Fatalf("RenameContact() error = %v, want nil", err)
+	}
+	if renamed.ID != ada.ID || renamed.Name != "Ada Lovelace" {
+		t.Errorf("renamed = %+v, want the same contact with the new name", renamed)
+	}
+	stored, err := store.Get(t.Context(), ada.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v, want nil", err)
+	}
+	if stored.Name != "Ada Lovelace" {
+		t.Errorf("stored name = %q, want %q", stored.Name, "Ada Lovelace")
+	}
+}
+
+func TestRenameContactMissing(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+
+	_, err := store.RenameContact(t.Context(), uuid.Must(uuid.NewV7()), "Ada")
+
+	if !errors.Is(err, contact.ErrNotFound) {
+		t.Fatalf("RenameContact() error = %v, want %v", err, contact.ErrNotFound)
+	}
 }
 
 func TestListContactsWalksPagesInDictionaryOrder(t *testing.T) {

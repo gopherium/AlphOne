@@ -22,6 +22,10 @@ SELECT id, name, created_at
 FROM core.contacts
 WHERE id = $1;
 
+-- name: UpdateContactName :one
+UPDATE core.contacts SET name = $2 WHERE id = $1
+RETURNING id, name, created_at;
+
 -- name: ListContactIdentities :many
 SELECT id, contact_id, channel, identifier, display_name, created_at
 FROM core.contact_identities

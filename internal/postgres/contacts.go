@@ -41,6 +41,21 @@ func (s *ContactStore) Create(ctx context.Context, c contact.Contact) error {
 	return nil
 }
 
+// RenameContact updates the contact's name, returning the updated contact or
+// [contact.ErrNotFound] when no such contact exists.
+func (s *ContactStore) RenameContact(
+	ctx context.Context, id uuid.UUID, name string,
+) (contact.Contact, error) {
+	row, err := s.queries.UpdateContactName(ctx, db.UpdateContactNameParams{ID: id, Name: name})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return contact.Contact{}, contact.ErrNotFound
+	}
+	if err != nil {
+		return contact.Contact{}, fmt.Errorf("postgres: rename contact: %w", err)
+	}
+	return contact.Contact{ID: row.ID, Name: row.Name, CreatedAt: row.CreatedAt}, nil
+}
+
 // ListContacts returns contacts after the given cursor position in name
 // order, optionally narrowed by a search query and its digits.
 func (s *ContactStore) ListContacts(

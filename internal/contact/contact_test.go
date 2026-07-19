@@ -20,6 +20,36 @@ func (failingReader) Read([]byte) (int, error) {
 	return 0, errEntropy
 }
 
+func TestRename(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		name    string
+		want    string
+		wantErr error
+	}{
+		"valid name":         {name: "Ada Lovelace", want: "Ada Lovelace"},
+		"surrounding spaces": {name: "  Ada Lovelace  ", want: "Ada Lovelace"},
+		"empty name":         {name: "", wantErr: contact.ErrEmptyName},
+		"whitespace only":    {name: " \t ", wantErr: contact.ErrEmptyName},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := contact.Rename(tc.name)
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Rename(%q) error = %v, want %v", tc.name, err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Errorf("Rename(%q) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
