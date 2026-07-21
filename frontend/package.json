@@ -15,7 +15,7 @@
     "@alphone/plugin-whatsapp": "workspace:*",
     "@gopherium/react-auth": "^0.1.1",
     "@tanstack/react-query": "^5.101.2",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.18",
     "@wordpress/theme": "^0.17.0",
     "@wordpress/ui": "^0.17.0",
     "react": "^19.2.7",
@@ -31,9 +31,9 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^29.1.1",
-    "oxlint": "^1.71.0",
+    "oxlint": "^1.74.0",
     "typescript": "~6.0.2",
-    "vite": "^8.1.4",
+    "vite": "^8.1.5",
     "vitest": "^4.1.10"
   }
 }
