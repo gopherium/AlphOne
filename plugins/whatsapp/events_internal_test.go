@@ -56,7 +56,7 @@ func imageMessage(wamid string) inboundMessage {
 		externalID:  wamid,
 		sender:      "184467235",
 		senderName:  "María Pérez",
-		content:     "la factura",
+		content:     "the invoice",
 		contentType: "image",
 		media:       &mediaDescriptor{mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: "c2hh"},
 		sentAt:      time.Now().UTC(),
@@ -171,7 +171,7 @@ func TestIngestDoesNotNudgeTheFetcherForText(t *testing.T) {
 	p := newIngestReadyPlugin(t)
 	message := imageMessage("wamid.plain")
 	message.contentType = "text"
-	message.content = "hola"
+	message.content = "hello"
 	message.media = nil
 
 	if err := p.ingest(t.Context(), message); err != nil {
@@ -219,7 +219,7 @@ func TestIngestStoresTextWithoutMediaRow(t *testing.T) {
 	p := newIngestReadyPlugin(t)
 	message := imageMessage("wamid.text")
 	message.contentType = "text"
-	message.content = "hola"
+	message.content = "hello"
 	message.media = nil
 
 	if err := p.ingest(t.Context(), message); err != nil {

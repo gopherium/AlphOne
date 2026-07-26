@@ -188,7 +188,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 		"after an outbound append": func(t *testing.T, p *Plugin, conversationID uuid.UUID) {
 			_, err := p.store.appendOutboundMessage(t.Context(), conversationID, outboundMessage{
 				externalID: "wamid.seed.2",
-				content:    "¡Hola María! Sí, nos quedan tres.",
+				content:    "Hi María! Yes, we have three left.",
 				sentAt:     now.Add(-115 * time.Minute),
 				raw:        json.RawMessage(`{}`),
 			})
@@ -199,7 +199,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 		"after pending media": func(t *testing.T, p *Plugin, conversationID uuid.UUID) {
 			messageID, _, err := insertMessage(t.Context(), p.pool, conversationID, inboundMessage{
 				externalID:  "wamid.seed.3",
-				content:     "¿Es este modelo?",
+				content:     "Is it this model?",
 				contentType: "image",
 				sentAt:      now.Add(-110 * time.Minute),
 				raw:         json.RawMessage(`{}`),
@@ -229,7 +229,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 			}
 			_, _, err = insertMessage(t.Context(), p.pool, conversationID, inboundMessage{
 				externalID:  "wamid.seed.1",
-				content:     "Hola, ¿tenéis la lámpara de mimbre en stock?",
+				content:     "Hi, do you have the wicker lamp in stock?",
 				contentType: "text",
 				sentAt:      now.Add(-2 * time.Hour),
 				raw:         json.RawMessage(`{}`),

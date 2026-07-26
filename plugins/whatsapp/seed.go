@@ -54,26 +54,26 @@ func demoScript() []demoConversation {
 	return []demoConversation{
 		{waID: "184467235", profile: "María Pérez", messages: []demoMessage{
 			{wamid: "wamid.seed.1", kind: "text", offset: -2 * time.Hour,
-				content: "Hola, ¿tenéis la lámpara de mimbre en stock?"},
+				content: "Hi, do you have the wicker lamp in stock?"},
 			{wamid: "wamid.seed.2", outbound: true, status: "read", offset: -115 * time.Minute,
-				content: "¡Hola María! Sí, nos quedan tres."},
+				content: "Hi María! Yes, we have three left."},
 			{wamid: "wamid.seed.3", kind: "image", offset: -110 * time.Minute,
-				content: "¿Es este modelo?",
+				content: "Is it this model?",
 				media:   &mediaDescriptor{mediaID: "seed-media-1", mimeType: "image/png", sha256: imageSHA}},
 			{wamid: "wamid.seed.4", outbound: true, status: "delivered", offset: -105 * time.Minute,
-				content: "Ese mismo. ¿Te la reservo?"},
+				content: "That's the one. Shall I reserve it for you?"},
 		}},
 		{waID: "15551784465", profile: "John Doe", messages: []demoMessage{
 			{wamid: "wamid.seed.5", kind: "text", offset: -24 * time.Hour,
 				content: "Hi, is the order ready?"},
 			{wamid: "wamid.seed.6", kind: "location", offset: -23*time.Hour - 55*time.Minute,
-				content: "Museo del Prado, C. de Ruiz de Alarcón 23"},
+				content: "British Museum, 23 Great Russell St"},
 			{wamid: "wamid.seed.7", outbound: true, status: "sent", offset: -23*time.Hour - 50*time.Minute,
 				content: "Ready at 5pm, see you there."},
 		}},
 		{waID: "34600111", messages: []demoMessage{
 			{wamid: "wamid.seed.8", kind: "text", offset: -30 * time.Minute,
-				content: "Buenas, ¿hacen envíos a Canarias?"},
+				content: "Hi, do you ship overseas?"},
 		}},
 	}
 }

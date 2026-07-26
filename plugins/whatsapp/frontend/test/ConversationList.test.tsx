@@ -27,7 +27,7 @@ test('shows each conversation preview and last activity', async () => {
 	expect(
 		await screen.findByText('I can pick it up after 5pm.'),
 	).toBeInTheDocument()
-	expect(screen.getByText('hola')).toBeInTheDocument()
+	expect(screen.getByText('hello')).toBeInTheDocument()
 	expect(screen.getAllByText('Jul 6, 2026')).toHaveLength(2)
 	expect(screen.getByText('Jul 5, 2026')).toBeInTheDocument()
 	expect(screen.getAllByText('status')).toHaveLength(3)

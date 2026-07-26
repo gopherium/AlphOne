@@ -154,10 +154,10 @@ func TestMediaDownloadDispositions(t *testing.T) {
 		},
 		"pdf with unicode filename": {
 			mimeType:        "application/pdf",
-			filename:        "recibö ñ.pdf",
+			filename:        "receipt ö ñ.pdf",
 			wantType:        "application/pdf",
 			wantDisposition: "attachment",
-			wantFilename:    "recibö ñ.pdf",
+			wantFilename:    "receipt ö ñ.pdf",
 		},
 		"pdf without filename": {
 			mimeType:        "application/pdf",
@@ -328,7 +328,7 @@ func TestMessagesListCarriesMedia(t *testing.T) {
 	if _, err := p.pool.Exec(ctx,
 		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, 'wamid.plain-text', 'inbound', 'hola', 'text', $3, '{}', $3)`,
+		VALUES ($1, $2, 'wamid.plain-text', 'inbound', 'hello', 'text', $3, '{}', $3)`,
 		textID, conversationID, time.Now().UTC(),
 	); err != nil {
 		t.Fatalf("inserting text message: %v", err)

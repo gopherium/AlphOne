@@ -34,15 +34,15 @@ func TestParseMessagesClassifiesEveryType(t *testing.T) {
 		media       *mediaDescriptor
 	}{
 		"text": {
-			message:     envelope("wamid.t", "text", `, "text": {"body": "hola"}`),
+			message:     envelope("wamid.t", "text", `, "text": {"body": "hello"}`),
 			contentType: "text",
-			content:     "hola",
+			content:     "hello",
 		},
 		"image with caption": {
 			message: envelope("wamid.i", "image",
-				`, "image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh", "caption": "la factura"}`),
+				`, "image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh", "caption": "the invoice"}`),
 			contentType: "image",
-			content:     "la factura",
+			content:     "the invoice",
 			media:       &mediaDescriptor{mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: "c2hh"},
 		},
 		"image without caption": {
@@ -61,17 +61,17 @@ func TestParseMessagesClassifiesEveryType(t *testing.T) {
 		},
 		"video with caption": {
 			message: envelope("wamid.v", "video",
-				`, "video": {"id": "MEDIA4", "mime_type": "video/mp4", "sha256": "c2hh", "caption": "mira"}`),
+				`, "video": {"id": "MEDIA4", "mime_type": "video/mp4", "sha256": "c2hh", "caption": "look at this"}`),
 			contentType: "video",
-			content:     "mira",
+			content:     "look at this",
 			media:       &mediaDescriptor{mediaID: "MEDIA4", mimeType: "video/mp4", sha256: "c2hh"},
 		},
 		"document": {
 			message: envelope("wamid.d", "document",
 				`, "document": {"id": "MEDIA5", "mime_type": "application/pdf", "sha256": "c2hh",`+
-					` "filename": "receipt.pdf", "caption": "factura"}`),
+					` "filename": "receipt.pdf", "caption": "invoice"}`),
 			contentType: "document",
-			content:     "factura",
+			content:     "invoice",
 			media: &mediaDescriptor{
 				mediaID: "MEDIA5", mimeType: "application/pdf", sha256: "c2hh", filename: "receipt.pdf",
 			},
@@ -85,10 +85,10 @@ func TestParseMessagesClassifiesEveryType(t *testing.T) {
 		},
 		"location with place": {
 			message: envelope("wamid.l", "location",
-				`, "location": {"latitude": 40.4168, "longitude": -3.7038, "name": "Museo del Prado",`+
-					` "address": "C. de Ruiz de Alarcón 23"}`),
+				`, "location": {"latitude": 51.5194, "longitude": -0.1269, "name": "British Museum",`+
+					` "address": "23 Great Russell St"}`),
 			contentType: "location",
-			content:     "Museo del Prado C. de Ruiz de Alarcón 23",
+			content:     "British Museum 23 Great Russell St",
 		},
 		"bare location pin": {
 			message:     envelope("wamid.l2", "location", `, "location": {"latitude": 40.4168, "longitude": -3.7038}`),
@@ -207,7 +207,7 @@ func TestParseMessagesFallsBackOnBadTimestamps(t *testing.T) {
 
 	before := time.Now().UTC()
 	message := `{"from": "184467235", "id": "wamid.bad", "timestamp": "not-a-number", "type": "text",` +
-		` "text": {"body": "hola"}}`
+		` "text": {"body": "hello"}}`
 
 	batch, err := parseWebhook(webhookBody(message))
 	if err != nil {
@@ -227,7 +227,7 @@ func TestParseMessagesFallsBackOnBadTimestamps(t *testing.T) {
 func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 	t.Parallel()
 
-	message := `42, {"type": "poll"}, ` + envelope("wamid.kept", "text", `, "text": {"body": "hola"}`)
+	message := `42, {"type": "poll"}, ` + envelope("wamid.kept", "text", `, "text": {"body": "hello"}`)
 
 	batch, err := parseWebhook(webhookBody(message))
 	if err != nil {
@@ -327,7 +327,7 @@ func TestParseWebhookCarriesMessagesAndStatusesTogether(t *testing.T) {
 			"messages": [%s],
 			"statuses": [{"id": "wamid.out.9", "status": "read"}]
 		}}]}]
-	}`, envelope("wamid.in.9", "text", `, "text": {"body": "hola"}`))
+	}`, envelope("wamid.in.9", "text", `, "text": {"body": "hello"}`))
 
 	batch, err := parseWebhook(body)
 	if err != nil {

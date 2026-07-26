@@ -21,7 +21,7 @@ export const handlers = [
 				external_id: '184467235',
 				status: 'open',
 				last_activity_at: '2026-07-06T10:00:00Z',
-				last_message_preview: 'hola',
+				last_message_preview: 'hello',
 			},
 			{
 				id: '019f4a00-0000-7000-8000-000000000003',

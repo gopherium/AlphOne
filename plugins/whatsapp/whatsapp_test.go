@@ -205,7 +205,7 @@ func TestMigrateCreatesMessagingTables(t *testing.T) {
 			"INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, "+
 				"direction, content, content_type, sent_at, raw, created_at) "+
 				"VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-			messageID, conversationID, externalID, "inbound", "hola", "text", now, "{}", now,
+			messageID, conversationID, externalID, "inbound", "hello", "text", now, "{}", now,
 		)
 		return err
 	}

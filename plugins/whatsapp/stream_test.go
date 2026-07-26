@@ -65,7 +65,7 @@ func TestWebhookEventBroadcastsToStreamSubscribers(t *testing.T) {
 
 	lines := subscribeToEvents(t, srv)
 
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 
 	waitForConversationEvent(t, lines)
 }

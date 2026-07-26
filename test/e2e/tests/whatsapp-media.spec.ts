@@ -97,7 +97,7 @@ test('delivers an inbound photo from the webhook to the thread', async ({
 	const stamp = Date.now()
 	const waId = `1666${stamp}`
 	const contactName = `Frida ${stamp}`
-	const caption = `una foto ${stamp}`
+	const caption = `a photo ${stamp}`
 	const body = inboundImagePayload(
 		waId,
 		contactName,

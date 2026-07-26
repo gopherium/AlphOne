@@ -147,21 +147,21 @@ test('creates a contact and opens its detail', async () => {
 	const newID = '0198c000-0000-7000-8000-000000000009'
 	server.use(
 		http.post('/api/contacts', () =>
-			HttpResponse.json(contactRow(newID, 'Nueva SL'), { status: 201 }),
+			HttpResponse.json(contactRow(newID, 'New Ltd'), { status: 201 }),
 		),
 		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ ...contactRow(newID, 'Nueva SL'), identities: [] }),
+			HttpResponse.json({ ...contactRow(newID, 'New Ltd'), identities: [] }),
 		),
 	)
 	renderAt('/contacts/new')
 	const create = await screen.findByRole('button', { name: 'Create contact' })
 	expect(create).toHaveAttribute('aria-disabled', 'true')
 
-	await userEvent.type(screen.getByLabelText('Name'), 'Nueva SL')
+	await userEvent.type(screen.getByLabelText('Name'), 'New Ltd')
 	await userEvent.click(create)
 
 	expect(
-		await screen.findByRole('heading', { name: 'Nueva SL' }),
+		await screen.findByRole('heading', { name: 'New Ltd' }),
 	).toBeInTheDocument()
 	expect(screen.getByText('No identities yet.')).toBeInTheDocument()
 })
@@ -246,11 +246,11 @@ test('renames a contact', async () => {
 		'true',
 	)
 
-	await userEvent.type(name, 'Ana García SL')
+	await userEvent.type(name, 'Ana García Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(
-		await screen.findByRole('heading', { name: 'Ana García SL' }),
+		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
 	).toBeInTheDocument()
 })
 
@@ -263,7 +263,7 @@ test('reports invalid contact details on rename', async () => {
 	renderAt(`/contacts/${anaID}`)
 	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(name, ' SL')
+	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(await screen.findByText('invalid contact details')).toBeInTheDocument()
@@ -278,7 +278,7 @@ test('reports a generic message when the rename fails otherwise', async () => {
 	renderAt(`/contacts/${anaID}`)
 	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(name, ' SL')
+	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(
@@ -295,7 +295,7 @@ test('surfaces the backend message for unreadable rename rejections', async () =
 	renderAt(`/contacts/${anaID}`)
 	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(name, ' SL')
+	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(await screen.findByText('invalid contact details')).toBeInTheDocument()
@@ -310,7 +310,7 @@ test('drops the session when the rename is unauthorized', async () => {
 	const client = renderAt(`/contacts/${anaID}`)
 	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(name, ' SL')
+	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	await waitFor(() =>

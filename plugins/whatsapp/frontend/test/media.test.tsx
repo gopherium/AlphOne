@@ -102,7 +102,7 @@ function renderThread(): QueryClient {
 }
 
 test('renders a stored image with its caption', async () => {
-	threadOf(message({ content_type: 'image', content: 'la factura', media: media() }))
+	threadOf(message({ content_type: 'image', content: 'the invoice', media: media() }))
 	const downloads = serveMediaBlobs()
 
 	renderThread()
@@ -111,7 +111,7 @@ test('renders a stored image with its caption', async () => {
 	expect(image).toHaveAttribute('src', 'blob:mock-1')
 	expect(image).toHaveClass('alphone-message__image')
 	expect(image).not.toHaveClass('alphone-message__image--sticker')
-	expect(screen.getByText('la factura')).toBeInTheDocument()
+	expect(screen.getByText('the invoice')).toBeInTheDocument()
 	expect(downloads.hits).toBe(1)
 })
 
@@ -188,14 +188,14 @@ test('renders an audio file without the voice label', async () => {
 test('renders a video with its caption', async () => {
 	const item = message({
 		content_type: 'video',
-		content: 'mira esto',
+		content: 'look at this',
 		media: media({ mime_type: 'video/mp4' }),
 	})
 	threadOf(item)
 
 	renderThread()
 
-	expect(await screen.findByText('mira esto')).toBeInTheDocument()
+	expect(await screen.findByText('look at this')).toBeInTheDocument()
 	const video = document.querySelector('video')
 	expect(video).toHaveAttribute('src', mediaURL(conversationId, item.id as string))
 })
@@ -235,7 +235,7 @@ test('renders a failed document as a chip without a link', async () => {
 	threadOf(
 		message({
 			content_type: 'document',
-			content: 'el contrato',
+			content: 'the contract',
 			media: media({
 				status: 'failed',
 				mime_type: 'application/pdf',
@@ -249,12 +249,12 @@ test('renders a failed document as a chip without a link', async () => {
 
 	expect(await screen.findByText('📄 contract.pdf (40.0 MB) (unavailable)')).toBeInTheDocument()
 	expect(screen.queryByRole('link')).not.toBeInTheDocument()
-	expect(screen.getByText('el contrato')).toBeInTheDocument()
+	expect(screen.getByText('the contract')).toBeInTheDocument()
 })
 
 test('renders typed placeholders for non-media types', async () => {
 	threadOf(
-		message({ content_type: 'location', content: 'Museo del Prado' }),
+		message({ content_type: 'location', content: 'British Museum' }),
 		message({ content_type: 'contacts', content: 'Ana García, Luis Ruiz' }),
 		message({ content_type: 'contacts', content: '' }),
 		message({ content_type: 'reaction', content: '👍' }),
@@ -264,7 +264,7 @@ test('renders typed placeholders for non-media types', async () => {
 
 	renderThread()
 
-	expect(await screen.findByText('📍 Museo del Prado')).toBeInTheDocument()
+	expect(await screen.findByText('📍 British Museum')).toBeInTheDocument()
 	expect(screen.getByText('👤 Ana García, Luis Ruiz')).toBeInTheDocument()
 	expect(screen.getByText('👤 Contact card')).toBeInTheDocument()
 	expect(screen.getByText('👍')).toBeInTheDocument()

@@ -28,7 +28,7 @@ function message(overrides: Record<string, unknown>): Record<string, unknown> {
 		id: `mid-${messageCounter}`,
 		external_id: `wamid.status.${messageCounter}`,
 		direction: 'outbound',
-		content: 'hola',
+		content: 'hello',
 		content_type: 'text',
 		sent_at: '2026-07-06T09:05:00Z',
 		status: null,
@@ -125,21 +125,21 @@ test('renders failures without detail with the generic explanation', async () =>
 test('renders no tick before the first status arrives', async () => {
 	renderThreadOf(message({ status: null }))
 
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 	expect(tickElement()).not.toBeInTheDocument()
 })
 
 test('renders no tick for accepted or unknown statuses', async () => {
 	renderThreadOf(message({ status: 'accepted' }))
 
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 	expect(tickElement()).not.toBeInTheDocument()
 })
 
 test('renders no tick on inbound messages', async () => {
 	renderThreadOf(message({ direction: 'inbound', status: 'delivered' }))
 
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 	expect(tickElement()).not.toBeInTheDocument()
 })
 
@@ -148,7 +148,7 @@ test('renders no tick on inbound messages', async () => {
  */
 async function sendReply() {
 	const user = userEvent.setup()
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'un mensaje')
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'a message')
 	await user.click(screen.getByRole('button', { name: /send/i }))
 }
 
@@ -159,7 +159,7 @@ test('shows the mapped explanation when a send is rejected with a known code', a
 			HttpResponse.json({ error: 'Re-engagement message', code: 131047 }, { status: 502 }),
 		),
 	)
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 
 	await sendReply()
 
@@ -175,7 +175,7 @@ test('shows the generic line when a send is rejected with an unknown code', asyn
 			HttpResponse.json({ error: 'strange', code: 999 }, { status: 502 }),
 		),
 	)
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 
 	await sendReply()
 
@@ -185,7 +185,7 @@ test('shows the generic line when a send is rejected with an unknown code', asyn
 test('shows the generic line when a rejection carries no JSON body', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
 	server.use(http.post(messagesPath, () => new HttpResponse('bad gateway', { status: 502 })))
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 
 	await sendReply()
 
@@ -195,7 +195,7 @@ test('shows the generic line when a rejection carries no JSON body', async () =>
 test('shows the generic line when the send fails on the network', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
 	server.use(http.post(messagesPath, () => HttpResponse.error()))
-	await screen.findByText('hola')
+	await screen.findByText('hello')
 
 	await sendReply()
 

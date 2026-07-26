@@ -63,7 +63,7 @@ func TestListConversationsOrdersByRecentActivity(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.2", "555000111", "John Doe", "1751791100", "hey")
 
 	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
@@ -88,8 +88,8 @@ func TestListConversationsIncludeLastMessagePreview(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
-	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "¿cómo estás?")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
+	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "how are you?")
 	ingestEvent(t, routes, "wamid.3", "555000111", "John Doe", "1751791200", strings.Repeat("é", 200))
 
 	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
@@ -97,7 +97,7 @@ func TestListConversationsIncludeLastMessagePreview(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("conversations = %d, want 2", len(got))
 	}
-	if got[1].LastMessagePreview == nil || *got[1].LastMessagePreview != "¿cómo estás?" {
+	if got[1].LastMessagePreview == nil || *got[1].LastMessagePreview != "how are you?" {
 		t.Errorf("preview = %v, want the newest message of the conversation", got[1].LastMessagePreview)
 	}
 	if got[0].LastMessagePreview == nil || utf8.RuneCountInString(*got[0].LastMessagePreview) != 140 {
@@ -128,7 +128,7 @@ func TestListConversationsWithoutMessagesHasNullPreview(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.1", "555000111", "John Doe", "1751791100", "stolen id")
 
 	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
@@ -163,7 +163,7 @@ func TestListConversationsHonorsLimit(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.2", "555000111", "John Doe", "1751791100", "hey")
 
 	got := getJSON[[]conversationBody](t, routes, "/conversations?limit=1", http.StatusOK)
@@ -194,8 +194,8 @@ func TestListMessagesReturnsChronologicalThread(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
-	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "¿cómo estás?")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
+	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "how are you?")
 
 	conversations := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
 	if len(conversations) != 1 {
@@ -207,9 +207,9 @@ func TestListMessagesReturnsChronologicalThread(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("messages = %d, want 2", len(got))
 	}
-	if got[0].Content != "hola" || got[1].Content != "¿cómo estás?" {
+	if got[0].Content != "hello" || got[1].Content != "how are you?" {
 		t.Errorf("thread = [%q, %q], want chronological [%q, %q]",
-			got[0].Content, got[1].Content, "hola", "¿cómo estás?")
+			got[0].Content, got[1].Content, "hello", "how are you?")
 	}
 	if got[0].Direction != "inbound" || got[0].ContentType != "text" {
 		t.Errorf("message = %+v, want inbound text", got[0])

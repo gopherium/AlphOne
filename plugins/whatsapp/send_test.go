@@ -92,7 +92,7 @@ func TestSendMessageBroadcastsToStreamSubscribers(t *testing.T) {
 	routes := p.Routes()
 	srv := httptest.NewServer(routes)
 	t.Cleanup(srv.Close)
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	conversationID := onlyConversation(t, routes).ID
 
 	lines := subscribeToEvents(t, srv)
@@ -109,7 +109,7 @@ func TestSendMessageDeliversReply(t *testing.T) {
 
 	p, stub := newSendingPlugin(t, nil)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	conversationID := onlyConversation(t, routes).ID
 
 	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"Ready at 5pm"}`)
@@ -158,7 +158,7 @@ func TestSendMessageAdvancesConversationActivity(t *testing.T) {
 
 	p, _ := newSendingPlugin(t, nil)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	before := onlyConversation(t, routes).LastActivityAt
 
 	recorder := postJSON(
@@ -241,7 +241,7 @@ func TestSendMessageReportsUpstreamFailure(t *testing.T) {
 
 			p, stub := newSendingPlugin(t, nil)
 			routes := p.Routes()
-			ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+			ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 			conversationID := onlyConversation(t, routes).ID
 			tc.configure(stub)
 
@@ -263,7 +263,7 @@ func TestSendMessageSurfacesGraphErrors(t *testing.T) {
 
 	p, stub := newSendingPlugin(t, nil)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	conversationID := onlyConversation(t, routes).ID
 	stub.status = http.StatusBadRequest
 	stub.body = `{"error":{"message":"Re-engagement message","code":131047}}`
@@ -290,7 +290,7 @@ func TestSendMessageRejectsMisconfiguredGraphURL(t *testing.T) {
 
 	p, _ := newSendingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_GRAPH_URL": "://not-a-url"})
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	conversationID := onlyConversation(t, routes).ID
 
 	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
@@ -309,7 +309,7 @@ func (failingEntropy) Read([]byte) (int, error) {
 func TestSendMessageReportsStoreFailure(t *testing.T) {
 	p, _ := newSendingPlugin(t, nil)
 	routes := p.Routes()
-	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	conversationID := onlyConversation(t, routes).ID
 
 	uuid.SetRand(failingEntropy{})

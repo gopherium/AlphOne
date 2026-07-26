@@ -75,7 +75,7 @@ func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 func TestWebhookEventsRejectsInvalidSignatures(t *testing.T) {
 	t.Parallel()
 
-	body := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	body := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 
 	tests := map[string]struct {
 		configuredSecret string
@@ -135,7 +135,7 @@ func TestWebhookEventsIngestTextMessages(t *testing.T) {
 
 	p, pool := newIngestingPlugin(t)
 	routes := p.Routes()
-	first := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	first := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 
 	if recorder := postEvent(t, routes, sign("app-secret", first), first); recorder.Code != http.StatusOK {
 		t.Fatalf("first event status = %d, want %d", recorder.Code, http.StatusOK)
@@ -151,8 +151,8 @@ func TestWebhookEventsIngestTextMessages(t *testing.T) {
 	if err := row.Scan(&contactName, &content); err != nil {
 		t.Fatalf("loading ingested message: %v", err)
 	}
-	if contactName != "María Pérez" || content != "hola" {
-		t.Errorf("ingested (%q, %q), want (%q, %q)", contactName, content, "María Pérez", "hola")
+	if contactName != "María Pérez" || content != "hello" {
+		t.Errorf("ingested (%q, %q), want (%q, %q)", contactName, content, "María Pérez", "hello")
 	}
 
 	if recorder := postEvent(t, routes, sign("app-secret", first), first); recorder.Code != http.StatusOK {
@@ -162,7 +162,7 @@ func TestWebhookEventsIngestTextMessages(t *testing.T) {
 		t.Errorf("messages after duplicate delivery = %d, want 1", got)
 	}
 
-	second := eventBody("wamid.2", "184467235", "María Pérez", "1751791100", "¿cómo estás?")
+	second := eventBody("wamid.2", "184467235", "María Pérez", "1751791100", "how are you?")
 	if recorder := postEvent(t, routes, sign("app-secret", second), second); recorder.Code != http.StatusOK {
 		t.Fatalf("second event status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -188,7 +188,7 @@ func TestWebhookEventsIngestMediaMessages(t *testing.T) {
 			"messaging_product": "whatsapp",
 			"contacts": [{"wa_id": "184467235", "profile": {"name": "María Pérez"}}],
 			"messages": [{"from": "184467235", "id": "wamid.img", "timestamp": "1751791000", "type": "image",
-				"image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh", "caption": "la factura"}}]
+				"image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh", "caption": "the invoice"}}]
 		}}]}]
 	}`)
 
@@ -203,8 +203,8 @@ func TestWebhookEventsIngestMediaMessages(t *testing.T) {
 	if err := row.Scan(&content, &contentType); err != nil {
 		t.Fatalf("loading ingested message: %v", err)
 	}
-	if content != "la factura" || contentType != "image" {
-		t.Errorf("ingested (%q, %q), want (%q, %q)", content, contentType, "la factura", "image")
+	if content != "the invoice" || contentType != "image" {
+		t.Errorf("ingested (%q, %q), want (%q, %q)", content, contentType, "the invoice", "image")
 	}
 }
 
@@ -241,7 +241,7 @@ func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string) {
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'outbound', 'hola', 'text', now(), '{}', now())`,
+		VALUES ($1, $2, $3, 'outbound', 'hello', 'text', now(), '{}', now())`,
 		uuid.Must(uuid.NewV7()), conversationID, wamid,
 	); err != nil {
 		t.Fatalf("inserting outbound message: %v", err)
@@ -316,7 +316,7 @@ func TestWebhookEventsReportIngestFailure(t *testing.T) {
 
 	p, pool := newIngestingPlugin(t)
 	pool.Close()
-	body := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hola")
+	body := eventBody("wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 
 	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
 

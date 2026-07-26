@@ -102,7 +102,7 @@ test('progresses delivery ticks on an outbound reply', async ({
 		waId,
 		contactName,
 		`wamid.e2e.status.in.${stamp}`,
-		'hola',
+		'hello',
 	)
 
 	const stream = page.waitForResponse((response) =>
@@ -121,7 +121,7 @@ test('progresses delivery ticks on an outbound reply', async ({
 	expect(delivered.status()).toBe(200)
 	await page.getByText(contactName).click()
 
-	const reply = `listo ${stamp}`
+	const reply = `ready ${stamp}`
 	await page.getByRole('textbox', { name: 'Reply' }).fill(reply)
 	await page.getByRole('button', { name: 'Send' }).click()
 	const log = page.getByRole('log', { name: 'Messages' })

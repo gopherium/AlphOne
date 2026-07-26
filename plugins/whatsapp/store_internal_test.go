@@ -55,15 +55,15 @@ func TestListConversationsPreviewsEveryContentType(t *testing.T) {
 		content     string
 		want        string
 	}{
-		"text":                  {contentType: "text", content: "hola", want: "hola"},
+		"text":                  {contentType: "text", content: "hello", want: "hello"},
 		"long text truncated":   {contentType: "text", content: strings.Repeat("a", 200), want: strings.Repeat("a", 140)},
-		"image with caption":    {contentType: "image", content: "la factura", want: "la factura"},
+		"image with caption":    {contentType: "image", content: "the invoice", want: "the invoice"},
 		"image without caption": {contentType: "image", content: "", want: "[photo]"},
 		"audio":                 {contentType: "audio", content: "", want: "[voice message]"},
 		"video":                 {contentType: "video", content: "", want: "[video]"},
 		"document":              {contentType: "document", content: "", want: "[document]"},
 		"sticker":               {contentType: "sticker", content: "", want: "[sticker]"},
-		"location":              {contentType: "location", content: "Museo del Prado", want: "Museo del Prado"},
+		"location":              {contentType: "location", content: "British Museum", want: "British Museum"},
 		"nameless contact card": {contentType: "contacts", content: "", want: "[contact]"},
 		"reaction":              {contentType: "reaction", content: "👍", want: "👍"},
 		"reaction removal":      {contentType: "reaction", content: "", want: "[reaction]"},
@@ -127,7 +127,7 @@ func TestListMessagesOrdersSameSecondMessagesByID(t *testing.T) {
 		if _, err := p.pool.Exec(ctx,
 			`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 				content_type, sent_at, raw, created_at)
-			VALUES ($1, $2, $3, 'inbound', 'hola', 'text', $4, '{}', $5)`,
+			VALUES ($1, $2, $3, 'inbound', 'hello', 'text', $4, '{}', $5)`,
 			id, conversationID, fmt.Sprintf("wamid.%d", i), sentAt, time.Now().UTC(),
 		); err != nil {
 			t.Fatalf("inserting message %d: %v", i, err)

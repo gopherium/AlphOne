@@ -452,7 +452,7 @@ func TestRunServesAPI(t *testing.T) {
 
 	event := []byte(`{"entry":[{"changes":[{"value":{"contacts":[{"wa_id":"184467235",` +
 		`"profile":{"name":"María Pérez"}}],"messages":[{"from":"184467235",` +
-		`"id":"wamid.e2e","timestamp":"1751791000","type":"text","text":{"body":"hola"}}]}}]}]}`)
+		`"id":"wamid.e2e","timestamp":"1751791000","type":"text","text":{"body":"hello"}}]}}]}]}`)
 	mac := hmac.New(sha256.New, []byte("e2e-app-secret"))
 	mac.Write(event)
 	eventRequest, err := http.NewRequestWithContext(

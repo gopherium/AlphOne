@@ -35,7 +35,7 @@ func seedOutboundMessage(t *testing.T, p *Plugin, externalID string) uuid.UUID {
 	if _, err := p.pool.Exec(ctx,
 		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'outbound', 'hola', 'text', $4, '{}', $4)`,
+		VALUES ($1, $2, $3, 'outbound', 'hello', 'text', $4, '{}', $4)`,
 		uuid.Must(uuid.NewV7()), conversationID, externalID, now,
 	); err != nil {
 		t.Fatalf("inserting outbound message: %v", err)

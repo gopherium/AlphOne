@@ -47,7 +47,7 @@ test('shows an inbound conversation pushed over the live stream', async ({
 	const stamp = Date.now()
 	const waId = `1555${stamp}`
 	const contactName = `Ada ${stamp}`
-	const body = inboundTextPayload(waId, contactName, `wamid.e2e.${stamp}`, 'hola')
+	const body = inboundTextPayload(waId, contactName, `wamid.e2e.${stamp}`, 'hello')
 
 	const stream = page.waitForResponse((response) =>
 		response.url().includes('/api/plugins/whatsapp/events'),

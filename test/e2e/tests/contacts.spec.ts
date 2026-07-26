@@ -4,8 +4,8 @@ import { expect, test } from '@playwright/test'
 
 test('creates, searches, and renames a contact', async ({ page }) => {
 	const stamp = Date.now()
-	const name = `Cliente ${stamp}`
-	const renamed = `Cliente ${stamp} SL`
+	const name = `Customer ${stamp}`
+	const renamed = `Customer ${stamp} Ltd`
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Contacts' }).click()
