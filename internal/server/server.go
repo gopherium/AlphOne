@@ -12,6 +12,7 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
+	"github.com/gopherium/pluginkit"
 )
 
 // sessionCookieName scopes the login cookie to this product.
@@ -95,16 +96,7 @@ type server struct {
 // protectPlugin wraps a plugin handler in the session middleware, letting
 // the plugin's declared public paths through untouched.
 func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
-	public := make(map[string]struct{}, len(publicPaths))
-	for _, path := range publicPaths {
-		public[path] = struct{}{}
-	}
-	protected := s.auth.RequireSession(s.boundPluginRequest(handler))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := public[r.URL.Path]; ok {
-			handler.ServeHTTP(w, r)
-			return
-		}
-		protected.ServeHTTP(w, r)
+	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
+		return s.auth.RequireSession(s.boundPluginRequest(next))
 	})
 }

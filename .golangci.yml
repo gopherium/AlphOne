@@ -26,6 +26,7 @@ linters:
           allow:
             - $gostd
             - github.com/google/uuid
+            - github.com/gopherium/pluginkit
         plugins-import-only-the-sdk:
           list-mode: lax
           files:

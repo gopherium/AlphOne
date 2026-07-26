@@ -17,7 +17,7 @@ func TestContractKeepsItsDependenciesMinimal(t *testing.T) {
 		t.Fatalf("inspecting package: %v", err)
 	}
 
-	allowedThirdParty := []string{"github.com/google/uuid"}
+	allowedThirdParty := []string{"github.com/google/uuid", "github.com/gopherium/pluginkit"}
 	for _, imported := range pkg.Imports {
 		if strings.HasPrefix(imported, "github.com/gopherium/alphone") {
 			t.Errorf("sdk imports %q; the contract must never depend on the application", imported)

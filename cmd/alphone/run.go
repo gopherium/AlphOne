@@ -18,8 +18,9 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
+	"github.com/gopherium/pluginkit"
+
 	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/plugin"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
@@ -76,7 +77,7 @@ func run(
 		return fmt.Errorf("register plugins: %w", err)
 	}
 
-	host := plugin.NewHost(registered...)
+	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}

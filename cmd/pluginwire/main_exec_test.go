@@ -12,6 +12,20 @@ import (
 	"testing"
 )
 
+func writePlugin(t *testing.T, root, dir, manifestJSON string) {
+	t.Helper()
+	pluginDir := filepath.Join(root, "plugins", dir)
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("creating %s: %v", pluginDir, err)
+	}
+	if manifestJSON == "" {
+		return
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(manifestJSON), 0o644); err != nil {
+		t.Fatalf("writing manifest: %v", err)
+	}
+}
+
 func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
