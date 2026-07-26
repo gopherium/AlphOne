@@ -86,12 +86,12 @@ In a second terminal, from the repository root:
 
 ```sh
 pnpm install
-pnpm run dev
+pnpm dev
 ```
 
-`pnpm run dev` starts the Vite dev server for the frontend package. It
-is a root script for `pnpm --filter @alphone/frontend dev`, which
-selects the `@alphone/frontend` package inside the pnpm workspace.
+`pnpm dev` starts the Vite dev server for the frontend package. It is a
+root script for `pnpm --filter @alphone/frontend dev`, which selects
+the `@alphone/frontend` package inside the pnpm workspace.
 
 Vite serves the app on [http://localhost:5173](http://localhost:5173) and
 proxies every `/api` request to the backend on port 8080 (point it
