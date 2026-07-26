@@ -188,28 +188,6 @@ func TestSeedReportsAdminStorageFailure(t *testing.T) {
 	}
 }
 
-func TestSeedAdminValidatesThePassword(t *testing.T) {
-	t.Parallel()
-
-	_, err := seedAdmin(t.Context(), nil, "admin@example.com", "Admin", "short")
-
-	if err == nil {
-		t.Fatal("seedAdmin() error = nil, want a weak password failure")
-	}
-}
-
-func TestSeedAdminReportsStorageFailure(t *testing.T) {
-	t.Parallel()
-
-	store := authkitpg.NewUserStore(testPool(t, unreachableDatabaseURL))
-
-	_, err := seedAdmin(t.Context(), store, "admin@example.com", "Admin", "password1234")
-
-	if err == nil {
-		t.Fatal("seedAdmin() error = nil, want a storage failure")
-	}
-}
-
 func TestSeedWhatsAppReportsMigrationFailure(t *testing.T) {
 	t.Parallel()
 

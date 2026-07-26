@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/contact"
@@ -43,7 +43,8 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := postgres.Migrate(ctx, databaseURL); err != nil {
 		return err
 	}
-	created, err := seedAdmin(ctx, authkitpg.NewUserStore(pool), seedAdminEmail, seedAdminName, seedAdminPassword)
+	created, err := authkit.EnsureAdmin(
+		ctx, authkitpg.NewUserStore(pool), seedAdminEmail, seedAdminName, seedAdminPassword)
 	if err != nil {
 		return err
 	}
@@ -62,22 +63,6 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	}
 	_, _ = fmt.Fprintln(stdout, "development only, never seed a production database")
 	return nil
-}
-
-// seedAdmin creates the demo admin account, reporting whether it was newly created.
-func seedAdmin(ctx context.Context, store gouncer.Store, email, name, password string) (bool, error) {
-	admin, err := gouncer.NewUser(email, name, password)
-	if err != nil {
-		return false, fmt.Errorf("build admin: %w", err)
-	}
-	err = store.CreateUser(ctx, admin)
-	if errors.Is(err, gouncer.ErrEmailTaken) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("create admin: %w", err)
-	}
-	return true, nil
 }
 
 // seedWhatsApp registers the WhatsApp plugin and stores its demo conversations.
