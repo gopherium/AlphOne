@@ -41,8 +41,22 @@ there is nothing to edit for a first run.
 
 ## 3. Create the first login
 
-Create the admin account. The command prompts for a password on stdin,
-minimum 12 characters:
+The quickest start is the development seeder. One command migrates the
+database and fills it with a demo data set:
+
+```sh
+make seed
+```
+
+It creates an admin login (`admin@example.com` / `password1234`), a few
+contacts, and WhatsApp conversations with text, an image, and delivery
+ticks, so every screen has something to show. Running it again is safe,
+it repairs a half-seeded database instead of duplicating anything. The
+credentials are public knowledge: never run the seeder against a
+production database.
+
+To create another account instead, via CLI use `createadmin`. It prompts for a
+password on stdin, minimum 12 characters:
 
 ```sh
 go run ./cmd/alphone createadmin -email you@example.com -name "Your Name"

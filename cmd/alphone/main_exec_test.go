@@ -95,6 +95,47 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 	}
 }
 
+func TestMainBinarySeedReportsFailure(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary, "seed")
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("seed without configuration: %v, want exit code 1", err)
+	}
+	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
+		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
+	}
+}
+
+func TestMainBinarySeedStoresDemoData(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "seed")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "admin@example.com / password1234") {
+		t.Errorf("stdout = %q, want it to print the demo credentials", stdout.String())
+	}
+}
+
 func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	t.Parallel()
 

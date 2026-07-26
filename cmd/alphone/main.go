@@ -25,6 +25,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "seed" {
+		if err := seed(ctx, os.Getenv, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "alphone:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(ctx, os.Getenv, os.Stderr, registerPlugins); err != nil {
 		fmt.Fprintln(os.Stderr, "alphone:", err)
 		os.Exit(1)
