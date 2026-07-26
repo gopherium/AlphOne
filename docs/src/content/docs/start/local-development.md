@@ -65,12 +65,13 @@ go run ./cmd/alphone createadmin -email you@example.com -name "Your Name"
 ## 4. Run the backend
 
 ```sh
-go run ./cmd/alphone
+make dev
 ```
 
-Migrations run automatically at startup, so a fresh database is ready on
-first boot. The API listens on `localhost:8080` (change it with
-`ALPHONE_ADDR`).
+`make dev` starts the database container when it is not running yet and
+then runs `go run ./cmd/alphone`. Migrations run automatically at
+startup, so a fresh database is ready on first boot. The API listens on
+`localhost:8080` (change it with `ALPHONE_ADDR`).
 
 The WhatsApp plugin starts with the rest of the app. Without its
 `ALPHONE_WHATSAPP_*` variables it runs inert: the screens exist but no
@@ -85,8 +86,12 @@ In a second terminal, from the repository root:
 
 ```sh
 pnpm install
-pnpm --filter @alphone/frontend dev
+pnpm run dev
 ```
+
+`pnpm run dev` starts the Vite dev server for the frontend package. It
+is a root script for `pnpm --filter @alphone/frontend dev`, which
+selects the `@alphone/frontend` package inside the pnpm workspace.
 
 Vite serves the app on [http://localhost:5173](http://localhost:5173) and
 proxies every `/api` request to the backend on port 8080 (point it

@@ -1,4 +1,4 @@
-.PHONY: test test-race cover cover-html lint fmt generate outdated db-up db-down seed \
+.PHONY: test test-race cover cover-html lint fmt generate outdated db-up db-down seed dev \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb)
@@ -38,6 +38,9 @@ db-down:
 
 seed: db-up
 	go run ./cmd/alphone seed
+
+dev: db-up
+	go run ./cmd/alphone
 
 COVERDATA = .covdata
 
