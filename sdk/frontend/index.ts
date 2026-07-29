@@ -25,6 +25,7 @@ export {
 	Badge,
 	Button,
 	Card,
+	Checkbox,
 	Collapsible,
 	EmptyState,
 	Icon,
@@ -39,13 +40,11 @@ export {
 } from '@wordpress/ui'
 export {
 	calendar,
-	check,
 	chevronLeft,
 	chevronRight,
 	inbox,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
-export { Checkbox } from '@alphone/ui-primitives'
 export { sessionQueryKey } from '@gopherium/react-auth'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useEventStream } from './stream'

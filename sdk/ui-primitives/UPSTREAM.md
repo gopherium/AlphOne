@@ -13,16 +13,20 @@ Review this file whenever the `@wordpress/ui` pin moves.
 
 ## Primitives
 
-| Primitive | Why it is here | Upstream status | Replace when |
+None. The package stays as the scaffold for the next one.
+
+## Replaced by upstream
+
+| Primitive | Lived here | Replaced by | Notes |
 | --- | --- | --- | --- |
-| `Checkbox` | Not in `@wordpress/ui` 0.17.0. The task list needs the canonical to-do affordance, and an icon button reading as a tick is a poor substitute. | Not shipped. Base UI provides `Checkbox.Root` and `Checkbox.Indicator`, so upstream would be layering, not building from scratch. | `@wordpress/ui` exports a `Checkbox`. Compare its anatomy against ours first, then flip the facade export and delete this file's entry. |
+| `Checkbox` | `@wordpress/ui` 0.17.0 | `@wordpress/ui` 0.18.0 | WordPress/gutenberg#80039 landed the same anatomy we had built: `Checkbox.Root` with an indicator carrying the `check` icon. Upstream takes no `label` prop, so callers pass `aria-label`. The facade swap was one line. |
 
 ## Findings worth reporting upstream
 
 | Finding | Where | Notes |
 | --- | --- | --- |
 | `Notice.Root` announces through `@wordpress/a11y`, so its text appears twice in the DOM. Consumer test suites cannot use plain text queries without ignoring the live region. | `@wordpress/ui` 0.17.0 Notice | Discussed in WordPress/gutenberg#80706, where a reviewer proposes the primitive should carry no live region at all. We work around it with `configure({ defaultIgnore })` in `frontend/src/test/setup.ts`. Real external-consumer evidence for that thread. |
-| `@wordpress/element` named-imports React DOM APIs removed in React 19, so it crashes on load under React 19. | `@wordpress/element` 8.2.0 | Patched locally through pnpm `patchedDependencies`. The patch file is the pull request draft. |
+| `@wordpress/element` named-imports React DOM APIs removed in React 19, so it crashes on load under React 19. | `@wordpress/element` 8.3.0 | Patched locally through pnpm `patchedDependencies`. The patch file is the pull request draft. Still present in 8.4.0, and the package still requires `react: ^18.3.1`. |
 
 ## Conventions to keep
 

@@ -9,7 +9,7 @@ overrides:
   react-dom: ^19.2.7
 
 patchedDependencies:
-  '@wordpress/element@8.2.0': bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c
+  '@wordpress/element@8.3.0': fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8
 
 importers:
 
@@ -41,7 +41,7 @@ importers:
         version: link:../plugins/whatsapp/frontend
       '@gopherium/react-auth':
         specifier: ^0.1.1
-        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
+        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -49,11 +49,11 @@ importers:
         specifier: ^1.170.17
         version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@wordpress/theme':
-        specifier: ^0.17.0
-        version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+        specifier: 1.0.0
+        version: 1.0.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/ui':
-        specifier: ^0.17.0
-        version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+        specifier: 0.18.0
+        version: 0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -137,24 +137,21 @@ importers:
 
   sdk/frontend:
     dependencies:
-      '@alphone/ui-primitives':
-        specifier: workspace:*
-        version: link:../ui-primitives
       '@gopherium/react-auth':
         specifier: ^0.1.1
-        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
+        version: 0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
       '@wordpress/icons':
-        specifier: ^15.1.0
-        version: 15.1.0(@types/react@19.2.17)(react@19.2.7)
+        specifier: 15.2.0
+        version: 15.2.0(@types/react@19.2.17)(react@19.2.7)
       '@wordpress/theme':
-        specifier: ^0.17.0
-        version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+        specifier: 1.0.0
+        version: 1.0.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/ui':
-        specifier: ^0.17.0
-        version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+        specifier: 0.18.0
+        version: 0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -178,27 +175,7 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  sdk/ui-primitives:
-    dependencies:
-      '@base-ui/react':
-        specifier: ^1.6.0
-        version: 1.6.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      react:
-        specifier: ^19.2.7
-        version: 19.2.7
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@testing-library/user-event':
-        specifier: ^14.6.1
-        version: 14.6.1(@testing-library/dom@10.4.1)
-      '@types/react':
-        specifier: ^19.2.17
-        version: 19.2.17
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+  sdk/ui-primitives: {}
 
   test/e2e:
     devDependencies:
@@ -1416,103 +1393,99 @@ packages:
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
 
-  '@wordpress/a11y@4.50.0':
-    resolution: {integrity: sha512-c/1EeqliArkmxSlRmDzbRoNGGMmhsAiCgenWmvJzpWwF3rVoyjF/DClps5GagAO1sbg+6Q1bsxgg3svCEhLdAg==}
+  '@wordpress/a11y@4.51.0':
+    resolution: {integrity: sha512-ophPwL3J31JOA46koDonBz7EL1dMfpKLEj8crD2uCK5IYzvqlYJrLA0o+RfPUUHrbXa51qGBSZ/+Bprb6nao+g==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/compose@8.3.0':
-    resolution: {integrity: sha512-nHrV8mLanqnLO67l+6RkotG9eRgiW1D6uVb919z8wVWwoZVfimFyN1nznH92tdE/xW6SnX37XDoLoLcS9IkwhQ==}
+  '@wordpress/compose@8.4.0':
+    resolution: {integrity: sha512-oVmRQ05Rlzh+W7oFb6CGmNm9SDozd3VEVYhXO4CcTpz0vkn7bEcwIMIdaKq49X8vORW1htJa/myBbYJATpamNg==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
       react: ^19.2.7
     peerDependenciesMeta:
       '@types/react':
         optional: true
 
-  '@wordpress/deprecated@4.50.0':
-    resolution: {integrity: sha512-TVJavTbunFoCSo2g64EKtGwmDVJhvlSqsc4T1EM4aBwsYGIJPjHcAzh6KS8Z171QXFnBxZ7We8CCDAvOFU9iaA==}
+  '@wordpress/deprecated@4.51.0':
+    resolution: {integrity: sha512-6pgnUvz7oQRwpJh+aM/dPBs5GBPTyOj+XKGeyzKPKHqbaWeSzkHVI9bhgs+Ajamn/jERK5TgH+VAq/gwfvfO+g==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/dom-ready@4.50.0':
-    resolution: {integrity: sha512-y+nZ8/gm91cV+F6DP1hoQTtYIy+3/YYGQui0lRRgTMOywrlZLt7rDbKBsEsznPOsDo0880LspEOTDX12Qrps8A==}
+  '@wordpress/dom-ready@4.51.0':
+    resolution: {integrity: sha512-O/ivmzG+o44CicTW+c17KBXlmjRoVp4VGIyyEQDD52H5YH+gX7i15FuEPk6G2e7Rqz4DCvCS5yD7eY9Zb3z1WA==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/dom@4.50.0':
-    resolution: {integrity: sha512-2Mognc1rwe1+tlIfbSeZPqbuAh6vJagELzw9cLasObiVayWhaG+LCIp0sJz2pPG9ppz8L31gGUgna7zrSRu85Q==}
+  '@wordpress/dom@4.51.0':
+    resolution: {integrity: sha512-POkQoNBzLFlHaVzJakgF5X/xj4nERsLa5uTAvt3i7YFr9tep3uLtOFCJiiZM1vzO5iVtYSBWxmWyDkJPsOSy6g==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/element@8.2.0':
-    resolution: {integrity: sha512-cTnKRHUdZbYAd4RaJiUwhDKdQDDWY7VoGiwektCmhiBQF6WTFYlhsxl/dmHE0Sok3q7PJQwAg538XEb8WuTaew==}
+  '@wordpress/element@8.3.0':
+    resolution: {integrity: sha512-D6Oawyq9RNL01RbpmBkx5dcE2CawU7p2cPxfeNVZkh/zEV5w9pi7HAwvFFqQA1jRT0sV4B62JcAAzuILALcQQw==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/escape-html@3.50.0':
-    resolution: {integrity: sha512-EECt++WB1RNPQBwBS7/6rKO4eUNq2xe6nb6Guv6uT+F74DgtM3+aZtNs7JhKFxRMORPtu7T0LhlAOBa4H5CsPQ==}
+  '@wordpress/escape-html@3.51.0':
+    resolution: {integrity: sha512-0jPCm9WqpB7S+mdhkjjikBzGo06xAgvmgwtSP1v44P5tKNGujcbsvKj+JW0m60FJxNBmaZPvGu2e/DlY4iljVQ==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/hooks@4.50.0':
-    resolution: {integrity: sha512-dV/AeP9iH1UydVWoUoCPuM8FUx2XvL1i65dhiwRHmZxK/zz8nR5Rq75WISpwFzRYfsyRThjl4LwUxhFAQnHrDw==}
+  '@wordpress/hooks@4.51.0':
+    resolution: {integrity: sha512-pTVZRT9mjEdrNNt7TyKw5hQhFUqntfTXVs/fboEDpmAi+PFWXoD8rPs3oZyRCVr/MDyE6OCv1mwEibI6AsRk3Q==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/i18n@6.23.0':
-    resolution: {integrity: sha512-avuywVdBpOeHm9cghFcNXCKi/VlJhbJ6KN6LydQOy/NqdRbqyRc59/XlKk1Ks+Vb+dWTGKr5gjiSzm9QJETGmA==}
+  '@wordpress/i18n@6.24.0':
+    resolution: {integrity: sha512-K4XmCyyyDOKH/5ea75P2L36ZiAvQTy4Hsa73Na3n6NzVjAwrrKZm4JJGf0t+OlThUG4D4GyfEv5szs5EeCA0lA==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     hasBin: true
 
-  '@wordpress/icons@15.1.0':
-    resolution: {integrity: sha512-KPFEe24QJ5MTp6XMREKPPW1tHWjQau/vwYuZqkddSiJEhUBSrNaDHRqneCMC6WVhWCSmWNJcjUtdkFQpLb5W+A==}
+  '@wordpress/icons@15.2.0':
+    resolution: {integrity: sha512-g/1a4eTNH/mCluvmryNcYAg1GxsjY6xGjfGJRq3z44SEcB8jAZyEQtqdcGQ+o2kHelKhmmqS8WAowxif44ZgNQ==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
       react: ^19.2.7
     peerDependenciesMeta:
       '@types/react':
         optional: true
 
-  '@wordpress/is-shallow-equal@5.50.0':
-    resolution: {integrity: sha512-Cq1brW/OhGVNnCqSztHgmKQ1DsNUtEq4F1xIo1awBKVmXDWFggJRxzaWZHWC+sDZmBp7pu03jWqq2u/s+hazSQ==}
+  '@wordpress/is-shallow-equal@5.51.0':
+    resolution: {integrity: sha512-Ivyf85r9trFfl/rRaDMgghFZ+gzw8yIl7/vDPagYkvq9Xnqw8KecPy91BqIIvco1jIOh3RXPP6cbVu3dTqZDMA==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/keycodes@4.50.0':
-    resolution: {integrity: sha512-BtyCkA7pk5pMMx+dVjT10OuhQwr9ZjYY1LLcXJcYJjhhFsP16be2BiytrBnKDZj/479/icvEYwlooawZCPrxYQ==}
+  '@wordpress/keycodes@4.51.0':
+    resolution: {integrity: sha512-C9CZq2WCWVacjsHhFgM0GVIQmTUxo/oX7U+Qj0kr3vWHZu6cmEDJ94PX+f02M3b+iHnCk4oHCvnXGANwKQwsSw==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
     peerDependenciesMeta:
       '@types/react':
         optional: true
 
-  '@wordpress/primitives@4.50.0':
-    resolution: {integrity: sha512-X/Vf1BUwPsxsyJq+z2UwjOHFoT4p1XI0VoxgN2JsbK0ZwbLPA9PQur1hGw9ujXqNZ4XG1U2rQ0aM+3yap7iC3g==}
+  '@wordpress/primitives@4.51.0':
+    resolution: {integrity: sha512-vSg8XYGyBL9+s1h67Fhx8vV718iM9jto8/Tx5tyEdPHXuvY9F8hi3FLZ8k/DQ7qGy+o3ljDsfl1dq9DHP/Fs0A==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
       react: ^19.2.7
     peerDependenciesMeta:
       '@types/react':
         optional: true
 
-  '@wordpress/priority-queue@3.50.0':
-    resolution: {integrity: sha512-OyuAplepKQpNYr8z+nGGGNXWK2v2u9Bqnawkg7V5YkvOKYj/iBJNCiUxiWXOBMeLF1ze36RDR5LEcNDmXRev2Q==}
+  '@wordpress/priority-queue@3.51.0':
+    resolution: {integrity: sha512-Mgm6DFRW4ZqgkVTQNe6LdtWzah19u6531Uf1L5q1LwYd/eekKeRsNB9dJnqBg2Kn/jgfPbZnTaHToDvnOZQgcA==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/private-apis@1.50.0':
-    resolution: {integrity: sha512-bCVLL9YuWfnPNNqlhl4eTKPipjWbJ8MzAlasJ/SR+h979MyeMFjNPapxKqsPqnJOhDEVSdCTkRN/Wa+Xk8qFdw==}
+  '@wordpress/private-apis@1.51.0':
+    resolution: {integrity: sha512-x3FeBDGegBAKveYHNmgZgTbEwuwVMxGouTR2fKP94Myn5PzF5EkZK1CZJrDnfNjzTl73nCwsd4IXACdtYfnnAQ==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
-  '@wordpress/style-runtime@0.5.0':
-    resolution: {integrity: sha512-hrXvdDUJpOzT1KIomgtysysgbc5bkkwAuJyEUAXiOCgVBXBeMkZlgfN19W0PuNY51j53K7VQ42txfayxgVmfgA==}
+  '@wordpress/style-runtime@0.7.0':
+    resolution: {integrity: sha512-PeAcF7qoIMg9ChS5SfkRrLLcUx9D7Te6weRcQmoKYgxE7jSzzXpoaiy3Z+Us+ChyisolF4xhTg5DblMBPL1iug==}
     engines: {node: '>=20.10.0', npm: '>=10.2.3'}
 
-  '@wordpress/style-runtime@0.6.0':
-    resolution: {integrity: sha512-PSNzFecFRJ7gmah5YxHFv0a0ZUwZOdeO9/B8GNyv2LgC/ZLXS8CtsAblOKVRO3W7ExwazbHwexaTAOzU/+7Mug==}
-    engines: {node: '>=20.10.0', npm: '>=10.2.3'}
-
-  '@wordpress/theme@0.17.0':
-    resolution: {integrity: sha512-BU+PLBLxMBM4WJYrd1QEwy+IA64vUP+8IEEB9lLx2NfB+3/45vvuvXx9o3qPKRDHvtMtEaRArld4Kn05UIW9IA==}
-    engines: {node: '>=18.12.0', npm: '>=8.19.2'}
+  '@wordpress/theme@1.0.0':
+    resolution: {integrity: sha512-zPwDgv7xx3f4h+lLCq95szofMAMjSIlkIIfR7U2cxQws5J6XnnTsOxHWJTE6V4jPzS19vzFdQdZ9wiR/X3c0Lw==}
+    engines: {node: ^20.19.0 || >=22.13.0, npm: '>=10.2.3'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
       esbuild: ^0.27.2
       postcss: ^8.0.0
       react: ^19.2.7
@@ -1531,19 +1504,19 @@ packages:
       vite:
         optional: true
 
-  '@wordpress/ui@0.17.0':
-    resolution: {integrity: sha512-+mMnJmkvFjTk7veIioU/idaPfb6HJCcBV408v1gKsbpLa+dxG+rLdlrpzJILLlZmHUyCrJXk9EmYZi6MkFoL9A==}
-    engines: {node: '>=20.10.0', npm: '>=10.2.3'}
+  '@wordpress/ui@0.18.0':
+    resolution: {integrity: sha512-TIMsjaRl5/QJEjKbtoa0YAhzVdcvAk/FmA9rgJVR6oG/l6+s0WgoebGASEVyRyoOstq45xB7PzYMdjVs7iS0zg==}
+    engines: {node: ^20.19.0 || >=22.13.0, npm: '>=10.2.3'}
     peerDependencies:
-      '@types/react': ^18.3.27
+      '@types/react': ^18 || ^19
       react: ^19.2.7
       react-dom: ^19.2.7
     peerDependenciesMeta:
       '@types/react':
         optional: true
 
-  '@wordpress/undo-manager@1.50.0':
-    resolution: {integrity: sha512-599I3GPXSMpmAE2jqzHteqypI7rdt5HPDAw8GrHMkDWR1T9gK2L3gObv8I1Hs4eSDM88wgAB0Ifnqpy7zPn5rw==}
+  '@wordpress/undo-manager@1.51.0':
+    resolution: {integrity: sha512-w/vUyQX2m+X2xDYCdxu/ALHJdE5S0vkWbxFhUJJeBJG66IFs/DGk/NmLCOudUFLFMQYSXFyIm1XsIPT0UdjhCA==}
     engines: {node: '>=18.12.0', npm: '>=8.19.2'}
 
   acorn-jsx@5.3.2:
@@ -2950,7 +2923,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@gopherium/react-auth@0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)':
+  '@gopherium/react-auth@0.1.1(@tanstack/react-query@5.101.2(react@19.2.7))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@wordpress/ui@0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(react@19.2.7)(vitest@4.1.10)':
     dependencies:
       '@tanstack/react-query': 5.101.2(react@19.2.7)
       react: 19.2.7
@@ -2958,7 +2931,7 @@ snapshots:
     optionalDependencies:
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@wordpress/ui': 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/ui': 0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       msw: 2.15.0(@types/node@26.1.1)(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.1)(typescript@6.0.3))(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
 
@@ -3639,22 +3612,22 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@wordpress/a11y@4.50.0':
+  '@wordpress/a11y@4.51.0':
     dependencies:
-      '@wordpress/dom-ready': 4.50.0
-      '@wordpress/i18n': 6.23.0
+      '@wordpress/dom-ready': 4.51.0
+      '@wordpress/i18n': 6.24.0
 
-  '@wordpress/compose@8.3.0(@types/react@19.2.17)(react@19.2.7)':
+  '@wordpress/compose@8.4.0(@types/react@19.2.17)(react@19.2.7)':
     dependencies:
       '@types/mousetrap': 1.6.15
-      '@wordpress/deprecated': 4.50.0
-      '@wordpress/dom': 4.50.0
-      '@wordpress/element': 8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)
-      '@wordpress/is-shallow-equal': 5.50.0
-      '@wordpress/keycodes': 4.50.0(@types/react@19.2.17)
-      '@wordpress/priority-queue': 3.50.0
-      '@wordpress/private-apis': 1.50.0
-      '@wordpress/undo-manager': 1.50.0
+      '@wordpress/deprecated': 4.51.0
+      '@wordpress/dom': 4.51.0
+      '@wordpress/element': 8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)
+      '@wordpress/is-shallow-equal': 5.51.0
+      '@wordpress/keycodes': 4.51.0(@types/react@19.2.17)
+      '@wordpress/priority-queue': 3.51.0
+      '@wordpress/private-apis': 1.51.0
+      '@wordpress/undo-manager': 1.51.0
       change-case: 4.1.2
       mousetrap: 1.6.5
       react: 19.2.7
@@ -3662,81 +3635,79 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@wordpress/deprecated@4.50.0':
+  '@wordpress/deprecated@4.51.0':
     dependencies:
-      '@wordpress/hooks': 4.50.0
+      '@wordpress/hooks': 4.51.0
 
-  '@wordpress/dom-ready@4.50.0': {}
+  '@wordpress/dom-ready@4.51.0': {}
 
-  '@wordpress/dom@4.50.0':
+  '@wordpress/dom@4.51.0':
     dependencies:
-      '@wordpress/deprecated': 4.50.0
+      '@wordpress/deprecated': 4.51.0
 
-  '@wordpress/element@8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)':
+  '@wordpress/element@8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)':
     dependencies:
       '@types/react': 18.3.31
       '@types/react-dom': 18.3.7(@types/react@18.3.31)
-      '@wordpress/deprecated': 4.50.0
-      '@wordpress/escape-html': 3.50.0
+      '@wordpress/deprecated': 4.51.0
+      '@wordpress/escape-html': 3.51.0
       change-case: 4.1.2
       is-plain-object: 5.0.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@wordpress/escape-html@3.50.0': {}
+  '@wordpress/escape-html@3.51.0': {}
 
-  '@wordpress/hooks@4.50.0': {}
+  '@wordpress/hooks@4.51.0': {}
 
-  '@wordpress/i18n@6.23.0':
+  '@wordpress/i18n@6.24.0':
     dependencies:
       '@tannin/sprintf': 1.3.3
-      '@wordpress/hooks': 4.50.0
+      '@wordpress/hooks': 4.51.0
       gettext-parser: 1.4.0
       memize: 2.1.1
       tannin: 1.2.0
 
-  '@wordpress/icons@15.1.0(@types/react@19.2.17)(react@19.2.7)':
+  '@wordpress/icons@15.2.0(@types/react@19.2.17)(react@19.2.7)':
     dependencies:
-      '@wordpress/element': 8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)
-      '@wordpress/primitives': 4.50.0(@types/react@19.2.17)(react@19.2.7)
+      '@wordpress/element': 8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)
+      '@wordpress/primitives': 4.51.0(@types/react@19.2.17)(react@19.2.7)
       change-case: 4.1.2
       react: 19.2.7
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@wordpress/is-shallow-equal@5.50.0': {}
+  '@wordpress/is-shallow-equal@5.51.0': {}
 
-  '@wordpress/keycodes@4.50.0(@types/react@19.2.17)':
+  '@wordpress/keycodes@4.51.0(@types/react@19.2.17)':
     dependencies:
-      '@wordpress/i18n': 6.23.0
+      '@wordpress/i18n': 6.24.0
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@wordpress/primitives@4.50.0(@types/react@19.2.17)(react@19.2.7)':
+  '@wordpress/primitives@4.51.0(@types/react@19.2.17)(react@19.2.7)':
     dependencies:
-      '@wordpress/element': 8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)
+      '@wordpress/element': 8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)
       clsx: 2.1.1
       react: 19.2.7
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@wordpress/priority-queue@3.50.0':
+  '@wordpress/priority-queue@3.51.0':
     dependencies:
       requestidlecallback: 0.3.0
 
-  '@wordpress/private-apis@1.50.0': {}
+  '@wordpress/private-apis@1.51.0': {}
 
-  '@wordpress/style-runtime@0.5.0': {}
+  '@wordpress/style-runtime@0.7.0': {}
 
-  '@wordpress/style-runtime@0.6.0': {}
-
-  '@wordpress/theme@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/theme@1.0.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
-      '@wordpress/compose': 8.3.0(@types/react@19.2.17)(react@19.2.7)
-      '@wordpress/deprecated': 4.50.0
-      '@wordpress/element': 8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)
-      '@wordpress/private-apis': 1.50.0
-      '@wordpress/style-runtime': 0.5.0
+      '@wordpress/compose': 8.4.0(@types/react@19.2.17)(react@19.2.7)
+      '@wordpress/deprecated': 4.51.0
+      '@wordpress/element': 8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)
+      '@wordpress/private-apis': 1.51.0
+      '@wordpress/style-runtime': 0.7.0
       colorjs.io: 0.6.1
       memize: 2.1.1
       react: 19.2.7
@@ -3746,19 +3717,19 @@ snapshots:
       postcss: 8.5.16
       vite: 8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)
 
-  '@wordpress/ui@0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/ui@0.18.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@base-ui/react': 1.6.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@wordpress/a11y': 4.50.0
-      '@wordpress/compose': 8.3.0(@types/react@19.2.17)(react@19.2.7)
-      '@wordpress/element': 8.2.0(patch_hash=bd51df21551c5214335c7bab7d0d8afb5afd4aa7db3c0a48f30fb02ba86dc98c)
-      '@wordpress/i18n': 6.23.0
-      '@wordpress/icons': 15.1.0(@types/react@19.2.17)(react@19.2.7)
-      '@wordpress/keycodes': 4.50.0(@types/react@19.2.17)
-      '@wordpress/primitives': 4.50.0(@types/react@19.2.17)(react@19.2.7)
-      '@wordpress/private-apis': 1.50.0
-      '@wordpress/style-runtime': 0.6.0
-      '@wordpress/theme': 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/a11y': 4.51.0
+      '@wordpress/compose': 8.4.0(@types/react@19.2.17)(react@19.2.7)
+      '@wordpress/element': 8.3.0(patch_hash=fa6f690e1341d76b15175d9e5a779c7ad5f716dc33f18f481b1f557bd37f99d8)
+      '@wordpress/i18n': 6.24.0
+      '@wordpress/icons': 15.2.0(@types/react@19.2.17)(react@19.2.7)
+      '@wordpress/keycodes': 4.51.0(@types/react@19.2.17)
+      '@wordpress/primitives': 4.51.0(@types/react@19.2.17)(react@19.2.7)
+      '@wordpress/private-apis': 1.51.0
+      '@wordpress/style-runtime': 0.7.0
+      '@wordpress/theme': 1.0.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))
       clsx: 2.1.1
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -3773,9 +3744,9 @@ snapshots:
       - stylelint
       - vite
 
-  '@wordpress/undo-manager@1.50.0':
+  '@wordpress/undo-manager@1.51.0':
     dependencies:
-      '@wordpress/is-shallow-equal': 5.50.0
+      '@wordpress/is-shallow-equal': 5.51.0
 
   acorn-jsx@5.3.2(acorn@8.17.0):
     dependencies:

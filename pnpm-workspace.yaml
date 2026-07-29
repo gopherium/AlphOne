@@ -15,9 +15,6 @@ peerDependencyRules:
     react-dom: '19'
     '@types/react': '19'
 
-patchedDependencies:
-  '@wordpress/element@8.2.0': patches/@wordpress__element@8.2.0.patch
-
 minimumReleaseAgeExclude:
   - vite@8.1.4
   - '@gopherium/react-auth@0.1.1'
@@ -25,3 +22,6 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: false
   msw: false
+
+patchedDependencies:
+  '@wordpress/element@8.3.0': patches/@wordpress__element@8.3.0.patch

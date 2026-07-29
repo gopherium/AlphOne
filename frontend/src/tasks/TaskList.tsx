@@ -73,7 +73,7 @@ function TaskRow({
 			render={<li />}
 		>
 			<Checkbox
-				label={done ? 'Reopen' : 'Complete'}
+				aria-label={done ? 'Reopen' : 'Complete'}
 				checked={done}
 				disabled={controls.pendingID === task.id}
 				className="alphone-tasks__check"
