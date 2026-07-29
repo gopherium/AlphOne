@@ -29,7 +29,7 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 	await victimPage.getByLabel('Email').fill(email)
 	await victimPage.getByLabel('Password').fill(password)
 	await victimPage.getByRole('button', { name: 'Log in' }).click()
-	await expect(victimPage.getByText('Welcome to AlphOne.')).toBeVisible()
+	await expect(victimPage.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
 	await page.getByRole('button', { name: `Disable ${name}` }).click()
 	await expect(row.getByText('Disabled')).toBeVisible()
@@ -37,7 +37,7 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 	await victimPage.reload()
 
 	await expect(victimPage.getByLabel('Email')).toBeVisible()
-	await expect(victimPage.getByText('Welcome to AlphOne.')).toBeHidden()
+	await expect(victimPage.getByRole('heading', { name: 'Tasks' })).toBeHidden()
 
 	await victim.close()
 })

@@ -4,11 +4,11 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	redirect,
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
 import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
-import { Home } from './Home'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { TasksRoute } from './taskRoutes'
@@ -21,7 +21,9 @@ const rootRoute = createRootRoute({
 const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
-	component: Home,
+	beforeLoad: () => {
+		throw redirect({ to: '/tasks' })
+	},
 })
 
 const tasksRoute = createRoute({

@@ -7,10 +7,10 @@ import { coreNav } from '../menu/coreNav'
 import { plugins } from '../plugins'
 import { renderAt } from './render'
 
-test('serves the home screen at the root path', async () => {
+test('sends the root path to the day of tasks', async () => {
 	renderAt('/')
 
-	expect(await screen.findByText(/welcome to alphone/i)).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { name: 'Tasks' })).toBeInTheDocument()
 })
 
 test('shows the AlphOne masthead as a heading', async () => {
@@ -44,6 +44,6 @@ test('frames the active route inside the main content region', async () => {
 	renderAt('/')
 
 	const main = await screen.findByRole('main')
-	expect(within(main).getByText(/welcome to alphone/i)).toBeInTheDocument()
+	expect(within(main).getByRole('heading', { name: 'Tasks' })).toBeInTheDocument()
 	expect(within(main).queryByRole('navigation')).toBeNull()
 })
