@@ -43,7 +43,10 @@ export default defineConfig({
 				},
 				{
 					label: 'WhatsApp',
-					items: [{ slug: 'whatsapp/meta-setup' }],
+					items: [
+						{ slug: 'whatsapp/meta-setup' },
+						{ slug: 'whatsapp/api' },
+					],
 				},
 				{
 					label: 'Reference',
