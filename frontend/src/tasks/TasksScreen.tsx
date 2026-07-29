@@ -79,6 +79,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			<div className="alphone-tasks__header">
 				<h1>Tasks</h1>
 				<DayNavigation date={date} today={today} />
+				<Button render={<Link to="/tasks/new" search={{ date }} />}>New task</Button>
 			</div>
 			<Text className="alphone-tasks__day">{formatDay(date)}</Text>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
@@ -232,7 +233,9 @@ function TaskList({
 			{tasks.map((task) => (
 				<li key={task.id} className="alphone-tasks__row" aria-label={task.title}>
 					<Text className={task.status === 'done' ? 'alphone-tasks__title--done' : undefined}>
-						{task.title}
+						<Link to="/tasks/$taskId" params={{ taskId: task.id }}>
+							{task.title}
+						</Link>
 					</Text>
 					{showDueDate ? (
 						<Text className="alphone-tasks__due">{`Due ${task.due_on}`}</Text>

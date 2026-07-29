@@ -11,7 +11,7 @@ import type { RouterHistory } from '@tanstack/react-router'
 import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
-import { TasksRoute } from './taskRoutes'
+import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
 import { NewUserRoute, UsersRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
@@ -32,6 +32,20 @@ const tasksRoute = createRoute({
 	validateSearch: (search: Record<string, unknown>): { date?: string } =>
 		typeof search.date === 'string' ? { date: search.date } : {},
 	component: TasksRoute,
+})
+
+const newTaskRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/tasks/new',
+	validateSearch: (search: Record<string, unknown>): { date?: string } =>
+		typeof search.date === 'string' ? { date: search.date } : {},
+	component: NewTaskRoute,
+})
+
+const taskRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/tasks/$taskId',
+	component: TaskRoute,
 })
 
 const contactsRoute = createRoute({
@@ -67,6 +81,8 @@ const newUserRoute = createRoute({
 const routeTree = rootRoute.addChildren([
 	homeRoute,
 	tasksRoute,
+	newTaskRoute,
+	taskRoute,
 	contactsRoute,
 	newContactRoute,
 	contactRoute,

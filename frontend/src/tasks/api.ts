@@ -69,6 +69,22 @@ export async function fetchDayTasks(date: string, cursor: string): Promise<TaskP
 }
 
 /**
+ * Fetches one task.
+ * @param id - The task identifier.
+ * @returns The parsed task.
+ */
+export async function fetchTask(id: string): Promise<Task> {
+	const response = await fetch(`/api/tasks/${id}`)
+	if (response.status === 401) {
+		throw new UnauthorizedError('session expired')
+	}
+	if (!response.ok) {
+		throw new Error(`loading task failed with status ${response.status}`)
+	}
+	return taskSchema.parse(await response.json())
+}
+
+/**
  * Fetches one page of the open tasks due before a day.
  * @param date - The exclusive upper bound as YYYY-MM-DD.
  * @param cursor - The cursor from the previous page, or an empty string.
@@ -93,13 +109,18 @@ export async function fetchOverdueTasks(date: string, cursor: string): Promise<T
  * Creates a task due on a day and returns it.
  * @param title - The task title.
  * @param dueOn - The due date as YYYY-MM-DD.
+ * @param extras - The optional priority and contact link.
  * @returns The created task.
  */
-export async function createTask(title: string, dueOn: string): Promise<Task> {
+export async function createTask(
+	title: string,
+	dueOn: string,
+	extras: { priority?: number; contact_id?: string } = {},
+): Promise<Task> {
 	const response = await fetch('/api/tasks', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ title, due_on: dueOn }),
+		body: JSON.stringify({ title, due_on: dueOn, ...extras }),
 	})
 	if (response.status === 401) {
 		throw new UnauthorizedError('session expired')

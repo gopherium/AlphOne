@@ -497,3 +497,54 @@ body {
 	gap: 8px;
 	align-items: flex-start;
 }
+
+.alphone-tasks__nav {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.alphone-tasks__form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	max-width: 360px;
+}
+
+.alphone-tasks__field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.alphone-tasks__actions {
+	display: flex;
+	gap: 8px;
+}
+
+.alphone-tasks__contact a {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.alphone-tasks__picker,
+.alphone-tasks__picked {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.alphone-tasks__picked {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+
+.alphone-tasks__results {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.alphone-tasks__due {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}

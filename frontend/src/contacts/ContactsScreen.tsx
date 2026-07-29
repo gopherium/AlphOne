@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { fetchContacts } from './api'
 import type { ContactPage } from './api'
 import { formatCreated } from './format'
-import { useDebouncedValue } from './useDebouncedValue'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 const searchDebounceMs = 300
 
