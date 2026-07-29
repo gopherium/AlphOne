@@ -69,6 +69,27 @@ export async function fetchDayTasks(date: string, cursor: string): Promise<TaskP
 }
 
 /**
+ * Fetches one page of the open tasks due before a day.
+ * @param date - The exclusive upper bound as YYYY-MM-DD.
+ * @param cursor - The cursor from the previous page, or an empty string.
+ * @returns The parsed page.
+ */
+export async function fetchOverdueTasks(date: string, cursor: string): Promise<TaskPage> {
+	const params = new URLSearchParams({ due_before: date, status: 'open' })
+	if (cursor !== '') {
+		params.set('cursor', cursor)
+	}
+	const response = await fetch(`/api/tasks?${params.toString()}`)
+	if (response.status === 401) {
+		throw new UnauthorizedError('session expired')
+	}
+	if (!response.ok) {
+		throw new Error(`listing overdue tasks failed with status ${response.status}`)
+	}
+	return taskPageSchema.parse(await response.json())
+}
+
+/**
  * Creates a task due on a day and returns it.
  * @param title - The task title.
  * @param dueOn - The due date as YYYY-MM-DD.

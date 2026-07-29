@@ -10,9 +10,18 @@ const callID = '0198c000-0000-7000-8000-000000000101'
 const quoteID = '0198c000-0000-7000-8000-000000000102'
 const doneID = '0198c000-0000-7000-8000-000000000103'
 const addedID = '0198c000-0000-7000-8000-000000000104'
+const oldID = '0198c000-0000-7000-8000-000000000105'
 
-// today is computed independently of the screen's own date helper.
-const today = new Date().toLocaleDateString('en-CA')
+// These dates are computed independently of the screen's own date helpers.
+function localDate(offsetDays: number) {
+	const at = new Date()
+	at.setDate(at.getDate() + offsetDays)
+	return at.toLocaleDateString('en-CA')
+}
+
+const today = localDate(0)
+const tomorrow = localDate(1)
+const yesterday = localDate(-1)
 
 function taskRow(id: string, title: string, status = 'open', priority = 0) {
 	return {
@@ -30,10 +39,16 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 }
 
 let listedDates: string[] = []
+let overdueBefore: string[] = []
+let patched: { id: string; body: Record<string, unknown> }[] = []
 let tasks: ReturnType<typeof taskRow>[] = []
+let overdue: ReturnType<typeof taskRow>[] = []
 
 beforeEach(() => {
 	listedDates = []
+	overdueBefore = []
+	patched = []
+	overdue = []
 	tasks = [
 		taskRow(callID, 'Call the supplier'),
 		taskRow(quoteID, 'Send the quote'),
@@ -42,17 +57,28 @@ beforeEach(() => {
 	server.use(
 		http.get('/api/tasks', ({ request }) => {
 			const url = new URL(request.url)
+			const dueBefore = url.searchParams.get('due_before')
+			if (dueBefore !== null) {
+				overdueBefore.push(dueBefore)
+				return HttpResponse.json({ tasks: overdue, next_cursor: null })
+			}
 			listedDates.push(url.searchParams.get('date') ?? '')
 			return HttpResponse.json({ tasks, next_cursor: null })
 		}),
 		http.patch('/api/tasks/:id', async ({ request, params }) => {
-			const body = (await request.json()) as { status?: string }
-			const stored = tasks.find((row) => row.id === String(params.id))
+			const body = (await request.json()) as { status?: string; due_on?: string }
+			patched.push({ id: String(params.id), body })
+			const stored = [...tasks, ...overdue].find((row) => row.id === String(params.id))
 			if (stored === undefined) {
 				return HttpResponse.json({ error: 'task: not found' }, { status: 404 })
 			}
-			const updated = { ...stored, status: body.status ?? stored.status }
+			const updated = {
+				...stored,
+				status: body.status ?? stored.status,
+				due_on: body.due_on ?? stored.due_on,
+			}
 			tasks = tasks.map((row) => (row.id === updated.id ? updated : row))
+			overdue = overdue.filter((row) => row.id !== updated.id || body.due_on === undefined)
 			return HttpResponse.json(updated)
 		}),
 		http.post('/api/tasks', async ({ request }) => {
@@ -162,11 +188,13 @@ test('shows an empty state when the day has no tasks', async () => {
 })
 
 test('loads more tasks through the cursor', async () => {
-	let served = 0
 	server.use(
-		http.get('/api/tasks', () => {
-			served += 1
-			if (served === 1) {
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			if (url.searchParams.get('cursor') === null) {
 				return HttpResponse.json({
 					tasks: [taskRow(callID, 'Call the supplier')],
 					next_cursor: 'CUR1',
@@ -188,14 +216,18 @@ test('loads more tasks through the cursor', async () => {
 
 test('reports when the tasks cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
-		),
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			return HttpResponse.json({ error: 'internal error' }, { status: 500 })
+		}),
 	)
 
 	renderAt('/tasks')
 
-	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
+	expect(await screen.findByText('Tasks could not be loaded.')).toBeInTheDocument()
 })
 
 test('reports when a task cannot be added', async () => {
@@ -314,6 +346,191 @@ test('disables the row control while its update is in flight', async () => {
 		'true',
 	)
 	release?.()
+})
+
+test('lists the day named by the date search param', async () => {
+	renderAt(`/tasks?date=${tomorrow}`)
+
+	await screen.findByText('Call the supplier')
+	expect(listedDates).toContain(tomorrow)
+	expect(listedDates).not.toContain(today)
+})
+
+test('falls back to today when the date search param is unusable', async () => {
+	renderAt('/tasks?date=not-a-date')
+
+	await screen.findByText('Call the supplier')
+	expect(listedDates).toContain(today)
+})
+
+test('walks to the next and previous day', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			const date = url.searchParams.get('date')
+			if (date === null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			return HttpResponse.json({
+				tasks: [taskRow(callID, `Work due ${date}`)],
+				next_cursor: null,
+			})
+		}),
+	)
+	renderAt(`/tasks?date=${tomorrow}`)
+	await screen.findByText(`Work due ${tomorrow}`)
+
+	await userEvent.click(screen.getByRole('link', { name: 'Next day' }))
+
+	expect(await screen.findByText(`Work due ${localDate(2)}`)).toBeInTheDocument()
+
+	await userEvent.click(screen.getByRole('link', { name: 'Previous day' }))
+
+	expect(await screen.findByText(`Work due ${tomorrow}`)).toBeInTheDocument()
+})
+
+test('offers a way back to today only when looking at another day', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	expect(screen.queryByRole('link', { name: 'Today' })).not.toBeInTheDocument()
+
+	await userEvent.click(screen.getByRole('link', { name: 'Next day' }))
+	await waitFor(() => expect(listedDates).toContain(tomorrow))
+	await userEvent.click(await screen.findByRole('link', { name: 'Today' }))
+
+	await waitFor(() =>
+		expect(screen.queryByRole('link', { name: 'Today' })).not.toBeInTheDocument(),
+	)
+})
+
+test('shows overdue work above the day, with its original due date', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+	expect(within(row).getByText(`Due ${yesterday}`)).toBeInTheDocument()
+	expect(overdueBefore).toContain(today)
+})
+
+test('keeps overdue work out of other days', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }]
+
+	renderAt(`/tasks?date=${tomorrow}`)
+
+	await screen.findByText('Call the supplier')
+	expect(screen.queryByText('Chase the invoice')).not.toBeInTheDocument()
+	expect(overdueBefore).toHaveLength(0)
+})
+
+test('says nothing about overdue work when there is none', async () => {
+	renderAt('/tasks')
+
+	await screen.findByText('Call the supplier')
+	expect(screen.queryByRole('list', { name: 'Overdue tasks' })).not.toBeInTheDocument()
+})
+
+test('pushes a task to tomorrow', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toEqual({ id: callID, body: { due_on: tomorrow } })
+})
+
+test('pushes an overdue task to tomorrow rather than to the day after it was due', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: localDate(-5) }]
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+
+	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toEqual({ id: oldID, body: { due_on: tomorrow } })
+})
+
+test('pushes a task on a future day to the day after it', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_on: tomorrow }]
+	renderAt(`/tasks?date=${tomorrow}`)
+	await screen.findByText('Call the supplier')
+
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toEqual({ id: callID, body: { due_on: localDate(2) } })
+})
+
+test('loads more overdue work through the cursor', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') === null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			if (url.searchParams.get('cursor') === null) {
+				return HttpResponse.json({
+					tasks: [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }],
+					next_cursor: 'CUR1',
+				})
+			}
+			return HttpResponse.json({
+				tasks: [{ ...taskRow(callID, 'Refile the paperwork'), due_on: yesterday }],
+				next_cursor: null,
+			})
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Chase the invoice')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Load more overdue' }))
+
+	expect(await screen.findByText('Refile the paperwork')).toBeInTheDocument()
+})
+
+test('leaves done tasks without a push control', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	await userEvent.click(screen.getByRole('button', { name: 'Done (1)' }))
+
+	const row = await screen.findByRole('listitem', { name: 'Book the courier' })
+	expect(within(row).queryByRole('button', { name: 'Push to tomorrow' })).not.toBeInTheDocument()
+})
+
+test('reports when overdue work cannot be loaded', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ error: 'internal error' }, { status: 500 })
+			}
+			return HttpResponse.json({ tasks, next_cursor: null })
+		}),
+	)
+
+	renderAt('/tasks')
+
+	expect(await screen.findByText('Overdue tasks could not be loaded.')).toBeInTheDocument()
+})
+
+test('drops the session when the overdue list is unauthorized', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ error: 'no session' }, { status: 401 })
+			}
+			return HttpResponse.json({ tasks, next_cursor: null })
+		}),
+	)
+
+	const client = renderAt('/tasks')
+
+	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
 })
 
 test('drops the session when the list is unauthorized', async () => {

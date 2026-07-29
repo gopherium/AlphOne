@@ -27,6 +27,8 @@ const homeRoute = createRoute({
 const tasksRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/tasks',
+	validateSearch: (search: Record<string, unknown>): { date?: string } =>
+		typeof search.date === 'string' ? { date: search.date } : {},
 	component: TasksRoute,
 })
 

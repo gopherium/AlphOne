@@ -24,6 +24,46 @@ export function isoDate(at: Date): string {
  * @returns A heading such as Thursday, Jul 30.
  */
 export function formatDay(date: string): string {
+	return dayFormat.format(parseDate(date))
+}
+
+/**
+ * Reports whether a string is a calendar date the task API accepts.
+ * @param date - The candidate date.
+ * @returns True when the string is a real YYYY-MM-DD date.
+ */
+export function isValidDate(date: string): boolean {
+	return /^\d{4}-\d{2}-\d{2}$/.test(date) && isoDate(parseDate(date)) === date
+}
+
+/**
+ * Shifts a date by whole days.
+ * @param date - The starting date as YYYY-MM-DD.
+ * @param days - The number of days to add.
+ * @returns The shifted date as YYYY-MM-DD.
+ */
+export function shiftDate(date: string, days: number): string {
+	const at = parseDate(date)
+	at.setDate(at.getDate() + days)
+	return isoDate(at)
+}
+
+/**
+ * Returns the later of two dates.
+ * @param date - The first date as YYYY-MM-DD.
+ * @param other - The second date as YYYY-MM-DD.
+ * @returns The later date as YYYY-MM-DD.
+ */
+export function laterDate(date: string, other: string): string {
+	return date > other ? date : other
+}
+
+/**
+ * Parses a task date as a local calendar day.
+ * @param date - The date as YYYY-MM-DD.
+ * @returns The parsed date at local midnight.
+ */
+function parseDate(date: string): Date {
 	const [year, month, day] = date.split('-').map(Number)
-	return dayFormat.format(new Date(year, month - 1, day))
+	return new Date(year, month - 1, day)
 }
