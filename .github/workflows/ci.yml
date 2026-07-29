@@ -49,6 +49,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc -b
       - run: pnpm lint
       - run: pnpm exec eslint .
         working-directory: ${{ github.workspace }}
