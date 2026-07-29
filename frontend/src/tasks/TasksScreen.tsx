@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Text } from '@alphone/frontend-sdk'
+import {
+	Button,
+	Collapsible,
+	EmptyState,
+	IconButton,
+	InputControl,
+	Notice,
+	Stack,
+	Text,
+	chevronLeft,
+	chevronRight,
+	inbox,
+} from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -74,13 +86,27 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 	}
 
 	return (
-		<div className="alphone-tasks">
-			<div className="alphone-tasks__header">
-				<h1>Tasks</h1>
-				<DayNavigation date={date} today={today} />
-				<Button render={<Link to="/tasks/new" search={{ date }} />}>New task</Button>
-			</div>
-			<Text className="alphone-tasks__day">{formatDay(date)}</Text>
+		<Stack direction="column" gap="lg" className="alphone-tasks">
+			<Stack direction="row" gap="md" align="center" justify="space-between">
+				<Stack direction="column" gap="xs">
+					<Text variant="heading-xl" render={<h1 />}>
+						Tasks
+					</Text>
+					<Text variant="body-sm" className="alphone-tasks__day">
+						{formatDay(date)}
+					</Text>
+				</Stack>
+				<Stack direction="row" gap="sm" align="center">
+					<DayNavigation date={date} today={today} />
+					<Button
+						variant="solid"
+						render={<Link to="/tasks/new" search={{ date }} />}
+						nativeButton={false}
+					>
+						New task
+					</Button>
+				</Stack>
+			</Stack>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<form
 				className="alphone-tasks__add"
@@ -100,34 +126,56 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 					Add task
 				</Button>
 			</form>
-			{add.isError ? <Text role="alert">{addErrorText(add.error)}</Text> : null}
+			{add.isError ? (
+				<Notice.Root intent="error">
+					<Notice.Description>{addErrorText(add.error)}</Notice.Description>
+				</Notice.Root>
+			) : null}
 			{change.isError || push.isError ? (
-				<Text role="alert">The task could not be updated.</Text>
+				<Notice.Root intent="error">
+					<Notice.Description>The task could not be updated.</Notice.Description>
+				</Notice.Root>
 			) : null}
 			<TaskSections tasks={tasks} controls={controls} />
-		</div>
+		</Stack>
 	)
 }
 
 /**
- * Renders the links that move between days.
+ * Renders the controls that move between days.
  * @returns The day navigation.
  */
 function DayNavigation({ date, today }: { date: string; today: string }) {
 	return (
-		<div className="alphone-tasks__nav">
-			<Link to="/tasks" search={{ date: shiftDate(date, -1) }} aria-label="Previous day">
-				‹
-			</Link>
+		<Stack direction="row" gap="xs" align="center">
+			<IconButton
+				icon={chevronLeft}
+				label="Previous day"
+				variant="minimal"
+				tone="neutral"
+				nativeButton={false}
+				render={<Link to="/tasks" search={{ date: shiftDate(date, -1) }} />}
+			/>
 			{date === today ? null : (
-				<Link to="/tasks" search={{ date: today }}>
+				<Button
+					variant="minimal"
+					tone="neutral"
+					size="compact"
+					nativeButton={false}
+					render={<Link to="/tasks" search={{ date: today }} />}
+				>
 					Today
-				</Link>
+				</Button>
 			)}
-			<Link to="/tasks" search={{ date: shiftDate(date, 1) }} aria-label="Next day">
-				›
-			</Link>
-		</div>
+			<IconButton
+				icon={chevronRight}
+				label="Next day"
+				variant="minimal"
+				tone="neutral"
+				nativeButton={false}
+				render={<Link to="/tasks" search={{ date: shiftDate(date, 1) }} />}
+			/>
+		</Stack>
 	)
 }
 
@@ -140,22 +188,34 @@ function OverdueSection({ tasks, controls }: { tasks: TaskQuery; controls: RowCo
 		return null
 	}
 	if (tasks.isError) {
-		return <Text role="alert">Overdue tasks could not be loaded.</Text>
+		return (
+			<Notice.Root intent="error">
+				<Notice.Description>Overdue tasks could not be loaded.</Notice.Description>
+			</Notice.Root>
+		)
 	}
 	const rows = tasks.data.pages.flatMap((page) => page.tasks)
 	if (rows.length === 0) {
 		return null
 	}
 	return (
-		<div className="alphone-tasks__overdue">
-			<h2>Overdue</h2>
+		<Stack direction="column" gap="sm" className="alphone-tasks__overdue">
+			<Text variant="heading-sm" render={<h2 />}>
+				Overdue
+			</Text>
 			<TaskList label="Overdue tasks" tasks={rows} controls={controls} showDueDate />
 			{tasks.hasNextPage ? (
-				<Button onClick={() => void tasks.fetchNextPage()} disabled={tasks.isFetchingNextPage}>
+				<Button
+					variant="minimal"
+					tone="neutral"
+					size="compact"
+					onClick={() => void tasks.fetchNextPage()}
+					disabled={tasks.isFetchingNextPage}
+				>
 					Load more overdue
 				</Button>
 			) : null}
-		</div>
+		</Stack>
 	)
 }
 
@@ -168,25 +228,41 @@ function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowCont
 		return <Text role="status">Loading tasks…</Text>
 	}
 	if (tasks.isError) {
-		return <Text role="alert">Tasks could not be loaded.</Text>
+		return (
+			<Notice.Root intent="error">
+				<Notice.Description>Tasks could not be loaded.</Notice.Description>
+			</Notice.Root>
+		)
 	}
 	const rows = tasks.data.pages.flatMap((page) => page.tasks)
 	const open = rows.filter((task) => task.status !== 'done')
 	const done = rows.filter((task) => task.status === 'done')
 	return (
-		<>
+		<Stack direction="column" gap="lg">
 			{open.length === 0 ? (
-				<Text role="status">Nothing due today.</Text>
+				<EmptyState.Root>
+					<EmptyState.Icon icon={inbox} />
+					<EmptyState.Title>Nothing due today.</EmptyState.Title>
+					<EmptyState.Description>
+						Add a task above, or open a contact and create one from their page.
+					</EmptyState.Description>
+				</EmptyState.Root>
 			) : (
 				<TaskList label="Open tasks" tasks={open} controls={controls} />
 			)}
 			{tasks.hasNextPage ? (
-				<Button onClick={() => void tasks.fetchNextPage()} disabled={tasks.isFetchingNextPage}>
+				<Button
+					variant="minimal"
+					tone="neutral"
+					size="compact"
+					onClick={() => void tasks.fetchNextPage()}
+					disabled={tasks.isFetchingNextPage}
+				>
 					Load more
 				</Button>
 			) : null}
 			{done.length > 0 ? <DoneGroup tasks={done} controls={controls} /> : null}
-		</>
+		</Stack>
 	)
 }
 
@@ -195,13 +271,18 @@ function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowCont
  * @returns The done group.
  */
 function DoneGroup({ tasks, controls }: { tasks: Task[]; controls: RowControls }) {
-	const [open, setOpen] = useState(false)
 	return (
-		<div className="alphone-tasks__done">
-			<Button variant="minimal" onClick={() => setOpen(!open)}>
-				{`Done (${tasks.length})`}
-			</Button>
-			{open ? <TaskList label="Done tasks" tasks={tasks} controls={controls} /> : null}
-		</div>
+		<Collapsible.Root>
+			<Collapsible.Trigger
+				render={
+					<Button variant="minimal" tone="neutral" size="compact">
+						{`Done (${tasks.length})`}
+					</Button>
+				}
+			/>
+			<Collapsible.Panel>
+				<TaskList label="Done tasks" tasks={tasks} controls={controls} />
+			</Collapsible.Panel>
+		</Collapsible.Root>
 	)
 }

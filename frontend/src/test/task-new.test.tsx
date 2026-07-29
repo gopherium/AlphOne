@@ -61,7 +61,7 @@ beforeEach(() => {
 test('offers the new task form from the day list', async () => {
 	renderAt('/tasks')
 
-	await userEvent.click(await screen.findByRole('link', { name: 'New task' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'New task' }))
 
 	expect(await screen.findByRole('heading', { name: 'New task' })).toBeInTheDocument()
 })
@@ -108,7 +108,8 @@ test('creates a task with a raised priority', async () => {
 	renderAt('/tasks/new')
 	await userEvent.type(await screen.findByLabelText('Title'), 'Order more boxes')
 
-	await userEvent.selectOptions(screen.getByLabelText('Priority'), '1')
+	await userEvent.click(screen.getByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
 
 	await waitFor(() => expect(created).toHaveLength(1))

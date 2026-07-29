@@ -51,7 +51,7 @@ test('pushes a task to the next day', async ({ page }) => {
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
 
-	await page.getByRole('link', { name: 'Next day' }).click()
+	await page.getByRole('button', { name: 'Next day' }).click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeVisible()
 })
@@ -60,10 +60,10 @@ test('carries work left over from an earlier day into today', async ({ page }) =
 	const title = `Chase the invoice ${Date.now()}`
 
 	await page.goto('/')
-	await page.getByRole('link', { name: 'Previous day' }).click()
+	await page.getByRole('button', { name: 'Previous day' }).click()
 	await quickAdd(page, title)
 
-	await page.getByRole('link', { name: 'Today' }).click()
+	await page.getByRole('button', { name: 'Today' }).click()
 
 	const overdue = page.getByRole('list', { name: 'Overdue tasks' })
 	await expect(overdue.getByRole('link', { name: title })).toBeVisible()
@@ -75,7 +75,7 @@ test('carries work left over from an earlier day into today', async ({ page }) =
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
 
-	await page.getByRole('link', { name: 'Next day' }).click()
+	await page.getByRole('button', { name: 'Next day' }).click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeVisible()
 })

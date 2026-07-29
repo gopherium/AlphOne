@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Text } from '@alphone/frontend-sdk'
+import { Button, InputControl, Notice, Text } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -36,7 +36,9 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 		return <Text role="status">Loading task…</Text>
 	}
 	if (task.isError) {
-		return <Text role="alert">The task could not be loaded.</Text>
+		return <Notice.Root intent="error">
+					<Notice.Description>The task could not be loaded.</Notice.Description>
+				</Notice.Root>
 	}
 	return (
 		<div className="alphone-tasks">
@@ -112,8 +114,12 @@ function TaskForm({ task }: { task: Task }) {
 					{task.status === 'done' ? 'Reopen' : 'Complete'}
 				</Button>
 			</div>
-			{save.isError ? <Text role="alert">{saveErrorText(save.error)}</Text> : null}
-			{toggle.isError ? <Text role="alert">The task could not be saved.</Text> : null}
+			{save.isError ? <Notice.Root intent="error">
+					<Notice.Description>{saveErrorText(save.error)}</Notice.Description>
+				</Notice.Root> : null}
+			{toggle.isError ? <Notice.Root intent="error">
+					<Notice.Description>The task could not be saved.</Notice.Description>
+				</Notice.Root> : null}
 		</form>
 	)
 }

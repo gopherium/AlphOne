@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { SelectControl } from '@alphone/frontend-sdk'
+
+import { priorityOf } from './priority'
+
 const priorities = [
-	{ value: 0, label: 'Normal' },
-	{ value: 1, label: 'High' },
+	{ value: '0', label: 'Normal' },
+	{ value: '1', label: 'High' },
 ]
 
 /**
@@ -17,15 +21,11 @@ export function PrioritySelect({
 	onChange: (priority: number) => void
 }) {
 	return (
-		<label className="alphone-tasks__field">
-			Priority
-			<select value={String(value)} onChange={(event) => onChange(Number(event.target.value))}>
-				{priorities.map((priority) => (
-					<option key={priority.value} value={priority.value}>
-						{priority.label}
-					</option>
-				))}
-			</select>
-		</label>
+		<SelectControl
+			label="Priority"
+			items={priorities}
+			value={priorities[value] ?? priorities[0]}
+			onValueChange={(item) => onChange(priorityOf(item))}
+		/>
 	)
 }

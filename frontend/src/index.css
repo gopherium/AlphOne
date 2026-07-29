@@ -446,17 +446,7 @@ body {
 }
 
 .alphone-tasks {
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
-	max-width: 720px;
-}
-
-.alphone-tasks__header {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 16px;
+	max-width: var(--wpds-dimension-surface-width-lg);
 }
 
 .alphone-tasks__day {
@@ -466,24 +456,47 @@ body {
 .alphone-tasks__add {
 	display: flex;
 	align-items: flex-end;
-	gap: 8px;
+	gap: var(--wpds-dimension-gap-sm);
 }
 
 .alphone-tasks__list {
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	display: flex;
-	flex-direction: column;
+	background: var(--wpds-color-background-surface-neutral-strong);
+	border: 1px solid var(--wpds-color-stroke-surface-neutral);
+	border-radius: var(--wpds-border-radius-lg);
 }
 
 .alphone-tasks__row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 8px 0;
-	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+	padding: var(--wpds-dimension-padding-sm) var(--wpds-dimension-padding-md);
+}
+
+.alphone-tasks__row + .alphone-tasks__row {
+	border-top: 1px solid var(--wpds-color-stroke-surface-neutral-weak);
+}
+
+.alphone-tasks__row:hover {
+	background: color-mix(
+		in srgb,
+		transparent 60%,
+		var(--wpds-color-background-interactive-neutral-weak-active)
+	);
+}
+
+.alphone-tasks__check {
+	flex: none;
+	opacity: 0.55;
+}
+
+.alphone-tasks__row:hover .alphone-tasks__check,
+.alphone-tasks__check:focus-visible {
+	opacity: 1;
+}
+
+.alphone-tasks__title {
+	flex: 1;
+	min-width: 0;
 }
 
 .alphone-tasks__title--done {
@@ -491,35 +504,29 @@ body {
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 
-.alphone-tasks__done {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	align-items: flex-start;
+.alphone-tasks__due {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	white-space: nowrap;
 }
 
-.alphone-tasks__nav {
-	display: flex;
-	align-items: center;
-	gap: 12px;
+.alphone-tasks__push {
+	flex: none;
+}
+
+.alphone-tasks__overdue .alphone-tasks__list {
+	border-color: var(--wpds-color-stroke-surface-caution);
 }
 
 .alphone-tasks__form {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	max-width: 360px;
-}
-
-.alphone-tasks__field {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
+	gap: var(--wpds-dimension-gap-md);
+	max-width: var(--wpds-dimension-surface-width-sm);
 }
 
 .alphone-tasks__actions {
 	display: flex;
-	gap: 8px;
+	gap: var(--wpds-dimension-gap-sm);
 }
 
 .alphone-tasks__contact a {
@@ -530,13 +537,13 @@ body {
 .alphone-tasks__picked {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: var(--wpds-dimension-gap-xs);
 }
 
 .alphone-tasks__picked {
 	flex-direction: row;
 	align-items: center;
-	gap: 8px;
+	gap: var(--wpds-dimension-gap-sm);
 }
 
 .alphone-tasks__results {
@@ -545,6 +552,8 @@ body {
 	padding: 0;
 }
 
-.alphone-tasks__due {
-	color: var(--wpds-color-foreground-content-neutral-weak);
+.alphone-tasks__contact-block {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wpds-dimension-gap-md);
 }

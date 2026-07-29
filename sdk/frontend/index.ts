@@ -25,12 +25,25 @@ export {
 	Badge,
 	Button,
 	Card,
+	Collapsible,
+	EmptyState,
 	Icon,
+	IconButton,
 	InputControl,
+	Link,
+	Notice,
+	SelectControl,
 	Stack,
 	Text,
 	VisuallyHidden,
 } from '@wordpress/ui'
+export {
+	calendar,
+	check,
+	chevronLeft,
+	chevronRight,
+	inbox,
+} from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export { sessionQueryKey } from '@gopherium/react-auth'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'

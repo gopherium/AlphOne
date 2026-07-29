@@ -6,6 +6,11 @@ const dayFormat = new Intl.DateTimeFormat('en-US', {
 	day: 'numeric',
 })
 
+const dueFormat = new Intl.DateTimeFormat('en-US', {
+	month: 'short',
+	day: 'numeric',
+})
+
 /**
  * Formats a date as the YYYY-MM-DD the task API expects, in local time.
  * @param at - The date to format.
@@ -25,6 +30,15 @@ export function isoDate(at: Date): string {
  */
 export function formatDay(date: string): string {
 	return dayFormat.format(parseDate(date))
+}
+
+/**
+ * Formats a task due date for a row.
+ * @param date - The due date as YYYY-MM-DD.
+ * @returns A label such as Due Jul 30.
+ */
+export function formatDue(date: string): string {
+	return `Due ${dueFormat.format(parseDate(date))}`
 }
 
 /**

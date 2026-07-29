@@ -19,6 +19,11 @@ function localDate(offsetDays: number) {
 	return at.toLocaleDateString('en-CA')
 }
 
+function dueLabel(iso: string) {
+	const [year, month, day] = iso.split('-').map(Number)
+	return `Due ${new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
 const today = localDate(0)
 const tomorrow = localDate(1)
 const yesterday = localDate(-1)
@@ -151,6 +156,15 @@ test('reopens a done task', async () => {
 		const open = screen.getByRole('list', { name: 'Open tasks' })
 		expect(within(open).getByText('Book the courier')).toBeInTheDocument()
 	})
+})
+
+test('marks a raised priority on the row', async () => {
+	tasks = [taskRow(callID, 'Call the supplier', 'open', 1)]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	expect(within(row).getByText('High')).toBeInTheDocument()
 })
 
 test('adds a task from the quick add field', async () => {
@@ -380,11 +394,11 @@ test('walks to the next and previous day', async () => {
 	renderAt(`/tasks?date=${tomorrow}`)
 	await screen.findByText(`Work due ${tomorrow}`)
 
-	await userEvent.click(screen.getByRole('link', { name: 'Next day' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
 
 	expect(await screen.findByText(`Work due ${localDate(2)}`)).toBeInTheDocument()
 
-	await userEvent.click(screen.getByRole('link', { name: 'Previous day' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Previous day' }))
 
 	expect(await screen.findByText(`Work due ${tomorrow}`)).toBeInTheDocument()
 })
@@ -393,14 +407,14 @@ test('offers a way back to today only when looking at another day', async () => 
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	expect(screen.queryByRole('link', { name: 'Today' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
 
-	await userEvent.click(screen.getByRole('link', { name: 'Next day' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
 	await waitFor(() => expect(listedDates).toContain(tomorrow))
-	await userEvent.click(await screen.findByRole('link', { name: 'Today' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Today' }))
 
 	await waitFor(() =>
-		expect(screen.queryByRole('link', { name: 'Today' })).not.toBeInTheDocument(),
+		expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument(),
 	)
 })
 
@@ -410,7 +424,7 @@ test('shows overdue work above the day, with its original due date', async () =>
 	renderAt('/tasks')
 
 	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
-	expect(within(row).getByText(`Due ${yesterday}`)).toBeInTheDocument()
+	expect(within(row).getByText(dueLabel(yesterday))).toBeInTheDocument()
 	expect(overdueBefore).toContain(today)
 })
 

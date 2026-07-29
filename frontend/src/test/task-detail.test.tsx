@@ -51,7 +51,15 @@ test('shows the task with its due date and priority', async () => {
 	expect(await screen.findByRole('heading', { name: 'Call the supplier' })).toBeInTheDocument()
 	expect(screen.getByLabelText('Title')).toHaveValue('Call the supplier')
 	expect(screen.getByLabelText('Due date')).toHaveValue('2026-08-10')
-	expect(screen.getByLabelText('Priority')).toHaveValue('0')
+	expect(screen.getByLabelText('Priority')).toHaveTextContent('Normal')
+})
+
+test('shows an unmapped priority as normal', async () => {
+	stored = { ...stored, priority: 5 }
+
+	renderAt(`/tasks/${taskID}`)
+
+	expect(await screen.findByLabelText('Priority')).toHaveTextContent('Normal')
 })
 
 test('renames a task', async () => {
@@ -84,7 +92,8 @@ test('reschedules a task from the date field', async () => {
 test('raises the priority of a task', async () => {
 	renderAt(`/tasks/${taskID}`)
 
-	await userEvent.selectOptions(await screen.findByLabelText('Priority'), '1')
+	await userEvent.click(await screen.findByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))

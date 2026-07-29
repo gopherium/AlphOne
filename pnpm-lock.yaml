@@ -143,6 +143,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
+      '@wordpress/icons':
+        specifier: ^15.1.0
+        version: 15.1.0(@types/react@19.2.17)(react@19.2.7)
       '@wordpress/theme':
         specifier: ^0.17.0
         version: 0.17.0(@types/react@19.2.17)(postcss@8.5.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(jiti@2.7.0)(yaml@2.9.0))

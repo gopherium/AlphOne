@@ -17,6 +17,11 @@ function localDate(offsetDays: number) {
 	return at.toLocaleDateString('en-CA')
 }
 
+function dueLabel(iso: string) {
+	const [year, month, day] = iso.split('-').map(Number)
+	return `Due ${new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
 const today = localDate(0)
 const tomorrow = localDate(1)
 
@@ -84,7 +89,7 @@ test('lists the open tasks of a contact with their due dates', async () => {
 
 	const list = await screen.findByRole('list', { name: 'Contact tasks' })
 	expect(within(list).getByText('Call her back')).toBeInTheDocument()
-	expect(within(list).getByText(`Due ${tomorrow}`)).toBeInTheDocument()
+	expect(within(list).getByText(dueLabel(tomorrow))).toBeInTheDocument()
 	expect(contactFilters).toContain(contactID)
 })
 
