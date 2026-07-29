@@ -3,17 +3,29 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
 )
+
+var errEntropy = errors.New("entropy source failed")
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) {
+	return 0, errEntropy
+}
 
 func testPool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	t.Helper()
@@ -34,10 +46,11 @@ func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	return count
 }
 
-func demoCounts(t *testing.T, pool *pgxpool.Pool) [4]int {
+func demoCounts(t *testing.T, pool *pgxpool.Pool) [5]int {
 	t.Helper()
-	return [4]int{
+	return [5]int{
 		countRows(t, pool, "core.contacts"),
+		countRows(t, pool, "core.tasks"),
 		countRows(t, pool, "plugin_whatsapp.conversations"),
 		countRows(t, pool, "plugin_whatsapp.messages"),
 		countRows(t, pool, "plugin_whatsapp.media"),
@@ -66,7 +79,7 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [4]int{4, 3, 8, 1}; got != want {
+	if got, want := demoCounts(t, pool), [5]int{4, 5, 3, 8, 1}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -74,6 +87,154 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 		"SELECT count(*) FROM core.contacts WHERE name = 'Ada Lovelace'").Scan(&adas)
 	if err != nil || adas != 1 {
 		t.Errorf("Ada Lovelace contacts = %d (err %v), want 1", adas, err)
+	}
+}
+
+func TestSeedStoresADayOfTasks(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+	pool := testPool(t, databaseURL)
+	today := time.Now().UTC().Format("2006-01-02")
+
+	rows, err := pool.Query(t.Context(), `
+		SELECT t.title, t.status, t.priority, to_char(t.due_on, 'YYYY-MM-DD'),
+			t.assignee_id, coalesce(c.name, ''), coalesce(t.origin_source, '')
+		FROM core.tasks t
+		LEFT JOIN core.contacts c ON c.id = t.contact_id
+		ORDER BY t.due_on, t.title`)
+	if err != nil {
+		t.Fatalf("querying tasks: %v", err)
+	}
+	defer rows.Close()
+
+	admin, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), seedAdminEmail)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the seeded admin", err)
+	}
+	var overdue, dueToday, done, linked, withOrigin int
+	for rows.Next() {
+		var title, status, dueOn, contactName, origin string
+		var priority int
+		var assignee uuid.UUID
+		if err := rows.Scan(&title, &status, &priority, &dueOn, &assignee, &contactName, &origin); err != nil {
+			t.Fatalf("scanning task: %v", err)
+		}
+		if assignee != admin.ID {
+			t.Errorf("task %q assignee = %v, want the seeded admin %v", title, assignee, admin.ID)
+		}
+		switch {
+		case dueOn < today && status == "open":
+			overdue++
+		case dueOn == today && status == "done":
+			done++
+		case dueOn == today:
+			dueToday++
+		}
+		if contactName == "Ada Lovelace" {
+			linked++
+		}
+		if origin != "" {
+			withOrigin++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("reading tasks: %v", err)
+	}
+	if overdue != 1 || done != 1 || dueToday != 2 {
+		t.Errorf("overdue = %d, done = %d, due today = %d, want 1, 1, 2", overdue, done, dueToday)
+	}
+	if linked != 1 {
+		t.Errorf("tasks linked to Ada Lovelace = %d, want 1", linked)
+	}
+	if withOrigin != 1 {
+		t.Errorf("tasks carrying an origin = %d, want 1", withOrigin)
+	}
+}
+
+func TestSeedRaisesOneTaskAboveTheRest(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+	pool := testPool(t, databaseURL)
+
+	var high int
+	err := pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM core.tasks WHERE priority > 0").Scan(&high)
+
+	if err != nil || high != 1 {
+		t.Errorf("high priority tasks = %d (err %v), want 1", high, err)
+	}
+}
+
+func TestSeedReportsBrokenTaskStorage(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
+		t.Fatalf("migrating: %v", err)
+	}
+	pool := testPool(t, databaseURL)
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE core.tasks ADD CONSTRAINT seed_sabotage CHECK (false)"); err != nil {
+		t.Fatalf("breaking the tasks table: %v", err)
+	}
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
+		t.Fatal("seed() error = nil, want a task storage failure")
+	}
+}
+
+func TestSeedTasksReportsAdminLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	users := testkit.NewStore()
+	users.LookupErr = errors.New("store down")
+	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
+
+	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Fatal("seedTasks() error = nil, want an admin lookup failure")
+	}
+}
+
+func TestSeedTasksReportsLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	users := testkit.NewStore()
+	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
+	pool := testPool(t, testDatabaseURL(t))
+	store := postgres.NewTaskStore(pool)
+	pool.Close()
+
+	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Fatal("seedTasks() error = nil, want a lookup failure")
+	}
+}
+
+func TestSeedTasksReportsIDGenerationFailure(t *testing.T) {
+	users := testkit.NewStore()
+	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
+	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
+	uuid.SetRand(failingReader{})
+	defer uuid.SetRand(nil)
+
+	err := seedTasks(t.Context(), store, users, uuid.Nil)
+
+	if !errors.Is(err, errEntropy) {
+		t.Fatalf("seedTasks() error = %v, want the entropy failure in its chain", err)
 	}
 }
 
@@ -92,7 +253,7 @@ func TestSeedIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [4]int{4, 3, 8, 1}; got != want {
+	if got, want := demoCounts(t, pool), [5]int{4, 5, 3, 8, 1}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.String(), "admin@example.com already exists") {
