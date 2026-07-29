@@ -26,14 +26,14 @@ test('adds, completes, and reopens a task', async ({ page }) => {
 	const openTasks = page.getByRole('list', { name: 'Open tasks' })
 	await expect(openTasks.getByRole('link', { name: title })).toBeVisible()
 
-	await page.getByRole('listitem', { name: title }).getByRole('button', { name: 'Complete' }).click()
+	await page.getByRole('listitem', { name: title }).getByRole('checkbox', { name: 'Complete' }).click()
 
 	await expect(openTasks.getByRole('link', { name: title })).toBeHidden()
 	await page.getByRole('button', { name: doneGroup }).click()
 	const doneTasks = page.getByRole('list', { name: 'Done tasks' })
 	await expect(doneTasks.getByRole('link', { name: title })).toBeVisible()
 
-	await page.getByRole('listitem', { name: title }).getByRole('button', { name: 'Reopen' }).click()
+	await page.getByRole('listitem', { name: title }).getByRole('checkbox', { name: 'Reopen' }).click()
 
 	await expect(openTasks.getByRole('link', { name: title })).toBeVisible()
 })

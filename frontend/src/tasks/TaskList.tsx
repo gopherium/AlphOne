@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, Button, IconButton, Link, Stack, Text, check } from '@alphone/frontend-sdk'
+import { Badge, Button, Checkbox, Link, Stack, Text } from '@alphone/frontend-sdk'
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 
@@ -72,15 +72,12 @@ function TaskRow({
 			aria-label={task.title}
 			render={<li />}
 		>
-			<IconButton
-				icon={check}
+			<Checkbox
 				label={done ? 'Reopen' : 'Complete'}
-				variant={done ? 'solid' : 'minimal'}
-				tone={done ? 'brand' : 'neutral'}
-				size="compact"
-				className="alphone-tasks__check"
+				checked={done}
 				disabled={controls.pendingID === task.id}
-				onClick={() => controls.onChange(task)}
+				className="alphone-tasks__check"
+				onCheckedChange={() => controls.onChange(task)}
 			/>
 			<Text
 				variant="body-md"

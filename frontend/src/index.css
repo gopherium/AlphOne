@@ -486,12 +486,6 @@ body {
 
 .alphone-tasks__check {
 	flex: none;
-	opacity: 0.55;
-}
-
-.alphone-tasks__row:hover .alphone-tasks__check,
-.alphone-tasks__check:focus-visible {
-	opacity: 1;
 }
 
 .alphone-tasks__title {

@@ -108,7 +108,7 @@ test('completes a task from the contact page', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ id: callID, status: 'done' })
@@ -222,10 +222,10 @@ test('disables the row control while its update is in flight', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
 
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() =>
-		expect(within(row).getByRole('button', { name: 'Complete' })).toHaveAttribute(
+		expect(within(row).getByRole('checkbox', { name: 'Complete' })).toHaveAttribute(
 			'aria-disabled',
 			'true',
 		),

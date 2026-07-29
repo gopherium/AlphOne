@@ -135,7 +135,7 @@ test('completes a task and moves it into the done group', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() =>
 		expect(screen.getByRole('button', { name: 'Done (2)' })).toBeInTheDocument(),
@@ -150,7 +150,7 @@ test('reopens a done task', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Done (1)' }))
 
 	const row = await screen.findByRole('listitem', { name: 'Book the courier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Reopen' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Reopen' }))
 
 	await waitFor(() => {
 		const open = screen.getByRole('list', { name: 'Open tasks' })
@@ -284,7 +284,7 @@ test('reports when a task cannot be updated', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })
@@ -299,7 +299,7 @@ test('reports the backend message when an update is rejected', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })
@@ -346,16 +346,16 @@ test('disables the row control while its update is in flight', async () => {
 	await screen.findByText('Call the supplier')
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
 
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() =>
-		expect(within(row).getByRole('button', { name: 'Complete' })).toHaveAttribute(
+		expect(within(row).getByRole('checkbox', { name: 'Complete' })).toHaveAttribute(
 			'aria-disabled',
 			'true',
 		),
 	)
 	const other = screen.getByRole('listitem', { name: 'Send the quote' })
-	expect(within(other).getByRole('button', { name: 'Complete' })).not.toHaveAttribute(
+	expect(within(other).getByRole('checkbox', { name: 'Complete' })).not.toHaveAttribute(
 		'aria-disabled',
 		'true',
 	)
@@ -584,7 +584,7 @@ test('drops the session when updating is unauthorized', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Complete' }))
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
 })
