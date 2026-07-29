@@ -1,6 +1,7 @@
 packages:
   - frontend
   - sdk/frontend
+  - sdk/ui-primitives
   - plugins/*/frontend
   - test/e2e
 

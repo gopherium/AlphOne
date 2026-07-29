@@ -8,6 +8,7 @@
 		"./testing": "./testing.tsx"
 	},
 	"dependencies": {
+		"@alphone/ui-primitives": "workspace:*",
 		"@gopherium/react-auth": "^0.1.1",
 		"@tanstack/react-query": "^5.101.2",
 		"@wordpress/icons": "^15.1.0",

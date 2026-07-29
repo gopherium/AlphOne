@@ -28,13 +28,13 @@ export default defineConfig({
 		setupFiles: ['./src/test/setup.ts'],
 		include: [
 			'src/**/*.test.{ts,tsx}',
-			'../sdk/frontend/test/*.test.{ts,tsx}',
+			'../sdk/*/test/*.test.{ts,tsx}',
 			'../plugins/*/frontend/test/*.test.{ts,tsx}',
 		],
 		coverage: {
 			include: [
 				'src/**',
-				'../sdk/frontend/**/*.{ts,tsx}',
+				'../sdk/*/**/*.{ts,tsx}',
 				'../plugins/*/frontend/**/*.{ts,tsx}',
 			],
 			exclude: ['src/main.tsx', '**/test/**', '**/node_modules/**'],
