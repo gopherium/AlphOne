@@ -11,6 +11,7 @@ import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
 import { Home } from './Home'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
+import { TasksRoute } from './taskRoutes'
 import { NewUserRoute, UsersRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
@@ -21,6 +22,12 @@ const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
 	component: Home,
+})
+
+const tasksRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/tasks',
+	component: TasksRoute,
 })
 
 const contactsRoute = createRoute({
@@ -55,6 +62,7 @@ const newUserRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
 	homeRoute,
+	tasksRoute,
 	contactsRoute,
 	newContactRoute,
 	contactRoute,

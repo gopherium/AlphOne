@@ -4,5 +4,6 @@ import type { NavItem } from '@alphone/frontend-sdk'
 import { usersNavItem } from '@gopherium/react-auth/wpds'
 
 import { contactsNavItem } from '../contacts/nav'
+import { tasksNavItem } from '../tasks/nav'
 
-export const coreNav: NavItem[] = [contactsNavItem, usersNavItem]
+export const coreNav: NavItem[] = [tasksNavItem, contactsNavItem, usersNavItem]
