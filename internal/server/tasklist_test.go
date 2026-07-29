@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/task"
 )
 
@@ -330,11 +329,7 @@ func TestListTasksRequiresASession(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{
-		Contacts: newFakeContactStore(),
-		Tasks:    newFakeTaskStore(),
-		Users:    users,
-	})
+	srv := unauthedTaskServer(users, newFakeTaskStore())
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/tasks?date=2026-07-30", "")
 

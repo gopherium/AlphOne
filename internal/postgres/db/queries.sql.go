@@ -431,3 +431,43 @@ func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNamePa
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
 	return i, err
 }
+
+const updateTask = `-- name: UpdateTask :one
+UPDATE core.tasks
+SET title = $2, status = $3, priority = $4, due_on = $5
+WHERE id = $1
+RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+`
+
+type UpdateTaskParams struct {
+	ID       uuid.UUID
+	Title    string
+	Status   string
+	Priority int16
+	DueOn    time.Time
+}
+
+func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, updateTask,
+		arg.ID,
+		arg.Title,
+		arg.Status,
+		arg.Priority,
+		arg.DueOn,
+	)
+	var i CoreTask
+	err := row.Scan(
+		&i.ID,
+		&i.AssigneeID,
+		&i.ContactID,
+		&i.Title,
+		&i.Status,
+		&i.Priority,
+		&i.DueOn,
+		&i.OriginSource,
+		&i.OriginEventID,
+		&i.CreatedAt,
+	)
+	return i, err
+}

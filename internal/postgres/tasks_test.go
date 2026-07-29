@@ -115,6 +115,67 @@ func TestTaskStoreClearsTheContactLinkWhenTheContactGoes(t *testing.T) {
 	}
 }
 
+func TestTaskStoreUpdatesATask(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	created := mustTask(t, task.Input{
+		Title:      "Call the supplier",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin:     task.Origin{Source: "seed", EventID: uuid.Must(uuid.NewV7())},
+	})
+	if err := store.Create(t.Context(), created); err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+	title := "Call the supplier back"
+	dueOn := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	status := task.StatusDone
+	priority := 2
+	changed, err := created.Apply(task.Changes{
+		Title: &title, DueOn: &dueOn, Status: &status, Priority: &priority,
+	})
+	if err != nil {
+		t.Fatalf("Apply() error = %v, want nil", err)
+	}
+
+	updated, err := store.Update(t.Context(), changed)
+
+	if err != nil {
+		t.Fatalf("Update() error = %v, want nil", err)
+	}
+	if diff := cmp.Diff(changed, updated, cmpopts.EquateApproxTime(time.Second)); diff != "" {
+		t.Errorf("Update() mismatch (-want +got):\n%s", diff)
+	}
+	stored, err := store.Get(t.Context(), created.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v, want nil", err)
+	}
+	if stored.Title != title || stored.Status != task.StatusDone || stored.Priority != priority {
+		t.Errorf("stored task = %+v, want the updated fields persisted", stored)
+	}
+	if stored.Origin != created.Origin {
+		t.Errorf("Origin = %+v, want %+v, an update must not touch it", stored.Origin, created.Origin)
+	}
+}
+
+func TestTaskStoreReportsAMissingUpdate(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	absent := mustTask(t, task.Input{
+		Title:      "Call the supplier",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: uuid.Must(uuid.NewV7()),
+	})
+
+	_, err := store.Update(t.Context(), absent)
+
+	if !errors.Is(err, task.ErrNotFound) {
+		t.Fatalf("Update() error = %v, want %v", err, task.ErrNotFound)
+	}
+}
+
 func TestTaskStoreReportsAMissingTask(t *testing.T) {
 	t.Parallel()
 
@@ -160,5 +221,8 @@ func TestTaskStoreReportsConnectionFailure(t *testing.T) {
 	}
 	if _, err := store.Get(t.Context(), created.ID); err == nil || errors.Is(err, task.ErrNotFound) {
 		t.Errorf("Get() on closed pool error = %v, want a non-ErrNotFound error", err)
+	}
+	if _, err := store.Update(t.Context(), created); err == nil || errors.Is(err, task.ErrNotFound) {
+		t.Errorf("Update() on closed pool error = %v, want a non-ErrNotFound error", err)
 	}
 }

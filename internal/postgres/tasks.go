@@ -61,6 +61,25 @@ func (s *TaskStore) Get(ctx context.Context, id uuid.UUID) (task.Task, error) {
 	return taskFromRow(row), nil
 }
 
+// Update replaces the task's editable fields, returning the stored task or
+// [task.ErrNotFound] when no such task exists.
+func (s *TaskStore) Update(ctx context.Context, t task.Task) (task.Task, error) {
+	row, err := s.queries.UpdateTask(ctx, db.UpdateTaskParams{
+		ID:       t.ID,
+		Title:    t.Title,
+		Status:   t.Status,
+		Priority: int16(t.Priority),
+		DueOn:    t.DueOn,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return task.Task{}, task.ErrNotFound
+	}
+	if err != nil {
+		return task.Task{}, fmt.Errorf("postgres: update task: %w", err)
+	}
+	return taskFromRow(row), nil
+}
+
 // ListForDay returns the assignee's tasks due on the given day, after the
 // page cursor and narrowed to the given status.
 func (s *TaskStore) ListForDay(

@@ -25,6 +25,7 @@ import (
 type TaskStore interface {
 	Create(ctx context.Context, t task.Task) error
 	Get(ctx context.Context, id uuid.UUID) (task.Task, error)
+	Update(ctx context.Context, t task.Task) (task.Task, error)
 	ListForDay(
 		ctx context.Context, assigneeID uuid.UUID, dueOn time.Time, status string, page task.Page,
 	) ([]task.Task, error)
@@ -312,6 +313,72 @@ func (s *server) handleTaskGet() http.HandlerFunc {
 		}
 		authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
 	}
+}
+
+// handleTaskPatch returns an http.HandlerFunc that applies a partial update
+// to a task, treating omitted fields as unchanged.
+func (s *server) handleTaskPatch() http.HandlerFunc {
+	type request struct {
+		Title    *string `json:"title"`
+		DueOn    *string `json:"due_on"`
+		Status   *string `json:"status"`
+		Priority *int    `json:"priority"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed task id")
+			return
+		}
+		req, err := authkit.Decode[request](w, r)
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed json")
+			return
+		}
+		dueOn, err := optionalDueDate(req.DueOn)
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed due date")
+			return
+		}
+		changes := task.Changes{
+			Title:    req.Title,
+			DueOn:    dueOn,
+			Status:   req.Status,
+			Priority: req.Priority,
+		}
+		stored, err := s.tasks.Get(r.Context(), id)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		if changes == (task.Changes{}) {
+			authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
+			return
+		}
+		changed, err := stored.Apply(changes)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		updated, err := s.tasks.Update(r.Context(), changed)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		authkit.Respond(w, http.StatusOK, newTaskResponse(updated))
+	}
+}
+
+// optionalDueDate parses a due date change, reporting an omitted one as nil.
+func optionalDueDate(raw *string) (*time.Time, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	parsed, err := time.Parse(dueDateLayout, *raw)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 // optionalContactID parses a contact link, reporting an absent one as

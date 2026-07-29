@@ -28,7 +28,8 @@ func statusFor(err error) (int, string) {
 		return http.StatusUnprocessableEntity, err.Error()
 	case errors.Is(err, contact.ErrNotFound):
 		return http.StatusNotFound, err.Error()
-	case errors.Is(err, task.ErrEmptyTitle), errors.Is(err, task.ErrInvalidPriority):
+	case errors.Is(err, task.ErrEmptyTitle), errors.Is(err, task.ErrInvalidPriority),
+		errors.Is(err, task.ErrInvalidStatus):
 		return http.StatusUnprocessableEntity, err.Error()
 	case errors.Is(err, task.ErrNotFound):
 		return http.StatusNotFound, err.Error()

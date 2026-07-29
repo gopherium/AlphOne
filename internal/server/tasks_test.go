@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/task"
@@ -38,6 +40,7 @@ type fakeTaskStore struct {
 	createErr error
 	getErr    error
 	listErr   error
+	updateErr error
 }
 
 func newFakeTaskStore() *fakeTaskStore {
@@ -87,6 +90,17 @@ func (f *fakeTaskStore) Create(_ context.Context, t task.Task) error {
 	return nil
 }
 
+func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
+	if f.updateErr != nil {
+		return task.Task{}, f.updateErr
+	}
+	if _, ok := f.tasks[t.ID]; !ok {
+		return task.Task{}, task.ErrNotFound
+	}
+	f.tasks[t.ID] = t
+	return t, nil
+}
+
 func (f *fakeTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) {
 	if f.getErr != nil {
 		return task.Task{}, f.getErr
@@ -109,6 +123,10 @@ type taskBody struct {
 	OriginSource  *string    `json:"origin_source"`
 	OriginEventID *uuid.UUID `json:"origin_event_id"`
 	CreatedAt     time.Time  `json:"created_at"`
+}
+
+func unauthedTaskServer(users authkit.AdminStore, store server.TaskStore) http.Handler {
+	return server.NewServer(server.Config{Contacts: newFakeContactStore(), Tasks: store, Users: users})
 }
 
 func authedTaskServer(t *testing.T, store server.TaskStore) (http.Handler, uuid.UUID) {
@@ -407,11 +425,7 @@ func TestTaskRoutesRequireASession(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{
-		Contacts: newFakeContactStore(),
-		Tasks:    newFakeTaskStore(),
-		Users:    users,
-	})
+	srv := unauthedTaskServer(users, newFakeTaskStore())
 
 	requests := map[string]struct {
 		method string

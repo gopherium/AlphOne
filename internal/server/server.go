@@ -74,6 +74,7 @@ func NewServer(cfg Config) http.Handler {
 		protected.Get("/api/tasks", s.handleTaskList())
 		protected.Post("/api/tasks", s.handleTaskCreate())
 		protected.Get("/api/tasks/{id}", s.handleTaskGet())
+		protected.Patch("/api/tasks/{id}", s.handleTaskPatch())
 		protected.Get("/api/users", admin.List)
 		protected.Post("/api/users", admin.Create)
 		protected.Patch("/api/users/{id}", admin.SetDisabled)

@@ -84,3 +84,10 @@ WHERE t.contact_id = @contact_id::uuid
     AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
 ORDER BY t.due_on, t.id
 LIMIT @row_limit;
+
+-- name: UpdateTask :one
+UPDATE core.tasks
+SET title = $2, status = $3, priority = $4, due_on = $5
+WHERE id = $1
+RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at;
