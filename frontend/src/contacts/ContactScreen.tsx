@@ -4,6 +4,7 @@ import { Button, InputControl, Text } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { ContactTasks } from '../tasks/ContactTasks'
 import { ValidationError, fetchContact, renameContact } from './api'
 import type { ContactDetail } from './api'
 import { formatCreated } from './format'
@@ -42,6 +43,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			<RenameForm key={detail.data.name} contact={detail.data} />
 			<h2>Identities</h2>
 			<IdentityList contact={detail.data} />
+			<ContactTasks contactId={detail.data.id} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(detail.data.created_at)}`}
 			</Text>

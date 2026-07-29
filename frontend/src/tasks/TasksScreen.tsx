@@ -2,7 +2,6 @@
 
 import { Button, InputControl, Text } from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -13,10 +12,10 @@ import {
 	fetchOverdueTasks,
 	patchTask,
 } from './api'
-import type { Task, TaskPage } from './api'
+import type { Task } from './api'
 import { formatDay, laterDate, shiftDate } from './format'
-
-type TaskQuery = UseInfiniteQueryResult<InfiniteData<TaskPage>, Error>
+import { TaskList } from './TaskList'
+import type { RowControls, TaskQuery } from './TaskList'
 
 /**
  * Copy for a failed create.
@@ -204,56 +203,5 @@ function DoneGroup({ tasks, controls }: { tasks: Task[]; controls: RowControls }
 			</Button>
 			{open ? <TaskList label="Done tasks" tasks={tasks} controls={controls} /> : null}
 		</div>
-	)
-}
-
-interface RowControls {
-	onChange: (task: Task) => void
-	onPush: (task: Task) => void
-	pendingID: string
-}
-
-/**
- * Renders one labelled list of task rows.
- * @returns The task list.
- */
-function TaskList({
-	label,
-	tasks,
-	controls,
-	showDueDate = false,
-}: {
-	label: string
-	tasks: Task[]
-	controls: RowControls
-	showDueDate?: boolean
-}) {
-	return (
-		<ul className="alphone-tasks__list" aria-label={label}>
-			{tasks.map((task) => (
-				<li key={task.id} className="alphone-tasks__row" aria-label={task.title}>
-					<Text className={task.status === 'done' ? 'alphone-tasks__title--done' : undefined}>
-						<Link to="/tasks/$taskId" params={{ taskId: task.id }}>
-							{task.title}
-						</Link>
-					</Text>
-					{showDueDate ? (
-						<Text className="alphone-tasks__due">{`Due ${task.due_on}`}</Text>
-					) : null}
-					{task.status === 'done' ? null : (
-						<Button variant="minimal" onClick={() => controls.onPush(task)}>
-							Push to tomorrow
-						</Button>
-					)}
-					<Button
-						variant="outline"
-						disabled={controls.pendingID === task.id}
-						onClick={() => controls.onChange(task)}
-					>
-						{task.status === 'done' ? 'Reopen' : 'Complete'}
-					</Button>
-				</li>
-			))}
-		</ul>
 	)
 }
