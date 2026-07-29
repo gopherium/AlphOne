@@ -13,6 +13,7 @@ export default defineConfig({
 	reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
 	use: {
 		baseURL,
+		timezoneId: 'UTC',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 	},
