@@ -41,3 +41,14 @@ WHERE channel = $1 AND identifier = $2;
 INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (channel, identifier) DO NOTHING;
+
+-- name: CreateTask :exec
+INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
+-- name: GetTask :one
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks
+WHERE id = $1;

@@ -64,6 +64,7 @@ func run(
 
 	userStore := authkitpg.NewUserStore(pool)
 	contacts := postgres.NewContactStore(pool)
+	tasks := postgres.NewTaskStore(pool)
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
@@ -84,6 +85,7 @@ func run(
 
 	cfg := server.Config{
 		Contacts:          contacts,
+		Tasks:             tasks,
 		Users:             userStore,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),

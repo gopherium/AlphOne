@@ -21,6 +21,7 @@ const sessionCookieName = "__Host-alphone_session"
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
 	Contacts ContactStore
+	Tasks    TaskStore
 	Users    authkit.AdminStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
@@ -53,6 +54,7 @@ func NewServer(cfg Config) http.Handler {
 	admin := authkit.NewAdmin(cfg.Users)
 	s := &server{
 		store:             cfg.Contacts,
+		tasks:             cfg.Tasks,
 		auth:              auth,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
@@ -69,6 +71,8 @@ func NewServer(cfg Config) http.Handler {
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
 		protected.Patch("/api/contacts/{id}", s.handleContactRename())
+		protected.Post("/api/tasks", s.handleTaskCreate())
+		protected.Get("/api/tasks/{id}", s.handleTaskGet())
 		protected.Get("/api/users", admin.List)
 		protected.Post("/api/users", admin.Create)
 		protected.Patch("/api/users/{id}", admin.SetDisabled)
@@ -87,6 +91,7 @@ func NewServer(cfg Config) http.Handler {
 
 type server struct {
 	store             ContactStore
+	tasks             TaskStore
 	auth              *authkit.Handlers
 	version           string
 	maxStreamLifetime time.Duration

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CoreContact struct {
@@ -23,4 +24,17 @@ type CoreContactIdentity struct {
 	Identifier  string
 	DisplayName string
 	CreatedAt   time.Time
+}
+
+type CoreTask struct {
+	ID            uuid.UUID
+	AssigneeID    uuid.UUID
+	ContactID     pgtype.UUID
+	Title         string
+	Status        string
+	Priority      int16
+	DueOn         time.Time
+	OriginSource  pgtype.Text
+	OriginEventID pgtype.UUID
+	CreatedAt     time.Time
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createContact = `-- name: CreateContact :exec
@@ -60,6 +61,41 @@ func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) 
 	return result.RowsAffected(), nil
 }
 
+const createTask = `-- name: CreateTask :exec
+INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type CreateTaskParams struct {
+	ID            uuid.UUID
+	AssigneeID    uuid.UUID
+	ContactID     pgtype.UUID
+	Title         string
+	Status        string
+	Priority      int16
+	DueOn         time.Time
+	OriginSource  pgtype.Text
+	OriginEventID pgtype.UUID
+	CreatedAt     time.Time
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
+	_, err := q.db.Exec(ctx, createTask,
+		arg.ID,
+		arg.AssigneeID,
+		arg.ContactID,
+		arg.Title,
+		arg.Status,
+		arg.Priority,
+		arg.DueOn,
+		arg.OriginSource,
+		arg.OriginEventID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at
 FROM core.contacts
@@ -93,6 +129,31 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 		&i.Channel,
 		&i.Identifier,
 		&i.DisplayName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTask = `-- name: GetTask :one
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks
+WHERE id = $1
+`
+
+func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, getTask, id)
+	var i CoreTask
+	err := row.Scan(
+		&i.ID,
+		&i.AssigneeID,
+		&i.ContactID,
+		&i.Title,
+		&i.Status,
+		&i.Priority,
+		&i.DueOn,
+		&i.OriginSource,
+		&i.OriginEventID,
 		&i.CreatedAt,
 	)
 	return i, err
