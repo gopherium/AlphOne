@@ -52,3 +52,35 @@ SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at
 FROM core.tasks
 WHERE id = $1;
+
+-- name: ListTasksForDay :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.assignee_id = @assignee_id::uuid
+    AND t.due_on = @due_on::date
+    AND (@status::text = 'all' OR t.status = @status::text)
+    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
+ORDER BY t.due_on, t.id
+LIMIT @row_limit;
+
+-- name: ListTasksDueBefore :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.assignee_id = @assignee_id::uuid
+    AND t.due_on < @due_before::date
+    AND (@status::text = 'all' OR t.status = @status::text)
+    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
+ORDER BY t.due_on, t.id
+LIMIT @row_limit;
+
+-- name: ListTasksForContact :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.contact_id = @contact_id::uuid
+    AND (@status::text = 'all' OR t.status = @status::text)
+    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
+ORDER BY t.due_on, t.id
+LIMIT @row_limit;

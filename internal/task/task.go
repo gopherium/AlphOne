@@ -36,6 +36,13 @@ type Origin struct {
 	EventID uuid.UUID
 }
 
+// Page bounds one keyset paginated page of a task listing.
+type Page struct {
+	AfterDueOn time.Time
+	AfterID    uuid.UUID
+	Limit      int
+}
+
 // Input carries the values a new [Task] is built from.
 type Input struct {
 	Title      string

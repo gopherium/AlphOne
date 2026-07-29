@@ -241,6 +241,180 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 	return items, nil
 }
 
+const listTasksDueBefore = `-- name: ListTasksDueBefore :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.assignee_id = $1::uuid
+    AND t.due_on < $2::date
+    AND ($3::text = 'all' OR t.status = $3::text)
+    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+ORDER BY t.due_on, t.id
+LIMIT $6
+`
+
+type ListTasksDueBeforeParams struct {
+	AssigneeID uuid.UUID
+	DueBefore  time.Time
+	Status     string
+	AfterDueOn time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+}
+
+func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBeforeParams) ([]CoreTask, error) {
+	rows, err := q.db.Query(ctx, listTasksDueBefore,
+		arg.AssigneeID,
+		arg.DueBefore,
+		arg.Status,
+		arg.AfterDueOn,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreTask
+	for rows.Next() {
+		var i CoreTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.AssigneeID,
+			&i.ContactID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueOn,
+			&i.OriginSource,
+			&i.OriginEventID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksForContact = `-- name: ListTasksForContact :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.contact_id = $1::uuid
+    AND ($2::text = 'all' OR t.status = $2::text)
+    AND (t.due_on, t.id) > ($3::date, $4::uuid)
+ORDER BY t.due_on, t.id
+LIMIT $5
+`
+
+type ListTasksForContactParams struct {
+	ContactID  uuid.UUID
+	Status     string
+	AfterDueOn time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+}
+
+func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForContactParams) ([]CoreTask, error) {
+	rows, err := q.db.Query(ctx, listTasksForContact,
+		arg.ContactID,
+		arg.Status,
+		arg.AfterDueOn,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreTask
+	for rows.Next() {
+		var i CoreTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.AssigneeID,
+			&i.ContactID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueOn,
+			&i.OriginSource,
+			&i.OriginEventID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksForDay = `-- name: ListTasksForDay :many
+SELECT id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at
+FROM core.tasks t
+WHERE t.assignee_id = $1::uuid
+    AND t.due_on = $2::date
+    AND ($3::text = 'all' OR t.status = $3::text)
+    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+ORDER BY t.due_on, t.id
+LIMIT $6
+`
+
+type ListTasksForDayParams struct {
+	AssigneeID uuid.UUID
+	DueOn      time.Time
+	Status     string
+	AfterDueOn time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+}
+
+func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams) ([]CoreTask, error) {
+	rows, err := q.db.Query(ctx, listTasksForDay,
+		arg.AssigneeID,
+		arg.DueOn,
+		arg.Status,
+		arg.AfterDueOn,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreTask
+	for rows.Next() {
+		var i CoreTask
+		if err := rows.Scan(
+			&i.ID,
+			&i.AssigneeID,
+			&i.ContactID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueOn,
+			&i.OriginSource,
+			&i.OriginEventID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateContactName = `-- name: UpdateContactName :one
 UPDATE core.contacts SET name = $2 WHERE id = $1
 RETURNING id, name, created_at

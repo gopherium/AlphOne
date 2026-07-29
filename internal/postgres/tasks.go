@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -58,6 +59,71 @@ func (s *TaskStore) Get(ctx context.Context, id uuid.UUID) (task.Task, error) {
 		return task.Task{}, fmt.Errorf("postgres: get task: %w", err)
 	}
 	return taskFromRow(row), nil
+}
+
+// ListForDay returns the assignee's tasks due on the given day, after the
+// page cursor and narrowed to the given status.
+func (s *TaskStore) ListForDay(
+	ctx context.Context, assigneeID uuid.UUID, dueOn time.Time, status string, page task.Page,
+) ([]task.Task, error) {
+	rows, err := s.queries.ListTasksForDay(ctx, db.ListTasksForDayParams{
+		AssigneeID: assigneeID,
+		DueOn:      dueOn,
+		Status:     status,
+		AfterDueOn: page.AfterDueOn,
+		AfterID:    page.AfterID,
+		RowLimit:   int32(page.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list tasks for day: %w", err)
+	}
+	return tasksFromRows(rows), nil
+}
+
+// ListDueBefore returns the assignee's tasks due before the given day, after
+// the page cursor and narrowed to the given status.
+func (s *TaskStore) ListDueBefore(
+	ctx context.Context, assigneeID uuid.UUID, dueBefore time.Time, status string, page task.Page,
+) ([]task.Task, error) {
+	rows, err := s.queries.ListTasksDueBefore(ctx, db.ListTasksDueBeforeParams{
+		AssigneeID: assigneeID,
+		DueBefore:  dueBefore,
+		Status:     status,
+		AfterDueOn: page.AfterDueOn,
+		AfterID:    page.AfterID,
+		RowLimit:   int32(page.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list tasks due before: %w", err)
+	}
+	return tasksFromRows(rows), nil
+}
+
+// ListForContact returns every assignee's tasks linked to the contact, after
+// the page cursor and narrowed to the given status.
+func (s *TaskStore) ListForContact(
+	ctx context.Context, contactID uuid.UUID, status string, page task.Page,
+) ([]task.Task, error) {
+	rows, err := s.queries.ListTasksForContact(ctx, db.ListTasksForContactParams{
+		ContactID:  contactID,
+		Status:     status,
+		AfterDueOn: page.AfterDueOn,
+		AfterID:    page.AfterID,
+		RowLimit:   int32(page.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list tasks for contact: %w", err)
+	}
+	return tasksFromRows(rows), nil
+}
+
+// tasksFromRows maps stored rows to domain tasks.
+func tasksFromRows(rows []db.CoreTask) []task.Task {
+	tasks := make([]task.Task, len(rows))
+	for i, row := range rows {
+		tasks[i] = taskFromRow(row)
+	}
+	return tasks
 }
 
 // taskFromRow maps a stored row to a [task.Task].

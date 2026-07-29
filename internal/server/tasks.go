@@ -4,7 +4,13 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,10 +25,28 @@ import (
 type TaskStore interface {
 	Create(ctx context.Context, t task.Task) error
 	Get(ctx context.Context, id uuid.UUID) (task.Task, error)
+	ListForDay(
+		ctx context.Context, assigneeID uuid.UUID, dueOn time.Time, status string, page task.Page,
+	) ([]task.Task, error)
+	ListDueBefore(
+		ctx context.Context, assigneeID uuid.UUID, dueBefore time.Time, status string, page task.Page,
+	) ([]task.Task, error)
+	ListForContact(
+		ctx context.Context, contactID uuid.UUID, status string, page task.Page,
+	) ([]task.Task, error)
 }
 
 // dueDateLayout is the wire format of a task due date.
 const dueDateLayout = "2006-01-02"
+
+// statusAll lists tasks of every status.
+const statusAll = "all"
+
+// defaultTaskListLimit and maxTaskListLimit bound the tasks page size.
+const (
+	defaultTaskListLimit = 50
+	maxTaskListLimit     = 200
+)
 
 type taskResponse struct {
 	ID            uuid.UUID  `json:"id"`
@@ -104,6 +128,174 @@ func (s *server) handleTaskCreate() http.HandlerFunc {
 		authkit.Respond(w, http.StatusCreated, newTaskResponse(created))
 	}
 }
+
+type taskCursor struct {
+	DueOn string    `json:"due_on"`
+	ID    uuid.UUID `json:"id"`
+}
+
+type taskListResponse struct {
+	Tasks      []taskResponse `json:"tasks"`
+	NextCursor *string        `json:"next_cursor"`
+}
+
+// decodeTaskCursor parses the opaque list cursor, returning a zero page
+// position for an absent one.
+func decodeTaskCursor(raw string) (task.Page, error) {
+	if raw == "" {
+		return task.Page{}, nil
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
+	}
+	var cursor taskCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
+	}
+	dueOn, err := time.Parse(dueDateLayout, cursor.DueOn)
+	if err != nil {
+		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
+	}
+	return task.Page{AfterDueOn: dueOn, AfterID: cursor.ID}, nil
+}
+
+// encodeTaskCursor renders the position after t as an opaque cursor.
+func encodeTaskCursor(t task.Task) string {
+	encoded, _ := json.Marshal(taskCursor{DueOn: t.DueOn.Format(dueDateLayout), ID: t.ID})
+	return base64.RawURLEncoding.EncodeToString(encoded)
+}
+
+// parseTaskListLimit reads the "limit" query parameter, returning the default
+// when absent or an error when out of range.
+func parseTaskListLimit(query url.Values) (int, error) {
+	raw := query.Get("limit")
+	if raw == "" {
+		return defaultTaskListLimit, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit < 1 || limit > maxTaskListLimit {
+		return 0, fmt.Errorf("server: invalid limit %q", raw)
+	}
+	return limit, nil
+}
+
+// parseTaskListStatus reads the "status" query parameter, defaulting to open
+// tasks and rejecting anything but open, done, and all.
+func parseTaskListStatus(query url.Values) (string, error) {
+	switch status := query.Get("status"); status {
+	case "":
+		return task.StatusOpen, nil
+	case task.StatusOpen, task.StatusDone, statusAll:
+		return status, nil
+	default:
+		return "", fmt.Errorf("server: invalid status %q", status)
+	}
+}
+
+// handleTaskList returns an HTTP handler listing tasks as a cursor paginated
+// page, filtered by exactly one of date, due_before, or contact_id.
+func (s *server) handleTaskList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		status, err := parseTaskListStatus(query)
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "invalid status")
+			return
+		}
+		limit, err := parseTaskListLimit(query)
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+		page, err := decodeTaskCursor(query.Get("cursor"))
+		if err != nil {
+			authkit.RespondError(w, http.StatusBadRequest, "malformed cursor")
+			return
+		}
+		page.Limit = limit + 1
+		rows, err := s.listTasks(r, status, page)
+		if err != nil {
+			respondListError(w, err)
+			return
+		}
+		var nextCursor *string
+		if len(rows) > limit {
+			rows = rows[:limit]
+			encoded := encodeTaskCursor(rows[limit-1])
+			nextCursor = &encoded
+		}
+		tasks := make([]taskResponse, len(rows))
+		for i, listed := range rows {
+			tasks[i] = newTaskResponse(listed)
+		}
+		authkit.Respond(w, http.StatusOK, taskListResponse{Tasks: tasks, NextCursor: nextCursor})
+	}
+}
+
+// listTasks runs the store listing selected by the request's filter,
+// requiring exactly one of date, due_before, and contact_id.
+func (s *server) listTasks(r *http.Request, status string, page task.Page) ([]task.Task, error) {
+	query := r.URL.Query()
+	date, dueBefore, contactID := query.Get("date"), query.Get("due_before"), query.Get("contact_id")
+	if filterCount(date, dueBefore, contactID) != 1 {
+		return nil, errTaskFilter
+	}
+	assignee := authkit.IdentityFromContext(r.Context()).ID
+	switch {
+	case contactID != "":
+		id, err := uuid.Parse(contactID)
+		if err != nil {
+			return nil, errTaskContactID
+		}
+		return s.tasks.ListForContact(r.Context(), id, status, page)
+	case date != "":
+		on, err := time.Parse(dueDateLayout, date)
+		if err != nil {
+			return nil, errTaskDate
+		}
+		return s.tasks.ListForDay(r.Context(), assignee, on, status, page)
+	default:
+		on, err := time.Parse(dueDateLayout, dueBefore)
+		if err != nil {
+			return nil, errTaskDate
+		}
+		return s.tasks.ListDueBefore(r.Context(), assignee, on, status, page)
+	}
+}
+
+// filterCount reports how many of the listing filters are present.
+func filterCount(filters ...string) int {
+	count := 0
+	for _, filter := range filters {
+		if filter != "" {
+			count++
+		}
+	}
+	return count
+}
+
+// respondListError writes a listing failure, mapping the request errors to
+// bad request and everything else to a domain error response.
+func respondListError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errTaskFilter):
+		authkit.RespondError(w, http.StatusBadRequest, "one of date, due_before, or contact_id is required")
+	case errors.Is(err, errTaskDate):
+		authkit.RespondError(w, http.StatusBadRequest, "malformed date")
+	case errors.Is(err, errTaskContactID):
+		authkit.RespondError(w, http.StatusBadRequest, "malformed contact id")
+	default:
+		respondDomainError(w, err)
+	}
+}
+
+// Listing request errors.
+var (
+	errTaskFilter    = errors.New("server: exactly one task filter is required")
+	errTaskDate      = errors.New("server: malformed task date")
+	errTaskContactID = errors.New("server: malformed task contact id")
+)
 
 // handleTaskGet returns an http.HandlerFunc that responds with one task.
 func (s *server) handleTaskGet() http.HandlerFunc {

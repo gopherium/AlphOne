@@ -22,14 +22,61 @@ var (
 	_ server.TaskStore = (*fakeTaskStore)(nil)
 )
 
+type taskListCall struct {
+	mode       string
+	assigneeID uuid.UUID
+	contactID  uuid.UUID
+	on         time.Time
+	status     string
+	page       task.Page
+}
+
 type fakeTaskStore struct {
 	tasks     map[uuid.UUID]task.Task
+	listed    []task.Task
+	lastList  taskListCall
 	createErr error
 	getErr    error
+	listErr   error
 }
 
 func newFakeTaskStore() *fakeTaskStore {
 	return &fakeTaskStore{tasks: map[uuid.UUID]task.Task{}}
+}
+
+func (f *fakeTaskStore) ListForDay(
+	_ context.Context, assigneeID uuid.UUID, dueOn time.Time, status string, page task.Page,
+) ([]task.Task, error) {
+	f.lastList = taskListCall{
+		mode: "day", assigneeID: assigneeID, on: dueOn, status: status, page: page,
+	}
+	return f.listPage(page)
+}
+
+func (f *fakeTaskStore) ListDueBefore(
+	_ context.Context, assigneeID uuid.UUID, dueBefore time.Time, status string, page task.Page,
+) ([]task.Task, error) {
+	f.lastList = taskListCall{
+		mode: "before", assigneeID: assigneeID, on: dueBefore, status: status, page: page,
+	}
+	return f.listPage(page)
+}
+
+func (f *fakeTaskStore) ListForContact(
+	_ context.Context, contactID uuid.UUID, status string, page task.Page,
+) ([]task.Task, error) {
+	f.lastList = taskListCall{mode: "contact", contactID: contactID, status: status, page: page}
+	return f.listPage(page)
+}
+
+func (f *fakeTaskStore) listPage(page task.Page) ([]task.Task, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	if len(f.listed) > page.Limit {
+		return f.listed[:page.Limit], nil
+	}
+	return f.listed, nil
 }
 
 func (f *fakeTaskStore) Create(_ context.Context, t task.Task) error {
@@ -64,23 +111,24 @@ type taskBody struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-func authedTaskServer(t *testing.T, store server.TaskStore) http.Handler {
+func authedTaskServer(t *testing.T, store server.TaskStore) (http.Handler, uuid.UUID) {
 	t.Helper()
 	users := newFakeUserStore()
-	addAda(t, users)
+	ada := addAda(t, users)
 	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Tasks: store, Users: users})
 	cookie := loginCookie(t, srv)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.AddCookie(cookie)
 		srv.ServeHTTP(w, r)
 	})
+	return handler, ada.ID
 }
 
 func TestCreateTask(t *testing.T) {
 	t.Parallel()
 
 	store := newFakeTaskStore()
-	srv := authedTaskServer(t, store)
+	srv, ada := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/tasks",
 		`{"title":"  Call María about the wicker lamp  ","due_on":"2026-07-30","priority":1}`)
@@ -101,8 +149,8 @@ func TestCreateTask(t *testing.T) {
 	if got.Priority != 1 {
 		t.Errorf("priority = %d, want 1", got.Priority)
 	}
-	if got.AssigneeID == uuid.Nil {
-		t.Error("assignee_id is uuid.Nil, want the session user")
+	if got.AssigneeID != ada {
+		t.Errorf("assignee_id = %v, want the session user %v", got.AssigneeID, ada)
 	}
 	stored, ok := store.tasks[got.ID]
 	if !ok || stored.Title != got.Title {
@@ -117,7 +165,7 @@ func TestCreateTaskAssignsTheSessionUser(t *testing.T) {
 	t.Parallel()
 
 	store := newFakeTaskStore()
-	srv := authedTaskServer(t, store)
+	srv, ada := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/tasks",
 		`{"title":"Call the supplier","due_on":"2026-07-30","assignee_id":"0198c000-0000-7000-8000-000000000001"}`)
@@ -126,8 +174,8 @@ func TestCreateTaskAssignsTheSessionUser(t *testing.T) {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
 	}
 	got := decodeBody[taskBody](t, recorder)
-	if got.AssigneeID.String() == "0198c000-0000-7000-8000-000000000001" {
-		t.Error("assignee_id honored the request body, want the session user")
+	if got.AssigneeID != ada {
+		t.Errorf("assignee_id = %v, want the session user %v ignoring the request body", got.AssigneeID, ada)
 	}
 }
 
@@ -135,7 +183,7 @@ func TestCreateTaskLinksAContact(t *testing.T) {
 	t.Parallel()
 
 	store := newFakeTaskStore()
-	srv := authedTaskServer(t, store)
+	srv, _ := authedTaskServer(t, store)
 	contactID := uuid.Must(uuid.NewV7())
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/tasks",
@@ -194,7 +242,7 @@ func TestCreateTaskRejectsInvalidBodies(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := authedTaskServer(t, newFakeTaskStore())
+			srv, _ := authedTaskServer(t, newFakeTaskStore())
 
 			recorder := doRequest(t, srv, http.MethodPost, "/api/tasks", tc.body)
 
@@ -219,7 +267,7 @@ func TestCreateTaskReportsStorageFailure(t *testing.T) {
 
 	store := newFakeTaskStore()
 	store.createErr = errors.New("store down")
-	srv := authedTaskServer(t, store)
+	srv, _ := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/tasks",
 		`{"title":"Call the supplier","due_on":"2026-07-30"}`)
@@ -242,7 +290,7 @@ func TestGetTask(t *testing.T) {
 		t.Fatalf("task.New() error = %v, want nil", err)
 	}
 	store.tasks[stored.ID] = stored
-	srv := authedTaskServer(t, store)
+	srv, _ := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/tasks/"+stored.ID.String(), "")
 
@@ -271,7 +319,7 @@ func TestGetTaskRendersItsOrigin(t *testing.T) {
 		t.Fatalf("task.New() error = %v, want nil", err)
 	}
 	store.tasks[stored.ID] = stored
-	srv := authedTaskServer(t, store)
+	srv, _ := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodGet, "/api/tasks/"+stored.ID.String(), "")
 
@@ -308,7 +356,7 @@ func TestGetTaskRejectsUnknownAndMalformedIDs(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := authedTaskServer(t, newFakeTaskStore())
+			srv, _ := authedTaskServer(t, newFakeTaskStore())
 
 			recorder := doRequest(t, srv, http.MethodGet, tc.target, "")
 
@@ -323,7 +371,7 @@ func TestTaskEnvelopeKeepsItsShape(t *testing.T) {
 	t.Parallel()
 
 	store := newFakeTaskStore()
-	srv := authedTaskServer(t, store)
+	srv, _ := authedTaskServer(t, store)
 
 	recorder := doRequest(t, srv, http.MethodPost, "/api/tasks",
 		`{"title":"Call the supplier","due_on":"2026-07-30"}`)

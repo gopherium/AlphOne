@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit/testkit"
 )
 
@@ -18,10 +19,10 @@ func newFakeUserStore() *testkit.Store {
 	return testkit.NewStore()
 }
 
-// addAda stores the default test user.
-func addAda(t *testing.T, store *testkit.Store) {
+// addAda stores the default test user and returns it.
+func addAda(t *testing.T, store *testkit.Store) gouncer.User {
 	t.Helper()
-	store.AddUser(t, "ada@example.com", "Ada Lovelace", testPassword)
+	return store.AddUser(t, "ada@example.com", "Ada Lovelace", testPassword)
 }
 
 // doLogin posts credentials to the login route.
