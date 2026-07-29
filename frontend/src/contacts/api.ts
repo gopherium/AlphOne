@@ -17,8 +17,6 @@ const identitySchema = z.object({
 	display_name: z.string(),
 })
 
-export type ContactIdentity = z.infer<typeof identitySchema>
-
 const contactDetailSchema = contactSchema.extend({
 	identities: z.array(identitySchema),
 })
