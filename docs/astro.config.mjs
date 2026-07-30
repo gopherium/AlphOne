@@ -51,7 +51,7 @@ export default defineConfig({
 				},
 				{
 					label: 'Reference',
-					items: [{ slug: 'reference/rest-api' }],
+					items: [{ slug: 'reference/rest-api' }, { slug: 'reference/webhooks' }],
 				},
 				{
 					label: 'Legal',

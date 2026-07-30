@@ -255,6 +255,13 @@ disable accounts. Treat every account as an administrator until roles
 land.
 :::
 
+## Webhooks
+
+`GET /api/webhooks`, `POST /api/webhooks`, and `DELETE
+/api/webhooks/{id}` manage the endpoints AlphOne posts events to. The
+[webhooks reference](/reference/webhooks/) covers the envelope, the
+signature, and the retry policy.
+
 ## Version
 
 `GET /api/version` returns `{"version": "0.4.0"}`. It needs a session,
