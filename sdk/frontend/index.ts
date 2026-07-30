@@ -24,7 +24,6 @@ export interface FrontendPlugin {
 export {
 	Badge,
 	Button,
-	Card,
 	Checkbox,
 	Collapsible,
 	EmptyState,
@@ -39,12 +38,10 @@ export {
 	VisuallyHidden,
 } from '@wordpress/ui'
 export {
-	calendar,
 	chevronLeft,
 	chevronRight,
 	inbox,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
-export { sessionQueryKey } from '@gopherium/react-auth'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useEventStream } from './stream'

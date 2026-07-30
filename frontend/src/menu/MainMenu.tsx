@@ -15,9 +15,7 @@ const chevronRightSmall = (
 )
 
 /**
- * Reports whether the route or one of its ancestors declares a sidebar
- * section, mirroring how the layout resolves the drill-down screen from
- * the matched route branch.
+ * Reports whether the route or one of its ancestors declares a sidebar section.
  * @param route - The route the nav entry points at.
  * @returns Whether navigating there swaps the sidebar to a section screen.
  */
