@@ -24,6 +24,7 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
+	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -64,13 +65,15 @@ func run(
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
+	dispatcher := webhook.NewDispatcher(webhooks, logger)
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
 
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
-		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts)},
+		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts, contact.WithEvents(dispatcher))},
+		Events:      pluginPublisher{dispatcher: dispatcher},
 		Getenv:      getenv,
 	})
 	if err != nil {
@@ -88,6 +91,7 @@ func run(
 		Users:             userStore,
 		Tokens:            tokens,
 		Webhooks:          webhooks,
+		Events:            dispatcher,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),
