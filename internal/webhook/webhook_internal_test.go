@@ -40,3 +40,20 @@ func TestNewSubscriptionReportsAFailingSecretSource(t *testing.T) {
 		t.Errorf("NewSubscription() error = %v, want %v", err, errEntropy)
 	}
 }
+
+func TestNewDeliveryReportsAFailingIdentifierSource(t *testing.T) {
+	sub, err := NewSubscription(uuid.Nil, "https://example.com/h", []event.Name{event.TaskCreated})
+	if err != nil {
+		t.Fatalf("NewSubscription() error = %v, want nil", err)
+	}
+	occurred, err := event.New(event.TaskCreated, nil)
+	if err != nil {
+		t.Fatalf("event.New() error = %v, want nil", err)
+	}
+	uuid.SetRand(failingReader{})
+	defer uuid.SetRand(nil)
+
+	if _, err := NewDelivery(sub, occurred); !errors.Is(err, errEntropy) {
+		t.Errorf("NewDelivery() error = %v, want %v", err, errEntropy)
+	}
+}

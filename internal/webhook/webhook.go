@@ -124,3 +124,52 @@ func validateURL(raw string) error {
 	}
 	return nil
 }
+
+// Delivery statuses.
+const (
+	StatusPending   = "pending"
+	StatusDelivered = "delivered"
+	StatusFailed    = "failed"
+)
+
+// Delivery is one queued attempt to hand an event to a subscriber.
+type Delivery struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	EventID        uuid.UUID
+	EventName      event.Name
+	Payload        []byte
+	Attempts       int
+	DeliverAfter   time.Time
+	Status         string
+	LastError      string
+	CreatedAt      time.Time
+}
+
+// NewDelivery returns a delivery of e to sub, due immediately.
+func NewDelivery(sub Subscription, e event.Event) (Delivery, error) {
+	payload, err := e.Payload()
+	if err != nil {
+		return Delivery{}, err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Delivery{}, fmt.Errorf("webhook: generate id: %w", err)
+	}
+	now := time.Now().UTC()
+	return Delivery{
+		ID:             id,
+		SubscriptionID: sub.ID,
+		EventID:        e.ID,
+		EventName:      e.Name,
+		Payload:        payload,
+		DeliverAfter:   now,
+		Status:         StatusPending,
+		CreatedAt:      now,
+	}, nil
+}
+
+// Exhausted reports whether a delivery has used its whole attempt budget.
+func Exhausted(attempts int) bool {
+	return attempts >= MaxAttempts
+}
