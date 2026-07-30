@@ -14,6 +14,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 type inboundMessage struct {
@@ -327,9 +331,25 @@ func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	}
 	if stored {
 		p.events.broadcast(event{Conversation: conversationID})
+		p.publish(ctx, owner, conversationID, m)
 		if m.media != nil {
 			p.fetcher.poke()
 		}
 	}
 	return nil
+}
+
+// publish announces an inbound message unless the host provided no
+// publisher.
+func (p *Plugin) publish(ctx context.Context, owner sdk.Contact, conversationID uuid.UUID, m inboundMessage) {
+	if p.publisher == nil {
+		return
+	}
+	p.publisher.Publish(ctx, "whatsapp.message.received", map[string]any{
+		"conversation_id": conversationID.String(),
+		"contact_id":      owner.ID.String(),
+		"contact_name":    owner.Name,
+		"external_id":     m.externalID,
+		"text":            m.content,
+	})
 }

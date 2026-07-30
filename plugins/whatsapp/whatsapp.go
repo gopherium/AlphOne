@@ -39,6 +39,7 @@ type Plugin struct {
 	sender      *sender
 	events      *broadcaster
 	fetcher     *mediaFetcher
+	publisher   sdk.Publisher
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
@@ -64,6 +65,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	p := &Plugin{
 		pool:        pool,
 		resolver:    deps.Resolver,
+		publisher:   deps.Events,
 		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
 		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
 		store:       &store{pool: pool},

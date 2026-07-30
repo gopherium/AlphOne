@@ -39,6 +39,13 @@ type Deps struct {
 	DatabaseURL string
 	Resolver    ContactResolver
 	Getenv      func(string) string
+	Events      Publisher
+}
+
+// Publisher announces a plugin's own events to the host. A plugin may
+// publish, never subscribe, so no plugin observes another's traffic.
+type Publisher interface {
+	Publish(ctx context.Context, name string, data map[string]any)
 }
 
 // Channel names a communication medium, such as "whatsapp" or "email".
