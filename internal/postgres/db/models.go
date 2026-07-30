@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CoreApiToken struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	TokenHash  string
+	CreatedAt  time.Time
+	LastUsedAt pgtype.Timestamptz
+}
+
 type CoreContact struct {
 	ID        uuid.UUID
 	Name      string

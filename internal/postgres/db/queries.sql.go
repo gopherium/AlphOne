@@ -13,6 +13,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createAPIToken = `-- name: CreateAPIToken :exec
+INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateAPITokenParams struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	TokenHash  string
+	CreatedAt  time.Time
+	LastUsedAt pgtype.Timestamptz
+}
+
+func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error {
+	_, err := q.db.Exec(ctx, createAPIToken,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.TokenHash,
+		arg.CreatedAt,
+		arg.LastUsedAt,
+	)
+	return err
+}
+
 const createContact = `-- name: CreateContact :exec
 
 INSERT INTO core.contacts (id, name, created_at)
@@ -96,6 +122,26 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 	return err
 }
 
+const getAPITokenByHash = `-- name: GetAPITokenByHash :one
+SELECT id, user_id, name, token_hash, created_at, last_used_at
+FROM core.api_tokens
+WHERE token_hash = $1
+`
+
+func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (CoreApiToken, error) {
+	row := q.db.QueryRow(ctx, getAPITokenByHash, tokenHash)
+	var i CoreApiToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TokenHash,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at
 FROM core.contacts
@@ -157,6 +203,40 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAPITokensForUser = `-- name: ListAPITokensForUser :many
+SELECT id, user_id, name, token_hash, created_at, last_used_at
+FROM core.api_tokens
+WHERE user_id = $1
+ORDER BY created_at DESC, id DESC
+`
+
+func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([]CoreApiToken, error) {
+	rows, err := q.db.Query(ctx, listAPITokensForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreApiToken
+	for rows.Next() {
+		var i CoreApiToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.TokenHash,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listContactIdentities = `-- name: ListContactIdentities :many
@@ -413,6 +493,40 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeAPIToken = `-- name: RevokeAPIToken :execrows
+DELETE FROM core.api_tokens
+WHERE id = $1 AND user_id = $2
+`
+
+type RevokeAPITokenParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const touchAPIToken = `-- name: TouchAPIToken :exec
+UPDATE core.api_tokens
+SET last_used_at = $2
+WHERE id = $1
+`
+
+type TouchAPITokenParams struct {
+	ID         uuid.UUID
+	LastUsedAt pgtype.Timestamptz
+}
+
+func (q *Queries) TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error {
+	_, err := q.db.Exec(ctx, touchAPIToken, arg.ID, arg.LastUsedAt)
+	return err
 }
 
 const updateContactName = `-- name: UpdateContactName :one
