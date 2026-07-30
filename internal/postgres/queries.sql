@@ -143,18 +143,25 @@ INSERT INTO core.webhook_deliveries (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
 -- name: ClaimWebhookDeliveries :many
-UPDATE core.webhook_deliveries
-SET attempts = attempts + 1, deliver_after = @lease::timestamptz
-WHERE id IN (
-    SELECT d.id
-    FROM core.webhook_deliveries d
-    WHERE d.status = 'pending' AND d.deliver_after <= @due::timestamptz
-    ORDER BY d.deliver_after, d.id
-    LIMIT @row_limit
-    FOR UPDATE SKIP LOCKED
+WITH claimed AS (
+    UPDATE core.webhook_deliveries
+    SET attempts = attempts + 1, deliver_after = @lease::timestamptz
+    WHERE id IN (
+        SELECT d.id
+        FROM core.webhook_deliveries d
+        WHERE d.status = 'pending' AND d.deliver_after <= @due::timestamptz
+        ORDER BY d.deliver_after, d.id
+        LIMIT @row_limit
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, subscription_id, event_id, event_name, payload,
+        attempts, deliver_after, status, last_error, created_at
 )
-RETURNING id, subscription_id, event_id, event_name, payload,
-    attempts, deliver_after, status, last_error, created_at;
+SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
+    c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
+    s.url, s.secret
+FROM claimed c
+JOIN core.webhook_subscriptions s ON s.id = c.subscription_id;
 
 -- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries

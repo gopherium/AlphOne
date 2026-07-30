@@ -110,7 +110,7 @@ func (s *WebhookStore) ClaimDueDeliveries(
 	ctx context.Context,
 	due, lease time.Time,
 	limit int,
-) ([]webhook.Delivery, error) {
+) ([]webhook.ClaimedDelivery, error) {
 	rows, err := s.queries.ClaimWebhookDeliveries(ctx, db.ClaimWebhookDeliveriesParams{
 		Lease:    lease,
 		Due:      due,
@@ -119,19 +119,23 @@ func (s *WebhookStore) ClaimDueDeliveries(
 	if err != nil {
 		return nil, fmt.Errorf("postgres: claim webhook deliveries: %w", err)
 	}
-	deliveries := make([]webhook.Delivery, 0, len(rows))
+	deliveries := make([]webhook.ClaimedDelivery, 0, len(rows))
 	for _, row := range rows {
-		deliveries = append(deliveries, webhook.Delivery{
-			ID:             row.ID,
-			SubscriptionID: row.SubscriptionID,
-			EventID:        row.EventID,
-			EventName:      event.Name(row.EventName),
-			Payload:        []byte(row.Payload),
-			Attempts:       int(row.Attempts),
-			DeliverAfter:   row.DeliverAfter,
-			Status:         row.Status,
-			LastError:      row.LastError.String,
-			CreatedAt:      row.CreatedAt,
+		deliveries = append(deliveries, webhook.ClaimedDelivery{
+			Delivery: webhook.Delivery{
+				ID:             row.ID,
+				SubscriptionID: row.SubscriptionID,
+				EventID:        row.EventID,
+				EventName:      event.Name(row.EventName),
+				Payload:        []byte(row.Payload),
+				Attempts:       int(row.Attempts),
+				DeliverAfter:   row.DeliverAfter,
+				Status:         row.Status,
+				LastError:      row.LastError.String,
+				CreatedAt:      row.CreatedAt,
+			},
+			URL:    row.Url,
+			Secret: row.Secret,
 		})
 	}
 	return deliveries, nil

@@ -14,18 +14,25 @@ import (
 )
 
 const claimWebhookDeliveries = `-- name: ClaimWebhookDeliveries :many
-UPDATE core.webhook_deliveries
-SET attempts = attempts + 1, deliver_after = $1::timestamptz
-WHERE id IN (
-    SELECT d.id
-    FROM core.webhook_deliveries d
-    WHERE d.status = 'pending' AND d.deliver_after <= $2::timestamptz
-    ORDER BY d.deliver_after, d.id
-    LIMIT $3
-    FOR UPDATE SKIP LOCKED
+WITH claimed AS (
+    UPDATE core.webhook_deliveries
+    SET attempts = attempts + 1, deliver_after = $1::timestamptz
+    WHERE id IN (
+        SELECT d.id
+        FROM core.webhook_deliveries d
+        WHERE d.status = 'pending' AND d.deliver_after <= $2::timestamptz
+        ORDER BY d.deliver_after, d.id
+        LIMIT $3
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, subscription_id, event_id, event_name, payload,
+        attempts, deliver_after, status, last_error, created_at
 )
-RETURNING id, subscription_id, event_id, event_name, payload,
-    attempts, deliver_after, status, last_error, created_at
+SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
+    c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
+    s.url, s.secret
+FROM claimed c
+JOIN core.webhook_subscriptions s ON s.id = c.subscription_id
 `
 
 type ClaimWebhookDeliveriesParams struct {
@@ -34,15 +41,30 @@ type ClaimWebhookDeliveriesParams struct {
 	RowLimit int32
 }
 
-func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDeliveriesParams) ([]CoreWebhookDelivery, error) {
+type ClaimWebhookDeliveriesRow struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	EventID        uuid.UUID
+	EventName      string
+	Payload        string
+	Attempts       int32
+	DeliverAfter   time.Time
+	Status         string
+	LastError      pgtype.Text
+	CreatedAt      time.Time
+	Url            string
+	Secret         string
+}
+
+func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDeliveriesParams) ([]ClaimWebhookDeliveriesRow, error) {
 	rows, err := q.db.Query(ctx, claimWebhookDeliveries, arg.Lease, arg.Due, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreWebhookDelivery
+	var items []ClaimWebhookDeliveriesRow
 	for rows.Next() {
-		var i CoreWebhookDelivery
+		var i ClaimWebhookDeliveriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SubscriptionID,
@@ -54,6 +76,8 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 			&i.Status,
 			&i.LastError,
 			&i.CreatedAt,
+			&i.Url,
+			&i.Secret,
 		); err != nil {
 			return nil, err
 		}
