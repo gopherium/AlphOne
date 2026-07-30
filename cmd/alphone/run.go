@@ -66,14 +66,18 @@ func run(
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
+	deliveries := webhook.NewWorker(webhooks, logger)
+	deliveries.Start()
+	defer deliveries.Stop()
+	events := nudgingPublisher{dispatcher: dispatcher, worker: deliveries}
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
 
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
-		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts, contact.WithEvents(dispatcher))},
-		Events:      pluginPublisher{dispatcher: dispatcher},
+		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts, contact.WithEvents(events))},
+		Events:      pluginPublisher{publisher: events},
 		Getenv:      getenv,
 	})
 	if err != nil {
@@ -91,7 +95,7 @@ func run(
 		Users:             userStore,
 		Tokens:            tokens,
 		Webhooks:          webhooks,
-		Events:            dispatcher,
+		Events:            events,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),
