@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/event"
 )
 
 var _ contact.Store = (*fakeStore)(nil)
@@ -300,4 +301,65 @@ func (r *flakyReader) Read(p []byte) (int, error) {
 		p[i] = byte(i + 1)
 	}
 	return len(p), nil
+}
+
+type recordingEvents struct {
+	names []event.Name
+	data  []map[string]any
+}
+
+func (r *recordingEvents) Publish(_ context.Context, name event.Name, data map[string]any) {
+	r.names = append(r.names, name)
+	r.data = append(r.data, data)
+}
+
+func TestResolveAnnouncesAContactItCreates(t *testing.T) {
+	t.Parallel()
+
+	events := &recordingEvents{}
+	resolver := contact.NewResolver(newFakeStore(), contact.WithEvents(events))
+
+	created, err := resolver.Resolve(t.Context(), "whatsapp", "184467235@lid", "Maria Perez")
+
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if len(events.names) != 1 || events.names[0] != event.ContactCreated {
+		t.Fatalf("published %v, want one %q", events.names, event.ContactCreated)
+	}
+	if events.data[0]["id"] != created.ID.String() {
+		t.Errorf("data.id = %v, want %q", events.data[0]["id"], created.ID)
+	}
+	if events.data[0]["name"] != "Maria Perez" {
+		t.Errorf("data.name = %v, want the contact name", events.data[0]["name"])
+	}
+}
+
+func TestResolveStaysQuietForAKnownContact(t *testing.T) {
+	t.Parallel()
+
+	events := &recordingEvents{}
+	resolver := contact.NewResolver(newFakeStore(), contact.WithEvents(events))
+	if _, err := resolver.Resolve(t.Context(), "whatsapp", "184467235@lid", "Maria Perez"); err != nil {
+		t.Fatalf("first Resolve() error = %v, want nil", err)
+	}
+	events.names = nil
+
+	if _, err := resolver.Resolve(t.Context(), "whatsapp", "184467235@lid", "Maria Perez"); err != nil {
+		t.Fatalf("second Resolve() error = %v, want nil", err)
+	}
+
+	if len(events.names) != 0 {
+		t.Errorf("published %v for a contact that already existed, want nothing", events.names)
+	}
+}
+
+func TestResolveWorksWithoutAPublisher(t *testing.T) {
+	t.Parallel()
+
+	resolver := contact.NewResolver(newFakeStore())
+
+	if _, err := resolver.Resolve(t.Context(), "whatsapp", "184467235@lid", "Maria Perez"); err != nil {
+		t.Errorf("Resolve() error = %v, want nil without a publisher configured", err)
+	}
 }

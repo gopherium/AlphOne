@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/internal/event"
 )
 
 // Store persists contacts and their channel identities.
@@ -19,12 +21,39 @@ type Store interface {
 
 // Resolver finds or creates the contact owning a channel identity.
 type Resolver struct {
-	store Store
+	store  Store
+	events Publisher
+}
+
+// Publisher announces domain events.
+type Publisher interface {
+	Publish(ctx context.Context, name event.Name, data map[string]any)
+}
+
+// Option configures a [Resolver].
+type Option func(*Resolver)
+
+// WithEvents announces contacts created by a channel to events.
+func WithEvents(events Publisher) Option {
+	return func(r *Resolver) { r.events = events }
 }
 
 // NewResolver returns a [Resolver] backed by store.
-func NewResolver(store Store) *Resolver {
-	return &Resolver{store: store}
+func NewResolver(store Store, options ...Option) *Resolver {
+	r := &Resolver{store: store}
+	for _, option := range options {
+		option(r)
+	}
+	return r
+}
+
+// publish announces an event unless the resolver was built without a
+// publisher.
+func (r *Resolver) publish(ctx context.Context, name event.Name, data map[string]any) {
+	if r.events == nil {
+		return
+	}
+	r.events.Publish(ctx, name, data)
 }
 
 // Resolve returns the contact owning the identity for channel and
@@ -63,6 +92,7 @@ func (r *Resolver) Resolve(ctx context.Context, channel Channel, identifier, dis
 	if err != nil {
 		return Contact{}, err
 	}
+	r.publish(ctx, event.ContactCreated, map[string]any{"id": created.ID.String(), "name": created.Name})
 	return created, nil
 }
 
