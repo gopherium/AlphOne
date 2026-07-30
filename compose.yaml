@@ -1,3 +1,4 @@
+# Development stack only.
 services:
   postgres:
     image: postgres:18
@@ -13,5 +14,23 @@ services:
       timeout: 2s
       retries: 15
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.33.2
+    profiles: ["n8n"]
+    restart: unless-stopped
+    environment:
+      GENERIC_TIMEZONE: Europe/Madrid
+      TZ: Europe/Madrid
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_SECURE_COOKIE: "false"
+      N8N_WEBHOOK_URL: http://localhost:5678/
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   postgres-data:
+  n8n-data:

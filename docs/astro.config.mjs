@@ -31,6 +31,7 @@ export default defineConfig({
 					items: [
 						{ slug: 'guides/tasks' }, 
 						{ slug: 'guides/contacts' },
+						{ slug: 'guides/automation' },
 					],
 				},
 				{

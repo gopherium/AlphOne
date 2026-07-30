@@ -39,6 +39,13 @@ db-up:
 db-down:
 	docker compose down
 
+n8n:
+	docker compose --profile n8n up -d --wait n8n
+	@echo "n8n at http://localhost:5678"
+
+n8n-down:
+	docker compose --profile n8n down n8n
+
 seed: db-up
 	go run ./cmd/alphone seed
 
