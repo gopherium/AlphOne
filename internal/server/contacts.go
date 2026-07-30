@@ -19,6 +19,7 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/event"
 )
 
 // ContactStore provides the contact persistence the HTTP API relies on.
@@ -163,6 +164,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
+		s.publish(r.Context(), event.ContactCreated, contactEventData(c))
 		authkit.Respond(w, http.StatusCreated, newContactResponse(c))
 	}
 }
@@ -250,4 +252,9 @@ func (s *server) handleContactGet() http.HandlerFunc {
 		}
 		authkit.Respond(w, http.StatusOK, detail)
 	}
+}
+
+// contactEventData returns the fields a contact event carries.
+func contactEventData(c contact.Contact) map[string]any {
+	return map[string]any{"id": c.ID.String(), "name": c.Name}
 }

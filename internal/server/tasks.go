@@ -18,6 +18,7 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
 )
 
@@ -126,6 +127,7 @@ func (s *server) handleTaskCreate() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
+		s.publish(r.Context(), event.TaskCreated, taskEventData(created))
 		authkit.Respond(w, http.StatusCreated, newTaskResponse(created))
 	}
 }
@@ -365,6 +367,9 @@ func (s *server) handleTaskPatch() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
+		if stored.Status != task.StatusDone && updated.Status == task.StatusDone {
+			s.publish(r.Context(), event.TaskCompleted, taskEventData(updated))
+		}
 		authkit.Respond(w, http.StatusOK, newTaskResponse(updated))
 	}
 }
@@ -388,4 +393,16 @@ func optionalContactID(raw string) (uuid.UUID, error) {
 		return uuid.Nil, nil
 	}
 	return uuid.Parse(raw)
+}
+
+// taskEventData returns the fields a task event carries, enough to identify
+// the task and read it at a glance.
+func taskEventData(t task.Task) map[string]any {
+	return map[string]any{
+		"id":       t.ID.String(),
+		"title":    t.Title,
+		"status":   t.Status,
+		"due_on":   t.DueOn.Format(time.DateOnly),
+		"priority": t.Priority,
+	}
 }

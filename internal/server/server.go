@@ -28,6 +28,8 @@ type Config struct {
 	Tokens TokenStore
 	// Webhooks persists the outbound event subscriptions the API manages.
 	Webhooks WebhookStore
+	// Events announces domain events. Nil publishes nothing.
+	Events Publisher
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -64,6 +66,7 @@ func NewServer(cfg Config) http.Handler {
 		users:             cfg.Users,
 		tokens:            cfg.Tokens,
 		webhooks:          cfg.Webhooks,
+		events:            cfg.Events,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
@@ -109,6 +112,7 @@ type server struct {
 	users             UserStore
 	tokens            TokenStore
 	webhooks          WebhookStore
+	events            Publisher
 	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
