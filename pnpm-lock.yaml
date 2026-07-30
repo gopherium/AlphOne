@@ -40,8 +40,8 @@ importers:
         specifier: workspace:*
         version: link:../plugins/whatsapp/frontend
       '@gopherium/react-auth':
-        specifier: ^0.1.1
-        version: 0.1.1(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
+        specifier: ^0.1.2
+        version: 0.1.2(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/theme@1.1.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -138,8 +138,8 @@ importers:
   sdk/frontend:
     dependencies:
       '@gopherium/react-auth':
-        specifier: ^0.1.1
-        version: 0.1.1(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
+        specifier: ^0.1.2
+        version: 0.1.2(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/theme@1.1.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -535,13 +535,14 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@gopherium/react-auth@0.1.1':
-    resolution: {integrity: sha512-Of5mHfmkSfIRMOR0MLQEdX5mLEhsKPfKly4pHwITXvVKgEUiX5NrU7Zpw9avTOSmsudVekScw8hX2C1SfYid1Q==}
+  '@gopherium/react-auth@0.1.2':
+    resolution: {integrity: sha512-eNMg++Jotkp0IDRxNCXmYSfcVs3EF08mSEjcK9QRV7Otzr4+uhUv7SjS0sFh1ogy+5j6rtObs+7Tq6EBimNBqg==}
     peerDependencies:
       '@tanstack/react-query': ^5.101.2
       '@testing-library/jest-dom': ^6.9.1
       '@testing-library/react': ^16.3.2
-      '@wordpress/ui': ^0.17.0
+      '@wordpress/theme': '>=1.0.0 <2.0.0'
+      '@wordpress/ui': '>=0.17.0 <1.0.0'
       msw: ^2.15.0
       react: ^19.2.8
       vitest: ^4.1.10
@@ -549,6 +550,8 @@ packages:
       '@testing-library/jest-dom':
         optional: true
       '@testing-library/react':
+        optional: true
+      '@wordpress/theme':
         optional: true
       '@wordpress/ui':
         optional: true
@@ -2923,7 +2926,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@gopherium/react-auth@0.1.1(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)':
+  '@gopherium/react-auth@0.1.2(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/theme@1.1.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)':
     dependencies:
       '@tanstack/react-query': 5.101.4(react@19.2.8)
       react: 19.2.8
@@ -2931,6 +2934,7 @@ snapshots:
     optionalDependencies:
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@wordpress/theme': 1.1.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/ui': 0.19.0(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       msw: 2.15.0(@types/node@26.1.2)(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))

@@ -14,8 +14,10 @@ peerDependencyRules:
     react: '19'
     react-dom: '19'
     '@types/react': '19'
+    typescript: '6'
 
 minimumReleaseAgeExclude:
+  - '@gopherium/react-auth@0.1.2'
   - '@wordpress/a11y@4.52.0'
   - '@wordpress/compose@8.5.0'
   - '@wordpress/deprecated@4.52.0'
