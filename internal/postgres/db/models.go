@@ -47,3 +47,25 @@ type CoreTask struct {
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
 }
+
+type CoreWebhookDelivery struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	EventID        uuid.UUID
+	EventName      string
+	Payload        string
+	Attempts       int32
+	DeliverAfter   time.Time
+	Status         string
+	LastError      pgtype.Text
+	CreatedAt      time.Time
+}
+
+type CoreWebhookSubscription struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Url       string
+	Events    []string
+	Secret    string
+	CreatedAt time.Time
+}

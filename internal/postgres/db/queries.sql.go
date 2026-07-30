@@ -13,6 +13,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimWebhookDeliveries = `-- name: ClaimWebhookDeliveries :many
+UPDATE core.webhook_deliveries
+SET attempts = attempts + 1, deliver_after = $1::timestamptz
+WHERE id IN (
+    SELECT d.id
+    FROM core.webhook_deliveries d
+    WHERE d.status = 'pending' AND d.deliver_after <= $2::timestamptz
+    ORDER BY d.deliver_after, d.id
+    LIMIT $3
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, subscription_id, event_id, event_name, payload,
+    attempts, deliver_after, status, last_error, created_at
+`
+
+type ClaimWebhookDeliveriesParams struct {
+	Lease    time.Time
+	Due      time.Time
+	RowLimit int32
+}
+
+func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDeliveriesParams) ([]CoreWebhookDelivery, error) {
+	rows, err := q.db.Query(ctx, claimWebhookDeliveries, arg.Lease, arg.Due, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreWebhookDelivery
+	for rows.Next() {
+		var i CoreWebhookDelivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubscriptionID,
+			&i.EventID,
+			&i.EventName,
+			&i.Payload,
+			&i.Attempts,
+			&i.DeliverAfter,
+			&i.Status,
+			&i.LastError,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createAPIToken = `-- name: CreateAPIToken :exec
 INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -120,6 +172,86 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const createWebhookDelivery = `-- name: CreateWebhookDelivery :exec
+INSERT INTO core.webhook_deliveries (
+    id, subscription_id, event_id, event_name, payload,
+    attempts, deliver_after, status, last_error, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type CreateWebhookDeliveryParams struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	EventID        uuid.UUID
+	EventName      string
+	Payload        string
+	Attempts       int32
+	DeliverAfter   time.Time
+	Status         string
+	LastError      pgtype.Text
+	CreatedAt      time.Time
+}
+
+func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) error {
+	_, err := q.db.Exec(ctx, createWebhookDelivery,
+		arg.ID,
+		arg.SubscriptionID,
+		arg.EventID,
+		arg.EventName,
+		arg.Payload,
+		arg.Attempts,
+		arg.DeliverAfter,
+		arg.Status,
+		arg.LastError,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createWebhookSubscription = `-- name: CreateWebhookSubscription :exec
+INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateWebhookSubscriptionParams struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Url       string
+	Events    []string
+	Secret    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebhookSubscriptionParams) error {
+	_, err := q.db.Exec(ctx, createWebhookSubscription,
+		arg.ID,
+		arg.UserID,
+		arg.Url,
+		arg.Events,
+		arg.Secret,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const deleteWebhookSubscription = `-- name: DeleteWebhookSubscription :execrows
+DELETE FROM core.webhook_subscriptions
+WHERE id = $1 AND user_id = $2
+`
+
+type DeleteWebhookSubscriptionParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebhookSubscriptionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWebhookSubscription, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
@@ -495,6 +627,74 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 	return items, nil
 }
 
+const listWebhookSubscriptionsForEvent = `-- name: ListWebhookSubscriptionsForEvent :many
+SELECT id, user_id, url, events, secret, created_at
+FROM core.webhook_subscriptions
+WHERE $1::text = ANY (events)
+ORDER BY id
+`
+
+func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1 string) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForEvent, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreWebhookSubscription
+	for rows.Next() {
+		var i CoreWebhookSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Events,
+			&i.Secret,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWebhookSubscriptionsForUser = `-- name: ListWebhookSubscriptionsForUser :many
+SELECT id, user_id, url, events, secret, created_at
+FROM core.webhook_subscriptions
+WHERE user_id = $1
+ORDER BY created_at DESC, id DESC
+`
+
+func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreWebhookSubscription
+	for rows.Next() {
+		var i CoreWebhookSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Events,
+			&i.Secret,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeAPIToken = `-- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
 WHERE id = $1 AND user_id = $2
@@ -511,6 +711,29 @@ func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const settleWebhookDelivery = `-- name: SettleWebhookDelivery :exec
+UPDATE core.webhook_deliveries
+SET status = $2, deliver_after = $3, last_error = $4
+WHERE id = $1
+`
+
+type SettleWebhookDeliveryParams struct {
+	ID           uuid.UUID
+	Status       string
+	DeliverAfter time.Time
+	LastError    pgtype.Text
+}
+
+func (q *Queries) SettleWebhookDelivery(ctx context.Context, arg SettleWebhookDeliveryParams) error {
+	_, err := q.db.Exec(ctx, settleWebhookDelivery,
+		arg.ID,
+		arg.Status,
+		arg.DeliverAfter,
+		arg.LastError,
+	)
+	return err
 }
 
 const touchAPIToken = `-- name: TouchAPIToken :exec

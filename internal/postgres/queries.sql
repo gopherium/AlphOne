@@ -115,3 +115,48 @@ ORDER BY created_at DESC, id DESC;
 -- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
 WHERE id = $1 AND user_id = $2;
+
+-- name: CreateWebhookSubscription :exec
+INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
+VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: ListWebhookSubscriptionsForUser :many
+SELECT id, user_id, url, events, secret, created_at
+FROM core.webhook_subscriptions
+WHERE user_id = $1
+ORDER BY created_at DESC, id DESC;
+
+-- name: ListWebhookSubscriptionsForEvent :many
+SELECT id, user_id, url, events, secret, created_at
+FROM core.webhook_subscriptions
+WHERE $1::text = ANY (events)
+ORDER BY id;
+
+-- name: DeleteWebhookSubscription :execrows
+DELETE FROM core.webhook_subscriptions
+WHERE id = $1 AND user_id = $2;
+
+-- name: CreateWebhookDelivery :exec
+INSERT INTO core.webhook_deliveries (
+    id, subscription_id, event_id, event_name, payload,
+    attempts, deliver_after, status, last_error, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
+-- name: ClaimWebhookDeliveries :many
+UPDATE core.webhook_deliveries
+SET attempts = attempts + 1, deliver_after = @lease::timestamptz
+WHERE id IN (
+    SELECT d.id
+    FROM core.webhook_deliveries d
+    WHERE d.status = 'pending' AND d.deliver_after <= @due::timestamptz
+    ORDER BY d.deliver_after, d.id
+    LIMIT @row_limit
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, subscription_id, event_id, event_name, payload,
+    attempts, deliver_after, status, last_error, created_at;
+
+-- name: SettleWebhookDelivery :exec
+UPDATE core.webhook_deliveries
+SET status = $2, deliver_after = $3, last_error = $4
+WHERE id = $1;
