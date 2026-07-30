@@ -63,6 +63,7 @@ func run(
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
+	webhooks := postgres.NewWebhookStore(pool)
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
@@ -86,6 +87,7 @@ func run(
 		Tasks:             tasks,
 		Users:             userStore,
 		Tokens:            tokens,
+		Webhooks:          webhooks,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),

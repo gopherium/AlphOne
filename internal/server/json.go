@@ -9,7 +9,9 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
+	"github.com/gopherium/alphone/internal/webhook"
 )
 
 // respondDomainError maps a domain error to an HTTP status and writes it as a JSON error response,
@@ -32,6 +34,11 @@ func statusFor(err error) (int, string) {
 		errors.Is(err, task.ErrInvalidStatus):
 		return http.StatusUnprocessableEntity, err.Error()
 	case errors.Is(err, task.ErrNotFound):
+		return http.StatusNotFound, err.Error()
+	case errors.Is(err, webhook.ErrInvalidURL), errors.Is(err, webhook.ErrNoEvents),
+		errors.Is(err, event.ErrUnknownName):
+		return http.StatusUnprocessableEntity, err.Error()
+	case errors.Is(err, webhook.ErrNotFound):
 		return http.StatusNotFound, err.Error()
 	}
 	if status, message, ok := authkit.StatusForAuthError(err); ok {

@@ -26,6 +26,8 @@ type Config struct {
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
+	// Webhooks persists the outbound event subscriptions the API manages.
+	Webhooks WebhookStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -61,6 +63,7 @@ func NewServer(cfg Config) http.Handler {
 		auth:              auth,
 		users:             cfg.Users,
 		tokens:            cfg.Tokens,
+		webhooks:          cfg.Webhooks,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
@@ -83,6 +86,9 @@ func NewServer(cfg Config) http.Handler {
 		protected.Get("/api/users", admin.List)
 		protected.Post("/api/users", admin.Create)
 		protected.Patch("/api/users/{id}", admin.SetDisabled)
+		protected.Get("/api/webhooks", s.handleWebhookList())
+		protected.Post("/api/webhooks", s.handleWebhookCreate())
+		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
 		protected.Get("/api/version", s.handleVersion())
 	})
 	for id, handler := range cfg.Plugins {
@@ -102,6 +108,7 @@ type server struct {
 	auth              *authkit.Handlers
 	users             UserStore
 	tokens            TokenStore
+	webhooks          WebhookStore
 	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter

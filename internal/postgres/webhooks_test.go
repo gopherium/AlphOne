@@ -25,9 +25,9 @@ func mustSubscription(t *testing.T, owner uuid.UUID, url string, events ...event
 	return sub
 }
 
-func mustDelivery(t *testing.T, sub webhook.Subscription, name event.Name) webhook.Delivery {
+func mustDelivery(t *testing.T, sub webhook.Subscription) webhook.Delivery {
 	t.Helper()
-	occurred, err := event.New(name, map[string]any{"id": uuid.Must(uuid.NewV7()).String()})
+	occurred, err := event.New(event.TaskCreated, map[string]any{"id": uuid.Must(uuid.NewV7()).String()})
 	if err != nil {
 		t.Fatalf("event.New() error = %v, want nil", err)
 	}
@@ -118,7 +118,8 @@ func TestWebhookStoreDeletesOnlyForItsOwner(t *testing.T) {
 		t.Fatalf("CreateSubscription() error = %v, want nil", err)
 	}
 
-	if err := store.DeleteSubscription(t.Context(), uuid.Must(uuid.NewV7()), sub.ID); !errors.Is(err, webhook.ErrNotFound) {
+	err := store.DeleteSubscription(t.Context(), uuid.Must(uuid.NewV7()), sub.ID)
+	if !errors.Is(err, webhook.ErrNotFound) {
 		t.Errorf("DeleteSubscription() by a stranger error = %v, want %v", err, webhook.ErrNotFound)
 	}
 	if err := store.DeleteSubscription(t.Context(), owner, sub.ID); err != nil {
@@ -142,7 +143,7 @@ func TestWebhookStoreClaimsDueDeliveriesOnce(t *testing.T) {
 	if err := store.CreateSubscription(t.Context(), sub); err != nil {
 		t.Fatalf("CreateSubscription() error = %v, want nil", err)
 	}
-	delivery := mustDelivery(t, sub, event.TaskCreated)
+	delivery := mustDelivery(t, sub)
 	if err := store.EnqueueDelivery(t.Context(), delivery); err != nil {
 		t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
 	}
@@ -180,7 +181,7 @@ func TestWebhookStoreLeavesFutureDeliveriesAlone(t *testing.T) {
 	if err := store.CreateSubscription(t.Context(), sub); err != nil {
 		t.Fatalf("CreateSubscription() error = %v, want nil", err)
 	}
-	delivery := mustDelivery(t, sub, event.TaskCreated)
+	delivery := mustDelivery(t, sub)
 	delivery.DeliverAfter = time.Now().UTC().Add(time.Hour)
 	if err := store.EnqueueDelivery(t.Context(), delivery); err != nil {
 		t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
@@ -205,7 +206,7 @@ func TestWebhookStoreSettlesADelivery(t *testing.T) {
 	if err := store.CreateSubscription(t.Context(), sub); err != nil {
 		t.Fatalf("CreateSubscription() error = %v, want nil", err)
 	}
-	delivery := mustDelivery(t, sub, event.TaskCreated)
+	delivery := mustDelivery(t, sub)
 	if err := store.EnqueueDelivery(t.Context(), delivery); err != nil {
 		t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
 	}
@@ -234,7 +235,7 @@ func TestWebhookStoreDropsDeliveriesWithTheirSubscription(t *testing.T) {
 	if err := store.CreateSubscription(t.Context(), sub); err != nil {
 		t.Fatalf("CreateSubscription() error = %v, want nil", err)
 	}
-	if err := store.EnqueueDelivery(t.Context(), mustDelivery(t, sub, event.TaskCreated)); err != nil {
+	if err := store.EnqueueDelivery(t.Context(), mustDelivery(t, sub)); err != nil {
 		t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
 	}
 
@@ -259,7 +260,7 @@ func TestWebhookStoreReportsConnectionFailure(t *testing.T) {
 	store := postgres.NewWebhookStore(pool)
 	owner := uuid.Must(uuid.NewV7())
 	sub := mustSubscription(t, owner, "https://example.com/hook", event.TaskCreated)
-	delivery := mustDelivery(t, sub, event.TaskCreated)
+	delivery := mustDelivery(t, sub)
 	now := time.Now().UTC()
 	pool.Close()
 
