@@ -6,7 +6,7 @@ import { beforeEach } from 'vitest'
 
 installTestEnvironment()
 
-configure({ defaultIgnore: 'script, style, .a11y-speak-region' })
+configure({ defaultIgnore: 'script, style, [id^="a11y-speak"]' })
 
 beforeEach(() => {
 	server.use(
