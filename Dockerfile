@@ -7,7 +7,7 @@ WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY patches ./patches
 COPY frontend ./frontend
-COPY sdk/frontend ./sdk/frontend
+COPY sdk ./sdk
 COPY plugins ./plugins
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @alphone/frontend build
