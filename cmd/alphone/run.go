@@ -55,16 +55,14 @@ func run(
 	}
 	defer pool.Close()
 
-	if err := authkitpg.Migrate(ctx, databaseURL); err != nil {
-		return err
-	}
-	if err := postgres.Migrate(ctx, databaseURL); err != nil {
+	if err := migrateSchemas(ctx, databaseURL); err != nil {
 		return err
 	}
 
 	userStore := authkitpg.NewUserStore(pool)
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
+	tokens := postgres.NewTokenStore(pool)
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
@@ -87,6 +85,7 @@ func run(
 		Contacts:          contacts,
 		Tasks:             tasks,
 		Users:             userStore,
+		Tokens:            tokens,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),

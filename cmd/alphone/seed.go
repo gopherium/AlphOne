@@ -41,10 +41,7 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := authkitpg.Migrate(ctx, databaseURL); err != nil {
-		return err
-	}
-	if err := postgres.Migrate(ctx, databaseURL); err != nil {
+	if err := migrateSchemas(ctx, databaseURL); err != nil {
 		return err
 	}
 	created, err := authkit.EnsureAdmin(
