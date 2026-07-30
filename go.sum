@@ -42,8 +42,12 @@ github.com/gopherium/gouncer v0.1.0 h1:R5y0kmal9+dLmG+tv3PLF2Ya8LFmWzQqUsiOl7bVE
 github.com/gopherium/gouncer v0.1.0/go.mod h1:EZhUDgECayxwut/wq0ITyPTH4bYe7SB8EZMW3s9hpCM=
 github.com/gopherium/gouncer/authkit v0.2.0 h1:JTvWNjGMVjuNkLomK+nkJyRNba4mmjkARAkEy7lJ6MA=
 github.com/gopherium/gouncer/authkit v0.2.0/go.mod h1:UlshoX6DGkXf5hdlUmHNg5rtCmO9VYqCo5kt+Iy8R6Y=
+github.com/gopherium/gouncer/authkit v0.3.0 h1:ehFUanfoVmusbuaTn6IBscPDMHfSkeu3X8U2gywH3Ew=
+github.com/gopherium/gouncer/authkit v0.3.0/go.mod h1:UlshoX6DGkXf5hdlUmHNg5rtCmO9VYqCo5kt+Iy8R6Y=
 github.com/gopherium/gouncer/authkit/postgres v0.2.0 h1:WqILZfoA0Fwf6aaAcN/zURDTIVThbK+DFE6l25NWpEc=
 github.com/gopherium/gouncer/authkit/postgres v0.2.0/go.mod h1:c2pqWGX6L0hjIjq7+1NrGzXI7yE/AP07TYU9QcQlrmY=
+github.com/gopherium/gouncer/authkit/postgres v0.3.0 h1:4PURjXtqCLj819AiHljt1E8q+JAfDoUC0ohm7hgRdk4=
+github.com/gopherium/gouncer/authkit/postgres v0.3.0/go.mod h1:c2pqWGX6L0hjIjq7+1NrGzXI7yE/AP07TYU9QcQlrmY=
 github.com/gopherium/gouncer/authkit/ratelimit v0.1.0 h1:dIx1G4kBMxMJXvnZwJb6iTIRFbZ0+q2tpzWhJYmvCBI=
 github.com/gopherium/gouncer/authkit/ratelimit v0.1.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
 github.com/gopherium/pluginkit v0.2.0 h1:sb4o77UJGzS3Xtca+tVlR/c4b9Tklqiee3InG2H14gg=
