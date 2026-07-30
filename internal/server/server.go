@@ -22,7 +22,10 @@ const sessionCookieName = "__Host-alphone_session"
 type Config struct {
 	Contacts ContactStore
 	Tasks    TaskStore
-	Users    authkit.AdminStore
+	Users    UserStore
+	// Tokens resolves API tokens presented as bearer credentials. Nil
+	// leaves the session cookie as the only accepted credential.
+	Tokens TokenStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -56,6 +59,8 @@ func NewServer(cfg Config) http.Handler {
 		store:             cfg.Contacts,
 		tasks:             cfg.Tasks,
 		auth:              auth,
+		users:             cfg.Users,
+		tokens:            cfg.Tokens,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
@@ -65,7 +70,7 @@ func NewServer(cfg Config) http.Handler {
 		Post("/api/auth/login", auth.Login)
 	router.Post("/api/auth/logout", auth.Logout)
 	router.Group(func(protected chi.Router) {
-		protected.Use(auth.RequireSession)
+		protected.Use(s.requireIdentity)
 		protected.Get("/api/auth/session", auth.Session)
 		protected.Get("/api/contacts", s.handleContactList())
 		protected.Post("/api/contacts", s.handleContactCreate())
@@ -95,6 +100,8 @@ type server struct {
 	store             ContactStore
 	tasks             TaskStore
 	auth              *authkit.Handlers
+	users             UserStore
+	tokens            TokenStore
 	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
@@ -104,6 +111,6 @@ type server struct {
 // the plugin's declared public paths through untouched.
 func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
 	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.auth.RequireSession(s.boundPluginRequest(next))
+		return s.requireIdentity(s.boundPluginRequest(next))
 	})
 }

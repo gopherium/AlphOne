@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gopherium/gouncer/authkit"
-
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/task"
@@ -125,7 +123,7 @@ type taskBody struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-func unauthedTaskServer(users authkit.AdminStore, store server.TaskStore) http.Handler {
+func unauthedTaskServer(users server.UserStore, store server.TaskStore) http.Handler {
 	return server.NewServer(server.Config{Contacts: newFakeContactStore(), Tasks: store, Users: users})
 }
 
