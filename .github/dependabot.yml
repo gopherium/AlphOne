@@ -27,6 +27,5 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "@wordpress/*"
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
