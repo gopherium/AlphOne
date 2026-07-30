@@ -9,12 +9,36 @@ can do.
 
 ## Conventions
 
-**Sessions.** Every route needs a login session except `POST
+**Authentication.** Every route needs a credential except `POST
 /api/auth/login`, `POST /api/auth/logout`, and the public paths a plugin
-declares, such as the WhatsApp webhook. The session travels in a cookie
-named `__Host-alphone_session`, set with `HttpOnly`, `Secure`,
-`SameSite=Lax`, and a 30 day lifetime. There is no API key or bearer
-token. Requests without a usable session get `401`.
+declares, such as the WhatsApp webhook. Requests without a usable
+credential get `401`.
+
+Two credentials are accepted. Browsers use a session cookie named
+`__Host-alphone_session`, set with `HttpOnly`, `Secure`, `SameSite=Lax`,
+and a 30 day lifetime. Programs use an API token in an `Authorization`
+header:
+
+```http
+GET /api/tasks HTTP/1.1
+Authorization: Bearer a1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+A token acts as the user who created it and carries the same permissions.
+Tokens never expire, so revoke one you no longer need. Disabling a user
+stops their tokens with their session. A request presenting an
+unrecognised token gets `401`, and a request whose `Authorization` header
+is not a bearer credential falls back to the session cookie.
+
+Mint tokens with the `token` subcommand. The secret is shown once and
+stored only as a hash, so a lost secret cannot be recovered, only
+replaced:
+
+```sh
+alphone token create -email you@example.com -name "n8n production"
+alphone token list   -email you@example.com
+alphone token revoke -email you@example.com -id <token id>
+```
 
 **Bodies.** Requests and responses are JSON. Request bodies are capped
 at 1 MiB, and anything unparseable, empty, or oversized answers `400`.
