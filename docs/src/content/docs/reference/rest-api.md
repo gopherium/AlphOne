@@ -178,8 +178,10 @@ optionally linked to a contact.
 arithmetic in the caller's own timezone. `status` is `open` or `done`.
 `priority` is an integer from `0` to `9`, where `0` is normal.
 `contact_id`, `origin_source`, and `origin_event_id` are always present
-and `null` when unset. The `origin_*` pair records the event a task was
-created from and is reserved for later use.
+and `null` when unset. `origin_source` records how a task came to exist:
+the server stamps `token:<name>` on tasks created with an API token and
+leaves it `null` for a browser session. `origin_event_id` is reserved
+for later use.
 
 ### List tasks
 

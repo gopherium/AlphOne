@@ -51,7 +51,7 @@ In n8n, create a **Header Auth** credential:
 
 | Field | Value |
 | ----- | ----- |
-| Name  | `Authorization` |
+| Name | `Authorization` |
 | Value | `Bearer a1_your_token_here` |
 
 Then use it from an **HTTP Request** node with Authentication set to
@@ -118,6 +118,8 @@ creates work:
 { "title": "Follow up on the renewal", "due_on": "2026-08-03" }
 ```
 
-Set `origin_source` and `origin_event_id` together to record what caused
-a task, which keeps automated work distinguishable from work a person
-typed.
+Tasks created with an API token record the token automatically in
+`origin_source` as `token:<name>`, which keeps automated work
+distinguishable from work a person typed. Attribution comes from the
+credential rather than the request body, so it cannot be faked and it
+needs nothing from the workflow.
