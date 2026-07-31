@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /// <reference types="vitest/config" />
+import { godminDedupe, godminSingleCopy } from '@gopherium/godmin/vite'
 import react from '@vitejs/plugin-react'
 import dsTokenFallbacks from '@wordpress/theme/vite-plugins/vite-ds-token-fallbacks'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-	plugins: [react(), dsTokenFallbacks()],
+	plugins: [react(), dsTokenFallbacks(), godminSingleCopy()],
 	resolve: {
 		dedupe: [
-			'react',
-			'react-dom',
+			...godminDedupe,
 			'@tanstack/react-query',
 			'@tanstack/react-router',
-			'@wordpress/theme',
-			'@wordpress/ui',
 		],
 	},
 	server: {
