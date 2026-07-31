@@ -204,6 +204,46 @@ func TestTaskStoreRejectsAnUnknownContact(t *testing.T) {
 	}
 }
 
+func TestTaskStoreRoundTripsASourceOnlyOrigin(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	created := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin:     task.Origin{Source: "token:n8n production"},
+	})
+
+	if err := store.Create(t.Context(), created); err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+
+	got, err := store.Get(t.Context(), created.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v, want nil", err)
+	}
+	if got.Origin != created.Origin {
+		t.Errorf("Origin = %+v, want %+v", got.Origin, created.Origin)
+	}
+}
+
+func TestTaskStoreRejectsAnEventOnlyOrigin(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	created := mustTask(t, task.Input{
+		Title:      "Carry an event with no source",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin:     task.Origin{EventID: uuid.Must(uuid.NewV7())},
+	})
+
+	if err := store.Create(t.Context(), created); err == nil {
+		t.Fatal("Create() error = nil, want a check failure")
+	}
+}
+
 func TestTaskStoreReportsConnectionFailure(t *testing.T) {
 	t.Parallel()
 

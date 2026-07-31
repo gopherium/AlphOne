@@ -20,6 +20,23 @@ import (
 // bearerScheme prefixes the credential in an Authorization header.
 const bearerScheme = "Bearer "
 
+// originTokenPrefix namespaces attribution stamped from an API token.
+const originTokenPrefix = "token:"
+
+// originKey is the context key carrying the attribution of a request credential.
+type originKey struct{}
+
+// withTokenOrigin returns ctx carrying the attribution of the named token.
+func withTokenOrigin(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, originKey{}, originTokenPrefix+name)
+}
+
+// credentialOrigin returns the attribution of the request credential, or empty.
+func credentialOrigin(ctx context.Context) string {
+	origin, _ := ctx.Value(originKey{}).(string)
+	return origin
+}
+
 // TokenStore reads the API tokens a bearer credential resolves to.
 type TokenStore interface {
 	ByHash(ctx context.Context, hash string) (apitoken.Token, error)
@@ -42,7 +59,7 @@ func (s *server) requireIdentity(next http.Handler) http.Handler {
 			session.ServeHTTP(w, r)
 			return
 		}
-		identity, err := s.identityForToken(r.Context(), secret)
+		identity, token, err := s.identityForToken(r.Context(), secret)
 		if errors.Is(err, apitoken.ErrNotFound) || errors.Is(err, gouncer.ErrUserNotFound) {
 			authkit.RespondError(w, http.StatusUnauthorized, "invalid token")
 			return
@@ -51,7 +68,9 @@ func (s *server) requireIdentity(next http.Handler) http.Handler {
 			authkit.RespondError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(authkit.WithIdentity(r.Context(), identity)))
+		ctx := authkit.WithIdentity(r.Context(), identity)
+		ctx = withTokenOrigin(ctx, token.Name)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -68,19 +87,19 @@ func (s *server) bearerSecret(r *http.Request) (string, bool) {
 	return secret, secret != ""
 }
 
-// identityForToken resolves the enabled user a token secret acts as.
-func (s *server) identityForToken(ctx context.Context, secret string) (authkit.Identity, error) {
+// identityForToken resolves the enabled user a token secret acts as, and the token itself.
+func (s *server) identityForToken(ctx context.Context, secret string) (authkit.Identity, apitoken.Token, error) {
 	token, err := s.tokens.ByHash(ctx, apitoken.HashSecret(secret))
 	if err != nil {
-		return authkit.Identity{}, err
+		return authkit.Identity{}, apitoken.Token{}, err
 	}
 	user, err := s.users.UserByID(ctx, token.UserID)
 	if err != nil {
-		return authkit.Identity{}, err
+		return authkit.Identity{}, apitoken.Token{}, err
 	}
 	if user.Disabled {
-		return authkit.Identity{}, apitoken.ErrNotFound
+		return authkit.Identity{}, apitoken.Token{}, apitoken.ErrNotFound
 	}
 	_ = s.tokens.TouchLastUsed(ctx, token.ID, time.Now().UTC())
-	return authkit.Identity{ID: user.ID, Email: user.Email, Name: user.Name}, nil
+	return authkit.Identity{ID: user.ID, Email: user.Email, Name: user.Name}, token, nil
 }

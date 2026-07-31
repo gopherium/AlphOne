@@ -168,6 +168,9 @@ func TestCreateTask(t *testing.T) {
 	if got.AssigneeID != ada {
 		t.Errorf("assignee_id = %v, want the session user %v", got.AssigneeID, ada)
 	}
+	if got.OriginSource != nil {
+		t.Errorf("origin_source = %v, want null for a session created task", got.OriginSource)
+	}
 	stored, ok := store.tasks[got.ID]
 	if !ok || stored.Title != got.Title {
 		t.Errorf("stored task = %+v, want the created one", stored)

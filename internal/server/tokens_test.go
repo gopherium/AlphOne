@@ -61,6 +61,7 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 	tokens.tokens[minted.Token.Hash] = minted.Token
 	handler := server.NewServer(server.Config{
 		Contacts: newFakeContactStore(),
+		Tasks:    newFakeTaskStore(),
 		Users:    users,
 		Tokens:   tokens,
 		Version:  "9.9.9",
@@ -126,6 +127,30 @@ func TestBearerTokenCarriesTheOwnersIdentity(t *testing.T) {
 	}
 	if identity.Name != "Ada Lovelace" {
 		t.Errorf("name = %q, want the token owner's name", identity.Name)
+	}
+}
+
+func TestBearerTokenStampsTaskOrigin(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _, secret := newTokenServer(t)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+secret)
+		srv.ServeHTTP(w, r)
+	})
+
+	recorder := doRequest(t, handler, http.MethodPost, "/api/tasks",
+		`{"title":"Follow up with Maria Perez","due_on":"2026-08-01"}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+	got := decodeBody[taskBody](t, recorder)
+	if got.OriginSource == nil || *got.OriginSource != "token:n8n production" {
+		t.Errorf("origin_source = %v, want the stamped token name", got.OriginSource)
+	}
+	if got.OriginEventID != nil {
+		t.Errorf("origin_event_id = %v, want null", got.OriginEventID)
 	}
 }
 

@@ -118,6 +118,7 @@ func (s *server) handleTaskCreate() http.HandlerFunc {
 			Priority:   req.Priority,
 			AssigneeID: authkit.IdentityFromContext(r.Context()).ID,
 			ContactID:  contactID,
+			Origin:     task.Origin{Source: credentialOrigin(r.Context())},
 		})
 		if err != nil {
 			respondDomainError(w, err)
