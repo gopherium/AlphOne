@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import '@testing-library/jest-dom/vitest'
+import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
 import { installTestEnvironment as installAuthTestEnvironment } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -106,6 +107,7 @@ export class FakeEventSource {
 export function installTestEnvironment() {
 	vi.stubGlobal('scrollTo', () => {})
 	vi.stubGlobal('EventSource', FakeEventSource)
+	installAdminTestEnvironment()
 	installAuthTestEnvironment()
 	afterEach(() => {
 		FakeEventSource.reset()
