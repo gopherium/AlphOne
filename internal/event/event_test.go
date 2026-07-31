@@ -102,12 +102,16 @@ func TestPayloadCarriesTheEnvelope(t *testing.T) {
 		t.Fatalf("Payload() error = %v, want nil", err)
 	}
 	var envelope struct {
+		ID         string         `json:"id"`
 		Event      string         `json:"event"`
 		OccurredAt string         `json:"occurred_at"`
 		Data       map[string]any `json:"data"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("unmarshalling the payload: %v", err)
+	}
+	if envelope.ID != created.ID.String() {
+		t.Errorf("id = %q, want the event id %q", envelope.ID, created.ID)
 	}
 	if envelope.Event != "task.created" {
 		t.Errorf("event = %q, want %q", envelope.Event, "task.created")

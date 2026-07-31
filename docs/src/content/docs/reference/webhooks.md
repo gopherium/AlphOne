@@ -28,10 +28,11 @@ notify the same person twice.
 
 ## The envelope
 
-Every delivery is a JSON body with the same three fields:
+Every delivery is a JSON body with the same four fields:
 
 ```json
 {
+  "id": "019fb38e-97d1-7f10-b3a4-52c30fe6a71b",
   "event": "task.created",
   "occurred_at": "2026-07-30T15:04:54.498347434Z",
   "data": {
@@ -44,8 +45,11 @@ Every delivery is a JSON body with the same three fields:
 }
 ```
 
+`id` names the event itself and stays the same across every retry of a
+delivery, so store it and drop anything you have already processed.
+
 `data` carries enough to identify the subject and read it at a glance.
-For anything more, refetch through the API with the `id`.
+For anything more, refetch through the API with `data.id`.
 
 `task.created` and `task.completed` carry `id`, `title`, `status`,
 `due_on`, and `priority`. `contact.created` carries `id` and `name`.

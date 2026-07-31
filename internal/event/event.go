@@ -63,10 +63,11 @@ func New(name Name, data map[string]any) (Event, error) {
 // Payload returns the JSON body delivered to subscribers.
 func (e Event) Payload() ([]byte, error) {
 	body, err := json.Marshal(struct {
+		ID         uuid.UUID      `json:"id"`
 		Event      Name           `json:"event"`
 		OccurredAt time.Time      `json:"occurred_at"`
 		Data       map[string]any `json:"data"`
-	}{Event: e.Name, OccurredAt: e.OccurredAt, Data: e.Data})
+	}{ID: e.ID, Event: e.Name, OccurredAt: e.OccurredAt, Data: e.Data})
 	if err != nil {
 		return nil, fmt.Errorf("event: encode payload: %w", err)
 	}
