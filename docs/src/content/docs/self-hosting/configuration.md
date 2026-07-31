@@ -57,7 +57,12 @@ see [Meta setup](/whatsapp/meta-setup/).
   field, so no extra Meta configuration is needed.
 - **Login rate limiting** allows 10 failed attempts per client address
   per minute. Successful logins never consume the budget. Over the limit
-  the API answers `429` with a `Retry-After` header.
+  the API answers `429` with a `Retry-After` header. The limit is per
+  address and there is no per-account lockout, so an attacker spreading
+  guesses across many addresses is bounded only by password strength and
+  the argon2id hashing cost. Passwords must be at least 12 characters.
+  Until multi-factor authentication ships, a long unique password is the
+  account-side defense.
 - **The session cookie** is `HttpOnly`, `Secure`, `SameSite=Lax`, with
   the `__Host-` prefix. This is why [HTTPS is
   mandatory](/self-hosting/install/) in production.
