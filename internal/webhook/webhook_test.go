@@ -215,13 +215,14 @@ func TestNewDeliveryReportsAnUnencodableEvent(t *testing.T) {
 	}
 }
 
-func TestExhaustedReportsTheAttemptBudget(t *testing.T) {
+func TestExhaustedReportsTheRetryWindow(t *testing.T) {
 	t.Parallel()
 
-	if webhook.Exhausted(webhook.MaxAttempts - 1) {
-		t.Error("Exhausted() true below the budget, want false")
+	now := time.Now().UTC()
+	if webhook.Exhausted(now.Add(-webhook.RetryWindow+time.Second), now) {
+		t.Error("Exhausted() true inside the window, want false")
 	}
-	if !webhook.Exhausted(webhook.MaxAttempts) {
-		t.Error("Exhausted() false at the budget, want true")
+	if !webhook.Exhausted(now.Add(-webhook.RetryWindow), now) {
+		t.Error("Exhausted() false at the window boundary, want true")
 	}
 }

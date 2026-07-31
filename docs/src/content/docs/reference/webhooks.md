@@ -94,7 +94,8 @@ Answer with any `2xx` to accept a delivery. Anything else, including a
 redirect, a timeout, or a refused connection, counts as a failure and is
 retried.
 
-A failed delivery is retried up to six times, waiting longer each time:
+A failed delivery is retried with a wait that doubles each time, starting
+at 30 seconds and capped at one hour:
 
 | Attempt | Waits before it |
 | ------- | --------------- |
@@ -102,13 +103,12 @@ A failed delivery is retried up to six times, waiting longer each time:
 | 2 | 30 seconds |
 | 3 | 1 minute |
 | 4 | 2 minutes |
-| 5 | 4 minutes |
-| 6 | 8 minutes |
+| onwards | doubling up to 1 hour, then hourly |
 
-After the sixth attempt the delivery is marked failed and never retried,
-so an endpoint that stays down for more than about a quarter of an hour
-misses the event. AlphOne waits 10 seconds for a response, so answer
-quickly and do the work afterwards.
+Retries continue for at least 24 hours after the event. Then the delivery
+is marked failed and never retried, so an endpoint that stays down for
+more than a day misses the event. AlphOne waits 10 seconds for a
+response, so answer quickly and do the work afterwards.
 
 Deliveries are queued in the database, so a restart mid delivery does not
 lose them.

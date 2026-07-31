@@ -36,8 +36,8 @@ const SecretPrefix = "whsec_"
 // [SecretPrefix].
 const secretBytes = 32
 
-// MaxAttempts is how often a delivery is retried before it is given up on.
-const MaxAttempts = 6
+// RetryWindow is how long a delivery is retried before it is given up on.
+const RetryWindow = 24 * time.Hour
 
 // baseBackoff is the delay before the first retry.
 const baseBackoff = 30 * time.Second
@@ -169,7 +169,7 @@ func NewDelivery(sub Subscription, e event.Event) (Delivery, error) {
 	}, nil
 }
 
-// Exhausted reports whether a delivery has used its whole attempt budget.
-func Exhausted(attempts int) bool {
-	return attempts >= MaxAttempts
+// Exhausted reports whether a delivery has outlived its retry window at now.
+func Exhausted(createdAt, now time.Time) bool {
+	return now.Sub(createdAt) >= RetryWindow
 }

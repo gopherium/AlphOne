@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,6 +90,7 @@ func claimed(t *testing.T, url, secret string, attempts int) webhook.ClaimedDeli
 			Payload:   payload,
 			Attempts:  attempts,
 			Status:    webhook.StatusPending,
+			CreatedAt: time.Now().UTC(),
 		},
 		URL:    url,
 		Secret: secret,
@@ -190,14 +192,17 @@ func TestWorkerRetriesARejectedDelivery(t *testing.T) {
 	}
 }
 
-func TestWorkerGivesUpAfterTheAttemptBudget(t *testing.T) {
+func TestWorkerGivesUpPastTheRetryWindow(t *testing.T) {
 	t.Parallel()
 
+	var posts atomic.Int32
 	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		posts.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer subscriber.Close()
-	spent := claimed(t, subscriber.URL, "whsec_a", webhook.MaxAttempts)
+	spent := claimed(t, subscriber.URL, "whsec_a", 7)
+	spent.CreatedAt = time.Now().UTC().Add(-webhook.RetryWindow)
 	queue := &fakeWorkerQueue{pending: []webhook.ClaimedDelivery{spent}}
 	worker, _ := newWorker(queue)
 
@@ -206,6 +211,9 @@ func TestWorkerGivesUpAfterTheAttemptBudget(t *testing.T) {
 	settled := queue.settlements()
 	if len(settled) != 1 || settled[0].Status != webhook.StatusFailed {
 		t.Fatalf("settled %+v, want one failed", settled)
+	}
+	if got := posts.Load(); got != 1 {
+		t.Errorf("subscriber saw %d posts, want the delivery attempted once more before giving up", got)
 	}
 }
 

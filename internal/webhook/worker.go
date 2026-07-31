@@ -129,7 +129,7 @@ func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
 		w.settle(ctx, d, StatusDelivered, time.Now().UTC(), "")
 		return
 	}
-	if Exhausted(d.Attempts) {
+	if Exhausted(d.CreatedAt, time.Now().UTC()) {
 		w.logger.ErrorContext(ctx, "giving up on a webhook delivery",
 			"delivery", d.ID, "attempts", d.Attempts, "error", err)
 		w.settle(ctx, d, StatusFailed, time.Now().UTC(), err.Error())

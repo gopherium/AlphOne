@@ -10,13 +10,23 @@ import (
 func TestBackoffScheduleIsBoundedAndDocumented(t *testing.T) {
 	t.Parallel()
 
-	var total time.Duration
-	for attempt := 1; attempt <= MaxAttempts; attempt++ {
-		total += Backoff(attempt)
-		t.Logf("attempt %d waits %v, cumulative %v", attempt, Backoff(attempt), total)
+	created := time.Time{}
+	var age time.Duration
+	attempts := 0
+	for !Exhausted(created, created.Add(age)) {
+		attempts++
+		wait := Backoff(attempts)
+		if wait <= 0 || wait > maxBackoff {
+			t.Fatalf("Backoff(%d) = %v, want within (0, %v]", attempts, wait, maxBackoff)
+		}
+		age += wait
+		t.Logf("attempt %d, next retry %v after the event", attempts, age)
 	}
 
-	if total > 3*time.Hour {
-		t.Errorf("a spent budget spans %v, want a subscriber given up on within a few hours", total)
+	if age < RetryWindow {
+		t.Errorf("given up %v after the event, want at least %v", age, RetryWindow)
+	}
+	if age >= RetryWindow+maxBackoff {
+		t.Errorf("given up %v after the event, want under %v", age, RetryWindow+maxBackoff)
 	}
 }
