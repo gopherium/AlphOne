@@ -82,7 +82,7 @@ credential and returns a small body, which makes it a good connection
 test:
 
 ```json
-{ "version": "0.4.2" }
+{ "version": "x.y.z" }
 ```
 
 ## A first automation

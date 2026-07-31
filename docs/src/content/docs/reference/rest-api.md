@@ -266,8 +266,8 @@ signature, and the retry policy.
 
 ## Version
 
-`GET /api/version` returns `{"version": "0.4.0"}`. It needs a session,
-so it is not a public health probe.
+`GET /api/version` returns the running release as `{"version": "x.y.z"}`.
+It needs a session, so it is not a public health probe.
 
 ## Plugins
 

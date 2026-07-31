@@ -5,11 +5,10 @@ description: How releases reach your server, how to update automatically or roll
 
 ## How releases work
 
-Every AlphOne release is a git tag (`v0.1.0`, `v0.2.0`, ...) that
-publishes a container image to
-`ghcr.io/gopherium/alphone` under three tags:
+Every AlphOne release is a git tag (`vx.y.z`) that publishes a container
+image to `ghcr.io/gopherium/alphone` under three tags:
 
-- the version, e.g. `:0.1.0`
+- the version, e.g. `:x.y.z`
 - the exact commit, e.g. `:sha-5495093`
 - `:latest`, republished on every release
 
@@ -45,7 +44,7 @@ they apply, then switch to auto once you trust the flow.
 Pin the previous version and re-up:
 
 ```yaml
-    image: ghcr.io/gopherium/alphone:0.1.0
+    image: ghcr.io/gopherium/alphone:x.y.z   # the version to roll back to
     labels:
       wud.watch: "false"   # pause auto-updates while pinned
 ```
