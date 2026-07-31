@@ -53,6 +53,7 @@ jobs:
         working-directory: ${{ github.workspace }}
       - run: pnpm typecheck
       - run: pnpm lint
+      - run: pnpm lint:css
       - run: pnpm exec eslint .
         working-directory: ${{ github.workspace }}
       - run: pnpm cover

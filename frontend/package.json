@@ -8,6 +8,7 @@
 		"cover": "vitest run --coverage",
 		"dev": "vite",
 		"lint": "oxlint",
+		"lint:css": "stylelint \"src/**/*.css\"",
 		"preview": "vite preview",
 		"typecheck": "tsc -b"
 	},
@@ -34,6 +35,7 @@
 		"@vitest/coverage-v8": "^4.1.10",
 		"jsdom": "^29.1.1",
 		"oxlint": "^1.75.0",
+		"stylelint": "^17.14.1",
 		"typescript": "~6.0.2",
 		"vite": "^8.1.5",
 		"vitest": "^4.1.10"
