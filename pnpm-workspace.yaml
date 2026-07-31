@@ -17,6 +17,7 @@ peerDependencyRules:
     typescript: '6'
 
 minimumReleaseAgeExclude:
+  - '@gopherium/godmin@0.1.1'
   - '@gopherium/react-auth@0.1.2'
   - '@wordpress/a11y@4.52.0'
   - '@wordpress/compose@8.5.0'
