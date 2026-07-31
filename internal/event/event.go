@@ -27,7 +27,7 @@ const (
 	WhatsAppMessageReceived Name = "whatsapp.message.received"
 )
 
-// published lists every event name, kept small on purpose.
+// published lists the event names AlphOne publishes.
 var published = []Name{TaskCreated, TaskCompleted, ContactCreated, WhatsAppMessageReceived}
 
 // Event is one thing that happened, delivered to matching subscribers.

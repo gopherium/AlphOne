@@ -8,7 +8,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 )
 
-// Publisher announces domain events to whatever transports them.
+// Publisher announces domain events.
 type Publisher interface {
 	Publish(ctx context.Context, name event.Name, data map[string]any)
 }

@@ -9,8 +9,7 @@ import (
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
-// nudgingPublisher queues an event and wakes the delivery worker, so a
-// subscriber hears about it without waiting for the next sweep.
+// nudgingPublisher queues an event and wakes the delivery worker.
 type nudgingPublisher struct {
 	dispatcher *webhook.Dispatcher
 	worker     *webhook.Worker
@@ -22,8 +21,7 @@ func (n nudgingPublisher) Publish(ctx context.Context, name event.Name, data map
 	n.worker.Poke()
 }
 
-// pluginPublisher adapts the plugin contract's untyped event names onto the
-// core publisher, which refuses any name the core does not publish.
+// pluginPublisher maps a plugin's untyped event name onto the core publisher.
 type pluginPublisher struct {
 	publisher nudgingPublisher
 }

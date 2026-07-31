@@ -19,8 +19,8 @@ const (
 	sweepInterval = 30 * time.Second
 	// sweepBatch caps how many deliveries one sweep takes.
 	sweepBatch = 50
-	// sweepLease holds a claimed delivery back long enough to attempt it,
-	// after which a worker that died leaves it due again.
+	// sweepLease is how long a claimed delivery stays out before it is due
+	// again.
 	sweepLease = 5 * time.Minute
 	// requestTimeout bounds one attempt against a subscriber.
 	requestTimeout = 10 * time.Second
@@ -161,8 +161,7 @@ func (w *Worker) post(ctx context.Context, d ClaimedDelivery) error {
 	return nil
 }
 
-// settle records a delivery outcome, reporting a failure to record it to the
-// log rather than losing the sweep.
+// settle records the outcome of one delivery attempt.
 func (w *Worker) settle(ctx context.Context, d ClaimedDelivery, status string, after time.Time, lastError string) {
 	if err := w.queue.SettleDelivery(ctx, d.ID, status, after, lastError); err != nil {
 		w.logger.ErrorContext(ctx, "settling webhook delivery", "delivery", d.ID, "error", err)

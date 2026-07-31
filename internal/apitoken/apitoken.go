@@ -23,7 +23,7 @@ var ErrEmptyName = errors.New("apitoken: empty name")
 // ErrNotFound reports that no token exists for the presented secret.
 var ErrNotFound = errors.New("apitoken: not found")
 
-// Prefix identifies an AlphOne API token in logs and secret scanners.
+// Prefix identifies an AlphOne API token.
 const Prefix = "a1_"
 
 // secretBytes is how much entropy backs the part of a secret after [Prefix].

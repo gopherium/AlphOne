@@ -18,8 +18,6 @@ CREATE TABLE core.webhook_deliveries (
     subscription_id uuid NOT NULL REFERENCES core.webhook_subscriptions (id) ON DELETE CASCADE,
     event_id uuid NOT NULL,
     event_name text NOT NULL,
-    -- Stored as text, never jsonb, because jsonb renormalises the bytes
-    -- and the signature is computed over exactly what is sent.
     payload text NOT NULL,
     attempts integer NOT NULL,
     deliver_after timestamptz NOT NULL,

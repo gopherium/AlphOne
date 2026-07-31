@@ -27,9 +27,8 @@ func NewDispatcher(queue DeliveryQueue, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{queue: queue, logger: logger}
 }
 
-// Publish queues the named event for its subscribers, reporting failures to
-// the log rather than to the caller, so a subscriber never breaks the work
-// that produced the event.
+// Publish queues the named event for its subscribers, reporting failures
+// to the log.
 func (d *Dispatcher) Publish(ctx context.Context, name event.Name, data map[string]any) {
 	occurred, err := event.New(name, data)
 	if err != nil {

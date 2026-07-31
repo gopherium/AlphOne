@@ -42,8 +42,7 @@ type Deps struct {
 	Events      Publisher
 }
 
-// Publisher announces a plugin's own events to the host. A plugin may
-// publish, never subscribe, so no plugin observes another's traffic.
+// Publisher announces a plugin's own events to the host.
 type Publisher interface {
 	Publish(ctx context.Context, name string, data map[string]any)
 }
