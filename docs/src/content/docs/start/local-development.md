@@ -108,15 +108,99 @@ cookie is dropped, and you land back on the login screen.
 ## Serving the built frontend from Go
 
 To exercise the production layout, where the Go binary serves the built
-SPA itself, build the frontend and point the backend at the output:
+SPA itself:
 
 ```sh
-pnpm --filter @alphone/frontend build
-ALPHONE_WEB_DIR=frontend/dist go run ./cmd/alphone
+make demo
 ```
 
-Then the whole app lives on [http://localhost:8080](http://localhost:8080)
-with no Vite in front.
+That builds the frontend and runs the binary against it, so the whole
+app lives on [http://localhost:8080](http://localhost:8080) with no Vite
+in front. Use it for manual testing when you want to see exactly what a
+release serves. Use `make dev` plus `pnpm dev` when you want hot reload.
+
+## Resetting the database
+
+Manual testing accumulates junk. To get back to the seeded demo data:
+
+```sh
+make db-reset
+```
+
+That drops the `core`, `auth`, and `plugin_whatsapp` schemas, then runs
+`make seed`, which re-migrates and refills. It destroys every local
+record, so never point it at anything you care about.
+
+## Working on the n8n integration
+
+AlphOne talks to an automation engine over HTTP with an API token. To
+run the whole loop on your machine, start the scratch n8n that ships
+behind its own compose profile:
+
+```sh
+make n8n        # http://localhost:5678
+```
+
+The first visit asks you to create an owner account, which is local to
+the container and involves no n8n cloud service.
+
+### Install the AlphOne node
+
+```sh
+make n8n-node
+```
+
+That installs the published
+[`n8n-nodes-alphone`](https://www.npmjs.com/package/n8n-nodes-alphone)
+from npm and restarts the container, so you exercise the same package a
+user installs rather than a local build. It prints the installed version
+when it finishes. Two nodes appear afterwards, **AlphOne** and **AlphOne
+Trigger**.
+
+To try an unpublished change instead, run `pnpm dev` in the node
+repository, which starts its own n8n with the node linked.
+
+### Connect it
+
+Create an **AlphOne API** credential:
+
+| Field | Value |
+| ----- | ----- |
+| Base URL | `http://host.docker.internal:8080` |
+| API Token | a secret from `alphone token create` |
+
+Press the test button. It calls `GET /api/version` and should report
+success. `localhost` inside the container means the container itself, so
+it never reaches AlphOne. See the [automation
+guide](/guides/automation/) for the base URL in other layouts.
+
+The backend may listen on loopback only, which is the default. Docker
+Desktop forwards loopback to `host.docker.internal`, so it works
+unchanged. On Docker Engine for Linux, set `ALPHONE_ADDR=0.0.0.0:8080`
+in your `.env` so the container can reach it, and mind that this exposes
+the API to your network.
+
+### Prove the loop
+
+Activating a workflow that starts with **AlphOne Trigger** is what
+registers the webhook: the node calls `POST /api/webhooks` and stores
+the subscription id and signing secret. An inactive trigger has no
+subscription, so nothing is delivered.
+
+With a workflow active, create a contact in AlphOne and confirm it
+arrives. To check from the AlphOne side:
+
+```sh
+docker compose exec postgres psql -U postgres -d postgres -c \
+  "SELECT event_name, status, attempts, last_error
+     FROM core.webhook_deliveries ORDER BY created_at DESC LIMIT 5"
+```
+
+A row reading `delivered` with `attempts = 1` means the whole chain
+worked. A row stuck `pending` with `subscriber answered 404` means the
+subscription outlived its workflow, which happens when a workflow is
+deleted without being deactivated first. List subscriptions with `GET
+/api/webhooks` and delete the stale one, otherwise it retries for a day.
 
 ## Running the checks
 
