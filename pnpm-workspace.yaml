@@ -16,29 +16,6 @@ peerDependencyRules:
     '@types/react': '19'
     typescript: '6'
 
-minimumReleaseAgeExclude:
-  - '@gopherium/godmin@0.1.1'
-  - '@gopherium/react-auth@0.1.2'
-  - '@wordpress/a11y@4.52.0'
-  - '@wordpress/compose@8.5.0'
-  - '@wordpress/deprecated@4.52.0'
-  - '@wordpress/dom-ready@4.52.0'
-  - '@wordpress/dom@4.52.0'
-  - '@wordpress/element@8.4.0'
-  - '@wordpress/escape-html@3.52.0'
-  - '@wordpress/hooks@4.52.0'
-  - '@wordpress/i18n@6.25.0'
-  - '@wordpress/icons@15.3.0'
-  - '@wordpress/is-shallow-equal@5.52.0'
-  - '@wordpress/keycodes@4.52.0'
-  - '@wordpress/primitives@4.52.0'
-  - '@wordpress/priority-queue@3.52.0'
-  - '@wordpress/private-apis@1.52.0'
-  - '@wordpress/style-runtime@0.8.0'
-  - '@wordpress/theme@1.1.0'
-  - '@wordpress/ui@0.19.0'
-  - '@wordpress/undo-manager@1.52.0'
-
 allowBuilds:
   esbuild: false
   msw: false
