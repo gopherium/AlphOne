@@ -24,6 +24,8 @@ services:
       N8N_RUNNERS_ENABLED: "true"
       N8N_SECURE_COOKIE: "false"
       N8N_WEBHOOK_URL: http://localhost:5678/
+      N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+      N8N_UNVERIFIED_PACKAGES_ENABLED: "true"
     ports:
       - "5678:5678"
     volumes:
