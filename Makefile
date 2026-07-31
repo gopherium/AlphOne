@@ -1,4 +1,5 @@
-.PHONY: peers test test-race cover cover-html lint fmt generate outdated db-up db-down seed dev \
+.PHONY: peers test test-race cover cover-html lint fmt generate outdated db-up db-down db-reset \
+	seed dev demo n8n n8n-down n8n-node \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb)
@@ -39,6 +40,12 @@ db-up:
 db-down:
 	docker compose down
 
+db-reset: db-up
+	docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+		-c "DROP SCHEMA IF EXISTS core, auth, plugin_whatsapp CASCADE" \
+		-c "DROP TABLE IF EXISTS public.goose_db_version"
+	$(MAKE) seed
+
 n8n:
 	docker compose --profile n8n up -d --wait n8n
 	@echo "n8n at http://localhost:5678"
@@ -46,11 +53,22 @@ n8n:
 n8n-down:
 	docker compose --profile n8n down n8n
 
+N8N_NODE ?= n8n-nodes-alphone
+
+n8n-node:
+	docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm uninstall $(N8N_NODE) || true'
+	docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm install $(N8N_NODE)@latest'
+	docker compose --profile n8n restart n8n
+	@docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm ls $(N8N_NODE)' || true
+
 seed: db-up
 	go run ./cmd/alphone seed
 
 dev: db-up
 	go run ./cmd/alphone
+
+demo: db-up e2e-build
+	ALPHONE_WEB_DIR=frontend/dist ./alphone
 
 COVERDATA = .covdata
 
