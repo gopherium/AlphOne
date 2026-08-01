@@ -315,6 +315,21 @@ test('loads more done tasks through their own cursor', async () => {
 	expect(await screen.findByRole('button', { name: 'Done (2)' })).toBeInTheDocument()
 })
 
+test('shows a task created elsewhere when the live stream announces it', async () => {
+	const { FakeEventSource } = await import('@alphone/frontend-sdk/testing')
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	tasks = [...tasks, taskRow(addedID, 'Created by an automation')]
+	const source = FakeEventSource.instances.find((s) => s.url === '/api/events')
+	if (!source) {
+		throw new Error('no live stream subscription to /api/events')
+	}
+	source.emit()
+
+	expect(await screen.findByText('Created by an automation')).toBeInTheDocument()
+})
+
 test('reports when the tasks cannot be loaded', async () => {
 	server.use(
 		http.get('/api/tasks', ({ request }) => {

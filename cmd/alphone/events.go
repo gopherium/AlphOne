@@ -9,16 +9,20 @@ import (
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
-// nudgingPublisher queues an event and wakes the delivery worker.
+// nudgingPublisher queues an event, wakes the delivery worker, and announces
+// the name on the live hub.
 type nudgingPublisher struct {
 	dispatcher *webhook.Dispatcher
 	worker     *webhook.Worker
+	hub        *event.Hub
 }
 
-// Publish queues the event for its subscribers and wakes the worker.
+// Publish queues the event for its subscribers, wakes the worker, and
+// broadcasts the name to live listeners.
 func (n nudgingPublisher) Publish(ctx context.Context, name event.Name, data map[string]any) {
 	n.dispatcher.Publish(ctx, name, data)
 	n.worker.Poke()
+	n.hub.Broadcast(name)
 }
 
 // pluginPublisher maps a plugin's untyped event name onto the core publisher.

@@ -21,6 +21,7 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
@@ -61,7 +62,8 @@ func run(
 	deliveries := webhook.NewWorker(webhooks, logger)
 	deliveries.Start()
 	defer deliveries.Stop()
-	events := nudgingPublisher{dispatcher: dispatcher, worker: deliveries}
+	hub := event.NewHub()
+	events := nudgingPublisher{dispatcher: dispatcher, worker: deliveries, hub: hub}
 	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
@@ -88,6 +90,7 @@ func run(
 		Tokens:            tokens,
 		Webhooks:          webhooks,
 		Events:            events,
+		Live:              hub,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Stack, Text, ThemeProvider } from '@alphone/frontend-sdk'
+import { Stack, Text, ThemeProvider, useEventStream } from '@alphone/frontend-sdk'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
@@ -17,6 +17,7 @@ const CANVAS_COLOR = { background: '#ffffff' }
  * @returns The layout element framing the current route.
  */
 export function Layout() {
+	useEventStream('/api/events', { invalidateKeys: [['tasks'], ['contacts']] })
 	const matches = useRouterState({ select: (state) => state.matches })
 	const sidebarMatch = [...matches]
 		.reverse()

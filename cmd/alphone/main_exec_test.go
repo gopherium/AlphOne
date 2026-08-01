@@ -53,6 +53,27 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 	}
 }
 
+func TestMainBinaryTreatsAnUnknownArgumentAsServe(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary, "not-a-subcommand")
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("alphone with an unknown argument: %v, want exit code 1", err)
+	}
+	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
+		t.Errorf("stderr = %q, want the server path reached", stderr.String())
+	}
+}
+
 func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 	t.Parallel()
 
