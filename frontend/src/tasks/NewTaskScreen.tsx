@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, Text, validationMessage } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	PageScreen,
+	Text,
+	validationMessage,
+} from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -42,10 +49,9 @@ export function NewTaskScreen({
 	})
 
 	return (
-		<div className="alphone-page">
-			<h1>New task</h1>
+		<PageScreen title="New task">
 			<form
-				className="alphone-tasks__form"
+				className="alphone-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					create.mutate()
@@ -71,7 +77,7 @@ export function NewTaskScreen({
 					<ErrorNotice>{validationMessage(create.error, 'The task could not be created.')}</ErrorNotice>
 				) : null}
 			</form>
-		</div>
+		</PageScreen>
 	)
 }
 

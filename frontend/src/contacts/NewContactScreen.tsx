@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Text } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	PageScreen,
+	validationMessage,
+} from '@alphone/frontend-sdk'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { ValidationError, createContact } from './api'
+import { createContact } from './api'
 import type { Contact } from './api'
-
-/**
- * Copy for a failed contact creation.
- * @param error - The mutation error.
- * @returns The message shown under the form.
- */
-function createErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The contact could not be created.'
-}
 
 /**
  * Renders the new-contact form.
@@ -35,10 +29,9 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 	})
 
 	return (
-		<div className="alphone-page alphone-page--stacked">
-			<h1>New contact</h1>
+		<PageScreen title="New contact">
 			<form
-				className="alphone-contacts__form"
+				className="alphone-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					create.mutate()
@@ -53,9 +46,11 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 					Create contact
 				</Button>
 				{create.isError ? (
-					<Text role="alert">{createErrorText(create.error)}</Text>
+					<ErrorNotice>
+						{validationMessage(create.error, 'The contact could not be created.')}
+					</ErrorNotice>
 				) : null}
 			</form>
-		</div>
+		</PageScreen>
 	)
 }

@@ -32,8 +32,6 @@ export type ContactPage = z.infer<typeof contactPageSchema>
 
 import { ValidationError } from '@alphone/frontend-sdk'
 
-export { ValidationError }
-
 const errorSchema = z.object({ error: z.string() })
 
 /**

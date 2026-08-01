@@ -416,13 +416,6 @@
 	white-space: nowrap;
 }
 
-.alphone-contacts__form {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	max-width: 320px;
-}
-
 .alphone-contacts__identities {
 	margin: 0;
 	padding-left: 20px;
@@ -441,12 +434,6 @@
 	flex-direction: column;
 	gap: var(--wpds-dimension-gap-md);
 	max-width: var(--wpds-dimension-surface-width-sm);
-}
-
-.alphone-page--stacked {
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
 }
 
 .alphone-page__subtitle {
@@ -509,13 +496,6 @@
 
 .alphone-tasks__overdue .alphone-tasks__list {
 	border-color: var(--wpds-color-stroke-surface-caution);
-}
-
-.alphone-tasks__form {
-	display: flex;
-	flex-direction: column;
-	gap: var(--wpds-dimension-gap-md);
-	max-width: var(--wpds-dimension-surface-width-sm);
 }
 
 .alphone-tasks__actions {

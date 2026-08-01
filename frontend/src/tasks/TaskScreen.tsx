@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, Text, validationMessage } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	PageScreen,
+	Text,
+	validationMessage,
+} from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -27,11 +34,10 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 		return <ErrorNotice>The task could not be loaded.</ErrorNotice>
 	}
 	return (
-		<div className="alphone-page">
-			<h1>{task.data.title}</h1>
+		<PageScreen title={task.data.title}>
 			{task.data.contact_id === null ? null : <ContactLink contactId={task.data.contact_id} />}
 			<TaskForm key={`${task.data.title}-${task.data.due_on}`} task={task.data} />
-		</div>
+		</PageScreen>
 	)
 }
 
@@ -78,7 +84,7 @@ function TaskForm({ task }: { task: Task }) {
 
 	return (
 		<form
-			className="alphone-tasks__form"
+			className="alphone-form"
 			onSubmit={(event) => {
 				event.preventDefault()
 				save.mutate()

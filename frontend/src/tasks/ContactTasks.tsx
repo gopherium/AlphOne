@@ -43,7 +43,9 @@ export function ContactTasks({ contactId }: { contactId: string }) {
 
 	return (
 		<div className="alphone-tasks__contact-block">
-			<h2>Tasks</h2>
+			<Text variant="heading-sm" render={<h2 />}>
+				Tasks
+			</Text>
 			<form
 				className="alphone-tasks__add"
 				onSubmit={(event) => {

@@ -1,25 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Text } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	PageScreen,
+	Text,
+	validationMessage,
+} from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
-import { ValidationError, fetchContact, renameContact } from './api'
+import { fetchContact, renameContact } from './api'
 import type { ContactDetail } from './api'
 import { formatCreated } from './format'
-
-/**
- * Copy for a failed rename.
- * @param error - The mutation error.
- * @returns The message shown under the form.
- */
-function renameErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The contact could not be renamed.'
-}
 
 /**
  * Renders one contact's detail: rename form, identities, and creation date.
@@ -35,19 +30,20 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		return <Text role="status">Loading contact…</Text>
 	}
 	if (detail.isError) {
-		return <Text role="alert">The contact could not be loaded.</Text>
+		return <ErrorNotice>The contact could not be loaded.</ErrorNotice>
 	}
 	return (
-		<div className="alphone-page alphone-page--stacked">
-			<h1>{detail.data.name}</h1>
+		<PageScreen title={detail.data.name}>
 			<RenameForm key={detail.data.name} contact={detail.data} />
-			<h2>Identities</h2>
+			<Text variant="heading-sm" render={<h2 />}>
+				Identities
+			</Text>
 			<IdentityList contact={detail.data} />
 			<ContactTasks contactId={detail.data.id} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(detail.data.created_at)}`}
 			</Text>
-		</div>
+		</PageScreen>
 	)
 }
 
@@ -88,7 +84,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="alphone-contacts__form"
+			className="alphone-form"
 			onSubmit={(event) => {
 				event.preventDefault()
 				rename.mutate()
@@ -103,7 +99,9 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 				Save
 			</Button>
 			{rename.isError ? (
-				<Text role="alert">{renameErrorText(rename.error)}</Text>
+				<ErrorNotice>
+					{validationMessage(rename.error, 'The contact could not be renamed.')}
+				</ErrorNotice>
 			) : null}
 		</form>
 	)
