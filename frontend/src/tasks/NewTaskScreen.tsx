@@ -1,29 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Notice, Text } from '@alphone/frontend-sdk'
+import { Button, InputControl, Notice, Text, validationMessage } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { fetchContacts } from '../contacts/api'
 import type { Contact } from '../contacts/api'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { ValidationError, createTask } from './api'
+import { createTask } from './api'
 import type { Task } from './api'
 import { PrioritySelect } from './PrioritySelect'
 
 const searchDebounceMs = 300
-
-/**
- * Copy for a failed creation.
- * @param error - The mutation error.
- * @returns The message shown under the form.
- */
-function createErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The task could not be created.'
-}
 
 /**
  * Renders the full new-task form.
@@ -80,7 +68,9 @@ export function NewTaskScreen({
 					Create task
 				</Button>
 				{create.isError ? <Notice.Root intent="error">
-					<Notice.Description>{createErrorText(create.error)}</Notice.Description>
+					<Notice.Description>
+						{validationMessage(create.error, 'The task could not be created.')}
+					</Notice.Description>
 				</Notice.Root> : null}
 			</form>
 		</div>

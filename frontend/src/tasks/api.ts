@@ -25,10 +25,7 @@ const taskPageSchema = z.object({
 
 export type TaskPage = z.infer<typeof taskPageSchema>
 
-/**
- * ValidationError is thrown when the backend rejects task details.
- */
-export class ValidationError extends Error {}
+import { ValidationError } from '@alphone/frontend-sdk'
 
 const errorSchema = z.object({ error: z.string() })
 

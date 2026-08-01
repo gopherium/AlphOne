@@ -438,7 +438,7 @@
 	max-width: var(--wpds-dimension-surface-width-lg);
 }
 
-.alphone-tasks__day {
+.alphone-page__subtitle {
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 

@@ -1,26 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Notice, Text } from '@alphone/frontend-sdk'
+import { Button, InputControl, Notice, Text, validationMessage } from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { ValidationError, createTask, fetchContactTasks, patchTask } from './api'
+import { createTask, fetchContactTasks, patchTask } from './api'
 import type { Task } from './api'
 import { isoDate, laterDate, shiftDate } from './format'
 import { TaskList } from './TaskList'
 import type { RowControls, TaskQuery } from './TaskList'
-
-/**
- * Copy for a failed create.
- * @param error - The mutation error.
- * @returns The message shown under the quick add field.
- */
-function addErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The task could not be added.'
-}
 
 /**
  * Renders a contact's open tasks and the field that adds one.
@@ -75,7 +63,9 @@ export function ContactTasks({ contactId }: { contactId: string }) {
 				</Button>
 			</form>
 			{add.isError ? <Notice.Root intent="error">
-					<Notice.Description>{addErrorText(add.error)}</Notice.Description>
+					<Notice.Description>
+						{validationMessage(add.error, 'The task could not be added.')}
+					</Notice.Description>
 				</Notice.Root> : null}
 			{change.isError || push.isError ? (
 				<Notice.Root intent="error">

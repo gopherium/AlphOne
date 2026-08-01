@@ -6,40 +6,25 @@ import {
 	EmptyState,
 	IconButton,
 	InputControl,
+	LoadMore,
 	Notice,
+	PageScreen,
 	Stack,
 	Text,
 	chevronLeft,
 	chevronRight,
 	inbox,
+	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import {
-	ValidationError,
-	createTask,
-	fetchDayTasks,
-	fetchOverdueTasks,
-	patchTask,
-} from './api'
+import { createTask, fetchDayTasks, fetchOverdueTasks, patchTask } from './api'
 import type { Task } from './api'
 import { formatDay, laterDate, shiftDate } from './format'
 import { TaskList } from './TaskList'
 import type { RowControls, TaskQuery } from './TaskList'
-
-/**
- * Copy for a failed create.
- * @param error - The mutation error.
- * @returns The message shown under the quick add field.
- */
-function addErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The task could not be added.'
-}
 
 /**
  * Renders a day of tasks with its overdue work, quick add field, and done
@@ -92,17 +77,12 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 	}
 
 	return (
-		<Stack direction="column" gap="lg" className="alphone-tasks">
-			<Stack direction="row" gap="md" align="center" justify="space-between">
-				<Stack direction="column" gap="xs">
-					<Text variant="heading-xl" render={<h1 />}>
-						Tasks
-					</Text>
-					<Text variant="body-sm" className="alphone-tasks__day">
-						{formatDay(date)}
-					</Text>
-				</Stack>
-				<Stack direction="row" gap="sm" align="center">
+		<PageScreen
+			title="Tasks"
+			subtitle={formatDay(date)}
+			className="alphone-tasks"
+			actions={
+				<>
 					<DayNavigation date={date} today={today} />
 					<Button
 						variant="solid"
@@ -111,8 +91,9 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 					>
 						New task
 					</Button>
-				</Stack>
-			</Stack>
+				</>
+			}
+		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<form
 				className="alphone-tasks__add"
@@ -134,7 +115,9 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			</form>
 			{add.isError ? (
 				<Notice.Root intent="error">
-					<Notice.Description>{addErrorText(add.error)}</Notice.Description>
+					<Notice.Description>
+						{validationMessage(add.error, 'The task could not be added.')}
+					</Notice.Description>
 				</Notice.Root>
 			) : null}
 			{change.isError || push.isError ? (
@@ -143,7 +126,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 				</Notice.Root>
 			) : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
-		</Stack>
+		</PageScreen>
 	)
 }
 
@@ -210,17 +193,7 @@ function OverdueSection({ tasks, controls }: { tasks: TaskQuery; controls: RowCo
 				Overdue
 			</Text>
 			<TaskList label="Overdue tasks" tasks={rows} controls={controls} showDueDate />
-			{tasks.hasNextPage ? (
-				<Button
-					variant="minimal"
-					tone="neutral"
-					size="compact"
-					onClick={() => void tasks.fetchNextPage()}
-					disabled={tasks.isFetchingNextPage}
-				>
-					Load more overdue
-				</Button>
-			) : null}
+			<LoadMore query={tasks}>Load more overdue</LoadMore>
 		</Stack>
 	)
 }
@@ -262,17 +235,7 @@ function TaskSections({
 			) : (
 				<TaskList label="Open tasks" tasks={open} controls={controls} />
 			)}
-			{tasks.hasNextPage ? (
-				<Button
-					variant="minimal"
-					tone="neutral"
-					size="compact"
-					onClick={() => void tasks.fetchNextPage()}
-					disabled={tasks.isFetchingNextPage}
-				>
-					Load more
-				</Button>
-			) : null}
+			<LoadMore query={tasks}>Load more</LoadMore>
 			<DoneGroup tasks={done} controls={controls} />
 		</Stack>
 	)
@@ -302,17 +265,7 @@ function DoneGroup({ tasks, controls }: { tasks: TaskQuery; controls: RowControl
 			<Collapsible.Panel>
 				<Stack direction="column" gap="sm">
 					<TaskList label="Done tasks" tasks={rows} controls={controls} />
-					{tasks.hasNextPage ? (
-						<Button
-							variant="minimal"
-							tone="neutral"
-							size="compact"
-							onClick={() => void tasks.fetchNextPage()}
-							disabled={tasks.isFetchingNextPage}
-						>
-							Load more done
-						</Button>
-					) : null}
+					<LoadMore query={tasks}>Load more done</LoadMore>
 				</Stack>
 			</Collapsible.Panel>
 		</Collapsible.Root>

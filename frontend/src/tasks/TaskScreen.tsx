@@ -1,26 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Notice, Text } from '@alphone/frontend-sdk'
+import { Button, InputControl, Notice, Text, validationMessage } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { fetchContact } from '../contacts/api'
-import { ValidationError, fetchTask, patchTask } from './api'
+import { fetchTask, patchTask } from './api'
 import type { Task } from './api'
 import { PrioritySelect } from './PrioritySelect'
-
-/**
- * Copy for a failed save.
- * @param error - The mutation error.
- * @returns The message shown under the form.
- */
-function saveErrorText(error: unknown): string {
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return 'The task could not be saved.'
-}
 
 /**
  * Renders one task with its editable fields and contact link.
@@ -115,7 +103,9 @@ function TaskForm({ task }: { task: Task }) {
 				</Button>
 			</div>
 			{save.isError ? <Notice.Root intent="error">
-					<Notice.Description>{saveErrorText(save.error)}</Notice.Description>
+					<Notice.Description>
+						{validationMessage(save.error, 'The task could not be saved.')}
+					</Notice.Description>
 				</Notice.Root> : null}
 			{toggle.isError ? <Notice.Root intent="error">
 					<Notice.Description>The task could not be saved.</Notice.Description>

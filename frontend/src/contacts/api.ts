@@ -30,10 +30,9 @@ const contactPageSchema = z.object({
 
 export type ContactPage = z.infer<typeof contactPageSchema>
 
-/**
- * ValidationError is thrown when the backend rejects contact details.
- */
-export class ValidationError extends Error {}
+import { ValidationError } from '@alphone/frontend-sdk'
+
+export { ValidationError }
 
 const errorSchema = z.object({ error: z.string() })
 
