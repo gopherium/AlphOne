@@ -11,6 +11,11 @@ Nothing in AlphOne is specific to any one engine. The examples below use
 [n8n](https://n8n.io) because it is the one we run, but Activepieces,
 Windmill, Node-RED, or a cron job with curl all work the same way.
 
+There is a community node for n8n, which replaces the HTTP plumbing on
+this page with two ready made nodes. To use it, follow the [n8n
+guide](/guides/n8n/) instead. The rest of this page shows the plain HTTP
+approach that any engine can take.
+
 :::note[AlphOne does not include an engine]
 AlphOne neither bundles nor redistributes n8n, and the released image
 contains only AlphOne itself. You run the engine you choose, under its
