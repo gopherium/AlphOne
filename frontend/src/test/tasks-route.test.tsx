@@ -68,7 +68,9 @@ beforeEach(() => {
 				return HttpResponse.json({ tasks: overdue, next_cursor: null })
 			}
 			listedDates.push(url.searchParams.get('date') ?? '')
-			return HttpResponse.json({ tasks, next_cursor: null })
+			const status = url.searchParams.get('status') ?? 'open'
+			const rows = status === 'all' ? tasks : tasks.filter((row) => row.status === status)
+			return HttpResponse.json({ tasks: rows, next_cursor: null })
 		}),
 		http.patch('/api/tasks/:id', async ({ request, params }) => {
 			const body = (await request.json()) as { status?: string; due_on?: string }
@@ -226,6 +228,91 @@ test('loads more tasks through the cursor', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
+})
+
+test('shows open work even when finished tasks fill the first page', async () => {
+	const finished = [
+		taskRow(doneID, 'Book the courier', 'done'),
+		taskRow(oldID, 'File the customs form', 'done'),
+	]
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			switch (url.searchParams.get('status')) {
+				case 'open':
+					return HttpResponse.json({
+						tasks: [taskRow(callID, 'Reply to the imported enquiry')],
+						next_cursor: null,
+					})
+				case 'done':
+					return HttpResponse.json({ tasks: finished, next_cursor: null })
+				default:
+					return HttpResponse.json({ tasks: finished, next_cursor: 'MORE' })
+			}
+		}),
+	)
+
+	renderAt('/tasks')
+
+	expect(await screen.findByText('Reply to the imported enquiry')).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Done (2)' })).toBeInTheDocument()
+})
+
+test('keeps the day usable when the done group cannot be loaded', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			if (url.searchParams.get('status') === 'done') {
+				return HttpResponse.json({ error: 'internal error' }, { status: 500 })
+			}
+			return HttpResponse.json({
+				tasks: [taskRow(callID, 'Call the supplier')],
+				next_cursor: null,
+			})
+		}),
+	)
+
+	renderAt('/tasks')
+
+	expect(await screen.findByText('Call the supplier')).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: /^Done \(/ })).not.toBeInTheDocument()
+})
+
+test('loads more done tasks through their own cursor', async () => {
+	server.use(
+		http.get('/api/tasks', ({ request }) => {
+			const url = new URL(request.url)
+			if (url.searchParams.get('due_before') !== null) {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			if (url.searchParams.get('status') !== 'done') {
+				return HttpResponse.json({ tasks: [], next_cursor: null })
+			}
+			if (url.searchParams.get('cursor') === null) {
+				return HttpResponse.json({
+					tasks: [taskRow(doneID, 'Book the courier', 'done')],
+					next_cursor: 'D1',
+				})
+			}
+			return HttpResponse.json({
+				tasks: [taskRow(oldID, 'File the customs form', 'done')],
+				next_cursor: null,
+			})
+		}),
+	)
+	renderAt('/tasks')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Done (1+)' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Load more done' }))
+
+	expect(await screen.findByText('File the customs form')).toBeInTheDocument()
+	expect(await screen.findByRole('button', { name: 'Done (2)' })).toBeInTheDocument()
 })
 
 test('reports when the tasks cannot be loaded', async () => {

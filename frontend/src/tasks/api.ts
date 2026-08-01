@@ -48,13 +48,14 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 }
 
 /**
- * Fetches one page of the tasks due on a day, of every status.
+ * Fetches one page of the tasks due on a day with the given status.
  * @param date - The due date as YYYY-MM-DD.
  * @param cursor - The cursor from the previous page, or an empty string.
+ * @param status - The task status to list, open or done.
  * @returns The parsed page.
  */
-export async function fetchDayTasks(date: string, cursor: string): Promise<TaskPage> {
-	const params = new URLSearchParams({ date, status: 'all' })
+export async function fetchDayTasks(date: string, cursor: string, status: 'open' | 'done'): Promise<TaskPage> {
+	const params = new URLSearchParams({ date, status })
 	if (cursor !== '') {
 		params.set('cursor', cursor)
 	}

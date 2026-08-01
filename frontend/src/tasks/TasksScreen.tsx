@@ -49,8 +49,14 @@ function addErrorText(error: unknown): string {
 export function TasksScreen({ date, today }: { date: string; today: string }) {
 	const queryClient = useQueryClient()
 	const tasks = useInfiniteQuery({
-		queryKey: ['tasks', 'day', date],
-		queryFn: ({ pageParam }) => fetchDayTasks(date, pageParam),
+		queryKey: ['tasks', 'day', date, 'open'],
+		queryFn: ({ pageParam }) => fetchDayTasks(date, pageParam, 'open'),
+		initialPageParam: '',
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+	})
+	const done = useInfiniteQuery({
+		queryKey: ['tasks', 'day', date, 'done'],
+		queryFn: ({ pageParam }) => fetchDayTasks(date, pageParam, 'done'),
 		initialPageParam: '',
 		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	})
@@ -136,7 +142,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 					<Notice.Description>The task could not be updated.</Notice.Description>
 				</Notice.Root>
 			) : null}
-			<TaskSections tasks={tasks} controls={controls} />
+			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</Stack>
 	)
 }
@@ -223,7 +229,15 @@ function OverdueSection({ tasks, controls }: { tasks: TaskQuery; controls: RowCo
  * Renders the loading, error, and loaded states of the day's tasks.
  * @returns The task sections.
  */
-function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowControls }) {
+function TaskSections({
+	tasks,
+	done,
+	controls,
+}: {
+	tasks: TaskQuery
+	done: TaskQuery
+	controls: RowControls
+}) {
 	if (tasks.isPending) {
 		return <Text role="status">Loading tasks…</Text>
 	}
@@ -234,9 +248,7 @@ function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowCont
 			</Notice.Root>
 		)
 	}
-	const rows = tasks.data.pages.flatMap((page) => page.tasks)
-	const open = rows.filter((task) => task.status !== 'done')
-	const done = rows.filter((task) => task.status === 'done')
+	const open = tasks.data.pages.flatMap((page) => page.tasks)
 	return (
 		<Stack direction="column" gap="lg">
 			{open.length === 0 ? (
@@ -261,7 +273,7 @@ function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowCont
 					Load more
 				</Button>
 			) : null}
-			{done.length > 0 ? <DoneGroup tasks={done} controls={controls} /> : null}
+			<DoneGroup tasks={done} controls={controls} />
 		</Stack>
 	)
 }
@@ -270,18 +282,38 @@ function TaskSections({ tasks, controls }: { tasks: TaskQuery; controls: RowCont
  * Renders the collapsible group of tasks completed on the day.
  * @returns The done group.
  */
-function DoneGroup({ tasks, controls }: { tasks: Task[]; controls: RowControls }) {
+function DoneGroup({ tasks, controls }: { tasks: TaskQuery; controls: RowControls }) {
+	if (tasks.isPending || tasks.isError) {
+		return null
+	}
+	const rows = tasks.data.pages.flatMap((page) => page.tasks)
+	if (rows.length === 0) {
+		return null
+	}
 	return (
 		<Collapsible.Root>
 			<Collapsible.Trigger
 				render={
 					<Button variant="minimal" tone="neutral" size="compact">
-						{`Done (${tasks.length})`}
+						{`Done (${rows.length}${tasks.hasNextPage ? '+' : ''})`}
 					</Button>
 				}
 			/>
 			<Collapsible.Panel>
-				<TaskList label="Done tasks" tasks={tasks} controls={controls} />
+				<Stack direction="column" gap="sm">
+					<TaskList label="Done tasks" tasks={rows} controls={controls} />
+					{tasks.hasNextPage ? (
+						<Button
+							variant="minimal"
+							tone="neutral"
+							size="compact"
+							onClick={() => void tasks.fetchNextPage()}
+							disabled={tasks.isFetchingNextPage}
+						>
+							Load more done
+						</Button>
+					) : null}
+				</Stack>
 			</Collapsible.Panel>
 		</Collapsible.Root>
 	)
