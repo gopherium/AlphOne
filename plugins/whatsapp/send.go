@@ -75,30 +75,44 @@ func (s *sender) sendText(ctx context.Context, to, body string) (string, json.Ra
 	defer func() { _ = response.Body.Close() }()
 	raw, _ := io.ReadAll(response.Body)
 	if response.StatusCode != http.StatusOK {
-		var failure struct {
-			Error struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
-			} `json:"error"`
-		}
-		if err := json.Unmarshal(raw, &failure); err == nil && failure.Error.Code != 0 {
-			return "", nil, fmt.Errorf("whatsapp: send message: %w",
-				graphError{Code: failure.Error.Code, Message: failure.Error.Message})
-		}
-		return "", nil, fmt.Errorf("whatsapp: send message: status %d", response.StatusCode)
+		return "", nil, sendFailure(response.StatusCode, raw)
 	}
+	id, err := sentMessageID(raw)
+	if err != nil {
+		return "", nil, err
+	}
+	return id, raw, nil
+}
+
+// sendFailure returns the error a rejected Graph send response carries.
+func sendFailure(status int, raw []byte) error {
+	var failure struct {
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &failure); err == nil && failure.Error.Code != 0 {
+		return fmt.Errorf("whatsapp: send message: %w",
+			graphError{Code: failure.Error.Code, Message: failure.Error.Message})
+	}
+	return fmt.Errorf("whatsapp: send message: status %d", status)
+}
+
+// sentMessageID returns the message id in a Graph send response.
+func sentMessageID(raw []byte) (string, error) {
 	var decoded struct {
 		Messages []struct {
 			ID string `json:"id"`
 		} `json:"messages"`
 	}
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return "", nil, fmt.Errorf("whatsapp: decode send response: %w", err)
+		return "", fmt.Errorf("whatsapp: decode send response: %w", err)
 	}
 	if len(decoded.Messages) == 0 || decoded.Messages[0].ID == "" {
-		return "", nil, errors.New("whatsapp: send response carries no message id")
+		return "", errors.New("whatsapp: send response carries no message id")
 	}
-	return decoded.Messages[0].ID, raw, nil
+	return decoded.Messages[0].ID, nil
 }
 
 type sendMessageRequest struct {
@@ -113,19 +127,8 @@ type sendFailureResponse struct {
 // handleMessageSend returns an HTTP handler that sends an outbound message on a conversation and persists it.
 func (p *Plugin) handleMessageSend() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conversationID, err := uuid.Parse(chi.URLParam(r, "id"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		var body sendMessageRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		content := strings.TrimSpace(body.Content)
-		if content == "" {
-			w.WriteHeader(http.StatusBadRequest)
+		conversationID, content, ok := decodeSendRequest(w, r)
+		if !ok {
 			return
 		}
 		to, err := p.store.conversationExternalID(r.Context(), conversationID)
@@ -139,15 +142,7 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 		}
 		externalID, raw, err := p.sender.sendText(r.Context(), to, content)
 		if err != nil {
-			var rejection graphError
-			if errors.As(err, &rejection) {
-				respondJSON(w, http.StatusBadGateway, sendFailureResponse{
-					Error: rejection.Message,
-					Code:  rejection.Code,
-				})
-				return
-			}
-			w.WriteHeader(http.StatusBadGateway)
+			respondSendFailure(w, err)
 			return
 		}
 		row, err := p.store.appendOutboundMessage(r.Context(), conversationID, outboundMessage{
@@ -170,4 +165,37 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 			SentAt:      row.SentAt.UTC(),
 		})
 	}
+}
+
+// decodeSendRequest returns the conversation id and trimmed content of a send request, answering 400 when invalid.
+func decodeSendRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID, string, bool) {
+	conversationID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return uuid.Nil, "", false
+	}
+	var body sendMessageRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return uuid.Nil, "", false
+	}
+	content := strings.TrimSpace(body.Content)
+	if content == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return uuid.Nil, "", false
+	}
+	return conversationID, content, true
+}
+
+// respondSendFailure answers a failed Graph send, carrying any rejection detail.
+func respondSendFailure(w http.ResponseWriter, err error) {
+	var rejection graphError
+	if errors.As(err, &rejection) {
+		respondJSON(w, http.StatusBadGateway, sendFailureResponse{
+			Error: rejection.Message,
+			Code:  rejection.Code,
+		})
+		return
+	}
+	w.WriteHeader(http.StatusBadGateway)
 }
