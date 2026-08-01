@@ -76,18 +76,22 @@ func (r *Resolver) Resolve(ctx context.Context, channel Channel, identifier, dis
 	if !errors.Is(err, ErrIdentityNotFound) {
 		return Contact{}, err
 	}
+	return r.createOwner(ctx, normalizedChannel, trimmedIdentifier, displayName)
+}
 
-	created, err := New(contactName(displayName, trimmedIdentifier))
+// createOwner stores a new contact owning the identity for channel and identifier.
+func (r *Resolver) createOwner(ctx context.Context, channel Channel, identifier, displayName string) (Contact, error) {
+	created, err := New(contactName(displayName, identifier))
 	if err != nil {
 		return Contact{}, err
 	}
-	identity, err := NewIdentity(created.ID, normalizedChannel, trimmedIdentifier, displayName)
+	identity, err := NewIdentity(created.ID, channel, identifier, displayName)
 	if err != nil {
 		return Contact{}, err
 	}
 	err = r.store.CreateContactWithIdentity(ctx, created, identity)
 	if errors.Is(err, ErrIdentityExists) {
-		return r.owner(ctx, normalizedChannel, trimmedIdentifier)
+		return r.owner(ctx, channel, identifier)
 	}
 	if err != nil {
 		return Contact{}, err
