@@ -37,26 +37,18 @@ func run(
 ) error {
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
-	databaseURL := getenv("ALPHONE_DATABASE_URL")
-	if databaseURL == "" {
-		return errors.New("ALPHONE_DATABASE_URL is required")
-	}
-	addr := getenv("ALPHONE_ADDR")
-	if addr == "" {
-		addr = "localhost:8080"
-	}
-	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	settings, err := loadRunConfig(getenv)
 	if err != nil {
 		return err
 	}
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := pgxpool.New(ctx, settings.databaseURL)
 	if err != nil {
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
 
-	if err := migrateSchemas(ctx, databaseURL); err != nil {
+	if err := migrateSchemas(ctx, settings.databaseURL); err != nil {
 		return err
 	}
 
@@ -75,7 +67,7 @@ func run(
 	defer reaper.Stop()
 
 	registered, err := plugins(sdk.Deps{
-		DatabaseURL: databaseURL,
+		DatabaseURL: settings.databaseURL,
 		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts, contact.WithEvents(events))},
 		Events:      pluginPublisher{publisher: events},
 		Getenv:      getenv,
@@ -99,24 +91,65 @@ func run(
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),
-		TrustedProxies:    trustedProxies,
+		TrustedProxies:    settings.trustedProxies,
 	}
-	if webDir := getenv("ALPHONE_WEB_DIR"); webDir != "" {
-		cfg.Web = os.DirFS(webDir)
+	if settings.webDir != "" {
+		cfg.Web = os.DirFS(settings.webDir)
 	}
 
 	httpServer := &http.Server{
-		Addr:              addr,
+		Addr:              settings.addr,
 		Handler:           server.NewServer(cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	return serveUntilDone(ctx, httpServer, host, logger)
+}
+
+// runConfig carries the environment-derived settings of the server.
+type runConfig struct {
+	databaseURL    string
+	addr           string
+	webDir         string
+	trustedProxies []string
+}
+
+// loadRunConfig reads the server settings from the environment.
+func loadRunConfig(getenv func(string) string) (runConfig, error) {
+	databaseURL := getenv("ALPHONE_DATABASE_URL")
+	if databaseURL == "" {
+		return runConfig{}, errors.New("ALPHONE_DATABASE_URL is required")
+	}
+	addr := getenv("ALPHONE_ADDR")
+	if addr == "" {
+		addr = "localhost:8080"
+	}
+	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	if err != nil {
+		return runConfig{}, err
+	}
+	return runConfig{
+		databaseURL:    databaseURL,
+		addr:           addr,
+		webDir:         getenv("ALPHONE_WEB_DIR"),
+		trustedProxies: trustedProxies,
+	}, nil
+}
+
+// serveUntilDone serves HTTP until ctx is cancelled or serving fails, then
+// stops the plugin host.
+func serveUntilDone(
+	ctx context.Context,
+	httpServer *http.Server,
+	host *pluginkit.Host,
+	logger *slog.Logger,
+) error {
 	serveErr := make(chan error, 1)
 	go func() {
 		serveErr <- httpServer.ListenAndServe()
 	}()
-	logger.Info("listening", "addr", addr)
+	logger.Info("listening", "addr", httpServer.Addr)
 
 	select {
 	case err := <-serveErr:

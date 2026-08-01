@@ -24,13 +24,9 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 		return errors.New("token: want one of create, list, revoke")
 	}
 	verb := args[0]
-	flags := flag.NewFlagSet("token "+verb, flag.ContinueOnError)
-	flags.SetOutput(stdout)
-	email := flags.String("email", "", "email address of the owning user")
-	name := flags.String("name", "", "name of the token to create")
-	id := flags.String("id", "", "identifier of the token to revoke")
-	if err := flags.Parse(args[1:]); err != nil {
-		return fmt.Errorf("parse flags: %w", err)
+	opts, err := parseTokenFlags(verb, args[1:], stdout)
+	if err != nil {
+		return err
 	}
 
 	databaseURL := getenv("ALPHONE_DATABASE_URL")
@@ -46,18 +42,49 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 		return err
 	}
 
-	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, *email)
+	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, opts.email)
 	if err != nil {
 		return err
 	}
-	tokens := postgres.NewTokenStore(pool)
+	return runTokenVerb(ctx, postgres.NewTokenStore(pool), owner.ID, verb, opts, stdout)
+}
+
+// tokenFlags carries the parsed flags of a token subcommand.
+type tokenFlags struct {
+	email string
+	name  string
+	id    string
+}
+
+// parseTokenFlags parses the flags of one token subcommand.
+func parseTokenFlags(verb string, args []string, stdout io.Writer) (tokenFlags, error) {
+	flags := flag.NewFlagSet("token "+verb, flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	email := flags.String("email", "", "email address of the owning user")
+	name := flags.String("name", "", "name of the token to create")
+	id := flags.String("id", "", "identifier of the token to revoke")
+	if err := flags.Parse(args); err != nil {
+		return tokenFlags{}, fmt.Errorf("parse flags: %w", err)
+	}
+	return tokenFlags{email: *email, name: *name, id: *id}, nil
+}
+
+// runTokenVerb runs the named token subcommand against the store.
+func runTokenVerb(
+	ctx context.Context,
+	tokens *postgres.TokenStore,
+	userID uuid.UUID,
+	verb string,
+	opts tokenFlags,
+	stdout io.Writer,
+) error {
 	switch verb {
 	case "create":
-		return createToken(ctx, tokens, owner.ID, *name, stdout)
+		return createToken(ctx, tokens, userID, opts.name, stdout)
 	case "list":
-		return listTokens(ctx, tokens, owner.ID, stdout)
+		return listTokens(ctx, tokens, userID, stdout)
 	case "revoke":
-		return revokeToken(ctx, tokens, owner.ID, *id, stdout)
+		return revokeToken(ctx, tokens, userID, opts.id, stdout)
 	default:
 		return fmt.Errorf("token: unknown command %q", verb)
 	}

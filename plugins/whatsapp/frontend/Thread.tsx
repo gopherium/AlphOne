@@ -24,6 +24,20 @@ const tickGlyphs: Record<string, { glyph: string; label: string; modifier?: stri
 	failed: { glyph: '!', label: 'Message not delivered', modifier: 'failed' },
 }
 
+const mediaContentTypes = new Set([
+	'image',
+	'sticker',
+	'audio',
+	'video',
+	'document',
+])
+
+const decoratedContent: Record<string, (message: Message) => string> = {
+	location: (message) => `📍 ${message.content}`,
+	contacts: (message) => `👤 ${message.content || 'Contact card'}`,
+	reaction: (message) => message.content || 'Reaction removed',
+}
+
 const followThresholdPx = 100
 
 /**
@@ -141,41 +155,22 @@ function MessageBody({
 	conversationId: string
 	message: Message
 }) {
-	switch (message.content_type) {
-		case 'text':
-			return <Text className="alphone-message__content">{message.content}</Text>
-		case 'image':
-		case 'sticker':
-		case 'audio':
-		case 'video':
-		case 'document':
-			return <MediaBody conversationId={conversationId} message={message} />
-		case 'location':
-			return (
-				<Text className="alphone-message__content">
-					{`📍 ${message.content}`}
-				</Text>
-			)
-		case 'contacts':
-			return (
-				<Text className="alphone-message__content">
-					{`👤 ${message.content || 'Contact card'}`}
-				</Text>
-			)
-		case 'reaction':
-			return (
-				<Text className="alphone-message__content">
-					{message.content || 'Reaction removed'}
-				</Text>
-			)
-		default:
-			return <Text className="alphone-message__content">Unsupported message.</Text>
+	if (mediaContentTypes.has(message.content_type)) {
+		return <MediaBody conversationId={conversationId} message={message} />
 	}
+	if (message.content_type === 'text') {
+		return <Text className="alphone-message__content">{message.content}</Text>
+	}
+	const decorate = decoratedContent[message.content_type]
+	return (
+		<Text className="alphone-message__content">
+			{decorate ? decorate(message) : 'Unsupported message.'}
+		</Text>
+	)
 }
 
 /**
- * Renders a media message's attachment by its download state and kind,
- * followed by any caption.
+ * Renders a media message's attachment by its download state.
  * @returns The attachment body.
  */
 function MediaBody({
@@ -187,10 +182,7 @@ function MediaBody({
 }) {
 	const media = message.media
 	if (!media || media.status === 'failed') {
-		if (message.content_type === 'document' && media) {
-			return <DocumentChip media={media} caption={message.content} />
-		}
-		return <Text className="alphone-message__content">Attachment unavailable.</Text>
+		return <UnavailableAttachment media={media} message={message} />
 	}
 	if (media.status === 'pending') {
 		return (
@@ -199,37 +191,102 @@ function MediaBody({
 			</Text>
 		)
 	}
+	return (
+		<ReadyAttachment
+			conversationId={conversationId}
+			media={media}
+			message={message}
+		/>
+	)
+}
+
+/**
+ * Renders the fallback for a media message whose asset never arrived, keeping
+ * the document chip while the filename is still known.
+ * @returns The unavailable attachment body.
+ */
+function UnavailableAttachment({
+	media,
+	message,
+}: {
+	media: MessageMedia | null | undefined
+	message: Message
+}) {
+	if (media && message.content_type === 'document') {
+		return <DocumentChip media={media} caption={message.content} />
+	}
+	return <Text className="alphone-message__content">Attachment unavailable.</Text>
+}
+
+/**
+ * Renders a downloaded attachment by kind, followed by any caption.
+ * @returns The attachment body.
+ */
+function ReadyAttachment({
+	conversationId,
+	media,
+	message,
+}: {
+	conversationId: string
+	media: MessageMedia
+	message: Message
+}) {
 	const source = mediaURL(conversationId, message.id)
 	switch (message.content_type) {
 		case 'image':
 		case 'sticker':
 			return <MediaImage conversationId={conversationId} message={message} />
 		case 'audio':
-			return (
-				<div className="alphone-message__media">
-					{media.voice ? (
-						<Text className="alphone-message__media-label">Voice message</Text>
-					) : null}
-					<audio
-						controls
-						preload="metadata"
-						src={source}
-						aria-label={media.voice ? 'Voice message' : 'Audio message'}
-					/>
-				</div>
-			)
+			return <AudioAttachment media={media} source={source} />
 		case 'video':
-			return (
-				<div className="alphone-message__media">
-					<video controls preload="metadata" src={source} aria-label="Video message" />
-					{message.content ? (
-						<Text className="alphone-message__caption">{message.content}</Text>
-					) : null}
-				</div>
-			)
+			return <VideoAttachment message={message} source={source} />
 		default:
 			return <DocumentChip media={media} caption={message.content} href={source} />
 	}
+}
+
+/**
+ * Renders an audio attachment, labelled as a voice note when WhatsApp marked
+ * it as one.
+ * @returns The audio body.
+ */
+function AudioAttachment({
+	media,
+	source,
+}: {
+	media: MessageMedia
+	source: string
+}) {
+	const label = media.voice ? 'Voice message' : 'Audio message'
+	return (
+		<div className="alphone-message__media">
+			{media.voice ? (
+				<Text className="alphone-message__media-label">Voice message</Text>
+			) : null}
+			<audio controls preload="metadata" src={source} aria-label={label} />
+		</div>
+	)
+}
+
+/**
+ * Renders a video attachment, followed by any caption.
+ * @returns The video body.
+ */
+function VideoAttachment({
+	message,
+	source,
+}: {
+	message: Message
+	source: string
+}) {
+	return (
+		<div className="alphone-message__media">
+			<video controls preload="metadata" src={source} aria-label="Video message" />
+			{message.content ? (
+				<Text className="alphone-message__caption">{message.content}</Text>
+			) : null}
+		</div>
+	)
 }
 
 /**

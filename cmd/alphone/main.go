@@ -18,29 +18,25 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	_ = godotenv.Load()
-	if len(os.Args) > 1 && os.Args[1] == "createadmin" {
-		if err := createAdmin(ctx, os.Getenv, os.Args[2:], os.Stdin, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, "alphone:", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "token" {
-		if err := token(ctx, os.Getenv, os.Args[2:], os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, "alphone:", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "seed" {
-		if err := seed(ctx, os.Getenv, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, "alphone:", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if err := run(ctx, os.Getenv, os.Stderr, registerPlugins); err != nil {
+	if err := dispatch(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "alphone:", err)
 		os.Exit(1)
+	}
+}
+
+// dispatch runs the subcommand named by the first argument, or the server.
+func dispatch(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return run(ctx, os.Getenv, os.Stderr, registerPlugins)
+	}
+	switch args[0] {
+	case "createadmin":
+		return createAdmin(ctx, os.Getenv, args[1:], os.Stdin, os.Stdout)
+	case "token":
+		return token(ctx, os.Getenv, args[1:], os.Stdout)
+	case "seed":
+		return seed(ctx, os.Getenv, os.Stdout)
+	default:
+		return run(ctx, os.Getenv, os.Stderr, registerPlugins)
 	}
 }

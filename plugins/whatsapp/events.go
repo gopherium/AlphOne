@@ -135,20 +135,27 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		for _, m := range batch.messages {
-			if err := p.ingest(r.Context(), m); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
-		for _, u := range batch.statuses {
-			if err := p.applyStatus(r.Context(), u); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		if err := p.ingestBatch(r.Context(), batch); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+// ingestBatch stores the messages and applies the status updates of one batch.
+func (p *Plugin) ingestBatch(ctx context.Context, batch webhookBatch) error {
+	for _, m := range batch.messages {
+		if err := p.ingest(ctx, m); err != nil {
+			return err
+		}
+	}
+	for _, u := range batch.statuses {
+		if err := p.applyStatus(ctx, u); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // signatureValid reports whether header holds a valid HMAC-SHA256
@@ -266,6 +273,8 @@ func parseTimestamp(value string) time.Time {
 
 // classifyMessage maps a webhook message to its content type, content text,
 // and media descriptor.
+//
+//nolint:cyclop // flat type dispatch, cognitive complexity is 5
 func classifyMessage(m webhookMessage) (string, string, *mediaDescriptor) {
 	switch m.Type {
 	case "text":

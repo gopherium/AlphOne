@@ -354,25 +354,37 @@ func (s *server) handleTaskPatch() http.HandlerFunc {
 			respondDomainError(w, err)
 			return
 		}
-		if changes == (task.Changes{}) {
-			authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
-			return
-		}
-		changed, err := stored.Apply(changes)
+		updated, err := s.patchTask(r.Context(), stored, changes)
 		if err != nil {
 			respondDomainError(w, err)
 			return
-		}
-		updated, err := s.tasks.Update(r.Context(), changed)
-		if err != nil {
-			respondDomainError(w, err)
-			return
-		}
-		if stored.Status != task.StatusDone && updated.Status == task.StatusDone {
-			s.publish(r.Context(), event.TaskCompleted, taskEventData(updated))
 		}
 		authkit.Respond(w, http.StatusOK, newTaskResponse(updated))
 	}
+}
+
+// patchTask applies changes to stored, publishing a completion event when the
+// update closes the task.
+func (s *server) patchTask(
+	ctx context.Context,
+	stored task.Task,
+	changes task.Changes,
+) (task.Task, error) {
+	if changes == (task.Changes{}) {
+		return stored, nil
+	}
+	changed, err := stored.Apply(changes)
+	if err != nil {
+		return task.Task{}, err
+	}
+	updated, err := s.tasks.Update(ctx, changed)
+	if err != nil {
+		return task.Task{}, err
+	}
+	if stored.Status != task.StatusDone && updated.Status == task.StatusDone {
+		s.publish(ctx, event.TaskCompleted, taskEventData(updated))
+	}
+	return updated, nil
 }
 
 // optionalDueDate parses a due date change, reporting an omitted one as nil.
