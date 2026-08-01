@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { NewUserScreen, UsersScreen } from '@gopherium/react-auth/wpds'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
+
+import { NewUserScreen } from './users/NewUserScreen'
+import { UsersScreen } from './users/UsersScreen'
 
 /**
- * Renders the shared users screen wired to the app's new-user route.
+ * Renders the users screen.
  * @returns The users screen element.
  */
 export function UsersRoute() {
-	return <UsersScreen newUserRender={<Link to="/users/new" />} />
+	return <UsersScreen />
 }
 
 /**
- * Renders the shared new-user form, returning to the user list on success.
+ * Renders the new user form, returning to the user list on success.
  * @returns The new user screen element.
  */
 export function NewUserRoute() {

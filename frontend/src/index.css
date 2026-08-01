@@ -393,15 +393,27 @@
 	max-width: 320px;
 }
 
-.alphone-contacts__table {
+.alphone-table {
+	width: 100%;
 	border-collapse: collapse;
 	text-align: left;
 }
 
-.alphone-contacts__table th,
-.alphone-contacts__table td {
+.alphone-table th,
+.alphone-table td {
 	padding: 8px 12px;
 	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+	vertical-align: middle;
+}
+
+.alphone-table th {
+	font-size: var(--wpds-typography-font-size-sm);
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.alphone-table__actions {
+	width: 1%;
+	white-space: nowrap;
 }
 
 .alphone-contacts__form {
@@ -422,6 +434,13 @@
 
 .alphone-page {
 	max-width: var(--wpds-dimension-surface-width-xl);
+}
+
+.alphone-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wpds-dimension-gap-md);
+	max-width: var(--wpds-dimension-surface-width-sm);
 }
 
 .alphone-page--stacked {

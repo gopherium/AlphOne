@@ -87,7 +87,7 @@ function ContactRows({
 	}
 	return (
 		<>
-			<table className="alphone-contacts__table">
+			<table className="alphone-table">
 				<thead>
 					<tr>
 						<th>Name</th>
