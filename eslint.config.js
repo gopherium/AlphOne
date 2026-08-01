@@ -1,4 +1,5 @@
 import jsdoc from 'eslint-plugin-jsdoc'
+import sonarjs from 'eslint-plugin-sonarjs'
 import tsdoc from 'eslint-plugin-tsdoc'
 import tseslint from 'typescript-eslint'
 
@@ -19,7 +20,27 @@ export default [
 		},
 		rules: {
 			'max-len': ['error', { code: 120, tabWidth: 1, ignoreUrls: true }],
-			complexity: ['warn', 5],
+		},
+	},
+	{
+		files: [
+			'frontend/src/**/*.{ts,tsx}',
+			'sdk/frontend/**/*.{ts,tsx}',
+			'plugins/*/frontend/**/*.{ts,tsx}',
+		],
+		ignores: [
+			'**/*.test.{ts,tsx}',
+			'frontend/src/test/**',
+			'frontend/src/plugins/index.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: { ecmaFeatures: { jsx: true } },
+		},
+		plugins: { sonarjs },
+		rules: {
+			complexity: ['error', 10],
+			'sonarjs/cognitive-complexity': ['error', 15],
 		},
 	},
 	{
