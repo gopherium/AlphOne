@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Notice, Text, validationMessage } from '@alphone/frontend-sdk'
+import { Button, ErrorNotice, InputControl, Text, validationMessage } from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -62,15 +62,11 @@ export function ContactTasks({ contactId }: { contactId: string }) {
 					Add task
 				</Button>
 			</form>
-			{add.isError ? <Notice.Root intent="error">
-					<Notice.Description>
-						{validationMessage(add.error, 'The task could not be added.')}
-					</Notice.Description>
-				</Notice.Root> : null}
+			{add.isError ? (
+				<ErrorNotice>{validationMessage(add.error, 'The task could not be added.')}</ErrorNotice>
+			) : null}
 			{change.isError || push.isError ? (
-				<Notice.Root intent="error">
-					<Notice.Description>The task could not be updated.</Notice.Description>
-				</Notice.Root>
+				<ErrorNotice>The task could not be updated.</ErrorNotice>
 			) : null}
 			<ContactTaskList
 				tasks={tasks}
@@ -99,9 +95,7 @@ function ContactTaskList({
 		return <Text role="status">Loading tasks…</Text>
 	}
 	if (tasks.isError) {
-		return <Notice.Root intent="error">
-					<Notice.Description>Tasks could not be loaded.</Notice.Description>
-				</Notice.Root>
+		return <ErrorNotice>Tasks could not be loaded.</ErrorNotice>
 	}
 	const rows = tasks.data.pages.flatMap((page) => page.tasks)
 	if (rows.length === 0) {
