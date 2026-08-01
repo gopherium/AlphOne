@@ -115,6 +115,9 @@ test('shows an empty state when the search finds nothing', async () => {
 	)
 
 	expect(await screen.findByText('No contacts found.')).toBeInTheDocument()
+	expect(
+		screen.getByText('Try a different search, or add one with New contact.'),
+	).toBeInTheDocument()
 })
 
 test('reports when contacts cannot be loaded', async () => {

@@ -35,7 +35,7 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 	})
 
 	return (
-		<div className="alphone-contacts">
+		<div className="alphone-page alphone-page--stacked">
 			<h1>New contact</h1>
 			<form
 				className="alphone-contacts__form"

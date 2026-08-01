@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Text } from '@alphone/frontend-sdk'
+import {
+	Button,
+	EmptyState,
+	ErrorNotice,
+	InputControl,
+	LoadMore,
+	PageScreen,
+	Text,
+	people,
+} from '@alphone/frontend-sdk'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -28,11 +37,14 @@ export function ContactsScreen() {
 	})
 
 	return (
-		<div className="alphone-contacts">
-			<div className="alphone-contacts__header">
-				<h1>Contacts</h1>
-				<Button render={<Link to="/contacts/new" />}>New contact</Button>
-			</div>
+		<PageScreen
+			title="Contacts"
+			actions={
+				<Button variant="solid" render={<Link to="/contacts/new" />}>
+					New contact
+				</Button>
+			}
+		>
 			<InputControl
 				label="Search contacts"
 				hideLabelFromVision
@@ -41,7 +53,7 @@ export function ContactsScreen() {
 				onChange={(event) => setSearch(event.target.value)}
 			/>
 			<ContactRows contacts={contacts} />
-		</div>
+		</PageScreen>
 	)
 }
 
@@ -59,11 +71,19 @@ function ContactRows({
 		return <Text role="status">Loading contacts…</Text>
 	}
 	if (contacts.isError) {
-		return <Text role="alert">Contacts could not be loaded.</Text>
+		return <ErrorNotice>Contacts could not be loaded.</ErrorNotice>
 	}
 	const rows = contacts.data.pages.flatMap((page) => page.contacts)
 	if (rows.length === 0) {
-		return <Text role="status">No contacts found.</Text>
+		return (
+			<EmptyState.Root>
+				<EmptyState.Icon icon={people} />
+				<EmptyState.Title>No contacts found.</EmptyState.Title>
+				<EmptyState.Description>
+					Try a different search, or add one with New contact.
+				</EmptyState.Description>
+			</EmptyState.Root>
+		)
 	}
 	return (
 		<>
@@ -87,14 +107,7 @@ function ContactRows({
 					))}
 				</tbody>
 			</table>
-			{contacts.hasNextPage ? (
-				<Button
-					onClick={() => void contacts.fetchNextPage()}
-					disabled={contacts.isFetchingNextPage}
-				>
-					Load more
-				</Button>
-			) : null}
+			<LoadMore query={contacts}>Load more</LoadMore>
 		</>
 	)
 }

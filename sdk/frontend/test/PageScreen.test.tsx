@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 
-import { LoadMore, PageScreen, ValidationError, validationMessage } from '../index'
+import { ErrorNotice, LoadMore, PageScreen, ValidationError, validationMessage } from '../index'
 
 test('renders the title as the page heading', () => {
 	render(<PageScreen title="Contacts">body</PageScreen>)
@@ -42,6 +42,18 @@ test('passes a class through to the page wrapper', () => {
 	expect(container.querySelector('.alphone-tasks')).not.toBeNull()
 })
 
+test('every page carries the shared page class that fixes its width', () => {
+	const { container: plain } = render(<PageScreen title="Users">body</PageScreen>)
+	const { container: classed } = render(
+		<PageScreen title="Tasks" className="alphone-tasks">
+			body
+		</PageScreen>,
+	)
+
+	expect(plain.querySelector('.alphone-page')).not.toBeNull()
+	expect(classed.querySelector('.alphone-page.alphone-tasks')).not.toBeNull()
+})
+
 test('load more renders nothing without a next page', () => {
 	render(
 		<LoadMore query={{ hasNextPage: false, isFetchingNextPage: false, fetchNextPage: vi.fn() }}>
@@ -73,6 +85,12 @@ test('load more disables while a page is in flight', () => {
 	)
 
 	expect(screen.getByRole('button', { name: 'Load more' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('error notices announce themselves to a screen reader', () => {
+	render(<ErrorNotice>Contacts could not be loaded.</ErrorNotice>)
+
+	expect(screen.getByRole('alert')).toHaveTextContent('Contacts could not be loaded.')
 })
 
 test('validation messages surface verbatim and anything else falls back', () => {

@@ -61,7 +61,7 @@ beforeEach(() => {
 test('offers the new task form from the day list', async () => {
 	renderAt('/tasks')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'New task' }))
+	await userEvent.click(await screen.findByRole('link', { name: 'New task' }))
 
 	expect(await screen.findByRole('heading', { name: 'New task' })).toBeInTheDocument()
 })

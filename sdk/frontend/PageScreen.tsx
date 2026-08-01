@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, Stack, Text } from '@wordpress/ui'
+import { Button, Notice, Stack, Text } from '@wordpress/ui'
 import type { ReactNode } from 'react'
 
 interface PageScreenProps {
@@ -17,8 +17,9 @@ interface PageScreenProps {
  * @returns The page screen element.
  */
 export function PageScreen({ title, subtitle, actions, className, children }: PageScreenProps) {
+	const classes = className === undefined ? 'alphone-page' : `alphone-page ${className}`
 	return (
-		<Stack direction="column" gap="lg" className={className}>
+		<Stack direction="column" gap="lg" className={classes}>
 			<Stack direction="row" gap="md" align="center" justify="space-between">
 				<Stack direction="column" gap="xs">
 					<Text variant="heading-xl" render={<h1 />}>
@@ -38,6 +39,18 @@ export function PageScreen({ title, subtitle, actions, className, children }: Pa
 			</Stack>
 			{children}
 		</Stack>
+	)
+}
+
+/**
+ * Renders a failure message that a screen reader announces.
+ * @returns The error notice element.
+ */
+export function ErrorNotice({ children }: { children: ReactNode }) {
+	return (
+		<Notice.Root intent="error" role="alert">
+			<Notice.Description>{children}</Notice.Description>
+		</Notice.Root>
 	)
 }
 

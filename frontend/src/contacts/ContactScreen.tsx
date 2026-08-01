@@ -38,7 +38,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		return <Text role="alert">The contact could not be loaded.</Text>
 	}
 	return (
-		<div className="alphone-contacts">
+		<div className="alphone-page alphone-page--stacked">
 			<h1>{detail.data.name}</h1>
 			<RenameForm key={detail.data.name} contact={detail.data} />
 			<h2>Identities</h2>

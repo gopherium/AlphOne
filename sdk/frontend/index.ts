@@ -41,9 +41,10 @@ export {
 	chevronLeft,
 	chevronRight,
 	inbox,
+	people,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export { ValidationError, validationMessage } from './errors'
-export { LoadMore, PageScreen } from './PageScreen'
+export { ErrorNotice, LoadMore, PageScreen } from './PageScreen'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useEventStream } from './stream'

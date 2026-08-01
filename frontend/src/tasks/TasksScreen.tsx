@@ -7,7 +7,7 @@ import {
 	IconButton,
 	InputControl,
 	LoadMore,
-	Notice,
+	ErrorNotice,
 	PageScreen,
 	Stack,
 	Text,
@@ -80,15 +80,10 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		<PageScreen
 			title="Tasks"
 			subtitle={formatDay(date)}
-			className="alphone-tasks"
 			actions={
 				<>
 					<DayNavigation date={date} today={today} />
-					<Button
-						variant="solid"
-						render={<Link to="/tasks/new" search={{ date }} />}
-						nativeButton={false}
-					>
+					<Button variant="solid" render={<Link to="/tasks/new" search={{ date }} />}>
 						New task
 					</Button>
 				</>
@@ -114,16 +109,10 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 				</Button>
 			</form>
 			{add.isError ? (
-				<Notice.Root intent="error">
-					<Notice.Description>
-						{validationMessage(add.error, 'The task could not be added.')}
-					</Notice.Description>
-				</Notice.Root>
+				<ErrorNotice>{validationMessage(add.error, 'The task could not be added.')}</ErrorNotice>
 			) : null}
 			{change.isError || push.isError ? (
-				<Notice.Root intent="error">
-					<Notice.Description>The task could not be updated.</Notice.Description>
-				</Notice.Root>
+				<ErrorNotice>The task could not be updated.</ErrorNotice>
 			) : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</PageScreen>
@@ -178,9 +167,7 @@ function OverdueSection({ tasks, controls }: { tasks: TaskQuery; controls: RowCo
 	}
 	if (tasks.isError) {
 		return (
-			<Notice.Root intent="error">
-				<Notice.Description>Overdue tasks could not be loaded.</Notice.Description>
-			</Notice.Root>
+			<ErrorNotice>Overdue tasks could not be loaded.</ErrorNotice>
 		)
 	}
 	const rows = tasks.data.pages.flatMap((page) => page.tasks)
@@ -216,9 +203,7 @@ function TaskSections({
 	}
 	if (tasks.isError) {
 		return (
-			<Notice.Root intent="error">
-				<Notice.Description>Tasks could not be loaded.</Notice.Description>
-			</Notice.Root>
+			<ErrorNotice>Tasks could not be loaded.</ErrorNotice>
 		)
 	}
 	const open = tasks.data.pages.flatMap((page) => page.tasks)

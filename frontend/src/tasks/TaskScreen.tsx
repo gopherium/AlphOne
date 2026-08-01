@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, InputControl, Notice, Text, validationMessage } from '@alphone/frontend-sdk'
+import { Button, ErrorNotice, InputControl, Text, validationMessage } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -24,12 +24,10 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 		return <Text role="status">Loading task…</Text>
 	}
 	if (task.isError) {
-		return <Notice.Root intent="error">
-					<Notice.Description>The task could not be loaded.</Notice.Description>
-				</Notice.Root>
+		return <ErrorNotice>The task could not be loaded.</ErrorNotice>
 	}
 	return (
-		<div className="alphone-tasks">
+		<div className="alphone-page">
 			<h1>{task.data.title}</h1>
 			{task.data.contact_id === null ? null : <ContactLink contactId={task.data.contact_id} />}
 			<TaskForm key={`${task.data.title}-${task.data.due_on}`} task={task.data} />
@@ -102,14 +100,10 @@ function TaskForm({ task }: { task: Task }) {
 					{task.status === 'done' ? 'Reopen' : 'Complete'}
 				</Button>
 			</div>
-			{save.isError ? <Notice.Root intent="error">
-					<Notice.Description>
-						{validationMessage(save.error, 'The task could not be saved.')}
-					</Notice.Description>
-				</Notice.Root> : null}
-			{toggle.isError ? <Notice.Root intent="error">
-					<Notice.Description>The task could not be saved.</Notice.Description>
-				</Notice.Root> : null}
+			{save.isError ? (
+				<ErrorNotice>{validationMessage(save.error, 'The task could not be saved.')}</ErrorNotice>
+			) : null}
+			{toggle.isError ? <ErrorNotice>The task could not be saved.</ErrorNotice> : null}
 		</form>
 	)
 }
