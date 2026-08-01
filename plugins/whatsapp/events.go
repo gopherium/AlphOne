@@ -33,19 +33,23 @@ type inboundMessage struct {
 
 type webhookPayload struct {
 	Entry []struct {
-		Changes []struct {
-			Value struct {
-				Contacts []struct {
-					WaID    string `json:"wa_id"`
-					Profile struct {
-						Name string `json:"name"`
-					} `json:"profile"`
-				} `json:"contacts"`
-				Messages []json.RawMessage `json:"messages"`
-				Statuses []json.RawMessage `json:"statuses"`
-			} `json:"value"`
-		} `json:"changes"`
+		Changes []webhookChange `json:"changes"`
 	} `json:"entry"`
+}
+
+type webhookChange struct {
+	Value struct {
+		Contacts []webhookSender   `json:"contacts"`
+		Messages []json.RawMessage `json:"messages"`
+		Statuses []json.RawMessage `json:"statuses"`
+	} `json:"value"`
+}
+
+type webhookSender struct {
+	WaID    string `json:"wa_id"`
+	Profile struct {
+		Name string `json:"name"`
+	} `json:"profile"`
 }
 
 type statusUpdate struct {
@@ -169,23 +173,34 @@ func parseWebhook(body []byte) (webhookBatch, error) {
 	var batch webhookBatch
 	for _, entry := range payload.Entry {
 		for _, change := range entry.Changes {
-			names := make(map[string]string, len(change.Value.Contacts))
-			for _, sender := range change.Value.Contacts {
-				names[sender.WaID] = sender.Profile.Name
-			}
-			for _, raw := range change.Value.Messages {
-				if m, ok := parseMessage(names, raw); ok {
-					batch.messages = append(batch.messages, m)
-				}
-			}
-			for _, raw := range change.Value.Statuses {
-				if u, ok := parseStatus(raw); ok {
-					batch.statuses = append(batch.statuses, u)
-				}
-			}
+			batch.collect(change)
 		}
 	}
 	return batch, nil
+}
+
+// collect appends the attributable messages and status updates in change.
+func (b *webhookBatch) collect(change webhookChange) {
+	names := senderNames(change.Value.Contacts)
+	for _, raw := range change.Value.Messages {
+		if m, ok := parseMessage(names, raw); ok {
+			b.messages = append(b.messages, m)
+		}
+	}
+	for _, raw := range change.Value.Statuses {
+		if u, ok := parseStatus(raw); ok {
+			b.statuses = append(b.statuses, u)
+		}
+	}
+}
+
+// senderNames returns the display name of each sender in contacts by wa id.
+func senderNames(contacts []webhookSender) map[string]string {
+	names := make(map[string]string, len(contacts))
+	for _, sender := range contacts {
+		names[sender.WaID] = sender.Profile.Name
+	}
+	return names
 }
 
 // parseStatus converts one webhook status entry into a status update,
