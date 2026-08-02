@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { createHash, createHmac } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { whatsappAppSecret } from '../env'
+import { sign } from '../inbound'
 
 const mockGraphPort = 4791
 const metadataDelayMs = 3000
@@ -76,9 +76,6 @@ function inboundImagePayload(
 	})
 }
 
-function sign(body: string) {
-	return `sha256=${createHmac('sha256', whatsappAppSecret).update(body).digest('hex')}`
-}
 
 let mockGraph: Server
 

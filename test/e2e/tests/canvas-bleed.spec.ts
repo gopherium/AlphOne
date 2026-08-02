@@ -1,39 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { createHmac } from 'node:crypto'
-
 import { expect, test } from '@playwright/test'
 
-import { whatsappAppSecret } from '../env'
-
-function inboundTextPayload(waId: string, name: string, messageId: string, text: string) {
-	return JSON.stringify({
-		entry: [
-			{
-				changes: [
-					{
-						value: {
-							contacts: [{ wa_id: waId, profile: { name } }],
-							messages: [
-								{
-									from: waId,
-									id: messageId,
-									timestamp: String(Math.floor(Date.now() / 1000)),
-									type: 'text',
-									text: { body: text },
-								},
-							],
-						},
-					},
-				],
-			},
-		],
-	})
-}
-
-function sign(body: string) {
-	return `sha256=${createHmac('sha256', whatsappAppSecret).update(body).digest('hex')}`
-}
+import { deliverInboundText } from '../inbound'
 
 function canvasGeometry(page: import('@playwright/test').Page) {
 	return page.evaluate(() => {
@@ -57,7 +26,6 @@ test('a full bleed screen fills the canvas without escaping it', async ({ page, 
 	const stamp = Date.now()
 	const waId = `1777${stamp}`
 	const contactName = `Maria ${stamp}`
-	const body = inboundTextPayload(waId, contactName, `wamid.e2e.bleed.${stamp}`, 'hello')
 
 	const stream = page.waitForResponse((response) =>
 		response.url().includes('/api/plugins/whatsapp/events'),
@@ -65,14 +33,7 @@ test('a full bleed screen fills the canvas without escaping it', async ({ page, 
 	await page.goto('/whatsapp')
 	await stream
 
-	const delivered = await request.post('/api/plugins/whatsapp/webhook', {
-		headers: {
-			'Content-Type': 'application/json',
-			'X-Hub-Signature-256': sign(body),
-		},
-		data: body,
-	})
-	expect(delivered.status()).toBe(200)
+	await deliverInboundText(request, waId, contactName, 'hello')
 
 	await expect(page.getByText(contactName)).toBeVisible()
 	await page.getByText(contactName).click()

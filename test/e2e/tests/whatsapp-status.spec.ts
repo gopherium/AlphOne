@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { createHmac } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { whatsappAppSecret } from '../env'
+import { inboundTextPayload, sign } from '../inbound'
 
 const mockGraphPort = 4791
 const stamp = Date.now()
@@ -25,35 +24,6 @@ function startMockGraph(): Promise<Server> {
 	})
 }
 
-function inboundTextPayload(
-	waId: string,
-	name: string,
-	messageId: string,
-	text: string,
-) {
-	return JSON.stringify({
-		entry: [
-			{
-				changes: [
-					{
-						value: {
-							contacts: [{ wa_id: waId, profile: { name } }],
-							messages: [
-								{
-									from: waId,
-									id: messageId,
-									timestamp: String(Math.floor(Date.now() / 1000)),
-									type: 'text',
-									text: { body: text },
-								},
-							],
-						},
-					},
-				],
-			},
-		],
-	})
-}
 
 function statusPayload(wamid: string, status: string) {
 	return JSON.stringify({
@@ -78,9 +48,6 @@ function statusPayload(wamid: string, status: string) {
 	})
 }
 
-function sign(body: string) {
-	return `sha256=${createHmac('sha256', whatsappAppSecret).update(body).digest('hex')}`
-}
 
 let mockGraph: Server
 

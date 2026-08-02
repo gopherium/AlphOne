@@ -14,7 +14,7 @@ import { whatsappAppSecret } from './env'
  * @param text - The message body.
  * @returns The serialized webhook payload.
  */
-function inboundTextPayload(
+export function inboundTextPayload(
 	waId: string,
 	name: string,
 	messageId: string,
@@ -49,7 +49,7 @@ function inboundTextPayload(
  * @param body - The serialized webhook payload.
  * @returns The X-Hub-Signature-256 value.
  */
-function sign(body: string): string {
+export function sign(body: string): string {
 	return `sha256=${createHmac('sha256', whatsappAppSecret).update(body).digest('hex')}`
 }
 
