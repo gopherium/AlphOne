@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { expect, test } from '@playwright/test'
+import type { APIRequestContext } from '@playwright/test'
+
+import { deliverInboundText } from '../inbound'
+
+test.use({ viewport: { width: 390, height: 844 } })
+
+/**
+ * Seeds one of every record a detail route needs, and returns their paths.
+ * @param request - The Playwright request context.
+ * @returns Every route the sweep visits.
+ */
+async function seedRoutes(request: APIRequestContext): Promise<string[]> {
+	const stamp = Date.now()
+	const unbreakable = 'W'.repeat(60)
+	const task = await request.post('/api/tasks', {
+		data: {
+			title: `Approve the revised pricing schedule before the renewal closes ${stamp}`,
+			due_on: new Date().toISOString().slice(0, 10),
+		},
+	})
+	expect(task.status()).toBe(201)
+	const contact = await request.post('/api/contacts', {
+		data: { name: `Maria Perez de la Fuente y Rodriguez ${stamp}` },
+	})
+	expect(contact.status()).toBe(201)
+	const user = await request.post('/api/users', {
+		data: {
+			email: `maria.perez.de.la.fuente.${stamp}@example.com`,
+			name: `Maria Perez de la Fuente ${stamp}`,
+			password: 'correct horse battery',
+		},
+	})
+	expect(user.status()).toBe(201)
+
+	await deliverInboundText(request, `1999${stamp}`, `Ada ${stamp}`, unbreakable)
+	const conversations = await request.get('/api/plugins/whatsapp/conversations')
+	expect(conversations.status()).toBe(200)
+
+	const taskID = (await task.json()).id as string
+	const contactID = (await contact.json()).id as string
+	const conversationID = ((await conversations.json()) as { id: string }[])[0].id
+
+	return [
+		'/tasks',
+		'/tasks/new',
+		`/tasks/${taskID}`,
+		'/contacts',
+		'/contacts/new',
+		`/contacts/${contactID}`,
+		'/users',
+		'/users/new',
+		'/whatsapp',
+		`/whatsapp/conversations/${conversationID}`,
+	]
+}
+
+test('every screen fits a phone without spilling sideways', async ({ page, request }) => {
+	const routes = await seedRoutes(request)
+	const spills: string[] = []
+
+	for (const route of routes) {
+		await page.goto(route)
+		await expect(page.locator('main h1')).toBeVisible()
+		await expect(page.getByText(/^Loading/)).toHaveCount(0)
+
+		const report = await page.evaluate(() => {
+			const canvas = document.querySelector('.alphone-layout__canvas')
+			if (canvas === null) {
+				return { documentSpills: false, canvasSpills: false, widest: [] as string[] }
+			}
+			const limit = canvas.getBoundingClientRect().right
+
+			const scrolls = (element: Element) => {
+				let parent = element.parentElement
+				while (parent !== null && parent !== canvas.parentElement) {
+					const overflow = getComputedStyle(parent).overflowX
+					if (overflow === 'auto' || overflow === 'scroll') {
+						return true
+					}
+					parent = parent.parentElement
+				}
+				return false
+			}
+			const widest = [...canvas.querySelectorAll('*')]
+				.filter((element) => element.getBoundingClientRect().right > limit + 1)
+				.filter((element) => !scrolls(element))
+				.map((element) => `${element.tagName.toLowerCase()}.${element.className}`)
+			return {
+				documentSpills:
+					document.documentElement.scrollWidth > document.documentElement.clientWidth,
+				canvasSpills: canvas.scrollWidth > canvas.clientWidth,
+				widest: widest.slice(0, 3),
+			}
+		})
+
+		if (report.documentSpills || report.canvasSpills || report.widest.length > 0) {
+			spills.push(`${route}: ${JSON.stringify(report)}`)
+		}
+	}
+
+	expect(spills).toEqual([])
+})

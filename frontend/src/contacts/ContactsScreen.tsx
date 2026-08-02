@@ -87,26 +87,28 @@ function ContactRows({
 	}
 	return (
 		<>
-			<table className="alphone-table">
-				<thead>
-					<tr>
-						<th>Name</th>
-						<th>Created</th>
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((contact) => (
-						<tr key={contact.id}>
-							<td>
-								<Link to="/contacts/$contactId" params={{ contactId: contact.id }}>
-									{contact.name}
-								</Link>
-							</td>
-							<td>{formatCreated(contact.created_at)}</td>
+			<div className="alphone-table-scroll" role="region" aria-label="Contacts" tabIndex={0}>
+				<table className="alphone-table">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Created</th>
 						</tr>
-					))}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{rows.map((contact) => (
+							<tr key={contact.id}>
+								<td>
+									<Link to="/contacts/$contactId" params={{ contactId: contact.id }}>
+										{contact.name}
+									</Link>
+								</td>
+								<td>{formatCreated(contact.created_at)}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
 			<LoadMore query={contacts}>Load more</LoadMore>
 		</>
 	)

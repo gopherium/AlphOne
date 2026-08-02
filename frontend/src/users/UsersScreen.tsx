@@ -109,22 +109,24 @@ function UserRows({
 		)
 	}
 	return (
-		<table className="alphone-table">
-			<thead>
-				<tr>
-					<th scope="col">Name</th>
-					<th scope="col">Email</th>
-					<th scope="col">Status</th>
-					<th scope="col" className="alphone-table__actions">
-						<VisuallyHidden>Actions</VisuallyHidden>
-					</th>
-				</tr>
-			</thead>
-			<tbody>
-				{users.data.map((user) => (
-					<UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
-				))}
-			</tbody>
-		</table>
+		<div className="alphone-table-scroll" role="region" aria-label="Users" tabIndex={0}>
+			<table className="alphone-table">
+				<thead>
+					<tr>
+						<th scope="col">Name</th>
+						<th scope="col">Email</th>
+						<th scope="col">Status</th>
+						<th scope="col" className="alphone-table__actions">
+							<VisuallyHidden>Actions</VisuallyHidden>
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{users.data.map((user) => (
+						<UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
+					))}
+				</tbody>
+			</table>
+		</div>
 	)
 }
