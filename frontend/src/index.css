@@ -524,6 +524,20 @@
 	flex: none;
 }
 
+@media (max-width: 639px) {
+	.alphone-tasks__row {
+		flex-wrap: wrap;
+	}
+
+	.alphone-tasks__title {
+		flex: 1 1 60%;
+	}
+
+	.alphone-tasks__push {
+		margin-left: auto;
+	}
+}
+
 .alphone-tasks__overdue .alphone-tasks__list {
 	border-color: var(--wpds-color-stroke-surface-caution);
 }

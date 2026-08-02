@@ -33,6 +33,40 @@ test.describe('on a phone', () => {
 		expect(geometry.canvasContentWidth).toBeGreaterThan(280)
 	})
 
+	test('gives a task row title room instead of squeezing it past its controls', async ({
+		page,
+		request,
+	}) => {
+		const title = `Approve the pricing before the renewal ${Date.now()}`
+		const created = await request.post('/api/tasks', {
+			data: { title, due_on: new Date().toISOString().slice(0, 10) },
+		})
+		expect(created.status()).toBe(201)
+
+		await page.goto('/tasks')
+		await expect(page.getByRole('listitem', { name: title })).toBeVisible()
+
+		const geometry = await page.evaluate((name) => {
+			const row = [...document.querySelectorAll('.alphone-tasks__row')].find(
+				(candidate) => candidate.getAttribute('aria-label') === name,
+			)
+			const title = row?.querySelector('.alphone-tasks__title')
+			if (!row || !title) {
+				throw new Error('the screen rendered no task row')
+			}
+			const rowBox = row.getBoundingClientRect()
+			const titleBox = title.getBoundingClientRect()
+			const line = parseFloat(getComputedStyle(title).lineHeight)
+			return {
+				titleShare: titleBox.width / rowBox.width,
+				titleLines: Math.round(titleBox.height / line),
+			}
+		}, title)
+
+		expect(geometry.titleShare).toBeGreaterThan(0.5)
+		expect(geometry.titleLines).toBeLessThanOrEqual(2)
+	})
+
 	test('reaches another section through the drawer', async ({ page }) => {
 		await page.goto('/tasks')
 		await page.getByRole('button', { name: 'Open navigation' }).click()
