@@ -429,10 +429,6 @@
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 
-.alphone-page {
-	max-width: var(--wpds-dimension-surface-width-xl);
-}
-
 .alphone-form {
 	display: flex;
 	flex-direction: column;
