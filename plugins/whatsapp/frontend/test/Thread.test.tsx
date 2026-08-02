@@ -25,6 +25,25 @@ function renderThread() {
 	return client
 }
 
+test('names the contact the conversation belongs to in its header', async () => {
+	renderThread()
+
+	expect(
+		await screen.findByRole('heading', { level: 1, name: 'John Doe' }),
+	).toBeInTheDocument()
+})
+
+test('titles the header generically while the conversation is unknown', async () => {
+	server.use(
+		http.get('/api/plugins/whatsapp/conversations', () => HttpResponse.json([])),
+	)
+	renderThread()
+
+	expect(
+		await screen.findByRole('heading', { level: 1, name: 'Conversation' }),
+	).toBeInTheDocument()
+})
+
 test('lists the conversation messages, oldest first', async () => {
 	renderThread()
 

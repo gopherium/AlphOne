@@ -3,6 +3,7 @@
 import {
 	Button,
 	InputControl,
+	PageTitle,
 	Stack,
 	Text,
 	VisuallyHidden,
@@ -10,7 +11,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
-import { SendFailedError, fetchMessages, mediaURL, sendMessage } from './api'
+import {
+	SendFailedError,
+	fetchConversations,
+	fetchMessages,
+	mediaURL,
+	sendMessage,
+} from './api'
 import type { Message, MessageMedia } from './api'
 import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
 import { useMediaBlob } from './media'
@@ -369,13 +376,43 @@ function DocumentChip({
 }
 
 /**
- * Renders a WhatsApp conversation thread as a chat log with a reply composer.
+ * Renders the conversation's header, naming the contact it belongs to.
+ * @returns The thread header element.
+ */
+function ThreadHeader({ conversationId }: { conversationId: string }) {
+	const conversations = useQuery({
+		queryKey: ['whatsapp', 'conversations'],
+		queryFn: fetchConversations,
+	})
+	const named = conversations.data?.find(
+		(conversation) => conversation.id === conversationId,
+	)
+	return (
+		<header className="alphone-thread__header">
+			<PageTitle variant="heading-md">{named?.contact_name ?? 'Conversation'}</PageTitle>
+		</header>
+	)
+}
+
+/**
+ * Renders a WhatsApp conversation thread under its header.
+ * @returns The thread element.
+ */
+export function Thread({ conversationId }: { conversationId: string }) {
+	return (
+		<div className="alphone-thread">
+			<ThreadHeader conversationId={conversationId} />
+			<ThreadBody conversationId={conversationId} />
+		</div>
+	)
+}
+
+/**
+ * Renders the chat log and reply composer for a conversation.
  * The always-mounted conversation list owns the live-update stream.
  * @returns The chat log and composer, or a loading or error message.
  */
-export function Thread({ conversationId }: { conversationId: string }) {
-	const queryClient = useQueryClient()
-	const [draft, setDraft] = useState('')
+function ThreadBody({ conversationId }: { conversationId: string }) {
 	const logRef = useRef<HTMLDivElement>(null)
 	const followRef = useRef(true)
 	const messages = useQuery({
@@ -388,11 +425,6 @@ export function Thread({ conversationId }: { conversationId: string }) {
 			log.scrollTop = log.scrollHeight
 		}
 	}, [messages.data])
-	const reply = useMutation({
-		mutationFn: (content: string) => sendMessage(conversationId, content),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp'] }),
-		onError: (_error, content) => setDraft(content),
-	})
 
 	if (messages.isPending) {
 		return <Text role="status">Loading messages…</Text>
@@ -401,7 +433,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 		return <Text role="alert">Messages could not be loaded.</Text>
 	}
 	return (
-		<div className="alphone-thread">
+		<>
 			<div
 				role="log"
 				aria-label="Messages"
@@ -423,33 +455,50 @@ export function Thread({ conversationId }: { conversationId: string }) {
 					</ul>
 				)}
 			</div>
-			<form
-				className="alphone-composer"
-				onSubmit={(event) => {
-					event.preventDefault()
-					const content = draft.trim()
-					setDraft('')
-					reply.mutate(content)
-				}}
-			>
-				<Stack direction="column" gap="sm">
-					<Stack direction="row" gap="sm" align="center">
-						<InputControl
-							label="Reply"
-							hideLabelFromVision
-							className="alphone-composer__input"
-							value={draft}
-							onChange={(event) => setDraft(event.target.value)}
-						/>
-						<Button type="submit" disabled={draft.trim() === '' || reply.isPending}>
-							Send
-						</Button>
-					</Stack>
-					{reply.isError ? (
-						<Text role="alert">{replyErrorCopy(reply.error)}</Text>
-					) : null}
+			<ThreadComposer conversationId={conversationId} />
+		</>
+	)
+}
+
+/**
+ * Renders the reply composer for a conversation.
+ * @returns The composer form.
+ */
+function ThreadComposer({ conversationId }: { conversationId: string }) {
+	const queryClient = useQueryClient()
+	const [draft, setDraft] = useState('')
+	const reply = useMutation({
+		mutationFn: (content: string) => sendMessage(conversationId, content),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp'] }),
+		onError: (_error, content) => setDraft(content),
+	})
+	return (
+		<form
+			className="alphone-composer"
+			onSubmit={(event) => {
+				event.preventDefault()
+				const content = draft.trim()
+				setDraft('')
+				reply.mutate(content)
+			}}
+		>
+			<Stack direction="column" gap="sm">
+				<Stack direction="row" gap="sm" align="center">
+					<InputControl
+						label="Reply"
+						hideLabelFromVision
+						className="alphone-composer__input"
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+					/>
+					<Button type="submit" disabled={draft.trim() === '' || reply.isPending}>
+						Send
+					</Button>
 				</Stack>
-			</form>
-		</div>
+				{reply.isError ? (
+					<Text role="alert">{replyErrorCopy(reply.error)}</Text>
+				) : null}
+			</Stack>
+		</form>
 	)
 }

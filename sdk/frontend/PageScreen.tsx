@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Button, Notice, Stack, Text } from '@wordpress/ui'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 interface PageScreenProps {
 	title: string
@@ -9,6 +9,28 @@ interface PageScreenProps {
 	actions?: ReactNode
 	className?: string
 	children: ReactNode
+}
+
+type TextVariant = ComponentProps<typeof Text>['variant']
+
+/**
+ * Renders a screen's title as the page heading.
+ * @param children - The title text.
+ * @param variant - The type scale to render the title at.
+ * @returns The page title element.
+ */
+export function PageTitle({
+	children,
+	variant = 'heading-xl',
+}: {
+	children: ReactNode
+	variant?: TextVariant
+}) {
+	return (
+		<Text variant={variant} render={<h1 />}>
+			{children}
+		</Text>
+	)
 }
 
 /**
@@ -22,9 +44,7 @@ export function PageScreen({ title, subtitle, actions, className, children }: Pa
 		<Stack direction="column" gap="lg" className={classes}>
 			<Stack direction="row" gap="md" align="center" justify="space-between">
 				<Stack direction="column" gap="xs">
-					<Text variant="heading-xl" render={<h1 />}>
-						{title}
-					</Text>
+					<PageTitle>{title}</PageTitle>
 					{subtitle !== undefined && (
 						<Text variant="body-sm" className="alphone-page__subtitle">
 							{subtitle}
