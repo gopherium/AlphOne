@@ -210,7 +210,7 @@ function TaskSections({
 	return (
 		<Stack direction="column" gap="lg">
 			{open.length === 0 ? (
-				<EmptyState.Root>
+				<EmptyState.Root className="alphone-empty">
 					<EmptyState.Icon icon={inbox} />
 					<EmptyState.Title>Nothing due today.</EmptyState.Title>
 					<EmptyState.Description>

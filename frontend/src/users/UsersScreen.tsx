@@ -101,7 +101,7 @@ function UserRows({
 	}
 	if (users.data.length === 0) {
 		return (
-			<EmptyState.Root>
+			<EmptyState.Root className="alphone-empty">
 				<EmptyState.Icon icon={people} />
 				<EmptyState.Title>No users yet.</EmptyState.Title>
 				<EmptyState.Description>Add one with New user.</EmptyState.Description>

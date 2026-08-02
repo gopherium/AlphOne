@@ -36,3 +36,9 @@ test('the page title is the only first level heading, so the shell owns none', (
 	const owner = 'sdk/frontend/PageScreen.tsx'
 	expect(filesMatching(/render=\{<h1 \/>\}/).filter((path) => path !== owner)).toEqual([])
 })
+
+// WPDS caps the empty state at 320px and leaves placing it to the consumer, so
+// every screen centers it through the same class.
+test('screens center their empty state through the template class', () => {
+	expect(filesMatching(/<EmptyState\.Root>/)).toEqual([])
+})

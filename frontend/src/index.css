@@ -214,7 +214,12 @@
 	flex-direction: column;
 	flex: 1;
 	min-height: 0;
-	gap: 16px;
+}
+
+.alphone-thread__header {
+	flex: none;
+	padding: 16px 24px;
+	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
 }
 
 .alphone-thread__log {
@@ -434,6 +439,11 @@
 	flex-direction: column;
 	gap: var(--wpds-dimension-gap-md);
 	max-width: var(--wpds-dimension-surface-width-sm);
+}
+
+.alphone-empty {
+	margin-inline: auto;
+	padding-block: 48px;
 }
 
 .alphone-page__subtitle {

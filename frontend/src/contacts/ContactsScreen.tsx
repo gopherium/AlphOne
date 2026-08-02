@@ -76,7 +76,7 @@ function ContactRows({
 	const rows = contacts.data.pages.flatMap((page) => page.contacts)
 	if (rows.length === 0) {
 		return (
-			<EmptyState.Root>
+			<EmptyState.Root className="alphone-empty">
 				<EmptyState.Icon icon={people} />
 				<EmptyState.Title>No contacts found.</EmptyState.Title>
 				<EmptyState.Description>
