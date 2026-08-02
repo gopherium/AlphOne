@@ -47,5 +47,5 @@ Identities are created automatically by channels and cannot be edited.
 ## Deleting
 
 Contacts cannot be deleted yet. A contact anchors its whole conversation
-history, so deletion needs more care than a button; it is planned
+history, so deletion needs more care than a button. It is planned
 deliberately rather than omitted.

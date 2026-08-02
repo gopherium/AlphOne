@@ -17,7 +17,7 @@ internet ── your proxy (TLS) ──► alphone :8080 ──► postgres
 :::caution[HTTPS is not optional]
 The session cookie uses the `__Host-` prefix and the `Secure` attribute.
 Browsers refuse to store it over plain HTTP, so a deployment without TLS
-lets nobody log in. Terminate TLS at the proxy; AlphOne itself speaks
+lets nobody log in. Terminate TLS at the proxy. AlphOne itself speaks
 plain HTTP on the internal Docker network only.
 :::
 
