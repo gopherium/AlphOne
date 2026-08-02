@@ -343,29 +343,6 @@
 	max-width: 320px;
 }
 
-.alphone-table {
-	width: 100%;
-	border-collapse: collapse;
-	text-align: left;
-}
-
-.alphone-table th,
-.alphone-table td {
-	padding: 8px 12px;
-	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
-	vertical-align: middle;
-}
-
-.alphone-table th {
-	font-size: var(--wpds-typography-font-size-sm);
-	color: var(--wpds-color-foreground-content-neutral-weak);
-}
-
-.alphone-table__actions {
-	width: 1%;
-	white-space: nowrap;
-}
-
 .alphone-contacts__identities {
 	margin: 0;
 	padding-left: 20px;
@@ -373,18 +350,6 @@
 
 .alphone-contacts__created {
 	color: var(--wpds-color-foreground-content-neutral-weak);
-}
-
-.alphone-form {
-	display: flex;
-	flex-direction: column;
-	gap: var(--wpds-dimension-gap-md);
-	max-width: var(--wpds-dimension-surface-width-sm);
-}
-
-.alphone-empty {
-	margin-inline: auto;
-	padding-block: 48px;
 }
 
 .alphone-tasks__add {
@@ -506,13 +471,4 @@
 		margin-left: auto;
 	}
 
-	.alphone-table-scroll {
-		position: relative;
-		overflow-x: auto;
-	}
-
-	.alphone-table-scroll:focus-visible {
-		outline: var(--wpds-border-width-focus) solid var(--wpds-color-stroke-focus);
-		outline-offset: 2px;
-	}
 }

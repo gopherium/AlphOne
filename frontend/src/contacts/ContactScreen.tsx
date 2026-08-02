@@ -84,7 +84,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="alphone-form"
+			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
 				rename.mutate()

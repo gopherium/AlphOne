@@ -31,7 +31,7 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 	return (
 		<PageScreen title="New contact">
 			<form
-				className="alphone-form"
+				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					create.mutate()

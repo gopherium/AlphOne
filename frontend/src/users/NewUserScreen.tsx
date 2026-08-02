@@ -45,7 +45,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 	return (
 		<PageScreen title="New user">
 			<form
-				className="alphone-form"
+				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					create.mutate()

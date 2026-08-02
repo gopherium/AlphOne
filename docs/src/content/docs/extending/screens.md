@@ -5,8 +5,13 @@ description: The template every AlphOne screen follows, and the tests that enfor
 
 Every screen in AlphOne is built from one template, so a screen your
 plugin adds looks and behaves like a screen that ships with the product.
-The template lives in `@alphone/frontend-sdk`, and most of it is
+Import everything from `@alphone/frontend-sdk`, which serves the shared
+admin kit alongside AlphOne's own pieces. Most of the template is
 enforced by tests rather than by review.
+
+Classes named `godmin-` come from that kit, so they behave the same in
+every application built on it. Classes named `alphone-` are this
+product's own.
 
 ## The contract
 
@@ -61,7 +66,7 @@ if (invoices.isError) {
 }
 if (rows.length === 0) {
 	return (
-		<EmptyState.Root className="alphone-empty">
+		<EmptyState.Root className="godmin-empty">
 			<EmptyState.Icon icon={people} />
 			<EmptyState.Title>No invoices yet.</EmptyState.Title>
 			<EmptyState.Description>Add one with New invoice.</EmptyState.Description>
@@ -74,7 +79,7 @@ return <InvoiceTable rows={rows} />
 `Text role="status"` announces loading politely. `ErrorNotice` announces
 the failure as an alert, which plain copy in a `Text` never does.
 
-`EmptyState.Root` always carries `className="alphone-empty"`. The design
+`EmptyState.Root` always carries `className="godmin-empty"`. The design
 system caps the empty state at a fixed width and leaves placing it to
 the consumer, so without that class it sits flush left instead of
 centered.
@@ -88,13 +93,13 @@ system rather than a bare element.
 <Stack aria-label="Open invoices" render={<ul />}>
 ```
 
-Tables use the `alphone-table` class so padding, borders, and header
+Tables use the `godmin-table` class so padding, borders, and header
 weight match every other table, and they sit inside a scrolling region
 so a phone scrolls the columns rather than the whole page.
 
 ```tsx
-<div className="alphone-table-scroll" role="region" aria-label="Invoices" tabIndex={0}>
-	<table className="alphone-table">…</table>
+<div className="godmin-table-scroll" role="region" aria-label="Invoices" tabIndex={0}>
+	<table className="godmin-table">…</table>
 </div>
 ```
 
@@ -102,7 +107,7 @@ The region needs all three attributes. `tabIndex` lets a keyboard reach
 the columns that scrolled out of view, and the label says what they
 belong to.
 
-Form fields go inside `alphone-form`, which stacks them and keeps the
+Form fields go inside `godmin-form`, which stacks them and keeps the
 column readable.
 
 For cursor paginated queries, `LoadMore` renders the next page button
@@ -172,8 +177,8 @@ last one is a convention a reviewer will hold you to.
 | Write a raw `<h1>` or `<h2>` | `PageScreen title`, `PageTitle`, or a design system heading | source invariant |
 | Leave a route without a page title | Give every route exactly one first level heading | rendered outline test |
 | Add a route without listing it in the outline test | List it | rendered outline test |
-| Use a bare `<EmptyState.Root>` | Add `className="alphone-empty"` | source invariant |
-| Leave a table outside the scrolling region | Wrap it in `alphone-table-scroll` | source invariant |
+| Use a bare `<EmptyState.Root>` | Add `className="godmin-empty"` | source invariant |
+| Leave a table outside the scrolling region | Wrap it in `godmin-table-scroll` | source invariant |
 | Let a screen spill sideways on a phone | Keep it inside the canvas | end to end fit sweep |
 | Put failure copy in a plain `Text` | `ErrorNotice`, which announces it | screen tests assert the alert role |
 | Cap the page width yourself | Let the page span the canvas | end to end geometry test |

@@ -76,7 +76,7 @@ function ContactRows({
 	const rows = contacts.data.pages.flatMap((page) => page.contacts)
 	if (rows.length === 0) {
 		return (
-			<EmptyState.Root className="alphone-empty">
+			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={people} />
 				<EmptyState.Title>No contacts found.</EmptyState.Title>
 				<EmptyState.Description>
@@ -87,8 +87,8 @@ function ContactRows({
 	}
 	return (
 		<>
-			<div className="alphone-table-scroll" role="region" aria-label="Contacts" tabIndex={0}>
-				<table className="alphone-table">
+			<div className="godmin-table-scroll" role="region" aria-label="Contacts" tabIndex={0}>
+				<table className="godmin-table">
 					<thead>
 						<tr>
 							<th>Name</th>

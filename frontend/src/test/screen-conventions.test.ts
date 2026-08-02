@@ -32,9 +32,9 @@ test('screens render section headings through the design system, never a raw h2'
 	expect(filesMatching(/<\/h2>/)).toEqual([])
 })
 
-test('the page title is the only first level heading, so the shell owns none', () => {
-	const owner = 'sdk/frontend/PageScreen.tsx'
-	expect(filesMatching(/render=\{<h1 \/>\}/).filter((path) => path !== owner)).toEqual([])
+// The admin kit owns the page heading now, so nothing here renders one.
+test('no screen renders a first level heading of its own', () => {
+	expect(filesMatching(/render=\{<h1 \/>\}/)).toEqual([])
 })
 
 // WPDS caps the empty state at 320px and leaves placing it to the consumer, so
@@ -46,7 +46,7 @@ test('screens center their empty state through the template class', () => {
 // A table is wider than a phone, so it scrolls inside its own region instead of
 // dragging the page sideways.
 test('screens wrap their table in the scrolling region', () => {
-	const withTable = filesMatching(/className="alphone-table"/)
-	const withRegion = filesMatching(/className="alphone-table-scroll"/)
+	const withTable = filesMatching(/className="godmin-table"/)
+	const withRegion = filesMatching(/className="godmin-table-scroll"/)
 	expect(withTable.filter((path) => !withRegion.includes(path))).toEqual([])
 })

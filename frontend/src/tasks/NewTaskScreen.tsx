@@ -51,7 +51,7 @@ export function NewTaskScreen({
 	return (
 		<PageScreen title="New task">
 			<form
-				className="alphone-form"
+				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					create.mutate()

@@ -38,7 +38,7 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
 					{user.disabled ? 'Disabled' : 'Active'}
 				</Badge>
 			</td>
-			<td className="alphone-table__actions">
+			<td className="godmin-table__actions">
 				{isSelf ? null : (
 					<Stack direction="column" gap="xs">
 						<Button
@@ -101,7 +101,7 @@ function UserRows({
 	}
 	if (users.data.length === 0) {
 		return (
-			<EmptyState.Root className="alphone-empty">
+			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={people} />
 				<EmptyState.Title>No users yet.</EmptyState.Title>
 				<EmptyState.Description>Add one with New user.</EmptyState.Description>
@@ -109,14 +109,14 @@ function UserRows({
 		)
 	}
 	return (
-		<div className="alphone-table-scroll" role="region" aria-label="Users" tabIndex={0}>
-			<table className="alphone-table">
+		<div className="godmin-table-scroll" role="region" aria-label="Users" tabIndex={0}>
+			<table className="godmin-table">
 				<thead>
 					<tr>
 						<th scope="col">Name</th>
 						<th scope="col">Email</th>
 						<th scope="col">Status</th>
-						<th scope="col" className="alphone-table__actions">
+						<th scope="col" className="godmin-table__actions">
 							<VisuallyHidden>Actions</VisuallyHidden>
 						</th>
 					</tr>

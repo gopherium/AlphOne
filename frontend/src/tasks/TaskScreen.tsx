@@ -84,7 +84,7 @@ function TaskForm({ task }: { task: Task }) {
 
 	return (
 		<form
-			className="alphone-form"
+			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
 				save.mutate()

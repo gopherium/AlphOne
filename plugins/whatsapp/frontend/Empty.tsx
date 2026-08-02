@@ -9,7 +9,7 @@ import { EmptyState, PageScreen, comment } from '@alphone/frontend-sdk'
 export function Empty() {
 	return (
 		<PageScreen title="Conversations">
-			<EmptyState.Root className="alphone-empty">
+			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={comment} />
 				<EmptyState.Title>No conversation selected.</EmptyState.Title>
 				<EmptyState.Description>
