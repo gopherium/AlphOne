@@ -7,6 +7,26 @@
 	color: var(--wpds-color-foreground-content-neutral);
 }
 
+.alphone-layout--small {
+	flex-direction: column;
+}
+
+.alphone-layout__topbar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+}
+
+.alphone-layout__drawer {
+	display: flex;
+	flex-direction: column;
+	padding: 16px;
+	box-sizing: border-box;
+	overflow-y: auto;
+}
+
 .alphone-layout__sidebar {
 	display: flex;
 	flex-direction: column;

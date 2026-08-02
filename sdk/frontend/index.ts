@@ -27,6 +27,7 @@ export {
 	Button,
 	Checkbox,
 	Collapsible,
+	Drawer,
 	EmptyState,
 	Icon,
 	IconButton,
@@ -43,6 +44,7 @@ export {
 	chevronRight,
 	comment,
 	inbox,
+	menu,
 	people,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
