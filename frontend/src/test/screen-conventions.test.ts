@@ -42,3 +42,11 @@ test('the page title is the only first level heading, so the shell owns none', (
 test('screens center their empty state through the template class', () => {
 	expect(filesMatching(/<EmptyState\.Root>/)).toEqual([])
 })
+
+// A table is wider than a phone, so it scrolls inside its own region instead of
+// dragging the page sideways.
+test('screens wrap their table in the scrolling region', () => {
+	const withTable = filesMatching(/className="alphone-table"/)
+	const withRegion = filesMatching(/className="alphone-table-scroll"/)
+	expect(withTable.filter((path) => !withRegion.includes(path))).toEqual([])
+})

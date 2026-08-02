@@ -41,6 +41,12 @@ width, so a screen with one action and a screen with four still line up.
 Put navigation and creation controls in `actions`. A form's submit
 button belongs at the bottom of the form, not in the header.
 
+Your screen renders in two shells without doing anything. On a wide
+viewport it sits beside the navigation rail. Below 1024px the rail
+becomes a drawer behind a menu button, and below 640px the canvas meets
+the screen edges and pads tighter. Build one screen and check it at both
+sizes.
+
 ## The four states
 
 A screen that loads data has four states, and the template has an answer
@@ -83,8 +89,21 @@ system rather than a bare element.
 ```
 
 Tables use the `alphone-table` class so padding, borders, and header
-weight match every other table. Form fields go inside `alphone-form`,
-which stacks them and keeps the column readable.
+weight match every other table, and they sit inside a scrolling region
+so a phone scrolls the columns rather than the whole page.
+
+```tsx
+<div className="alphone-table-scroll" role="region" aria-label="Invoices" tabIndex={0}>
+	<table className="alphone-table">…</table>
+</div>
+```
+
+The region needs all three attributes. `tabIndex` lets a keyboard reach
+the columns that scrolled out of view, and the label says what they
+belong to.
+
+Form fields go inside `alphone-form`, which stacks them and keeps the
+column readable.
 
 For cursor paginated queries, `LoadMore` renders the next page button
 and hides itself once every page is loaded.
@@ -154,6 +173,8 @@ last one is a convention a reviewer will hold you to.
 | Leave a route without a page title | Give every route exactly one first level heading | rendered outline test |
 | Add a route without listing it in the outline test | List it | rendered outline test |
 | Use a bare `<EmptyState.Root>` | Add `className="alphone-empty"` | source invariant |
+| Leave a table outside the scrolling region | Wrap it in `alphone-table-scroll` | source invariant |
+| Let a screen spill sideways on a phone | Keep it inside the canvas | end to end fit sweep |
 | Put failure copy in a plain `Text` | `ErrorNotice`, which announces it | screen tests assert the alert role |
 | Cap the page width yourself | Let the page span the canvas | end to end geometry test |
 | Hand roll a load more button | `LoadMore` | convention |
@@ -171,3 +192,8 @@ so adding a route without covering it fails too.
 **Screen tests** find the error state by its alert role rather than by
 its text, so replacing an announced failure with silent copy breaks
 them.
+
+The **fit sweep** seeds long names and an unbreakable word, then visits
+every route on a phone sized viewport and names whatever spills past the
+canvas. Content is allowed to be wider than the screen only when it
+scrolls inside its own container.
