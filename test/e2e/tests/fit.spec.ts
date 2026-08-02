@@ -67,7 +67,7 @@ test('every screen fits a phone without spilling sideways', async ({ page, reque
 		await expect(page.getByText(/^Loading/)).toHaveCount(0)
 
 		const report = await page.evaluate(() => {
-			const canvas = document.querySelector('.alphone-layout__canvas')
+			const canvas = document.querySelector('.godmin-layout__canvas')
 			if (canvas === null) {
 				return { documentSpills: false, canvasSpills: false, widest: [] as string[] }
 			}

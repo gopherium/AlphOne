@@ -7,7 +7,7 @@ test('an empty state sits centered in the canvas', async ({ page }) => {
 	await expect(page.getByText('Nothing due today.')).toBeVisible()
 
 	const geometry = await page.evaluate(() => {
-		const canvas = document.querySelector('.alphone-layout__canvas')
+		const canvas = document.querySelector('.godmin-layout__canvas')
 		const empty = document.querySelector('.alphone-empty')
 		if (canvas === null || empty === null) {
 			throw new Error('the screen rendered no canvas or no empty state')

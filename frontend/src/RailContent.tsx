@@ -22,16 +22,16 @@ export function RailContent() {
 	return (
 		<>
 			<Stack direction="column" gap="lg">
-				<Link to="/" className="alphone-layout__brand">
+				<Link to="/" className="alphone-rail__brand">
 					<Text variant="heading-lg">AlphOne</Text>
 				</Link>
 				<nav aria-label="Navigation">
 					{Sidebar ? <Sidebar /> : <MainMenu />}
 				</nav>
 			</Stack>
-			<AccountPanel className="alphone-layout__account" />
+			<AccountPanel className="alphone-rail__account" />
 			{version ? (
-				<Text className="alphone-layout__version">v{version}</Text>
+				<Text className="alphone-rail__version">v{version}</Text>
 			) : null}
 		</>
 	)

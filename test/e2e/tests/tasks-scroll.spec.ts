@@ -23,7 +23,7 @@ test('a day taller than the screen scrolls to its last task', async ({
 			page.getByRole('listitem', { name: `Scroll filler ${stamp} 0` }),
 		).toBeVisible()
 
-		const canvas = page.locator('.alphone-layout__canvas')
+		const canvas = page.locator('.godmin-layout__canvas')
 		await canvas.hover()
 		await page.mouse.wheel(0, 2000)
 

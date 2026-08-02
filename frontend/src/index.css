@@ -1,106 +1,51 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
-.alphone-layout {
-	display: flex;
-	height: 100vh;
-	background: var(--wpds-color-background-surface-neutral-weak);
-	color: var(--wpds-color-foreground-content-neutral);
-}
-
-.alphone-layout--small {
-	flex-direction: column;
-}
-
-.alphone-layout__topbar {
-	display: flex;
-	flex-shrink: 0;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 16px;
-}
-
-.alphone-layout__drawer {
-	display: flex;
-	flex-direction: column;
-	padding: 16px;
-	box-sizing: border-box;
-	overflow-y: auto;
-}
-
-.alphone-layout__sidebar {
-	display: flex;
-	flex-direction: column;
-	flex-shrink: 0;
-	width: 300px;
-	padding: 16px;
-	box-sizing: border-box;
-	overflow-y: auto;
+.godmin-layout__rail {
 	scrollbar-width: thin;
 	scrollbar-color: transparent transparent;
 }
 
-.alphone-layout__account {
+.alphone-rail__brand {
+	color: inherit;
+	text-decoration: none;
+}
+
+.alphone-rail__account {
 	margin-top: auto;
 	padding-top: 16px;
 	border-top: 1px solid var(--wpds-color-stroke-surface-neutral);
 }
 
-.alphone-layout__version {
+.alphone-rail__version {
 	padding-top: 8px;
 	color: var(--wpds-color-foreground-content-neutral-weak);
 	font-size: var(--wpds-typography-font-size-sm);
 }
 
-.alphone-layout__sidebar:hover,
-.alphone-layout__sidebar:focus-within {
+.godmin-layout__rail:hover,
+.godmin-layout__rail:focus-within {
 	scrollbar-color: var(--wpds-color-stroke-surface-neutral-strong) transparent;
 }
 
-.alphone-layout__sidebar::-webkit-scrollbar {
+.godmin-layout__rail::-webkit-scrollbar {
 	width: 12px;
 	height: 12px;
 }
 
-.alphone-layout__sidebar::-webkit-scrollbar-track {
+.godmin-layout__rail::-webkit-scrollbar-track {
 	background-color: transparent;
 }
 
-.alphone-layout__sidebar::-webkit-scrollbar-thumb {
+.godmin-layout__rail::-webkit-scrollbar-thumb {
 	background-color: transparent;
 	border-radius: 8px;
 	border: 3px solid transparent;
 	background-clip: padding-box;
 }
 
-.alphone-layout__sidebar:hover::-webkit-scrollbar-thumb,
-.alphone-layout__sidebar:focus-within::-webkit-scrollbar-thumb {
+.godmin-layout__rail:hover::-webkit-scrollbar-thumb,
+.godmin-layout__rail:focus-within::-webkit-scrollbar-thumb {
 	background-color: var(--wpds-color-stroke-surface-neutral-strong);
-}
-
-.alphone-layout__canvas {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-width: 0;
-	margin: 16px;
-	padding: 24px;
-	box-sizing: border-box;
-	border-radius: var(--wpds-border-radius-xl);
-	background: var(--wpds-color-background-surface-neutral);
-	color: var(--wpds-color-foreground-content-neutral);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-	overflow-x: hidden;
-	overflow-y: auto;
-}
-
-.alphone-layout__canvas--bleed {
-	padding: 0;
-	overflow: hidden;
-}
-
-.alphone-layout__brand {
-	color: inherit;
-	text-decoration: none;
 }
 
 .alphone-menu__item {
@@ -537,17 +482,6 @@
 /* Small viewport overrides live together at the end of the sheet, so they
    always win over the rules above them without needing extra specificity. */
 @media (max-width: 639px) {
-	.alphone-layout__canvas {
-		margin: 0;
-		padding: 16px;
-		border-radius: 0;
-		box-shadow: none;
-	}
-
-	.alphone-layout__canvas--bleed {
-		padding: 0;
-	}
-
 	.alphone-thread__header {
 		padding: 12px 16px;
 	}

@@ -13,10 +13,10 @@ test.describe('on a phone', () => {
 		await page.goto('/tasks')
 		await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
-		await expect(page.locator('.alphone-layout__sidebar')).toHaveCount(0)
+		await expect(page.locator('.godmin-layout__rail')).toHaveCount(0)
 
 		const geometry = await page.evaluate(() => {
-			const canvas = document.querySelector('.alphone-layout__canvas')
+			const canvas = document.querySelector('.godmin-layout__canvas')
 			if (canvas === null) {
 				throw new Error('the layout rendered no canvas')
 			}
@@ -40,7 +40,7 @@ test.describe('on a phone', () => {
 		await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
 		const canvas = await page.evaluate(() => {
-			const element = document.querySelector('.alphone-layout__canvas')
+			const element = document.querySelector('.godmin-layout__canvas')
 			if (element === null) {
 				throw new Error('the layout rendered no canvas')
 			}
@@ -112,7 +112,7 @@ test.describe('on a phone', () => {
 		await expect(page.getByRole('log', { name: 'Messages' })).toBeVisible()
 
 		const geometry = await page.evaluate(() => {
-			const canvas = document.querySelector('.alphone-layout__canvas')
+			const canvas = document.querySelector('.godmin-layout__canvas')
 			const header = document.querySelector('.alphone-thread__header')
 			const log = document.querySelector('.alphone-thread__log')
 			const composer = document.querySelector('.alphone-composer')
@@ -152,6 +152,6 @@ test('keeps the rail on a desktop viewport', async ({ page }) => {
 	await page.goto('/tasks')
 	await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
-	await expect(page.locator('.alphone-layout__sidebar')).toBeVisible()
+	await expect(page.locator('.godmin-layout__rail')).toBeVisible()
 	await expect(page.getByRole('button', { name: 'Open navigation' })).toHaveCount(0)
 })

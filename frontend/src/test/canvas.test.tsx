@@ -10,7 +10,7 @@ import { renderAt } from './render'
 beforeEach(() => server.use(...handlers))
 
 function canvas() {
-	return document.querySelector('.alphone-layout__canvas')
+	return document.querySelector('.godmin-layout__canvas')
 }
 
 test('pads the canvas for an ordinary screen', async () => {
@@ -18,7 +18,7 @@ test('pads the canvas for an ordinary screen', async () => {
 
 	await screen.findByRole('heading', { name: 'Tasks' })
 
-	expect(canvas()).not.toHaveClass('alphone-layout__canvas--bleed')
+	expect(canvas()).not.toHaveClass('godmin-layout__canvas--bleed')
 })
 
 test('lets a screen declare a full bleed canvas through its route', async () => {
@@ -26,5 +26,5 @@ test('lets a screen declare a full bleed canvas through its route', async () => 
 
 	await screen.findByRole('log', { name: 'Messages' })
 
-	expect(canvas()).toHaveClass('alphone-layout__canvas--bleed')
+	expect(canvas()).toHaveClass('godmin-layout__canvas--bleed')
 })

@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 
 test('paints the page from design tokens', async ({ page }) => {
 	await page.goto('/')
-	await expect(page.locator('.alphone-layout')).toBeVisible()
+	await expect(page.locator('.godmin-layout')).toBeVisible()
 
 	const painted = await page.evaluate(() => {
 		const root = getComputedStyle(document.documentElement)
@@ -46,10 +46,10 @@ test('paints the page from design tokens', async ({ page }) => {
 
 test('mounts the application inside an isolation context', async ({ page }) => {
 	await page.goto('/')
-	await expect(page.locator('.alphone-layout')).toBeVisible()
+	await expect(page.locator('.godmin-layout')).toBeVisible()
 
 	const isolated = await page.evaluate(() => {
-		let node = document.querySelector('.alphone-layout')?.parentElement
+		let node = document.querySelector('.godmin-layout')?.parentElement
 		while (node && node !== document.body) {
 			if (getComputedStyle(node).isolation === 'isolate') {
 				return true

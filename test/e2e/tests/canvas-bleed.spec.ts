@@ -6,7 +6,7 @@ import { deliverInboundText } from '../inbound'
 
 function canvasGeometry(page: import('@playwright/test').Page) {
 	return page.evaluate(() => {
-		const canvas = document.querySelector('.alphone-layout__canvas')
+		const canvas = document.querySelector('.godmin-layout__canvas')
 		if (canvas === null) {
 			throw new Error('the layout rendered no canvas')
 		}
