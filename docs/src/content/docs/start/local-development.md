@@ -212,7 +212,7 @@ make lint          # golangci-lint plus the docblock linter
 cd frontend && pnpm run cover   # frontend tests with 100% coverage thresholds
 ```
 
-End-to-end tests drive a real browser against a real server. See the
-Makefile `e2e-*` targets: `make e2e-reset` seeds an isolated database,
-`make e2e-serve` runs the server against it, and `make e2e` runs
-Playwright.
+End-to-end tests drive a real browser against a real server. `make e2e`
+rebuilds the isolated database, seeds it, and runs Playwright, so every
+run starts from the same state. `make e2e-serve` runs the server against
+that database on its own, for driving the app by hand.
