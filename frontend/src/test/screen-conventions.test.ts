@@ -7,8 +7,7 @@ const sources = import.meta.glob(
 	{ query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>
 
-// The shell owns the brand heading, which U5 demotes out of the outline.
-const exempt = /Layout\.tsx$|\.test\.tsx$/
+const exempt = /\.test\.tsx$/
 
 /**
  * Returns every screen file whose source matches the given pattern.
@@ -31,4 +30,9 @@ test('screens render their title through the page template, never a raw h1', () 
 
 test('screens render section headings through the design system, never a raw h2', () => {
 	expect(filesMatching(/<\/h2>/)).toEqual([])
+})
+
+test('the page title is the only first level heading, so the shell owns none', () => {
+	const owner = 'sdk/frontend/PageScreen.tsx'
+	expect(filesMatching(/render=\{<h1 \/>\}/).filter((path) => path !== owner)).toEqual([])
 })

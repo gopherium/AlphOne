@@ -3,12 +3,24 @@
 import { Stack, Text, ThemeProvider, useEventStream } from '@alphone/frontend-sdk'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import type { StaticDataRouteOption } from '@tanstack/react-router'
 
 import { MainMenu } from './menu/MainMenu'
 import { useAppVersion } from './version'
 
 const CHROME_COLOR = { background: '#1e1e1e' }
 const CANVAS_COLOR = { background: '#ffffff' }
+const CANVAS_CLASS = 'alphone-layout__canvas'
+
+/**
+ * Returns the canvas class for the given route matches.
+ * @param matches - The router matches for the active route.
+ * @returns The canvas class, carrying the bleed modifier when a match asks for it.
+ */
+function canvasClass(matches: { staticData: StaticDataRouteOption }[]): string {
+	const bleed = matches.some((match) => match.staticData.canvas === 'bleed')
+	return bleed ? `${CANVAS_CLASS} ${CANVAS_CLASS}--bleed` : CANVAS_CLASS
+}
 
 /**
  * Renders the admin layout: a dark navigation chrome holding the branding and
@@ -30,9 +42,7 @@ export function Layout() {
 				<div className="alphone-layout__sidebar">
 					<Stack direction="column" gap="lg">
 						<Link to="/" className="alphone-layout__brand">
-							<Text variant="heading-lg" render={<h1 />}>
-								AlphOne
-							</Text>
+							<Text variant="heading-lg">AlphOne</Text>
 						</Link>
 						<nav aria-label="Navigation">
 							{Sidebar ? <Sidebar /> : <MainMenu />}
@@ -44,7 +54,7 @@ export function Layout() {
 					) : null}
 				</div>
 				<ThemeProvider color={CANVAS_COLOR}>
-					<main className="alphone-layout__canvas">
+					<main className={canvasClass(matches)}>
 						<Outlet />
 					</main>
 				</ThemeProvider>

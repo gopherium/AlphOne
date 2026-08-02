@@ -6,6 +6,7 @@ import type { ComponentProps, ComponentType, ReactElement } from 'react'
 declare module '@tanstack/react-router' {
 	interface StaticDataRouteOption {
 		Sidebar?: ComponentType
+		canvas?: 'padded' | 'bleed'
 	}
 }
 
@@ -40,6 +41,7 @@ export {
 export {
 	chevronLeft,
 	chevronRight,
+	comment,
 	inbox,
 	people,
 } from '@wordpress/icons'

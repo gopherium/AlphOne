@@ -28,6 +28,7 @@ export function routes(parent: AnyRoute): AnyRoute[] {
 		getParentRoute: () => whatsappRoute,
 		path: 'conversations/$conversationId',
 		component: ThreadScreen,
+		staticData: { canvas: 'bleed' },
 	})
 	return [whatsappRoute.addChildren([emptyRoute, threadRoute])]
 }

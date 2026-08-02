@@ -33,7 +33,7 @@ test('drills the sidebar into the WhatsApp section screen', async () => {
 	expect(screen.getByRole('link', { name: 'Back' })).toBeInTheDocument()
 	expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
 	expect(
-		within(screen.getByRole('main')).getByText(/select a conversation/i),
+		within(screen.getByRole('main')).getByText('No conversation selected.'),
 	).toBeInTheDocument()
 	expect(
 		screen.getByRole('navigation', { name: 'Navigation' }),

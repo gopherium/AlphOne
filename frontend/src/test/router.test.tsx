@@ -13,12 +13,13 @@ test('sends the root path to the day of tasks', async () => {
 	expect(await screen.findByRole('heading', { name: 'Tasks' })).toBeInTheDocument()
 })
 
-test('shows the AlphOne masthead as a heading', async () => {
+test('shows the AlphOne masthead as a link home, not a heading', async () => {
 	renderAt('/')
 
-	expect(
-		await screen.findByRole('heading', { name: 'AlphOne' }),
-	).toBeInTheDocument()
+	const brand = await screen.findByRole('link', { name: 'AlphOne' })
+
+	expect(brand).toHaveAttribute('href', '/')
+	expect(screen.queryByRole('heading', { name: 'AlphOne' })).not.toBeInTheDocument()
 })
 
 test('renders a navigation entry for every core and plugin section', async () => {

@@ -27,6 +27,15 @@ test('navigates from the host navigation to the inbox', async () => {
 	expect(await screen.findByText('John Doe')).toBeInTheDocument()
 })
 
+test('offers a titled empty state until a conversation is chosen', async () => {
+	renderPluginAt(plugin, '/whatsapp')
+
+	expect(await screen.findByText('No conversation selected.')).toBeInTheDocument()
+	expect(
+		screen.getByText('Pick one from the list to read its messages.'),
+	).toBeInTheDocument()
+})
+
 test('serves the thread for a conversation URL', async () => {
 	renderPluginAt(
 		plugin,

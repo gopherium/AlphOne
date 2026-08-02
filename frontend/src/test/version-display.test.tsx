@@ -14,6 +14,6 @@ test('shows the app version in the sidebar', async () => {
 test('omits the version when it is unavailable', async () => {
 	renderAt('/', undefined, null)
 
-	await screen.findByRole('heading', { name: 'AlphOne' })
+	await screen.findByRole('link', { name: 'AlphOne' })
 	expect(screen.queryByText(/^v\d/)).toBeNull()
 })

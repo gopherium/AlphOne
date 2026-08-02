@@ -73,6 +73,11 @@
 	overflow-y: auto;
 }
 
+.alphone-layout__canvas--bleed {
+	padding: 0;
+	overflow: hidden;
+}
+
 .alphone-layout__brand {
 	color: inherit;
 	text-decoration: none;
@@ -210,7 +215,6 @@
 	flex: 1;
 	min-height: 0;
 	gap: 16px;
-	margin: -24px;
 }
 
 .alphone-thread__log {
