@@ -93,7 +93,7 @@ test('reports when messages cannot be loaded', async () => {
 
 	renderThread()
 
-	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 })
 
 test('sends a reply and appends it to the thread', async () => {

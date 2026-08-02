@@ -189,7 +189,9 @@ test('reports when the contact tasks cannot be loaded', async () => {
 
 	renderAt(`/contacts/${contactID}`)
 
-	expect(await screen.findByText('Tasks could not be loaded.')).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'Tasks could not be loaded.',
+	)
 })
 
 test('reports when a contact task cannot be added', async () => {

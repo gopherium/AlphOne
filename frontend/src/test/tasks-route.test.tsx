@@ -343,7 +343,9 @@ test('reports when the tasks cannot be loaded', async () => {
 
 	renderAt('/tasks')
 
-	expect(await screen.findByText('Tasks could not be loaded.')).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'Tasks could not be loaded.',
+	)
 })
 
 test('reports when a task cannot be added', async () => {
@@ -630,7 +632,9 @@ test('reports when overdue work cannot be loaded', async () => {
 
 	renderAt('/tasks')
 
-	expect(await screen.findByText('Overdue tasks could not be loaded.')).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'Overdue tasks could not be loaded.',
+	)
 })
 
 test('drops the session when the overdue list is unauthorized', async () => {

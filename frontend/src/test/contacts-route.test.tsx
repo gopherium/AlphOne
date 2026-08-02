@@ -129,7 +129,7 @@ test('reports when contacts cannot be loaded', async () => {
 
 	renderAt('/contacts')
 
-	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 })
 
 test('drops the session when the contacts request is unauthorized', async () => {
@@ -330,7 +330,7 @@ test('reports when the contact cannot be loaded', async () => {
 
 	renderAt(`/contacts/${anaID}`)
 
-	expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 })
 
 test('drops the session when the contact detail is unauthorized', async () => {

@@ -51,6 +51,10 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Extending',
+					items: [{ slug: 'extending/screens' }],
+				},
+				{
 					label: 'Reference',
 					items: [{ slug: 'reference/rest-api' }, { slug: 'reference/webhooks' }],
 				},

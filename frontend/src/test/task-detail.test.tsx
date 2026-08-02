@@ -158,7 +158,9 @@ test('reports when the task cannot be loaded', async () => {
 
 	renderAt(`/tasks/${taskID}`)
 
-	expect(await screen.findByText('The task could not be loaded.')).toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'The task could not be loaded.',
+	)
 })
 
 test('reports when a save is rejected', async () => {
