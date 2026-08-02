@@ -42,7 +42,7 @@ test('follows the page template like every other screen', async () => {
 	renderAt('/users')
 
 	const heading = await screen.findByRole('heading', { level: 1, name: 'Users' })
-	expect(heading.closest('.alphone-page')).not.toBeNull()
+	expect(heading.closest('.godmin-page')).not.toBeNull()
 	expect(await screen.findByRole('link', { name: 'New user' })).toBeInTheDocument()
 })
 

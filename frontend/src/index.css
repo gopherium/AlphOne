@@ -134,30 +134,6 @@
 	opacity: 0.5;
 }
 
-.alphone-nav-screen__title {
-	flex: 1;
-	min-width: 0;
-}
-
-.alphone-nav-screen__title:focus {
-	outline: none;
-}
-
-.alphone-nav-screen__back {
-	display: inline-flex;
-	color: inherit;
-	border-radius: var(--wpds-border-radius-md);
-}
-
-.alphone-nav-screen__back:focus-visible {
-	outline: var(--wpds-border-width-focus) solid var(--wpds-color-stroke-focus);
-	outline-offset: 2px;
-}
-
-.alphone-nav-screen__description {
-	color: var(--wpds-color-foreground-content-neutral-weak);
-}
-
 .alphone-conversations {
 	list-style: none;
 	margin: 0;
@@ -464,10 +440,6 @@
 .alphone-empty {
 	margin-inline: auto;
 	padding-block: 48px;
-}
-
-.alphone-page__subtitle {
-	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 
 .alphone-tasks__add {

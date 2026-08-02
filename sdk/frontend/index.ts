@@ -6,7 +6,6 @@ import type { ComponentProps, ComponentType, ReactElement } from 'react'
 declare module '@tanstack/react-router' {
 	interface StaticDataRouteOption {
 		Sidebar?: ComponentType
-		canvas?: 'padded' | 'bleed'
 	}
 }
 
@@ -48,7 +47,8 @@ export {
 	people,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
+export { ErrorNotice, LoadMore, Page as PageScreen, PageTitle } from '@gopherium/godmin'
+export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
-export { ErrorNotice, LoadMore, PageScreen, PageTitle } from './PageScreen'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useEventStream } from './stream'

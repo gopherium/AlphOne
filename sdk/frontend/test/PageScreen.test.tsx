@@ -50,8 +50,8 @@ test('every page carries the shared page class that fixes its width', () => {
 		</PageScreen>,
 	)
 
-	expect(plain.querySelector('.alphone-page')).not.toBeNull()
-	expect(classed.querySelector('.alphone-page.alphone-tasks')).not.toBeNull()
+	expect(plain.querySelector('.godmin-page')).not.toBeNull()
+	expect(classed.querySelector('.godmin-page.alphone-tasks')).not.toBeNull()
 })
 
 test('load more renders nothing without a next page', () => {

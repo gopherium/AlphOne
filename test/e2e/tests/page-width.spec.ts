@@ -10,7 +10,7 @@ test('the page template spans the full canvas so actions pin to the right edge',
 
 	const geometry = await page.evaluate(() => {
 		const canvas = document.querySelector('.alphone-layout__canvas')
-		const screen = document.querySelector('.alphone-page')
+		const screen = document.querySelector('.godmin-page')
 		if (canvas === null || screen === null) {
 			throw new Error('the layout rendered no canvas or no page')
 		}
