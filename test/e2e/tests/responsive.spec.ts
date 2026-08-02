@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
+import { deliverInboundText } from '../inbound'
+
 const phone = { width: 390, height: 844 }
 
 test.describe('on a phone', () => {
@@ -31,6 +33,33 @@ test.describe('on a phone', () => {
 
 		expect(geometry.documentOverflows).toBe(false)
 		expect(geometry.canvasContentWidth).toBeGreaterThan(280)
+	})
+
+	test('spends its pixels on content rather than canvas chrome', async ({ page }) => {
+		await page.goto('/tasks')
+		await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+
+		const canvas = await page.evaluate(() => {
+			const element = document.querySelector('.alphone-layout__canvas')
+			if (element === null) {
+				throw new Error('the layout rendered no canvas')
+			}
+			const style = getComputedStyle(element)
+			return {
+				margin: style.marginLeft,
+				padding: style.paddingLeft,
+				radius: style.borderTopLeftRadius,
+				contentWidth:
+					element.clientWidth -
+					parseFloat(style.paddingLeft) -
+					parseFloat(style.paddingRight),
+			}
+		})
+
+		expect(canvas.margin).toBe('0px')
+		expect(canvas.padding).toBe('16px')
+		expect(canvas.radius).toBe('0px')
+		expect(canvas.contentWidth).toBeGreaterThan(350)
 	})
 
 	test('gives a task row title room instead of squeezing it past its controls', async ({
@@ -65,6 +94,45 @@ test.describe('on a phone', () => {
 
 		expect(geometry.titleShare).toBeGreaterThan(0.5)
 		expect(geometry.titleLines).toBeLessThanOrEqual(2)
+	})
+
+	test('fits a conversation thread edge to edge with a reachable composer', async ({
+		page,
+		request,
+	}) => {
+		const stamp = Date.now()
+		const contactName = `Maria ${stamp}`
+		await deliverInboundText(request, `1888${stamp}`, contactName, 'hello')
+
+		await page.goto('/whatsapp')
+		// The conversation list is this section's sidebar, so on a phone it is
+		// reached through the drawer.
+		await page.getByRole('button', { name: 'Open navigation' }).click()
+		await page.getByRole('dialog').getByText(contactName).click()
+		await expect(page.getByRole('log', { name: 'Messages' })).toBeVisible()
+
+		const geometry = await page.evaluate(() => {
+			const canvas = document.querySelector('.alphone-layout__canvas')
+			const header = document.querySelector('.alphone-thread__header')
+			const log = document.querySelector('.alphone-thread__log')
+			const composer = document.querySelector('.alphone-composer')
+			if (!canvas || !header || !log || !composer) {
+				throw new Error('the thread did not render')
+			}
+			const box = canvas.getBoundingClientRect()
+			return {
+				logPadding: getComputedStyle(log).paddingLeft,
+				composerInView: composer.getBoundingClientRect().bottom <= window.innerHeight + 1,
+				headerSpansCanvas:
+					Math.round(header.getBoundingClientRect().width) === Math.round(box.width),
+				canvasOverflows: canvas.scrollWidth > canvas.clientWidth,
+			}
+		})
+
+		expect(geometry.logPadding).toBe('16px')
+		expect(geometry.headerSpansCanvas).toBe(true)
+		expect(geometry.composerInView).toBe(true)
+		expect(geometry.canvasOverflows).toBe(false)
 	})
 
 	test('reaches another section through the drawer', async ({ page }) => {
