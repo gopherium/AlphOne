@@ -57,11 +57,11 @@ func key(channel sdk.Channel, identifier string) sdk.Identity {
 	return sdk.Identity{Channel: channel, Identifier: identifier}
 }
 
-// seed stores a contact owning one identity.
-func (d *directory) seed(name string, channel sdk.Channel, identifier string) sdk.Contact {
+// seed stores a contact owning one email identity.
+func (d *directory) seed(name, email string) sdk.Contact {
 	owner := sdk.Contact{ID: uuid.Must(uuid.NewV7()), Name: name}
 	d.contacts[owner.ID] = owner
-	d.identities[key(channel, identifier)] = owner.ID
+	d.identities[key("email", email)] = owner.ID
 	d.store(owner)
 	return owner
 }
@@ -195,7 +195,7 @@ func TestCommitImportsSkipsAndFailsEachRow(t *testing.T) {
 	t.Parallel()
 
 	p, pool, contacts, events := newCommittingPlugin(t)
-	claimed := contacts.seed("Maria Perez", "email", "maria@example.com")
+	claimed := contacts.seed("Maria Perez", "maria@example.com")
 	id := uploadNamed(t, p, "mixed.csv", mixedCSV)
 	mapNameAndEmail(t, p, id)
 
@@ -297,7 +297,7 @@ func TestCommitNeverOffersAKnownContactForCreation(t *testing.T) {
 	t.Parallel()
 
 	p, _, contacts, _ := newCommittingPlugin(t)
-	contacts.seed("Maria Perez", "email", "maria@example.com")
+	contacts.seed("Maria Perez", "maria@example.com")
 	id := uploadNamed(t, p, "known.csv", "Name,Email\nMaria P,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 
@@ -315,7 +315,7 @@ func TestCommitSkipsARowClaimedWhileTheImportRuns(t *testing.T) {
 	t.Parallel()
 
 	p, pool, contacts, _ := newCommittingPlugin(t)
-	claimed := contacts.seed("Maria Perez", "email", "maria@example.com")
+	claimed := contacts.seed("Maria Perez", "maria@example.com")
 	contacts.hideClaims = true
 	id := uploadNamed(t, p, "race.csv", "Name,Email\nMaria P,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
