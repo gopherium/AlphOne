@@ -43,6 +43,7 @@ func (p *Plugin) Routes() http.Handler {
 	router.Put("/imports/{id}/mapping", p.handleMappingPut())
 	router.Get("/imports/{id}/rows", p.handleRowList())
 	router.Get("/imports/{id}/contacts", p.handleImportContacts())
+	router.Post("/imports/{id}/commit", p.handleCommit())
 	return router
 }
 

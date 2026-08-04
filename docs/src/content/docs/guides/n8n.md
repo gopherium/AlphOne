@@ -97,7 +97,7 @@ Press **Add first step** and search for `alphone`.
 
 ![The empty workflow canvas with the Add first step panel open and alphone typed in the search field.](../../../assets/n8n/05-add-first-step.png)
 
-The node offers four triggers, one per event AlphOne publishes.
+The node offers a trigger for each event it supports.
 
 ![The AlphOne node panel listing four triggers: on contact created, on task completed, on task created, and on WhatsApp message received.](../../../assets/n8n/06-node-triggers.png)
 

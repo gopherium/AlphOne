@@ -12,7 +12,7 @@ Nothing here is specific to any engine, see the
 
 ## Events
 
-Four events are published. The list is deliberately short, because every
+Five events are published. The list is deliberately short, because every
 name is a public promise:
 
 | Event | Published when |
@@ -21,6 +21,7 @@ name is a public promise:
 | `task.completed` | A task moves into `done` |
 | `contact.created` | A contact is created, including one created by an inbound message from an unknown number |
 | `whatsapp.message.received` | An inbound WhatsApp message is stored |
+| `import.completed` | An import finishes turning its rows into contacts |
 
 `task.completed` fires on the move into `done`, not on the state. Patching
 a task that is already done publishes nothing, so an automation cannot
@@ -51,10 +52,12 @@ delivery, so store it and drop anything you have already processed.
 `data` carries enough to identify the subject and read it at a glance.
 For anything more, refetch through the API with `data.id`.
 
-`task.created` and `task.completed` carry `id`, `title`, `status`,
-`due_on`, and `priority`. `contact.created` carries `id` and `name`.
-`whatsapp.message.received` carries `conversation_id`, `contact_id`,
+- `task.created` and `task.completed` carry `id`, `title`, `status`
+- `due_on`, and `priority`. `contact.created` carries `id` and `name`.
+- `whatsapp.message.received` carries `conversation_id`, `contact_id`,
 `contact_name`, `external_id`, and `text`.
+- `import.completed` carries `id`, `imported`, and `skipped`, so an automation 
+can react to the contacts an import produced by refetching its rows.
 
 ## Headers
 

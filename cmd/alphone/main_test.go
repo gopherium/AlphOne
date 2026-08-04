@@ -29,6 +29,7 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -45,6 +46,71 @@ func TestResolverBridgePropagatesFailures(t *testing.T) {
 	}
 	if owner != (sdk.Contact{}) {
 		t.Errorf("Resolve() contact = %+v, want zero value on failure", owner)
+	}
+}
+
+func TestDirectoryBridgePropagatesFailures(t *testing.T) {
+	t.Parallel()
+
+	bridge := directoryBridge{resolver: contact.NewResolver(nil)}
+
+	owner, found, err := bridge.FindByIdentity(t.Context(), " \t ", "maria@example.com")
+
+	if !errors.Is(err, contact.ErrEmptyChannel) {
+		t.Fatalf("FindByIdentity() error = %v, want %v", err, contact.ErrEmptyChannel)
+	}
+	if found || owner != (sdk.Contact{}) {
+		t.Errorf("FindByIdentity() = %+v, %v, want a zero contact and false", owner, found)
+	}
+
+	created, wasCreated, err := bridge.CreateWithIdentities(t.Context(), "  ",
+		[]sdk.Identity{{Channel: "email", Identifier: "maria@example.com"}})
+
+	if !errors.Is(err, contact.ErrEmptyName) {
+		t.Fatalf("CreateWithIdentities() error = %v, want %v", err, contact.ErrEmptyName)
+	}
+	if wasCreated || created != (sdk.Contact{}) {
+		t.Errorf("CreateWithIdentities() = %+v, %v, want a zero contact and false", created, wasCreated)
+	}
+}
+
+func TestDirectoryBridgeReportsAnUnknownIdentity(t *testing.T) {
+	t.Parallel()
+
+	store := newContactStore(t)
+	bridge := directoryBridge{resolver: contact.NewResolver(store)}
+
+	owner, found, err := bridge.FindByIdentity(t.Context(), "email", "nobody@example.com")
+
+	if err != nil {
+		t.Fatalf("FindByIdentity() error = %v, want nil", err)
+	}
+	if found || owner != (sdk.Contact{}) {
+		t.Errorf("FindByIdentity() = %+v, %v, want a zero contact and false", owner, found)
+	}
+}
+
+func TestDirectoryBridgeCreatesAContactWithItsIdentities(t *testing.T) {
+	t.Parallel()
+
+	store := newContactStore(t)
+	bridge := directoryBridge{resolver: contact.NewResolver(store)}
+
+	created, wasCreated, err := bridge.CreateWithIdentities(t.Context(), "Maria Perez",
+		[]sdk.Identity{{Channel: "email", Identifier: "MARIA@example.com"}})
+
+	if err != nil {
+		t.Fatalf("CreateWithIdentities() error = %v, want nil", err)
+	}
+	if !wasCreated {
+		t.Fatal("CreateWithIdentities() created = false, want true")
+	}
+	owner, found, err := bridge.FindByIdentity(t.Context(), "email", "maria@example.com")
+	if err != nil || !found {
+		t.Fatalf("FindByIdentity() = %v, %v, want the created contact", err, found)
+	}
+	if owner.ID != created.ID {
+		t.Errorf("owner = %v, want %v", owner.ID, created.ID)
 	}
 }
 
@@ -76,6 +142,16 @@ func testGetenv(values map[string]string) func(string) string {
 	return func(key string) string {
 		return values[key]
 	}
+}
+
+func newContactStore(t *testing.T) *postgres.ContactStore {
+	t.Helper()
+	pool, err := pgxpool.New(t.Context(), testDatabaseURL(t))
+	if err != nil {
+		t.Fatalf("connecting pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return postgres.NewContactStore(pool)
 }
 
 func testDatabaseURL(t *testing.T) string {

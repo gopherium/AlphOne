@@ -78,6 +78,25 @@ func (f *fakeStore) CreateContactWithIdentity(_ context.Context, c contact.Conta
 	return nil
 }
 
+func (f *fakeStore) CreateContactWithIdentities(
+	_ context.Context, c contact.Contact, identities []contact.Identity,
+) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	for _, identity := range identities {
+		key := identityKey{identity.Channel, identity.Identifier}
+		if claimed, ok := f.identities[key]; ok {
+			return contact.IdentityExistsError{OwnerID: claimed.ContactID}
+		}
+	}
+	f.contacts[c.ID] = c
+	for _, identity := range identities {
+		f.identities[identityKey{identity.Channel, identity.Identifier}] = identity
+	}
+	return nil
+}
+
 func seedContact(
 	t *testing.T,
 	store *fakeStore,

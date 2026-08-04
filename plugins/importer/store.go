@@ -4,6 +4,7 @@ package importer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,13 +13,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// stateReady marks an import parsed and waiting to be mapped.
-const stateReady = "ready"
+// The states an import moves through.
+const (
+	stateReady      = "ready"
+	stateCommitting = "committing"
+	stateCommitted  = "committed"
+)
 
 // The outcomes a staged row settles into.
 const (
 	outcomePending  = "pending"
 	outcomeImported = "imported"
+	outcomeSkipped  = "skipped"
+	outcomeFailed   = "failed"
 )
 
 // mapping assigns a field to each mapped column, keyed by column index.
@@ -114,6 +121,84 @@ func (s *store) listImportContacts(ctx context.Context, importID uuid.UUID) ([]i
 		return nil, fmt.Errorf("importer: list import contacts: %w", err)
 	}
 	return linked, nil
+}
+
+type commitCounts struct {
+	Imported int `db:"imported_count"`
+	Skipped  int `db:"skipped_count"`
+	Failed   int `db:"failed_count"`
+}
+
+// claimForCommit moves an import into committing and returns its mapping.
+func (s *store) claimForCommit(ctx context.Context, id uuid.UUID) (mapping, error) {
+	var claimed mapping
+	var state string
+	err := s.pool.QueryRow(ctx,
+		`UPDATE plugin_importer.imports SET state = $2
+		WHERE id = $1 AND state IN ($2, $3)
+		RETURNING mapping, state`,
+		id, stateCommitting, stateReady).Scan(&claimed, &state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errAlreadyCommitted
+	}
+	if err != nil {
+		return nil, fmt.Errorf("importer: claim import: %w", err)
+	}
+	if len(claimed) == 0 {
+		return nil, errNoMapping
+	}
+	return claimed, nil
+}
+
+// pendingRows returns the rows of an import still waiting to be committed.
+func (s *store) pendingRows(ctx context.Context, importID uuid.UUID) ([]stagedRow, error) {
+	rows, _ := s.pool.Query(ctx,
+		`SELECT id, position, cells, outcome, reason, contact_id
+		FROM plugin_importer.import_rows
+		WHERE import_id = $1 AND outcome = $2
+		ORDER BY position`, importID, outcomePending)
+	pending, err := pgx.CollectRows(rows, pgx.RowToStructByName[stagedRow])
+	if err != nil {
+		return nil, fmt.Errorf("importer: list pending rows: %w", err)
+	}
+	return pending, nil
+}
+
+// settleRow records the outcome one staged row reached.
+func (s *store) settleRow(ctx context.Context, rowID uuid.UUID, settled settlement) error {
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE plugin_importer.import_rows
+		SET outcome = $2, reason = COALESCE($3, reason), contact_id = $4
+		WHERE id = $1`,
+		rowID, settled.outcome, optionalReason(settled.reason), settled.contactID); err != nil {
+		return fmt.Errorf("importer: settle row: %w", err)
+	}
+	return nil
+}
+
+// finishCommit counts the settled rows, marks the import committed, and returns the counts.
+func (s *store) finishCommit(ctx context.Context, id uuid.UUID) (commitCounts, error) {
+	var counts commitCounts
+	err := s.pool.QueryRow(ctx,
+		`UPDATE plugin_importer.imports i SET state = $2,
+			imported_count = tally.imported,
+			skipped_count = tally.skipped,
+			failed_count = tally.failed
+		FROM (
+			SELECT
+				count(*) FILTER (WHERE outcome = $3) AS imported,
+				count(*) FILTER (WHERE outcome = $4) AS skipped,
+				count(*) FILTER (WHERE outcome = $5) AS failed
+			FROM plugin_importer.import_rows WHERE import_id = $1
+		) tally
+		WHERE i.id = $1
+		RETURNING i.imported_count, i.skipped_count, i.failed_count`,
+		id, stateCommitted, outcomeImported, outcomeSkipped, outcomeFailed,
+	).Scan(&counts.Imported, &counts.Skipped, &counts.Failed)
+	if err != nil {
+		return commitCounts{}, fmt.Errorf("importer: finish commit: %w", err)
+	}
+	return counts, nil
 }
 
 // updateMapping stores the column assignments of an import that is still ready.

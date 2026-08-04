@@ -52,6 +52,7 @@ func TestNamesListsEveryPublishedEvent(t *testing.T) {
 		event.TaskCompleted,
 		event.ContactCreated,
 		event.WhatsAppMessageReceived,
+		event.ImportCompleted,
 	}
 	for _, name := range want {
 		if !slices.Contains(names, name) {

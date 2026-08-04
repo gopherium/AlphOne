@@ -38,6 +38,7 @@ type PublicPathProvider = pluginkit.PublicPathProvider
 type Deps struct {
 	DatabaseURL string
 	Resolver    ContactResolver
+	Contacts    ContactDirectory
 	Getenv      func(string) string
 	Events      Publisher
 }
@@ -60,4 +61,18 @@ type Contact struct {
 // identity.
 type ContactResolver interface {
 	Resolve(ctx context.Context, channel Channel, identifier, displayName string) (Contact, error)
+}
+
+// Identity is an address a contact answers on, stored in its channel's canonical form.
+type Identity struct {
+	Channel     Channel
+	Identifier  string
+	DisplayName string
+}
+
+// ContactDirectory looks contacts up by identity and creates contacts owning
+// several identities at once.
+type ContactDirectory interface {
+	FindByIdentity(ctx context.Context, channel Channel, identifier string) (Contact, bool, error)
+	CreateWithIdentities(ctx context.Context, name string, identities []Identity) (Contact, bool, error)
 }

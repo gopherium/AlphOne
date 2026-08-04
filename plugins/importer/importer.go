@@ -25,8 +25,10 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin imports contacts from CSV and Excel files.
 type Plugin struct {
-	pool  *pgxpool.Pool
-	store *store
+	pool     *pgxpool.Pool
+	store    *store
+	contacts sdk.ContactDirectory
+	events   sdk.Publisher
 }
 
 // Register builds the importer [Plugin] from the host-provided deps.
@@ -35,7 +37,12 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("importer: connect database: %w", err)
 	}
-	return &Plugin{pool: pool, store: &store{pool: pool}}, nil
+	return &Plugin{
+		pool:     pool,
+		store:    &store{pool: pool},
+		contacts: deps.Contacts,
+		events:   deps.Events,
+	}, nil
 }
 
 // ID reports the plugin identifier.

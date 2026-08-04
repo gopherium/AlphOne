@@ -25,10 +25,13 @@ const (
 	TaskCompleted           Name = "task.completed"
 	ContactCreated          Name = "contact.created"
 	WhatsAppMessageReceived Name = "whatsapp.message.received"
+	ImportCompleted         Name = "import.completed"
 )
 
 // published lists the event names AlphOne publishes.
-var published = []Name{TaskCreated, TaskCompleted, ContactCreated, WhatsAppMessageReceived}
+var published = []Name{
+	TaskCreated, TaskCompleted, ContactCreated, WhatsAppMessageReceived, ImportCompleted,
+}
 
 // Event is one thing that happened, delivered to matching subscribers.
 type Event struct {

@@ -17,6 +17,7 @@ type Store interface {
 	Get(ctx context.Context, id uuid.UUID) (Contact, error)
 	LookupIdentity(ctx context.Context, channel Channel, identifier string) (Identity, error)
 	CreateContactWithIdentity(ctx context.Context, c Contact, identity Identity) error
+	CreateContactWithIdentities(ctx context.Context, c Contact, identities []Identity) error
 }
 
 // Resolver finds or creates the contact owning a channel identity.

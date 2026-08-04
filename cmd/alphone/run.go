@@ -68,9 +68,11 @@ func run(
 	reaper.Start()
 	defer reaper.Stop()
 
+	resolver := contact.NewResolver(contacts, contact.WithEvents(events))
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: settings.databaseURL,
-		Resolver:    resolverBridge{resolver: contact.NewResolver(contacts, contact.WithEvents(events))},
+		Resolver:    resolverBridge{resolver: resolver},
+		Contacts:    directoryBridge{resolver: resolver},
 		Events:      pluginPublisher{publisher: events},
 		Getenv:      getenv,
 	})
