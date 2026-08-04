@@ -127,9 +127,10 @@ Manual testing accumulates junk. To get back to the seeded demo data:
 make db-reset
 ```
 
-That drops the `core`, `auth`, and `plugin_whatsapp` schemas, then runs
-`make seed`, which re-migrates and refills. It destroys every local
-record, so never point it at anything you care about.
+That drops every schema AlphOne owns, `core`, `auth`, and one per
+plugin, then runs `make seed`, which re-migrates and refills. It
+destroys every local record, so never point it at anything you care
+about.
 
 ## Working on the n8n integration
 

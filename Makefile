@@ -42,7 +42,7 @@ db-down:
 
 db-reset: db-up
 	docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
-		-c "DROP SCHEMA IF EXISTS core, auth, plugin_whatsapp CASCADE" \
+		-c "DROP SCHEMA IF EXISTS core, auth, plugin_importer, plugin_whatsapp CASCADE" \
 		-c "DROP TABLE IF EXISTS public.goose_db_version"
 	$(MAKE) seed
 

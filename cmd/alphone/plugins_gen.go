@@ -5,13 +5,19 @@
 package main
 
 import (
+	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
 
 	"github.com/gopherium/alphone/sdk"
 )
 
 func registerPlugins(deps sdk.Deps) ([]sdk.Plugin, error) {
-	plugins := make([]sdk.Plugin, 0, 1)
+	plugins := make([]sdk.Plugin, 0, 2)
+	importerPlugin, err := importer.Register(deps)
+	if err != nil {
+		return nil, err
+	}
+	plugins = append(plugins, importerPlugin)
 	whatsappPlugin, err := whatsapp.Register(deps)
 	if err != nil {
 		return nil, err

@@ -13,8 +13,8 @@ cmd/pluginwire/       generator: plugins/*/plugin.json -> wiring files
 internal/server       http.Handler, routes, middleware
 internal/contact      contact domain package
 internal/postgres     data access (pgx + sqlc)
-internal/plugin       plugin host, supervisor, registry
-plugins/whatsapp      first plugin: Go package + frontend/ React package
+plugins/whatsapp      messaging plugin: Go package + frontend/ React package
+plugins/importer      contact import plugin: Go package
 sdk/                  public plugin contract (Go) — the only AlphOne import allowed in a plugin
 sdk/frontend/         frontend plugin contract, UI facade, and test harness (@alphone/frontend-sdk)
 frontend/             React SPA host (Vite); plugins import UI only via @alphone/frontend-sdk

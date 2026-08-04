@@ -191,6 +191,21 @@ func TestRegisterPluginsPropagatesFailure(t *testing.T) {
 	}
 }
 
+func TestRegisterPluginsPropagatesALaterPluginFailure(t *testing.T) {
+	t.Parallel()
+
+	plugins, err := registerPlugins(sdk.Deps{Getenv: testGetenv(map[string]string{
+		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number",
+	})})
+
+	if err == nil || !strings.Contains(err.Error(), "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES") {
+		t.Fatalf("registerPlugins() error = %v, want the whatsapp media cap failure", err)
+	}
+	if plugins != nil {
+		t.Errorf("registerPlugins() = %v, want nil on failure", plugins)
+	}
+}
+
 var errRegistration = errors.New("registration exploded")
 
 func TestRunReportsRegistrationFailure(t *testing.T) {
