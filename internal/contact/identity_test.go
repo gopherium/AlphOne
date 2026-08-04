@@ -114,6 +114,84 @@ func TestNewIdentity(t *testing.T) {
 	}
 }
 
+func TestNewIdentityNormalizesPerChannel(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.Must(uuid.NewV7())
+
+	tests := map[string]struct {
+		channel    contact.Channel
+		identifier string
+		want       string
+		wantErr    error
+	}{
+		"email is lowercased": {
+			channel:    "email",
+			identifier: " Maria.Perez@Example.COM ",
+			want:       "maria.perez@example.com",
+		},
+		"phone keeps digits and a leading plus": {
+			channel:    "phone",
+			identifier: "+184 467-235",
+			want:       "+184467235",
+		},
+		"phone drops separators and inner plus signs": {
+			channel:    "phone",
+			identifier: "(184) 467+235",
+			want:       "184467235",
+		},
+		"phone with no digits is empty": {
+			channel:    "phone",
+			identifier: "no digits here",
+			wantErr:    contact.ErrEmptyIdentifier,
+		},
+		"other channels stay verbatim": {
+			channel:    "whatsapp",
+			identifier: "AbC123@Lid",
+			want:       "AbC123@Lid",
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := contact.NewIdentity(ownerID, tc.channel, tc.identifier, "")
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("NewIdentity() error = %v, want %v", err, tc.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if got.Identifier != tc.want {
+				t.Errorf("NewIdentity().Identifier = %q, want %q", got.Identifier, tc.want)
+			}
+		})
+	}
+}
+
+func TestIdentityExistsErrorMatchesTheSentinelAndNamesTheOwner(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.Must(uuid.NewV7())
+	err := error(contact.IdentityExistsError{OwnerID: ownerID})
+
+	if !errors.Is(err, contact.ErrIdentityExists) {
+		t.Fatalf("errors.Is() = false, want the sentinel match")
+	}
+	if err.Error() != contact.ErrIdentityExists.Error() {
+		t.Errorf("Error() = %q, want %q", err.Error(), contact.ErrIdentityExists.Error())
+	}
+	var exists contact.IdentityExistsError
+	if !errors.As(err, &exists) || exists.OwnerID != ownerID {
+		t.Errorf("errors.As() owner = %s, want %s", exists.OwnerID, ownerID)
+	}
+	if errors.Is(err, contact.ErrIdentityNotFound) {
+		t.Error("errors.Is(ErrIdentityNotFound) = true, want false for an unrelated sentinel")
+	}
+}
+
 func TestNewIdentityReportsIDGenerationFailure(t *testing.T) {
 	ownerID := uuid.Must(uuid.NewV7())
 	uuid.SetRand(failingReader{})

@@ -26,6 +26,21 @@ var ErrIdentityNotFound = errors.New("contact: identity not found")
 // ErrIdentityExists reports that a channel and identifier pair is already claimed.
 var ErrIdentityExists = errors.New("contact: identity already exists")
 
+// IdentityExistsError reports a claimed identity and the contact owning it.
+type IdentityExistsError struct {
+	OwnerID uuid.UUID
+}
+
+// Error returns the [ErrIdentityExists] message.
+func (e IdentityExistsError) Error() string {
+	return ErrIdentityExists.Error()
+}
+
+// Is reports whether target is [ErrIdentityExists].
+func (e IdentityExistsError) Is(target error) bool {
+	return target == ErrIdentityExists
+}
+
 // Channel names the communication medium of an identity, such as
 // "whatsapp" or "email". Valid values are defined by channel plugins,
 // never enumerated by the core.
@@ -34,6 +49,35 @@ type Channel string
 // normalizeChannel trims surrounding whitespace and lowercases channel.
 func normalizeChannel(channel Channel) Channel {
 	return Channel(strings.ToLower(strings.TrimSpace(string(channel))))
+}
+
+// normalizeIdentifier applies the channel's canonical form to identifier.
+func normalizeIdentifier(channel Channel, identifier string) string {
+	switch channel {
+	case "email":
+		return strings.ToLower(identifier)
+	case "phone":
+		return normalizePhone(identifier)
+	default:
+		return identifier
+	}
+}
+
+// normalizePhone reduces a phone number to its digits and a leading plus.
+func normalizePhone(identifier string) string {
+	digits := strings.Map(keepDigit, identifier)
+	if digits == "" || !strings.HasPrefix(identifier, "+") {
+		return digits
+	}
+	return "+" + digits
+}
+
+// keepDigit returns r unchanged when it is a decimal digit, dropping the rest.
+func keepDigit(r rune) rune {
+	if r < '0' || r > '9' {
+		return -1
+	}
+	return r
 }
 
 // Identity is a per-channel address of a [Contact]. Identifier is opaque
@@ -48,8 +92,9 @@ type Identity struct {
 }
 
 // NewIdentity returns an [Identity] owned by contactID. The channel is
-// trimmed and lowercased; identifier and display name are trimmed but
-// otherwise stored verbatim.
+// trimmed and lowercased, the identifier is trimmed and then normalized
+// to the channel's canonical form, emails lowercase and phones digits
+// with a leading plus, other channels store it verbatim.
 func NewIdentity(contactID uuid.UUID, channel Channel, identifier, displayName string) (Identity, error) {
 	if contactID == uuid.Nil {
 		return Identity{}, ErrNilContactID
@@ -58,7 +103,7 @@ func NewIdentity(contactID uuid.UUID, channel Channel, identifier, displayName s
 	if normalizedChannel == "" {
 		return Identity{}, ErrEmptyChannel
 	}
-	trimmedIdentifier := strings.TrimSpace(identifier)
+	trimmedIdentifier := normalizeIdentifier(normalizedChannel, strings.TrimSpace(identifier))
 	if trimmedIdentifier == "" {
 		return Identity{}, ErrEmptyIdentifier
 	}

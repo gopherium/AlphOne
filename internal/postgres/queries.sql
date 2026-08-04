@@ -37,10 +37,23 @@ SELECT id, contact_id, channel, identifier, display_name, created_at
 FROM core.contact_identities
 WHERE channel = $1 AND identifier = $2;
 
--- name: CreateIdentity :execrows
-INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (channel, identifier) DO NOTHING;
+-- name: AddIdentity :one
+WITH inserted AS (
+    INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
+    VALUES (@id, @contact_id, @channel, @identifier, @display_name, @created_at)
+    ON CONFLICT (channel, identifier) DO NOTHING
+    RETURNING contact_id
+)
+SELECT contact_id AS owner_id, TRUE AS created FROM inserted
+UNION ALL
+SELECT contact_id, FALSE
+FROM core.contact_identities
+WHERE channel = @channel AND identifier = @identifier
+    AND NOT EXISTS (SELECT 1 FROM inserted);
+
+-- name: DeleteIdentity :execrows
+DELETE FROM core.contact_identities
+WHERE id = $1;
 
 -- name: CreateTask :exec
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,

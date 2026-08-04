@@ -9,10 +9,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres/db"
 )
+
+// foreignKeyViolation is the PostgreSQL error code for a broken reference.
+const foreignKeyViolation = "23503"
+
+// isMissingContact reports whether err is the contact foreign key violation.
+func isMissingContact(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation
+}
 
 // ListContactIdentities returns the contact's identities ordered by channel
 // and identifier.
@@ -64,6 +74,42 @@ func (s *ContactStore) LookupIdentity(
 	}, nil
 }
 
+// AddIdentity attaches an identity to its contact, reporting the current
+// owner through a [contact.IdentityExistsError] when the pair is claimed.
+func (s *ContactStore) AddIdentity(ctx context.Context, identity contact.Identity) error {
+	row, err := s.queries.AddIdentity(ctx, db.AddIdentityParams{
+		ID:          identity.ID,
+		ContactID:   identity.ContactID,
+		Channel:     string(identity.Channel),
+		Identifier:  identity.Identifier,
+		DisplayName: identity.DisplayName,
+		CreatedAt:   identity.CreatedAt,
+	})
+	if isMissingContact(err) {
+		return contact.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("postgres: add identity: %w", err)
+	}
+	if !row.Created {
+		return contact.IdentityExistsError{OwnerID: row.OwnerID}
+	}
+	return nil
+}
+
+// DeleteIdentity removes the identity with the given id, or reports
+// [contact.ErrIdentityNotFound].
+func (s *ContactStore) DeleteIdentity(ctx context.Context, id uuid.UUID) error {
+	rows, err := s.queries.DeleteIdentity(ctx, id)
+	if err != nil {
+		return fmt.Errorf("postgres: delete identity: %w", err)
+	}
+	if rows == 0 {
+		return contact.ErrIdentityNotFound
+	}
+	return nil
+}
+
 // CreateContactWithIdentity stores a new contact owning its
 // first identity. It returns [contact.ErrIdentityExists] and leaves the
 // database unchanged when the identity is already claimed.
@@ -72,19 +118,30 @@ func (s *ContactStore) CreateContactWithIdentity(
 	c contact.Contact,
 	identity contact.Identity,
 ) error {
-	err := s.createContactWithIdentity(ctx, c, identity)
+	return s.CreateContactWithIdentities(ctx, c, []contact.Identity{identity})
+}
+
+// CreateContactWithIdentities stores a new contact owning every given
+// identity. It reports the owner through a [contact.IdentityExistsError]
+// and leaves the database unchanged when any pair is already claimed.
+func (s *ContactStore) CreateContactWithIdentities(
+	ctx context.Context,
+	c contact.Contact,
+	identities []contact.Identity,
+) error {
+	err := s.createContactWithIdentities(ctx, c, identities)
 	if err != nil && !errors.Is(err, contact.ErrIdentityExists) {
-		return fmt.Errorf("postgres: create contact with identity: %w", err)
+		return fmt.Errorf("postgres: create contact with identities: %w", err)
 	}
 	return err
 }
 
-// createContactWithIdentity inserts the contact and its identity in a single transaction, returning
-// [contact.ErrIdentityExists] without committing when the identity is already claimed.
-func (s *ContactStore) createContactWithIdentity(
+// createContactWithIdentities inserts the contact and its identities in one
+// transaction, committing nothing when any identity is already claimed.
+func (s *ContactStore) createContactWithIdentities(
 	ctx context.Context,
 	c contact.Contact,
-	identity contact.Identity,
+	identities []contact.Identity,
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -101,19 +158,30 @@ func (s *ContactStore) createContactWithIdentity(
 	if err != nil {
 		return err
 	}
-	rows, err := qtx.CreateIdentity(ctx, db.CreateIdentityParams{
-		ID:          identity.ID,
-		ContactID:   identity.ContactID,
-		Channel:     string(identity.Channel),
-		Identifier:  identity.Identifier,
-		DisplayName: identity.DisplayName,
-		CreatedAt:   identity.CreatedAt,
-	})
-	if err != nil {
+	if err := attachIdentities(ctx, qtx, identities); err != nil {
 		return err
 	}
-	if rows == 0 {
-		return contact.ErrIdentityExists
-	}
 	return tx.Commit(ctx)
+}
+
+// attachIdentities inserts every identity through qtx, reporting the owner
+// of any already claimed pair.
+func attachIdentities(ctx context.Context, qtx *db.Queries, identities []contact.Identity) error {
+	for _, identity := range identities {
+		row, err := qtx.AddIdentity(ctx, db.AddIdentityParams{
+			ID:          identity.ID,
+			ContactID:   identity.ContactID,
+			Channel:     string(identity.Channel),
+			Identifier:  identity.Identifier,
+			DisplayName: identity.DisplayName,
+			CreatedAt:   identity.CreatedAt,
+		})
+		if err != nil {
+			return err
+		}
+		if !row.Created {
+			return contact.IdentityExistsError{OwnerID: row.OwnerID}
+		}
+	}
+	return nil
 }

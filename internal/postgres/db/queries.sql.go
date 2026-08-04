@@ -13,6 +13,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addIdentity = `-- name: AddIdentity :one
+WITH inserted AS (
+    INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (channel, identifier) DO NOTHING
+    RETURNING contact_id
+)
+SELECT contact_id AS owner_id, TRUE AS created FROM inserted
+UNION ALL
+SELECT contact_id, FALSE
+FROM core.contact_identities
+WHERE channel = $3 AND identifier = $4
+    AND NOT EXISTS (SELECT 1 FROM inserted)
+`
+
+type AddIdentityParams struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+type AddIdentityRow struct {
+	OwnerID uuid.UUID
+	Created bool
+}
+
+func (q *Queries) AddIdentity(ctx context.Context, arg AddIdentityParams) (AddIdentityRow, error) {
+	row := q.db.QueryRow(ctx, addIdentity,
+		arg.ID,
+		arg.ContactID,
+		arg.Channel,
+		arg.Identifier,
+		arg.DisplayName,
+		arg.CreatedAt,
+	)
+	var i AddIdentityRow
+	err := row.Scan(&i.OwnerID, &i.Created)
+	return i, err
+}
+
 const claimWebhookDeliveries = `-- name: ClaimWebhookDeliveries :many
 WITH claimed AS (
     UPDATE core.webhook_deliveries
@@ -133,36 +176,6 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) er
 	return err
 }
 
-const createIdentity = `-- name: CreateIdentity :execrows
-INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (channel, identifier) DO NOTHING
-`
-
-type CreateIdentityParams struct {
-	ID          uuid.UUID
-	ContactID   uuid.UUID
-	Channel     string
-	Identifier  string
-	DisplayName string
-	CreatedAt   time.Time
-}
-
-func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) (int64, error) {
-	result, err := q.db.Exec(ctx, createIdentity,
-		arg.ID,
-		arg.ContactID,
-		arg.Channel,
-		arg.Identifier,
-		arg.DisplayName,
-		arg.CreatedAt,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const createTask = `-- name: CreateTask :exec
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at)
@@ -258,6 +271,19 @@ func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebho
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const deleteIdentity = `-- name: DeleteIdentity :execrows
+DELETE FROM core.contact_identities
+WHERE id = $1
+`
+
+func (q *Queries) DeleteIdentity(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdentity, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteWebhookSubscription = `-- name: DeleteWebhookSubscription :execrows
