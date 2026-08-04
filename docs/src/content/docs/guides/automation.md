@@ -125,6 +125,27 @@ creates work:
 
 Tasks created with an API token record the token automatically in
 `origin_source` as `token:<name>`, which keeps automated work
-distinguishable from work a person typed. Attribution comes from the
+distinguishable from work a person typed. `origin_source` comes from the
 credential rather than the request body, so it cannot be faked and it
 needs nothing from the workflow.
+
+## Creating the same task twice
+
+Delivery is at least once, so a workflow can run twice for one event. A
+plain create would then leave two identical tasks. Send the event you are
+reacting to as `origin_event_id` and the second create answers `200` with
+the task the first one made:
+
+```json
+{
+  "title": "Follow up on the renewal",
+  "due_on": "2026-08-03",
+  "origin_event_id": "0198d000-0000-7000-8000-0000000000e1"
+}
+```
+
+Any uuid your engine can reproduce for the same piece of work will do.
+The envelope `id` of the event you received is the usual choice, because
+it names the event and is the same in every delivery and every retry. The
+key is scoped by the token's name and by the user the token acts as, so
+give your tokens distinct names.

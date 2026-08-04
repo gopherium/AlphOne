@@ -80,12 +80,28 @@ func (f *fakeTaskStore) listPage(page task.Page) ([]task.Task, error) {
 	return f.listed, nil
 }
 
-func (f *fakeTaskStore) Create(_ context.Context, t task.Task) error {
+func (f *fakeTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
 	if f.createErr != nil {
-		return f.createErr
+		return task.Task{}, false, f.createErr
+	}
+	if stored, ok := f.byOrigin(t); ok {
+		return stored, false, nil
 	}
 	f.tasks[t.ID] = t
-	return nil
+	return t, true, nil
+}
+
+// byOrigin returns the assignee's task already stored under an origin event.
+func (f *fakeTaskStore) byOrigin(t task.Task) (task.Task, bool) {
+	if t.Origin.EventID == uuid.Nil {
+		return task.Task{}, false
+	}
+	for _, stored := range f.tasks {
+		if stored.Origin == t.Origin && stored.AssigneeID == t.AssigneeID {
+			return stored, true
+		}
+	}
+	return task.Task{}, false
 }
 
 func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
@@ -249,6 +265,11 @@ func TestCreateTaskRejectsInvalidBodies(t *testing.T) {
 			body:       `{"title":"Call the supplier","due_on":"2026-07-30","contact_id":"nope"}`,
 			wantStatus: http.StatusBadRequest,
 			wantError:  "malformed contact id",
+		},
+		"malformed origin event id": {
+			body:       `{"title":"Call the supplier","due_on":"2026-07-30","origin_event_id":"nope"}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "malformed origin event id",
 		},
 		"priority out of range": {
 			body:       `{"title":"Call the supplier","due_on":"2026-07-30","priority":42}`,

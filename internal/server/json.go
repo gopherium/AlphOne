@@ -56,7 +56,7 @@ func contactStatusFor(err error) (int, bool) {
 func taskStatusFor(err error) (int, bool) {
 	switch {
 	case errors.Is(err, task.ErrEmptyTitle), errors.Is(err, task.ErrInvalidPriority),
-		errors.Is(err, task.ErrInvalidStatus):
+		errors.Is(err, task.ErrInvalidStatus), errors.Is(err, task.ErrUnattributedOrigin):
 		return http.StatusUnprocessableEntity, true
 	case errors.Is(err, task.ErrNotFound):
 		return http.StatusNotFound, true

@@ -19,7 +19,7 @@ var taskDay = time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
 func storeTask(t *testing.T, store *postgres.TaskStore, in task.Input) task.Task {
 	t.Helper()
 	created := mustTask(t, in)
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 	return created

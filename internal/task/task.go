@@ -21,6 +21,9 @@ var ErrInvalidPriority = errors.New("task: invalid priority")
 // ErrNotFound reports that no task exists for the requested ID.
 var ErrNotFound = errors.New("task: not found")
 
+// ErrUnattributedOrigin reports an origin event without an origin source.
+var ErrUnattributedOrigin = errors.New("task: origin event without a source")
+
 // Task statuses.
 const (
 	StatusOpen = "open"
@@ -76,6 +79,9 @@ func New(in Input) (Task, error) {
 	if err := ValidatePriority(in.Priority); err != nil {
 		return Task{}, err
 	}
+	if err := ValidateOrigin(in.Origin); err != nil {
+		return Task{}, err
+	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Task{}, fmt.Errorf("task: generate id: %w", err)
@@ -91,6 +97,14 @@ func New(in Input) (Task, error) {
 		Origin:     in.Origin,
 		CreatedAt:  time.Now().UTC(),
 	}, nil
+}
+
+// ValidateOrigin reports [ErrUnattributedOrigin] for an event without a source.
+func ValidateOrigin(origin Origin) error {
+	if origin.EventID != uuid.Nil && origin.Source == "" {
+		return ErrUnattributedOrigin
+	}
+	return nil
 }
 
 // ValidateTitle returns the title trimmed, or [ErrEmptyTitle] when blank.

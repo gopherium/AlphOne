@@ -43,7 +43,7 @@ func TestTaskStoreRoundTrip(t *testing.T) {
 		Origin:     task.Origin{Source: "seed", EventID: uuid.Must(uuid.NewV7())},
 	})
 
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 
@@ -66,7 +66,7 @@ func TestTaskStoreRoundTripsAnUnlinkedTask(t *testing.T) {
 		AssigneeID: uuid.Must(uuid.NewV7()),
 	})
 
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 
@@ -98,7 +98,7 @@ func TestTaskStoreClearsTheContactLinkWhenTheContactGoes(t *testing.T) {
 		AssigneeID: uuid.Must(uuid.NewV7()),
 		ContactID:  owner.ID,
 	})
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 
@@ -125,7 +125,7 @@ func TestTaskStoreUpdatesATask(t *testing.T) {
 		AssigneeID: uuid.Must(uuid.NewV7()),
 		Origin:     task.Origin{Source: "seed", EventID: uuid.Must(uuid.NewV7())},
 	})
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 	title := "Call the supplier back"
@@ -199,7 +199,7 @@ func TestTaskStoreRejectsAnUnknownContact(t *testing.T) {
 		ContactID:  uuid.Must(uuid.NewV7()),
 	})
 
-	if err := store.Create(t.Context(), created); err == nil {
+	if _, _, err := store.Create(t.Context(), created); err == nil {
 		t.Fatal("Create() error = nil, want a foreign key failure")
 	}
 }
@@ -215,7 +215,7 @@ func TestTaskStoreRoundTripsASourceOnlyOrigin(t *testing.T) {
 		Origin:     task.Origin{Source: "token:n8n production"},
 	})
 
-	if err := store.Create(t.Context(), created); err != nil {
+	if _, _, err := store.Create(t.Context(), created); err != nil {
 		t.Fatalf("Create() error = %v, want nil", err)
 	}
 
@@ -232,15 +232,176 @@ func TestTaskStoreRejectsAnEventOnlyOrigin(t *testing.T) {
 	t.Parallel()
 
 	store := postgres.NewTaskStore(newTestPool(t))
-	created := mustTask(t, task.Input{
-		Title:      "Carry an event with no source",
-		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	created := task.Task{
+		ID:         uuid.Must(uuid.NewV7()),
 		AssigneeID: uuid.Must(uuid.NewV7()),
+		Title:      "Carry an event with no source",
+		Status:     task.StatusOpen,
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
 		Origin:     task.Origin{EventID: uuid.Must(uuid.NewV7())},
+		CreatedAt:  time.Now().UTC(),
+	}
+
+	if _, _, err := store.Create(t.Context(), created); err == nil {
+		t.Fatal("Create() error = nil, want a check failure")
+	}
+}
+
+func TestTaskStoreCreateAnswersTheFirstTaskOnAReplay(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTaskStore(pool)
+	origin := task.Origin{Source: "token:n8n production", EventID: uuid.Must(uuid.NewV7())}
+	assigneeID := uuid.Must(uuid.NewV7())
+	first := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: assigneeID,
+		Origin:     origin,
+	})
+	replay := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez again",
+		DueOn:      time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+		AssigneeID: assigneeID,
+		Origin:     origin,
 	})
 
-	if err := store.Create(t.Context(), created); err == nil {
-		t.Fatal("Create() error = nil, want a check failure")
+	stored, created, err := store.Create(t.Context(), first)
+	if err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+	if !created {
+		t.Error("Create() created = false, want true for the first task")
+	}
+	if diff := cmp.Diff(first, stored, cmpopts.EquateApproxTime(time.Second)); diff != "" {
+		t.Errorf("Create() mismatch (-want +got):\n%s", diff)
+	}
+
+	replayed, created, err := store.Create(t.Context(), replay)
+	if err != nil {
+		t.Fatalf("Create() on replay error = %v, want nil", err)
+	}
+	if created {
+		t.Error("Create() created = true, want false for a replayed origin")
+	}
+	if diff := cmp.Diff(first, replayed, cmpopts.EquateApproxTime(time.Second)); diff != "" {
+		t.Errorf("Create() replay mismatch (-want +got):\n%s", diff)
+	}
+	if _, err := store.Get(t.Context(), replay.ID); !errors.Is(err, task.ErrNotFound) {
+		t.Errorf("Get() of the replayed id error = %v, want %v", err, task.ErrNotFound)
+	}
+}
+
+func TestTaskStoreCreateReportsAReplayOfTheVerySameTask(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	created := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin: task.Origin{
+			Source:  "token:n8n production",
+			EventID: uuid.Must(uuid.NewV7()),
+		},
+	})
+	if _, _, err := store.Create(t.Context(), created); err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+
+	_, isNew, err := store.Create(t.Context(), created)
+
+	if err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+	if isNew {
+		t.Error("Create() created = true, want false when the same task is stored twice")
+	}
+}
+
+func TestTaskStoreCreateKeepsOriginsOfDifferentSourcesApart(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	eventID := uuid.Must(uuid.NewV7())
+	assigneeID := uuid.Must(uuid.NewV7())
+	dueOn := time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
+	production := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      dueOn,
+		AssigneeID: assigneeID,
+		Origin:     task.Origin{Source: "token:n8n production", EventID: eventID},
+	})
+	staging := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      dueOn,
+		AssigneeID: assigneeID,
+		Origin:     task.Origin{Source: "token:n8n staging", EventID: eventID},
+	})
+
+	for _, created := range []task.Task{production, staging} {
+		_, isNew, err := store.Create(t.Context(), created)
+		if err != nil {
+			t.Fatalf("Create() error = %v, want nil", err)
+		}
+		if !isNew {
+			t.Errorf("Create() created = false, want true for source %q", created.Origin.Source)
+		}
+	}
+}
+
+func TestTaskStoreCreateKeepsAssigneesApartUnderOneTokenName(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	origin := task.Origin{Source: "token:n8n production", EventID: uuid.Must(uuid.NewV7())}
+	dueOn := time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
+	first := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      dueOn,
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin:     origin,
+	})
+	otherAssignee := mustTask(t, task.Input{
+		Title:      "Follow up with Maria Perez",
+		DueOn:      dueOn,
+		AssigneeID: uuid.Must(uuid.NewV7()),
+		Origin:     origin,
+	})
+
+	for _, created := range []task.Task{first, otherAssignee} {
+		stored, isNew, err := store.Create(t.Context(), created)
+		if err != nil {
+			t.Fatalf("Create() error = %v, want nil", err)
+		}
+		if !isNew {
+			t.Errorf("Create() created = false, want true for assignee %v", created.AssigneeID)
+		}
+		if stored.AssigneeID != created.AssigneeID {
+			t.Errorf("AssigneeID = %v, want %v, one owner must not answer for another",
+				stored.AssigneeID, created.AssigneeID)
+		}
+	}
+}
+
+func TestTaskStoreCreateDoesNotDedupeASourceOnlyOrigin(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTaskStore(newTestPool(t))
+	assigneeID := uuid.Must(uuid.NewV7())
+	dueOn := time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
+
+	for range 2 {
+		created := mustTask(t, task.Input{
+			Title:      "Follow up with Maria Perez",
+			DueOn:      dueOn,
+			AssigneeID: assigneeID,
+			Origin:     task.Origin{Source: "token:n8n production"},
+		})
+		if _, isNew, err := store.Create(t.Context(), created); err != nil || !isNew {
+			t.Fatalf("Create() = %v, %v, want a new task and no error", isNew, err)
+		}
 	}
 }
 
@@ -256,7 +417,7 @@ func TestTaskStoreReportsConnectionFailure(t *testing.T) {
 	})
 	pool.Close()
 
-	if err := store.Create(t.Context(), created); err == nil {
+	if _, _, err := store.Create(t.Context(), created); err == nil {
 		t.Error("Create() on closed pool error = nil, want error")
 	}
 	if _, err := store.Get(t.Context(), created.ID); err == nil || errors.Is(err, task.ErrNotFound) {

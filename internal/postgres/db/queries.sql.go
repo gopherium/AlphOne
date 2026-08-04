@@ -176,10 +176,15 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) er
 	return err
 }
 
-const createTask = `-- name: CreateTask :exec
+const createTask = `-- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+    $8, $9, $10)
+ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
+DO UPDATE SET id = core.tasks.id
+RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at, (xmax = 0) AS created
 `
 
 type CreateTaskParams struct {
@@ -195,8 +200,22 @@ type CreateTaskParams struct {
 	CreatedAt     time.Time
 }
 
-func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
-	_, err := q.db.Exec(ctx, createTask,
+type CreateTaskRow struct {
+	ID            uuid.UUID
+	AssigneeID    uuid.UUID
+	ContactID     pgtype.UUID
+	Title         string
+	Status        string
+	Priority      int16
+	DueOn         time.Time
+	OriginSource  pgtype.Text
+	OriginEventID pgtype.UUID
+	CreatedAt     time.Time
+	Created       bool
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateTaskRow, error) {
+	row := q.db.QueryRow(ctx, createTask,
 		arg.ID,
 		arg.AssigneeID,
 		arg.ContactID,
@@ -208,7 +227,21 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) error {
 		arg.OriginEventID,
 		arg.CreatedAt,
 	)
-	return err
+	var i CreateTaskRow
+	err := row.Scan(
+		&i.ID,
+		&i.AssigneeID,
+		&i.ContactID,
+		&i.Title,
+		&i.Status,
+		&i.Priority,
+		&i.DueOn,
+		&i.OriginSource,
+		&i.OriginEventID,
+		&i.CreatedAt,
+		&i.Created,
+	)
+	return i, err
 }
 
 const createWebhookDelivery = `-- name: CreateWebhookDelivery :exec

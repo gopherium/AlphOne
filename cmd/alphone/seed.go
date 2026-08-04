@@ -126,7 +126,7 @@ func seedTasks(
 		if err != nil {
 			return err
 		}
-		if err := store.Create(ctx, built); err != nil {
+		if _, _, err := store.Create(ctx, built); err != nil {
 			return err
 		}
 	}

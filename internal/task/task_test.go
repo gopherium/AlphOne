@@ -104,6 +104,13 @@ func TestNewValidatesItsInput(t *testing.T) {
 			input:   task.Input{Title: "Call the supplier", Priority: 10},
 			wantErr: task.ErrInvalidPriority,
 		},
+		"origin event without a source": {
+			input: task.Input{
+				Title:  "Call the supplier",
+				Origin: task.Origin{EventID: uuid.Must(uuid.NewV7())},
+			},
+			wantErr: task.ErrUnattributedOrigin,
+		},
 	}
 
 	for name, tc := range tests {

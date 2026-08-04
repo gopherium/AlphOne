@@ -24,7 +24,7 @@ import (
 
 // TaskStore provides the task persistence the HTTP API relies on.
 type TaskStore interface {
-	Create(ctx context.Context, t task.Task) error
+	Create(ctx context.Context, t task.Task) (task.Task, bool, error)
 	Get(ctx context.Context, id uuid.UUID) (task.Task, error)
 	Update(ctx context.Context, t task.Task) (task.Task, error)
 	ListForDay(
@@ -90,47 +90,75 @@ func newTaskResponse(t task.Task) taskResponse {
 // handleTaskCreate returns an http.HandlerFunc that creates a task owned by
 // the session user and responds with the created task.
 func (s *server) handleTaskCreate() http.HandlerFunc {
-	type request struct {
-		Title     string `json:"title"`
-		DueOn     string `json:"due_on"`
-		Priority  int    `json:"priority"`
-		ContactID string `json:"contact_id"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		req, err := authkit.Decode[request](w, r)
+		req, err := authkit.Decode[taskRequest](w, r)
 		if err != nil {
 			authkit.RespondError(w, http.StatusBadRequest, "malformed json")
 			return
 		}
-		dueOn, err := time.Parse(dueDateLayout, req.DueOn)
-		if err != nil {
-			authkit.RespondError(w, http.StatusBadRequest, "malformed due date")
+		input, message := taskInputFrom(req, r)
+		if message != "" {
+			authkit.RespondError(w, http.StatusBadRequest, message)
 			return
 		}
-		contactID, err := optionalContactID(req.ContactID)
-		if err != nil {
-			authkit.RespondError(w, http.StatusBadRequest, "malformed contact id")
-			return
-		}
-		created, err := task.New(task.Input{
-			Title:      req.Title,
-			DueOn:      dueOn,
-			Priority:   req.Priority,
-			AssigneeID: authkit.IdentityFromContext(r.Context()).ID,
-			ContactID:  contactID,
-			Origin:     task.Origin{Source: credentialOrigin(r.Context())},
-		})
+		created, err := task.New(input)
 		if err != nil {
 			respondDomainError(w, err)
 			return
 		}
-		if err := s.tasks.Create(r.Context(), created); err != nil {
+		stored, isNew, err := s.tasks.Create(r.Context(), created)
+		if err != nil {
 			respondDomainError(w, err)
 			return
 		}
-		s.publish(r.Context(), event.TaskCreated, taskEventData(created))
-		authkit.Respond(w, http.StatusCreated, newTaskResponse(created))
+		s.respondTaskCreation(w, r, stored, isNew)
 	}
+}
+
+// respondTaskCreation answers a stored task, publishing task.created when new.
+func (s *server) respondTaskCreation(
+	w http.ResponseWriter, r *http.Request, stored task.Task, isNew bool,
+) {
+	if !isNew {
+		authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
+		return
+	}
+	s.publish(r.Context(), event.TaskCreated, taskEventData(stored))
+	authkit.Respond(w, http.StatusCreated, newTaskResponse(stored))
+}
+
+// taskRequest is the body a task creation accepts.
+type taskRequest struct {
+	Title         string `json:"title"`
+	DueOn         string `json:"due_on"`
+	Priority      int    `json:"priority"`
+	ContactID     string `json:"contact_id"`
+	OriginEventID string `json:"origin_event_id"`
+}
+
+// taskInputFrom builds the task input a request stands for, returning the
+// message to answer a malformed field with.
+func taskInputFrom(req taskRequest, r *http.Request) (task.Input, string) {
+	dueOn, err := time.Parse(dueDateLayout, req.DueOn)
+	if err != nil {
+		return task.Input{}, "malformed due date"
+	}
+	contactID, err := optionalID(req.ContactID)
+	if err != nil {
+		return task.Input{}, "malformed contact id"
+	}
+	eventID, err := optionalID(req.OriginEventID)
+	if err != nil {
+		return task.Input{}, "malformed origin event id"
+	}
+	return task.Input{
+		Title:      req.Title,
+		DueOn:      dueOn,
+		Priority:   req.Priority,
+		AssigneeID: authkit.IdentityFromContext(r.Context()).ID,
+		ContactID:  contactID,
+		Origin:     task.Origin{Source: credentialOrigin(r.Context()), EventID: eventID},
+	}, ""
 }
 
 type taskCursor struct {
@@ -399,9 +427,9 @@ func optionalDueDate(raw *string) (*time.Time, error) {
 	return &parsed, nil
 }
 
-// optionalContactID parses a contact link, reporting an absent one as
+// optionalID parses an id a request may omit, reporting an absent one as
 // [uuid.Nil].
-func optionalContactID(raw string) (uuid.UUID, error) {
+func optionalID(raw string) (uuid.UUID, error) {
 	if raw == "" {
 		return uuid.Nil, nil
 	}

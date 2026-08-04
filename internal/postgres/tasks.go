@@ -28,9 +28,10 @@ func NewTaskStore(pool *pgxpool.Pool) *TaskStore {
 	return &TaskStore{pool: pool, queries: db.New(pool)}
 }
 
-// Create stores a new task.
-func (s *TaskStore) Create(ctx context.Context, t task.Task) error {
-	err := s.queries.CreateTask(ctx, db.CreateTaskParams{
+// Create stores a new task, returning the stored task and whether this call
+// created it rather than matching an earlier task of the same origin.
+func (s *TaskStore) Create(ctx context.Context, t task.Task) (task.Task, bool, error) {
+	row, err := s.queries.CreateTask(ctx, db.CreateTaskParams{
 		ID:            t.ID,
 		AssigneeID:    t.AssigneeID,
 		ContactID:     optionalUUID(t.ContactID),
@@ -43,9 +44,25 @@ func (s *TaskStore) Create(ctx context.Context, t task.Task) error {
 		CreatedAt:     t.CreatedAt,
 	})
 	if err != nil {
-		return fmt.Errorf("postgres: create task: %w", err)
+		return task.Task{}, false, fmt.Errorf("postgres: create task: %w", err)
 	}
-	return nil
+	return taskFromRow(createdRow(row)), row.Created, nil
+}
+
+// createdRow maps an insert result to the stored row shape.
+func createdRow(row db.CreateTaskRow) db.CoreTask {
+	return db.CoreTask{
+		ID:            row.ID,
+		AssigneeID:    row.AssigneeID,
+		ContactID:     row.ContactID,
+		Title:         row.Title,
+		Status:        row.Status,
+		Priority:      row.Priority,
+		DueOn:         row.DueOn,
+		OriginSource:  row.OriginSource,
+		OriginEventID: row.OriginEventID,
+		CreatedAt:     row.CreatedAt,
+	}
 }
 
 // Get returns the task with the given id, or [task.ErrNotFound] if none

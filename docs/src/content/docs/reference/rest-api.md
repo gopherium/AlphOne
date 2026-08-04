@@ -42,7 +42,9 @@ alphone token revoke -email you@example.com -id <token id>
 
 **Bodies.** Requests and responses are JSON. Request bodies are capped
 at 1 MiB, and anything unparseable, empty, or oversized answers `400`.
-Unknown fields in a request body are ignored rather than rejected.
+Unknown fields in a request body are ignored rather than rejected. A
+known field your credential may not set is rejected, as with
+`origin_event_id` on a session request.
 
 **Errors.** Every error carries the same envelope:
 
@@ -210,8 +212,9 @@ arithmetic in the caller's own timezone. `status` is `open` or `done`.
 `contact_id`, `origin_source`, and `origin_event_id` are always present
 and `null` when unset. `origin_source` records how a task came to exist:
 the server stamps `token:<name>` on tasks created with an API token and
-leaves it `null` for a browser session. `origin_event_id` is reserved
-for later use.
+leaves it `null` for a browser session. `origin_event_id` records the
+event an automation was reacting to, and it is what makes a repeated
+create safe. See [idempotent creation](#idempotent-creation).
 
 ### List tasks
 
@@ -236,7 +239,8 @@ contact's page is shared context.
 `GET /api/tasks/{id}` returns one task.
 
 `POST /api/tasks` creates one. `title` and `due_on` are required,
-`priority` and `contact_id` optional. The task is always assigned to the
+`priority` and `contact_id` optional, and `origin_event_id` optional for
+an API token as described below. The task is always assigned to the
 session user: an `assignee_id` in the body is ignored.
 
 ```sh
@@ -244,6 +248,36 @@ curl -b cookies.txt -H 'Content-Type: application/json' \
   -d '{"title":"Call the supplier","due_on":"2026-07-30"}' \
   https://your-domain/api/tasks
 ```
+
+### Idempotent creation
+
+Delivery to an automation is at least once, so the same event can reach
+your workflow twice. To make a repeated create harmless, send the event
+you are reacting to as `origin_event_id`:
+
+```sh
+curl -H 'Authorization: Bearer a1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Call the supplier","due_on":"2026-07-30",
+       "origin_event_id":"0198d000-0000-7000-8000-0000000000e1"}' \
+  https://your-domain/api/tasks
+```
+
+The first call answers `201` with the new task. Any later call carrying
+the same `origin_event_id` answers `200` with the task already created,
+and creates nothing. The rest of the repeat's body is ignored, so use
+`PATCH` to change a task you already created.
+
+Any uuid your workflow can reproduce for the same piece of work will do.
+The envelope `id` of a [webhook](/reference/webhooks/) event is the usual
+choice, because it names the event and stays the same across every
+delivery and every retry. Do not use the `X-AlphOne-Delivery` header,
+which is a per attempt id and differs for every subscription.
+
+Only an API token may send `origin_event_id`, since the key is scoped by
+the token's name and by the user the token acts as. A browser session
+sending it answers `422`. Two tokens of one user sharing a name share one
+key space, so give tokens distinct names.
 
 `PATCH /api/tasks/{id}` updates `title`, `due_on`, `status`, or
 `priority`. Completing a task is one field:

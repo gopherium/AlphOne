@@ -55,10 +55,15 @@ WHERE channel = @channel AND identifier = @identifier
 DELETE FROM core.contact_identities
 WHERE id = $1 AND contact_id = $2;
 
--- name: CreateTask :exec
+-- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+VALUES (@id, @assignee_id, @contact_id, @title, @status, @priority, @due_on,
+    @origin_source, @origin_event_id, @created_at)
+ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
+DO UPDATE SET id = core.tasks.id
+RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
+    origin_source, origin_event_id, created_at, (xmax = 0) AS created;
 
 -- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
