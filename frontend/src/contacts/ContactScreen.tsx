@@ -5,6 +5,7 @@ import {
 	ErrorNotice,
 	InputControl,
 	PageScreen,
+	SelectControl,
 	Text,
 	validationMessage,
 } from '@alphone/frontend-sdk'
@@ -12,8 +13,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
-import { fetchContact, renameContact } from './api'
+import { addIdentity, fetchContact, removeIdentity, renameContact } from './api'
 import type { ContactDetail } from './api'
+import { channelItemOf, channelItems } from './channel'
 import { formatCreated } from './format'
 
 /**
@@ -39,6 +41,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 				Identities
 			</Text>
 			<IdentityList contact={detail.data} />
+			<AddIdentityForm contact={detail.data} />
 			<ContactTasks contactId={detail.data.id} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(detail.data.created_at)}`}
@@ -52,21 +55,96 @@ export function ContactScreen({ contactId }: { contactId: string }) {
  * @returns The identity list.
  */
 function IdentityList({ contact }: { contact: ContactDetail }) {
+	const queryClient = useQueryClient()
+	const remove = useMutation({
+		mutationFn: (identityId: string) => removeIdentity(contact.id, identityId),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contacts'] }),
+	})
+
 	if (contact.identities.length === 0) {
 		return <Text role="status">No identities yet.</Text>
 	}
 	return (
-		<ul className="alphone-contacts__identities">
-			{contact.identities.map((identity) => (
-				<li key={`${identity.channel}-${identity.identifier}`}>
-					<Text>
-						{identity.display_name === ''
-							? `${identity.channel}: ${identity.identifier}`
-							: `${identity.channel}: ${identity.identifier} (${identity.display_name})`}
-					</Text>
-				</li>
-			))}
-		</ul>
+		<>
+			<ul className="alphone-contacts__identities">
+				{contact.identities.map((identity) => (
+					<li key={identity.id}>
+						<Text>
+							{identity.display_name === ''
+								? `${identity.channel}: ${identity.identifier}`
+								: `${identity.channel}: ${identity.identifier} (${identity.display_name})`}
+						</Text>
+						<Button
+							variant="minimal"
+							size="small"
+							aria-label={`Remove ${identity.identifier}`}
+							disabled={remove.isPending}
+							onClick={() => remove.mutate(identity.id)}
+						>
+							Remove
+						</Button>
+					</li>
+				))}
+			</ul>
+			{remove.isError ? (
+				<ErrorNotice>The identity could not be removed.</ErrorNotice>
+			) : null}
+		</>
+	)
+}
+
+/**
+ * Renders the form that attaches a new identity to the contact.
+ * @returns The add identity form.
+ */
+function AddIdentityForm({ contact }: { contact: ContactDetail }) {
+	const queryClient = useQueryClient()
+	const [channel, setChannel] = useState(channelItems[0])
+	const [identifier, setIdentifier] = useState('')
+	const [label, setLabel] = useState('')
+	const add = useMutation({
+		mutationFn: () =>
+			addIdentity(contact.id, { channel: channel.value, identifier, displayName: label }),
+		onSuccess: () => {
+			setIdentifier('')
+			setLabel('')
+			return queryClient.invalidateQueries({ queryKey: ['contacts'] })
+		},
+	})
+
+	return (
+		<form
+			className="godmin-form"
+			onSubmit={(event) => {
+				event.preventDefault()
+				add.mutate()
+			}}
+		>
+			<SelectControl
+				label="Channel"
+				items={channelItems}
+				value={channel}
+				onValueChange={(item) => setChannel(channelItemOf(item))}
+			/>
+			<InputControl
+				label="Value"
+				value={identifier}
+				onChange={(event) => setIdentifier(event.target.value)}
+			/>
+			<InputControl
+				label="Label"
+				value={label}
+				onChange={(event) => setLabel(event.target.value)}
+			/>
+			<Button type="submit" disabled={identifier.trim() === '' || add.isPending}>
+				Add identity
+			</Button>
+			{add.isError ? (
+				<ErrorNotice>
+					{validationMessage(add.error, 'The identity could not be added.')}
+				</ErrorNotice>
+			) : null}
+		</form>
 	)
 }
 

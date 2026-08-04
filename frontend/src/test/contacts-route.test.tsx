@@ -10,6 +10,8 @@ const anaID = '0198c000-0000-7000-8000-000000000001'
 const brunoID = '0198c000-0000-7000-8000-000000000002'
 const carlaID = '0198c000-0000-7000-8000-000000000003'
 const adaID = '0198c000-0000-7000-8000-000000000004'
+const identityID1 = '0198c000-0000-7000-8000-000000000011'
+const identityID2 = '0198c000-0000-7000-8000-000000000012'
 
 function contactRow(id: string, name: string) {
 	return { id, name, created_at: '2026-07-06T10:00:00Z' }
@@ -49,8 +51,8 @@ beforeEach(() => {
 			HttpResponse.json({
 				...contactRow(String(params.id), 'Ana García'),
 				identities: [
-					{ channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
-					{ channel: 'whatsapp', identifier: '184467236', display_name: '' },
+					{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
+					{ id: identityID2, channel: 'whatsapp', identifier: '184467236', display_name: '' },
 				],
 			}),
 		),
@@ -224,6 +226,247 @@ test('shows the contact detail with its identities', async () => {
 	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
 	expect(screen.getByText('whatsapp: 184467236')).toBeInTheDocument()
 	expect(screen.getByText('Created Jul 6, 2026')).toBeInTheDocument()
+})
+
+test('adds an email identity to the contact', async () => {
+	const identities = [
+		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
+	]
+	let posted: Record<string, unknown> | null = null
+	server.use(
+		http.get('/api/contacts/:id', ({ params }) =>
+			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		),
+		http.post('/api/contacts/:id/identities', async ({ request }) => {
+			posted = (await request.json()) as Record<string, unknown>
+			const created = {
+				id: identityID2,
+				channel: 'email',
+				identifier: 'maria@example.com',
+				display_name: 'Work',
+			}
+			identities.push(created)
+			return HttpResponse.json(created, { status: 201 })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), ' Maria@Example.COM ')
+	await userEvent.type(screen.getByLabelText('Label'), 'Work')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByText('email: maria@example.com (Work)')).toBeInTheDocument()
+	expect(posted).toEqual({
+		channel: 'email',
+		identifier: ' Maria@Example.COM ',
+		display_name: 'Work',
+	})
+	expect(screen.getByLabelText('Value')).toHaveValue('')
+})
+
+test('adds a phone identity through the channel select', async () => {
+	const identities: Array<Record<string, string>> = []
+	let posted: Record<string, unknown> | null = null
+	server.use(
+		http.get('/api/contacts/:id', ({ params }) =>
+			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		),
+		http.post('/api/contacts/:id/identities', async ({ request }) => {
+			posted = (await request.json()) as Record<string, unknown>
+			const created = { id: identityID2, channel: 'phone', identifier: '+184467235', display_name: '' }
+			identities.push(created)
+			return HttpResponse.json(created, { status: 201 })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByLabelText('Channel'))
+	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
+	await userEvent.type(screen.getByLabelText('Value'), '+184 467 235')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByText('phone: +184467235')).toBeInTheDocument()
+	expect(posted).toMatchObject({ channel: 'phone', identifier: '+184 467 235' })
+})
+
+test('names the owner when the identity belongs to someone else', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json(
+				{
+					error: 'contact: identity already exists',
+					owner: contactRow(brunoID, 'Bruno'),
+				},
+				{ status: 409 },
+			),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('Already on contact Bruno.')
+})
+
+test('shows the backend message when the identity is invalid', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json({ error: 'contact: empty identifier' }, { status: 422 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'abc')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('contact: empty identifier')
+})
+
+test('falls back to the backend message when the conflict names no owner', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json({ error: 'contact: identity already exists' }, { status: 409 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'contact: identity already exists',
+	)
+})
+
+test('reports a generic conflict when the response body is unreadable', async () => {
+	server.use(
+		http.post(
+			'/api/contacts/:id/identities',
+			() => new HttpResponse('not json', { status: 409 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'the identity already exists',
+	)
+})
+
+test('reports a generic conflict when the body carries no message', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json({ oops: true }, { status: 409 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'the identity already exists',
+	)
+})
+
+test('reports a generic message when the identity add fails otherwise', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'The identity could not be added.',
+	)
+})
+
+test('drops the session when the identity add is unauthorized', async () => {
+	server.use(
+		http.post('/api/contacts/:id/identities', () =>
+			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		),
+	)
+	const client = renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
+})
+
+test('drops the session when the identity removal is unauthorized', async () => {
+	server.use(
+		http.delete('/api/contacts/:id/identities/:identityId', () =>
+			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		),
+	)
+	const client = renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+
+	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
+})
+
+test('removes an identity', async () => {
+	let identities = [
+		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
+		{ id: identityID2, channel: 'email', identifier: 'maria@example.com', display_name: '' },
+	]
+	let deletedPath = ''
+	server.use(
+		http.get('/api/contacts/:id', ({ params }) =>
+			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		),
+		http.delete('/api/contacts/:id/identities/:identityId', ({ params, request }) => {
+			deletedPath = new URL(request.url).pathname
+			identities = identities.filter((identity) => identity.id !== params.identityId)
+			return new HttpResponse(null, { status: 204 })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove maria@example.com' }))
+
+	await waitFor(() =>
+		expect(screen.queryByText('email: maria@example.com')).not.toBeInTheDocument(),
+	)
+	expect(deletedPath).toBe(`/api/contacts/${anaID}/identities/${identityID2}`)
+	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
+})
+
+test('reports a failed removal', async () => {
+	server.use(
+		http.delete('/api/contacts/:id/identities/:identityId', () =>
+			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'The identity could not be removed.',
+	)
 })
 
 test('renames a contact', async () => {

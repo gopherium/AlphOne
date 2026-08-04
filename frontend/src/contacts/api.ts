@@ -12,6 +12,7 @@ const contactSchema = z.object({
 export type Contact = z.infer<typeof contactSchema>
 
 const identitySchema = z.object({
+	id: z.string(),
 	channel: z.string(),
 	identifier: z.string(),
 	display_name: z.string(),
@@ -33,6 +34,32 @@ export type ContactPage = z.infer<typeof contactPageSchema>
 import { ValidationError } from '@alphone/frontend-sdk'
 
 const errorSchema = z.object({ error: z.string() })
+
+const conflictSchema = z.object({
+	error: z.string(),
+	owner: contactSchema.optional(),
+})
+
+/**
+ * Builds the error a conflicting identity add should throw.
+ * @param response - The 409 response.
+ * @returns The error naming the owner when the body carries one.
+ */
+async function conflictError(response: Response): Promise<ValidationError> {
+	const fallback = new ValidationError('the identity already exists')
+	try {
+		const parsed = conflictSchema.safeParse(await response.json())
+		if (!parsed.success) {
+			return fallback
+		}
+		if (parsed.data.owner === undefined) {
+			return new ValidationError(parsed.data.error)
+		}
+		return new ValidationError(`Already on contact ${parsed.data.owner.name}.`)
+	} catch {
+		return fallback
+	}
+}
 
 /**
  * Reads the backend's error message from a response, with a fallback.
@@ -136,4 +163,53 @@ export async function renameContact(id: string, name: string): Promise<Contact> 
 		throw new Error(`renaming contact failed with status ${response.status}`)
 	}
 	return contactSchema.parse(await response.json())
+}
+
+/**
+ * Attaches an identity to a contact.
+ * @param contactId - The contact identifier.
+ * @param identity - The channel, identifier, and display name to attach.
+ */
+export async function addIdentity(
+	contactId: string,
+	identity: { channel: string; identifier: string; displayName: string },
+): Promise<void> {
+	const response = await fetch(`/api/contacts/${contactId}/identities`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			channel: identity.channel,
+			identifier: identity.identifier,
+			display_name: identity.displayName,
+		}),
+	})
+	if (response.status === 401) {
+		throw new UnauthorizedError('session expired')
+	}
+	if (response.status === 409) {
+		throw await conflictError(response)
+	}
+	if (response.status === 422) {
+		throw new ValidationError(await errorMessage(response, 'invalid identity details'))
+	}
+	if (!response.ok) {
+		throw new Error(`adding the identity failed with status ${response.status}`)
+	}
+}
+
+/**
+ * Removes an identity from a contact.
+ * @param contactId - The contact identifier.
+ * @param identityId - The identity identifier.
+ */
+export async function removeIdentity(contactId: string, identityId: string): Promise<void> {
+	const response = await fetch(`/api/contacts/${contactId}/identities/${identityId}`, {
+		method: 'DELETE',
+	})
+	if (response.status === 401) {
+		throw new UnauthorizedError('session expired')
+	}
+	if (!response.ok) {
+		throw new Error(`removing the identity failed with status ${response.status}`)
+	}
 }
