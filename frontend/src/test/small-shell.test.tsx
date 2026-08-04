@@ -5,7 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 
-import { handlers } from '../../../plugins/whatsapp/frontend/handlers'
+import { handlers } from '@alphone/plugin-whatsapp/handlers'
 import { renderAt } from './render'
 
 const realMatchMedia = window.matchMedia

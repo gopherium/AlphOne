@@ -35,7 +35,7 @@ export default defineConfig({
 				'../sdk/*/**/*.{ts,tsx}',
 				'../plugins/*/frontend/**/*.{ts,tsx}',
 			],
-			exclude: ['src/main.tsx', '**/test/**', '**/node_modules/**'],
+			exclude: ['src/main.tsx', '**/test/**', '**/node_modules/**', '**/*.d.ts'],
 			allowExternal: true,
 			reporter: ['text', 'lcov'],
 			thresholds: {

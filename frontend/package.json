@@ -14,6 +14,7 @@
 	},
 	"dependencies": {
 		"@alphone/frontend-sdk": "workspace:*",
+		"@alphone/plugin-importer": "workspace:*",
 		"@alphone/plugin-whatsapp": "workspace:*",
 		"@gopherium/godmin": "0.2.1",
 		"@gopherium/react-auth": "^0.1.2",

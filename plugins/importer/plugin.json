@@ -1,5 +1,6 @@
 {
 	"id": "importer",
 	"name": "Importer",
-	"backend": "github.com/gopherium/alphone/plugins/importer"
+	"backend": "github.com/gopherium/alphone/plugins/importer",
+	"frontend": "@alphone/plugin-importer"
 }

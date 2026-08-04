@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
-import { cleanup, screen, within } from '@testing-library/react'
+import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers } from '../../../plugins/whatsapp/frontend/handlers'
+import { importID, handlers as importerHandlers } from '@alphone/plugin-importer/handlers'
+import { handlers } from '@alphone/plugin-whatsapp/handlers'
 import { createAppRouter } from '../router'
 import { renderAt } from './render'
 
@@ -28,11 +29,14 @@ const paths: Record<string, string> = {
 	'/whatsapp': '/whatsapp',
 	'/whatsapp/': '/whatsapp',
 	'/whatsapp/conversations/$conversationId': `/whatsapp/conversations/${conversationID}`,
+	'/import': '/import',
+	'/import/$importId': `/import/${importID}`,
 }
 
 beforeEach(() => {
 	server.use(
 		...handlers,
+		...importerHandlers,
 		http.get('/api/tasks/:id', () =>
 			HttpResponse.json({
 				id: taskID,
@@ -66,19 +70,26 @@ test('every leaf route is covered by the outline invariant', () => {
 	expect(leaves).toEqual(Object.keys(paths).sort())
 })
 
+/**
+ * Returns the first level headings the canvas is showing.
+ * @returns The heading texts.
+ */
+function firstLevelHeadings(): (string | null)[] {
+	return within(screen.getByRole('main'))
+		.queryAllByRole('heading')
+		.filter((heading) => heading.tagName === 'H1')
+		.map((heading) => heading.textContent)
+}
+
 test.each(Object.entries(paths))(
 	'route %s renders exactly one first level heading',
 	async (_id, path) => {
 		renderAt(path)
 		await screen.findByRole('main')
+		await waitFor(() => expect(firstLevelHeadings()).toHaveLength(1))
 		await new Promise((resolve) => setTimeout(resolve, 400))
 
-		const headings = within(screen.getByRole('main'))
-			.queryAllByRole('heading')
-			.filter((heading) => heading.tagName === 'H1')
-			.map((heading) => heading.textContent)
-
-		expect(headings).toHaveLength(1)
+		expect(firstLevelHeadings()).toHaveLength(1)
 		cleanup()
 	},
 )

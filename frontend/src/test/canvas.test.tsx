@@ -4,7 +4,7 @@ import { server } from '@alphone/frontend-sdk/testing'
 import { screen } from '@testing-library/react'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers } from '../../../plugins/whatsapp/frontend/handlers'
+import { handlers } from '@alphone/plugin-whatsapp/handlers'
 import { renderAt } from './render'
 
 beforeEach(() => server.use(...handlers))
