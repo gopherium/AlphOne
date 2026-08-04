@@ -1,4 +1,4 @@
-.PHONY: peers test test-race cover cover-html lint fmt generate outdated db-up db-down db-reset \
+.PHONY: peers test test-race cover cover-html lint vuln fmt generate outdated db-up db-down db-reset \
 	seed dev demo n8n n8n-down n8n-node \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
@@ -17,6 +17,9 @@ lint:
 	golangci-lint run
 	go run ./cmd/doclint
 
+vuln:
+	GOWORK=off go tool govulncheck ./...
+
 fmt:
 	golangci-lint fmt
 
@@ -29,6 +32,10 @@ outdated:
 	@go list -m -u -f '{{if and (not .Indirect) .Update}}  {{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' all 2>/dev/null | grep . || echo "  (all current)"
 	@echo "=== npm packages with updates (workspace) ==="
 	@pnpm -r outdated 2>/dev/null || true
+	@echo "=== go tool dependencies (versioned in go.mod) ==="
+	@go list -m -u -f '{{if .Update}}  {{.Path}}: {{.Version}} -> {{.Update.Version}}{{else}}  {{.Path}}: {{.Version}} (current){{end}}' \
+		$$(sed -n '/^tool (/,/^)/p' go.mod | grep -v '^tool\|^)' | tr -d '\t ' \
+			| xargs -r -n1 go list -f '{{.Module.Path}}' 2>/dev/null | sort -u) 2>/dev/null || true
 	@echo "=== pinned tools to review by hand ==="
 	@echo "  go directive / installed:  $$(sed -n 's/^go //p' go.mod) / $$(go env GOVERSION)"
 	@echo "  also: golangci-lint-action + setup-go + pnpm packageManager,"
