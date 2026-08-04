@@ -36,7 +36,13 @@ type importResponse struct {
 // Routes returns the plugin's HTTP endpoints, served relative to its namespace.
 func (p *Plugin) Routes() http.Handler {
 	router := chi.NewRouter()
+	router.Get("/fields", p.handleFields())
 	router.Post("/imports", p.handleUpload())
+	router.Get("/imports", p.handleImportList())
+	router.Get("/imports/{id}", p.handleImportGet())
+	router.Put("/imports/{id}/mapping", p.handleMappingPut())
+	router.Get("/imports/{id}/rows", p.handleRowList())
+	router.Get("/imports/{id}/contacts", p.handleImportContacts())
 	return router
 }
 
