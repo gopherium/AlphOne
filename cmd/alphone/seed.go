@@ -15,11 +15,11 @@ import (
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/task"
-	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -58,7 +58,7 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), ada.ID); err != nil {
 		return err
 	}
-	if err := seedWhatsApp(ctx, databaseURL, getenv, resolver); err != nil {
+	if err := seedPlugins(ctx, databaseURL, getenv, resolver); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded demo data")
@@ -165,23 +165,25 @@ func buildDemoTask(
 }
 
 // seedWhatsApp registers the WhatsApp plugin and stores its demo conversations.
-func seedWhatsApp(
+func seedPlugins(
 	ctx context.Context,
 	databaseURL string,
 	getenv func(string) string,
 	resolver *contact.Resolver,
 ) error {
-	p, err := whatsapp.Register(sdk.Deps{
+	registered, err := registerPlugins(sdk.Deps{
 		DatabaseURL: databaseURL,
 		Resolver:    resolverBridge{resolver: resolver},
+		Contacts:    directoryBridge{resolver: resolver},
 		Getenv:      getenv,
 	})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = p.Stop(context.WithoutCancel(ctx)) }()
-	if err := p.Migrate(ctx); err != nil {
+	host := pluginkit.NewHost(registered...)
+	defer func() { _ = host.Stop(context.WithoutCancel(ctx)) }()
+	if err := host.Start(ctx); err != nil {
 		return err
 	}
-	return p.Seed(ctx)
+	return host.Seed(ctx)
 }

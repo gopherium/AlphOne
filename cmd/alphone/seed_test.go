@@ -90,6 +90,29 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	}
 }
 
+func TestSeedMigratesEveryPluginSchema(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	pool := testPool(t, databaseURL)
+	for _, table := range []string{"plugin_whatsapp.conversations", "plugin_importer.imports"} {
+		var exists bool
+		if err := pool.QueryRow(t.Context(),
+			"SELECT to_regclass($1) IS NOT NULL", table).Scan(&exists); err != nil {
+			t.Fatalf("looking for %s: %v", table, err)
+		}
+		if !exists {
+			t.Errorf("%s is missing, want the host to migrate every plugin", table)
+		}
+	}
+}
+
 func TestSeedStoresADayOfTasks(t *testing.T) {
 	t.Parallel()
 
@@ -349,27 +372,27 @@ func TestSeedReportsAdminStorageFailure(t *testing.T) {
 	}
 }
 
-func TestSeedWhatsAppReportsMigrationFailure(t *testing.T) {
+func TestSeedPluginsReportsMigrationFailure(t *testing.T) {
 	t.Parallel()
 
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedWhatsApp(t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver)
+	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver)
 
 	if err == nil {
-		t.Fatal("seedWhatsApp() error = nil, want a migration failure")
+		t.Fatal("seedPlugins() error = nil, want a migration failure")
 	}
 }
 
-func TestSeedWhatsAppReportsSeedFailure(t *testing.T) {
+func TestSeedPluginsReportsSeedFailure(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedWhatsApp(t.Context(), databaseURL, testGetenv(nil), resolver)
+	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver)
 
 	if err == nil {
-		t.Fatal("seedWhatsApp() error = nil, want a seed failure")
+		t.Fatal("seedPlugins() error = nil, want a seed failure")
 	}
 }

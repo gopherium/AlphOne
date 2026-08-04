@@ -34,8 +34,12 @@ github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/google/cel-go v0.28.0 h1:KjSWstCpz/MN5t4a8gnGJNIYUsJRpdi/r97xWDphIQc=
 github.com/google/cel-go v0.28.0/go.mod h1:X0bD6iVNR8pkROSOoHVdgTkzmRcosof7WQqCD6wcMc8=
+github.com/google/go-cmdtest v0.4.1-0.20220921163831-55ab3332a786 h1:rcv+Ippz6RAtvaGgKxc+8FQIpxHgsF+HBzPyYL2cyVU=
+github.com/google/go-cmdtest v0.4.1-0.20220921163831-55ab3332a786/go.mod h1:apVn/GCasLZUVpAJ6oWAuyP7Ne7CEsQbTnc0plM3m+o=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA=
+github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/gopherium/gouncer v0.1.0 h1:R5y0kmal9+dLmG+tv3PLF2Ya8LFmWzQqUsiOl7bVERU=
@@ -46,8 +50,8 @@ github.com/gopherium/gouncer/authkit/postgres v0.3.0 h1:4PURjXtqCLj819AiHljt1E8q
 github.com/gopherium/gouncer/authkit/postgres v0.3.0/go.mod h1:c2pqWGX6L0hjIjq7+1NrGzXI7yE/AP07TYU9QcQlrmY=
 github.com/gopherium/gouncer/authkit/ratelimit v0.1.0 h1:dIx1G4kBMxMJXvnZwJb6iTIRFbZ0+q2tpzWhJYmvCBI=
 github.com/gopherium/gouncer/authkit/ratelimit v0.1.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
-github.com/gopherium/pluginkit v0.2.0 h1:sb4o77UJGzS3Xtca+tVlR/c4b9Tklqiee3InG2H14gg=
-github.com/gopherium/pluginkit v0.2.0/go.mod h1:7/KK/KzRVYkF0cLXJ8uBEJzMJwmf/xcePjrx/zRl0Qk=
+github.com/gopherium/pluginkit v0.3.0 h1:PCcD6fBacedtqv+MDhVXTlXglFyd+ckMynPckLvNR8E=
+github.com/gopherium/pluginkit v0.3.0/go.mod h1:7/KK/KzRVYkF0cLXJ8uBEJzMJwmf/xcePjrx/zRl0Qk=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
@@ -212,6 +216,10 @@ golang.org/x/tools v0.0.0-20191029041327-9cc4af7d6b2c/go.mod h1:b+2E5dAYhXwXZwtn
 golang.org/x/tools v0.0.0-20191108193012-7d206e10da11/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.48.0 h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=
 golang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=
+golang.org/x/tools/go/expect v0.1.1-deprecated h1:jpBZDwmgPhXsKZC6WhL20P4b/wmnpsEAGHaNy0n/rJM=
+golang.org/x/tools/go/expect v0.1.1-deprecated/go.mod h1:eihoPOH+FgIqa3FpoTwguz/bVUSGBlGQU67vpBeOrBY=
+golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated h1:1h2MnaIAIXISqTFKdENegdpAgUXz6NrPEsbIeWaBRvM=
+golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated/go.mod h1:RVAQXBGNv1ib0J382/DPCRS/BPnsGebyM1Gj5VSDpG8=
 golang.org/x/vuln v1.6.0 h1:FeMO9Rm/HwyduOztbvKcOw+zvDEPr4I4aQNSfevFcKY=
 golang.org/x/vuln v1.6.0/go.mod h1:bWlG2493/sjR7ksvicBgMrznH3eYQEyK8ifUYBrqUbg=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
