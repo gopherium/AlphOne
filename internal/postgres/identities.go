@@ -97,10 +97,13 @@ func (s *ContactStore) AddIdentity(ctx context.Context, identity contact.Identit
 	return nil
 }
 
-// DeleteIdentity removes the identity with the given id, or reports
-// [contact.ErrIdentityNotFound].
-func (s *ContactStore) DeleteIdentity(ctx context.Context, id uuid.UUID) error {
-	rows, err := s.queries.DeleteIdentity(ctx, id)
+// DeleteIdentity removes the contact's identity with the given id, or
+// reports [contact.ErrIdentityNotFound].
+func (s *ContactStore) DeleteIdentity(ctx context.Context, contactID, identityID uuid.UUID) error {
+	rows, err := s.queries.DeleteIdentity(ctx, db.DeleteIdentityParams{
+		ID:        identityID,
+		ContactID: contactID,
+	})
 	if err != nil {
 		return fmt.Errorf("postgres: delete identity: %w", err)
 	}

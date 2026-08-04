@@ -275,11 +275,16 @@ func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebho
 
 const deleteIdentity = `-- name: DeleteIdentity :execrows
 DELETE FROM core.contact_identities
-WHERE id = $1
+WHERE id = $1 AND contact_id = $2
 `
 
-func (q *Queries) DeleteIdentity(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteIdentity, id)
+type DeleteIdentityParams struct {
+	ID        uuid.UUID
+	ContactID uuid.UUID
+}
+
+func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.ContactID)
 	if err != nil {
 		return 0, err
 	}

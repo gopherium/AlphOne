@@ -29,15 +29,16 @@ var (
 )
 
 type fakeContactStore struct {
-	contacts      map[uuid.UUID]contact.Contact
-	identities    map[uuid.UUID][]contact.Identity
-	createErr     error
-	getErr        error
-	listErr       error
-	identitiesErr error
-	renameErr     error
-	lastQuery     string
-	lastDigits    string
+	contacts       map[uuid.UUID]contact.Contact
+	identities     map[uuid.UUID][]contact.Identity
+	createErr      error
+	getErr         error
+	listErr        error
+	identitiesErr  error
+	renameErr      error
+	addIdentityErr error
+	lastQuery      string
+	lastDigits     string
 }
 
 func newFakeContactStore() *fakeContactStore {
@@ -54,6 +55,79 @@ func (f *fakeContactStore) ListContactIdentities(
 		return nil, f.identitiesErr
 	}
 	return f.identities[contactID], nil
+}
+
+func (f *fakeContactStore) identityOwner(channel contact.Channel, identifier string) (uuid.UUID, bool) {
+	for ownerID, identities := range f.identities {
+		for _, identity := range identities {
+			if identity.Channel == channel && identity.Identifier == identifier {
+				return ownerID, true
+			}
+		}
+	}
+	return uuid.Nil, false
+}
+
+func (f *fakeContactStore) AddIdentity(_ context.Context, identity contact.Identity) error {
+	if f.addIdentityErr != nil {
+		return f.addIdentityErr
+	}
+	if _, ok := f.contacts[identity.ContactID]; !ok {
+		return contact.ErrNotFound
+	}
+	if ownerID, claimed := f.identityOwner(identity.Channel, identity.Identifier); claimed {
+		return contact.IdentityExistsError{OwnerID: ownerID}
+	}
+	f.identities[identity.ContactID] = append(f.identities[identity.ContactID], identity)
+	return nil
+}
+
+func (f *fakeContactStore) DeleteIdentity(_ context.Context, contactID, identityID uuid.UUID) error {
+	for i, identity := range f.identities[contactID] {
+		if identity.ID == identityID {
+			f.identities[contactID] = append(
+				f.identities[contactID][:i], f.identities[contactID][i+1:]...,
+			)
+			return nil
+		}
+	}
+	return contact.ErrIdentityNotFound
+}
+
+func (f *fakeContactStore) CreateContactWithIdentities(
+	_ context.Context, c contact.Contact, identities []contact.Identity,
+) error {
+	for _, identity := range identities {
+		if ownerID, claimed := f.identityOwner(identity.Channel, identity.Identifier); claimed {
+			return contact.IdentityExistsError{OwnerID: ownerID}
+		}
+	}
+	f.contacts[c.ID] = c
+	f.identities[c.ID] = identities
+	return nil
+}
+
+func (f *fakeContactStore) byName(t *testing.T, name string) contact.Contact {
+	t.Helper()
+	for _, c := range f.contacts {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("no contact named %q in the fake store", name)
+	return contact.Contact{}
+}
+
+func seedIdentity(
+	t *testing.T, store *fakeContactStore, contactID uuid.UUID, channel contact.Channel, identifier string,
+) contact.Identity {
+	t.Helper()
+	identity, err := contact.NewIdentity(contactID, channel, identifier, "")
+	if err != nil {
+		t.Fatalf("NewIdentity() error = %v, want nil", err)
+	}
+	store.identities[contactID] = append(store.identities[contactID], identity)
+	return identity
 }
 
 func (f *fakeContactStore) RenameContact(
@@ -212,9 +286,15 @@ func TestListContactsEndpointRoundTripsUnicodeCursors(t *testing.T) {
 }
 
 type identityBody struct {
-	Channel     string `json:"channel"`
-	Identifier  string `json:"identifier"`
-	DisplayName string `json:"display_name"`
+	ID          uuid.UUID `json:"id"`
+	Channel     string    `json:"channel"`
+	Identifier  string    `json:"identifier"`
+	DisplayName string    `json:"display_name"`
+}
+
+type identityConflictBody struct {
+	Error string       `json:"error"`
+	Owner *contactBody `json:"owner"`
 }
 
 type contactDetailBody struct {
@@ -253,6 +333,297 @@ func TestGetContactIncludesIdentities(t *testing.T) {
 	got := detail.Identities[0]
 	if got.Channel != "whatsapp" || got.Identifier != "184467235" || got.DisplayName != "Ada L" {
 		t.Errorf("identity = %+v, want the seeded whatsapp identity", got)
+	}
+	if got.ID != identity.ID {
+		t.Errorf("identity id = %s, want %s", got.ID, identity.ID)
+	}
+}
+
+func TestContactIdentityCreateEndpoint(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez")
+	maria := store.byName(t, "María Pérez")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts/"+maria.ID.String()+"/identities",
+		`{"channel": " Email ", "identifier": " Maria.Perez@Example.COM ", "display_name": " Work "}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusCreated, recorder.Body)
+	}
+	got := decodeBody[identityBody](t, recorder)
+	if got.ID == uuid.Nil {
+		t.Error("identity id = nil, want a generated id")
+	}
+	if got.Channel != "email" || got.Identifier != "maria.perez@example.com" || got.DisplayName != "Work" {
+		t.Errorf("identity = %+v, want the normalized email identity", got)
+	}
+	if stored := store.identities[maria.ID]; len(stored) != 1 {
+		t.Errorf("stored identities = %d, want 1", len(stored))
+	}
+}
+
+func TestContactIdentityCreateNamesTheOwnerOnConflict(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez", "John Doe")
+	maria := store.byName(t, "María Pérez")
+	john := store.byName(t, "John Doe")
+	seedIdentity(t, store, maria.ID, "email", "maria@example.com")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts/"+john.ID.String()+"/identities",
+		`{"channel": "email", "identifier": "maria@example.com"}`)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusConflict, recorder.Body)
+	}
+	conflict := decodeBody[identityConflictBody](t, recorder)
+	if conflict.Error != "contact: identity already exists" {
+		t.Errorf("error = %q, want the identity exists message", conflict.Error)
+	}
+	if conflict.Owner == nil || conflict.Owner.ID != maria.ID || conflict.Owner.Name != "María Pérez" {
+		t.Errorf("owner = %+v, want María Pérez", conflict.Owner)
+	}
+}
+
+func TestContactIdentityCreateConflictSurvivesAnOwnerLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez", "John Doe")
+	maria := store.byName(t, "María Pérez")
+	john := store.byName(t, "John Doe")
+	seedIdentity(t, store, maria.ID, "email", "maria@example.com")
+	store.getErr = errors.New("boom")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts/"+john.ID.String()+"/identities",
+		`{"channel": "email", "identifier": "maria@example.com"}`)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusConflict, recorder.Body)
+	}
+	conflict := decodeBody[identityConflictBody](t, recorder)
+	if conflict.Owner != nil {
+		t.Errorf("owner = %+v, want none when the lookup fails", conflict.Owner)
+	}
+}
+
+func TestContactIdentityCreateValidation(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez")
+	maria := store.byName(t, "María Pérez")
+
+	tests := map[string]struct {
+		path       string
+		body       string
+		wantStatus int
+		wantError  string
+	}{
+		"channel outside the allowlist": {
+			path:       "/api/contacts/" + maria.ID.String() + "/identities",
+			body:       `{"channel": "whatsapp", "identifier": "184467235"}`,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "contact: channel not writable",
+		},
+		"empty identifier": {
+			path:       "/api/contacts/" + maria.ID.String() + "/identities",
+			body:       `{"channel": "email", "identifier": " "}`,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "contact: empty identifier",
+		},
+		"phone with no digits": {
+			path:       "/api/contacts/" + maria.ID.String() + "/identities",
+			body:       `{"channel": "phone", "identifier": "no digits"}`,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "contact: empty identifier",
+		},
+		"blank channel": {
+			path:       "/api/contacts/" + maria.ID.String() + "/identities",
+			body:       `{"channel": " ", "identifier": "184467235"}`,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "contact: empty channel",
+		},
+		"unknown contact": {
+			path:       "/api/contacts/" + uuid.Must(uuid.NewV7()).String() + "/identities",
+			body:       `{"channel": "email", "identifier": "maria@example.com"}`,
+			wantStatus: http.StatusNotFound,
+			wantError:  "contact: not found",
+		},
+		"malformed contact id": {
+			path:       "/api/contacts/not-a-uuid/identities",
+			body:       `{"channel": "email", "identifier": "maria@example.com"}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "malformed contact id",
+		},
+		"malformed json": {
+			path:       "/api/contacts/" + maria.ID.String() + "/identities",
+			body:       `{`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "malformed json",
+		},
+	}
+
+	srv := authedContactServer(t, store, nil)
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			recorder := doRequest(t, srv, http.MethodPost, tc.path, tc.body)
+
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d, body %s", recorder.Code, tc.wantStatus, recorder.Body)
+			}
+			if got := decodeBody[errorBody](t, recorder); got.Error != tc.wantError {
+				t.Errorf("error = %q, want %q", got.Error, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestContactIdentityCreateReportsStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez")
+	maria := store.byName(t, "María Pérez")
+	store.addIdentityErr = errors.New("boom")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts/"+maria.ID.String()+"/identities",
+		`{"channel": "email", "identifier": "maria@example.com"}`)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestContactIdentityDeleteEndpoint(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez", "John Doe")
+	maria := store.byName(t, "María Pérez")
+	john := store.byName(t, "John Doe")
+	identity := seedIdentity(t, store, maria.ID, "phone", "+184467235")
+	srv := authedContactServer(t, store, nil)
+
+	t.Run("malformed contact id", func(t *testing.T) {
+		recorder := doRequest(t, srv, http.MethodDelete,
+			"/api/contacts/not-a-uuid/identities/"+identity.ID.String(), "")
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("someone else's contact path misses", func(t *testing.T) {
+		recorder := doRequest(t, srv, http.MethodDelete,
+			"/api/contacts/"+john.ID.String()+"/identities/"+identity.ID.String(), "")
+
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("the owner's path deletes", func(t *testing.T) {
+		recorder := doRequest(t, srv, http.MethodDelete,
+			"/api/contacts/"+maria.ID.String()+"/identities/"+identity.ID.String(), "")
+
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusNoContent, recorder.Body)
+		}
+		if len(store.identities[maria.ID]) != 0 {
+			t.Errorf("stored identities = %d, want 0", len(store.identities[maria.ID]))
+		}
+	})
+
+	t.Run("a second delete misses", func(t *testing.T) {
+		recorder := doRequest(t, srv, http.MethodDelete,
+			"/api/contacts/"+maria.ID.String()+"/identities/"+identity.ID.String(), "")
+
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("malformed identity id", func(t *testing.T) {
+		recorder := doRequest(t, srv, http.MethodDelete,
+			"/api/contacts/"+maria.ID.String()+"/identities/not-a-uuid", "")
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+	})
+}
+
+func TestCreateContactWithIdentities(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts",
+		`{"name": "María Pérez", "identities": [
+			{"channel": "email", "identifier": " Maria@Example.COM "},
+			{"channel": "phone", "identifier": "+184 467 235"}
+		]}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusCreated, recorder.Body)
+	}
+	created := decodeBody[contactBody](t, recorder)
+	stored := store.identities[created.ID]
+	if len(stored) != 2 {
+		t.Fatalf("stored identities = %d, want 2", len(stored))
+	}
+	if stored[0].Identifier != "maria@example.com" || stored[1].Identifier != "+184467235" {
+		t.Errorf("stored identifiers = %q, %q, want the normalized pair", stored[0].Identifier, stored[1].Identifier)
+	}
+}
+
+func TestCreateContactWithIdentitiesRejectsAClaimedIdentity(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	seedContacts(t, store, "María Pérez")
+	maria := store.byName(t, "María Pérez")
+	seedIdentity(t, store, maria.ID, "email", "maria@example.com")
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts",
+		`{"name": "John Doe", "identities": [{"channel": "email", "identifier": "maria@example.com"}]}`)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusConflict, recorder.Body)
+	}
+	conflict := decodeBody[identityConflictBody](t, recorder)
+	if conflict.Owner == nil || conflict.Owner.ID != maria.ID {
+		t.Errorf("owner = %+v, want María Pérez", conflict.Owner)
+	}
+	if len(store.contacts) != 1 {
+		t.Errorf("contacts stored = %d, want only the original 1", len(store.contacts))
+	}
+}
+
+func TestCreateContactWithIdentitiesRejectsANonWritableChannel(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContactStore()
+	srv := authedContactServer(t, store, nil)
+
+	recorder := doRequest(t, srv, http.MethodPost, "/api/contacts",
+		`{"name": "John Doe", "identities": [{"channel": "whatsapp", "identifier": "184467235"}]}`)
+
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusUnprocessableEntity, recorder.Body)
+	}
+	if len(store.contacts) != 0 {
+		t.Errorf("contacts stored = %d, want 0", len(store.contacts))
 	}
 }
 

@@ -216,7 +216,12 @@ func TestContactStoreDeleteIdentity(t *testing.T) {
 		t.Fatalf("AddIdentity() error = %v, want nil", err)
 	}
 
-	if err := store.DeleteIdentity(t.Context(), email.ID); err != nil {
+	wrongContactID := uuid.Must(uuid.NewV7())
+	if err := store.DeleteIdentity(t.Context(), wrongContactID, email.ID); !errors.Is(err, contact.ErrIdentityNotFound) {
+		t.Fatalf("DeleteIdentity() under the wrong contact error = %v, want %v", err, contact.ErrIdentityNotFound)
+	}
+
+	if err := store.DeleteIdentity(t.Context(), maria.ID, email.ID); err != nil {
 		t.Fatalf("DeleteIdentity() error = %v, want nil", err)
 	}
 
@@ -227,7 +232,7 @@ func TestContactStoreDeleteIdentity(t *testing.T) {
 	if len(identities) != 1 {
 		t.Fatalf("ListContactIdentities() returned %d identities, want 1 after delete", len(identities))
 	}
-	if err := store.DeleteIdentity(t.Context(), email.ID); !errors.Is(err, contact.ErrIdentityNotFound) {
+	if err := store.DeleteIdentity(t.Context(), maria.ID, email.ID); !errors.Is(err, contact.ErrIdentityNotFound) {
 		t.Errorf("DeleteIdentity() second call error = %v, want %v", err, contact.ErrIdentityNotFound)
 	}
 }
@@ -292,7 +297,7 @@ func TestContactStoreIdentityWriteConnectionFailure(t *testing.T) {
 		errors.Is(err, contact.ErrIdentityExists) || errors.Is(err, contact.ErrNotFound) {
 		t.Errorf("AddIdentity() on closed pool error = %v, want a plain error", err)
 	}
-	if err := store.DeleteIdentity(t.Context(), identity.ID); err == nil ||
+	if err := store.DeleteIdentity(t.Context(), maria.ID, identity.ID); err == nil ||
 		errors.Is(err, contact.ErrIdentityNotFound) {
 		t.Errorf("DeleteIdentity() on closed pool error = %v, want a plain error", err)
 	}

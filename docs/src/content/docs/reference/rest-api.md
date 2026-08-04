@@ -135,6 +135,7 @@ match, so `q=+1 844 672` finds the identity stored as `184467235`.
   "created_at": "2026-07-29T10:00:00Z",
   "identities": [
     {
+      "id": "0198c000-0000-7000-8000-000000000002",
       "channel": "whatsapp",
       "identifier": "184467235",
       "display_name": "Maria"
@@ -144,11 +145,40 @@ match, so `q=+1 844 672` finds the identity stored as `184467235`.
 ```
 
 `identities` is always an array, and empty for a contact no channel has
-reached yet. Identities are created by plugins and cannot be written
-through this API.
+reached yet. The API writes the `email` and `phone` channels. Every
+other channel is created by its plugin, `whatsapp` identities for
+example arrive with inbound messages.
+
+Identifiers are normalized before storage: emails are lowercased and
+phones keep only their digits and a leading plus, so `+1 (844) 672-35`
+is stored as `+184467235`. An identifier is unique per channel across
+all contacts.
+
+`POST /api/contacts/{id}/identities` takes
+`{"channel": "email", "identifier": "maria@example.com", "display_name": "Work"}`
+and answers `201` with the created identity. `display_name` is
+optional. A channel other than `email` or `phone` answers `422`. When
+another contact already holds the identifier, the answer is `409` and
+names the owner:
+
+```json
+{
+  "error": "contact: identity already exists",
+  "owner": {
+    "id": "0198c000-0000-7000-8000-000000000001",
+    "name": "Maria Perez",
+    "created_at": "2026-07-29T10:00:00Z"
+  }
+}
+```
+
+`DELETE /api/contacts/{id}/identities/{identityId}` answers `204`, or
+`404` when the identity does not exist under that contact.
 
 `POST /api/contacts` takes `{"name": "..."}` and answers `201` with the
-created contact. Names are not unique.
+created contact. Names are not unique. An optional `identities` array
+in the same shape creates the contact and its identities together, all
+or nothing, with the same `422` and `409` answers.
 
 `PATCH /api/contacts/{id}` takes `{"name": "..."}` and answers `200`
 with the updated contact. A blank name answers `422`. Contacts cannot be

@@ -88,6 +88,8 @@ func NewServer(cfg Config) http.Handler {
 		protected.Post("/api/contacts", s.handleContactCreate())
 		protected.Get("/api/contacts/{id}", s.handleContactGet())
 		protected.Patch("/api/contacts/{id}", s.handleContactRename())
+		protected.Post("/api/contacts/{id}/identities", s.handleIdentityCreate())
+		protected.Delete("/api/contacts/{id}/identities/{identityID}", s.handleIdentityDelete())
 		protected.Get("/api/tasks", s.handleTaskList())
 		protected.Post("/api/tasks", s.handleTaskCreate())
 		protected.Get("/api/tasks/{id}", s.handleTaskGet())

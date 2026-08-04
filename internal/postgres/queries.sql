@@ -53,7 +53,7 @@ WHERE channel = @channel AND identifier = @identifier
 
 -- name: DeleteIdentity :execrows
 DELETE FROM core.contact_identities
-WHERE id = $1;
+WHERE id = $1 AND contact_id = $2;
 
 -- name: CreateTask :exec
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
