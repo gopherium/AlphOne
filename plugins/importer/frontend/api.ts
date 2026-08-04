@@ -127,12 +127,12 @@ export async function fetchRows(id: string): Promise<ImportRow[]> {
  * @param file - The chosen CSV or Excel file.
  * @returns The stored import.
  */
-export async function uploadImport(file: File): Promise<ImportSummary> {
+export async function uploadImport(file: File): Promise<ImportDetail> {
 	const body = new FormData()
 	body.append('file', file)
 	const response = await fetch(`${base}/imports`, { method: 'POST', body })
 	await refuse(response, 'the file could not be imported')
-	return summarySchema.parse(await response.json())
+	return detailSchema.parse(await response.json())
 }
 
 /**

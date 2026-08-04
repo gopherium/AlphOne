@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -76,11 +77,16 @@ func newUploadPlugin(t *testing.T) (*importer.Plugin, *pgxpool.Pool) {
 }
 
 type importBody struct {
-	ID       uuid.UUID `json:"id"`
-	Filename string    `json:"filename"`
-	State    string    `json:"state"`
-	Columns  []string  `json:"columns"`
-	RowCount int       `json:"row_count"`
+	ID            uuid.UUID `json:"id"`
+	UserID        uuid.UUID `json:"user_id"`
+	Filename      string    `json:"filename"`
+	State         string    `json:"state"`
+	Columns       []string  `json:"columns"`
+	RowCount      int       `json:"row_count"`
+	ImportedCount int       `json:"imported_count"`
+	SkippedCount  int       `json:"skipped_count"`
+	FailedCount   int       `json:"failed_count"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // decodeImport reads the import a successful upload answers with.
@@ -113,6 +119,16 @@ func TestUploadStoresTheImportAndItsRows(t *testing.T) {
 	}
 	if got.RowCount != 1 {
 		t.Errorf("row_count = %d, want 1", got.RowCount)
+	}
+	if got.UserID != uploader {
+		t.Errorf("user_id = %v, want the uploader %v", got.UserID, uploader)
+	}
+	if got.CreatedAt.IsZero() {
+		t.Error("created_at is zero, want the moment the import was stored")
+	}
+	if got.ImportedCount != 0 || got.SkippedCount != 0 || got.FailedCount != 0 {
+		t.Errorf("counts = %d, %d, %d, want them all zero before a commit",
+			got.ImportedCount, got.SkippedCount, got.FailedCount)
 	}
 	var storedUser uuid.UUID
 	var storedColumns []string

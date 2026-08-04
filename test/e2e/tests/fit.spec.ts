@@ -39,6 +39,21 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 	const conversations = await request.get('/api/plugins/whatsapp/conversations')
 	expect(conversations.status()).toBe(200)
 
+	const staged = await request.post('/api/plugins/importer/imports', {
+		multipart: {
+			file: {
+				name: `contacts-${stamp}.csv`,
+				mimeType: 'text/csv',
+				buffer: Buffer.from(
+					`Name,Email address of the person being imported\n` +
+						`Maria Perez de la Fuente ${stamp},${unbreakable}@example.com\n`,
+				),
+			},
+		},
+	})
+	expect(staged.status()).toBe(201)
+	const importID = (await staged.json()).id as string
+
 	const taskID = (await task.json()).id as string
 	const contactID = (await contact.json()).id as string
 	const conversationID = ((await conversations.json()) as { id: string }[])[0].id
@@ -54,6 +69,8 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		'/users/new',
 		'/whatsapp',
 		`/whatsapp/conversations/${conversationID}`,
+		'/import',
+		`/import/${importID}`,
 	]
 }
 

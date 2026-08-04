@@ -9,7 +9,7 @@ import {
 	createRoute,
 	createRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
@@ -84,20 +84,42 @@ test('choosing a file uploads it and refreshes the history', async () => {
 					skipped_count: 0,
 					failed_count: 0,
 					created_at: '2026-08-01T10:00:00Z',
+					columns: ['Name', 'Email'],
+					mapping: {},
 				},
 				{ status: 201 },
 			)
 		}),
+		http.get('/api/plugins/importer/imports', () =>
+			HttpResponse.json(
+				uploads === 0
+					? []
+					: [
+							{
+								id: importID,
+								user_id: '019f5a00-0000-7000-8000-0000000000aa',
+								filename: 'uploaded.csv',
+								state: 'ready',
+								row_count: 1,
+								imported_count: 0,
+								skipped_count: 0,
+								failed_count: 0,
+								created_at: '2026-08-01T10:00:00Z',
+							},
+						],
+			),
+		),
 	)
 	renderAt('/import')
-	await screen.findByRole('link', { name: 'contacts.csv' })
+	await screen.findByText('No imports yet.')
 
 	const file = new File(['Name,Email\nMaria Perez,maria@example.com\n'], 'uploaded.csv', {
 		type: 'text/csv',
 	})
 	await userEvent.upload(screen.getByLabelText('Contacts file'), file)
 
-	await waitFor(() => expect(uploads).toBe(1))
+	expect(await screen.findByRole('link', { name: 'uploaded.csv' })).toBeInTheDocument()
+	expect(uploads).toBe(1)
 })
 
 test('cancelling the file dialog uploads nothing', () => {

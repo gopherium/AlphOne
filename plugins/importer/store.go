@@ -214,15 +214,16 @@ func (s *store) updateMapping(ctx context.Context, id uuid.UUID, assigned mappin
 // insertImport stores one parsed upload and its rows, returning the import id.
 func (s *store) insertImport(
 	ctx context.Context, uploader uuid.UUID, filename string, parsed sheet,
-) (uuid.UUID, error) {
+) (importRow, error) {
 	ids, err := newIDs(len(parsed.rows) + 1)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("importer: generate id: %w", err)
+		return importRow{}, fmt.Errorf("importer: generate id: %w", err)
 	}
-	if err := s.writeImport(ctx, ids, uploader, filename, parsed); err != nil {
-		return uuid.Nil, fmt.Errorf("importer: store import: %w", err)
+	stored, err := s.writeImport(ctx, ids, uploader, filename, parsed)
+	if err != nil {
+		return importRow{}, fmt.Errorf("importer: store import: %w", err)
 	}
-	return ids[0], nil
+	return stored, nil
 }
 
 // newIDs returns count freshly generated identifiers.
@@ -241,25 +242,28 @@ func newIDs(count int) ([]uuid.UUID, error) {
 // writeImport inserts the import and every staged row in one transaction.
 func (s *store) writeImport(
 	ctx context.Context, ids []uuid.UUID, uploader uuid.UUID, filename string, parsed sheet,
-) error {
+) (importRow, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return importRow{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := tx.Exec(ctx,
+	rows, _ := tx.Query(ctx,
 		"INSERT INTO plugin_importer.imports (id, user_id, filename, columns, mapping, "+
 			"state, row_count, imported_count, skipped_count, failed_count, created_at) "+
-			"VALUES ($1, $2, $3, $4, '{}', $5, $6, 0, 0, 0, now())",
+			"VALUES ($1, $2, $3, $4, '{}', $5, $6, 0, 0, 0, now()) "+
+			"RETURNING "+summaryColumns+", columns, mapping",
 		ids[0], uploader, filename, parsed.columns, stateReady, len(parsed.rows),
-	); err != nil {
-		return err
+	)
+	stored, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[importRow])
+	if err != nil {
+		return importRow{}, err
 	}
 	if err := insertRows(ctx, tx, ids, parsed.rows); err != nil {
-		return err
+		return importRow{}, err
 	}
-	return tx.Commit(ctx)
+	return stored, tx.Commit(ctx)
 }
 
 // insertRows stores every staged row of an import through tx.

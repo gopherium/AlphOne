@@ -68,14 +68,22 @@ export default function RowsTable({
 	const data = previewRows(rows)
 
 	return (
-		<DataViews<previewRow>
-			data={data}
-			fields={fields}
-			view={view}
-			onChangeView={setView}
-			paginationInfo={{ totalItems: data.length, totalPages: 1 }}
-			defaultLayouts={{ table: {} }}
-			getItemId={(item) => item.id}
-		/>
+		<div
+			className="godmin-table-scroll"
+			role="region"
+			aria-label="Rows"
+			tabIndex={0}
+			style={{ minWidth: 0, maxWidth: '100%' }}
+		>
+			<DataViews<previewRow>
+				data={data}
+				fields={fields}
+				view={view}
+				onChangeView={setView}
+				paginationInfo={{ totalItems: data.length, totalPages: 1 }}
+				defaultLayouts={{ table: {} }}
+				getItemId={(item) => item.id}
+			/>
+		</div>
 	)
 }

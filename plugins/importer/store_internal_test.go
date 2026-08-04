@@ -66,7 +66,7 @@ func TestWriteImportReportsARowFailure(t *testing.T) {
 		rows:    []row{{cells: []string{"Maria Perez"}}, {cells: []string{"Ana Lopez"}}},
 	}
 
-	err := s.writeImport(t.Context(), ids, uuid.Must(uuid.NewV7()), "contacts.csv", parsed)
+	_, err := s.writeImport(t.Context(), ids, uuid.Must(uuid.NewV7()), "contacts.csv", parsed)
 
 	if err == nil {
 		t.Fatal("writeImport() with a duplicate row id error = nil, want a key violation")
@@ -91,7 +91,7 @@ func TestWriteImportReportsConnectionFailure(t *testing.T) {
 	pool.Close()
 	s := &store{pool: pool}
 
-	if err := s.writeImport(t.Context(), []uuid.UUID{uuid.Nil}, uuid.Nil, "contacts.csv", sheet{}); err == nil {
+	if _, err := s.writeImport(t.Context(), []uuid.UUID{uuid.Nil}, uuid.Nil, "contacts.csv", sheet{}); err == nil {
 		t.Fatal("writeImport() on closed pool error = nil, want an error")
 	}
 }

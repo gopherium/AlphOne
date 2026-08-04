@@ -71,6 +71,8 @@ test('uploadImport sends the chosen file', async () => {
 					skipped_count: 0,
 					failed_count: 0,
 					created_at: '2026-08-01T10:00:00Z',
+					columns: ['Name'],
+					mapping: {},
 				},
 				{ status: 201 },
 			)

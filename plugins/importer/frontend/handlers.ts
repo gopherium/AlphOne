@@ -16,6 +16,8 @@ const storedImport = {
 	created_at: '2026-08-01T10:00:00Z',
 }
 
+const storedDetail = { ...storedImport, columns: ['Name', 'Email'], mapping: {} }
+
 export const handlers = [
 	http.get('/api/plugins/importer/fields', () =>
 		HttpResponse.json([
@@ -25,13 +27,7 @@ export const handlers = [
 		]),
 	),
 	http.get('/api/plugins/importer/imports', () => HttpResponse.json([storedImport])),
-	http.get('/api/plugins/importer/imports/:id', () =>
-		HttpResponse.json({
-			...storedImport,
-			columns: ['Name', 'Email'],
-			mapping: {},
-		}),
-	),
+	http.get('/api/plugins/importer/imports/:id', () => HttpResponse.json(storedDetail)),
 	http.get('/api/plugins/importer/imports/:id/rows', () =>
 		HttpResponse.json([
 			{

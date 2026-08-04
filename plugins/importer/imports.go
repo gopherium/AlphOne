@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -24,14 +23,6 @@ var errNoFilePart = errors.New("the request carries no file part")
 
 // errTooLarge reports an upload beyond the size cap.
 var errTooLarge = errors.New("the file is larger than the importer accepts")
-
-type importResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Filename string    `json:"filename"`
-	State    string    `json:"state"`
-	Columns  []string  `json:"columns"`
-	RowCount int       `json:"row_count"`
-}
 
 // Routes returns the plugin's HTTP endpoints, served relative to its namespace.
 func (p *Plugin) Routes() http.Handler {
@@ -71,12 +62,10 @@ func (p *Plugin) handleUpload() http.HandlerFunc {
 			respondError(w, http.StatusInternalServerError, "the import could not be stored")
 			return
 		}
-		respondJSON(w, http.StatusCreated, importResponse{
-			ID:       stored,
-			Filename: filename,
-			State:    stateReady,
-			Columns:  parsed.columns,
-			RowCount: len(parsed.rows),
+		respondJSON(w, http.StatusCreated, importDetail{
+			importSummary: newImportSummary(stored),
+			Columns:       stored.Columns,
+			Mapping:       stored.Mapping,
 		})
 	}
 }
