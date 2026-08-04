@@ -15,6 +15,7 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // sessionCookieName scopes the login cookie to this product.
@@ -132,6 +133,14 @@ type server struct {
 // the plugin's declared public paths through untouched.
 func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
 	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.requireIdentity(s.boundPluginRequest(next))
+		return s.requireIdentity(s.boundPluginRequest(withActingUser(next)))
+	})
+}
+
+// withActingUser passes the authenticated user to the plugin through the SDK.
+func withActingUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := sdk.WithUser(r.Context(), authkit.IdentityFromContext(r.Context()).ID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

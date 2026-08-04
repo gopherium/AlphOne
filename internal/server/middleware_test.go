@@ -9,9 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func echoHandler(status int, body string) http.Handler {
@@ -36,6 +39,37 @@ func newProtectedServer(t *testing.T) (http.Handler, *testkit.Store) {
 		},
 	})
 	return handler, users
+}
+
+func TestMiddlewareHandsThePluginTheActingUser(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	ada := addAda(t, users)
+	var seen uuid.UUID
+	var known bool
+	handler := server.NewServer(server.Config{
+		Contacts: newFakeContactStore(),
+		Users:    users,
+		Plugins: map[string]http.Handler{
+			"echo": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seen, known = sdk.UserFromContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			}),
+		},
+	})
+	cookie := loginCookie(t, handler)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/anything", nil)
+	request.AddCookie(cookie)
+	handler.ServeHTTP(httptest.NewRecorder(), request)
+
+	if !known {
+		t.Fatal("plugin saw no acting user, want the session user")
+	}
+	if seen != ada.ID {
+		t.Errorf("acting user = %v, want the session user %v", seen, ada.ID)
+	}
 }
 
 func TestMiddlewareRejectsRequestsWithoutASession(t *testing.T) {
