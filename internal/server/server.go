@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/gopherium/gouncer/authkit"
@@ -56,6 +57,8 @@ type Config struct {
 	MaxStreamsPerUser int
 	// Version is the application version reported at /api/version.
 	Version string
+	// GraphiQL enables the interactive query page on GET /api/graphql.
+	GraphiQL bool
 }
 
 // NewServer returns the HTTP handler serving the CRM API. Every route
@@ -103,6 +106,10 @@ func NewServer(cfg Config) http.Handler {
 		protected.Post("/api/webhooks", s.handleWebhookCreate())
 		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
 		protected.Get("/api/version", s.handleVersion())
+		protected.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg.Version))
+		if cfg.GraphiQL {
+			protected.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
+		}
 	})
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id

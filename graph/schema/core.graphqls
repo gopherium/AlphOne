@@ -1,0 +1,9 @@
+directive @goField(
+  forceResolver: Boolean
+  name: String
+  omittable: Boolean
+) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
+type Query {
+  version: String!
+}

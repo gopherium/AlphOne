@@ -97,6 +97,7 @@ func run(
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),
 		TrustedProxies:    settings.trustedProxies,
+		GraphiQL:          settings.graphiql,
 	}
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
@@ -118,6 +119,7 @@ type runConfig struct {
 	addr           string
 	webDir         string
 	trustedProxies []string
+	graphiql       bool
 }
 
 // loadRunConfig reads the server settings from the environment.
@@ -139,6 +141,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		addr:           addr,
 		webDir:         getenv("ALPHONE_WEB_DIR"),
 		trustedProxies: trustedProxies,
+		graphiql:       getenv("ALPHONE_DEV_GRAPHIQL") != "",
 	}, nil
 }
 

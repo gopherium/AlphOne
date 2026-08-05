@@ -3,6 +3,7 @@ module github.com/gopherium/alphone
 go 1.26.5
 
 require (
+	github.com/99designs/gqlgen v0.17.94
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -15,16 +16,24 @@ require (
 	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/peterldowns/pgtestdb/migrators/goosemigrator v0.1.1
 	github.com/pressly/goose/v3 v3.27.3
+	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/xuri/excelize/v2 v2.11.0
 )
 
 require (
+	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/coder/websocket v1.8.15 // indirect
 	github.com/go-chi/httprate v0.16.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/sosodev/duration v1.4.0 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
+	github.com/urfave/cli/v3 v3.10.1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
@@ -85,6 +94,7 @@ require (
 )
 
 tool (
+	github.com/99designs/gqlgen
 	github.com/sqlc-dev/sqlc/cmd/sqlc
 	golang.org/x/vuln/cmd/govulncheck
 )
