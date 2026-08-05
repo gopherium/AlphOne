@@ -55,11 +55,13 @@ test('fetchRows reads the staged rows', async () => {
 	expect(rows[0].reason).toBeNull()
 })
 
-test('uploadImport sends the chosen file', async () => {
+test('uploadImport posts the file as multipart form data', async () => {
 	let sent = false
 	server.use(
 		http.post(`${base}/imports`, async ({ request }) => {
-			sent = (await request.formData()).has('file')
+			sent =
+				(request.headers.get('content-type') ?? '').startsWith('multipart/form-data') &&
+				(await request.text()).includes('name="file"')
 			return HttpResponse.json(
 				{
 					id: importID,
