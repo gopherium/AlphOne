@@ -8,6 +8,10 @@ export const authFile = fileURLToPath(new URL('.auth/user.json', import.meta.url
 
 export const baseURL = process.env.ALPHONE_E2E_URL ?? 'http://localhost:8080'
 
+export const databaseURL =
+	process.env.ALPHONE_E2E_DATABASE_URL ??
+	'postgres://postgres:alphone@localhost:5433/alphone_e2e?sslmode=disable'
+
 export const whatsappAppSecret =
 	process.env.ALPHONE_E2E_WHATSAPP_APP_SECRET ?? 'e2e-app-secret'
 
