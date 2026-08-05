@@ -99,7 +99,7 @@ Press **Add first step** and search for `alphone`.
 
 The node offers a trigger for each event it supports.
 
-![The AlphOne node panel listing four triggers: on contact created, on task completed, on task created, and on WhatsApp message received.](../../../assets/n8n/06-node-triggers.png)
+![The AlphOne node panel listing one trigger per event, among them on whats app message received.](../../../assets/n8n/06-node-triggers.png)
 
 Choose **On whats app message received**.
 
@@ -131,10 +131,10 @@ way to see real data before building the rest.
 
 ## 6. Create the task
 
-Press the **+** after the trigger. The node offers nine actions across
-tasks and contacts.
+Press the **+** after the trigger. The node groups its actions by
+resource, one group per kind of record it reads and writes.
 
-![The workflow canvas with the trigger connected, and the node details panel listing nine actions for tasks and contacts.](../../../assets/n8n/10-node-actions.png)
+![The workflow canvas with the trigger connected, and the node details panel listing the actions grouped by resource.](../../../assets/n8n/10-node-actions.png)
 
 Choose **Create a task** and set:
 
@@ -223,8 +223,23 @@ docker compose exec postgres psql -U postgres -d alphone -c \
 
 ## Beyond this workflow
 
-The same two nodes cover the other three events, `task.created`,
-`task.completed`, and `contact.created`, and nine actions across tasks
-and contacts. A schedule trigger with **Get many tasks** filtered by
+The same two nodes cover every event AlphOne publishes, listed in the
+[webhooks reference](/reference/webhooks/), and every action the node
+offers. A schedule trigger with **Get many tasks** filtered by
 `due_before` makes a morning digest of overdue work, with no trigger
 registration involved.
+
+## Ready made workflows
+
+The package ships example workflows in its `examples` folder. Import one
+from the n8n canvas menu, then open each AlphOne node and pick your
+credential, which the files leave as a placeholder.
+
+- `overdue-task-digest.json` collects the tasks you have not finished and
+  builds a message from them, every morning at eight.
+- `whatsapp-message-to-task.json` creates a task the moment a WhatsApp
+  message arrives, linked to the contact AlphOne resolved it to.
+- `import-to-daily-tasks.json` turns a finished contact import into a
+  call list spread over days, twenty a day, with each task carrying its
+  import row so a re-run creates nothing twice. The [automation
+  guide](/guides/automation/) explains the recipe behind it.
