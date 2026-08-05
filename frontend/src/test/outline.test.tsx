@@ -2,7 +2,12 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, expect, test } from 'vitest'
+import { beforeEach, expect, test, vi } from 'vitest'
+
+vi.mock('@alphone/frontend-sdk/dataviews', () => ({
+	DataViews: () => <table />,
+	DataForm: () => <form />,
+}))
 
 import { importID, handlers as importerHandlers } from '@alphone/plugin-importer/handlers'
 import { handlers } from '@alphone/plugin-whatsapp/handlers'

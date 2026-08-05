@@ -48,6 +48,15 @@ test('the preview shows every cell beside its outcome and reason', async () => {
 	expect(screen.getByText('the contact detail already belongs to Ana Lopez')).toBeInTheDocument()
 })
 
+test('the preview adds no first level heading to the screen it sits in', async () => {
+	render(<RowsTable stored={stored} rows={rows} />)
+
+	await screen.findByText('Maria Perez')
+	expect(
+		screen.queryAllByRole('heading').filter((heading) => heading.tagName === 'H1'),
+	).toHaveLength(0)
+})
+
 test('a blank header is named after its position', async () => {
 	render(<RowsTable stored={stored} rows={rows} />)
 
