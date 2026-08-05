@@ -7,3 +7,10 @@ exec:
 model:
   filename: graph/model/models_gen.go
   package: model
+models:
+  UUID:
+    model: github.com/gopherium/alphone/graph/scalar.UUID
+  DateTime:
+    model: github.com/gopherium/alphone/graph/scalar.DateTime
+  Date:
+    model: github.com/gopherium/alphone/graph/scalar.Date

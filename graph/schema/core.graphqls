@@ -4,6 +4,10 @@ directive @goField(
   omittable: Boolean
 ) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
+scalar UUID
+scalar DateTime
+scalar Date
+
 type Query {
   version: String!
 }

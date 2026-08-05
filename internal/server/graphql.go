@@ -19,5 +19,6 @@ func newGraphQLHandler(version string) http.Handler {
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.Introspection{})
+	srv.SetErrorPresenter(graphres.PresentError)
 	return srv
 }

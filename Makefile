@@ -2,7 +2,7 @@
 	seed dev demo n8n n8n-down n8n-node \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
-COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e '/alphone/graph$$' -e /alphone/graph/)
+COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e '/alphone/graph$$' -e '/alphone/graph/model$$')
 
 test:
 	go test ./...
