@@ -149,3 +149,62 @@ The envelope `id` of the event you received is the usual choice, because
 it names the event and is the same in every delivery and every retry. The
 key is scoped by the token's name and by the user the token acts as, so
 give your tokens distinct names.
+
+## Turning an import into a call list
+
+Importing a spreadsheet of contacts is only half the job. The work is
+calling them, and a thousand new contacts is not a thousand tasks for
+today. This recipe spreads them over as many days as it takes.
+
+Subscribe to `import.completed`. It carries the import `id`, so the next
+step reads what that import produced:
+
+```text
+GET /api/plugins/importer/imports/{id}/contacts
+```
+
+Every entry carries `contact_id`, `name`, and `row_id`, the row of the
+file that created the contact:
+
+```json
+{
+  "contacts": [
+    {
+      "contact_id": "0198d000-0000-7000-8000-000000000101",
+      "name": "Maria Perez",
+      "row_id": "0198d000-0000-7000-8000-0000000000b1"
+    }
+  ]
+}
+```
+
+Create one task per entry, with `contact_id` linking the task to the
+person and `row_id` as the `origin_event_id`:
+
+```json
+{
+  "title": "Call Maria Perez",
+  "due_on": "2026-08-05",
+  "contact_id": "0198d000-0000-7000-8000-000000000101",
+  "origin_event_id": "0198d000-0000-7000-8000-0000000000b1"
+}
+```
+
+The `row_id` is what makes this safe to re-run. A workflow that fails
+halfway through, or a delivery that arrives twice, creates no second task
+for a row that already has one, because AlphOne answers the repeat with
+the task it already stored.
+
+To spread the calls, batch the entries and push each batch a day further
+out. Twenty per batch with `due_on` set to today plus the batch index
+gives twenty calls a day until the list runs out. The batch size is the
+only number to change if the daily load is wrong.
+
+Only rows that produced a contact appear here, so skipped duplicates and
+failed rows create no work. The counts in the event tell you how many
+each import produced.
+
+The community node ships this recipe as a ready made workflow,
+`import-to-daily-tasks.json` in the package's `examples` folder, which
+you can import from the n8n canvas and point at your own credential. The
+[n8n guide](/guides/n8n/) covers installing the node.
