@@ -109,6 +109,26 @@ func TestGraphQLRejectsAnUnknownField(t *testing.T) {
 	}
 }
 
+func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	cookie := loginCookie(t, srv)
+	oversized := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 1<<20) + `"}}`
+
+	recorder := postGraphQL(t, srv, oversized, cookie)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) == 0 || !strings.Contains(body.Errors[0].Message, "request body too large") {
+		t.Fatalf("errors = %+v, want the body cap rejection", body.Errors)
+	}
+	if body.Data.Version != "" {
+		t.Error("version resolved, want no execution on an oversized body")
+	}
+}
+
 func TestGraphiQLServesOnlyWhenEnabled(t *testing.T) {
 	t.Parallel()
 
