@@ -13,6 +13,7 @@ import (
 
 	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
-	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/graphres"
@@ -49,9 +49,9 @@ func newDecoratedGraphClient(
 	t *testing.T, resolver *graphres.Resolver, decorate func(context.Context) context.Context,
 ) *gqlclient.Client {
 	t.Helper()
-	schema := graph.NewExecutableSchema(graph.Config{Resolvers: resolver})
-	srv := handler.New(schema)
+	srv := handler.New(graphres.ExecutableSchema(resolver))
 	srv.AddTransport(transport.POST{})
+	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.SetErrorPresenter(graphres.PresentError)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		srv.ServeHTTP(w, r.WithContext(resolver.WithLoaders(decorate(r.Context()))))
