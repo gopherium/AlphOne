@@ -1,0 +1,29 @@
+type Contact {
+  id: UUID!
+  name: String!
+  createdAt: DateTime! @goField(forceResolver: true)
+  identities: [ContactIdentity!]! @goField(forceResolver: true)
+  tasks(status: String, first: Int, after: String): TaskConnection! @goField(forceResolver: true)
+}
+
+type ContactIdentity {
+  id: UUID!
+  channel: String!
+  identifier: String!
+  displayName: String!
+}
+
+type ContactEdge {
+  node: Contact!
+  cursor: String!
+}
+
+type ContactConnection {
+  edges: [ContactEdge!]!
+  pageInfo: PageInfo!
+}
+
+extend type Query {
+  contacts(q: String, first: Int, after: String): ContactConnection!
+  contact(id: UUID!): Contact
+}

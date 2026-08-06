@@ -1,0 +1,28 @@
+type Task {
+  id: UUID!
+  assigneeId: UUID!
+  contactId: UUID
+  title: String!
+  status: String!
+  priority: Int!
+  dueOn: Date!
+  originSource: String
+  originEventId: UUID
+  createdAt: DateTime!
+  contact: Contact @goField(forceResolver: true)
+}
+
+type TaskEdge {
+  node: Task!
+  cursor: String!
+}
+
+type TaskConnection {
+  edges: [TaskEdge!]!
+  pageInfo: PageInfo!
+}
+
+extend type Query {
+  tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
+  task(id: UUID!): Task
+}

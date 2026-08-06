@@ -11,6 +11,7 @@ import (
 
 	"github.com/gopherium/alphone/graph/scalar"
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -29,6 +30,9 @@ var validationErrors = []error{
 	webhook.ErrNoEvents,
 	event.ErrUnknownName,
 	scalar.ErrInvalid,
+	cursor.ErrMalformed,
+	errExactlyOneTaskFilter,
+	errInvalidFirst,
 }
 
 // notFoundErrors lists the domain errors presented as NOT_FOUND.

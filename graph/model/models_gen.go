@@ -2,5 +2,67 @@
 
 package model
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type Contact struct {
+	ID         uuid.UUID          `json:"id"`
+	Name       string             `json:"name"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	Identities []*ContactIdentity `json:"identities"`
+	Tasks      *TaskConnection    `json:"tasks"`
+}
+
+type ContactConnection struct {
+	Edges    []*ContactEdge `json:"edges"`
+	PageInfo *PageInfo      `json:"pageInfo"`
+}
+
+type ContactEdge struct {
+	Node   *Contact `json:"node"`
+	Cursor string   `json:"cursor"`
+}
+
+type ContactIdentity struct {
+	ID          uuid.UUID `json:"id"`
+	Channel     string    `json:"channel"`
+	Identifier  string    `json:"identifier"`
+	DisplayName string    `json:"displayName"`
+}
+
+type PageInfo struct {
+	HasNextPage     bool    `json:"hasNextPage"`
+	HasPreviousPage bool    `json:"hasPreviousPage"`
+	StartCursor     *string `json:"startCursor,omitempty"`
+	EndCursor       *string `json:"endCursor,omitempty"`
+}
+
 type Query struct {
+}
+
+type Task struct {
+	ID            uuid.UUID  `json:"id"`
+	AssigneeID    uuid.UUID  `json:"assigneeId"`
+	ContactID     *uuid.UUID `json:"contactId,omitempty"`
+	Title         string     `json:"title"`
+	Status        string     `json:"status"`
+	Priority      int        `json:"priority"`
+	DueOn         time.Time  `json:"dueOn"`
+	OriginSource  *string    `json:"originSource,omitempty"`
+	OriginEventID *uuid.UUID `json:"originEventId,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	Contact       *Contact   `json:"contact,omitempty"`
+}
+
+type TaskConnection struct {
+	Edges    []*TaskEdge `json:"edges"`
+	PageInfo *PageInfo   `json:"pageInfo"`
+}
+
+type TaskEdge struct {
+	Node   *Task  `json:"node"`
+	Cursor string `json:"cursor"`
 }
