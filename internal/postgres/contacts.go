@@ -78,6 +78,19 @@ func (s *ContactStore) ListContacts(
 	return contacts, nil
 }
 
+// ListByIDs returns the contacts with the given ids in no promised order.
+func (s *ContactStore) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
+	rows, err := s.queries.ListContactsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list contacts by ids: %w", err)
+	}
+	contacts := make([]contact.Contact, len(rows))
+	for i, row := range rows {
+		contacts[i] = contact.Contact{ID: row.ID, Name: row.Name, CreatedAt: row.CreatedAt}
+	}
+	return contacts, nil
+}
+
 // Get returns the contact with the given id, or [contact.ErrNotFound] if
 // none exists.
 func (s *ContactStore) Get(ctx context.Context, id uuid.UUID) (contact.Contact, error) {

@@ -344,3 +344,37 @@ func TestListContactsReturnsAnEmptyPageOnAnEmptyTable(t *testing.T) {
 		t.Fatalf("len(page) = %d, want 0", len(page))
 	}
 }
+
+func TestContactStoreListByIDs(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+	maria := mustContact(t, "María Pérez")
+	john := mustContact(t, "John Doe")
+	unrequested := mustContact(t, "Ada Lovelace")
+	for _, c := range []contact.Contact{maria, john, unrequested} {
+		if err := store.Create(t.Context(), c); err != nil {
+			t.Fatalf("Create(%q) error = %v, want nil", c.Name, err)
+		}
+	}
+	missingID := uuid.Must(uuid.NewV7())
+
+	got, err := store.ListByIDs(t.Context(), []uuid.UUID{maria.ID, john.ID, missingID})
+
+	if err != nil {
+		t.Fatalf("ListByIDs() error = %v, want nil", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("ListByIDs() returned %d contacts, want 2", len(got))
+	}
+	byID := map[uuid.UUID]contact.Contact{}
+	for _, c := range got {
+		byID[c.ID] = c
+	}
+	for _, want := range []contact.Contact{maria, john} {
+		found, ok := byID[want.ID]
+		if !ok || found.Name != want.Name {
+			t.Errorf("ListByIDs() is missing %q", want.Name)
+		}
+	}
+}

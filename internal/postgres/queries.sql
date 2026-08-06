@@ -185,3 +185,8 @@ JOIN core.webhook_subscriptions s ON s.id = c.subscription_id;
 UPDATE core.webhook_deliveries
 SET status = $2, deliver_after = $3, last_error = $4
 WHERE id = $1;
+
+-- name: ListContactsByIDs :many
+SELECT id, name, created_at
+FROM core.contacts
+WHERE id = ANY(@ids::uuid[]);

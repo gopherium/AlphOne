@@ -541,6 +541,32 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 	return items, nil
 }
 
+const listContactsByIDs = `-- name: ListContactsByIDs :many
+SELECT id, name, created_at
+FROM core.contacts
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]CoreContact, error) {
+	rows, err := q.db.Query(ctx, listContactsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreContact
+	for rows.Next() {
+		var i CoreContact
+		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at
