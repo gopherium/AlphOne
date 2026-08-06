@@ -37,12 +37,6 @@ type ContactStore interface {
 	RenameContact(ctx context.Context, id uuid.UUID, name string) (contact.Contact, error)
 }
 
-// errChannelNotWritable reports an identity channel the API refuses to write.
-var errChannelNotWritable = errors.New("contact: channel not writable")
-
-// writableIdentityChannels lists the channels the API accepts writes for.
-var writableIdentityChannels = map[contact.Channel]bool{"email": true, "phone": true}
-
 // defaultContactListLimit and maxContactListLimit bound the contacts page
 // size.
 const (
@@ -133,14 +127,7 @@ type identityRequest struct {
 
 // identityFor builds a writable identity for contactID from the request.
 func identityFor(contactID uuid.UUID, req identityRequest) (contact.Identity, error) {
-	identity, err := contact.NewIdentity(contactID, contact.Channel(req.Channel), req.Identifier, req.DisplayName)
-	if err != nil {
-		return contact.Identity{}, err
-	}
-	if !writableIdentityChannels[identity.Channel] {
-		return contact.Identity{}, errChannelNotWritable
-	}
-	return identity, nil
+	return contact.NewWritableIdentity(contactID, contact.Channel(req.Channel), req.Identifier, req.DisplayName)
 }
 
 // identitiesFor builds every writable identity for contactID from the requests.
@@ -211,7 +198,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 			s.respondContactStoreError(w, r, err)
 			return
 		}
-		s.publish(r.Context(), event.ContactCreated, contactEventData(c))
+		s.publish(r.Context(), event.ContactCreated, contact.EventData(c))
 		authkit.Respond(w, http.StatusCreated, newContactResponse(c))
 	}
 }
@@ -360,9 +347,4 @@ func (s *server) handleContactGet() http.HandlerFunc {
 		}
 		authkit.Respond(w, http.StatusOK, detail)
 	}
-}
-
-// contactEventData returns the fields a contact event carries.
-func contactEventData(c contact.Contact) map[string]any {
-	return map[string]any{"id": c.ID.String(), "name": c.Name}
 }

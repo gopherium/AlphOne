@@ -16,6 +16,7 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
+	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
@@ -122,7 +123,7 @@ func (s *server) respondTaskCreation(
 		authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
 		return
 	}
-	s.publish(r.Context(), event.TaskCreated, taskEventData(stored))
+	s.publish(r.Context(), event.TaskCreated, task.EventData(stored))
 	authkit.Respond(w, http.StatusCreated, newTaskResponse(stored))
 }
 
@@ -156,7 +157,7 @@ func taskInputFrom(req taskRequest, r *http.Request) (task.Input, string) {
 		Priority:   req.Priority,
 		AssigneeID: authkit.IdentityFromContext(r.Context()).ID,
 		ContactID:  contactID,
-		Origin:     task.Origin{Source: credentialOrigin(r.Context()), EventID: eventID},
+		Origin:     task.Origin{Source: credential.Origin(r.Context()), EventID: eventID},
 	}, ""
 }
 
@@ -377,7 +378,7 @@ func (s *server) patchTask(
 		return task.Task{}, err
 	}
 	if stored.Status != task.StatusDone && updated.Status == task.StatusDone {
-		s.publish(ctx, event.TaskCompleted, taskEventData(updated))
+		s.publish(ctx, event.TaskCompleted, task.EventData(updated))
 	}
 	return updated, nil
 }
@@ -401,16 +402,4 @@ func optionalID(raw string) (uuid.UUID, error) {
 		return uuid.Nil, nil
 	}
 	return uuid.Parse(raw)
-}
-
-// taskEventData returns the fields a task event carries, enough to identify
-// the task and read it at a glance.
-func taskEventData(t task.Task) map[string]any {
-	return map[string]any{
-		"id":       t.ID.String(),
-		"title":    t.Title,
-		"status":   t.Status,
-		"due_on":   t.DueOn.Format(time.DateOnly),
-		"priority": t.Priority,
-	}
 }

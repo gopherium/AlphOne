@@ -44,7 +44,7 @@ func statusFor(err error) (int, string) {
 func contactStatusFor(err error) (int, bool) {
 	switch {
 	case errors.Is(err, contact.ErrEmptyName), errors.Is(err, contact.ErrEmptyChannel),
-		errors.Is(err, contact.ErrEmptyIdentifier), errors.Is(err, errChannelNotWritable):
+		errors.Is(err, contact.ErrEmptyIdentifier), errors.Is(err, contact.ErrChannelNotWritable):
 		return http.StatusUnprocessableEntity, true
 	case errors.Is(err, contact.ErrNotFound), errors.Is(err, contact.ErrIdentityNotFound):
 		return http.StatusNotFound, true

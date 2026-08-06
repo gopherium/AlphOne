@@ -15,27 +15,11 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/apitoken"
+	"github.com/gopherium/alphone/internal/credential"
 )
 
 // bearerScheme prefixes the credential in an Authorization header.
 const bearerScheme = "Bearer "
-
-// originTokenPrefix namespaces attribution stamped from an API token.
-const originTokenPrefix = "token:"
-
-// originKey is the context key carrying the attribution of a request credential.
-type originKey struct{}
-
-// withTokenOrigin returns ctx carrying the attribution of the named token.
-func withTokenOrigin(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, originKey{}, originTokenPrefix+name)
-}
-
-// credentialOrigin returns the attribution of the request credential, or empty.
-func credentialOrigin(ctx context.Context) string {
-	origin, _ := ctx.Value(originKey{}).(string)
-	return origin
-}
 
 // TokenStore reads the API tokens a bearer credential resolves to.
 type TokenStore interface {
@@ -69,7 +53,7 @@ func (s *server) requireIdentity(next http.Handler) http.Handler {
 			return
 		}
 		ctx := authkit.WithIdentity(r.Context(), identity)
-		ctx = withTokenOrigin(ctx, token.Name)
+		ctx = credential.WithTokenOrigin(ctx, token.Name)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
