@@ -20,10 +20,10 @@
 		"react": "^19.2.8"
 	},
 	"devDependencies": {
-		"@tanstack/react-router": "^1.170.18",
+		"@tanstack/react-router": "^1.170.19",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
-		"@types/react": "^19.2.17",
+		"@types/react": "^19.2.18",
 		"msw": "^2.15.0",
 		"vitest": "^4.1.10"
 	}
