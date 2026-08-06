@@ -25,8 +25,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - run: make generate
-      - run: git diff --exit-code
       - run: go test -race -covermode=atomic -coverprofile=cover.out ./...
       - run: go vet ./...
       - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
@@ -81,6 +79,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: make generate
+      - run: git diff --exit-code
       - name: schema diff against the base branch
         if: github.event_name == 'pull_request'
         run: |

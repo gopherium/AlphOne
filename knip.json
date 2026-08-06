@@ -1,5 +1,5 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"ignoreBinaries": ["cover", "lint", "typecheck"],
-	"ignore": ["docs/**"]
+	"ignore": ["docs/**", "frontend/src/gql/**"]
 }

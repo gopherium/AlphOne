@@ -7,6 +7,8 @@
     "dev": "pnpm --filter @alphone/frontend dev"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^7.2.0",
+    "@graphql-codegen/client-preset": "^6.1.1",
     "eslint": "^10.7.0",
     "eslint-plugin-jsdoc": "^63.2.0",
     "eslint-plugin-sonarjs": "^4.2.0",

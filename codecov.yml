@@ -13,6 +13,7 @@ ignore:
   - internal/testdb
   - graph/generated.go
   - graph/model
+  - frontend/src/gql
   - cmd/alphone/main.go
   - cmd/pluginwire/main.go
   - cmd/doclint/main.go
