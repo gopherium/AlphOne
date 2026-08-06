@@ -58,6 +58,47 @@ func (s *server) requireIdentity(next http.Handler) http.Handler {
 	})
 }
 
+// identifyIdentity resolves any presented credential without requiring one,
+// leaving the request anonymous when none is usable.
+func (s *server) identifyIdentity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if secret, ok := s.bearerSecret(r); ok {
+			s.identifyBearer(w, r, next, secret)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(s.sessionContext(r)))
+	})
+}
+
+// identifyBearer serves the request as the token's user, rejecting unusable tokens.
+func (s *server) identifyBearer(w http.ResponseWriter, r *http.Request, next http.Handler, secret string) {
+	identity, token, err := s.identityForToken(r.Context(), secret)
+	if errors.Is(err, apitoken.ErrNotFound) || errors.Is(err, gouncer.ErrUserNotFound) {
+		authkit.RespondError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if err != nil {
+		authkit.RespondError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	ctx := authkit.WithIdentity(r.Context(), identity)
+	ctx = credential.WithTokenOrigin(ctx, token.Name)
+	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// sessionContext returns the request context with the session identity when one resolves.
+func (s *server) sessionContext(r *http.Request) context.Context {
+	cookie, err := r.Cookie(s.auth.CookieName())
+	if err != nil {
+		return r.Context()
+	}
+	identity, err := s.auth.SessionIdentity(r.Context(), cookie.Value)
+	if err != nil {
+		return r.Context()
+	}
+	return authkit.WithIdentity(r.Context(), identity)
+}
+
 // bearerSecret returns the credential of an Authorization Bearer header.
 func (s *server) bearerSecret(r *http.Request) (string, bool) {
 	if s.tokens == nil {

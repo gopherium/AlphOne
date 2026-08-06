@@ -45,8 +45,9 @@ func TestGraphQLRequiresAuthentication(t *testing.T) {
 
 	recorder := postGraphQL(t, srv, versionQuery, nil)
 
-	if recorder.Code != http.StatusUnauthorized {
-		t.Errorf("unauthenticated POST /api/graphql = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) == 0 || body.Data.Version != "" {
+		t.Fatalf("anonymous version query = %s, want the gate's rejection", recorder.Body.String())
 	}
 }
 

@@ -106,9 +106,13 @@ func NewServer(cfg Config) http.Handler {
 		protected.Post("/api/webhooks", s.handleWebhookCreate())
 		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
 		protected.Get("/api/version", s.handleVersion())
-		protected.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg))
+	})
+	router.Group(func(graphed chi.Router) {
+		graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
+		graphed.Use(s.identifyIdentity)
+		graphed.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg, auth, admin))
 		if cfg.GraphiQL {
-			protected.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
+			graphed.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
 		}
 	})
 	for id, handler := range cfg.Plugins {
