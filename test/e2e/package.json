@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@graphql-inspector/cli": "^6.0.8",
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.62.1",
     "@types/node": "^26.1.2"
   }
 }
