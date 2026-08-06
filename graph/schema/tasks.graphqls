@@ -26,3 +26,28 @@ extend type Query {
   tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
   task(id: UUID!): Task
 }
+
+input CreateTaskInput {
+  title: String!
+  dueOn: Date!
+  priority: Int
+  contactId: UUID
+  originEventId: UUID
+}
+
+type CreateTaskPayload {
+  task: Task!
+  replay: Boolean!
+}
+
+input UpdateTaskInput {
+  title: String
+  dueOn: Date
+  status: String
+  priority: Int
+}
+
+extend type Mutation {
+  createTask(input: CreateTaskInput!): CreateTaskPayload!
+  updateTask(id: UUID!, input: UpdateTaskInput!): Task!
+}

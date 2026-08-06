@@ -13,6 +13,7 @@ import (
 	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
+	"github.com/gopherium/alphone/internal/event"
 )
 
 // errInvalidFirst reports a page size outside the accepted range.
@@ -124,6 +125,16 @@ func (c contactResolver) CreatedAt(ctx context.Context, obj *model.Contact) (*ti
 	return &createdAt, nil
 }
 
+// toIdentity maps a domain identity to its graph model.
+func toIdentity(row contact.Identity) *model.ContactIdentity {
+	return &model.ContactIdentity{
+		ID:          row.ID,
+		Channel:     string(row.Channel),
+		Identifier:  row.Identifier,
+		DisplayName: row.DisplayName,
+	}
+}
+
 // Identities resolves a contact's identities.
 func (c contactResolver) Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error) {
 	rows, err := c.root.Contacts.ListContactIdentities(ctx, obj.ID)
@@ -132,14 +143,92 @@ func (c contactResolver) Identities(ctx context.Context, obj *model.Contact) ([]
 	}
 	identities := make([]*model.ContactIdentity, len(rows))
 	for i, row := range rows {
-		identities[i] = &model.ContactIdentity{
-			ID:          row.ID,
-			Channel:     string(row.Channel),
-			Identifier:  row.Identifier,
-			DisplayName: row.DisplayName,
-		}
+		identities[i] = toIdentity(row)
 	}
 	return identities, nil
+}
+
+// writableIdentities builds writable identities for contactID from the inputs.
+func writableIdentities(contactID uuid.UUID, inputs []*model.ContactIdentityInput) ([]contact.Identity, error) {
+	identities := make([]contact.Identity, len(inputs))
+	for i, input := range inputs {
+		identity, err := contact.NewWritableIdentity(
+			contactID, contact.Channel(input.Channel), input.Identifier, stringOf(input.DisplayName),
+		)
+		if err != nil {
+			return nil, err
+		}
+		identities[i] = identity
+	}
+	return identities, nil
+}
+
+// CreateContact stores a contact with optional identities and publishes contact.created.
+func (m mutationResolver) CreateContact(
+	ctx context.Context, name string, identities []*model.ContactIdentityInput,
+) (*model.Contact, error) {
+	created, err := contact.New(name)
+	if err != nil {
+		return nil, err
+	}
+	writable, err := writableIdentities(created.ID, identities)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.storeContact(ctx, created, writable); err != nil {
+		return nil, err
+	}
+	m.root.publish(ctx, event.ContactCreated, contact.EventData(created))
+	primeContact(ctx, created)
+	return toContact(created), nil
+}
+
+// storeContact persists the contact, transactionally with identities when given.
+func (m mutationResolver) storeContact(ctx context.Context, c contact.Contact, identities []contact.Identity) error {
+	if len(identities) == 0 {
+		return m.root.Contacts.Create(ctx, c)
+	}
+	return m.root.Contacts.CreateContactWithIdentities(ctx, c, identities)
+}
+
+// RenameContact renames a contact.
+func (m mutationResolver) RenameContact(ctx context.Context, id uuid.UUID, name string) (*model.Contact, error) {
+	renamed, err := contact.Rename(name)
+	if err != nil {
+		return nil, err
+	}
+	row, err := m.root.Contacts.RenameContact(ctx, id, renamed)
+	if err != nil {
+		return nil, err
+	}
+	primeContact(ctx, row)
+	return toContact(row), nil
+}
+
+// AddContactIdentity attaches an identity to a contact.
+func (m mutationResolver) AddContactIdentity(
+	ctx context.Context, contactID uuid.UUID, identity model.ContactIdentityInput,
+) (*model.ContactIdentity, error) {
+	writable, err := contact.NewWritableIdentity(
+		contactID, contact.Channel(identity.Channel), identity.Identifier, stringOf(identity.DisplayName),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.root.Contacts.AddIdentity(ctx, writable); err != nil {
+		return nil, err
+	}
+	return toIdentity(writable), nil
+}
+
+// DeleteContactIdentity removes a contact's identity.
+func (m mutationResolver) DeleteContactIdentity(
+	ctx context.Context, contactID uuid.UUID, identityID uuid.UUID,
+) (bool, error) {
+	if err := m.root.Contacts.DeleteIdentity(ctx, contactID, identityID); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Tasks pages the contact's tasks as a connection.

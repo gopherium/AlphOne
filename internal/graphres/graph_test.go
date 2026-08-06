@@ -44,18 +44,32 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// newGraphClient returns a gqlgen test client over the resolver, acting as assignee.
-func newGraphClient(t *testing.T, resolver *graphres.Resolver, assignee uuid.UUID) *gqlclient.Client {
+// newDecoratedGraphClient returns a test client whose request context passes through decorate.
+func newDecoratedGraphClient(
+	t *testing.T, resolver *graphres.Resolver, decorate func(context.Context) context.Context,
+) *gqlclient.Client {
 	t.Helper()
 	schema := graph.NewExecutableSchema(graph.Config{Resolvers: resolver})
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
 	srv.SetErrorPresenter(graphres.PresentError)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := authkit.WithIdentity(r.Context(), authkit.Identity{ID: assignee})
-		srv.ServeHTTP(w, r.WithContext(resolver.WithLoaders(ctx)))
+		srv.ServeHTTP(w, r.WithContext(resolver.WithLoaders(decorate(r.Context()))))
 	})
 	return gqlclient.New(wrapped)
+}
+
+// authkitIdentity stamps ctx with the acting identity.
+func authkitIdentity(ctx context.Context, id uuid.UUID) context.Context {
+	return authkit.WithIdentity(ctx, authkit.Identity{ID: id})
+}
+
+// newGraphClient returns a gqlgen test client over the resolver, acting as assignee.
+func newGraphClient(t *testing.T, resolver *graphres.Resolver, assignee uuid.UUID) *gqlclient.Client {
+	t.Helper()
+	return newDecoratedGraphClient(t, resolver, func(ctx context.Context) context.Context {
+		return authkitIdentity(ctx, assignee)
+	})
 }
 
 // newDBResolver returns a resolver over real postgres stores plus the stores.
@@ -370,6 +384,28 @@ func (s *stubContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]cont
 	return found, nil
 }
 
+func (s *stubContactStore) Create(_ context.Context, _ contact.Contact) error {
+	return nil
+}
+
+func (s *stubContactStore) CreateContactWithIdentities(
+	_ context.Context, _ contact.Contact, _ []contact.Identity,
+) error {
+	return nil
+}
+
+func (s *stubContactStore) RenameContact(_ context.Context, _ uuid.UUID, _ string) (contact.Contact, error) {
+	return contact.Contact{}, contact.ErrNotFound
+}
+
+func (s *stubContactStore) AddIdentity(_ context.Context, _ contact.Identity) error {
+	return nil
+}
+
+func (s *stubContactStore) DeleteIdentity(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+
 // stubTaskStore serves a fixed task list for every day listing.
 type stubTaskStore struct {
 	tasks []task.Task
@@ -395,6 +431,14 @@ func (s *stubTaskStore) ListForContact(
 	_ context.Context, _ uuid.UUID, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return nil, nil
+}
+
+func (s *stubTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
+	return t, true, nil
+}
+
+func (s *stubTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
+	return t, nil
 }
 
 func TestTaskContactsAreLoadedInOneBatch(t *testing.T) {

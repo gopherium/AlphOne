@@ -1,0 +1,20 @@
+type Webhook {
+  id: UUID!
+  url: String!
+  events: [String!]!
+  createdAt: DateTime!
+}
+
+type CreateWebhookPayload {
+  webhook: Webhook!
+  secret: String!
+}
+
+extend type Query {
+  webhooks: [Webhook!]!
+}
+
+extend type Mutation {
+  createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
+  deleteWebhook(id: UUID!): Boolean!
+}

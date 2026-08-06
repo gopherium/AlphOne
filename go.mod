@@ -17,6 +17,7 @@ require (
 	github.com/peterldowns/pgtestdb/migrators/goosemigrator v0.1.1
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/vektah/gqlparser/v2 v2.5.36
+	github.com/vikstrous/dataloadgen v0.0.10
 	github.com/xuri/excelize/v2 v2.11.0
 )
 
@@ -35,7 +36,6 @@ require (
 	github.com/sosodev/duration v1.4.0 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/urfave/cli/v3 v3.10.1 // indirect
-	github.com/vikstrous/dataloadgen v0.0.10 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect

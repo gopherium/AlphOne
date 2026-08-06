@@ -27,3 +27,16 @@ extend type Query {
   contacts(q: String, first: Int, after: String): ContactConnection!
   contact(id: UUID!): Contact
 }
+
+input ContactIdentityInput {
+  channel: String!
+  identifier: String!
+  displayName: String
+}
+
+type Mutation {
+  createContact(name: String!, identities: [ContactIdentityInput!]): Contact!
+  renameContact(id: UUID!, name: String!): Contact!
+  addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity!
+  deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean!
+}

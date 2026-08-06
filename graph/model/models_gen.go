@@ -33,6 +33,33 @@ type ContactIdentity struct {
 	DisplayName string    `json:"displayName"`
 }
 
+type ContactIdentityInput struct {
+	Channel     string  `json:"channel"`
+	Identifier  string  `json:"identifier"`
+	DisplayName *string `json:"displayName,omitempty"`
+}
+
+type CreateTaskInput struct {
+	Title         string     `json:"title"`
+	DueOn         time.Time  `json:"dueOn"`
+	Priority      *int       `json:"priority,omitempty"`
+	ContactID     *uuid.UUID `json:"contactId,omitempty"`
+	OriginEventID *uuid.UUID `json:"originEventId,omitempty"`
+}
+
+type CreateTaskPayload struct {
+	Task   *Task `json:"task"`
+	Replay bool  `json:"replay"`
+}
+
+type CreateWebhookPayload struct {
+	Webhook *Webhook `json:"webhook"`
+	Secret  string   `json:"secret"`
+}
+
+type Mutation struct {
+}
+
 type PageInfo struct {
 	HasNextPage     bool    `json:"hasNextPage"`
 	HasPreviousPage bool    `json:"hasPreviousPage"`
@@ -65,4 +92,18 @@ type TaskConnection struct {
 type TaskEdge struct {
 	Node   *Task  `json:"node"`
 	Cursor string `json:"cursor"`
+}
+
+type UpdateTaskInput struct {
+	Title    *string    `json:"title,omitempty"`
+	DueOn    *time.Time `json:"dueOn,omitempty"`
+	Status   *string    `json:"status,omitempty"`
+	Priority *int       `json:"priority,omitempty"`
+}
+
+type Webhook struct {
+	ID        uuid.UUID `json:"id"`
+	URL       string    `json:"url"`
+	Events    []string  `json:"events"`
+	CreatedAt time.Time `json:"createdAt"`
 }

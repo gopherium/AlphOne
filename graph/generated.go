@@ -33,6 +33,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Contact() ContactResolver
+	Mutation() MutationResolver
 	Query() QueryResolver
 	Task() TaskResolver
 }
@@ -66,6 +67,27 @@ type ComplexityRoot struct {
 		Identifier  func(childComplexity int) int
 	}
 
+	CreateTaskPayload struct {
+		Replay func(childComplexity int) int
+		Task   func(childComplexity int) int
+	}
+
+	CreateWebhookPayload struct {
+		Secret  func(childComplexity int) int
+		Webhook func(childComplexity int) int
+	}
+
+	Mutation struct {
+		AddContactIdentity    func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
+		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
+		CreateTask            func(childComplexity int, input model.CreateTaskInput) int
+		CreateWebhook         func(childComplexity int, url string, events []string) int
+		DeleteContactIdentity func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
+		DeleteWebhook         func(childComplexity int, id uuid.UUID) int
+		RenameContact         func(childComplexity int, id uuid.UUID, name string) int
+		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
+	}
+
 	PageInfo struct {
 		EndCursor       func(childComplexity int) int
 		HasNextPage     func(childComplexity int) int
@@ -79,6 +101,7 @@ type ComplexityRoot struct {
 		Task     func(childComplexity int, id uuid.UUID) int
 		Tasks    func(childComplexity int, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) int
 		Version  func(childComplexity int) int
+		Webhooks func(childComplexity int) int
 	}
 
 	Task struct {
@@ -104,6 +127,13 @@ type ComplexityRoot struct {
 		Cursor func(childComplexity int) int
 		Node   func(childComplexity int) int
 	}
+
+	Webhook struct {
+		CreatedAt func(childComplexity int) int
+		Events    func(childComplexity int) int
+		ID        func(childComplexity int) int
+		URL       func(childComplexity int) int
+	}
 }
 
 // endregion ***************************** api!.gotpl *****************************
@@ -115,12 +145,23 @@ type ContactResolver interface {
 	Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error)
 	Tasks(ctx context.Context, obj *model.Contact, status *string, first *int, after *string) (*model.TaskConnection, error)
 }
+type MutationResolver interface {
+	CreateContact(ctx context.Context, name string, identities []*model.ContactIdentityInput) (*model.Contact, error)
+	RenameContact(ctx context.Context, id uuid.UUID, name string) (*model.Contact, error)
+	AddContactIdentity(ctx context.Context, contactID uuid.UUID, identity model.ContactIdentityInput) (*model.ContactIdentity, error)
+	DeleteContactIdentity(ctx context.Context, contactID uuid.UUID, identityID uuid.UUID) (bool, error)
+	CreateTask(ctx context.Context, input model.CreateTaskInput) (*model.CreateTaskPayload, error)
+	UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error)
+	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
+	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
+}
 type QueryResolver interface {
 	Version(ctx context.Context) (string, error)
 	Contacts(ctx context.Context, q *string, first *int, after *string) (*model.ContactConnection, error)
 	Contact(ctx context.Context, id uuid.UUID) (*model.Contact, error)
 	Tasks(ctx context.Context, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) (*model.TaskConnection, error)
 	Task(ctx context.Context, id uuid.UUID) (*model.Task, error)
+	Webhooks(ctx context.Context) ([]*model.Webhook, error)
 }
 type TaskResolver interface {
 	Contact(ctx context.Context, obj *model.Task) (*model.Contact, error)
@@ -231,6 +272,121 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ContactIdentity.Identifier(childComplexity), true
 
+	case "CreateTaskPayload.replay":
+		if e.ComplexityRoot.CreateTaskPayload.Replay == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateTaskPayload.Replay(childComplexity), true
+	case "CreateTaskPayload.task":
+		if e.ComplexityRoot.CreateTaskPayload.Task == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateTaskPayload.Task(childComplexity), true
+
+	case "CreateWebhookPayload.secret":
+		if e.ComplexityRoot.CreateWebhookPayload.Secret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateWebhookPayload.Secret(childComplexity), true
+	case "CreateWebhookPayload.webhook":
+		if e.ComplexityRoot.CreateWebhookPayload.Webhook == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreateWebhookPayload.Webhook(childComplexity), true
+
+	case "Mutation.addContactIdentity":
+		if e.ComplexityRoot.Mutation.AddContactIdentity == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addContactIdentity_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddContactIdentity(childComplexity, args["contactId"].(uuid.UUID), args["identity"].(model.ContactIdentityInput)), true
+	case "Mutation.createContact":
+		if e.ComplexityRoot.Mutation.CreateContact == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createContact_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateContact(childComplexity, args["name"].(string), args["identities"].([]*model.ContactIdentityInput)), true
+	case "Mutation.createTask":
+		if e.ComplexityRoot.Mutation.CreateTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createTask_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateTask(childComplexity, args["input"].(model.CreateTaskInput)), true
+	case "Mutation.createWebhook":
+		if e.ComplexityRoot.Mutation.CreateWebhook == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createWebhook_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateWebhook(childComplexity, args["url"].(string), args["events"].([]string)), true
+	case "Mutation.deleteContactIdentity":
+		if e.ComplexityRoot.Mutation.DeleteContactIdentity == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteContactIdentity_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteContactIdentity(childComplexity, args["contactId"].(uuid.UUID), args["identityId"].(uuid.UUID)), true
+	case "Mutation.deleteWebhook":
+		if e.ComplexityRoot.Mutation.DeleteWebhook == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteWebhook_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteWebhook(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.renameContact":
+		if e.ComplexityRoot.Mutation.RenameContact == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameContact_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RenameContact(childComplexity, args["id"].(uuid.UUID), args["name"].(string)), true
+	case "Mutation.updateTask":
+		if e.ComplexityRoot.Mutation.UpdateTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTask_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTask(childComplexity, args["id"].(uuid.UUID), args["input"].(model.UpdateTaskInput)), true
+
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
 			break
@@ -307,6 +463,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Version(childComplexity), true
+	case "Query.webhooks":
+		if e.ComplexityRoot.Query.Webhooks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Webhooks(childComplexity), true
 
 	case "Task.assigneeId":
 		if e.ComplexityRoot.Task.AssigneeID == nil {
@@ -401,6 +563,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TaskEdge.Node(childComplexity), true
 
+	case "Webhook.createdAt":
+		if e.ComplexityRoot.Webhook.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Webhook.CreatedAt(childComplexity), true
+	case "Webhook.events":
+		if e.ComplexityRoot.Webhook.Events == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Webhook.Events(childComplexity), true
+	case "Webhook.id":
+		if e.ComplexityRoot.Webhook.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Webhook.ID(childComplexity), true
+	case "Webhook.url":
+		if e.ComplexityRoot.Webhook.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Webhook.URL(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -408,7 +595,11 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputContactIdentityInput,
+		ec.unmarshalInputCreateTaskInput,
+		ec.unmarshalInputUpdateTaskInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -442,6 +633,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 
 			return &response
 		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -467,7 +673,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "schema/contacts.graphqls" "schema/core.graphqls" "schema/tasks.graphqls"
+//go:embed "schema/contacts.graphqls" "schema/core.graphqls" "schema/tasks.graphqls" "schema/webhooks.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -482,6 +688,7 @@ var sources = []*ast.Source{
 	{Name: "schema/contacts.graphqls", Input: sourceData("schema/contacts.graphqls"), BuiltIn: false},
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
+	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -537,6 +744,26 @@ func (ec *executionContext) childFields_ContactIdentity(ctx context.Context, fie
 		return ec.fieldContext_ContactIdentity_displayName(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ContactIdentity", field.Name)
+}
+
+func (ec *executionContext) childFields_CreateTaskPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "task":
+		return ec.fieldContext_CreateTaskPayload_task(ctx, field)
+	case "replay":
+		return ec.fieldContext_CreateTaskPayload_replay(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CreateTaskPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "webhook":
+		return ec.fieldContext_CreateWebhookPayload_webhook(ctx, field)
+	case "secret":
+		return ec.fieldContext_CreateWebhookPayload_secret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CreateWebhookPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -599,6 +826,20 @@ func (ec *executionContext) childFields_TaskEdge(ctx context.Context, field grap
 		return ec.fieldContext_TaskEdge_cursor(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TaskEdge", field.Name)
+}
+
+func (ec *executionContext) childFields_Webhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Webhook_id(ctx, field)
+	case "url":
+		return ec.fieldContext_Webhook_url(ctx, field)
+	case "events":
+		return ec.fieldContext_Webhook_events(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Webhook_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Webhook", field.Name)
 }
 
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -744,6 +985,166 @@ func (ec *executionContext) field_Contact_tasks_args(ctx context.Context, rawArg
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addContactIdentity_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "identity",
+		func(ctx context.Context, v any) (model.ContactIdentityInput, error) {
+			return ec.unmarshalNContactIdentityInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["identity"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createContact_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "identities",
+		func(ctx context.Context, v any) ([]*model.ContactIdentityInput, error) {
+			return ec.unmarshalOContactIdentityInput2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["identities"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.CreateTaskInput, error) {
+			return ec.unmarshalNCreateTaskInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createWebhook_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "url",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["url"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "events",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["events"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteContactIdentity_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "identityId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["identityId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteWebhook_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_renameContact_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.UpdateTaskInput, error) {
+			return ec.unmarshalNUpdateTaskInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐUpdateTaskInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -1289,6 +1690,468 @@ func (ec *executionContext) fieldContext_ContactIdentity_displayName(_ context.C
 	return graphql.NewScalarFieldContext("ContactIdentity", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _CreateTaskPayload_task(ctx context.Context, field graphql.CollectedField, obj *model.CreateTaskPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreateTaskPayload_task(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Task, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Task) graphql.Marshaler {
+			return ec.marshalNTask2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreateTaskPayload_task(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateTaskPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Task(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreateTaskPayload_replay(ctx context.Context, field graphql.CollectedField, obj *model.CreateTaskPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreateTaskPayload_replay(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Replay, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreateTaskPayload_replay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreateTaskPayload", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CreateWebhookPayload_webhook(ctx context.Context, field graphql.CollectedField, obj *model.CreateWebhookPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreateWebhookPayload_webhook(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Webhook, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Webhook) graphql.Marshaler {
+			return ec.marshalNWebhook2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWebhook(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreateWebhookPayload_webhook(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreateWebhookPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Webhook(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreateWebhookPayload_secret(ctx context.Context, field graphql.CollectedField, obj *model.CreateWebhookPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreateWebhookPayload_secret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Secret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreateWebhookPayload_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreateWebhookPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_createContact(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createContact(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateContact(ctx, fc.Args["name"].(string), fc.Args["identities"].([]*model.ContactIdentityInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Contact) graphql.Marshaler {
+			return ec.marshalNContact2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createContact(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Contact(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createContact_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameContact(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_renameContact(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RenameContact(ctx, fc.Args["id"].(uuid.UUID), fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Contact) graphql.Marshaler {
+			return ec.marshalNContact2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_renameContact(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Contact(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameContact_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addContactIdentity(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addContactIdentity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddContactIdentity(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["identity"].(model.ContactIdentityInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ContactIdentity) graphql.Marshaler {
+			return ec.marshalNContactIdentity2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentity(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addContactIdentity(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ContactIdentity(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addContactIdentity_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteContactIdentity(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteContactIdentity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteContactIdentity(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["identityId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteContactIdentity(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteContactIdentity_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createTask(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateTask(ctx, fc.Args["input"].(model.CreateTaskInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CreateTaskPayload) graphql.Marshaler {
+			return ec.marshalNCreateTaskPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CreateTaskPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateTask(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTask(ctx, fc.Args["id"].(uuid.UUID), fc.Args["input"].(model.UpdateTaskInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Task) graphql.Marshaler {
+			return ec.marshalNTask2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Task(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createWebhook(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateWebhook(ctx, fc.Args["url"].(string), fc.Args["events"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CreateWebhookPayload) graphql.Marshaler {
+			return ec.marshalNCreateWebhookPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateWebhookPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createWebhook(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CreateWebhookPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createWebhook_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteWebhook(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteWebhook(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteWebhook_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1576,6 +2439,38 @@ func (ec *executionContext) fieldContext_Query_task(ctx context.Context, field g
 	if fc.Args, err = ec.field_Query_task_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_webhooks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_webhooks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Webhooks(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Webhook) graphql.Marshaler {
+			return ec.marshalNWebhook2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWebhookᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_webhooks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Webhook(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -2035,6 +2930,98 @@ func (ec *executionContext) _TaskEdge_cursor(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_TaskEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TaskEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Webhook_id(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Webhook_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Webhook_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Webhook", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Webhook_url(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Webhook_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Webhook_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Webhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Webhook_events(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Webhook_events(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Webhook_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Webhook", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Webhook_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Webhook_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Webhook_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Webhook", field, false, false, errors.New("field of type DateTime does not have child fields"))
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -3096,6 +4083,159 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputContactIdentityInput(ctx context.Context, obj any) (model.ContactIdentityInput, error) {
+	var it model.ContactIdentityInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"channel", "identifier", "displayName"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "channel":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channel"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Channel = data
+		case "identifier":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("identifier"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Identifier = data
+		case "displayName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisplayName = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, obj any) (model.CreateTaskInput, error) {
+	var it model.CreateTaskInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title", "dueOn", "priority", "contactId", "originEventId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "dueOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueOn"))
+			data, err := ec.unmarshalNDate2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DueOn = data
+		case "priority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Priority = data
+		case "contactId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("contactId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ContactID = data
+		case "originEventId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("originEventId"))
+			data, err := ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OriginEventID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, obj any) (model.UpdateTaskInput, error) {
+	var it model.UpdateTaskInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title", "dueOn", "status", "priority"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "dueOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueOn"))
+			data, err := ec.unmarshalODate2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DueOn = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "priority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Priority = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -3400,6 +4540,189 @@ func (ec *executionContext) _ContactIdentity(ctx context.Context, sel ast.Select
 	return out
 }
 
+var createTaskPayloadImplementors = []string{"CreateTaskPayload"}
+
+func (ec *executionContext) _CreateTaskPayload(ctx context.Context, sel ast.SelectionSet, obj *model.CreateTaskPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createTaskPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreateTaskPayload")
+		case "task":
+			out.Values[i] = ec._CreateTaskPayload_task(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "replay":
+			out.Values[i] = ec._CreateTaskPayload_replay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var createWebhookPayloadImplementors = []string{"CreateWebhookPayload"}
+
+func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, obj *model.CreateWebhookPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createWebhookPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreateWebhookPayload")
+		case "webhook":
+			out.Values[i] = ec._CreateWebhookPayload_webhook(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "secret":
+			out.Values[i] = ec._CreateWebhookPayload_secret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createContact":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createContact(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "renameContact":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameContact(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addContactIdentity":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addContactIdentity(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteContactIdentity":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteContactIdentity(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createWebhook":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createWebhook(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteWebhook":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteWebhook(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var pageInfoImplementors = []string{"PageInfo"}
 
 func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet, obj *model.PageInfo) graphql.Marshaler {
@@ -3572,6 +4895,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_task(ctx, field)
 				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "webhooks":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_webhooks(ctx, field)
+				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -3801,6 +5146,59 @@ func (ec *executionContext) _TaskEdge(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "cursor":
 			out.Values[i] = ec._TaskEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var webhookImplementors = []string{"Webhook"}
+
+func (ec *executionContext) _Webhook(ctx context.Context, sel ast.SelectionSet, obj *model.Webhook) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, webhookImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Webhook")
+		case "id":
+			out.Values[i] = ec._Webhook_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._Webhook_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "events":
+			out.Values[i] = ec._Webhook_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Webhook_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4233,6 +5631,10 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNContact2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx context.Context, sel ast.SelectionSet, v model.Contact) graphql.Marshaler {
+	return ec._Contact(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNContact2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx context.Context, sel ast.SelectionSet, v *model.Contact) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -4283,6 +5685,10 @@ func (ec *executionContext) marshalNContactEdge2ᚖgithubᚗcomᚋgopheriumᚋal
 	return ec._ContactEdge(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNContactIdentity2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentity(ctx context.Context, sel ast.SelectionSet, v model.ContactIdentity) graphql.Marshaler {
+	return ec._ContactIdentity(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNContactIdentity2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ContactIdentity) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -4307,6 +5713,49 @@ func (ec *executionContext) marshalNContactIdentity2ᚖgithubᚗcomᚋgopherium�
 		return graphql.Null
 	}
 	return ec._ContactIdentity(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNContactIdentityInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInput(ctx context.Context, v any) (model.ContactIdentityInput, error) {
+	res, err := ec.unmarshalInputContactIdentityInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNContactIdentityInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInput(ctx context.Context, v any) (*model.ContactIdentityInput, error) {
+	res, err := ec.unmarshalInputContactIdentityInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateTaskInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskInput(ctx context.Context, v any) (model.CreateTaskInput, error) {
+	res, err := ec.unmarshalInputCreateTaskInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCreateTaskPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskPayload(ctx context.Context, sel ast.SelectionSet, v model.CreateTaskPayload) graphql.Marshaler {
+	return ec._CreateTaskPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCreateTaskPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskPayload(ctx context.Context, sel ast.SelectionSet, v *model.CreateTaskPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CreateTaskPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCreateWebhookPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, v model.CreateWebhookPayload) graphql.Marshaler {
+	return ec._CreateWebhookPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCreateWebhookPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, v *model.CreateWebhookPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CreateWebhookPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNDate2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
@@ -4405,6 +5854,39 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTask2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx context.Context, sel ast.SelectionSet, v model.Task) graphql.Marshaler {
+	return ec._Task(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNTask2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx context.Context, sel ast.SelectionSet, v *model.Task) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -4469,6 +5951,37 @@ func (ec *executionContext) marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNUpdateTaskInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐUpdateTaskInput(ctx context.Context, v any) (model.UpdateTaskInput, error) {
+	res, err := ec.unmarshalInputUpdateTaskInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNWebhook2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWebhookᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Webhook) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWebhook2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWebhook(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWebhook2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWebhook(ctx context.Context, sel ast.SelectionSet, v *model.Webhook) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Webhook(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -4646,6 +6159,23 @@ func (ec *executionContext) marshalOContact2ᚖgithubᚗcomᚋgopheriumᚋalphon
 		return graphql.Null
 	}
 	return ec._Contact(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOContactIdentityInput2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInputᚄ(ctx context.Context, v any) ([]*model.ContactIdentityInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.ContactIdentityInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNContactIdentityInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalODate2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {

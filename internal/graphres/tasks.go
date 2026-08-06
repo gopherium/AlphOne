@@ -12,7 +12,9 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/cursor"
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
 )
 
@@ -177,4 +179,90 @@ func (t taskResolver) Contact(ctx context.Context, obj *model.Task) (*model.Cont
 		return nil, err
 	}
 	return toContact(row), nil
+}
+
+// intOf dereferences an optional int argument.
+func intOf(raw *int) int {
+	if raw == nil {
+		return 0
+	}
+	return *raw
+}
+
+// uuidOf dereferences an optional id argument.
+func uuidOf(raw *uuid.UUID) uuid.UUID {
+	if raw == nil {
+		return uuid.Nil
+	}
+	return *raw
+}
+
+// graphTaskInput builds the domain input a create mutation stands for.
+func graphTaskInput(ctx context.Context, input model.CreateTaskInput) task.Input {
+	return task.Input{
+		Title:      input.Title,
+		DueOn:      input.DueOn,
+		Priority:   intOf(input.Priority),
+		AssigneeID: authkit.IdentityFromContext(ctx).ID,
+		ContactID:  uuidOf(input.ContactID),
+		Origin:     task.Origin{Source: credential.Origin(ctx), EventID: uuidOf(input.OriginEventID)},
+	}
+}
+
+// CreateTask stores a task, replaying idempotent origin creates.
+func (m mutationResolver) CreateTask(
+	ctx context.Context, input model.CreateTaskInput,
+) (*model.CreateTaskPayload, error) {
+	created, err := task.New(graphTaskInput(ctx, input))
+	if err != nil {
+		return nil, err
+	}
+	stored, isNew, err := m.root.Tasks.Create(ctx, created)
+	if err != nil {
+		return nil, err
+	}
+	if isNew {
+		m.root.publish(ctx, event.TaskCreated, task.EventData(stored))
+	}
+	return &model.CreateTaskPayload{Task: toTask(stored), Replay: !isNew}, nil
+}
+
+// UpdateTask applies a partial update to a task.
+func (m mutationResolver) UpdateTask(
+	ctx context.Context, id uuid.UUID, input model.UpdateTaskInput,
+) (*model.Task, error) {
+	stored, err := m.root.Tasks.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	changes := task.Changes{Title: input.Title, DueOn: input.DueOn, Status: input.Status, Priority: input.Priority}
+	updated, err := m.patchTask(ctx, stored, changes)
+	if err != nil {
+		return nil, err
+	}
+	return toTask(updated), nil
+}
+
+// completesTask reports whether the update closed an open task.
+func completesTask(stored, updated task.Task) bool {
+	return stored.Status != task.StatusDone && updated.Status == task.StatusDone
+}
+
+// patchTask applies changes to stored, publishing completion when the update closes the task.
+func (m mutationResolver) patchTask(ctx context.Context, stored task.Task, changes task.Changes) (task.Task, error) {
+	if changes == (task.Changes{}) {
+		return stored, nil
+	}
+	changed, err := stored.Apply(changes)
+	if err != nil {
+		return task.Task{}, err
+	}
+	updated, err := m.root.Tasks.Update(ctx, changed)
+	if err != nil {
+		return task.Task{}, err
+	}
+	if completesTask(stored, updated) {
+		m.root.publish(ctx, event.TaskCompleted, task.EventData(updated))
+	}
+	return updated, nil
 }

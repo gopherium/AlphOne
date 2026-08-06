@@ -22,6 +22,7 @@ var validationErrors = []error{
 	contact.ErrEmptyName,
 	contact.ErrEmptyChannel,
 	contact.ErrEmptyIdentifier,
+	contact.ErrChannelNotWritable,
 	task.ErrEmptyTitle,
 	task.ErrInvalidPriority,
 	task.ErrInvalidStatus,
