@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "schema:diff": "graphql-inspector diff"
   },
   "devDependencies": {
+    "@graphql-inspector/cli": "^6.0.8",
     "@playwright/test": "1.61.1",
     "@types/node": "^26.1.2"
   }

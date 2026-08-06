@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - run: make generate
+      - run: git diff --exit-code
       - run: go test -race -covermode=atomic -coverprofile=cover.out ./...
       - run: go vet ./...
       - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
@@ -79,6 +81,16 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: schema diff against the base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth 1
+          if git cat-file -e "origin/${{ github.base_ref }}:graph/schema.graphql" 2>/dev/null; then
+            pnpm --filter @alphone/e2e run schema:diff \
+              "git:origin/${{ github.base_ref }}:graph/schema.graphql" ../../graph/schema.graphql
+          else
+            echo "no schema snapshot on the base branch, skipping"
+          fi
       - run: pnpm --filter @alphone/e2e exec playwright install --with-deps chromium
       - run: make e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
