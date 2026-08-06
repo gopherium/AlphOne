@@ -25,6 +25,11 @@ type Contact struct {
 	CreatedAt time.Time
 }
 
+// EventData returns the fields a contact event carries.
+func EventData(c Contact) map[string]any {
+	return map[string]any{"id": c.ID.String(), "name": c.Name}
+}
+
 // Rename validates a contact's replacement name, returning it trimmed or
 // [ErrEmptyName] when blank.
 func Rename(name string) (string, error) {

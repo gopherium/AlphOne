@@ -97,7 +97,7 @@ func (r *Resolver) createOwner(ctx context.Context, channel Channel, identifier,
 	if err != nil {
 		return Contact{}, err
 	}
-	r.publish(ctx, event.ContactCreated, map[string]any{"id": created.ID.String(), "name": created.Name})
+	r.publish(ctx, event.ContactCreated, EventData(created))
 	return created, nil
 }
 

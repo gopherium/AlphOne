@@ -26,6 +26,24 @@ var ErrIdentityNotFound = errors.New("contact: identity not found")
 // ErrIdentityExists reports that a channel and identifier pair is already claimed.
 var ErrIdentityExists = errors.New("contact: identity already exists")
 
+// ErrChannelNotWritable reports an identity channel the API refuses to write.
+var ErrChannelNotWritable = errors.New("contact: channel not writable")
+
+// writableChannels lists the channels the API accepts writes for.
+var writableChannels = map[Channel]bool{"email": true, "phone": true}
+
+// NewWritableIdentity builds an identity on an API writable channel.
+func NewWritableIdentity(contactID uuid.UUID, channel Channel, identifier, displayName string) (Identity, error) {
+	identity, err := NewIdentity(contactID, channel, identifier, displayName)
+	if err != nil {
+		return Identity{}, err
+	}
+	if !writableChannels[identity.Channel] {
+		return Identity{}, ErrChannelNotWritable
+	}
+	return identity, nil
+}
+
 // IdentityExistsError reports a claimed identity and the contact owning it.
 type IdentityExistsError struct {
 	OwnerID uuid.UUID

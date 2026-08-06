@@ -24,6 +24,17 @@ var ErrNotFound = errors.New("task: not found")
 // ErrUnattributedOrigin reports an origin event without an origin source.
 var ErrUnattributedOrigin = errors.New("task: origin event without a source")
 
+// EventData returns the fields a task event carries.
+func EventData(t Task) map[string]any {
+	return map[string]any{
+		"id":       t.ID.String(),
+		"title":    t.Title,
+		"status":   t.Status,
+		"due_on":   t.DueOn.Format(time.DateOnly),
+		"priority": t.Priority,
+	}
+}
+
 // Task statuses.
 const (
 	StatusOpen = "open"
