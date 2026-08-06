@@ -16,3 +16,4 @@ ignore:
   - cmd/alphone/main.go
   - cmd/pluginwire/main.go
   - cmd/doclint/main.go
+  - cmd/schemagen/main.go

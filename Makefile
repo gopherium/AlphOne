@@ -27,6 +27,7 @@ generate:
 	go run ./cmd/pluginwire
 	GOWORK=off go tool sqlc generate
 	GOWORK=off go tool gqlgen generate
+	go run ./cmd/schemagen
 
 outdated:
 	@echo "=== direct Go modules with updates ==="

@@ -1,0 +1,102 @@
+directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+type Contact {
+	id: UUID!
+	name: String!
+	createdAt: DateTime! @goField(forceResolver: true)
+	identities: [ContactIdentity!]! @goField(forceResolver: true)
+	tasks(status: String, first: Int, after: String): TaskConnection! @goField(forceResolver: true)
+}
+type ContactConnection {
+	edges: [ContactEdge!]!
+	pageInfo: PageInfo!
+}
+type ContactEdge {
+	node: Contact!
+	cursor: String!
+}
+type ContactIdentity {
+	id: UUID!
+	channel: String!
+	identifier: String!
+	displayName: String!
+}
+input ContactIdentityInput {
+	channel: String!
+	identifier: String!
+	displayName: String
+}
+input CreateTaskInput {
+	title: String!
+	dueOn: Date!
+	priority: Int
+	contactId: UUID
+	originEventId: UUID
+}
+type CreateTaskPayload {
+	task: Task!
+	replay: Boolean!
+}
+type CreateWebhookPayload {
+	webhook: Webhook!
+	secret: String!
+}
+scalar Date
+scalar DateTime
+type Mutation {
+	createContact(name: String!, identities: [ContactIdentityInput!]): Contact!
+	renameContact(id: UUID!, name: String!): Contact!
+	addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity!
+	deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean!
+	createTask(input: CreateTaskInput!): CreateTaskPayload!
+	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
+	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
+	deleteWebhook(id: UUID!): Boolean!
+}
+type PageInfo {
+	hasNextPage: Boolean!
+	hasPreviousPage: Boolean!
+	startCursor: String
+	endCursor: String
+}
+type Query {
+	version: String!
+	contacts(q: String, first: Int, after: String): ContactConnection!
+	contact(id: UUID!): Contact
+	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
+	task(id: UUID!): Task
+	webhooks: [Webhook!]!
+}
+type Task {
+	id: UUID!
+	assigneeId: UUID!
+	contactId: UUID
+	title: String!
+	status: String!
+	priority: Int!
+	dueOn: Date!
+	originSource: String
+	originEventId: UUID
+	createdAt: DateTime!
+	contact: Contact @goField(forceResolver: true)
+}
+type TaskConnection {
+	edges: [TaskEdge!]!
+	pageInfo: PageInfo!
+}
+type TaskEdge {
+	node: Task!
+	cursor: String!
+}
+scalar UUID
+input UpdateTaskInput {
+	title: String
+	dueOn: Date
+	status: String
+	priority: Int
+}
+type Webhook {
+	id: UUID!
+	url: String!
+	events: [String!]!
+	createdAt: DateTime!
+}
