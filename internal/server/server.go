@@ -106,7 +106,7 @@ func NewServer(cfg Config) http.Handler {
 		protected.Post("/api/webhooks", s.handleWebhookCreate())
 		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
 		protected.Get("/api/version", s.handleVersion())
-		protected.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg.Version))
+		protected.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg))
 		if cfg.GraphiQL {
 			protected.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
 		}
