@@ -15,7 +15,13 @@ import (
 
 // newGraphQLHandler serves the GraphQL endpoint over the core resolvers.
 func newGraphQLHandler(cfg Config) http.Handler {
-	resolver := &graphres.Resolver{Version: cfg.Version, Contacts: cfg.Contacts, Tasks: cfg.Tasks}
+	resolver := &graphres.Resolver{
+		Version:  cfg.Version,
+		Contacts: cfg.Contacts,
+		Tasks:    cfg.Tasks,
+		Webhooks: cfg.Webhooks,
+		Events:   cfg.Events,
+	}
 	schema := graph.NewExecutableSchema(graph.Config{Resolvers: resolver})
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
