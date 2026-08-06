@@ -1,0 +1,29 @@
+type Identity {
+  id: UUID!
+  email: String!
+  name: String!
+}
+
+type LoginPayload {
+  me: Identity!
+}
+
+type User {
+  id: UUID!
+  email: String!
+  name: String!
+  disabled: Boolean!
+  createdAt: DateTime!
+}
+
+extend type Query {
+  me: Identity!
+  users: [User!]!
+}
+
+extend type Mutation {
+  login(email: String!, password: String!): LoginPayload!
+  logout: Boolean!
+  createUser(email: String!, name: String!, password: String!): User!
+  setUserDisabled(id: UUID!, disabled: Boolean!): Boolean!
+}

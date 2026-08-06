@@ -9,6 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer/authkit"
+	"github.com/gopherium/gouncer/authkit/ratelimit"
+
 	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
@@ -71,6 +74,12 @@ type Resolver struct {
 	Webhooks WebhookStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
+	// Auth serves login sessions through the authkit seams.
+	Auth *authkit.Handlers
+	// Admin serves user administration through the authkit seams.
+	Admin *authkit.AdminHandlers
+	// LoginLimiter counts failed logins per client IP.
+	LoginLimiter *ratelimit.Limiter
 }
 
 // publish announces an event unless the resolver was built without a publisher.

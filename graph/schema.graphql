@@ -42,11 +42,23 @@ type CreateWebhookPayload {
 }
 scalar Date
 scalar DateTime
+type Identity {
+	id: UUID!
+	email: String!
+	name: String!
+}
+type LoginPayload {
+	me: Identity!
+}
 type Mutation {
 	createContact(name: String!, identities: [ContactIdentityInput!]): Contact!
 	renameContact(id: UUID!, name: String!): Contact!
 	addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity!
 	deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean!
+	login(email: String!, password: String!): LoginPayload!
+	logout: Boolean!
+	createUser(email: String!, name: String!, password: String!): User!
+	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean!
 	createTask(input: CreateTaskInput!): CreateTaskPayload!
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
@@ -60,6 +72,8 @@ type PageInfo {
 }
 type Query {
 	version: String!
+	me: Identity!
+	users: [User!]!
 	contacts(q: String, first: Int, after: String): ContactConnection!
 	contact(id: UUID!): Contact
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
@@ -93,6 +107,13 @@ input UpdateTaskInput {
 	dueOn: Date
 	status: String
 	priority: Int
+}
+type User {
+	id: UUID!
+	email: String!
+	name: String!
+	disabled: Boolean!
+	createdAt: DateTime!
 }
 type Webhook {
 	id: UUID!

@@ -57,6 +57,16 @@ type CreateWebhookPayload struct {
 	Secret  string   `json:"secret"`
 }
 
+type Identity struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+	Name  string    `json:"name"`
+}
+
+type LoginPayload struct {
+	Me *Identity `json:"me"`
+}
+
 type Mutation struct {
 }
 
@@ -99,6 +109,14 @@ type UpdateTaskInput struct {
 	DueOn    *time.Time `json:"dueOn,omitempty"`
 	Status   *string    `json:"status,omitempty"`
 	Priority *int       `json:"priority,omitempty"`
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	Disabled  bool      `json:"disabled"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Webhook struct {
