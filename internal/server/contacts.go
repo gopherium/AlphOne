@@ -4,8 +4,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,6 +18,7 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
 )
 
@@ -32,6 +31,7 @@ type ContactStore interface {
 		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 	) ([]contact.Contact, error)
 	ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]contact.Identity, error)
+	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error)
 	AddIdentity(ctx context.Context, identity contact.Identity) error
 	DeleteIdentity(ctx context.Context, contactID, identityID uuid.UUID) error
 	RenameContact(ctx context.Context, id uuid.UUID, name string) (contact.Contact, error)
@@ -59,34 +59,6 @@ type contactResponse struct {
 // newContactResponse builds a contactResponse from a contact.Contact, normalizing the timestamp to UTC.
 func newContactResponse(c contact.Contact) contactResponse {
 	return contactResponse{ID: c.ID, Name: c.Name, CreatedAt: c.CreatedAt.UTC()}
-}
-
-type contactCursor struct {
-	Name string    `json:"name"`
-	ID   uuid.UUID `json:"id"`
-}
-
-// decodeContactCursor parses the opaque list cursor, returning zero values
-// for an absent one.
-func decodeContactCursor(raw string) (contactCursor, error) {
-	if raw == "" {
-		return contactCursor{}, nil
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return contactCursor{}, fmt.Errorf("server: decode cursor: %w", err)
-	}
-	var cursor contactCursor
-	if err := json.Unmarshal(decoded, &cursor); err != nil {
-		return contactCursor{}, fmt.Errorf("server: decode cursor: %w", err)
-	}
-	return cursor, nil
-}
-
-// encodeContactCursor renders the position after c as an opaque cursor.
-func encodeContactCursor(c contact.Contact) string {
-	encoded, _ := json.Marshal(contactCursor{Name: c.Name, ID: c.ID})
-	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 // parseContactListLimit reads the "limit" query parameter, returning the
@@ -128,13 +100,13 @@ func (s *server) handleContactList() http.HandlerFunc {
 			authkit.RespondError(w, http.StatusBadRequest, "invalid limit")
 			return
 		}
-		cursor, err := decodeContactCursor(r.URL.Query().Get("cursor"))
+		afterName, afterID, err := cursor.DecodeContact(r.URL.Query().Get("cursor"))
 		if err != nil {
 			authkit.RespondError(w, http.StatusBadRequest, "malformed cursor")
 			return
 		}
 		query := r.URL.Query().Get("q")
-		rows, err := s.store.ListContacts(r.Context(), query, digitsOf(query), cursor.Name, cursor.ID, limit+1)
+		rows, err := s.store.ListContacts(r.Context(), query, digitsOf(query), afterName, afterID, limit+1)
 		if err != nil {
 			respondDomainError(w, err)
 			return
@@ -142,7 +114,7 @@ func (s *server) handleContactList() http.HandlerFunc {
 		var nextCursor *string
 		if len(rows) > limit {
 			rows = rows[:limit]
-			encoded := encodeContactCursor(rows[limit-1])
+			encoded := cursor.EncodeContact(rows[limit-1])
 			nextCursor = &encoded
 		}
 		contacts := make([]contactResponse, len(rows))

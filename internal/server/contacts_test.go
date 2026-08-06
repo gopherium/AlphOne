@@ -57,6 +57,16 @@ func (f *fakeContactStore) ListContactIdentities(
 	return f.identities[contactID], nil
 }
 
+func (f *fakeContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
+	var found []contact.Contact
+	for _, id := range ids {
+		if c, ok := f.contacts[id]; ok {
+			found = append(found, c)
+		}
+	}
+	return found, nil
+}
+
 func (f *fakeContactStore) identityOwner(channel contact.Channel, identifier string) (uuid.UUID, bool) {
 	for ownerID, identities := range f.identities {
 		for _, identity := range identities {

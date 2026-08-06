@@ -4,8 +4,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
+	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
 )
@@ -161,41 +160,9 @@ func taskInputFrom(req taskRequest, r *http.Request) (task.Input, string) {
 	}, ""
 }
 
-type taskCursor struct {
-	DueOn string    `json:"due_on"`
-	ID    uuid.UUID `json:"id"`
-}
-
 type taskListResponse struct {
 	Tasks      []taskResponse `json:"tasks"`
 	NextCursor *string        `json:"next_cursor"`
-}
-
-// decodeTaskCursor parses the opaque list cursor, returning a zero page
-// position for an absent one.
-func decodeTaskCursor(raw string) (task.Page, error) {
-	if raw == "" {
-		return task.Page{}, nil
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
-	}
-	var cursor taskCursor
-	if err := json.Unmarshal(decoded, &cursor); err != nil {
-		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
-	}
-	dueOn, err := time.Parse(dueDateLayout, cursor.DueOn)
-	if err != nil {
-		return task.Page{}, fmt.Errorf("server: decode cursor: %w", err)
-	}
-	return task.Page{AfterDueOn: dueOn, AfterID: cursor.ID}, nil
-}
-
-// encodeTaskCursor renders the position after t as an opaque cursor.
-func encodeTaskCursor(t task.Task) string {
-	encoded, _ := json.Marshal(taskCursor{DueOn: t.DueOn.Format(dueDateLayout), ID: t.ID})
-	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 // parseTaskListLimit reads the "limit" query parameter, returning the default
@@ -240,7 +207,7 @@ func (s *server) handleTaskList() http.HandlerFunc {
 			authkit.RespondError(w, http.StatusBadRequest, "invalid limit")
 			return
 		}
-		page, err := decodeTaskCursor(query.Get("cursor"))
+		page, err := cursor.DecodeTask(query.Get("cursor"))
 		if err != nil {
 			authkit.RespondError(w, http.StatusBadRequest, "malformed cursor")
 			return
@@ -254,7 +221,7 @@ func (s *server) handleTaskList() http.HandlerFunc {
 		var nextCursor *string
 		if len(rows) > limit {
 			rows = rows[:limit]
-			encoded := encodeTaskCursor(rows[limit-1])
+			encoded := cursor.EncodeTask(rows[limit-1])
 			nextCursor = &encoded
 		}
 		tasks := make([]taskResponse, len(rows))
