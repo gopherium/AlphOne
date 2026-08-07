@@ -18,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // code extracts the extensions code of a presented error.
@@ -78,6 +79,25 @@ func TestPresentErrorCarriesTheConflictOwner(t *testing.T) {
 	}
 	if presented.Message != contact.ErrIdentityExists.Error() {
 		t.Errorf("message = %q, want %q", presented.Message, contact.ErrIdentityExists.Error())
+	}
+}
+
+func TestPresentErrorHonorsPluginGraphErrors(t *testing.T) {
+	t.Parallel()
+
+	classified := sdk.GraphError{
+		Code:       "UPSTREAM",
+		Extensions: map[string]any{"metaCode": 131047},
+		Err:        errors.New("whatsapp: send message: graph error 131047: Re-engagement message"),
+	}
+
+	presented := graphres.PresentError(context.Background(), fmt.Errorf("resolving: %w", classified))
+
+	if got := code(t, presented); got != "UPSTREAM" {
+		t.Errorf("code = %q, want UPSTREAM", got)
+	}
+	if got := presented.Extensions["metaCode"]; got != 131047 {
+		t.Errorf("metaCode = %v, want 131047 merged into the extensions", got)
 	}
 }
 

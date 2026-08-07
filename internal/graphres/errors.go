@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // validationErrors lists the domain errors presented as VALIDATION.
@@ -63,6 +64,14 @@ func PresentError(ctx context.Context, err error) *gqlerror.Error {
 
 // applySpecialCode handles the errors carrying extra extension fields.
 func applySpecialCode(presented *gqlerror.Error, err error) bool {
+	var coded sdk.GraphError
+	if errors.As(err, &coded) {
+		withCode(presented, coded.Code)
+		for key, value := range coded.Extensions {
+			presented.Extensions[key] = value
+		}
+		return true
+	}
 	var conflict contact.IdentityExistsError
 	if errors.As(err, &conflict) {
 		presented.Message = conflict.Error()
