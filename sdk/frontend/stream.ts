@@ -118,11 +118,20 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
  */
 export function useGraphStream(
 	url: string,
-	options: { graph: GraphClient; operations: readonly string[] },
+	options: {
+		graph: GraphClient
+		operations: readonly string[]
+		invalidateKeys?: readonly QueryKey[]
+	},
 ) {
 	const { graph } = options
+	const queryClient = useQueryClient()
 	const serializedOperations = JSON.stringify(options.operations)
+	const serializedKeys = JSON.stringify(options.invalidateKeys ?? [])
 	useServerEvents(url, () => {
 		graph.refetch(JSON.parse(serializedOperations) as string[])
+		for (const queryKey of JSON.parse(serializedKeys) as QueryKey[]) {
+			void queryClient.invalidateQueries({ queryKey })
+		}
 	})
 }
