@@ -7,41 +7,57 @@ import {
 	LoadingScreen,
 	PageScreen,
 	Text,
+	useGraph,
+	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { fetchContact } from '../contacts/api'
-import { fetchTask, patchTask } from './api'
-import type { Task } from './api'
+import { patchTask } from './api'
+import { taskDetailQuery } from './operations'
 import { PrioritySelect } from './PrioritySelect'
+
+/** taskOperations names the documents a task write must refresh. */
+const taskOperations = ['TaskDetail', 'DayTasks', 'OverdueTasks']
+
+/** DetailedTask is one task as the detail document selects it. */
+interface DetailedTask {
+	id: string
+	title: string
+	status: string
+	priority: number
+	dueOn: string
+	contact?: { id: string; name: string } | null
+}
 
 /**
  * Renders one task with its editable fields and contact link.
  * @returns The task screen.
  */
 export function TaskScreen({ taskId }: { taskId: string }) {
-	const task = useQuery({
-		queryKey: ['tasks', 'detail', taskId],
-		queryFn: () => fetchTask(taskId),
+	const [result] = useGraphQuery({
+		query: taskDetailQuery,
+		variables: { id: taskId },
+		requestPolicy: 'cache-and-network',
 	})
+	const task = result.data?.task
 
-	if (task.isPending) {
+	if (result.fetching && task === undefined) {
 		return (
 			<PageScreen title="Task">
 				<LoadingScreen label="Loading task…" />
 			</PageScreen>
 		)
 	}
-	if (task.isError) {
+	if (result.error || !task) {
 		return <ErrorNotice>The task could not be loaded.</ErrorNotice>
 	}
 	return (
-		<PageScreen title={task.data.title}>
-			{task.data.contact_id === null ? null : <ContactLink contactId={task.data.contact_id} />}
-			<TaskForm key={`${task.data.title}-${task.data.due_on}`} task={task.data} />
+		<PageScreen title={task.title}>
+			{task.contact ? <ContactLink contact={task.contact} /> : null}
+			<TaskForm key={`${task.title}-${task.dueOn}`} task={task} />
 		</PageScreen>
 	)
 }
@@ -50,19 +66,11 @@ export function TaskScreen({ taskId }: { taskId: string }) {
  * Renders the link to the contact a task belongs to.
  * @returns The contact link.
  */
-function ContactLink({ contactId }: { contactId: string }) {
-	const contact = useQuery({
-		queryKey: ['contacts', 'detail', contactId],
-		queryFn: () => fetchContact(contactId),
-	})
-
-	if (contact.isPending || contact.isError) {
-		return null
-	}
+function ContactLink({ contact }: { contact: { id: string; name: string } }) {
 	return (
 		<Text className="alphone-tasks__contact">
-			<Link to="/contacts/$contactId" params={{ contactId }}>
-				{contact.data.name}
+			<Link to="/contacts/$contactId" params={{ contactId: contact.id }}>
+				{contact.name}
 			</Link>
 		</Text>
 	)
@@ -72,19 +80,24 @@ function ContactLink({ contactId }: { contactId: string }) {
  * Renders the editable fields of a loaded task.
  * @returns The task form.
  */
-function TaskForm({ task }: { task: Task }) {
+function TaskForm({ task }: { task: DetailedTask }) {
 	const queryClient = useQueryClient()
+	const graph = useGraph()
 	const [title, setTitle] = useState(task.title)
-	const [dueOn, setDueOn] = useState(task.due_on)
+	const [dueOn, setDueOn] = useState(task.dueOn)
 	const [priority, setPriority] = useState(task.priority)
+	const settled = async () => {
+		graph.refetch(taskOperations)
+		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+	}
 	const save = useMutation({
 		mutationFn: () => patchTask(task.id, { title, due_on: dueOn, priority }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		onSuccess: settled,
 	})
 	const toggle = useMutation({
 		mutationFn: () =>
 			patchTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		onSuccess: settled,
 	})
 
 	return (

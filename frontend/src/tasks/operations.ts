@@ -2,6 +2,23 @@
 
 import { graphql } from '../gql'
 
+export const taskDetailQuery = graphql(`
+	query TaskDetail($id: UUID!) {
+		task(id: $id) {
+			id
+			title
+			status
+			priority
+			dueOn
+			contactId
+			contact {
+				id
+				name
+			}
+		}
+	}
+`)
+
 export const dayTasksQuery = graphql(`
 	query DayTasks($date: Date!, $status: String!, $first: Int!, $after: String) {
 		tasks(date: $date, status: $status, first: $first, after: $after) {

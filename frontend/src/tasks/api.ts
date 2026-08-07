@@ -45,22 +45,6 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 }
 
 /**
- * Fetches one task.
- * @param id - The task identifier.
- * @returns The parsed task.
- */
-export async function fetchTask(id: string): Promise<Task> {
-	const response = await fetch(`/api/tasks/${id}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`loading task failed with status ${response.status}`)
-	}
-	return taskSchema.parse(await response.json())
-}
-
-/**
  * Creates a task due on a day and returns it.
  * @param title - The task title.
  * @param dueOn - The due date as YYYY-MM-DD.

@@ -57,22 +57,6 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 }
 
 /**
- * Fetches a contact by id.
- * @param id - The contact identifier.
- * @returns The parsed contact.
- */
-export async function fetchContact(id: string): Promise<Contact> {
-	const response = await fetch(`/api/contacts/${id}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`loading contact failed with status ${response.status}`)
-	}
-	return contactSchema.parse(await response.json())
-}
-
-/**
  * Creates a contact and returns it.
  * @param name - The contact's name.
  * @returns The created contact.
