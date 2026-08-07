@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer/authkit"
-	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
@@ -61,6 +60,12 @@ type Publisher interface {
 	Publish(ctx context.Context, name event.Name, data map[string]any)
 }
 
+// AttemptLimiter budgets failed logins per client key.
+type AttemptLimiter interface {
+	Check(key string) (bool, time.Duration, error)
+	RecordFailure(key string) error
+}
+
 // Resolver is the root resolver serving the core schema.
 type Resolver struct {
 	// Version is the reported application version.
@@ -78,7 +83,7 @@ type Resolver struct {
 	// Admin serves user administration through the authkit seams.
 	Admin *authkit.AdminHandlers
 	// LoginLimiter counts failed logins per client IP.
-	LoginLimiter *ratelimit.Limiter
+	LoginLimiter AttemptLimiter
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
 }

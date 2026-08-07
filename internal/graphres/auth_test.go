@@ -184,6 +184,51 @@ func TestLoginRateLimitsRepeatedFailures(t *testing.T) {
 	}
 }
 
+// stubLimiter answers the login budget from fixed error fields.
+type stubLimiter struct {
+	checkErr  error
+	recordErr error
+}
+
+func (s stubLimiter) Check(string) (bool, time.Duration, error) {
+	return true, 0, s.checkErr
+}
+
+func (s stubLimiter) RecordFailure(string) error {
+	return s.recordErr
+}
+
+func TestLoginSurfacesLimiterFailures(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+
+	checkFailing := newAuthResolver(store)
+	checkFailing.LoginLimiter = stubLimiter{checkErr: errors.New("limiter down")}
+	client := newHTTPGraphClient(t, checkFailing, uuid.Nil)
+	blocked, err := client.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", testPassword))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, blocked.Errors); got != "INTERNAL" {
+		t.Errorf("failing check code = %q, want INTERNAL", got)
+	}
+
+	recordFailing := newAuthResolver(store)
+	recordFailing.LoginLimiter = stubLimiter{recordErr: errors.New("limiter down")}
+	recordClient := newHTTPGraphClient(t, recordFailing, uuid.Nil)
+	unrecorded, err := recordClient.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", "wrong password 1234"))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, unrecorded.Errors); got != "INTERNAL" {
+		t.Errorf("failing record code = %q, want INTERNAL", got)
+	}
+}
+
 func TestLoginSurfacesSessionStoreFailures(t *testing.T) {
 	t.Parallel()
 
