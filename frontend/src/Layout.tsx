@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Text, useCanvas, useEventStream, useFrameLocation } from '@alphone/frontend-sdk'
+import { Text, useCanvas, useFrameLocation, useGraph, useGraphStream } from '@alphone/frontend-sdk'
 import { Frame } from '@gopherium/godmin'
 import { Outlet } from '@tanstack/react-router'
 
@@ -15,7 +15,12 @@ const CANVAS_COLOR = { background: '#ffffff' }
  * @returns The layout element framing the current route.
  */
 export function Layout() {
-	useEventStream('/api/events', { invalidateKeys: [['tasks'], ['contacts']] })
+	const graph = useGraph()
+	useGraphStream('/api/events', {
+		graph,
+		operations: ['DayTasks', 'OverdueTasks', 'Contacts', 'ContactDetail'],
+		invalidateKeys: [['tasks']],
+	})
 	const location = useFrameLocation()
 	const canvas = useCanvas()
 	return (

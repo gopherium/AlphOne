@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Badge, Button, Checkbox, Link, Stack, Text } from '@alphone/frontend-sdk'
+import type { ConnectionResult } from '@alphone/frontend-sdk'
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 
@@ -22,6 +23,35 @@ export interface RowControls {
 	onChange: (task: ListedTask) => void
 	onPush: (task: ListedTask) => void
 	pendingID: string
+}
+
+/** GraphTask is one task as the graph documents select it. */
+export interface GraphTask {
+	id: string
+	title: string
+	status: string
+	priority: number
+	dueOn: string
+}
+
+/**
+ * Maps a graph task connection onto the rows the task list renders.
+ * @param connection - The task connection as the graph serves it.
+ * @returns The connection carrying list shaped rows.
+ */
+export function toListedTasks(
+	connection: ConnectionResult<GraphTask>,
+): ConnectionResult<ListedTask> {
+	return {
+		...connection,
+		rows: connection.rows.map((node) => ({
+			id: node.id,
+			title: node.title,
+			status: node.status,
+			priority: node.priority,
+			due_on: node.dueOn,
+		})),
+	}
 }
 
 /**

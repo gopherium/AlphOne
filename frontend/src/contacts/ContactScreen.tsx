@@ -11,12 +11,11 @@ import {
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useConnection, useGraph } from '@alphone/frontend-sdk'
-import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
-import type { ListedTask } from '../tasks/TaskList'
+import { toListedTasks } from '../tasks/TaskList'
 import { addIdentity, removeIdentity, renameContact } from './api'
 import { channelItemOf, channelItems } from './channel'
 import { formatCreated } from './format'
@@ -68,7 +67,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			</Text>
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
-			<ContactTasks contactId={contact.id} tasks={toTaskRows(detail)} />
+			<ContactTasks contactId={contact.id} tasks={toListedTasks(detail)} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(new Date(contact.createdAt))}`}
 			</Text>
@@ -86,33 +85,6 @@ function useContactRefresh() {
 	return async () => {
 		graph.refetch([contactDetailOperation])
 		await queryClient.invalidateQueries({ queryKey: ['contacts'] })
-	}
-}
-
-/** GraphTaskNode is one task as the contact detail document selects it. */
-interface GraphTaskNode {
-	id: string
-	title: string
-	status: string
-	priority: number
-	dueOn: string
-}
-
-/**
- * Maps the contact's task connection onto the rows the task list renders.
- * @param detail - The contact detail connection.
- * @returns The connection carrying list shaped rows.
- */
-function toTaskRows(detail: ConnectionResult<GraphTaskNode>): ConnectionResult<ListedTask> {
-	return {
-		...detail,
-		rows: detail.rows.map((node) => ({
-			id: node.id,
-			title: node.title,
-			status: node.status,
-			priority: node.priority,
-			due_on: node.dueOn,
-		})),
 	}
 }
 

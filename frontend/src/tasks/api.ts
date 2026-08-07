@@ -45,28 +45,6 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 }
 
 /**
- * Fetches one page of the tasks due on a day with the given status.
- * @param date - The due date as YYYY-MM-DD.
- * @param cursor - The cursor from the previous page, or an empty string.
- * @param status - The task status to list, open or done.
- * @returns The parsed page.
- */
-export async function fetchDayTasks(date: string, cursor: string, status: 'open' | 'done'): Promise<TaskPage> {
-	const params = new URLSearchParams({ date, status })
-	if (cursor !== '') {
-		params.set('cursor', cursor)
-	}
-	const response = await fetch(`/api/tasks?${params.toString()}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`listing tasks failed with status ${response.status}`)
-	}
-	return taskPageSchema.parse(await response.json())
-}
-
-/**
  * Fetches one task.
  * @param id - The task identifier.
  * @returns The parsed task.
@@ -80,27 +58,6 @@ export async function fetchTask(id: string): Promise<Task> {
 		throw new Error(`loading task failed with status ${response.status}`)
 	}
 	return taskSchema.parse(await response.json())
-}
-
-/**
- * Fetches one page of the open tasks due before a day.
- * @param date - The exclusive upper bound as YYYY-MM-DD.
- * @param cursor - The cursor from the previous page, or an empty string.
- * @returns The parsed page.
- */
-export async function fetchOverdueTasks(date: string, cursor: string): Promise<TaskPage> {
-	const params = new URLSearchParams({ due_before: date, status: 'open' })
-	if (cursor !== '') {
-		params.set('cursor', cursor)
-	}
-	const response = await fetch(`/api/tasks?${params.toString()}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`listing overdue tasks failed with status ${response.status}`)
-	}
-	return taskPageSchema.parse(await response.json())
 }
 
 /**

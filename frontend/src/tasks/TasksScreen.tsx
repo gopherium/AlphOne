@@ -17,14 +17,22 @@ import {
 	inbox,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useConnection, useGraph } from '@alphone/frontend-sdk'
+import type { ConnectionResult } from '@alphone/frontend-sdk'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { createTask, fetchDayTasks, fetchOverdueTasks, patchTask } from './api'
+import { createTask, patchTask } from './api'
 import { formatDay, laterDate, shiftDate } from './format'
-import { TaskList } from './TaskList'
-import type { ListedTask, RowControls, TaskQuery } from './TaskList'
+import { dayTasksQuery, overdueTasksQuery } from './operations'
+import { TaskList, toListedTasks } from './TaskList'
+import type { ListedTask, RowControls } from './TaskList'
+
+const tasksPageSize = 50
+
+/** taskOperations names the documents a task write must refresh. */
+const taskOperations = ['DayTasks', 'OverdueTasks']
 
 /**
  * Renders a day of tasks with its overdue work, quick add field, and done
@@ -33,42 +41,50 @@ import type { ListedTask, RowControls, TaskQuery } from './TaskList'
  */
 export function TasksScreen({ date, today }: { date: string; today: string }) {
 	const queryClient = useQueryClient()
-	const tasks = useInfiniteQuery({
-		queryKey: ['tasks', 'day', date, 'open'],
-		queryFn: ({ pageParam }) => fetchDayTasks(date, pageParam, 'open'),
-		initialPageParam: '',
-		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-	})
-	const done = useInfiniteQuery({
-		queryKey: ['tasks', 'day', date, 'done'],
-		queryFn: ({ pageParam }) => fetchDayTasks(date, pageParam, 'done'),
-		initialPageParam: '',
-		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-	})
-	const overdue = useInfiniteQuery({
-		queryKey: ['tasks', 'overdue', today],
-		queryFn: ({ pageParam }) => fetchOverdueTasks(today, pageParam),
-		initialPageParam: '',
-		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-		enabled: date === today,
-	})
+	const graph = useGraph()
+	const tasks = toListedTasks(
+		useConnection({
+			query: dayTasksQuery,
+			variables: { date, status: 'open', first: tasksPageSize },
+			select: (data) => data.tasks,
+		}),
+	)
+	const done = toListedTasks(
+		useConnection({
+			query: dayTasksQuery,
+			variables: { date, status: 'done', first: tasksPageSize },
+			select: (data) => data.tasks,
+		}),
+	)
+	const overdue = toListedTasks(
+		useConnection({
+			query: overdueTasksQuery,
+			variables: { dueBefore: today, status: 'open', first: tasksPageSize },
+			select: (data) => data.tasks,
+			pause: date !== today,
+		}),
+	)
 	const [title, setTitle] = useState('')
+	const settled = async () => {
+		graph.refetch(taskOperations)
+		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+	}
 	const add = useMutation({
 		mutationFn: () => createTask(title, date),
 		onSuccess: async () => {
 			setTitle('')
-			await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+			await settled()
 		},
 	})
 	const change = useMutation({
 		mutationFn: (task: ListedTask) =>
 			patchTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		onSuccess: settled,
 	})
 	const push = useMutation({
 		mutationFn: (task: ListedTask) =>
 			patchTask(task.id, { due_on: shiftDate(laterDate(task.due_on, today), 1) }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		onSuccess: settled,
 	})
 	const controls: RowControls = {
 		onChange: (task) => change.mutate(task),
@@ -165,16 +181,19 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
  * Renders the open tasks left over from earlier days.
  * @returns The overdue section.
  */
-function OverdueSection({ tasks, controls }: { tasks: TaskQuery; controls: RowControls }) {
-	if (tasks.isPending) {
-		return null
-	}
+function OverdueSection({
+	tasks,
+	controls,
+}: {
+	tasks: ConnectionResult<ListedTask>
+	controls: RowControls
+}) {
 	if (tasks.isError) {
 		return (
 			<ErrorNotice>Overdue tasks could not be loaded.</ErrorNotice>
 		)
 	}
-	const rows = tasks.data.pages.flatMap((page) => page.tasks)
+	const rows = tasks.rows
 	if (rows.length === 0) {
 		return null
 	}
@@ -198,8 +217,8 @@ function TaskSections({
 	done,
 	controls,
 }: {
-	tasks: TaskQuery
-	done: TaskQuery
+	tasks: ConnectionResult<ListedTask>
+	done: ConnectionResult<ListedTask>
 	controls: RowControls
 }) {
 	if (tasks.isPending) {
@@ -210,7 +229,7 @@ function TaskSections({
 			<ErrorNotice>Tasks could not be loaded.</ErrorNotice>
 		)
 	}
-	const open = tasks.data.pages.flatMap((page) => page.tasks)
+	const open = tasks.rows
 	return (
 		<Stack direction="column" gap="lg">
 			{open.length === 0 ? (
@@ -234,11 +253,17 @@ function TaskSections({
  * Renders the collapsible group of tasks completed on the day.
  * @returns The done group.
  */
-function DoneGroup({ tasks, controls }: { tasks: TaskQuery; controls: RowControls }) {
-	if (tasks.isPending || tasks.isError) {
+function DoneGroup({
+	tasks,
+	controls,
+}: {
+	tasks: ConnectionResult<ListedTask>
+	controls: RowControls
+}) {
+	if (tasks.isError) {
 		return null
 	}
-	const rows = tasks.data.pages.flatMap((page) => page.tasks)
+	const rows = tasks.rows
 	if (rows.length === 0) {
 		return null
 	}
