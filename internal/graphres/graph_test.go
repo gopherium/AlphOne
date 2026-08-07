@@ -77,15 +77,23 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// newGraphHandler returns the gated gqlgen server over the composed resolver root.
+func newGraphHandler(t *testing.T, resolver *graphres.Resolver) *handler.Server {
+	t.Helper()
+	srv := handler.New(graphres.ExecutableSchema(composedRoot(t, resolver)))
+	srv.AddTransport(transport.POST{})
+	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.AroundOperations(graphres.AnonymousGate)
+	srv.SetErrorPresenter(graphres.PresentError)
+	return srv
+}
+
 // newDecoratedGraphClient returns a test client whose request context passes through decorate.
 func newDecoratedGraphClient(
 	t *testing.T, resolver *graphres.Resolver, decorate func(context.Context) context.Context,
 ) *gqlclient.Client {
 	t.Helper()
-	srv := handler.New(graphres.ExecutableSchema(composedRoot(t, resolver)))
-	srv.AddTransport(transport.POST{})
-	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
-	srv.SetErrorPresenter(graphres.PresentError)
+	srv := newGraphHandler(t, resolver)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := sdk.WithRequestScope(decorate(r.Context()), sdk.NewRequestScope())
 		srv.ServeHTTP(w, r.WithContext(ctx))
