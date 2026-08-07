@@ -94,13 +94,14 @@ func (s *store) importByID(ctx context.Context, id uuid.UUID) (importRow, error)
 	return stored, nil
 }
 
-// listRows returns the staged rows of one import in position order.
-func (s *store) listRows(ctx context.Context, importID uuid.UUID) ([]stagedRow, error) {
+// listRows returns up to limit staged rows of one import in position order.
+func (s *store) listRows(ctx context.Context, importID uuid.UUID, limit int) ([]stagedRow, error) {
 	rows, _ := s.pool.Query(ctx,
 		`SELECT id, position, cells, outcome, reason, contact_id
 		FROM plugin_importer.import_rows
 		WHERE import_id = $1
-		ORDER BY position`, importID)
+		ORDER BY position
+		LIMIT $2`, importID, limit)
 	staged, err := pgx.CollectRows(rows, pgx.RowToStructByName[stagedRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list rows: %w", err)

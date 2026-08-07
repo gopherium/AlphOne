@@ -102,7 +102,7 @@ func (p *Plugin) handleRowList() http.HandlerFunc {
 		if !ok {
 			return
 		}
-		staged, err := p.store.listRows(r.Context(), stored.ID)
+		staged, err := p.store.listRows(r.Context(), stored.ID, maxRows)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "the rows could not be read")
 			return

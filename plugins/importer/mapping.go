@@ -4,6 +4,7 @@ package importer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,9 @@ import (
 
 // errRequiredFieldUnmapped reports assignments leaving a required field unclaimed.
 var errRequiredFieldUnmapped = fmt.Errorf("no assignment claims the required field %q", fieldContactName)
+
+// errMappingLocked reports a mapping change on an import past its ready state.
+var errMappingLocked = errors.New("the import no longer accepts a mapping")
 
 type assignment struct {
 	Column int       `json:"column"`
@@ -48,7 +52,7 @@ func (p *Plugin) handleMappingPut() http.HandlerFunc {
 // usableMapping returns the mapping assignments stand for, answering the caller itself when they do not.
 func usableMapping(w http.ResponseWriter, assignments []assignment, stored importRow) (mapping, bool) {
 	if stored.State != stateReady {
-		respondError(w, http.StatusConflict, "the import no longer accepts a mapping")
+		respondError(w, http.StatusConflict, errMappingLocked.Error())
 		return nil, false
 	}
 	assigned, err := buildMapping(assignments, len(stored.Columns))
