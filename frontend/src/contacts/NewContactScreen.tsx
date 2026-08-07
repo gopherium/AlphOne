@@ -42,7 +42,11 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
-				<Button type="submit" disabled={name.trim() === '' || create.isPending}>
+				<Button
+					type="submit"
+					disabled={name.trim() === '' || create.isPending}
+					loading={create.isPending}
+				>
 					Create contact
 				</Button>
 				{create.isError ? (

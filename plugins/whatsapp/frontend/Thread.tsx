@@ -500,7 +500,11 @@ function ThreadComposer({ conversationId }: { conversationId: string }) {
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 					/>
-					<Button type="submit" disabled={draft.trim() === '' || reply.isPending}>
+					<Button
+						type="submit"
+						disabled={draft.trim() === '' || reply.isPending}
+						loading={reply.isPending}
+					>
 						Send
 					</Button>
 				</Stack>

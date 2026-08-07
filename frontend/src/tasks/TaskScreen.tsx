@@ -104,10 +104,14 @@ function TaskForm({ task }: { task: Task }) {
 			/>
 			<PrioritySelect value={priority} onChange={setPriority} />
 			<div className="alphone-tasks__actions">
-				<Button type="submit" disabled={title.trim() === '' || save.isPending}>
+				<Button
+					type="submit"
+					disabled={title.trim() === '' || save.isPending}
+					loading={save.isPending}
+				>
 					Save
 				</Button>
-				<Button variant="outline" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+				<Button variant="outline" loading={toggle.isPending} onClick={() => toggle.mutate()}>
 					{task.status === 'done' ? 'Reopen' : 'Complete'}
 				</Button>
 			</div>

@@ -144,7 +144,7 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 							variant="minimal"
 							size="small"
 							aria-label={`Remove ${identity.identifier}`}
-							disabled={remove.isPending}
+							loading={remove.isPending}
 							onClick={() => remove.mutate(identity.id)}
 						>
 							Remove
@@ -202,7 +202,11 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 				value={label}
 				onChange={(event) => setLabel(event.target.value)}
 			/>
-			<Button type="submit" disabled={identifier.trim() === '' || add.isPending}>
+			<Button
+				type="submit"
+				disabled={identifier.trim() === '' || add.isPending}
+				loading={add.isPending}
+			>
 				Add identity
 			</Button>
 			{add.isError ? (
@@ -239,7 +243,11 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 				value={name}
 				onChange={(event) => setName(event.target.value)}
 			/>
-			<Button type="submit" disabled={name.trim() === '' || rename.isPending}>
+			<Button
+				type="submit"
+				disabled={name.trim() === '' || rename.isPending}
+				loading={rename.isPending}
+			>
 				Save
 			</Button>
 			{rename.isError ? (

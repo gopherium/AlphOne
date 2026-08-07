@@ -75,7 +75,11 @@ export function ContactTasks({
 					value={title}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
-				<Button type="submit" disabled={title.trim() === '' || add.isPending}>
+				<Button
+					type="submit"
+					disabled={title.trim() === '' || add.isPending}
+					loading={add.isPending}
+				>
 					Add task
 				</Button>
 			</form>

@@ -100,12 +100,17 @@ function MappingForm({ stored }: { stored: ImportDetail }) {
 					onChoose={(field) => setAssigned(withAssignment(assigned, index, field))}
 				/>
 			))}
-			<Button type="submit" disabled={save.isPending || stored.state !== 'ready'}>
+			<Button
+				type="submit"
+				disabled={save.isPending || stored.state !== 'ready'}
+				loading={save.isPending}
+			>
 				Save mapping
 			</Button>
 			<Button
 				variant="solid"
 				disabled={commit.isPending || stored.state !== 'ready'}
+				loading={commit.isPending}
 				onClick={() => commit.mutate()}
 			>
 				Commit

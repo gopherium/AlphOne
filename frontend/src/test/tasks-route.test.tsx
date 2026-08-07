@@ -1,10 +1,30 @@
+import { Button } from '@alphone/frontend-sdk'
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
-import { screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { renderAt } from './render'
+
+/**
+ * Returns the class tokens the design system adds to a loading button.
+ * @returns The tokens a busy button carries and an idle one does not.
+ */
+function busyClasses(): string[] {
+	const { container, unmount } = render(
+		<>
+			<Button id="idle">idle</Button>
+			<Button id="busy" loading>
+				busy
+			</Button>
+		</>,
+	)
+	const idle = new Set((container.querySelector('#idle') as Element).classList)
+	const busy = [...(container.querySelector('#busy') as Element).classList]
+	unmount()
+	return busy.filter((token) => !idle.has(token))
+}
 
 const callID = '0198c000-0000-7000-8000-000000000101'
 const quoteID = '0198c000-0000-7000-8000-000000000102'
@@ -95,6 +115,25 @@ beforeEach(() => {
 			return HttpResponse.json(created, { status: 201 })
 		}),
 	)
+})
+
+test('shows the add button busy and still refuses a second submit', async () => {
+	const busy = busyClasses()
+	expect(busy.length).toBeGreaterThan(0)
+	server.use(http.post('/api/tasks', () => new Promise(() => {})))
+	renderAt('/tasks')
+	await screen.findByRole('heading', { level: 1, name: 'Tasks' })
+	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Call Maria Perez')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	const add = screen.getByRole('button', { name: 'Add task' })
+	await waitFor(() => {
+		for (const token of busy) {
+			expect([...add.classList]).toContain(token)
+		}
+	})
+	expect(add).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('ghosts the rows while the day of tasks arrives', async () => {

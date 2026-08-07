@@ -45,7 +45,7 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
 						<Button
 							variant="outline"
 							aria-label={`${user.disabled ? 'Enable' : 'Disable'} ${user.name}`}
-							disabled={toggle.isPending}
+							loading={toggle.isPending}
 							onClick={() => toggle.mutate()}
 						>
 							{user.disabled ? 'Enable' : 'Disable'}

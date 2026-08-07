@@ -76,7 +76,11 @@ export function NewTaskScreen({
 				/>
 				<PrioritySelect value={priority} onChange={setPriority} />
 				<ContactPicker contact={contact} onPick={setContact} />
-				<Button type="submit" disabled={title.trim() === '' || create.isPending}>
+				<Button
+					type="submit"
+					disabled={title.trim() === '' || create.isPending}
+					loading={create.isPending}
+				>
 					Create task
 				</Button>
 				{create.isError ? (
