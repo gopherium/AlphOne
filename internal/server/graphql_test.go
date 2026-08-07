@@ -4,6 +4,7 @@ package server_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -132,6 +133,39 @@ func TestGraphQLVersionQueryWithBearerToken(t *testing.T) {
 	}
 	if body := decodeBody[graphqlData](t, recorder); body.Data.Version != "9.9.9" {
 		t.Errorf("version = %q, want %q", body.Data.Version, "9.9.9")
+	}
+}
+
+func TestGraphQLRejectsAnUnknownBearerToken(t *testing.T) {
+	t.Parallel()
+
+	handler, _, _, _ := newTokenServer(t)
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(versionQuery))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer wrong-secret")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d: %s", recorder.Code, http.StatusUnauthorized, recorder.Body.String())
+	}
+}
+
+func TestGraphQLMasksBearerStoreFailures(t *testing.T) {
+	t.Parallel()
+
+	handler, tokens, _, secret := newTokenServer(t)
+	tokens.err = errors.New("token store down")
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(versionQuery))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+secret)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d: %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
 	}
 }
 
