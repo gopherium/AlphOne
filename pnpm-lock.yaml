@@ -207,6 +207,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
+      '@urql/exchange-graphcache':
+        specifier: 9.0.1
+        version: 9.0.1(@urql/core@6.0.3(graphql@16.14.2))(graphql@16.14.2)
       '@wordpress/components':
         specifier: 38.0.0
         version: 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react@19.2.17)(esbuild@0.28.1)(postcss@8.5.24)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -225,6 +228,12 @@ importers:
       react:
         specifier: ^19.2.8
         version: 19.2.8
+      urql:
+        specifier: 5.0.3
+        version: 5.0.3(@urql/core@6.0.3(graphql@16.14.2))(react@19.2.8)
+      wonka:
+        specifier: ^6.3.6
+        version: 6.3.6
     devDependencies:
       '@tanstack/react-router':
         specifier: ^1.170.18
@@ -260,6 +269,14 @@ importers:
         version: 26.1.2
 
 packages:
+
+  '@0no-co/graphql.web@1.3.3':
+    resolution: {integrity: sha512-4gFGBdyaFmQ6n9euhp5JtIGS4ZeivwDr1tCPENUxTvy5wyv532yOtFCr9zzYAJh1s6uibgC+TRXUcay+mxzCoQ==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
+    peerDependenciesMeta:
+      graphql:
+        optional: true
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
@@ -2320,6 +2337,14 @@ packages:
   '@typescript-eslint/visitor-keys@8.65.0':
     resolution: {integrity: sha512-8C71BQkGjiMmXtop7pHVJu1l2NNShFdkCyD6a2ezzs5vU/L3LRtb69EtcteFwz0mYMPzIgOw0n6OV4VBUWZd7A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@urql/core@6.0.3':
+    resolution: {integrity: sha512-0F39XWR21+IVLJfsqBvLShvoSzxT6h6wWXwrDhN8j9J+IEVOpQIUNHwpgjsp+2ePzn9aCH+rpDonn3HOAUnn9A==}
+
+  '@urql/exchange-graphcache@9.0.1':
+    resolution: {integrity: sha512-22V46OIIkJTz8Ex23e95+ZmvgRWqbzH77wpNjdfMknmmhR8bjBFNd24oDoQUI4AbYUhoTKmvAZ5XOBQSsbBzaQ==}
+    peerDependencies:
+      '@urql/core': ^6.0.0
 
   '@use-gesture/core@10.3.1':
     resolution: {integrity: sha512-WcINiDt8WjqBdUXye25anHiNxPc0VOrlT8F6LLkU6cycrOGUDyY/yyFmsg3k8i5OLvv25llc0QC45GhR/C8llw==}
@@ -4467,6 +4492,12 @@ packages:
   urlpattern-polyfill@10.1.0:
     resolution: {integrity: sha512-IGjKp/o0NL3Bso1PymYURCJxMPNAf/ILOpendP9f5B6e1rTJgdgiOvgfoT8VxCAdY+Wisb9uhGaJJf3yZ2V9nw==}
 
+  urql@5.0.3:
+    resolution: {integrity: sha512-gWywgPjduTCUqWKofW6YLOy1auxe0uJN/vHa44eXGKn+f+QHNb308ZEZnKBLZ4F+jRrguaJy9CdtecTZJQWPCg==}
+    peerDependencies:
+      '@urql/core': ^6.0.0
+      react: ^19.2.8
+
   use-memo-one@1.1.3:
     resolution: {integrity: sha512-g66/K7ZQGYrI6dy8GLpVcMsBp4s17xNkYJVSMvTEevGy3nDxHOfE6z8BVE22+5G5x7t3+bhzrlTDB7ObrEE0cQ==}
     peerDependencies:
@@ -4620,6 +4651,9 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  wonka@6.3.6:
+    resolution: {integrity: sha512-MXH+6mDHAZ2GuMpgKS055FR6v0xVP3XwquxIMYXgiW+FejHQlMGlvVRZT4qMCxR+bEo/FCtIdKxwej9WV3YQag==}
+
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
@@ -4707,6 +4741,10 @@ packages:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
+
+  '@0no-co/graphql.web@1.3.3(graphql@16.14.2)':
+    optionalDependencies:
+      graphql: 16.14.2
 
   '@adobe/css-tools@4.5.0': {}
 
@@ -6930,6 +6968,21 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.65.0
       eslint-visitor-keys: 5.0.1
+
+  '@urql/core@6.0.3(graphql@16.14.2)':
+    dependencies:
+      '@0no-co/graphql.web': 1.3.3(graphql@16.14.2)
+      wonka: 6.3.6
+    transitivePeerDependencies:
+      - graphql
+
+  '@urql/exchange-graphcache@9.0.1(@urql/core@6.0.3(graphql@16.14.2))(graphql@16.14.2)':
+    dependencies:
+      '@0no-co/graphql.web': 1.3.3(graphql@16.14.2)
+      '@urql/core': 6.0.3(graphql@16.14.2)
+      wonka: 6.3.6
+    transitivePeerDependencies:
+      - graphql
 
   '@use-gesture/core@10.3.1': {}
 
@@ -9194,6 +9247,12 @@ snapshots:
 
   urlpattern-polyfill@10.1.0: {}
 
+  urql@5.0.3(@urql/core@6.0.3(graphql@16.14.2))(react@19.2.8):
+    dependencies:
+      '@urql/core': 6.0.3(graphql@16.14.2)
+      react: 19.2.8
+      wonka: 6.3.6
+
   use-memo-one@1.1.3(react@19.2.8):
     dependencies:
       react: 19.2.8
@@ -9292,6 +9351,8 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  wonka@6.3.6: {}
 
   word-wrap@1.2.5: {}
 
