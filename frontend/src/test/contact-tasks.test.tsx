@@ -94,6 +94,16 @@ test('keeps the page chrome while the contact is on its way', async () => {
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
+test('ghosts the task section while its rows arrive', async () => {
+	server.use(http.get('/api/tasks', () => new Promise(() => {})))
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })
+
+	const status = screen.getByText('Loading tasks…')
+	expect(status).toHaveAttribute('role', 'status')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('lists the open tasks of a contact with their due dates', async () => {
 	renderAt(`/contacts/${contactID}`)
 

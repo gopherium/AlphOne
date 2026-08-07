@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, Text, validationMessage } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	LoadingRows,
+	Text,
+	validationMessage,
+} from '@alphone/frontend-sdk'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -94,7 +101,7 @@ function ContactTaskList({
 	controls: RowControls
 }) {
 	if (tasks.isPending) {
-		return <Text role="status">Loading tasks…</Text>
+		return <LoadingRows label="Loading tasks…" rows={3} />
 	}
 	if (tasks.isError) {
 		return <ErrorNotice>Tasks could not be loaded.</ErrorNotice>

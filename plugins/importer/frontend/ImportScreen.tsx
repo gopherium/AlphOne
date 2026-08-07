@@ -77,7 +77,7 @@ function MappingForm({ stored }: { stored: ImportDetail }) {
 	})
 
 	if (fields.isPending) {
-		return <Text role="status">Loading fields…</Text>
+		return <LoadingRows label="Loading fields…" rows={stored.columns.length} />
 	}
 	if (fields.isError) {
 		return <ErrorNotice>The fields could not be loaded.</ErrorNotice>

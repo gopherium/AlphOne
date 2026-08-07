@@ -56,6 +56,18 @@ test('keeps the page chrome while the import is on its way', async () => {
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
+test('ghosts one row per column while the fields arrive', async () => {
+	server.use(http.get(`${base}/fields`, () => new Promise(() => {})))
+	renderScreen()
+	await screen.findByRole('heading', { level: 1, name: 'contacts.csv' })
+
+	const status = screen.getByText('Loading fields…')
+	expect(status).toHaveAttribute('role', 'status')
+	const ghost = status.closest('.godmin-loading-rows')
+	expect(ghost).not.toBeNull()
+	expect(ghost?.querySelectorAll('.godmin-loading-rows__row')).toHaveLength(2)
+})
+
 test('the screen names the file it is mapping', async () => {
 	renderScreen()
 
