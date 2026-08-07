@@ -20,6 +20,7 @@ import { afterEach, vi } from 'vitest'
 import type { FrontendPlugin } from './index'
 
 export { HttpResponse, http, server } from '@gopherium/react-auth/testing'
+export { graphql } from 'msw'
 
 /**
  * FakeEventSource stands in for the browser EventSource, which jsdom does
