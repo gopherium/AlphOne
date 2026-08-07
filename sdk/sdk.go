@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 // Package sdk defines the contract between the AlphOne core and its
-// plugins. It is the only AlphOne package a plugin may import.
+// plugins. Together with graph, it is one of the two AlphOne packages a
+// plugin may import.
 //
 // The contract is experimental until it is tagged v1.0.0; from then on
 // it follows semantic versioning and the project deprecation policy.
