@@ -43,6 +43,22 @@ test('fetchSession returns null for anonymous callers', async () => {
 	await expect(graphAuthTransport.fetchSession()).resolves.toBeNull()
 })
 
+test('fetchSession maps rate limiting and transport failures', async () => {
+	server.use(http.post('/api/graphql', () => HttpResponse.json({}, { status: 429 })))
+	await expect(graphAuthTransport.fetchSession()).rejects.toBeInstanceOf(RateLimitedError)
+
+	server.use(http.post('/api/graphql', () => HttpResponse.json({}, { status: 500 })))
+	await expect(graphAuthTransport.fetchSession()).rejects.toThrow(
+		'graphql request failed with status 500',
+	)
+})
+
+test('fetchSession throws the fallback message without a payload or errors', async () => {
+	graphResponds('query Me', { data: null })
+
+	await expect(graphAuthTransport.fetchSession()).rejects.toThrow('loading session failed')
+})
+
 test('login resolves the payload identity', async () => {
 	graphResponds('mutation Login', { data: { login: { me: maria } } })
 
@@ -58,6 +74,14 @@ test('login maps the auth failure codes onto the react-auth errors', async () =>
 	graphResponds('mutation Login', graphError('RATE_LIMITED'))
 	await expect(graphAuthTransport.login(maria.email, 'wrong')).rejects.toBeInstanceOf(
 		RateLimitedError,
+	)
+})
+
+test('login throws the graph failure without a payload', async () => {
+	graphResponds('mutation Login', graphError('INTERNAL', 'login failed upstream'))
+
+	await expect(graphAuthTransport.login(maria.email, 'password1234')).rejects.toThrow(
+		'login failed upstream',
 	)
 })
 
@@ -99,6 +123,45 @@ test('fetchUsers rejects anonymous callers with UnauthorizedError', async () => 
 	await expect(graphAuthTransport.fetchUsers()).rejects.toBeInstanceOf(UnauthorizedError)
 })
 
+test('fetchUsers throws the graph failure without a payload', async () => {
+	graphResponds('query Users', graphError('INTERNAL', 'listing users failed upstream'))
+
+	await expect(graphAuthTransport.fetchUsers()).rejects.toThrow('listing users failed upstream')
+})
+
+test('createUser resolves the created account', async () => {
+	graphResponds('mutation CreateUser', {
+		data: {
+			createUser: { ...maria, disabled: false, createdAt: '2026-08-05T10:30:15.123456Z' },
+		},
+	})
+
+	const account = await graphAuthTransport.createUser({
+		email: maria.email,
+		name: maria.name,
+		password: 'password1234',
+	})
+
+	expect(account).toMatchObject({ id: maria.id, email: maria.email, disabled: false })
+	expect(account.created_at).toBeInstanceOf(Date)
+})
+
+test('createUser rejects anonymous callers with UnauthorizedError', async () => {
+	graphResponds('mutation CreateUser', graphError('UNAUTHENTICATED'))
+
+	await expect(
+		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'password1234' }),
+	).rejects.toBeInstanceOf(UnauthorizedError)
+})
+
+test('createUser throws the graph failure without a payload', async () => {
+	graphResponds('mutation CreateUser', graphError('INTERNAL', 'creating user failed upstream'))
+
+	await expect(
+		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'password1234' }),
+	).rejects.toThrow('creating user failed upstream')
+})
+
 test('createUser maps conflicts and validation onto the admin errors', async () => {
 	graphResponds('mutation CreateUser', graphError('CONFLICT'))
 	await expect(
@@ -118,5 +181,21 @@ test('setUserDisabled maps validation onto ValidationError', async () => {
 	graphResponds('mutation SetUserDisabled', graphError('VALIDATION', 'cannot disable your own account'))
 	await expect(graphAuthTransport.setUserDisabled('u1', true)).rejects.toBeInstanceOf(
 		ValidationError,
+	)
+})
+
+test('setUserDisabled rejects anonymous callers with UnauthorizedError', async () => {
+	graphResponds('mutation SetUserDisabled', graphError('UNAUTHENTICATED'))
+
+	await expect(graphAuthTransport.setUserDisabled('u2', true)).rejects.toBeInstanceOf(
+		UnauthorizedError,
+	)
+})
+
+test('setUserDisabled throws the graph failure without a mapped code', async () => {
+	graphResponds('mutation SetUserDisabled', graphError('INTERNAL', 'updating user failed upstream'))
+
+	await expect(graphAuthTransport.setUserDisabled('u2', true)).rejects.toThrow(
+		'updating user failed upstream',
 	)
 })
