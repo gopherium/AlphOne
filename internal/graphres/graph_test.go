@@ -389,9 +389,12 @@ func TestContactQueryErrorPaths(t *testing.T) {
 
 // stubContactStore counts batch loads over a fixed contact set.
 type stubContactStore struct {
-	contacts map[uuid.UUID]contact.Contact
-	batches  [][]uuid.UUID
-	listErr  error
+	contacts       map[uuid.UUID]contact.Contact
+	batches        [][]uuid.UUID
+	listErr        error
+	listByIDsErr   error
+	identitiesErr  error
+	addIdentityErr error
 }
 
 func (s *stubContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error) {
@@ -412,10 +415,16 @@ func (s *stubContactStore) ListContacts(
 }
 
 func (s *stubContactStore) ListContactIdentities(_ context.Context, _ uuid.UUID) ([]contact.Identity, error) {
+	if s.identitiesErr != nil {
+		return nil, s.identitiesErr
+	}
 	return nil, nil
 }
 
 func (s *stubContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
+	if s.listByIDsErr != nil {
+		return nil, s.listByIDsErr
+	}
 	s.batches = append(s.batches, ids)
 	var found []contact.Contact
 	for _, id := range ids {
@@ -441,7 +450,7 @@ func (s *stubContactStore) RenameContact(_ context.Context, _ uuid.UUID, _ strin
 }
 
 func (s *stubContactStore) AddIdentity(_ context.Context, _ contact.Identity) error {
-	return nil
+	return s.addIdentityErr
 }
 
 func (s *stubContactStore) DeleteIdentity(_ context.Context, _, _ uuid.UUID) error {
@@ -450,10 +459,18 @@ func (s *stubContactStore) DeleteIdentity(_ context.Context, _, _ uuid.UUID) err
 
 // stubTaskStore serves a fixed task list for every day listing.
 type stubTaskStore struct {
-	tasks []task.Task
+	tasks             []task.Task
+	createErr         error
+	updateErr         error
+	listForContactErr error
 }
 
-func (s *stubTaskStore) Get(_ context.Context, _ uuid.UUID) (task.Task, error) {
+func (s *stubTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) {
+	for _, stored := range s.tasks {
+		if stored.ID == id {
+			return stored, nil
+		}
+	}
 	return task.Task{}, task.ErrNotFound
 }
 
@@ -472,14 +489,23 @@ func (s *stubTaskStore) ListDueBefore(
 func (s *stubTaskStore) ListForContact(
 	_ context.Context, _ uuid.UUID, _ string, _ task.Page,
 ) ([]task.Task, error) {
+	if s.listForContactErr != nil {
+		return nil, s.listForContactErr
+	}
 	return nil, nil
 }
 
 func (s *stubTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
+	if s.createErr != nil {
+		return task.Task{}, false, s.createErr
+	}
 	return t, true, nil
 }
 
 func (s *stubTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
+	if s.updateErr != nil {
+		return task.Task{}, s.updateErr
+	}
 	return t, nil
 }
 

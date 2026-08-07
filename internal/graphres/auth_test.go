@@ -184,6 +184,25 @@ func TestLoginRateLimitsRepeatedFailures(t *testing.T) {
 	}
 }
 
+func TestLoginSurfacesSessionStoreFailures(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	store.CreateSessionErr = errors.New("session store down")
+	client := newHTTPGraphClient(t, newAuthResolver(store), uuid.Nil)
+
+	response, err := client.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", testPassword))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
+		t.Errorf("code = %q, want INTERNAL", got)
+	}
+}
+
 func TestLoginFailsWithoutTheHTTPTransport(t *testing.T) {
 	t.Parallel()
 
