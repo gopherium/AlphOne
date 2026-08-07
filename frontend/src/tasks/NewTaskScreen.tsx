@@ -6,19 +6,25 @@ import {
 	InputControl,
 	PageScreen,
 	Text,
+	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { fetchContacts } from '../contacts/api'
-import type { Contact } from '../contacts/api'
+import { contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { createTask } from './api'
 import type { Task } from './api'
 import { PrioritySelect } from './PrioritySelect'
 
 const searchDebounceMs = 300
+const contactSearchLimit = 20
+
+interface PickableContact {
+	id: string
+	name: string
+}
 
 /**
  * Renders the full new-task form.
@@ -35,7 +41,7 @@ export function NewTaskScreen({
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
 	const [priority, setPriority] = useState(0)
-	const [contact, setContact] = useState<Contact | null>(null)
+	const [contact, setContact] = useState<PickableContact | null>(null)
 	const create = useMutation({
 		mutationFn: () =>
 			createTask(title, dueOn, {
@@ -89,15 +95,15 @@ function ContactPicker({
 	contact,
 	onPick,
 }: {
-	contact: Contact | null
-	onPick: (contact: Contact | null) => void
+	contact: PickableContact | null
+	onPick: (contact: PickableContact | null) => void
 }) {
 	const [search, setSearch] = useState('')
 	const query = useDebouncedValue(search, searchDebounceMs)
-	const contacts = useQuery({
-		queryKey: ['contacts', 'list', query],
-		queryFn: () => fetchContacts(query, ''),
-		enabled: query !== '',
+	const [found] = useGraphQuery({
+		query: contactsQuery,
+		variables: { q: query, first: contactSearchLimit },
+		pause: query === '',
 	})
 
 	if (contact !== null) {
@@ -117,7 +123,11 @@ function ContactPicker({
 				value={search}
 				onChange={(event) => setSearch(event.target.value)}
 			/>
-			<ContactResults contacts={contacts.data?.contacts ?? []} settled={contacts.isSuccess} onPick={onPick} />
+			<ContactResults
+				contacts={found.data?.contacts.edges.map((edge) => edge.node) ?? []}
+				settled={found.data !== undefined}
+				onPick={onPick}
+			/>
 		</div>
 	)
 }
@@ -131,9 +141,9 @@ function ContactResults({
 	settled,
 	onPick,
 }: {
-	contacts: Contact[]
+	contacts: readonly PickableContact[]
 	settled: boolean
-	onPick: (contact: Contact) => void
+	onPick: (contact: PickableContact) => void
 }) {
 	if (!settled) {
 		return null

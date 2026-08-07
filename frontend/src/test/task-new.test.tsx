@@ -1,4 +1,4 @@
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -14,6 +14,18 @@ const today = new Date().toLocaleDateString('en-CA')
 
 let created: Record<string, unknown>[] = []
 let searches: string[] = []
+
+function searchPage(named: [string, string][]) {
+	return {
+		__typename: 'ContactConnection',
+		edges: named.map(([id, name]) => ({
+			__typename: 'ContactEdge',
+			node: { __typename: 'Contact', id, name, createdAt: '2026-07-06T10:00:00Z' },
+			cursor: id,
+		})),
+		pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
+	}
+}
 
 function taskBody(overrides: Record<string, unknown> = {}) {
 	return {
@@ -41,18 +53,14 @@ beforeEach(() => {
 			return HttpResponse.json(taskBody(body), { status: 201 })
 		}),
 		http.get('/api/tasks/:id', () => HttpResponse.json(taskBody())),
-		http.get('/api/contacts', ({ request }) => {
-			const url = new URL(request.url)
-			const query = url.searchParams.get('q') ?? ''
+		graphql.query('Contacts', ({ variables }) => {
+			const query = (variables.q as string | null) ?? ''
 			searches.push(query)
 			if (query === '') {
-				return HttpResponse.json({ contacts: [], next_cursor: null })
+				return HttpResponse.json({ data: { contacts: searchPage([]) } })
 			}
 			return HttpResponse.json({
-				contacts: [
-					{ id: contactID, name: 'Maria Perez', created_at: '2026-07-06T10:00:00Z' },
-				],
-				next_cursor: null,
+				data: { contacts: searchPage([[contactID, 'Maria Perez']]) },
 			})
 		}),
 	)
@@ -154,8 +162,8 @@ test('waits for the contact search to settle', async () => {
 
 test('says when a contact search finds nobody', async () => {
 	server.use(
-		http.get('/api/contacts', () =>
-			HttpResponse.json({ contacts: [], next_cursor: null }),
+		graphql.query('Contacts', () =>
+			HttpResponse.json({ data: { contacts: searchPage([]) } }),
 		),
 	)
 	renderAt('/tasks/new')
@@ -218,8 +226,11 @@ test('drops the session when creation is unauthorized', async () => {
 
 test('drops the session when the contact search is unauthorized', async () => {
 	server.use(
-		http.get('/api/contacts', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('Contacts', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt('/tasks/new')
