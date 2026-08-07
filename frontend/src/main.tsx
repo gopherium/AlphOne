@@ -18,6 +18,7 @@ import '@gopherium/godmin/base.css'
 import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
 import { graphAuthTransport } from './auth/graphTransport'
+import { BootLoading } from './boot'
 import { createAppRouter } from './router'
 
 configureAuthTransport(graphAuthTransport)
@@ -36,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
 						loginScreen={(onLogin) => (
 							<LoginScreen brand="AlphOne" onLogin={onLogin} />
 						)}
-						loading={<Text role="status">Loading…</Text>}
+						loading={<BootLoading />}
 						error={<Text role="alert">Something went wrong.</Text>}
 					>
 						<RouterProvider router={router} />
