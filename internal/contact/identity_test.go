@@ -248,3 +248,38 @@ func TestNewIdentitySetsCreatedAtToCurrentUTCTime(t *testing.T) {
 		t.Errorf("NewIdentity().CreatedAt location = %v, want UTC", got.CreatedAt.Location())
 	}
 }
+
+func TestNewWritableIdentity(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.Must(uuid.NewV7())
+
+	tests := map[string]struct {
+		channel    contact.Channel
+		identifier string
+		wantErr    error
+	}{
+		"writable email channel": {channel: "email", identifier: "maria@example.com"},
+		"writable phone channel": {channel: "phone", identifier: "184467235"},
+		"unwritable whatsapp channel": {
+			channel: "whatsapp", identifier: "184467235@lid", wantErr: contact.ErrChannelNotWritable,
+		},
+		"invalid identity passes through": {
+			channel: "email", identifier: "", wantErr: contact.ErrEmptyIdentifier,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := contact.NewWritableIdentity(ownerID, tc.channel, tc.identifier, "")
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("NewWritableIdentity() error = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr == nil && got.Identifier != tc.identifier {
+				t.Errorf("NewWritableIdentity().Identifier = %q, want %q", got.Identifier, tc.identifier)
+			}
+		})
+	}
+}
