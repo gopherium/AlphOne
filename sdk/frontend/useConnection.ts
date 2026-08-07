@@ -11,9 +11,11 @@ export interface ConnectionPage<TNode> {
 }
 
 /** ConnectionResult carries the merged rows beside the load more controls. */
-export interface ConnectionResult<TNode> {
+export interface ConnectionResult<TNode, TData = unknown> {
 	/** rows are every node loaded so far, oldest page first. */
 	rows: TNode[]
+	/** data is the whole document the connection was selected from. */
+	data: TData | undefined
 	/** isPending reports that the first page has not arrived. */
 	isPending: boolean
 	/** isError reports that the page could not be loaded. */
@@ -42,7 +44,7 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(opt
 	variables: TVariables & { after?: string | null }
 	select: (data: TData) => ConnectionPage<TNode> | null | undefined
 	pause?: boolean
-}): ConnectionResult<TNode> {
+}): ConnectionResult<TNode, TData> {
 	const key = JSON.stringify(options.variables)
 	const [cursor, setCursor] = useState<cursorState>({ key, after: undefined })
 	const after = cursor.key === key ? cursor.after : undefined
@@ -56,6 +58,7 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(opt
 	const page = loaded ?? emptyPage<TNode>()
 	return {
 		rows: page.edges.map((edge) => edge.node),
+		data: result.data,
 		isPending: result.fetching && loaded === undefined,
 		isError: result.error !== undefined,
 		hasNextPage: page.pageInfo.hasNextPage,

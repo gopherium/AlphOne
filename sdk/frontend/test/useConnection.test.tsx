@@ -190,6 +190,16 @@ test('refreshes from the network when the list is mounted again', async () => {
 	await waitFor(() => expect(second.result.current.rows[0]?.name).toBe('Ada Lovelace Ltd'))
 })
 
+test('carries the whole document beside the paged rows', async () => {
+	servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, false, 'cursor-ada') })
+
+	const { result } = renderConnection({ first: 50 })
+
+	await waitFor(() => expect(result.current.rows).toHaveLength(1))
+	const data = result.current.data as { contacts: { edges: unknown[] } } | undefined
+	expect(data?.contacts.edges).toHaveLength(1)
+})
+
 test('stays on the first page when asked for more before any page arrives', async () => {
 	const served = servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, true, 'cursor-ada') })
 	const { result } = renderConnection({ first: 50 })
