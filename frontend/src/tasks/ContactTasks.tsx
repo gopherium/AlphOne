@@ -4,48 +4,56 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
-	LoadingRows,
 	Text,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useGraph } from '@alphone/frontend-sdk'
+import type { ConnectionResult } from '@alphone/frontend-sdk'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { createTask, fetchContactTasks, patchTask } from './api'
-import type { Task } from './api'
+import { createTask, patchTask } from './api'
 import { isoDate, laterDate, shiftDate } from './format'
 import { TaskList } from './TaskList'
-import type { RowControls, TaskQuery } from './TaskList'
+import type { RowControls, ListedTask } from './TaskList'
+
+/** contactDetailOperation names the document a contact's tasks arrive in. */
+const contactDetailOperation = 'ContactDetail'
 
 /**
  * Renders a contact's open tasks and the field that adds one.
  * @returns The contact tasks section.
  */
-export function ContactTasks({ contactId }: { contactId: string }) {
+export function ContactTasks({
+	contactId,
+	tasks,
+}: {
+	contactId: string
+	tasks: ConnectionResult<ListedTask>
+}) {
 	const today = isoDate(new Date())
 	const queryClient = useQueryClient()
-	const tasks = useInfiniteQuery({
-		queryKey: ['tasks', 'contact', contactId],
-		queryFn: ({ pageParam }) => fetchContactTasks(contactId, pageParam),
-		initialPageParam: '',
-		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-	})
+	const graph = useGraph()
+	const settled = async () => {
+		graph.refetch([contactDetailOperation])
+		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+	}
 	const [title, setTitle] = useState('')
 	const add = useMutation({
 		mutationFn: () => createTask(title, today, { contact_id: contactId }),
 		onSuccess: async () => {
 			setTitle('')
-			await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+			await settled()
 		},
 	})
 	const change = useMutation({
-		mutationFn: (task: Task) => patchTask(task.id, { status: 'done' }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		mutationFn: (task: ListedTask) => patchTask(task.id, { status: 'done' }),
+		onSuccess: settled,
 	})
 	const push = useMutation({
-		mutationFn: (task: Task) =>
+		mutationFn: (task: ListedTask) =>
 			patchTask(task.id, { due_on: shiftDate(laterDate(task.due_on, today), 1) }),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+		onSuccess: settled,
 	})
 
 	return (
@@ -90,23 +98,17 @@ export function ContactTasks({ contactId }: { contactId: string }) {
 }
 
 /**
- * Renders the loading, error, and loaded states of a contact's tasks.
+ * Renders the empty and loaded states of a contact's tasks.
  * @returns The contact task list.
  */
 function ContactTaskList({
 	tasks,
 	controls,
 }: {
-	tasks: TaskQuery
+	tasks: ConnectionResult<ListedTask>
 	controls: RowControls
 }) {
-	if (tasks.isPending) {
-		return <LoadingRows label="Loading tasks…" rows={3} />
-	}
-	if (tasks.isError) {
-		return <ErrorNotice>Tasks could not be loaded.</ErrorNotice>
-	}
-	const rows = tasks.data.pages.flatMap((page) => page.tasks)
+	const rows = tasks.rows
 	if (rows.length === 0) {
 		return <Text role="status">No open tasks.</Text>
 	}

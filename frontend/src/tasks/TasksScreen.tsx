@@ -22,10 +22,9 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { createTask, fetchDayTasks, fetchOverdueTasks, patchTask } from './api'
-import type { Task } from './api'
 import { formatDay, laterDate, shiftDate } from './format'
 import { TaskList } from './TaskList'
-import type { RowControls, TaskQuery } from './TaskList'
+import type { ListedTask, RowControls, TaskQuery } from './TaskList'
 
 /**
  * Renders a day of tasks with its overdue work, quick add field, and done
@@ -62,12 +61,12 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		},
 	})
 	const change = useMutation({
-		mutationFn: (task: Task) =>
+		mutationFn: (task: ListedTask) =>
 			patchTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
 	})
 	const push = useMutation({
-		mutationFn: (task: Task) =>
+		mutationFn: (task: ListedTask) =>
 			patchTask(task.id, { due_on: shiftDate(laterDate(task.due_on, today), 1) }),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
 	})

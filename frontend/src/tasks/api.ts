@@ -104,30 +104,6 @@ export async function fetchOverdueTasks(date: string, cursor: string): Promise<T
 }
 
 /**
- * Fetches one page of a contact's open tasks, across every assignee.
- * @param contactId - The contact identifier.
- * @param cursor - The cursor from the previous page, or an empty string.
- * @returns The parsed page.
- */
-export async function fetchContactTasks(
-	contactId: string,
-	cursor: string,
-): Promise<TaskPage> {
-	const params = new URLSearchParams({ contact_id: contactId, status: 'open' })
-	if (cursor !== '') {
-		params.set('cursor', cursor)
-	}
-	const response = await fetch(`/api/tasks?${params.toString()}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`listing contact tasks failed with status ${response.status}`)
-	}
-	return taskPageSchema.parse(await response.json())
-}
-
-/**
  * Creates a task due on a day and returns it.
  * @param title - The task title.
  * @param dueOn - The due date as YYYY-MM-DD.

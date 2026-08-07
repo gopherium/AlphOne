@@ -11,19 +11,6 @@ const contactSchema = z.object({
 
 export type Contact = z.infer<typeof contactSchema>
 
-const identitySchema = z.object({
-	id: z.string(),
-	channel: z.string(),
-	identifier: z.string(),
-	display_name: z.string(),
-})
-
-const contactDetailSchema = contactSchema.extend({
-	identities: z.array(identitySchema),
-})
-
-export type ContactDetail = z.infer<typeof contactDetailSchema>
-
 import { ValidationError } from '@alphone/frontend-sdk'
 
 const errorSchema = z.object({ error: z.string() })
@@ -70,11 +57,11 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 }
 
 /**
- * Fetches a contact with its identities.
+ * Fetches a contact by id.
  * @param id - The contact identifier.
- * @returns The parsed contact detail.
+ * @returns The parsed contact.
  */
-export async function fetchContact(id: string): Promise<ContactDetail> {
+export async function fetchContact(id: string): Promise<Contact> {
 	const response = await fetch(`/api/contacts/${id}`)
 	if (response.status === 401) {
 		throw new UnauthorizedError('session expired')
@@ -82,7 +69,7 @@ export async function fetchContact(id: string): Promise<ContactDetail> {
 	if (!response.ok) {
 		throw new Error(`loading contact failed with status ${response.status}`)
 	}
-	return contactDetailSchema.parse(await response.json())
+	return contactSchema.parse(await response.json())
 }
 
 /**

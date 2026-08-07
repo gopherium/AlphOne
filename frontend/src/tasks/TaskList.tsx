@@ -4,14 +4,23 @@ import { Badge, Button, Checkbox, Link, Stack, Text } from '@alphone/frontend-sd
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 
-import type { Task, TaskPage } from './api'
+import type { TaskPage } from './api'
 import { formatDue } from './format'
 
 export type TaskQuery = UseInfiniteQueryResult<InfiniteData<TaskPage>, Error>
 
+/** ListedTask is the part of a task every list row and its controls read. */
+export interface ListedTask {
+	id: string
+	title: string
+	status: string
+	priority: number
+	due_on: string
+}
+
 export interface RowControls {
-	onChange: (task: Task) => void
-	onPush: (task: Task) => void
+	onChange: (task: ListedTask) => void
+	onPush: (task: ListedTask) => void
 	pendingID: string
 }
 
@@ -26,7 +35,7 @@ export function TaskList({
 	showDueDate = false,
 }: {
 	label: string
-	tasks: Task[]
+	tasks: readonly ListedTask[]
 	controls: RowControls
 	showDueDate?: boolean
 }) {
@@ -58,7 +67,7 @@ function TaskRow({
 	controls,
 	showDueDate,
 }: {
-	task: Task
+	task: ListedTask
 	controls: RowControls
 	showDueDate: boolean
 }) {
