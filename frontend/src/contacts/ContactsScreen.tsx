@@ -10,17 +10,23 @@ import {
 	Text,
 	people,
 } from '@alphone/frontend-sdk'
-import { useInfiniteQuery } from '@tanstack/react-query'
-import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
+import { useConnection } from '@alphone/frontend-sdk'
+import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { fetchContacts } from './api'
-import type { ContactPage } from './api'
 import { formatCreated } from './format'
+import { contactsQuery } from './operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 const searchDebounceMs = 300
+const contactsPageSize = 50
+
+interface ContactRow {
+	id: string
+	name: string
+	createdAt: string
+}
 
 /**
  * Renders the searchable, cursor-paginated contact list.
@@ -29,11 +35,10 @@ const searchDebounceMs = 300
 export function ContactsScreen() {
 	const [search, setSearch] = useState('')
 	const query = useDebouncedValue(search, searchDebounceMs)
-	const contacts = useInfiniteQuery({
-		queryKey: ['contacts', 'list', query],
-		queryFn: ({ pageParam }) => fetchContacts(query, pageParam),
-		initialPageParam: '',
-		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+	const contacts = useConnection({
+		query: contactsQuery,
+		variables: { q: query === '' ? null : query, first: contactsPageSize },
+		select: (data) => data.contacts,
 	})
 
 	return (
@@ -62,18 +67,14 @@ export function ContactsScreen() {
  * the table with its load-more control.
  * @returns The list body.
  */
-function ContactRows({
-	contacts,
-}: {
-	contacts: UseInfiniteQueryResult<InfiniteData<ContactPage>, Error>
-}) {
+function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 	if (contacts.isPending) {
 		return <Text role="status">Loading contacts…</Text>
 	}
 	if (contacts.isError) {
 		return <ErrorNotice>Contacts could not be loaded.</ErrorNotice>
 	}
-	const rows = contacts.data.pages.flatMap((page) => page.contacts)
+	const rows = contacts.rows
 	if (rows.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
@@ -103,7 +104,7 @@ function ContactRows({
 										{contact.name}
 									</Link>
 								</td>
-								<td>{formatCreated(contact.created_at)}</td>
+								<td>{formatCreated(new Date(contact.createdAt))}</td>
 							</tr>
 						))}
 					</tbody>

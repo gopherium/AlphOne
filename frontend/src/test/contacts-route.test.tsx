@@ -1,4 +1,4 @@
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -17,34 +17,41 @@ function contactRow(id: string, name: string) {
 	return { id, name, created_at: '2026-07-06T10:00:00Z' }
 }
 
+function contactsPage(named: [string, string][], endCursor: string | null) {
+	return {
+		__typename: 'ContactConnection',
+		edges: named.map(([id, name]) => ({
+			__typename: 'ContactEdge',
+			node: { __typename: 'Contact', id, name, createdAt: '2026-07-06T10:00:00Z' },
+			cursor: id,
+		})),
+		pageInfo: { __typename: 'PageInfo', hasNextPage: endCursor !== null, endCursor },
+	}
+}
+
+function pageFor(q: string, after: string | undefined) {
+	if (q === 'ada') {
+		return contactsPage([[adaID, 'Ada Lovelace']], null)
+	}
+	if (q !== '') {
+		return contactsPage([], null)
+	}
+	if (after === 'CUR1') {
+		return contactsPage([[carlaID, 'Carla']], null)
+	}
+	return contactsPage([[anaID, 'Ana García'], [brunoID, 'Bruno']], 'CUR1')
+}
+
 let listQueries: string[] = []
 
 beforeEach(() => {
 	listQueries = []
 	server.use(
-		http.get('/api/contacts', ({ request }) => {
-			const url = new URL(request.url)
-			const q = url.searchParams.get('q') ?? ''
-			const cursor = url.searchParams.get('cursor') ?? ''
+		graphql.query('Contacts', ({ variables }) => {
+			const q = (variables.q as string | null) ?? ''
 			listQueries.push(q)
-			if (q === 'ada') {
-				return HttpResponse.json({
-					contacts: [contactRow(adaID, 'Ada Lovelace')],
-					next_cursor: null,
-				})
-			}
-			if (q !== '') {
-				return HttpResponse.json({ contacts: [], next_cursor: null })
-			}
-			if (cursor === 'CUR1') {
-				return HttpResponse.json({
-					contacts: [contactRow(carlaID, 'Carla')],
-					next_cursor: null,
-				})
-			}
 			return HttpResponse.json({
-				contacts: [contactRow(anaID, 'Ana García'), contactRow(brunoID, 'Bruno')],
-				next_cursor: 'CUR1',
+				data: { contacts: pageFor(q, variables.after as string | undefined) },
 			})
 		}),
 		http.get('/api/contacts/:id', ({ params }) =>
@@ -124,8 +131,8 @@ test('shows an empty state when the search finds nothing', async () => {
 
 test('reports when contacts cannot be loaded', async () => {
 	server.use(
-		http.get('/api/contacts', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('Contacts', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 
@@ -136,8 +143,11 @@ test('reports when contacts cannot be loaded', async () => {
 
 test('drops the session when the contacts request is unauthorized', async () => {
 	server.use(
-		http.get('/api/contacts', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('Contacts', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 

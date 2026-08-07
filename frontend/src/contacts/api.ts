@@ -24,13 +24,6 @@ const contactDetailSchema = contactSchema.extend({
 
 export type ContactDetail = z.infer<typeof contactDetailSchema>
 
-const contactPageSchema = z.object({
-	contacts: z.array(contactSchema),
-	next_cursor: z.string().nullable(),
-})
-
-export type ContactPage = z.infer<typeof contactPageSchema>
-
 import { ValidationError } from '@alphone/frontend-sdk'
 
 const errorSchema = z.object({ error: z.string() })
@@ -74,32 +67,6 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
 	} catch {
 		return fallback
 	}
-}
-
-/**
- * Fetches one page of contacts, optionally filtered by a search query and
- * positioned by an opaque cursor.
- * @param query - The search query, or an empty string for all contacts.
- * @param cursor - The cursor from the previous page, or an empty string.
- * @returns The parsed page.
- */
-export async function fetchContacts(query: string, cursor: string): Promise<ContactPage> {
-	const params = new URLSearchParams()
-	if (query !== '') {
-		params.set('q', query)
-	}
-	if (cursor !== '') {
-		params.set('cursor', cursor)
-	}
-	const encoded = params.toString()
-	const response = await fetch(`/api/contacts${encoded === '' ? '' : `?${encoded}`}`)
-	if (response.status === 401) {
-		throw new UnauthorizedError('session expired')
-	}
-	if (!response.ok) {
-		throw new Error(`listing contacts failed with status ${response.status}`)
-	}
-	return contactPageSchema.parse(await response.json())
 }
 
 /**
