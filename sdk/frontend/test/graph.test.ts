@@ -6,7 +6,7 @@ import { expect, test, vi } from 'vitest'
 
 import { ValidationError } from '../errors'
 import { createGraphClient, graphError } from '../graph'
-import { HttpResponse, graphql, http, server } from '../testing'
+import { HttpResponse, graphql, server } from '../testing'
 
 const versionQuery = gql`
 	query Version {
@@ -468,22 +468,25 @@ test('stops rerunning a query once nothing consumes it', async () => {
 
 test('sends a file variable as a multipart request in the graph upload shape', async () => {
 	let form: FormData | undefined
-	server.use(
-		http.post('/api/graphql', async ({ request }) => {
-			form = await request.formData()
-			return HttpResponse.json({
+	const captureUpload: typeof fetch = (_input, init) => {
+		form = init?.body as FormData
+		return Promise.resolve(
+			HttpResponse.json({
 				data: { importUpload: { id: 'id-import', filename: 'contacts.csv' } },
-			})
-		}),
-	)
+			}),
+		)
+	}
 	const { graph } = newClient()
 	const file = new File(['Name,Email\nMaria Perez,maria@example.com\n'], 'contacts.csv', {
 		type: 'text/csv',
 	})
 
-	const result = await graph.client.mutation(uploadMutation, { file }).toPromise()
+	const result = await graph.client
+		.mutation(uploadMutation, { file }, { fetch: captureUpload })
+		.toPromise()
 
 	expect(result.error).toBeUndefined()
+	expect(form).toBeInstanceOf(FormData)
 	expect(form?.get('map')).toBe('{"0":["variables.file"]}')
 	expect(typeof form?.get('0')).toBe('object')
 	const operations = JSON.parse(String(form?.get('operations'))) as {
