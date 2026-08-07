@@ -25,6 +25,15 @@ beforeEach(() =>
 	),
 )
 
+test('ghosts the rows while the accounts arrive', async () => {
+	server.use(http.get('/api/users', () => new Promise(() => {})))
+	renderAt('/users')
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading users…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('serves the users screen at /users', async () => {
 	renderAt('/users')
 

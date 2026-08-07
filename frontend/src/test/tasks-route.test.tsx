@@ -97,6 +97,15 @@ beforeEach(() => {
 	)
 })
 
+test('ghosts the rows while the day of tasks arrives', async () => {
+	server.use(http.get('/api/tasks', () => new Promise(() => {})))
+	renderAt('/tasks')
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading tasks…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('serves the tasks screen at /tasks', async () => {
 	renderAt('/tasks')
 

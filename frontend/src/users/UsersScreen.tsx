@@ -5,6 +5,7 @@ import {
 	Button,
 	EmptyState,
 	ErrorNotice,
+	LoadingRows,
 	PageScreen,
 	Stack,
 	Text,
@@ -94,7 +95,7 @@ function UserRows({
 	currentUserId: string | undefined
 }) {
 	if (users.isPending) {
-		return <Text role="status">Loading users…</Text>
+		return <LoadingRows label="Loading users…" />
 	}
 	if (users.isError) {
 		return <ErrorNotice>Users could not be loaded.</ErrorNotice>

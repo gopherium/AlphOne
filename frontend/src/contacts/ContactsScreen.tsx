@@ -5,9 +5,9 @@ import {
 	EmptyState,
 	ErrorNotice,
 	InputControl,
+	LoadingRows,
 	LoadMore,
 	PageScreen,
-	Text,
 	people,
 } from '@alphone/frontend-sdk'
 import { useConnection } from '@alphone/frontend-sdk'
@@ -69,7 +69,7 @@ export function ContactsScreen() {
  */
 function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 	if (contacts.isPending) {
-		return <Text role="status">Loading contacts…</Text>
+		return <LoadingRows label="Loading contacts…" />
 	}
 	if (contacts.isError) {
 		return <ErrorNotice>Contacts could not be loaded.</ErrorNotice>

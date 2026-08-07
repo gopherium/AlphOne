@@ -66,6 +66,15 @@ beforeEach(() => {
 	)
 })
 
+test('ghosts the rows while the contacts arrive', async () => {
+	server.use(graphql.query('Contacts', () => new Promise(() => {})))
+	renderAt('/contacts')
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading contacts…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('serves the contacts screen at /contacts', async () => {
 	renderAt('/contacts')
 

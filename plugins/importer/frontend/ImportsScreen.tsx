@@ -3,8 +3,8 @@
 import {
 	EmptyState,
 	ErrorNotice,
+	LoadingRows,
 	PageScreen,
-	Text,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -57,7 +57,7 @@ function ImportRows({
 	imports: ReturnType<typeof useQuery<ImportSummary[], Error>>
 }) {
 	if (imports.isPending) {
-		return <Text role="status">Loading imports…</Text>
+		return <LoadingRows label="Loading imports…" />
 	}
 	if (imports.isError) {
 		return <ErrorNotice>Imports could not be loaded.</ErrorNotice>

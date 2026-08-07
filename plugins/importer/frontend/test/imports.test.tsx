@@ -40,6 +40,15 @@ beforeEach(() => {
 	server.use(...handlers)
 })
 
+test('the history ghosts its rows while they arrive', async () => {
+	server.use(http.get('/api/plugins/importer/imports', () => new Promise(() => {})))
+	renderAt('/import')
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading imports…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('the history lists every stored import with its counts', async () => {
 	renderAt('/import')
 

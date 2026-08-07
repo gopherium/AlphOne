@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, Text, VisuallyHidden } from '@alphone/frontend-sdk'
+import { Badge, LoadingRows, Text, VisuallyHidden } from '@alphone/frontend-sdk'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
@@ -21,7 +21,7 @@ export function ConversationList() {
 	})
 
 	if (conversations.isPending) {
-		return <Text role="status">Loading conversations…</Text>
+		return <LoadingRows label="Loading conversations…" />
 	}
 	if (conversations.isError) {
 		return <Text role="alert">Conversations could not be loaded.</Text>

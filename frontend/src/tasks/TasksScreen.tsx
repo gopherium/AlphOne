@@ -6,6 +6,7 @@ import {
 	EmptyState,
 	IconButton,
 	InputControl,
+	LoadingRows,
 	LoadMore,
 	ErrorNotice,
 	PageScreen,
@@ -199,7 +200,7 @@ function TaskSections({
 	controls: RowControls
 }) {
 	if (tasks.isPending) {
-		return <Text role="status">Loading tasks…</Text>
+		return <LoadingRows label="Loading tasks…" />
 	}
 	if (tasks.isError) {
 		return (

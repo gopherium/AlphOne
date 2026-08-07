@@ -10,6 +10,15 @@ import { plugin } from '../index'
 
 beforeEach(() => server.use(...handlers))
 
+test('ghosts the rail rows while the conversations arrive', async () => {
+	server.use(http.get('/api/plugins/whatsapp/conversations', () => new Promise(() => {})))
+	renderPluginAt(plugin, '/whatsapp')
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading conversations…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('lists conversations from the API, most recent first', async () => {
 	renderPluginAt(plugin, '/whatsapp')
 

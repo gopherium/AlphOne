@@ -3,6 +3,7 @@
 import {
 	Button,
 	InputControl,
+	LoadingRows,
 	PageTitle,
 	Stack,
 	Text,
@@ -427,7 +428,7 @@ function ThreadBody({ conversationId }: { conversationId: string }) {
 	}, [messages.data])
 
 	if (messages.isPending) {
-		return <Text role="status">Loading messages…</Text>
+		return <LoadingRows label="Loading messages…" />
 	}
 	if (messages.isError) {
 		return <Text role="alert">Messages could not be loaded.</Text>

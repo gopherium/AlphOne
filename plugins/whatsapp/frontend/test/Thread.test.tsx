@@ -25,6 +25,20 @@ function renderThread() {
 	return client
 }
 
+test('ghosts the log while the messages arrive', async () => {
+	server.use(
+		http.get(
+			'/api/plugins/whatsapp/conversations/:conversationId/messages',
+			() => new Promise(() => {}),
+		),
+	)
+	renderThread()
+
+	const status = await screen.findByRole('status')
+	expect(status).toHaveTextContent('Loading messages…')
+	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+})
+
 test('names the contact the conversation belongs to in its header', async () => {
 	renderThread()
 
