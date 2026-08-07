@@ -3,6 +3,7 @@
 import {
 	Button,
 	ErrorNotice,
+	LoadingRows,
 	PageScreen,
 	SelectControl,
 	Text,
@@ -46,7 +47,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 			<Text variant="heading-sm" render={<h2 />}>
 				Rows
 			</Text>
-			<Suspense fallback={<Text role="status">Loading the preview…</Text>}>
+			<Suspense fallback={<LoadingRows label="Loading the preview…" rows={3} />}>
 				<RowsTable stored={stored.data} rows={rows.data} />
 			</Suspense>
 		</PageScreen>
