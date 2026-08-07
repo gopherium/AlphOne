@@ -52,10 +52,18 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 		"name": "Demo",
 		"backend": "github.com/gopherium/alphone/plugins/demo"
 	}`)
-	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins"} {
+	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "internal/graphroot"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("creating %s: %v", dir, err)
 		}
+	}
+	schemaDir := filepath.Join(root, "graph", "schema")
+	if err := os.MkdirAll(schemaDir, 0o755); err != nil {
+		t.Fatalf("creating %s: %v", schemaDir, err)
+	}
+	coreSDL := "type Query {\n\tversion: String!\n}\n"
+	if err := os.WriteFile(filepath.Join(schemaDir, "core.graphqls"), []byte(coreSDL), 0o644); err != nil {
+		t.Fatalf("writing core schema: %v", err)
 	}
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
@@ -67,7 +75,12 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 		t.Fatalf("pluginwire on a valid tree: %v, stderr: %s", err, stderr.String())
 	}
 
-	for _, generated := range []string{"cmd/alphone/plugins_gen.go", "frontend/src/plugins/index.ts"} {
+	generatedFiles := []string{
+		"cmd/alphone/plugins_gen.go",
+		"frontend/src/plugins/index.ts",
+		"internal/graphroot/graphroot_gen.go",
+	}
+	for _, generated := range generatedFiles {
 		if _, err := os.Stat(filepath.Join(root, generated)); err != nil {
 			t.Errorf("expected generated file %s: %v", generated, err)
 		}
