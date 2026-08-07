@@ -43,12 +43,12 @@ func toUser(account authkit.Account) *model.User {
 }
 
 // Me reports the calling identity.
-func (q queryResolver) Me(ctx context.Context) (*model.Identity, error) {
+func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
 	return toAuthIdentity(authkit.IdentityFromContext(ctx)), nil
 }
 
 // Users lists every user account.
-func (q queryResolver) Users(ctx context.Context) ([]*model.User, error) {
+func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	accounts, err := q.root.Admin.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (q queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 }
 
 // checkLoginBudget reserves a login attempt for the caller's IP key.
-func (m mutationResolver) checkLoginBudget(ctx context.Context) (string, error) {
+func (m MutationResolvers) checkLoginBudget(ctx context.Context) (string, error) {
 	key := clientIPFrom(ctx)
 	allowed, retryAfter, err := m.root.LoginLimiter.Check(key)
 	if err != nil {
@@ -74,7 +74,7 @@ func (m mutationResolver) checkLoginBudget(ctx context.Context) (string, error) 
 }
 
 // authenticateCounted verifies credentials, counting failures against key.
-func (m mutationResolver) authenticateCounted(
+func (m MutationResolvers) authenticateCounted(
 	ctx context.Context, key, email, password string,
 ) (authkit.Identity, error) {
 	identity, err := m.root.Auth.Authenticate(ctx, email, password)
@@ -88,7 +88,7 @@ func (m mutationResolver) authenticateCounted(
 }
 
 // Login verifies credentials under the attempt limiter and issues the session cookie.
-func (m mutationResolver) Login(ctx context.Context, email, password string) (*model.LoginPayload, error) {
+func (m MutationResolvers) Login(ctx context.Context, email, password string) (*model.LoginPayload, error) {
 	key, err := m.checkLoginBudget(ctx)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (m mutationResolver) Login(ctx context.Context, email, password string) (*m
 }
 
 // Logout ends the calling session and clears its cookie.
-func (m mutationResolver) Logout(ctx context.Context) (bool, error) {
+func (m MutationResolvers) Logout(ctx context.Context) (bool, error) {
 	carrier, err := httpFrom(ctx)
 	if err != nil {
 		return false, err
@@ -126,7 +126,7 @@ func (m mutationResolver) Logout(ctx context.Context) (bool, error) {
 }
 
 // CreateUser creates a user account.
-func (m mutationResolver) CreateUser(ctx context.Context, email, name, password string) (*model.User, error) {
+func (m MutationResolvers) CreateUser(ctx context.Context, email, name, password string) (*model.User, error) {
 	account, err := m.root.Admin.CreateAccount(ctx, email, name, password)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (m mutationResolver) CreateUser(ctx context.Context, email, name, password 
 }
 
 // SetUserDisabled updates whether the account may log in.
-func (m mutationResolver) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error) {
+func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error) {
 	actor := authkit.IdentityFromContext(ctx)
 	if err := m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled); err != nil {
 		return false, err

@@ -22,9 +22,9 @@ func pageCost(first *int) int {
 	return *first
 }
 
-// ExecutableSchema builds the priced executable schema over the resolver.
-func ExecutableSchema(r *Resolver) graphql.ExecutableSchema {
-	cfg := graph.Config{Resolvers: r}
+// ExecutableSchema builds the priced executable schema over the resolver root.
+func ExecutableSchema(root graph.ResolverRoot) graphql.ExecutableSchema {
+	cfg := graph.Config{Resolvers: root}
 	cfg.Complexity.Query.Contacts = func(child int, _ *string, first *int, _ *string) int {
 		return pageCost(first) * child
 	}

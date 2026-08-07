@@ -99,7 +99,7 @@ func taskConnection(rows []task.Task, limit int) *model.TaskConnection {
 }
 
 // Tasks pages the acting user's tasks filtered by exactly one dimension.
-func (q queryResolver) Tasks(
+func (q QueryResolvers) Tasks(
 	ctx context.Context,
 	date, dueBefore *time.Time,
 	contactID *uuid.UUID,
@@ -119,7 +119,7 @@ func (q queryResolver) Tasks(
 }
 
 // listTasks dispatches the listing to the store matching the present filter.
-func (q queryResolver) listTasks(
+func (q QueryResolvers) listTasks(
 	ctx context.Context,
 	date, dueBefore *time.Time,
 	contactID *uuid.UUID,
@@ -156,7 +156,7 @@ func presentFilters(date, dueBefore *time.Time, contactID *uuid.UUID) int {
 }
 
 // Task returns one task by id.
-func (q queryResolver) Task(ctx context.Context, id uuid.UUID) (*model.Task, error) {
+func (q QueryResolvers) Task(ctx context.Context, id uuid.UUID) (*model.Task, error) {
 	row, err := q.root.Tasks.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -164,13 +164,13 @@ func (q queryResolver) Task(ctx context.Context, id uuid.UUID) (*model.Task, err
 	return toTask(row), nil
 }
 
-// taskResolver serves the Task field resolvers.
-type taskResolver struct {
+// TaskResolvers serves the Task field resolvers.
+type TaskResolvers struct {
 	root *Resolver
 }
 
 // Contact resolves the task's linked contact through the request loader.
-func (t taskResolver) Contact(ctx context.Context, obj *model.Task) (*model.Contact, error) {
+func (t TaskResolvers) Contact(ctx context.Context, obj *model.Task) (*model.Contact, error) {
 	if obj.ContactID == nil {
 		return nil, nil
 	}
@@ -210,7 +210,7 @@ func graphTaskInput(ctx context.Context, input model.CreateTaskInput) task.Input
 }
 
 // CreateTask stores a task, replaying idempotent origin creates.
-func (m mutationResolver) CreateTask(
+func (m MutationResolvers) CreateTask(
 	ctx context.Context, input model.CreateTaskInput,
 ) (*model.CreateTaskPayload, error) {
 	created, err := task.New(graphTaskInput(ctx, input))
@@ -228,7 +228,7 @@ func (m mutationResolver) CreateTask(
 }
 
 // UpdateTask applies a partial update to a task.
-func (m mutationResolver) UpdateTask(
+func (m MutationResolvers) UpdateTask(
 	ctx context.Context, id uuid.UUID, input model.UpdateTaskInput,
 ) (*model.Task, error) {
 	stored, err := m.root.Tasks.Get(ctx, id)
@@ -249,7 +249,7 @@ func completesTask(stored, updated task.Task) bool {
 }
 
 // patchTask applies changes to stored, publishing completion when the update closes the task.
-func (m mutationResolver) patchTask(ctx context.Context, stored task.Task, changes task.Changes) (task.Task, error) {
+func (m MutationResolvers) patchTask(ctx context.Context, stored task.Task, changes task.Changes) (task.Task, error) {
 	if changes == (task.Changes{}) {
 		return stored, nil
 	}

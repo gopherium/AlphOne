@@ -61,7 +61,7 @@ func toContact(c contact.Contact) *model.Contact {
 }
 
 // Contacts pages the contact directory as a connection.
-func (q queryResolver) Contacts(
+func (q QueryResolvers) Contacts(
 	ctx context.Context, search *string, first *int, after *string,
 ) (*model.ContactConnection, error) {
 	limit, err := pageSize(first)
@@ -101,7 +101,7 @@ func (r *Resolver) contactConnection(ctx context.Context, rows []contact.Contact
 }
 
 // Contact returns one contact by id.
-func (q queryResolver) Contact(ctx context.Context, id uuid.UUID) (*model.Contact, error) {
+func (q QueryResolvers) Contact(ctx context.Context, id uuid.UUID) (*model.Contact, error) {
 	row, err := q.root.Contacts.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -110,13 +110,13 @@ func (q queryResolver) Contact(ctx context.Context, id uuid.UUID) (*model.Contac
 	return toContact(row), nil
 }
 
-// contactResolver serves the Contact field resolvers.
-type contactResolver struct {
+// ContactResolvers serves the Contact field resolvers.
+type ContactResolvers struct {
 	root *Resolver
 }
 
 // CreatedAt resolves a contact's creation time through the request loader.
-func (c contactResolver) CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error) {
+func (c ContactResolvers) CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error) {
 	row, err := c.root.loadContact(ctx, obj.ID)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func toIdentity(row contact.Identity) *model.ContactIdentity {
 }
 
 // Identities resolves a contact's identities.
-func (c contactResolver) Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error) {
+func (c ContactResolvers) Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error) {
 	rows, err := c.root.Contacts.ListContactIdentities(ctx, obj.ID)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func writableIdentities(contactID uuid.UUID, inputs []*model.ContactIdentityInpu
 }
 
 // CreateContact stores a contact with optional identities and publishes contact.created.
-func (m mutationResolver) CreateContact(
+func (m MutationResolvers) CreateContact(
 	ctx context.Context, name string, identities []*model.ContactIdentityInput,
 ) (*model.Contact, error) {
 	created, err := contact.New(name)
@@ -184,7 +184,7 @@ func (m mutationResolver) CreateContact(
 }
 
 // storeContact persists the contact, transactionally with identities when given.
-func (m mutationResolver) storeContact(ctx context.Context, c contact.Contact, identities []contact.Identity) error {
+func (m MutationResolvers) storeContact(ctx context.Context, c contact.Contact, identities []contact.Identity) error {
 	if len(identities) == 0 {
 		return m.root.Contacts.Create(ctx, c)
 	}
@@ -192,7 +192,7 @@ func (m mutationResolver) storeContact(ctx context.Context, c contact.Contact, i
 }
 
 // RenameContact renames a contact.
-func (m mutationResolver) RenameContact(ctx context.Context, id uuid.UUID, name string) (*model.Contact, error) {
+func (m MutationResolvers) RenameContact(ctx context.Context, id uuid.UUID, name string) (*model.Contact, error) {
 	renamed, err := contact.Rename(name)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (m mutationResolver) RenameContact(ctx context.Context, id uuid.UUID, name 
 }
 
 // AddContactIdentity attaches an identity to a contact.
-func (m mutationResolver) AddContactIdentity(
+func (m MutationResolvers) AddContactIdentity(
 	ctx context.Context, contactID uuid.UUID, identity model.ContactIdentityInput,
 ) (*model.ContactIdentity, error) {
 	writable, err := contact.NewWritableIdentity(
@@ -222,7 +222,7 @@ func (m mutationResolver) AddContactIdentity(
 }
 
 // DeleteContactIdentity removes a contact's identity.
-func (m mutationResolver) DeleteContactIdentity(
+func (m MutationResolvers) DeleteContactIdentity(
 	ctx context.Context, contactID uuid.UUID, identityID uuid.UUID,
 ) (bool, error) {
 	if err := m.root.Contacts.DeleteIdentity(ctx, contactID, identityID); err != nil {
@@ -232,7 +232,7 @@ func (m mutationResolver) DeleteContactIdentity(
 }
 
 // Tasks pages the contact's tasks as a connection.
-func (c contactResolver) Tasks(
+func (c ContactResolvers) Tasks(
 	ctx context.Context, obj *model.Contact, status *string, first *int, after *string,
 ) (*model.TaskConnection, error) {
 	st, page, limit, err := taskPageArgs(status, first, after)

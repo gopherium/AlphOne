@@ -24,7 +24,7 @@ func toWebhook(sub webhook.Subscription) *model.Webhook {
 }
 
 // Webhooks lists the caller's webhook subscriptions.
-func (q queryResolver) Webhooks(ctx context.Context) ([]*model.Webhook, error) {
+func (q QueryResolvers) Webhooks(ctx context.Context) ([]*model.Webhook, error) {
 	identity := authkit.IdentityFromContext(ctx)
 	subs, err := q.root.Webhooks.ListSubscriptionsForUser(ctx, identity.ID)
 	if err != nil {
@@ -38,7 +38,7 @@ func (q queryResolver) Webhooks(ctx context.Context) ([]*model.Webhook, error) {
 }
 
 // CreateWebhook subscribes an endpoint, answering the signing secret exactly once.
-func (m mutationResolver) CreateWebhook(
+func (m MutationResolvers) CreateWebhook(
 	ctx context.Context, url string, events []string,
 ) (*model.CreateWebhookPayload, error) {
 	names := make([]event.Name, len(events))
@@ -57,7 +57,7 @@ func (m mutationResolver) CreateWebhook(
 }
 
 // DeleteWebhook revokes one of the caller's subscriptions.
-func (m mutationResolver) DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error) {
+func (m MutationResolvers) DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error) {
 	identity := authkit.IdentityFromContext(ctx)
 	if err := m.root.Webhooks.DeleteSubscription(ctx, identity.ID, id); err != nil {
 		return false, err

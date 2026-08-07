@@ -90,37 +90,57 @@ func (r *Resolver) publish(ctx context.Context, name event.Name, data map[string
 	r.Events.Publish(ctx, name, data)
 }
 
+// QueryResolvers returns the core Query resolver set.
+func (r *Resolver) QueryResolvers() QueryResolvers {
+	return QueryResolvers{root: r}
+}
+
+// ContactResolvers returns the core Contact resolver set.
+func (r *Resolver) ContactResolvers() ContactResolvers {
+	return ContactResolvers{root: r}
+}
+
+// TaskResolvers returns the core Task resolver set.
+func (r *Resolver) TaskResolvers() TaskResolvers {
+	return TaskResolvers{root: r}
+}
+
+// MutationResolvers returns the core Mutation resolver set.
+func (r *Resolver) MutationResolvers() MutationResolvers {
+	return MutationResolvers{root: r}
+}
+
 // Query returns the query resolver set.
 func (r *Resolver) Query() graph.QueryResolver {
-	return queryResolver{root: r}
+	return QueryResolvers{root: r}
 }
 
 // Contact returns the contact field resolver set.
 func (r *Resolver) Contact() graph.ContactResolver {
-	return contactResolver{root: r}
+	return ContactResolvers{root: r}
 }
 
 // Task returns the task field resolver set.
 func (r *Resolver) Task() graph.TaskResolver {
-	return taskResolver{root: r}
+	return TaskResolvers{root: r}
 }
 
 // Mutation returns the mutation resolver set.
 func (r *Resolver) Mutation() graph.MutationResolver {
-	return mutationResolver{root: r}
+	return MutationResolvers{root: r}
 }
 
-// mutationResolver serves the Mutation root fields.
-type mutationResolver struct {
+// MutationResolvers serves the Mutation root fields.
+type MutationResolvers struct {
 	root *Resolver
 }
 
-// queryResolver serves the Query root fields.
-type queryResolver struct {
+// QueryResolvers serves the Query root fields.
+type QueryResolvers struct {
 	root *Resolver
 }
 
 // Version reports the application version.
-func (q queryResolver) Version(context.Context) (string, error) {
+func (q QueryResolvers) Version(context.Context) (string, error) {
 	return q.root.Version, nil
 }
