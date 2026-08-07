@@ -82,6 +82,45 @@ func (s *store) listConversations(ctx context.Context, limit int) ([]conversatio
 	return conversations, nil
 }
 
+// listConversationsByContactIDs returns every conversation of the given
+// contacts, most recently active first.
+func (s *store) listConversationsByContactIDs(
+	ctx context.Context, contactIDs []uuid.UUID,
+) ([]conversationRow, error) {
+	rows, _ := s.pool.Query(ctx, `
+		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
+			conv.last_activity_at, last_message.preview AS last_message_preview
+		FROM plugin_whatsapp.conversations conv
+		JOIN core.contacts c ON c.id = conv.contact_id
+		LEFT JOIN LATERAL (
+			SELECT CASE
+				WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)
+				WHEN m.content_type = 'image' THEN '[photo]'
+				WHEN m.content_type = 'audio' THEN '[voice message]'
+				WHEN m.content_type = 'video' THEN '[video]'
+				WHEN m.content_type = 'document' THEN '[document]'
+				WHEN m.content_type = 'sticker' THEN '[sticker]'
+				WHEN m.content_type = 'location' THEN '[location]'
+				WHEN m.content_type = 'contacts' THEN '[contact]'
+				WHEN m.content_type = 'reaction' THEN '[reaction]'
+				ELSE '[unsupported]'
+			END AS preview
+			FROM plugin_whatsapp.messages m
+			WHERE m.conversation_id = conv.id
+			ORDER BY m.sent_at DESC, m.id DESC
+			LIMIT 1
+		) last_message ON TRUE
+		WHERE conv.contact_id = ANY($1)
+		ORDER BY conv.last_activity_at DESC`,
+		contactIDs,
+	)
+	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: list conversations by contacts: %w", err)
+	}
+	return conversations, nil
+}
+
 // listMessages returns up to limit messages for the given conversation with
 // their media state, oldest first.
 func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {

@@ -12,7 +12,6 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
-	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
@@ -107,26 +106,6 @@ func (r *Resolver) TaskResolvers() TaskResolvers {
 
 // MutationResolvers returns the core Mutation resolver set.
 func (r *Resolver) MutationResolvers() MutationResolvers {
-	return MutationResolvers{root: r}
-}
-
-// Query returns the query resolver set.
-func (r *Resolver) Query() graph.QueryResolver {
-	return QueryResolvers{root: r}
-}
-
-// Contact returns the contact field resolver set.
-func (r *Resolver) Contact() graph.ContactResolver {
-	return ContactResolvers{root: r}
-}
-
-// Task returns the task field resolver set.
-func (r *Resolver) Task() graph.TaskResolver {
-	return TaskResolvers{root: r}
-}
-
-// Mutation returns the mutation resolver set.
-func (r *Resolver) Mutation() graph.MutationResolver {
 	return MutationResolvers{root: r}
 }
 

@@ -5,6 +5,7 @@ type Contact {
 	createdAt: DateTime! @goField(forceResolver: true)
 	identities: [ContactIdentity!]! @goField(forceResolver: true)
 	tasks(status: String, first: Int, after: String): TaskConnection! @goField(forceResolver: true)
+	whatsAppConversations: [WhatsAppConversation!]! @goField(forceResolver: true)
 }
 type ContactConnection {
 	edges: [ContactEdge!]!
@@ -63,6 +64,7 @@ type Mutation {
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
 	deleteWebhook(id: UUID!): Boolean!
+	whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
 }
 type PageInfo {
 	hasNextPage: Boolean!
@@ -79,6 +81,7 @@ type Query {
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
 	task(id: UUID!): Task
 	webhooks: [Webhook!]!
+	whatsAppConversations(limit: Int): [WhatsAppConversation!]!
 }
 type Task {
 	id: UUID!
@@ -120,4 +123,33 @@ type Webhook {
 	url: String!
 	events: [String!]!
 	createdAt: DateTime!
+}
+type WhatsAppConversation {
+	id: UUID!
+	externalId: String!
+	status: String!
+	lastActivityAt: DateTime!
+	lastMessagePreview: String
+	contact: Contact! @goField(forceResolver: true)
+	messages(limit: Int): [WhatsAppMessage!]! @goField(forceResolver: true)
+}
+type WhatsAppMedia {
+	status: String!
+	mimeType: String!
+	filename: String
+	fileSize: Int
+	voice: Boolean!
+	animated: Boolean!
+	downloadPath: String!
+}
+type WhatsAppMessage {
+	id: UUID!
+	externalId: String!
+	direction: String!
+	content: String!
+	contentType: String!
+	sentAt: DateTime!
+	status: String
+	statusDetail: String
+	media: WhatsAppMedia
 }

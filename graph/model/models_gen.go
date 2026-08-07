@@ -9,11 +9,12 @@ import (
 )
 
 type Contact struct {
-	ID         uuid.UUID          `json:"id"`
-	Name       string             `json:"name"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	Identities []*ContactIdentity `json:"identities"`
-	Tasks      *TaskConnection    `json:"tasks"`
+	ID                    uuid.UUID               `json:"id"`
+	Name                  string                  `json:"name"`
+	CreatedAt             time.Time               `json:"createdAt"`
+	Identities            []*ContactIdentity      `json:"identities"`
+	Tasks                 *TaskConnection         `json:"tasks"`
+	WhatsAppConversations []*WhatsAppConversation `json:"whatsAppConversations"`
 }
 
 type ContactConnection struct {
@@ -124,4 +125,36 @@ type Webhook struct {
 	URL       string    `json:"url"`
 	Events    []string  `json:"events"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+type WhatsAppConversation struct {
+	ID                 uuid.UUID          `json:"id"`
+	ExternalID         string             `json:"externalId"`
+	Status             string             `json:"status"`
+	LastActivityAt     time.Time          `json:"lastActivityAt"`
+	LastMessagePreview *string            `json:"lastMessagePreview,omitempty"`
+	Contact            *Contact           `json:"contact"`
+	Messages           []*WhatsAppMessage `json:"messages"`
+}
+
+type WhatsAppMedia struct {
+	Status       string  `json:"status"`
+	MimeType     string  `json:"mimeType"`
+	Filename     *string `json:"filename,omitempty"`
+	FileSize     *int    `json:"fileSize,omitempty"`
+	Voice        bool    `json:"voice"`
+	Animated     bool    `json:"animated"`
+	DownloadPath string  `json:"downloadPath"`
+}
+
+type WhatsAppMessage struct {
+	ID           uuid.UUID      `json:"id"`
+	ExternalID   string         `json:"externalId"`
+	Direction    string         `json:"direction"`
+	Content      string         `json:"content"`
+	ContentType  string         `json:"contentType"`
+	SentAt       time.Time      `json:"sentAt"`
+	Status       *string        `json:"status,omitempty"`
+	StatusDetail *string        `json:"statusDetail,omitempty"`
+	Media        *WhatsAppMedia `json:"media,omitempty"`
 }

@@ -5,16 +5,123 @@
 package graphroot
 
 import (
+	"errors"
 	graph "github.com/gopherium/alphone/graph"
+	graphres "github.com/gopherium/alphone/internal/graphres"
+	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
 	sdk "github.com/gopherium/alphone/sdk"
 )
 
-// NewGraphRoot returns the core resolver root, no plugin extends the graph.
-func NewGraphRoot(core graph.ResolverRoot) graph.ResolverRoot {
-	return core
+// CoreGraphResolvers lists the resolver sets the core contributes to the graph.
+type CoreGraphResolvers interface {
+	ContactResolvers() graphres.ContactResolvers
+	MutationResolvers() graphres.MutationResolvers
+	QueryResolvers() graphres.QueryResolvers
+	TaskResolvers() graphres.TaskResolvers
 }
 
-// FromPlugins composes the resolver root, no registered plugin extends the graph.
-func FromPlugins(core graph.ResolverRoot, _ []sdk.Plugin) (graph.ResolverRoot, error) {
-	return core, nil
+// WhatsappGraphResolvers lists the resolver sets the whatsapp plugin contributes to the graph.
+type WhatsappGraphResolvers interface {
+	ContactResolvers() whatsapp.ContactResolvers
+	MutationResolvers() whatsapp.MutationResolvers
+	QueryResolvers() whatsapp.QueryResolvers
+	WhatsAppConversationResolvers() whatsapp.WhatsAppConversationResolvers
+}
+
+// coreContactResolvers names the core Contact resolver set for embedding.
+type coreContactResolvers = graphres.ContactResolvers
+
+// whatsappContactResolvers names the whatsapp Contact resolver set for embedding.
+type whatsappContactResolvers = whatsapp.ContactResolvers
+
+// composedContactResolver merges every contributed Contact resolver set.
+type composedContactResolver struct {
+	coreContactResolvers
+	whatsappContactResolvers
+}
+
+// coreMutationResolvers names the core Mutation resolver set for embedding.
+type coreMutationResolvers = graphres.MutationResolvers
+
+// whatsappMutationResolvers names the whatsapp Mutation resolver set for embedding.
+type whatsappMutationResolvers = whatsapp.MutationResolvers
+
+// composedMutationResolver merges every contributed Mutation resolver set.
+type composedMutationResolver struct {
+	coreMutationResolvers
+	whatsappMutationResolvers
+}
+
+// coreQueryResolvers names the core Query resolver set for embedding.
+type coreQueryResolvers = graphres.QueryResolvers
+
+// whatsappQueryResolvers names the whatsapp Query resolver set for embedding.
+type whatsappQueryResolvers = whatsapp.QueryResolvers
+
+// composedQueryResolver merges every contributed Query resolver set.
+type composedQueryResolver struct {
+	coreQueryResolvers
+	whatsappQueryResolvers
+}
+
+// graphRoot composes the core and plugin resolver sets into the resolver root.
+type graphRoot struct {
+	core     CoreGraphResolvers
+	whatsapp WhatsappGraphResolvers
+}
+
+// NewGraphRoot composes the core resolver sets with every graphql plugin's.
+func NewGraphRoot(
+	core CoreGraphResolvers,
+	whatsappPlugin WhatsappGraphResolvers,
+) graph.ResolverRoot {
+	return graphRoot{core: core, whatsapp: whatsappPlugin}
+}
+
+// FromPlugins finds each graphql plugin among the registered plugins and composes the resolver root.
+func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverRoot, error) {
+	var whatsappPlugin WhatsappGraphResolvers
+	for _, plugin := range plugins {
+		if candidate, ok := plugin.(WhatsappGraphResolvers); ok {
+			whatsappPlugin = candidate
+		}
+	}
+	if whatsappPlugin == nil {
+		return nil, errors.New("graphroot: no registered plugin provides the whatsapp resolver sets")
+	}
+	return NewGraphRoot(core, whatsappPlugin), nil
+}
+
+// Contact returns the Contact resolver set.
+func (g graphRoot) Contact() graph.ContactResolver {
+	return composedContactResolver{
+		g.core.ContactResolvers(),
+		g.whatsapp.ContactResolvers(),
+	}
+}
+
+// Mutation returns the Mutation resolver set.
+func (g graphRoot) Mutation() graph.MutationResolver {
+	return composedMutationResolver{
+		g.core.MutationResolvers(),
+		g.whatsapp.MutationResolvers(),
+	}
+}
+
+// Query returns the Query resolver set.
+func (g graphRoot) Query() graph.QueryResolver {
+	return composedQueryResolver{
+		g.core.QueryResolvers(),
+		g.whatsapp.QueryResolvers(),
+	}
+}
+
+// Task returns the Task resolver set.
+func (g graphRoot) Task() graph.TaskResolver {
+	return g.core.TaskResolvers()
+}
+
+// WhatsAppConversation returns the WhatsAppConversation resolver set.
+func (g graphRoot) WhatsAppConversation() graph.WhatsAppConversationResolver {
+	return g.whatsapp.WhatsAppConversationResolvers()
 }

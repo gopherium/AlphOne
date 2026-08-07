@@ -36,6 +36,7 @@ type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
 	Task() TaskResolver
+	WhatsAppConversation() WhatsAppConversationResolver
 }
 
 type DirectiveRoot struct {
@@ -43,11 +44,12 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Contact struct {
-		CreatedAt  func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Identities func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Tasks      func(childComplexity int, status *string, first *int, after *string) int
+		CreatedAt             func(childComplexity int) int
+		ID                    func(childComplexity int) int
+		Identities            func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		Tasks                 func(childComplexity int, status *string, first *int, after *string) int
+		WhatsAppConversations func(childComplexity int) int
 	}
 
 	ContactConnection struct {
@@ -100,6 +102,7 @@ type ComplexityRoot struct {
 		RenameContact         func(childComplexity int, id uuid.UUID, name string) int
 		SetUserDisabled       func(childComplexity int, id uuid.UUID, disabled bool) int
 		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
+		WhatsAppSendMessage   func(childComplexity int, conversationID uuid.UUID, content string) int
 	}
 
 	PageInfo struct {
@@ -110,14 +113,15 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Contact  func(childComplexity int, id uuid.UUID) int
-		Contacts func(childComplexity int, q *string, first *int, after *string) int
-		Me       func(childComplexity int) int
-		Task     func(childComplexity int, id uuid.UUID) int
-		Tasks    func(childComplexity int, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) int
-		Users    func(childComplexity int) int
-		Version  func(childComplexity int) int
-		Webhooks func(childComplexity int) int
+		Contact               func(childComplexity int, id uuid.UUID) int
+		Contacts              func(childComplexity int, q *string, first *int, after *string) int
+		Me                    func(childComplexity int) int
+		Task                  func(childComplexity int, id uuid.UUID) int
+		Tasks                 func(childComplexity int, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) int
+		Users                 func(childComplexity int) int
+		Version               func(childComplexity int) int
+		Webhooks              func(childComplexity int) int
+		WhatsAppConversations func(childComplexity int, limit *int) int
 	}
 
 	Task struct {
@@ -158,6 +162,38 @@ type ComplexityRoot struct {
 		ID        func(childComplexity int) int
 		URL       func(childComplexity int) int
 	}
+
+	WhatsAppConversation struct {
+		Contact            func(childComplexity int) int
+		ExternalID         func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		LastActivityAt     func(childComplexity int) int
+		LastMessagePreview func(childComplexity int) int
+		Messages           func(childComplexity int, limit *int) int
+		Status             func(childComplexity int) int
+	}
+
+	WhatsAppMedia struct {
+		Animated     func(childComplexity int) int
+		DownloadPath func(childComplexity int) int
+		FileSize     func(childComplexity int) int
+		Filename     func(childComplexity int) int
+		MimeType     func(childComplexity int) int
+		Status       func(childComplexity int) int
+		Voice        func(childComplexity int) int
+	}
+
+	WhatsAppMessage struct {
+		Content      func(childComplexity int) int
+		ContentType  func(childComplexity int) int
+		Direction    func(childComplexity int) int
+		ExternalID   func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Media        func(childComplexity int) int
+		SentAt       func(childComplexity int) int
+		Status       func(childComplexity int) int
+		StatusDetail func(childComplexity int) int
+	}
 }
 
 // endregion ***************************** api!.gotpl *****************************
@@ -168,6 +204,7 @@ type ContactResolver interface {
 	CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error)
 	Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error)
 	Tasks(ctx context.Context, obj *model.Contact, status *string, first *int, after *string) (*model.TaskConnection, error)
+	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
 type MutationResolver interface {
 	CreateContact(ctx context.Context, name string, identities []*model.ContactIdentityInput) (*model.Contact, error)
@@ -182,6 +219,7 @@ type MutationResolver interface {
 	UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error)
 	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
+	WhatsAppSendMessage(ctx context.Context, conversationID uuid.UUID, content string) (*model.WhatsAppMessage, error)
 }
 type QueryResolver interface {
 	Version(ctx context.Context) (string, error)
@@ -192,9 +230,14 @@ type QueryResolver interface {
 	Tasks(ctx context.Context, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) (*model.TaskConnection, error)
 	Task(ctx context.Context, id uuid.UUID) (*model.Task, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
+	WhatsAppConversations(ctx context.Context, limit *int) ([]*model.WhatsAppConversation, error)
 }
 type TaskResolver interface {
 	Contact(ctx context.Context, obj *model.Task) (*model.Contact, error)
+}
+type WhatsAppConversationResolver interface {
+	Contact(ctx context.Context, obj *model.WhatsAppConversation) (*model.Contact, error)
+	Messages(ctx context.Context, obj *model.WhatsAppConversation, limit *int) ([]*model.WhatsAppMessage, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -250,6 +293,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Contact.Tasks(childComplexity, args["status"].(*string), args["first"].(*int), args["after"].(*string)), true
+	case "Contact.whatsAppConversations":
+		if e.ComplexityRoot.Contact.WhatsAppConversations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Contact.WhatsAppConversations(childComplexity), true
 
 	case "ContactConnection.edges":
 		if e.ComplexityRoot.ContactConnection.Edges == nil {
@@ -481,6 +530,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateTask(childComplexity, args["id"].(uuid.UUID), args["input"].(model.UpdateTaskInput)), true
+	case "Mutation.whatsAppSendMessage":
+		if e.ComplexityRoot.Mutation.WhatsAppSendMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_whatsAppSendMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.WhatsAppSendMessage(childComplexity, args["conversationId"].(uuid.UUID), args["content"].(string)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -576,6 +636,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Webhooks(childComplexity), true
+	case "Query.whatsAppConversations":
+		if e.ComplexityRoot.Query.WhatsAppConversations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_whatsAppConversations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.WhatsAppConversations(childComplexity, args["limit"].(*int)), true
 
 	case "Task.assigneeId":
 		if e.ComplexityRoot.Task.AssigneeID == nil {
@@ -726,6 +797,152 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Webhook.URL(childComplexity), true
 
+	case "WhatsAppConversation.contact":
+		if e.ComplexityRoot.WhatsAppConversation.Contact == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.Contact(childComplexity), true
+	case "WhatsAppConversation.externalId":
+		if e.ComplexityRoot.WhatsAppConversation.ExternalID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.ExternalID(childComplexity), true
+	case "WhatsAppConversation.id":
+		if e.ComplexityRoot.WhatsAppConversation.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.ID(childComplexity), true
+	case "WhatsAppConversation.lastActivityAt":
+		if e.ComplexityRoot.WhatsAppConversation.LastActivityAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.LastActivityAt(childComplexity), true
+	case "WhatsAppConversation.lastMessagePreview":
+		if e.ComplexityRoot.WhatsAppConversation.LastMessagePreview == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.LastMessagePreview(childComplexity), true
+	case "WhatsAppConversation.messages":
+		if e.ComplexityRoot.WhatsAppConversation.Messages == nil {
+			break
+		}
+
+		args, err := ec.field_WhatsAppConversation_messages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.Messages(childComplexity, args["limit"].(*int)), true
+	case "WhatsAppConversation.status":
+		if e.ComplexityRoot.WhatsAppConversation.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.Status(childComplexity), true
+
+	case "WhatsAppMedia.animated":
+		if e.ComplexityRoot.WhatsAppMedia.Animated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.Animated(childComplexity), true
+	case "WhatsAppMedia.downloadPath":
+		if e.ComplexityRoot.WhatsAppMedia.DownloadPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.DownloadPath(childComplexity), true
+	case "WhatsAppMedia.fileSize":
+		if e.ComplexityRoot.WhatsAppMedia.FileSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.FileSize(childComplexity), true
+	case "WhatsAppMedia.filename":
+		if e.ComplexityRoot.WhatsAppMedia.Filename == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.Filename(childComplexity), true
+	case "WhatsAppMedia.mimeType":
+		if e.ComplexityRoot.WhatsAppMedia.MimeType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.MimeType(childComplexity), true
+	case "WhatsAppMedia.status":
+		if e.ComplexityRoot.WhatsAppMedia.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.Status(childComplexity), true
+	case "WhatsAppMedia.voice":
+		if e.ComplexityRoot.WhatsAppMedia.Voice == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMedia.Voice(childComplexity), true
+
+	case "WhatsAppMessage.content":
+		if e.ComplexityRoot.WhatsAppMessage.Content == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.Content(childComplexity), true
+	case "WhatsAppMessage.contentType":
+		if e.ComplexityRoot.WhatsAppMessage.ContentType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.ContentType(childComplexity), true
+	case "WhatsAppMessage.direction":
+		if e.ComplexityRoot.WhatsAppMessage.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.Direction(childComplexity), true
+	case "WhatsAppMessage.externalId":
+		if e.ComplexityRoot.WhatsAppMessage.ExternalID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.ExternalID(childComplexity), true
+	case "WhatsAppMessage.id":
+		if e.ComplexityRoot.WhatsAppMessage.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.ID(childComplexity), true
+	case "WhatsAppMessage.media":
+		if e.ComplexityRoot.WhatsAppMessage.Media == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.Media(childComplexity), true
+	case "WhatsAppMessage.sentAt":
+		if e.ComplexityRoot.WhatsAppMessage.SentAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.SentAt(childComplexity), true
+	case "WhatsAppMessage.status":
+		if e.ComplexityRoot.WhatsAppMessage.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.Status(childComplexity), true
+	case "WhatsAppMessage.statusDetail":
+		if e.ComplexityRoot.WhatsAppMessage.StatusDetail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppMessage.StatusDetail(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -828,6 +1045,50 @@ var sources = []*ast.Source{
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
+	{Name: "../plugins/whatsapp/graph/schema.graphqls", Input: `extend type Query {
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+}
+
+type WhatsAppConversation {
+  id: UUID!
+  externalId: String!
+  status: String!
+  lastActivityAt: DateTime!
+  lastMessagePreview: String
+  contact: Contact! @goField(forceResolver: true)
+  messages(limit: Int): [WhatsAppMessage!]! @goField(forceResolver: true)
+}
+
+type WhatsAppMessage {
+  id: UUID!
+  externalId: String!
+  direction: String!
+  content: String!
+  contentType: String!
+  sentAt: DateTime!
+  status: String
+  statusDetail: String
+  media: WhatsAppMedia
+}
+
+type WhatsAppMedia {
+  status: String!
+  mimeType: String!
+  filename: String
+  fileSize: Int
+  voice: Boolean!
+  animated: Boolean!
+  downloadPath: String!
+}
+
+extend type Contact {
+  whatsAppConversations: [WhatsAppConversation!]! @goField(forceResolver: true)
+}
+
+extend type Mutation {
+  whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -847,6 +1108,8 @@ func (ec *executionContext) childFields_Contact(ctx context.Context, field graph
 		return ec.fieldContext_Contact_identities(ctx, field)
 	case "tasks":
 		return ec.fieldContext_Contact_tasks(ctx, field)
+	case "whatsAppConversations":
+		return ec.fieldContext_Contact_whatsAppConversations(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Contact", field.Name)
 }
@@ -1015,6 +1278,70 @@ func (ec *executionContext) childFields_Webhook(ctx context.Context, field graph
 		return ec.fieldContext_Webhook_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Webhook", field.Name)
+}
+
+func (ec *executionContext) childFields_WhatsAppConversation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_WhatsAppConversation_id(ctx, field)
+	case "externalId":
+		return ec.fieldContext_WhatsAppConversation_externalId(ctx, field)
+	case "status":
+		return ec.fieldContext_WhatsAppConversation_status(ctx, field)
+	case "lastActivityAt":
+		return ec.fieldContext_WhatsAppConversation_lastActivityAt(ctx, field)
+	case "lastMessagePreview":
+		return ec.fieldContext_WhatsAppConversation_lastMessagePreview(ctx, field)
+	case "contact":
+		return ec.fieldContext_WhatsAppConversation_contact(ctx, field)
+	case "messages":
+		return ec.fieldContext_WhatsAppConversation_messages(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WhatsAppConversation", field.Name)
+}
+
+func (ec *executionContext) childFields_WhatsAppMedia(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "status":
+		return ec.fieldContext_WhatsAppMedia_status(ctx, field)
+	case "mimeType":
+		return ec.fieldContext_WhatsAppMedia_mimeType(ctx, field)
+	case "filename":
+		return ec.fieldContext_WhatsAppMedia_filename(ctx, field)
+	case "fileSize":
+		return ec.fieldContext_WhatsAppMedia_fileSize(ctx, field)
+	case "voice":
+		return ec.fieldContext_WhatsAppMedia_voice(ctx, field)
+	case "animated":
+		return ec.fieldContext_WhatsAppMedia_animated(ctx, field)
+	case "downloadPath":
+		return ec.fieldContext_WhatsAppMedia_downloadPath(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WhatsAppMedia", field.Name)
+}
+
+func (ec *executionContext) childFields_WhatsAppMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_WhatsAppMessage_id(ctx, field)
+	case "externalId":
+		return ec.fieldContext_WhatsAppMessage_externalId(ctx, field)
+	case "direction":
+		return ec.fieldContext_WhatsAppMessage_direction(ctx, field)
+	case "content":
+		return ec.fieldContext_WhatsAppMessage_content(ctx, field)
+	case "contentType":
+		return ec.fieldContext_WhatsAppMessage_contentType(ctx, field)
+	case "sentAt":
+		return ec.fieldContext_WhatsAppMessage_sentAt(ctx, field)
+	case "status":
+		return ec.fieldContext_WhatsAppMessage_status(ctx, field)
+	case "statusDetail":
+		return ec.fieldContext_WhatsAppMessage_statusDetail(ctx, field)
+	case "media":
+		return ec.fieldContext_WhatsAppMessage_media(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WhatsAppMessage", field.Name)
 }
 
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1397,6 +1724,28 @@ func (ec *executionContext) field_Mutation_updateTask_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_whatsAppSendMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversationId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversationId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "content",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["content"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1520,6 +1869,34 @@ func (ec *executionContext) field_Query_tasks_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["after"] = arg5
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_whatsAppConversations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_WhatsAppConversation_messages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
 	return args, nil
 }
 
@@ -1724,6 +2101,38 @@ func (ec *executionContext) fieldContext_Contact_tasks(ctx context.Context, fiel
 	if fc.Args, err = ec.field_Contact_tasks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Contact_whatsAppConversations(ctx context.Context, field graphql.CollectedField, obj *model.Contact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Contact_whatsAppConversations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Contact().WhatsAppConversations(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppConversation) graphql.Marshaler {
+			return ec.marshalNWhatsAppConversation2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppConversationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Contact_whatsAppConversations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Contact",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppConversation(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -2657,6 +3066,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_whatsAppSendMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_whatsAppSendMessage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().WhatsAppSendMessage(ctx, fc.Args["conversationId"].(uuid.UUID), fc.Args["content"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WhatsAppMessage) graphql.Marshaler {
+			return ec.marshalNWhatsAppMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_whatsAppSendMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_whatsAppSendMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3040,6 +3493,50 @@ func (ec *executionContext) fieldContext_Query_webhooks(_ context.Context, field
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Webhook(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_whatsAppConversations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_whatsAppConversations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().WhatsAppConversations(ctx, fc.Args["limit"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppConversation) graphql.Marshaler {
+			return ec.marshalNWhatsAppConversation2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppConversationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_whatsAppConversations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppConversation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_whatsAppConversations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -3706,6 +4203,574 @@ func (ec *executionContext) _Webhook_createdAt(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Webhook_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Webhook", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_id(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_externalId(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_externalId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_externalId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_status(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_lastActivityAt(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_lastActivityAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastActivityAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_lastActivityAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_lastMessagePreview(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_lastMessagePreview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastMessagePreview, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_lastMessagePreview(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppConversation_contact(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_contact(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.WhatsAppConversation().Contact(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Contact) graphql.Marshaler {
+			return ec.marshalNContact2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_contact(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppConversation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Contact(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppConversation_messages(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_messages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.WhatsAppConversation().Messages(ctx, obj, fc.Args["limit"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppMessage) graphql.Marshaler {
+			return ec.marshalNWhatsAppMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_messages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppConversation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_WhatsAppConversation_messages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppMedia_status(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_mimeType(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_mimeType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MimeType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_mimeType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_filename(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_filename(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filename, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_filename(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_fileSize(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_fileSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_fileSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_voice(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_voice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Voice, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_voice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_animated(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_animated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Animated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_animated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMedia_downloadPath(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMedia) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMedia_downloadPath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DownloadPath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMedia_downloadPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMedia", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_externalId(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_externalId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_externalId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_direction(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_direction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_content(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_content(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_contentType(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_contentType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_contentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_sentAt(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_sentAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SentAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_sentAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_status(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_statusDetail(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_statusDetail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StatusDetail, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_statusDetail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppMessage_media(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppMessage_media(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Media, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WhatsAppMedia) graphql.Marshaler {
+			return ec.marshalOWhatsAppMedia2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMedia(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppMessage_media(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppMedia(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -5064,6 +6129,44 @@ func (ec *executionContext) _Contact(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "whatsAppConversations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Contact_whatsAppConversations(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5500,6 +6603,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "whatsAppSendMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_whatsAppSendMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5758,6 +6868,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_webhooks(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "whatsAppConversations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_whatsAppConversations(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -6100,6 +7232,286 @@ func (ec *executionContext) _Webhook(ctx context.Context, sel ast.SelectionSet, 
 		case "createdAt":
 			out.Values[i] = ec._Webhook_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var whatsAppConversationImplementors = []string{"WhatsAppConversation"}
+
+func (ec *executionContext) _WhatsAppConversation(ctx context.Context, sel ast.SelectionSet, obj *model.WhatsAppConversation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, whatsAppConversationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WhatsAppConversation")
+		case "id":
+			out.Values[i] = ec._WhatsAppConversation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "externalId":
+			out.Values[i] = ec._WhatsAppConversation_externalId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "status":
+			out.Values[i] = ec._WhatsAppConversation_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastActivityAt":
+			out.Values[i] = ec._WhatsAppConversation_lastActivityAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastMessagePreview":
+			out.Values[i] = ec._WhatsAppConversation_lastMessagePreview(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "contact":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WhatsAppConversation_contact(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "messages":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WhatsAppConversation_messages(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var whatsAppMediaImplementors = []string{"WhatsAppMedia"}
+
+func (ec *executionContext) _WhatsAppMedia(ctx context.Context, sel ast.SelectionSet, obj *model.WhatsAppMedia) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, whatsAppMediaImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WhatsAppMedia")
+		case "status":
+			out.Values[i] = ec._WhatsAppMedia_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mimeType":
+			out.Values[i] = ec._WhatsAppMedia_mimeType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filename":
+			out.Values[i] = ec._WhatsAppMedia_filename(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "fileSize":
+			out.Values[i] = ec._WhatsAppMedia_fileSize(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "voice":
+			out.Values[i] = ec._WhatsAppMedia_voice(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "animated":
+			out.Values[i] = ec._WhatsAppMedia_animated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloadPath":
+			out.Values[i] = ec._WhatsAppMedia_downloadPath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var whatsAppMessageImplementors = []string{"WhatsAppMessage"}
+
+func (ec *executionContext) _WhatsAppMessage(ctx context.Context, sel ast.SelectionSet, obj *model.WhatsAppMessage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, whatsAppMessageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WhatsAppMessage")
+		case "id":
+			out.Values[i] = ec._WhatsAppMessage_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "externalId":
+			out.Values[i] = ec._WhatsAppMessage_externalId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "direction":
+			out.Values[i] = ec._WhatsAppMessage_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._WhatsAppMessage_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentType":
+			out.Values[i] = ec._WhatsAppMessage_contentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sentAt":
+			out.Values[i] = ec._WhatsAppMessage_sentAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._WhatsAppMessage_status(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "statusDetail":
+			out.Values[i] = ec._WhatsAppMessage_statusDetail(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "media":
+			out.Values[i] = ec._WhatsAppMessage_media(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -6942,6 +8354,62 @@ func (ec *executionContext) marshalNWebhook2ᚖgithubᚗcomᚋgopheriumᚋalphon
 	return ec._Webhook(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNWhatsAppConversation2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppConversationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WhatsAppConversation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWhatsAppConversation2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppConversation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWhatsAppConversation2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppConversation(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppConversation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WhatsAppConversation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWhatsAppMessage2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx context.Context, sel ast.SelectionSet, v model.WhatsAppMessage) graphql.Marshaler {
+	return ec._WhatsAppMessage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWhatsAppMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WhatsAppMessage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWhatsAppMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWhatsAppMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppMessage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WhatsAppMessage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
 	return ec.___Directive(ctx, sel, &v)
 }
@@ -7213,6 +8681,13 @@ func (ec *executionContext) marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(
 	_ = ctx
 	res := scalar.MarshalUUID(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOWhatsAppMedia2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMedia(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppMedia) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._WhatsAppMedia(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

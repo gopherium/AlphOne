@@ -2,5 +2,6 @@
 	"id": "whatsapp",
 	"name": "WhatsApp",
 	"backend": "github.com/gopherium/alphone/plugins/whatsapp",
-	"frontend": "@alphone/plugin-whatsapp"
+	"frontend": "@alphone/plugin-whatsapp",
+	"graphql": true
 }
