@@ -71,6 +71,9 @@ func TestEveryPluginStaysWithinItsRootFieldBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("globbing plugin schemas: %v", err)
 	}
+	if len(dirs) == 0 {
+		t.Fatal("found no plugin graph dirs, the glob is broken")
+	}
 	for _, dir := range dirs {
 		count := rootFieldCount(t, filepath.Join(dir, "*.graphqls"))
 		if count > pluginRootFieldBudget {
