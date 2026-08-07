@@ -16,6 +16,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 const defaultGraphURL = "https://graph.facebook.com/v23.0"
@@ -124,6 +126,52 @@ type sendFailureResponse struct {
 	Code  int    `json:"code"`
 }
 
+// Send service errors.
+var (
+	errEmptyMessageContent  = errors.New("whatsapp: message content must not be empty")
+	errConversationNotFound = errors.New("whatsapp: conversation not found")
+)
+
+// sendMessage sends a text message on the conversation, persists it, and broadcasts the event.
+func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, content string) (messageRow, error) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return messageRow{}, sdk.GraphError{Code: "VALIDATION", Err: errEmptyMessageContent}
+	}
+	to, err := p.store.conversationExternalID(ctx, conversationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return messageRow{}, sdk.GraphError{Code: "NOT_FOUND", Err: errConversationNotFound}
+	}
+	if err != nil {
+		return messageRow{}, err
+	}
+	externalID, raw, err := p.sender.sendText(ctx, to, trimmed)
+	if err != nil {
+		return messageRow{}, upstreamError(err)
+	}
+	row, err := p.store.appendOutboundMessage(ctx, conversationID, outboundMessage{
+		externalID: externalID,
+		content:    trimmed,
+		sentAt:     time.Now().UTC(),
+		raw:        raw,
+	})
+	if err != nil {
+		return messageRow{}, err
+	}
+	p.events.broadcast(event{Conversation: conversationID})
+	return row, nil
+}
+
+// upstreamError classifies a Cloud API send failure, carrying any rejection code.
+func upstreamError(err error) error {
+	coded := sdk.GraphError{Code: "UPSTREAM", Err: err}
+	var rejection graphError
+	if errors.As(err, &rejection) {
+		coded.Extensions = map[string]any{"metaCode": rejection.Code}
+	}
+	return coded
+}
+
 // handleMessageSend returns an HTTP handler that sends an outbound message on a conversation and persists it.
 func (p *Plugin) handleMessageSend() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -131,31 +179,11 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 		if !ok {
 			return
 		}
-		to, err := p.store.conversationExternalID(r.Context(), conversationID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+		row, err := p.sendMessage(r.Context(), conversationID, content)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			respondSendError(w, err)
 			return
 		}
-		externalID, raw, err := p.sender.sendText(r.Context(), to, content)
-		if err != nil {
-			respondSendFailure(w, err)
-			return
-		}
-		row, err := p.store.appendOutboundMessage(r.Context(), conversationID, outboundMessage{
-			externalID: externalID,
-			content:    content,
-			sentAt:     time.Now().UTC(),
-			raw:        raw,
-		})
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		p.events.broadcast(event{Conversation: conversationID})
 		respondJSON(w, http.StatusCreated, messageResponse{
 			ID:          row.ID,
 			ExternalID:  row.ExternalID,
@@ -164,6 +192,23 @@ func (p *Plugin) handleMessageSend() http.HandlerFunc {
 			ContentType: row.ContentType,
 			SentAt:      row.SentAt.UTC(),
 		})
+	}
+}
+
+// respondSendError maps a failed send onto the REST status contract.
+func respondSendError(w http.ResponseWriter, err error) {
+	var coded sdk.GraphError
+	if !errors.As(err, &coded) {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	switch coded.Code {
+	case "NOT_FOUND":
+		w.WriteHeader(http.StatusNotFound)
+	case "UPSTREAM":
+		respondSendFailure(w, err)
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 

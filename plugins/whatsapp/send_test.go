@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -45,7 +46,9 @@ func newGraphStub(t *testing.T) *graphStub {
 	return stub
 }
 
-func newSendingPlugin(t *testing.T, envOverrides map[string]string) (*whatsapp.Plugin, *graphStub) {
+func newSendingHarness(
+	t *testing.T, envOverrides map[string]string,
+) (*whatsapp.Plugin, *graphStub, *pgxpool.Pool) {
 	t.Helper()
 	cfg := newTestDatabase(t)
 	pool := newAssertionPool(t, cfg.URL())
@@ -64,6 +67,12 @@ func newSendingPlugin(t *testing.T, envOverrides map[string]string) (*whatsapp.P
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
+	return p, stub, pool
+}
+
+func newSendingPlugin(t *testing.T, envOverrides map[string]string) (*whatsapp.Plugin, *graphStub) {
+	t.Helper()
+	p, stub, _ := newSendingHarness(t, envOverrides)
 	return p, stub
 }
 
