@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -23,8 +24,8 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// newGraphQLClient returns a gqlgen client over the composed root of p and the core stores.
-func newGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *gqlclient.Client {
+// newGraphQLServer returns a gqlgen server over the composed root of p and the core stores.
+func newGraphQLServer(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *handler.Server {
 	t.Helper()
 	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
@@ -41,10 +42,23 @@ func newGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *gql
 	srv := handler.New(graphres.ExecutableSchema(root))
 	srv.AddTransport(transport.POST{})
 	srv.SetErrorPresenter(graphres.PresentError)
+	return srv
+}
+
+// newGraphQLClient returns a gqlgen client over the composed root of p and the core stores.
+func newGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *gqlclient.Client {
+	t.Helper()
+	srv := newGraphQLServer(t, p, pool)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		srv.ServeHTTP(w, r.WithContext(sdk.WithRequestScope(r.Context(), sdk.NewRequestScope())))
 	})
 	return gqlclient.New(wrapped)
+}
+
+// newScopelessGraphQLClient returns a client whose requests carry no request scope.
+func newScopelessGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *gqlclient.Client {
+	t.Helper()
+	return gqlclient.New(newGraphQLServer(t, p, pool))
 }
 
 // newMessagingPlugin returns a migrated plugin with its assertion pool.
@@ -431,4 +445,47 @@ func TestGraphSendMessageClassifiesFailures(t *testing.T) {
 			t.Error("message is empty, want the rejection surfaced")
 		}
 	})
+}
+
+func TestGraphQueriesSurfaceStoreFailures(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newMessagingPlugin(t)
+	now := time.Now().UTC()
+	maria := seedGraphContact(t, pool, "Maria Perez", now)
+	conversationID := seedGraphConversation(t, pool, maria, "184467235@lid", now)
+	client := newGraphQLClient(t, p, pool)
+
+	if _, err := pool.Exec(t.Context(), `DROP TABLE plugin_whatsapp.messages CASCADE`); err != nil {
+		t.Fatalf("dropping the messages table: %v", err)
+	}
+	conversation := &model.WhatsAppConversation{ID: conversationID}
+	if _, err := p.WhatsAppConversationResolvers().Messages(t.Context(), conversation, nil); err == nil {
+		t.Error("Messages() on a dropped table error = nil, want error")
+	}
+
+	if _, err := pool.Exec(t.Context(), `DROP TABLE plugin_whatsapp.conversations CASCADE`); err != nil {
+		t.Fatalf("dropping the conversations table: %v", err)
+	}
+	_, extensions := firstGraphError(t, client, `{ whatsAppConversations { id } }`)
+	if extensions["code"] != "INTERNAL" {
+		t.Errorf("conversations code = %v, want INTERNAL", extensions["code"])
+	}
+	_, extensions = firstGraphError(t, client, `{ contacts { edges { node { whatsAppConversations { id } } } } }`)
+	if extensions["code"] != "INTERNAL" {
+		t.Errorf("contact conversations code = %v, want INTERNAL", extensions["code"])
+	}
+}
+
+func TestGraphContactConversationsRequireTheRequestScope(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newMessagingPlugin(t)
+	seedGraphContact(t, pool, "Maria Perez", time.Now().UTC())
+	client := newScopelessGraphQLClient(t, p, pool)
+
+	_, extensions := firstGraphError(t, client, `{ contacts { edges { node { whatsAppConversations { id } } } } }`)
+	if extensions["code"] != "INTERNAL" {
+		t.Errorf("code = %v, want INTERNAL", extensions["code"])
+	}
 }

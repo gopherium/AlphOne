@@ -5,6 +5,7 @@ package importer_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -12,11 +13,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -106,10 +109,8 @@ func postGraph(
 	return recorder
 }
 
-// graphUpload posts one file through the graph multipart transport.
-func graphUpload(
-	t *testing.T, graphHandler http.Handler, filename string, content []byte,
-) *httptest.ResponseRecorder {
+// graphUpload posts one CSV file through the graph multipart transport.
+func graphUpload(t *testing.T, graphHandler http.Handler, content []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -126,7 +127,7 @@ func graphUpload(
 	if err := writer.WriteField("map", `{"0":["variables.file"]}`); err != nil {
 		t.Fatalf("writing map: %v", err)
 	}
-	part, err := writer.CreateFormFile("0", filename)
+	part, err := writer.CreateFormFile("0", "contacts.csv")
 	if err != nil {
 		t.Fatalf("creating file part: %v", err)
 	}
@@ -173,7 +174,7 @@ type graphImportJob struct {
 // stagedUpload uploads content and returns the staged import.
 func stagedUpload(t *testing.T, graphHandler http.Handler, content string) graphImportJob {
 	t.Helper()
-	response := decodeGraph(t, graphUpload(t, graphHandler, "contacts.csv", []byte(content)))
+	response := decodeGraph(t, graphUpload(t, graphHandler, []byte(content)))
 	if len(response.Errors) != 0 {
 		t.Fatalf("upload errors = %v, want none", response.Errors)
 	}
@@ -393,7 +394,7 @@ func TestGraphImportUploadCapsSurfaceAsValidation(t *testing.T) {
 		"unsupported format": binaryJunk,
 	}
 	for name, content := range rejections {
-		response := decodeGraph(t, graphUpload(t, graphHandler, "contacts.csv", content))
+		response := decodeGraph(t, graphUpload(t, graphHandler, content))
 		if got := firstCode(t, response); got != "VALIDATION" {
 			t.Errorf("%s code = %q, want VALIDATION", name, got)
 		}
@@ -425,7 +426,7 @@ func TestGraphImportUploadRequiresAUser(t *testing.T) {
 	p, pool := newUploadPlugin(t)
 	graphHandler := newGraphHandler(t, p, pool, uuid.Nil)
 
-	response := decodeGraph(t, graphUpload(t, graphHandler, "contacts.csv", []byte(twoRowCSV)))
+	response := decodeGraph(t, graphUpload(t, graphHandler, []byte(twoRowCSV)))
 
 	if got := firstCode(t, response); got != "UNAUTHENTICATED" {
 		t.Errorf("code = %q, want UNAUTHENTICATED", got)
@@ -493,4 +494,164 @@ func TestGraphImportErrorsAreClassified(t *testing.T) {
 			t.Errorf("late mapping code = %q, want CONFLICT", got)
 		}
 	})
+}
+
+func TestGraphImportFieldsListsTheMappableFields(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+
+	response := decodeGraph(t, postGraph(t, graphHandler,
+		`{ importFields { name label required } }`, nil))
+
+	if len(response.Errors) != 0 {
+		t.Fatalf("errors = %v, want none", response.Errors)
+	}
+	var payload struct {
+		ImportFields []struct {
+			Name     string
+			Label    string
+			Required bool
+		}
+	}
+	if err := json.Unmarshal(response.Data, &payload); err != nil {
+		t.Fatalf("decoding fields payload: %v", err)
+	}
+	if len(payload.ImportFields) == 0 || payload.ImportFields[0].Name != "name" {
+		t.Errorf("importFields = %+v, want the name field first", payload.ImportFields)
+	}
+}
+
+func TestGraphImportMutationsRejectAnUnknownImport(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	unknownImportID := uuid.Must(uuid.NewV7()).String()
+
+	mapping := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importSetMapping(id: $id, assignments: [{column: 0, field: "name"}]) { id } }`,
+		map[string]any{"id": unknownImportID}))
+	if got := firstCode(t, mapping); got != "NOT_FOUND" {
+		t.Errorf("mapping code = %q, want NOT_FOUND", got)
+	}
+
+	commit := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { id } }`,
+		map[string]any{"id": unknownImportID}))
+	if got := firstCode(t, commit); got != "NOT_FOUND" {
+		t.Errorf("commit code = %q, want NOT_FOUND", got)
+	}
+}
+
+// brokenReader fails every read with a stream error.
+type brokenReader struct{}
+
+func (brokenReader) Read([]byte) (int, error) { return 0, errors.New("stream interrupted") }
+
+func (brokenReader) Seek(int64, int) (int64, error) { return 0, nil }
+
+func TestGraphImportUploadReadFailuresPropagate(t *testing.T) {
+	t.Parallel()
+
+	p, _, _, _ := newCommittingPlugin(t)
+	uploaderCtx := sdk.WithUser(t.Context(), uuid.Must(uuid.NewV7()))
+
+	_, err := p.MutationResolvers().ImportUpload(uploaderCtx,
+		graphql.Upload{File: brokenReader{}, Filename: "contacts.csv"})
+
+	if err == nil || !strings.Contains(err.Error(), "read upload") {
+		t.Errorf("ImportUpload(broken reader) error = %v, want the read upload failure", err)
+	}
+}
+
+// blockImportsUpdates installs a trigger rejecting imports updates, wholly or per state.
+func blockImportsUpdates(t *testing.T, pool *pgxpool.Pool, condition string) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(),
+		`CREATE OR REPLACE FUNCTION plugin_importer.block_writes() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'imports table blocked'; END $$`,
+	); err != nil {
+		t.Fatalf("creating the blocking function: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		`CREATE TRIGGER block_imports_updates BEFORE UPDATE ON plugin_importer.imports
+		FOR EACH ROW `+condition+` EXECUTE FUNCTION plugin_importer.block_writes()`,
+	); err != nil {
+		t.Fatalf("creating the blocking trigger: %v", err)
+	}
+}
+
+// unblockImportsUpdates removes the blocking trigger.
+func unblockImportsUpdates(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(),
+		`DROP TRIGGER block_imports_updates ON plugin_importer.imports`); err != nil {
+		t.Fatalf("dropping the blocking trigger: %v", err)
+	}
+}
+
+func TestGraphImportStoreFailuresSurface(t *testing.T) {
+	t.Parallel()
+
+	p, pool, contacts, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+	commitDocument := `mutation($id: UUID!) { importCommit(id: $id) { id } }`
+
+	blockImportsUpdates(t, pool, "")
+	mapping := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importSetMapping(id: $id, assignments: [
+			{column: 0, field: "name"}, {column: 1, field: "email"}
+		]) { id } }`,
+		map[string]any{"id": staged.ID}))
+	if got := firstCode(t, mapping); got != "INTERNAL" {
+		t.Errorf("blocked mapping code = %q, want INTERNAL", got)
+	}
+	claim := decodeGraph(t, postGraph(t, graphHandler, commitDocument, map[string]any{"id": staged.ID}))
+	if got := firstCode(t, claim); got != "INTERNAL" {
+		t.Errorf("blocked claim code = %q, want INTERNAL", got)
+	}
+	unblockImportsUpdates(t, pool)
+
+	mustGraphMapping(t, graphHandler, staged.ID)
+
+	contacts.createErr = errors.New("directory down")
+	settle := decodeGraph(t, postGraph(t, graphHandler, commitDocument, map[string]any{"id": staged.ID}))
+	if got := firstCode(t, settle); got != "INTERNAL" {
+		t.Errorf("failed settle code = %q, want INTERNAL", got)
+	}
+	contacts.createErr = nil
+
+	blockImportsUpdates(t, pool, "WHEN (NEW.state = 'committed')")
+	finish := decodeGraph(t, postGraph(t, graphHandler, commitDocument, map[string]any{"id": staged.ID}))
+	if got := firstCode(t, finish); got != "INTERNAL" {
+		t.Errorf("blocked finish code = %q, want INTERNAL", got)
+	}
+	unblockImportsUpdates(t, pool)
+
+	if _, err := pool.Exec(t.Context(), `DROP SCHEMA plugin_importer CASCADE`); err != nil {
+		t.Fatalf("dropping the importer schema: %v", err)
+	}
+	listing := decodeGraph(t, postGraph(t, graphHandler, `{ imports { id } }`, nil))
+	if got := firstCode(t, listing); got != "INTERNAL" {
+		t.Errorf("imports listing code = %q, want INTERNAL", got)
+	}
+	lookup := decodeGraph(t, postGraph(t, graphHandler,
+		`query($id: UUID!) { importJob(id: $id) { id } }`, map[string]any{"id": staged.ID}))
+	if got := firstCode(t, lookup); got != "INTERNAL" {
+		t.Errorf("import lookup code = %q, want INTERNAL", got)
+	}
+	upload := decodeGraph(t, graphUpload(t, graphHandler, []byte(twoRowCSV)))
+	if got := firstCode(t, upload); got != "INTERNAL" {
+		t.Errorf("upload code = %q, want INTERNAL", got)
+	}
+	stagedJob := &model.ImportJob{ID: uuid.MustParse(staged.ID)}
+	if _, err := p.ImportJobResolvers().Rows(t.Context(), stagedJob, nil); err == nil {
+		t.Error("Rows() on a dropped schema error = nil, want error")
+	}
+	if _, err := p.ImportJobResolvers().Contacts(t.Context(), stagedJob); err == nil {
+		t.Error("Contacts() on a dropped schema error = nil, want error")
+	}
 }
