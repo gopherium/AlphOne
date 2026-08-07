@@ -6,7 +6,7 @@ import { expect, test, vi } from 'vitest'
 
 import { ValidationError } from '../errors'
 import { createGraphClient, graphError } from '../graph'
-import { HttpResponse, graphql, server } from '../testing'
+import { HttpResponse, graphql, http, server } from '../testing'
 
 const versionQuery = gql`
 	query Version {
@@ -448,7 +448,7 @@ test('stops rerunning a query once nothing consumes it', async () => {
 test('sends a file variable as a multipart request in the graph upload shape', async () => {
 	let form: FormData | undefined
 	server.use(
-		graphql.mutation('ImportUpload', async ({ request }) => {
+		http.post('/api/graphql', async ({ request }) => {
 			form = await request.formData()
 			return HttpResponse.json({
 				data: { importUpload: { id: 'id-import', filename: 'contacts.csv' } },
