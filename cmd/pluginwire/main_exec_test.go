@@ -87,6 +87,38 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 	}
 }
 
+func TestMainBinaryFailsWithoutCoreSchemas(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	root := t.TempDir()
+	writePlugin(t, root, "demo", `{
+		"id": "demo",
+		"name": "Demo",
+		"backend": "github.com/gopherium/alphone/plugins/demo"
+	}`)
+	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatalf("creating %s: %v", dir, err)
+		}
+	}
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary)
+	cmd.Dir = root
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("pluginwire without core schemas: %v, want exit code 1", err)
+	}
+	if !strings.Contains(stderr.String(), "graphwire") {
+		t.Errorf("stderr = %q, want it to report the graphwire failure", stderr.String())
+	}
+}
+
 func TestMainBinaryFailsWithoutPluginsDirectory(t *testing.T) {
 	t.Parallel()
 

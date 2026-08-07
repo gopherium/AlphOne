@@ -39,3 +39,43 @@ func TestRunWritesADeterministicMergedSchema(t *testing.T) {
 		t.Error("two runs produced different bytes, the snapshot is not deterministic")
 	}
 }
+
+func TestRunReportsAMissingConfig(t *testing.T) {
+	t.Parallel()
+
+	err := Run(filepath.Join(t.TempDir(), "absent.yml"), filepath.Join(t.TempDir(), "out.graphql"))
+
+	if err == nil || !strings.Contains(err.Error(), "load config") {
+		t.Errorf("Run(absent config) error = %v, want the load config failure", err)
+	}
+}
+
+func TestRunReportsABrokenSchema(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "broken.graphqls")
+	if err := os.WriteFile(schemaPath, []byte("type {"), 0o644); err != nil {
+		t.Fatalf("writing the broken schema: %v", err)
+	}
+	configPath := filepath.Join(dir, "gqlgen.yml")
+	if err := os.WriteFile(configPath, []byte("schema:\n  - "+schemaPath+"\n"), 0o644); err != nil {
+		t.Fatalf("writing the config: %v", err)
+	}
+
+	err := Run(configPath, filepath.Join(dir, "out.graphql"))
+
+	if err == nil || !strings.Contains(err.Error(), "load schema") {
+		t.Errorf("Run(broken schema) error = %v, want the load schema failure", err)
+	}
+}
+
+func TestRunReportsAnUnwritableSnapshot(t *testing.T) {
+	t.Chdir("../..")
+
+	err := Run("gqlgen.yml", filepath.Join(t.TempDir(), "missing", "out.graphql"))
+
+	if err == nil || !strings.Contains(err.Error(), "write snapshot") {
+		t.Errorf("Run(unwritable snapshot) error = %v, want the write snapshot failure", err)
+	}
+}
