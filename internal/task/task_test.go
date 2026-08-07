@@ -4,6 +4,7 @@ package task_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -134,5 +135,27 @@ func TestNewReportsIDGenerationFailure(t *testing.T) {
 
 	if !errors.Is(err, errEntropy) {
 		t.Fatalf("New() error = %v, want the entropy failure in its chain", err)
+	}
+}
+
+func TestEventDataCarriesTheTaskFields(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.Must(uuid.NewV7())
+	day := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+
+	fields := task.EventData(task.Task{
+		ID: id, Title: "Call the supplier", Status: task.StatusOpen, DueOn: day, Priority: 3,
+	})
+
+	want := map[string]any{
+		"id":       id.String(),
+		"title":    "Call the supplier",
+		"status":   task.StatusOpen,
+		"due_on":   "2026-08-06",
+		"priority": 3,
+	}
+	if !reflect.DeepEqual(fields, want) {
+		t.Errorf("EventData() = %#v, want %#v", fields, want)
 	}
 }
