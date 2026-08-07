@@ -135,6 +135,42 @@ test('shows a downloading state without touching the media endpoint', async () =
 	expect(downloads.hits).toBe(0)
 })
 
+test('ghosts the bubble in the shape of the media it is downloading', async () => {
+	threadOf(message({ content_type: 'image', media: media({ status: 'pending' }) }))
+	serveMediaBlobs()
+
+	renderThread()
+
+	const status = await screen.findByText('Downloading…')
+	expect(status).toHaveAttribute('role', 'status')
+	const bubble = status.closest('.alphone-message__ghost')
+	expect(bubble).not.toBeNull()
+	expect(bubble?.querySelector('[aria-hidden="true"]')).not.toBeNull()
+})
+
+test('ghosts a sticker at sticker size while its blob arrives', async () => {
+	threadOf(message({ content_type: 'sticker', media: media({ status: 'ready' }) }))
+	let release: () => void = () => {}
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		http.get(mediaPath, async () => {
+			await held
+			return HttpResponse.arrayBuffer(new TextEncoder().encode('img').buffer as ArrayBuffer, {
+				headers: { 'Content-Type': 'image/jpeg' },
+			})
+		}),
+	)
+
+	renderThread()
+
+	const status = await screen.findByText('Downloading…')
+	expect(status.closest('.alphone-message__ghost--sticker')).not.toBeNull()
+	release()
+	await screen.findByAltText('Sticker')
+})
+
 test('shows failed attachments as unavailable', async () => {
 	threadOf(message({ content_type: 'image', media: media({ status: 'failed' }) }))
 	const downloads = serveMediaBlobs()

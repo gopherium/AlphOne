@@ -5,6 +5,7 @@ import {
 	InputControl,
 	LoadingRows,
 	PageTitle,
+	Skeleton,
 	Stack,
 	Text,
 	VisuallyHidden,
@@ -193,11 +194,7 @@ function MediaBody({
 		return <UnavailableAttachment media={media} message={message} />
 	}
 	if (media.status === 'pending') {
-		return (
-			<Text role="status" className="alphone-message__content">
-				Downloading…
-			</Text>
-		)
+		return <MediaGhost />
 	}
 	return (
 		<ReadyAttachment
@@ -298,6 +295,21 @@ function VideoAttachment({
 }
 
 /**
+ * Renders a ghost shaped like the attachment that is still downloading.
+ * @param props - Whether the attachment is a sticker.
+ * @returns The ghost body.
+ */
+function MediaGhost({ sticker = false }: { sticker?: boolean }) {
+	const shape = sticker ? ' alphone-message__ghost--sticker' : ''
+	return (
+		<div className={`alphone-message__ghost${shape}`}>
+			<VisuallyHidden role="status">Downloading…</VisuallyHidden>
+			<Skeleton className="alphone-message__ghost-block" />
+		</div>
+	)
+}
+
+/**
  * Renders an image or sticker attachment from its cached blob, with loading
  * and failure states.
  * @returns The image body.
@@ -311,11 +323,7 @@ function MediaImage({
 }) {
 	const blob = useMediaBlob(conversationId, message.id)
 	if (blob.isPending) {
-		return (
-			<Text role="status" className="alphone-message__content">
-				Downloading…
-			</Text>
-		)
+		return <MediaGhost sticker={message.content_type === 'sticker'} />
 	}
 	if (blob.isError) {
 		return <Text className="alphone-message__content">Attachment unavailable.</Text>

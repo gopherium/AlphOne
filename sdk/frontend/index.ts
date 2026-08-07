@@ -34,6 +34,7 @@ export {
 	Link,
 	Notice,
 	SelectControl,
+	Skeleton,
 	Stack,
 	Text,
 	VisuallyHidden,
