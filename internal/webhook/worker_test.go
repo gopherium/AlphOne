@@ -274,6 +274,15 @@ func TestWorkerSweepsOnStartAndStops(t *testing.T) {
 	}
 }
 
+func TestPokeNeverBlocksWithoutARunningWorker(t *testing.T) {
+	t.Parallel()
+
+	worker, _ := newWorker(&fakeWorkerQueue{})
+
+	worker.Poke()
+	worker.Poke()
+}
+
 func TestWorkerSweepsWhenPoked(t *testing.T) {
 	t.Parallel()
 

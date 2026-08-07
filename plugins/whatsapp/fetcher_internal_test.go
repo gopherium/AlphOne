@@ -504,6 +504,15 @@ func TestFetcherNudgeWakesTheLoop(t *testing.T) {
 	waitFor(t, func() bool { return mediaStatus(p, messageID) == "stored" })
 }
 
+func TestFetcherPokeNeverBlocksWithoutARunningLoop(t *testing.T) {
+	t.Parallel()
+
+	f := &mediaFetcher{nudge: make(chan struct{}, 1)}
+
+	f.poke()
+	f.poke()
+}
+
 func TestFetcherTickerSweeps(t *testing.T) {
 	t.Parallel()
 
