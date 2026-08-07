@@ -46,6 +46,18 @@ func TestUUIDRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestDateScalarsRejectNonStringInput(t *testing.T) {
+	t.Parallel()
+
+	wrongTypeInput := 42
+	if _, err := scalar.UnmarshalDateTime(wrongTypeInput); !errors.Is(err, scalar.ErrInvalid) {
+		t.Errorf("UnmarshalDateTime(42) error = %v, want ErrInvalid", err)
+	}
+	if _, err := scalar.UnmarshalDate(wrongTypeInput); !errors.Is(err, scalar.ErrInvalid) {
+		t.Errorf("UnmarshalDate(42) error = %v, want ErrInvalid", err)
+	}
+}
+
 func TestDateTimeMatchesEncodingJSON(t *testing.T) {
 	t.Parallel()
 

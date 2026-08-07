@@ -83,6 +83,9 @@ func TestContactStoreReportsConnectionFailure(t *testing.T) {
 	if _, err := store.ListContactIdentities(t.Context(), maria.ID); err == nil {
 		t.Error("ListContactIdentities() on closed pool error = nil, want error")
 	}
+	if _, err := store.ListByIDs(t.Context(), []uuid.UUID{maria.ID}); err == nil {
+		t.Error("ListByIDs() on closed pool error = nil, want error")
+	}
 	if _, err := store.RenameContact(t.Context(), maria.ID, "María"); err == nil {
 		t.Error("RenameContact() on closed pool error = nil, want error")
 	}

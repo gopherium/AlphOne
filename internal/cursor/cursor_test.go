@@ -114,4 +114,8 @@ func TestTaskCursorAbsentAndMalformed(t *testing.T) {
 	if _, err := cursor.DecodeTask(badDate); !errors.Is(err, cursor.ErrMalformed) {
 		t.Errorf("DecodeTask(bad date) error = %v, want ErrMalformed", err)
 	}
+
+	if _, err := cursor.DecodeTask("%%%"); !errors.Is(err, cursor.ErrMalformed) {
+		t.Errorf("DecodeTask(bad base64) error = %v, want ErrMalformed", err)
+	}
 }
