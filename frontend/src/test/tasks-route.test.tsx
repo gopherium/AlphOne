@@ -1,5 +1,5 @@
 import { Button } from '@alphone/frontend-sdk'
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -31,6 +31,7 @@ const quoteID = '0198c000-0000-7000-8000-000000000102'
 const doneID = '0198c000-0000-7000-8000-000000000103'
 const addedID = '0198c000-0000-7000-8000-000000000104'
 const oldID = '0198c000-0000-7000-8000-000000000105'
+const refileID = '0198c000-0000-7000-8000-000000000106'
 
 // These dates are computed independently of the screen's own date helpers.
 function localDate(offsetDays: number) {
@@ -63,6 +64,25 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 	}
 }
 
+function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
+	return {
+		__typename: 'TaskConnection',
+		edges: rows.map((row) => ({
+			__typename: 'TaskEdge',
+			node: {
+				__typename: 'Task',
+				id: row.id,
+				title: row.title,
+				status: row.status,
+				priority: row.priority,
+				dueOn: row.due_on,
+			},
+			cursor: row.id,
+		})),
+		pageInfo: { __typename: 'PageInfo', hasNextPage: endCursor !== null, endCursor },
+	}
+}
+
 let listedDates: string[] = []
 let overdueBefore: string[] = []
 let patched: { id: string; body: Record<string, unknown> }[] = []
@@ -80,17 +100,16 @@ beforeEach(() => {
 		taskRow(doneID, 'Book the courier', 'done'),
 	]
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			const dueBefore = url.searchParams.get('due_before')
-			if (dueBefore !== null) {
-				overdueBefore.push(dueBefore)
-				return HttpResponse.json({ tasks: overdue, next_cursor: null })
-			}
-			listedDates.push(url.searchParams.get('date') ?? '')
-			const status = url.searchParams.get('status') ?? 'open'
-			const rows = status === 'all' ? tasks : tasks.filter((row) => row.status === status)
-			return HttpResponse.json({ tasks: rows, next_cursor: null })
+		graphql.query('DayTasks', ({ variables }) => {
+			listedDates.push(String(variables.date))
+			const status = String(variables.status)
+			return HttpResponse.json({
+				data: { tasks: taskPage(tasks.filter((row) => row.status === status)) },
+			})
+		}),
+		graphql.query('OverdueTasks', ({ variables }) => {
+			overdueBefore.push(String(variables.dueBefore))
+			return HttpResponse.json({ data: { tasks: taskPage(overdue) } })
 		}),
 		http.patch('/api/tasks/:id', async ({ request, params }) => {
 			const body = (await request.json()) as { status?: string; due_on?: string }
@@ -137,7 +156,7 @@ test('shows the add button busy and still refuses a second submit', async () => 
 })
 
 test('ghosts the rows while the day of tasks arrives', async () => {
-	server.use(http.get('/api/tasks', () => new Promise(() => {})))
+	server.use(graphql.query('DayTasks', () => new Promise(() => {})))
 	renderAt('/tasks')
 
 	const status = await screen.findByRole('status')
@@ -243,7 +262,7 @@ test('does not add a task without a title', async () => {
 
 test('shows an empty state when the day has no tasks', async () => {
 	server.use(
-		http.get('/api/tasks', () => HttpResponse.json({ tasks: [], next_cursor: null })),
+		graphql.query('DayTasks', () => HttpResponse.json({ data: { tasks: taskPage([]) } })),
 	)
 
 	renderAt('/tasks')
@@ -253,22 +272,15 @@ test('shows an empty state when the day has no tasks', async () => {
 
 test('loads more tasks through the cursor', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('cursor') === null) {
-				return HttpResponse.json({
-					tasks: [taskRow(callID, 'Call the supplier')],
-					next_cursor: 'CUR1',
-				})
-			}
-			return HttpResponse.json({
-				tasks: [taskRow(quoteID, 'Send the quote')],
-				next_cursor: null,
-			})
-		}),
+		graphql.query('DayTasks', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					tasks: variables.after
+						? taskPage([taskRow(quoteID, 'Send the quote')])
+						: taskPage([taskRow(callID, 'Call the supplier')], 'CUR1'),
+				},
+			}),
+		),
 	)
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
@@ -284,23 +296,15 @@ test('shows open work even when finished tasks fill the first page', async () =>
 		taskRow(oldID, 'File the customs form', 'done'),
 	]
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			switch (url.searchParams.get('status')) {
-				case 'open':
-					return HttpResponse.json({
-						tasks: [taskRow(callID, 'Reply to the imported enquiry')],
-						next_cursor: null,
-					})
-				case 'done':
-					return HttpResponse.json({ tasks: finished, next_cursor: null })
-				default:
-					return HttpResponse.json({ tasks: finished, next_cursor: 'MORE' })
-			}
-		}),
+		graphql.query('DayTasks', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					tasks: variables.status === 'open'
+						? taskPage([taskRow(callID, 'Reply to the imported enquiry')])
+						: taskPage(finished),
+				},
+			}),
+		),
 	)
 
 	renderAt('/tasks')
@@ -311,19 +315,13 @@ test('shows open work even when finished tasks fill the first page', async () =>
 
 test('keeps the day usable when the done group cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('status') === 'done') {
-				return HttpResponse.json({ error: 'internal error' }, { status: 500 })
-			}
-			return HttpResponse.json({
-				tasks: [taskRow(callID, 'Call the supplier')],
-				next_cursor: null,
-			})
-		}),
+		graphql.query('DayTasks', ({ variables }) =>
+			variables.status === 'done'
+				? HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+				: HttpResponse.json({
+					data: { tasks: taskPage([taskRow(callID, 'Call the supplier')]) },
+				}),
+		),
 	)
 
 	renderAt('/tasks')
@@ -334,23 +332,16 @@ test('keeps the day usable when the done group cannot be loaded', async () => {
 
 test('loads more done tasks through their own cursor', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('status') !== 'done') {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('cursor') === null) {
-				return HttpResponse.json({
-					tasks: [taskRow(doneID, 'Book the courier', 'done')],
-					next_cursor: 'D1',
-				})
+		graphql.query('DayTasks', ({ variables }) => {
+			if (variables.status !== 'done') {
+				return HttpResponse.json({ data: { tasks: taskPage([]) } })
 			}
 			return HttpResponse.json({
-				tasks: [taskRow(oldID, 'File the customs form', 'done')],
-				next_cursor: null,
+				data: {
+					tasks: variables.after
+						? taskPage([taskRow(oldID, 'File the customs form', 'done')])
+						: taskPage([taskRow(doneID, 'Book the courier', 'done')], 'D1'),
+				},
 			})
 		}),
 	)
@@ -380,13 +371,9 @@ test('shows a task created elsewhere when the live stream announces it', async (
 
 test('reports when the tasks cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			return HttpResponse.json({ error: 'internal error' }, { status: 500 })
-		}),
+		graphql.query('DayTasks', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
 	)
 
 	renderAt('/tasks')
@@ -531,17 +518,15 @@ test('falls back to today when the date search param is unusable', async () => {
 
 test('walks to the next and previous day', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			const date = url.searchParams.get('date')
-			if (date === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			return HttpResponse.json({
-				tasks: [taskRow(callID, `Work due ${date}`)],
-				next_cursor: null,
-			})
-		}),
+		graphql.query('DayTasks', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					tasks: variables.status === 'open'
+						? taskPage([taskRow(callID, `Work due ${String(variables.date)}`)])
+						: taskPage([]),
+				},
+			}),
+		),
 	)
 	renderAt(`/tasks?date=${tomorrow}`)
 	await screen.findByText(`Work due ${tomorrow}`)
@@ -633,22 +618,15 @@ test('pushes a task on a future day to the day after it', async () => {
 
 test('loads more overdue work through the cursor', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('cursor') === null) {
-				return HttpResponse.json({
-					tasks: [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }],
-					next_cursor: 'CUR1',
-				})
-			}
-			return HttpResponse.json({
-				tasks: [{ ...taskRow(callID, 'Refile the paperwork'), due_on: yesterday }],
-				next_cursor: null,
-			})
-		}),
+		graphql.query('OverdueTasks', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					tasks: variables.after
+						? taskPage([{ ...taskRow(refileID, 'Refile the paperwork'), due_on: yesterday }])
+						: taskPage([{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }], 'CUR1'),
+				},
+			}),
+		),
 	)
 	renderAt('/tasks')
 	await screen.findByText('Chase the invoice')
@@ -669,13 +647,9 @@ test('leaves done tasks without a push control', async () => {
 
 test('reports when overdue work cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ error: 'internal error' }, { status: 500 })
-			}
-			return HttpResponse.json({ tasks, next_cursor: null })
-		}),
+		graphql.query('OverdueTasks', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
 	)
 
 	renderAt('/tasks')
@@ -687,13 +661,12 @@ test('reports when overdue work cannot be loaded', async () => {
 
 test('drops the session when the overdue list is unauthorized', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ error: 'no session' }, { status: 401 })
-			}
-			return HttpResponse.json({ tasks, next_cursor: null })
-		}),
+		graphql.query('OverdueTasks', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
+		),
 	)
 
 	const client = renderAt('/tasks')
@@ -703,8 +676,11 @@ test('drops the session when the overdue list is unauthorized', async () => {
 
 test('drops the session when the list is unauthorized', async () => {
 	server.use(
-		http.get('/api/tasks', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('DayTasks', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 

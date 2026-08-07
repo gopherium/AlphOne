@@ -1,4 +1,4 @@
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -142,13 +142,30 @@ test('shows no contact link for an unlinked task', async () => {
 
 test('reaches the detail from the day list', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('due_before') !== null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			return HttpResponse.json({ tasks: [stored], next_cursor: null })
-		}),
+		graphql.query('DayTasks', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					tasks: {
+						__typename: 'TaskConnection',
+						edges: variables.status === 'open'
+							? [{
+								__typename: 'TaskEdge',
+								node: {
+									__typename: 'Task',
+									id: taskID,
+									title: 'Call the supplier',
+									status: 'open',
+									priority: 0,
+									dueOn: '2026-08-10',
+								},
+								cursor: taskID,
+							}]
+							: [],
+						pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
+					},
+				},
+			}),
+		),
 	)
 	renderAt('/tasks')
 
