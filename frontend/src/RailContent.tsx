@@ -18,7 +18,7 @@ export function RailContent() {
 		.reverse()
 		.find((match) => match.staticData.Sidebar)
 	const Sidebar = sidebarMatch?.staticData.Sidebar
-	const version = useAppVersion().data
+	const version = useAppVersion()
 	return (
 		<>
 			<Stack direction="column" gap="lg">

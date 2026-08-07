@@ -20,6 +20,7 @@ type Documents = {
     "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": typeof types.UsersDocument,
     "\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": typeof types.CreateUserDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": typeof types.SetUserDisabledDocument,
+    "\n\tquery Version {\n\t\tversion\n\t}\n": typeof types.VersionDocument,
 };
 const documents: Documents = {
     "\n\tquery Me {\n\t\tme {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t}\n\t}\n": types.MeDocument,
@@ -28,6 +29,7 @@ const documents: Documents = {
     "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": types.UsersDocument,
     "\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": types.CreateUserDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": types.SetUserDisabledDocument,
+    "\n\tquery Version {\n\t\tversion\n\t}\n": types.VersionDocument,
 };
 
 /**
@@ -68,6 +70,10 @@ export function graphql(source: "\n\tmutation CreateUser($email: String!, $name:
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"): (typeof documents)["\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery Version {\n\t\tversion\n\t}\n"): (typeof documents)["\n\tquery Version {\n\t\tversion\n\t}\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

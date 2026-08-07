@@ -1,28 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useQuery } from '@tanstack/react-query'
-import { z } from 'zod'
+import { useGraphQuery } from '@alphone/frontend-sdk'
 
-export const versionQueryKey = ['version'] as const
+import { graphql } from './gql'
 
-const versionSchema = z.object({ version: z.string() })
-
-/**
- * Returns the version reported by the backend.
- * @returns The application version string.
- */
-export async function fetchVersion(): Promise<string> {
-	const response = await fetch('/api/version')
-	if (!response.ok) {
-		throw new Error(`loading version failed with status ${response.status}`)
+const versionQuery = graphql(`
+	query Version {
+		version
 	}
-	return versionSchema.parse(await response.json()).version
-}
+`)
 
 /**
- * Loads the application version as a react-query result.
- * @returns The version query, whose data is the version string.
+ * Loads the application version from the graph.
+ * @returns The version string, or undefined until it resolves.
  */
-export function useAppVersion() {
-	return useQuery({ queryKey: versionQueryKey, queryFn: fetchVersion })
+export function useAppVersion(): string | undefined {
+	const [result] = useGraphQuery({ query: versionQuery })
+	return result.data?.version
 }
