@@ -66,6 +66,8 @@ github.com/gopherium/gouncer/authkit/ratelimit v0.2.0 h1:vWXD+2Hi+OQ66eUAAZ26fhu
 github.com/gopherium/gouncer/authkit/ratelimit v0.2.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
 github.com/gopherium/pluginkit v0.3.0 h1:PCcD6fBacedtqv+MDhVXTlXglFyd+ckMynPckLvNR8E=
 github.com/gopherium/pluginkit v0.3.0/go.mod h1:7/KK/KzRVYkF0cLXJ8uBEJzMJwmf/xcePjrx/zRl0Qk=
+github.com/gopherium/pluginkit/graphwire v0.1.0 h1:usgDYBXkn8YW+HDAAuVUEIcus91SxMrKXmi4nJzJ6eA=
+github.com/gopherium/pluginkit/graphwire v0.1.0/go.mod h1:cQ13SU8ZcUjra5s6ihF/WH6/9B20jAJHDE6YbwxkPX0=
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
