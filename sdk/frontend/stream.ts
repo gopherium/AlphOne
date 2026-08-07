@@ -3,22 +3,24 @@
 import { isSessionRevoked, sessionQueryKey } from '@gopherium/react-auth'
 import { useQueryClient } from '@tanstack/react-query'
 import type { QueryKey } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+
+import type { GraphClient } from './graph'
 
 const initialRetryDelay = 1_000
 const maxRetryDelay = 30_000
 
 /**
- * useEventStream subscribes to a host SSE endpoint, refetching the given
- * queries on every event and restoring the subscription after failures.
+ * useServerEvents subscribes to a host SSE endpoint, announcing every event and
+ * restoring the subscription after failures.
  * @param url - The SSE endpoint to subscribe to.
- * @param options - The query keys to refetch when the stream reports a change.
+ * @param onEvent - Called once per event and once per established connection.
  */
-export function useEventStream(url: string, options: { invalidateKeys: readonly QueryKey[] }) {
+function useServerEvents(url: string, onEvent: () => void) {
 	const queryClient = useQueryClient()
-	const serializedKeys = JSON.stringify(options.invalidateKeys)
+	const announce = useRef(onEvent)
+	announce.current = onEvent
 	useEffect(() => {
-		const invalidateKeys = JSON.parse(serializedKeys) as QueryKey[]
 		let source: EventSource
 		let retryTimer: ReturnType<typeof setTimeout> | undefined
 		let probe: AbortController | undefined
@@ -56,12 +58,10 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
 		}
 
 		/**
-		 * Refetches every query the stream reports on.
+		 * Announces one event to the subscriber.
 		 */
-		function invalidateAll() {
-			for (const queryKey of invalidateKeys) {
-				void queryClient.invalidateQueries({ queryKey })
-			}
+		function announceEvent() {
+			announce.current()
 		}
 
 		/**
@@ -71,9 +71,9 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
 			source = new EventSource(url)
 			source.onopen = () => {
 				attempts = 0
-				invalidateAll()
+				announceEvent()
 			}
-			source.onmessage = invalidateAll
+			source.onmessage = announceEvent
 			source.onerror = () => {
 				if (source.readyState !== EventSource.CLOSED) {
 					return
@@ -91,5 +91,38 @@ export function useEventStream(url: string, options: { invalidateKeys: readonly 
 			}
 			probe?.abort()
 		}
-	}, [url, queryClient, serializedKeys])
+	}, [url, queryClient])
+}
+
+/**
+ * useEventStream subscribes to a host SSE endpoint, refetching the given
+ * queries on every event and restoring the subscription after failures.
+ * @param url - The SSE endpoint to subscribe to.
+ * @param options - The query keys to refetch when the stream reports a change.
+ */
+export function useEventStream(url: string, options: { invalidateKeys: readonly QueryKey[] }) {
+	const queryClient = useQueryClient()
+	const serializedKeys = JSON.stringify(options.invalidateKeys)
+	useServerEvents(url, () => {
+		for (const queryKey of JSON.parse(serializedKeys) as QueryKey[]) {
+			void queryClient.invalidateQueries({ queryKey })
+		}
+	})
+}
+
+/**
+ * useGraphStream subscribes to a host SSE endpoint, rerunning the named graph
+ * operations on every event and restoring the subscription after failures.
+ * @param url - The SSE endpoint to subscribe to.
+ * @param options - The graph client and the operation names to rerun.
+ */
+export function useGraphStream(
+	url: string,
+	options: { graph: GraphClient; operations: readonly string[] },
+) {
+	const { graph } = options
+	const serializedOperations = JSON.stringify(options.operations)
+	useServerEvents(url, () => {
+		graph.refetch(JSON.parse(serializedOperations) as string[])
+	})
 }
