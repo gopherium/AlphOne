@@ -19,6 +19,7 @@ peerDependencyRules:
     react-dom: '19'
     '@types/react': '19'
     typescript: '6'
+    graphql: '17'
 
 allowBuilds:
   esbuild: false
