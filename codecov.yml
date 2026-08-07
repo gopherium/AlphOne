@@ -11,10 +11,12 @@ coverage:
 ignore:
   - internal/postgres/db
   - internal/testdb
+  - internal/graphroot
   - graph/generated.go
   - graph/model
   - frontend/src/gql
   - cmd/alphone/main.go
+  - cmd/alphone/plugins_gen.go
   - cmd/pluginwire/main.go
   - cmd/doclint/main.go
   - cmd/schemagen/main.go
