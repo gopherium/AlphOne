@@ -16,7 +16,9 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // Graph endpoint guard bounds.
@@ -27,19 +29,9 @@ const (
 	graphMultipartBodyLimit = 6 << 20
 )
 
-// newGraphQLHandler serves the guarded GraphQL endpoint over the core resolvers.
-func newGraphQLHandler(cfg Config, auth *authkit.Handlers, admin *authkit.AdminHandlers) http.Handler {
-	resolver := &graphres.Resolver{
-		Version:      cfg.Version,
-		Contacts:     cfg.Contacts,
-		Tasks:        cfg.Tasks,
-		Webhooks:     cfg.Webhooks,
-		Events:       cfg.Events,
-		Auth:         auth,
-		Admin:        admin,
-		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-	}
-	srv := handler.New(graphres.ExecutableSchema(resolver))
+// newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
+func newGraphQLHandler(root graph.ResolverRoot) http.Handler {
+	srv := handler.New(graphres.ExecutableSchema(root))
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
@@ -48,7 +40,8 @@ func newGraphQLHandler(cfg Config, auth *authkit.Handlers, admin *authkit.AdminH
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
-		srv.ServeHTTP(w, r.WithContext(resolver.WithLoaders(ctx)))
+		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
+		srv.ServeHTTP(w, r.WithContext(ctx))
 	})
 	return withOperationGuards(loaded, newStreamLimiter(graphMaxConcurrentOps), graphOperationTimeout)
 }

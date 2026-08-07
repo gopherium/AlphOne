@@ -3,13 +3,49 @@
 package server_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gopherium/gouncer/authkit"
+	"github.com/gopherium/gouncer/authkit/ratelimit"
+
+	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/plugins/whatsapp"
+	"github.com/gopherium/alphone/sdk"
 )
+
+// newGraphServer returns a server whose graph root composes cfg's stores with
+// a whatsapp plugin whose lazy pool never connects.
+func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
+	t.Helper()
+	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
+	admin := authkit.NewAdmin(cfg.Users)
+	plugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	if err != nil {
+		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	root, err := graphroot.FromPlugins(&graphres.Resolver{
+		Version:      cfg.Version,
+		Contacts:     cfg.Contacts,
+		Tasks:        cfg.Tasks,
+		Webhooks:     cfg.Webhooks,
+		Events:       cfg.Events,
+		Auth:         auth,
+		Admin:        admin,
+		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+	}, []sdk.Plugin{plugin})
+	if err != nil {
+		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
+	}
+	cfg.Auth, cfg.Admin, cfg.GraphRoot = auth, admin, root
+	return server.NewServer(cfg)
+}
 
 // postGraphQL posts a GraphQL request body to /api/graphql.
 func postGraphQL(t *testing.T, handler http.Handler, body string, cookie *http.Cookie) *httptest.ResponseRecorder {
@@ -41,7 +77,7 @@ func TestGraphQLRequiresAuthentication(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 
 	recorder := postGraphQL(t, srv, versionQuery, nil)
 
@@ -56,7 +92,7 @@ func TestGraphQLVersionQueryWithSessionCookie(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 
 	recorder := postGraphQL(t, srv, versionQuery, cookie)
@@ -97,7 +133,7 @@ func TestGraphQLRejectsAnUnknownField(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 
 	recorder := postGraphQL(t, srv, `{"query":"{ nope }"}`, cookie)
@@ -115,7 +151,7 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 	oversized := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 1<<20) + `"}}`
 
@@ -135,7 +171,7 @@ func TestGraphiQLServesOnlyWhenEnabled(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	enabled := server.NewServer(server.Config{
+	enabled := newGraphServer(t, server.Config{
 		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9", GraphiQL: true,
 	})
 	cookie := loginCookie(t, enabled)
@@ -152,7 +188,7 @@ func TestGraphiQLServesOnlyWhenEnabled(t *testing.T) {
 		t.Errorf("content type = %q, want text/html", contentType)
 	}
 
-	disabled := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	disabled := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	request = httptest.NewRequest(http.MethodGet, "/api/graphql", nil)
 	request.AddCookie(cookie)
 	recorder = httptest.NewRecorder()

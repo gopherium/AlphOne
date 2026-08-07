@@ -22,6 +22,8 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
@@ -85,10 +87,29 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
+	auth := authkit.New(authkit.Config{Store: userStore, CookieName: server.SessionCookieName})
+	admin := authkit.NewAdmin(userStore)
+	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
+		Version:      version.Version(),
+		Contacts:     contacts,
+		Tasks:        tasks,
+		Webhooks:     webhooks,
+		Events:       events,
+		Auth:         auth,
+		Admin:        admin,
+		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+	}, registered)
+	if err != nil {
+		return fmt.Errorf("compose graph root: %w", err)
+	}
+
 	cfg := server.Config{
 		Contacts:          contacts,
 		Tasks:             tasks,
 		Users:             userStore,
+		Auth:              auth,
+		Admin:             admin,
+		GraphRoot:         graphRoot,
 		Tokens:            tokens,
 		Webhooks:          webhooks,
 		Events:            events,

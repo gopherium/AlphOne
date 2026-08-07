@@ -38,7 +38,7 @@ func newAuthGraphServer(t *testing.T) http.Handler {
 	t.Helper()
 	users := newFakeUserStore()
 	addAda(t, users)
-	return server.NewServer(server.Config{
+	return newGraphServer(t, server.Config{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,

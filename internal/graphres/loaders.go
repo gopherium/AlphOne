@@ -16,11 +16,6 @@ import (
 // contactLoaderKey keys the core contact loader in the request scope.
 type contactLoaderKey struct{}
 
-// WithLoaders installs a fresh request scope for the graph loaders on ctx.
-func (r *Resolver) WithLoaders(ctx context.Context) context.Context {
-	return sdk.WithRequestScope(ctx, sdk.NewRequestScope())
-}
-
 // contactLoader returns the request's contact loader, building it once.
 func (r *Resolver) contactLoader(ctx context.Context) (*dataloadgen.Loader[uuid.UUID, contact.Contact], error) {
 	return sdk.ScopedValue(ctx, contactLoaderKey{}, func() *dataloadgen.Loader[uuid.UUID, contact.Contact] {

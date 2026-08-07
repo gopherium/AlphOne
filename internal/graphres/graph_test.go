@@ -21,13 +21,33 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/plugins/whatsapp"
+	"github.com/gopherium/alphone/sdk"
 )
+
+// composedRoot composes the core resolver with a whatsapp plugin whose lazy
+// pool never connects, mirroring the binary's graph root assembly.
+func composedRoot(t *testing.T, resolver *graphres.Resolver) graph.ResolverRoot {
+	t.Helper()
+	plugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	if err != nil {
+		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{plugin})
+	if err != nil {
+		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
+	}
+	return root
+}
 
 // newTestPool returns a pgxpool over a fresh migrated test database.
 func newTestPool(t *testing.T) *pgxpool.Pool {
@@ -49,12 +69,13 @@ func newDecoratedGraphClient(
 	t *testing.T, resolver *graphres.Resolver, decorate func(context.Context) context.Context,
 ) *gqlclient.Client {
 	t.Helper()
-	srv := handler.New(graphres.ExecutableSchema(resolver))
+	srv := handler.New(graphres.ExecutableSchema(composedRoot(t, resolver)))
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.SetErrorPresenter(graphres.PresentError)
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		srv.ServeHTTP(w, r.WithContext(resolver.WithLoaders(decorate(r.Context()))))
+		ctx := sdk.WithRequestScope(decorate(r.Context()), sdk.NewRequestScope())
+		srv.ServeHTTP(w, r.WithContext(ctx))
 	})
 	return gqlclient.New(wrapped)
 }

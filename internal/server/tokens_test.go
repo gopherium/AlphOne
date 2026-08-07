@@ -59,7 +59,7 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
 	}
 	tokens.tokens[minted.Token.Hash] = minted.Token
-	handler := server.NewServer(server.Config{
+	handler := newGraphServer(t, server.Config{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,

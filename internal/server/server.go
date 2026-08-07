@@ -15,18 +15,27 @@ import (
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 	"github.com/gopherium/pluginkit"
 
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/sdk"
 )
 
-// sessionCookieName scopes the login cookie to this product.
-const sessionCookieName = "__Host-alphone_session"
+// SessionCookieName scopes the login cookie to this product.
+const SessionCookieName = "__Host-alphone_session"
 
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
 	Contacts ContactStore
 	Tasks    TaskStore
 	Users    UserStore
+	// Auth serves the login sessions. Nil builds a default over Users with
+	// the product cookie.
+	Auth *authkit.Handlers
+	// Admin serves user administration. Nil builds a default over Users.
+	Admin *authkit.AdminHandlers
+	// GraphRoot is the composed resolver root served at /api/graphql. Nil
+	// leaves the graph endpoint unmounted.
+	GraphRoot graph.ResolverRoot
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
@@ -66,8 +75,14 @@ type Config struct {
 // declared public paths.
 func NewServer(cfg Config) http.Handler {
 	maxStreamLifetime, maxStreamsPerUser := streamDefaults(cfg)
-	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: sessionCookieName})
-	admin := authkit.NewAdmin(cfg.Users)
+	auth := cfg.Auth
+	if auth == nil {
+		auth = authkit.New(authkit.Config{Store: cfg.Users, CookieName: SessionCookieName})
+	}
+	admin := cfg.Admin
+	if admin == nil {
+		admin = authkit.NewAdmin(cfg.Users)
+	}
 	s := &server{
 		store:             cfg.Contacts,
 		tasks:             cfg.Tasks,
@@ -107,14 +122,16 @@ func NewServer(cfg Config) http.Handler {
 		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
 		protected.Get("/api/version", s.handleVersion())
 	})
-	router.Group(func(graphed chi.Router) {
-		graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
-		graphed.Use(s.identifyIdentity)
-		graphed.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg, auth, admin))
-		if cfg.GraphiQL {
-			graphed.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
-		}
-	})
+	if cfg.GraphRoot != nil {
+		router.Group(func(graphed chi.Router) {
+			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
+			graphed.Use(s.identifyIdentity)
+			graphed.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg.GraphRoot))
+			if cfg.GraphiQL {
+				graphed.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
+			}
+		})
+	}
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id
 		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id])

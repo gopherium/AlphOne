@@ -16,7 +16,7 @@ import (
 // operationCost computes the priced complexity of a query document.
 func operationCost(t *testing.T, doc string) int {
 	t.Helper()
-	schema := graphres.ExecutableSchema(&graphres.Resolver{})
+	schema := graphres.ExecutableSchema(composedRoot(t, &graphres.Resolver{}))
 	query, err := gqlparser.LoadQueryWithRules(schema.Schema(), doc, rules.NewDefaultRules())
 	if err != nil {
 		t.Fatalf("parsing document: %v", err)
