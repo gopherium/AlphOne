@@ -3,8 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { UnauthorizedError, sessionQueryKey } from '@gopherium/react-auth'
-import { fetchContact } from '../contacts/api'
+import { sessionQueryKey } from '@gopherium/react-auth'
 import { renderAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
@@ -642,22 +641,4 @@ test('drops the session when the contact detail is unauthorized', async () => {
 	)
 })
 
-test('fetchContact drops the session on a 401', async () => {
-	server.use(
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
-		),
-	)
 
-	await expect(fetchContact(anaID)).rejects.toBeInstanceOf(UnauthorizedError)
-})
-
-test('fetchContact reports any other failure with its status', async () => {
-	server.use(
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
-		),
-	)
-
-	await expect(fetchContact(anaID)).rejects.toThrow('500')
-})

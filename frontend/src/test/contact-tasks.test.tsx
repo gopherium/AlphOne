@@ -118,7 +118,24 @@ test('lists the open tasks of a contact with their due dates', async () => {
 })
 
 test('opens a task from the contact page', async () => {
-	server.use(http.get('/api/tasks/:id', () => HttpResponse.json(taskRow(callID, 'Call her back', today))))
+	server.use(
+		graphql.query('TaskDetail', () =>
+			HttpResponse.json({
+				data: {
+					task: {
+						__typename: 'Task',
+						id: callID,
+						title: 'Call her back',
+						status: 'open',
+						priority: 0,
+						dueOn: today,
+						contactId: null,
+						contact: null,
+					},
+				},
+			}),
+		),
+	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 

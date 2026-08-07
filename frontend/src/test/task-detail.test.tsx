@@ -9,6 +9,22 @@ import { renderAt } from './render'
 const taskID = '0198c000-0000-7000-8000-000000000201'
 const contactID = '0198c000-0000-7000-8000-000000000202'
 
+function taskDetail() {
+	return {
+		__typename: 'Task',
+		id: String(stored.id),
+		title: String(stored.title),
+		status: String(stored.status),
+		priority: Number(stored.priority),
+		dueOn: String(stored.due_on),
+		contactId: stored.contact_id === null ? null : String(stored.contact_id),
+		contact:
+			stored.contact_id === null
+				? null
+				: { __typename: 'Contact', id: String(stored.contact_id), name: 'Maria Perez' },
+	}
+}
+
 let stored: Record<string, unknown>
 let patched: Record<string, unknown>[] = []
 
@@ -27,26 +43,19 @@ beforeEach(() => {
 		created_at: '2026-07-29T10:00:00Z',
 	}
 	server.use(
-		http.get('/api/tasks/:id', () => HttpResponse.json(stored)),
+		graphql.query('TaskDetail', () => HttpResponse.json({ data: { task: taskDetail() } })),
 		http.patch('/api/tasks/:id', async ({ request }) => {
 			const body = (await request.json()) as Record<string, unknown>
 			patched.push(body)
 			stored = { ...stored, ...body }
 			return HttpResponse.json(stored)
 		}),
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({
-				id: contactID,
-				name: 'Maria Perez',
-				created_at: '2026-07-06T10:00:00Z',
-				identities: [],
-			}),
-		),
+
 	)
 })
 
 test('keeps the page chrome while the task is on its way', async () => {
-	server.use(http.get('/api/tasks/:id', () => new Promise(() => {})))
+	server.use(graphql.query('TaskDetail', () => new Promise(() => {})))
 	renderAt(`/tasks/${taskID}`)
 
 	expect(await screen.findByRole('heading', { level: 1, name: 'Task' })).toBeInTheDocument()
@@ -178,8 +187,11 @@ test('reaches the detail from the day list', async () => {
 
 test('reports when the task cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'task: not found' }, { status: 404 }),
+		graphql.query('TaskDetail', () =>
+			HttpResponse.json({
+				data: { task: null },
+				errors: [{ message: 'task: not found', extensions: { code: 'NOT_FOUND' } }],
+			}),
 		),
 	)
 
@@ -235,8 +247,11 @@ test('reports when completing from the detail fails', async () => {
 
 test('drops the session when the task detail is unauthorized', async () => {
 	server.use(
-		http.get('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('TaskDetail', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 

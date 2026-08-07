@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -42,18 +42,20 @@ beforeEach(() => {
 	server.use(
 		...handlers,
 		...importerHandlers,
-		http.get('/api/tasks/:id', () =>
+		graphql.query('TaskDetail', () =>
 			HttpResponse.json({
-				id: taskID,
-				assignee_id: '0198c000-0000-7000-8000-0000000000aa',
-				contact_id: null,
-				title: 'Call the supplier',
-				status: 'open',
-				priority: 0,
-				due_on: '2026-08-10',
-				origin_source: null,
-				origin_event_id: null,
-				created_at: '2026-07-29T10:00:00Z',
+				data: {
+					task: {
+						__typename: 'Task',
+						id: taskID,
+						title: 'Call the supplier',
+						status: 'open',
+						priority: 0,
+						dueOn: '2026-08-10',
+						contactId: null,
+						contact: null,
+					},
+				},
 			}),
 		),
 		graphql.query('ContactDetail', () =>

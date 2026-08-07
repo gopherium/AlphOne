@@ -52,7 +52,22 @@ beforeEach(() => {
 			created.push(body)
 			return HttpResponse.json(taskBody(body), { status: 201 })
 		}),
-		http.get('/api/tasks/:id', () => HttpResponse.json(taskBody())),
+		graphql.query('TaskDetail', () =>
+			HttpResponse.json({
+				data: {
+					task: {
+						__typename: 'Task',
+						id: createdID,
+						title: String(created.at(-1)?.title ?? 'Order more boxes'),
+						status: 'open',
+						priority: 0,
+						dueOn: today,
+						contactId: null,
+						contact: null,
+					},
+				},
+			}),
+		),
 		graphql.query('Contacts', ({ variables }) => {
 			const query = (variables.q as string | null) ?? ''
 			searches.push(query)
