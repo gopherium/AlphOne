@@ -130,4 +130,5 @@ e2e-seed: db-up e2e-build
 e2e-reset: e2e-db-reset e2e-seed
 
 e2e: e2e-reset
-	pnpm --filter @alphone/e2e exec playwright test
+	ALPHONE_E2E_DATABASE_URL="$(E2E_DATABASE_URL)" \
+		pnpm --filter @alphone/e2e exec playwright test
