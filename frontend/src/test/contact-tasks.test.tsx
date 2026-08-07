@@ -1,4 +1,4 @@
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -40,6 +40,32 @@ function taskRow(id: string, title: string, dueOn: string) {
 	}
 }
 
+function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
+	return {
+		__typename: 'Contact',
+		id,
+		name: 'Maria Perez',
+		createdAt: '2026-07-06T10:00:00Z',
+		identities: [],
+		tasks: {
+			__typename: 'TaskConnection',
+			edges: rows.map((row) => ({
+				__typename: 'TaskEdge',
+				node: {
+					__typename: 'Task',
+					id: row.id,
+					title: row.title,
+					status: row.status,
+					priority: row.priority,
+					dueOn: row.due_on,
+				},
+				cursor: row.id,
+			})),
+			pageInfo: { __typename: 'PageInfo', hasNextPage: endCursor !== null, endCursor },
+		},
+	}
+}
+
 let contactFilters: string[] = []
 let created: Record<string, unknown>[] = []
 let patched: Record<string, unknown>[] = []
@@ -51,23 +77,11 @@ beforeEach(() => {
 	patched = []
 	tasks = [taskRow(callID, 'Call her back', today), taskRow(quoteID, 'Send the quote', tomorrow)]
 	server.use(
-		http.get('/api/contacts/:id', ({ params }) =>
-			HttpResponse.json({
-				id: String(params.id),
-				name: 'Maria Perez',
-				created_at: '2026-07-06T10:00:00Z',
-				identities: [],
-			}),
-		),
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			const contact = url.searchParams.get('contact_id')
-			if (contact === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			contactFilters.push(contact)
-			return HttpResponse.json({ tasks, next_cursor: null })
+		graphql.query('ContactDetail', ({ variables }) => {
+			contactFilters.push(String(variables.id))
+			return HttpResponse.json({ data: { contact: contactDetail(String(variables.id), tasks) } })
 		}),
+		http.get('/api/tasks', () => HttpResponse.json({ tasks: [], next_cursor: null })),
 		http.post('/api/tasks', async ({ request }) => {
 			const body = (await request.json()) as Record<string, unknown>
 			created.push(body)
@@ -85,23 +99,13 @@ beforeEach(() => {
 })
 
 test('keeps the page chrome while the contact is on its way', async () => {
-	server.use(http.get('/api/contacts/:id', () => new Promise(() => {})))
+	server.use(graphql.query('ContactDetail', () => new Promise(() => {})))
 	renderAt(`/contacts/${contactID}`)
 
 	expect(await screen.findByRole('heading', { level: 1, name: 'Contact' })).toBeInTheDocument()
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading contact…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
-})
-
-test('ghosts the task section while its rows arrive', async () => {
-	server.use(http.get('/api/tasks', () => new Promise(() => {})))
-	renderAt(`/contacts/${contactID}`)
-	await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })
-
-	const status = screen.getByText('Loading tasks…')
-	expect(status).toHaveAttribute('role', 'status')
-	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
 })
 
 test('lists the open tasks of a contact with their due dates', async () => {
@@ -171,22 +175,15 @@ test('says when a contact has nothing open', async () => {
 
 test('loads more contact tasks through the cursor', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('contact_id') === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			if (url.searchParams.get('cursor') === null) {
-				return HttpResponse.json({
-					tasks: [taskRow(callID, 'Call her back', today)],
-					next_cursor: 'CUR1',
-				})
-			}
-			return HttpResponse.json({
-				tasks: [taskRow(quoteID, 'Send the quote', tomorrow)],
-				next_cursor: null,
-			})
-		}),
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					contact: variables.after
+						? contactDetail(String(variables.id), [taskRow(quoteID, 'Send the quote', tomorrow)])
+						: contactDetail(String(variables.id), [taskRow(callID, 'Call her back', today)], 'CUR1'),
+				},
+			}),
+		),
 	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByText('Call her back')
@@ -194,23 +191,20 @@ test('loads more contact tasks through the cursor', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Load more tasks' }))
 
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
+	expect(screen.getByText('Call her back')).toBeInTheDocument()
 })
 
-test('reports when the contact tasks cannot be loaded', async () => {
+test('reports when the contact detail cannot be loaded', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('contact_id') === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			return HttpResponse.json({ error: 'internal error' }, { status: 500 })
-		}),
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
 	)
 
 	renderAt(`/contacts/${contactID}`)
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'Tasks could not be loaded.',
+		'The contact could not be loaded.',
 	)
 })
 
@@ -285,15 +279,14 @@ test('reports when a contact task cannot be updated', async () => {
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })
 
-test('drops the session when the contact tasks are unauthorized', async () => {
+test('drops the session when the contact detail is unauthorized', async () => {
 	server.use(
-		http.get('/api/tasks', ({ request }) => {
-			const url = new URL(request.url)
-			if (url.searchParams.get('contact_id') === null) {
-				return HttpResponse.json({ tasks: [], next_cursor: null })
-			}
-			return HttpResponse.json({ error: 'no session' }, { status: 401 })
-		}),
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
+		),
 	)
 
 	const client = renderAt(`/contacts/${contactID}`)

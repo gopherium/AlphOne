@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -56,12 +56,22 @@ beforeEach(() => {
 				created_at: '2026-07-29T10:00:00Z',
 			}),
 		),
-		http.get('/api/contacts/:id', () =>
+		graphql.query('ContactDetail', () =>
 			HttpResponse.json({
-				id: contactID,
-				name: 'Maria Perez',
-				created_at: '2026-07-29T10:00:00Z',
-				identities: [],
+				data: {
+					contact: {
+						__typename: 'Contact',
+						id: contactID,
+						name: 'Maria Perez',
+						createdAt: '2026-07-29T10:00:00Z',
+						identities: [],
+						tasks: {
+							__typename: 'TaskConnection',
+							edges: [],
+							pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
+						},
+					},
+				},
 			}),
 		),
 	)

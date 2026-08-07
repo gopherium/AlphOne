@@ -3,7 +3,8 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { sessionQueryKey } from '@gopherium/react-auth'
+import { UnauthorizedError, sessionQueryKey } from '@gopherium/react-auth'
+import { fetchContact } from '../contacts/api'
 import { renderAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
@@ -42,6 +43,29 @@ function pageFor(q: string, after: string | undefined) {
 	return contactsPage([[anaID, 'Ana García'], [brunoID, 'Bruno']], 'CUR1')
 }
 
+type IdentityRow = { id: string; channel: string; identifier: string; display_name: string }
+
+function detailFor(id: string, name: string, identities: IdentityRow[]) {
+	return {
+		__typename: 'Contact',
+		id,
+		name,
+		createdAt: '2026-07-06T10:00:00Z',
+		identities: identities.map((identity) => ({
+			__typename: 'ContactIdentity',
+			id: identity.id,
+			channel: identity.channel,
+			identifier: identity.identifier,
+			displayName: identity.display_name,
+		})),
+		tasks: {
+			__typename: 'TaskConnection',
+			edges: [],
+			pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
+		},
+	}
+}
+
 let listQueries: string[] = []
 
 beforeEach(() => {
@@ -54,13 +78,14 @@ beforeEach(() => {
 				data: { contacts: pageFor(q, variables.after as string | undefined) },
 			})
 		}),
-		http.get('/api/contacts/:id', ({ params }) =>
+		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
-				...contactRow(String(params.id), 'Ana García'),
-				identities: [
-					{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
-					{ id: identityID2, channel: 'whatsapp', identifier: '184467236', display_name: '' },
-				],
+				data: {
+					contact: detailFor(String(variables.id), 'Ana García', [
+						{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
+						{ id: identityID2, channel: 'whatsapp', identifier: '184467236', display_name: '' },
+					]),
+				},
 			}),
 		),
 	)
@@ -173,8 +198,8 @@ test('creates a contact and opens its detail', async () => {
 		http.post('/api/contacts', () =>
 			HttpResponse.json(contactRow(newID, 'New Ltd'), { status: 201 }),
 		),
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ ...contactRow(newID, 'New Ltd'), identities: [] }),
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({ data: { contact: detailFor(newID, 'New Ltd', []) } }),
 		),
 	)
 	renderAt('/contacts/new')
@@ -253,8 +278,10 @@ test('adds an email identity to the contact', async () => {
 	]
 	let posted: Record<string, unknown> | null = null
 	server.use(
-		http.get('/api/contacts/:id', ({ params }) =>
-			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
+			}),
 		),
 		http.post('/api/contacts/:id/identities', async ({ request }) => {
 			posted = (await request.json()) as Record<string, unknown>
@@ -285,11 +312,13 @@ test('adds an email identity to the contact', async () => {
 })
 
 test('adds a phone identity through the channel select', async () => {
-	const identities: Array<Record<string, string>> = []
+	const identities: IdentityRow[] = []
 	let posted: Record<string, unknown> | null = null
 	server.use(
-		http.get('/api/contacts/:id', ({ params }) =>
-			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
+			}),
 		),
 		http.post('/api/contacts/:id/identities', async ({ request }) => {
 			posted = (await request.json()) as Record<string, unknown>
@@ -451,8 +480,10 @@ test('removes an identity', async () => {
 	]
 	let deletedPath = ''
 	server.use(
-		http.get('/api/contacts/:id', ({ params }) =>
-			HttpResponse.json({ ...contactRow(String(params.id), 'Ana García'), identities }),
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
+			}),
 		),
 		http.delete('/api/contacts/:id/identities/:identityId', ({ params, request }) => {
 			deletedPath = new URL(request.url).pathname
@@ -491,10 +522,9 @@ test('reports a failed removal', async () => {
 test('renames a contact', async () => {
 	let currentName = 'Ana García'
 	server.use(
-		http.get('/api/contacts/:id', ({ params }) =>
+		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
-				...contactRow(String(params.id), currentName),
-				identities: [],
+				data: { contact: detailFor(String(variables.id), currentName, []) },
 			}),
 		),
 		http.patch('/api/contacts/:id', async ({ request, params }) => {
@@ -585,8 +615,8 @@ test('drops the session when the rename is unauthorized', async () => {
 
 test('reports when the contact cannot be loaded', async () => {
 	server.use(
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 
@@ -597,8 +627,11 @@ test('reports when the contact cannot be loaded', async () => {
 
 test('drops the session when the contact detail is unauthorized', async () => {
 	server.use(
-		http.get('/api/contacts/:id', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 
@@ -607,4 +640,24 @@ test('drops the session when the contact detail is unauthorized', async () => {
 	await waitFor(() =>
 		expect(client.getQueryData(sessionQueryKey)).toBeNull(),
 	)
+})
+
+test('fetchContact drops the session on a 401', async () => {
+	server.use(
+		http.get('/api/contacts/:id', () =>
+			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		),
+	)
+
+	await expect(fetchContact(anaID)).rejects.toBeInstanceOf(UnauthorizedError)
+})
+
+test('fetchContact reports any other failure with its status', async () => {
+	server.use(
+		http.get('/api/contacts/:id', () =>
+			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		),
+	)
+
+	await expect(fetchContact(anaID)).rejects.toThrow('500')
 })
