@@ -12,6 +12,7 @@ const config: CodegenConfig = {
 					UUID: 'string',
 					DateTime: 'string',
 					Date: 'string',
+					Upload: 'File',
 				},
 			},
 		},
