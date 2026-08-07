@@ -29,24 +29,37 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
-// composedRoot composes the core resolver with a whatsapp plugin whose lazy
-// pool never connects, mirroring the binary's graph root assembly.
+// composedRoot composes the core resolver with graph plugins whose lazy
+// pools never connect, mirroring the binary's graph root assembly.
 func composedRoot(t *testing.T, resolver *graphres.Resolver) graph.ResolverRoot {
 	t.Helper()
-	plugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
-	if err != nil {
-		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
-	}
-	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
-	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{plugin})
+	root, err := graphroot.FromPlugins(resolver, lazyGraphPlugins(t))
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}
 	return root
+}
+
+// lazyGraphPlugins returns one instance of every graph plugin over an unreachable database.
+func lazyGraphPlugins(t *testing.T) []sdk.Plugin {
+	t.Helper()
+	deps := sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"}
+	whatsappPlugin, err := whatsapp.Register(deps)
+	if err != nil {
+		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
+	importerPlugin, err := importer.Register(deps)
+	if err != nil {
+		t.Fatalf("importer.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
+	return []sdk.Plugin{whatsappPlugin, importerPlugin}
 }
 
 // newTestPool returns a pgxpool over a fresh migrated test database.

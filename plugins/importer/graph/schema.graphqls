@@ -1,0 +1,65 @@
+extend type Query {
+  imports: [ImportJob!]!
+  importJob(id: UUID!): ImportJob
+  importFields: [ImportField!]!
+}
+
+type ImportJob {
+  id: UUID!
+  userId: UUID!
+  filename: String!
+  state: String!
+  rowCount: Int!
+  importedCount: Int!
+  skippedCount: Int!
+  failedCount: Int!
+  createdAt: DateTime!
+  columns: [String!]!
+  mapping: [ImportAssignment!]!
+  rows(limit: Int): [ImportRow!]! @goField(forceResolver: true)
+  contacts: [ImportContact!]! @goField(forceResolver: true)
+}
+
+type ImportRow {
+  id: UUID!
+  position: Int!
+  cells: [String!]!
+  outcome: String!
+  reason: String
+  contactId: UUID
+}
+
+type ImportField {
+  name: String!
+  label: String!
+  required: Boolean!
+}
+
+type ImportContact {
+  contactId: UUID!
+  name: String!
+  rowId: UUID!
+}
+
+type ImportAssignment {
+  column: Int!
+  field: String!
+}
+
+input ImportAssignmentInput {
+  column: Int!
+  field: String!
+}
+
+type ImportCommitPayload {
+  id: UUID!
+  imported: Int!
+  skipped: Int!
+  failed: Int!
+}
+
+extend type Mutation {
+  importUpload(file: Upload!): ImportJob!
+  importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
+  importCommit(id: UUID!): ImportCommitPayload!
+}

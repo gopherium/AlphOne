@@ -64,6 +64,60 @@ type Identity struct {
 	Name  string    `json:"name"`
 }
 
+type ImportAssignment struct {
+	Column int    `json:"column"`
+	Field  string `json:"field"`
+}
+
+type ImportAssignmentInput struct {
+	Column int    `json:"column"`
+	Field  string `json:"field"`
+}
+
+type ImportCommitPayload struct {
+	ID       uuid.UUID `json:"id"`
+	Imported int       `json:"imported"`
+	Skipped  int       `json:"skipped"`
+	Failed   int       `json:"failed"`
+}
+
+type ImportContact struct {
+	ContactID uuid.UUID `json:"contactId"`
+	Name      string    `json:"name"`
+	RowID     uuid.UUID `json:"rowId"`
+}
+
+type ImportField struct {
+	Name     string `json:"name"`
+	Label    string `json:"label"`
+	Required bool   `json:"required"`
+}
+
+type ImportJob struct {
+	ID            uuid.UUID           `json:"id"`
+	UserID        uuid.UUID           `json:"userId"`
+	Filename      string              `json:"filename"`
+	State         string              `json:"state"`
+	RowCount      int                 `json:"rowCount"`
+	ImportedCount int                 `json:"importedCount"`
+	SkippedCount  int                 `json:"skippedCount"`
+	FailedCount   int                 `json:"failedCount"`
+	CreatedAt     time.Time           `json:"createdAt"`
+	Columns       []string            `json:"columns"`
+	Mapping       []*ImportAssignment `json:"mapping"`
+	Rows          []*ImportRow        `json:"rows"`
+	Contacts      []*ImportContact    `json:"contacts"`
+}
+
+type ImportRow struct {
+	ID        uuid.UUID  `json:"id"`
+	Position  int        `json:"position"`
+	Cells     []string   `json:"cells"`
+	Outcome   string     `json:"outcome"`
+	Reason    *string    `json:"reason,omitempty"`
+	ContactID *uuid.UUID `json:"contactId,omitempty"`
+}
+
 type LoginPayload struct {
 	Me *Identity `json:"me"`
 }

@@ -3,6 +3,7 @@
 package whatsapp_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -24,10 +26,15 @@ import (
 // newGraphQLClient returns a gqlgen client over the composed root of p and the core stores.
 func newGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *gqlclient.Client {
 	t.Helper()
+	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	if err != nil {
+		t.Fatalf("importer.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:  "9.9.9",
 		Contacts: postgres.NewContactStore(pool),
-	}, []sdk.Plugin{p})
+	}, []sdk.Plugin{p, importerPlugin})
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}

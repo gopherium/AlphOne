@@ -48,6 +48,53 @@ type Identity {
 	email: String!
 	name: String!
 }
+type ImportAssignment {
+	column: Int!
+	field: String!
+}
+input ImportAssignmentInput {
+	column: Int!
+	field: String!
+}
+type ImportCommitPayload {
+	id: UUID!
+	imported: Int!
+	skipped: Int!
+	failed: Int!
+}
+type ImportContact {
+	contactId: UUID!
+	name: String!
+	rowId: UUID!
+}
+type ImportField {
+	name: String!
+	label: String!
+	required: Boolean!
+}
+type ImportJob {
+	id: UUID!
+	userId: UUID!
+	filename: String!
+	state: String!
+	rowCount: Int!
+	importedCount: Int!
+	skippedCount: Int!
+	failedCount: Int!
+	createdAt: DateTime!
+	columns: [String!]!
+	mapping: [ImportAssignment!]!
+	rows(limit: Int): [ImportRow!]! @goField(forceResolver: true)
+	contacts: [ImportContact!]! @goField(forceResolver: true)
+}
+type ImportRow {
+	id: UUID!
+	position: Int!
+	cells: [String!]!
+	outcome: String!
+	reason: String
+	contactId: UUID
+}
 type LoginPayload {
 	me: Identity!
 }
@@ -64,6 +111,9 @@ type Mutation {
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
 	deleteWebhook(id: UUID!): Boolean!
+	importUpload(file: Upload!): ImportJob!
+	importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
+	importCommit(id: UUID!): ImportCommitPayload!
 	whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
 }
 type PageInfo {
@@ -81,6 +131,9 @@ type Query {
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
 	task(id: UUID!): Task
 	webhooks: [Webhook!]!
+	imports: [ImportJob!]!
+	importJob(id: UUID!): ImportJob
+	importFields: [ImportField!]!
 	whatsAppConversations(limit: Int): [WhatsAppConversation!]!
 }
 type Task {
@@ -111,6 +164,7 @@ input UpdateTaskInput {
 	status: String
 	priority: Int
 }
+scalar Upload
 type User {
 	id: UUID!
 	email: String!

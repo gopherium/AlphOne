@@ -8,6 +8,8 @@ model:
   filename: graph/model/models_gen.go
   package: model
 models:
+  Upload:
+    model: github.com/99designs/gqlgen/graphql.Upload
   UUID:
     model: github.com/gopherium/alphone/graph/scalar.UUID
   DateTime:

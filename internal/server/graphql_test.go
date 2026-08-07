@@ -15,21 +15,28 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
 // newGraphServer returns a server whose graph root composes cfg's stores with
-// a whatsapp plugin whose lazy pool never connects.
+// graph plugins whose lazy pools never connect.
 func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
 	t.Helper()
 	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
 	admin := authkit.NewAdmin(cfg.Users)
-	plugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	deps := sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"}
+	whatsappPlugin, err := whatsapp.Register(deps)
 	if err != nil {
 		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
 	}
-	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
+	importerPlugin, err := importer.Register(deps)
+	if err != nil {
+		t.Fatalf("importer.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
@@ -39,7 +46,7 @@ func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
 		Auth:         auth,
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-	}, []sdk.Plugin{plugin})
+	}, []sdk.Plugin{whatsappPlugin, importerPlugin})
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}
