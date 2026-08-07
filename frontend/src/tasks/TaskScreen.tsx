@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
+	LoadingScreen,
 	PageScreen,
 	Text,
 	validationMessage,
@@ -28,7 +29,11 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 	})
 
 	if (task.isPending) {
-		return <Text role="status">Loading task…</Text>
+		return (
+			<PageScreen title="Task">
+				<LoadingScreen label="Loading task…" />
+			</PageScreen>
+		)
 	}
 	if (task.isError) {
 		return <ErrorNotice>The task could not be loaded.</ErrorNotice>

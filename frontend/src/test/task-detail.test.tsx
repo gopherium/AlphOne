@@ -45,6 +45,16 @@ beforeEach(() => {
 	)
 })
 
+test('keeps the page chrome while the task is on its way', async () => {
+	server.use(http.get('/api/tasks/:id', () => new Promise(() => {})))
+	renderAt(`/tasks/${taskID}`)
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'Task' })).toBeInTheDocument()
+	const status = screen.getByRole('status')
+	expect(status).toHaveTextContent('Loading task…')
+	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
+})
+
 test('shows the task with its due date and priority', async () => {
 	renderAt(`/tasks/${taskID}`)
 

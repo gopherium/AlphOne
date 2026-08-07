@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
+	LoadingScreen,
 	PageScreen,
 	SelectControl,
 	Text,
@@ -29,7 +30,11 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 	})
 
 	if (detail.isPending) {
-		return <Text role="status">Loading contact…</Text>
+		return (
+			<PageScreen title="Contact">
+				<LoadingScreen label="Loading contact…" />
+			</PageScreen>
+		)
 	}
 	if (detail.isError) {
 		return <ErrorNotice>The contact could not be loaded.</ErrorNotice>

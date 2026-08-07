@@ -84,6 +84,16 @@ beforeEach(() => {
 	)
 })
 
+test('keeps the page chrome while the contact is on its way', async () => {
+	server.use(http.get('/api/contacts/:id', () => new Promise(() => {})))
+	renderAt(`/contacts/${contactID}`)
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'Contact' })).toBeInTheDocument()
+	const status = screen.getByRole('status')
+	expect(status).toHaveTextContent('Loading contact…')
+	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
+})
+
 test('lists the open tasks of a contact with their due dates', async () => {
 	renderAt(`/contacts/${contactID}`)
 

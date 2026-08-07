@@ -47,7 +47,14 @@ export {
 	people,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
-export { ErrorNotice, LoadingRows, LoadMore, Page as PageScreen, PageTitle } from '@gopherium/godmin'
+export {
+	ErrorNotice,
+	LoadingRows,
+	LoadingScreen,
+	LoadMore,
+	Page as PageScreen,
+	PageTitle,
+} from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
 export { createGraphClient, graphError } from './graph'

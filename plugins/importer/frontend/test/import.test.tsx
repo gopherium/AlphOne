@@ -46,6 +46,16 @@ beforeEach(() => {
 	server.use(...handlers)
 })
 
+test('keeps the page chrome while the import is on its way', async () => {
+	server.use(http.get(`${base}/imports/:id`, () => new Promise(() => {})))
+	renderScreen()
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'Import' })).toBeInTheDocument()
+	const status = screen.getByRole('status')
+	expect(status).toHaveTextContent('Loading import…')
+	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
+})
+
 test('the screen names the file it is mapping', async () => {
 	renderScreen()
 

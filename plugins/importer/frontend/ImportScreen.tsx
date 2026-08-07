@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	LoadingRows,
+	LoadingScreen,
 	PageScreen,
 	SelectControl,
 	Text,
@@ -36,7 +37,11 @@ export function ImportScreen({ importId }: { importId: string }) {
 	})
 
 	if (stored.isPending || rows.isPending) {
-		return <Text role="status">Loading import…</Text>
+		return (
+			<PageScreen title="Import">
+				<LoadingScreen label="Loading import…" />
+			</PageScreen>
+		)
 	}
 	if (stored.isError || rows.isError) {
 		return <ErrorNotice>The import could not be loaded.</ErrorNotice>
