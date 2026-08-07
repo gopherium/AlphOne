@@ -79,6 +79,8 @@ type Resolver struct {
 	Admin *authkit.AdminHandlers
 	// LoginLimiter counts failed logins per client IP.
 	LoginLimiter *ratelimit.Limiter
+	// BatchWait bounds the loader batching window. Zero means one millisecond.
+	BatchWait time.Duration
 }
 
 // publish announces an event unless the resolver was built without a publisher.

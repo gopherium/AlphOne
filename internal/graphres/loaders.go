@@ -3,6 +3,7 @@
 package graphres
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -19,7 +20,7 @@ type contactLoaderKey struct{}
 // contactLoader returns the request's contact loader, building it once.
 func (r *Resolver) contactLoader(ctx context.Context) (*dataloadgen.Loader[uuid.UUID, contact.Contact], error) {
 	return sdk.ScopedValue(ctx, contactLoaderKey{}, func() *dataloadgen.Loader[uuid.UUID, contact.Contact] {
-		return dataloadgen.NewLoader(r.fetchContacts, dataloadgen.WithWait(time.Millisecond))
+		return dataloadgen.NewLoader(r.fetchContacts, dataloadgen.WithWait(cmp.Or(r.BatchWait, time.Millisecond)))
 	})
 }
 

@@ -487,7 +487,9 @@ func TestTaskContactsAreLoadedInOneBatch(t *testing.T) {
 		{ID: uuid.Must(uuid.NewV7()), Title: "Two", DueOn: day, ContactID: john.ID},
 		{ID: uuid.Must(uuid.NewV7()), Title: "Three", DueOn: day, ContactID: maria.ID},
 	}}
-	resolver := &graphres.Resolver{Version: "9.9.9", Contacts: contactStub, Tasks: taskStub}
+	resolver := &graphres.Resolver{
+		Version: "9.9.9", Contacts: contactStub, Tasks: taskStub, BatchWait: 100 * time.Millisecond,
+	}
 	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
 
 	var page struct {
