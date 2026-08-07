@@ -4,32 +4,28 @@ package graphres
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/sdk"
 )
 
-// errNoLoaders reports a resolver running outside a loader carrying request.
-var errNoLoaders = errors.New("graphres: no loaders on context")
+// contactLoaderKey keys the core contact loader in the request scope.
+type contactLoaderKey struct{}
 
-// loadersKey keys the request loaders on the context.
-type loadersKey struct{}
-
-// loaders carries the per request batch loaders of the graph.
-type loaders struct {
-	contacts *dataloadgen.Loader[uuid.UUID, contact.Contact]
+// WithLoaders installs a fresh request scope for the graph loaders on ctx.
+func (r *Resolver) WithLoaders(ctx context.Context) context.Context {
+	return sdk.WithRequestScope(ctx, sdk.NewRequestScope())
 }
 
-// WithLoaders installs fresh per request loaders on ctx.
-func (r *Resolver) WithLoaders(ctx context.Context) context.Context {
-	bundle := &loaders{
-		contacts: dataloadgen.NewLoader(r.fetchContacts, dataloadgen.WithWait(time.Millisecond)),
-	}
-	return context.WithValue(ctx, loadersKey{}, bundle)
+// contactLoader returns the request's contact loader, building it once.
+func (r *Resolver) contactLoader(ctx context.Context) (*dataloadgen.Loader[uuid.UUID, contact.Contact], error) {
+	return sdk.ScopedValue(ctx, contactLoaderKey{}, func() *dataloadgen.Loader[uuid.UUID, contact.Contact] {
+		return dataloadgen.NewLoader(r.fetchContacts, dataloadgen.WithWait(time.Millisecond))
+	})
 }
 
 // fetchContacts loads a batch of contacts by id, one error per missing id.
@@ -65,29 +61,20 @@ func matchByID(ids []uuid.UUID, rows []contact.Contact) ([]contact.Contact, []er
 	return results, errs
 }
 
-// requestLoaders returns the loaders installed on ctx.
-func requestLoaders(ctx context.Context) (*loaders, error) {
-	bundle, ok := ctx.Value(loadersKey{}).(*loaders)
-	if !ok {
-		return nil, errNoLoaders
-	}
-	return bundle, nil
-}
-
 // loadContact returns one contact through the request loader.
-func loadContact(ctx context.Context, id uuid.UUID) (contact.Contact, error) {
-	bundle, err := requestLoaders(ctx)
+func (r *Resolver) loadContact(ctx context.Context, id uuid.UUID) (contact.Contact, error) {
+	loader, err := r.contactLoader(ctx)
 	if err != nil {
 		return contact.Contact{}, err
 	}
-	return bundle.contacts.Load(ctx, id)
+	return loader.Load(ctx, id)
 }
 
 // primeContact seeds the request loader with an already fetched row.
-func primeContact(ctx context.Context, c contact.Contact) {
-	bundle, err := requestLoaders(ctx)
+func (r *Resolver) primeContact(ctx context.Context, c contact.Contact) {
+	loader, err := r.contactLoader(ctx)
 	if err != nil {
 		return
 	}
-	bundle.contacts.Prime(c.ID, c)
+	loader.Prime(c.ID, c)
 }

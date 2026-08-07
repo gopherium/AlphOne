@@ -174,7 +174,7 @@ func (t taskResolver) Contact(ctx context.Context, obj *model.Task) (*model.Cont
 	if obj.ContactID == nil {
 		return nil, nil
 	}
-	row, err := loadContact(ctx, *obj.ContactID)
+	row, err := t.root.loadContact(ctx, *obj.ContactID)
 	if err != nil {
 		return nil, err
 	}

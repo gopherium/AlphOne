@@ -77,19 +77,19 @@ func (q queryResolver) Contacts(
 	if err != nil {
 		return nil, err
 	}
-	return contactConnection(ctx, rows, limit), nil
+	return q.root.contactConnection(ctx, rows, limit), nil
 }
 
 // contactConnection assembles a contact page into a connection, priming the
 // request loader with every row.
-func contactConnection(ctx context.Context, rows []contact.Contact, limit int) *model.ContactConnection {
+func (r *Resolver) contactConnection(ctx context.Context, rows []contact.Contact, limit int) *model.ContactConnection {
 	hasNext := len(rows) > limit
 	if hasNext {
 		rows = rows[:limit]
 	}
 	edges := make([]*model.ContactEdge, len(rows))
 	for i, row := range rows {
-		primeContact(ctx, row)
+		r.primeContact(ctx, row)
 		edges[i] = &model.ContactEdge{Node: toContact(row), Cursor: cursor.EncodeContact(row)}
 	}
 	pageInfo := &model.PageInfo{HasNextPage: hasNext}
@@ -106,7 +106,7 @@ func (q queryResolver) Contact(ctx context.Context, id uuid.UUID) (*model.Contac
 	if err != nil {
 		return nil, err
 	}
-	primeContact(ctx, row)
+	q.root.primeContact(ctx, row)
 	return toContact(row), nil
 }
 
@@ -117,7 +117,7 @@ type contactResolver struct {
 
 // CreatedAt resolves a contact's creation time through the request loader.
 func (c contactResolver) CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error) {
-	row, err := loadContact(ctx, obj.ID)
+	row, err := c.root.loadContact(ctx, obj.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (m mutationResolver) CreateContact(
 		return nil, err
 	}
 	m.root.publish(ctx, event.ContactCreated, contact.EventData(created))
-	primeContact(ctx, created)
+	m.root.primeContact(ctx, created)
 	return toContact(created), nil
 }
 
@@ -201,7 +201,7 @@ func (m mutationResolver) RenameContact(ctx context.Context, id uuid.UUID, name 
 	if err != nil {
 		return nil, err
 	}
-	primeContact(ctx, row)
+	m.root.primeContact(ctx, row)
 	return toContact(row), nil
 }
 
