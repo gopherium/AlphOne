@@ -27,8 +27,10 @@ var graphConfig = graphwire.Config{
 	ExecImport:      "github.com/gopherium/alphone/graph",
 	CoreImport:      "github.com/gopherium/alphone/internal/graphres",
 	CoreSchemaGlobs: []string{"graph/schema/*.graphqls"},
-	WiringPath:      "cmd/alphone/graph_gen.go",
+	WiringPath:      "internal/graphroot/graphroot_gen.go",
 	License:         "Elastic-2.0",
+	Package:         "graphroot",
+	SDKImport:       "github.com/gopherium/alphone/sdk",
 }
 
 // main regenerates the plugin wiring files.
