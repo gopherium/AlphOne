@@ -75,6 +75,27 @@ test('resolves a query against the graph endpoint with same origin credentials',
 	expect(requests[0].credentials).toBe('same-origin')
 })
 
+test('posts every operation rather than putting it in the url', async () => {
+	const requests: Request[] = []
+	server.use(
+		graphql.query('Contacts', ({ request }) => {
+			requests.push(request)
+			return HttpResponse.json({
+				data: {
+					contacts: contactsPage(contactEdge('id-ada', 'Ada Lovelace', 'cursor-ada'), false, 'cursor-ada'),
+				},
+			})
+		}),
+	)
+	const { graph } = newClient()
+
+	await graph.client.query(contactsQuery, { first: 50 }).toPromise()
+
+	expect(requests).toHaveLength(1)
+	expect(requests[0].method).toBe('POST')
+	expect(new URL(requests[0].url).search).toBe('')
+})
+
 test('clears the session when an operation answers UNAUTHENTICATED', async () => {
 	respondWithError('Version', 'UNAUTHENTICATED', 'session expired')
 	const { graph, onSessionExpired } = newClient()

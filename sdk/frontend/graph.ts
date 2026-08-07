@@ -145,6 +145,7 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 	const client = new Client({
 		url: graphEndpoint,
 		fetchOptions: { credentials: 'same-origin' },
+		preferGetMethod: false,
 		exchanges: [
 			doorbell.exchange,
 			graphCacheExchange(),
