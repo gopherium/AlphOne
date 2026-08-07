@@ -50,6 +50,7 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(opt
 		query: options.query,
 		variables: { ...options.variables, after },
 		pause: options.pause,
+		requestPolicy: 'cache-and-network',
 	})
 	const loaded = result.data ? options.select(result.data) : undefined
 	const page = loaded ?? emptyPage<TNode>()

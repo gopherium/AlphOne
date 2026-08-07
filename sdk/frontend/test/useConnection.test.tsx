@@ -162,6 +162,34 @@ test('runs no query while it is paused', async () => {
 	expect(result.current.isPending).toBe(false)
 })
 
+test('refreshes from the network when the list is mounted again', async () => {
+	let name = 'Ada Lovelace'
+	server.use(
+		graphql.query('Contacts', () =>
+			HttpResponse.json({ data: { contacts: page({ id: 'id-ada', name }, false, 'cursor-ada') } }),
+		),
+	)
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	function Wrapper({ children }: { children: ReactNode }) {
+		return <GraphProvider graph={graph}>{children}</GraphProvider>
+	}
+	const probe = () =>
+		useConnection({
+			query: contactsQuery,
+			variables: { first: 50 },
+			select: (data: { contacts: unknown }) =>
+				data.contacts as { edges: { node: ContactNode }[]; pageInfo: never },
+		})
+
+	const first = renderHook(probe, { wrapper: Wrapper })
+	await waitFor(() => expect(first.result.current.rows).toHaveLength(1))
+	first.unmount()
+	name = 'Ada Lovelace Ltd'
+	const second = renderHook(probe, { wrapper: Wrapper })
+
+	await waitFor(() => expect(second.result.current.rows[0]?.name).toBe('Ada Lovelace Ltd'))
+})
+
 test('stays on the first page when asked for more before any page arrives', async () => {
 	const served = servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, true, 'cursor-ada') })
 	const { result } = renderConnection({ first: 50 })
