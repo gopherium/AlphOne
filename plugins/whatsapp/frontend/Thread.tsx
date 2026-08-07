@@ -446,7 +446,7 @@ function ThreadBody({ conversationId }: { conversationId: string }) {
 			<div
 				role="log"
 				aria-label="Messages"
-				className="alphone-thread__log"
+				className="alphone-thread__log godmin-arrival"
 				tabIndex={0}
 				ref={logRef}
 				onScroll={(event) => {

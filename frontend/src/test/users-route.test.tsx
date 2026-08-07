@@ -34,6 +34,13 @@ test('ghosts the rows while the accounts arrive', async () => {
 	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
 })
 
+test('fades the account table in when it replaces the ghost', async () => {
+	renderAt('/users')
+
+	const region = await screen.findByRole('region', { name: 'Users' })
+	expect([...region.classList]).toContain('godmin-arrival')
+})
+
 test('serves the users screen at /users', async () => {
 	renderAt('/users')
 

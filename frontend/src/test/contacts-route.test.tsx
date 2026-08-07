@@ -99,6 +99,13 @@ test('ghosts the rows while the contacts arrive', async () => {
 	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
 })
 
+test('fades the contact table in when it replaces the ghost', async () => {
+	renderAt('/contacts')
+
+	const region = await screen.findByRole('region', { name: 'Contacts' })
+	expect([...region.classList]).toContain('godmin-arrival')
+})
+
 test('serves the contacts screen at /contacts', async () => {
 	renderAt('/contacts')
 

@@ -88,7 +88,12 @@ function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 	}
 	return (
 		<>
-			<div className="godmin-table-scroll" role="region" aria-label="Contacts" tabIndex={0}>
+			<div
+				className="godmin-table-scroll godmin-arrival"
+				role="region"
+				aria-label="Contacts"
+				tabIndex={0}
+			>
 				<table className="godmin-table">
 					<thead>
 						<tr>

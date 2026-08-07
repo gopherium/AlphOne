@@ -46,7 +46,7 @@ test('screens center their empty state through the template class', () => {
 // A table is wider than a phone, so it scrolls inside its own region instead of
 // dragging the page sideways.
 test('screens wrap their table in the scrolling region', () => {
-	const withTable = filesMatching(/className="godmin-table"/)
-	const withRegion = filesMatching(/className="godmin-table-scroll"/)
+	const withTable = filesMatching(/className="[^"]*\bgodmin-table\b/)
+	const withRegion = filesMatching(/className="[^"]*\bgodmin-table-scroll\b/)
 	expect(withTable.filter((path) => !withRegion.includes(path))).toEqual([])
 })

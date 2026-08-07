@@ -231,7 +231,7 @@ function TaskSections({
 	}
 	const open = tasks.rows
 	return (
-		<Stack direction="column" gap="lg">
+		<Stack direction="column" gap="lg" className="godmin-arrival">
 			{open.length === 0 ? (
 				<EmptyState.Root className="godmin-empty">
 					<EmptyState.Icon icon={inbox} />
