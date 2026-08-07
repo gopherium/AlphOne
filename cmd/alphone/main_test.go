@@ -282,6 +282,20 @@ func TestRegisterPluginsPropagatesALaterPluginFailure(t *testing.T) {
 	}
 }
 
+func TestRunReportsAnIncompleteGraphWiring(t *testing.T) {
+	t.Parallel()
+
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
+	}), io.Discard, func(_ sdk.Deps) ([]sdk.Plugin, error) {
+		return nil, nil
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "compose graph root") {
+		t.Fatalf("run() error = %v, want the compose graph root failure", err)
+	}
+}
+
 var errRegistration = errors.New("registration exploded")
 
 func TestRunReportsRegistrationFailure(t *testing.T) {
