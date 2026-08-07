@@ -17,7 +17,7 @@
 		"@alphone/plugin-importer": "workspace:*",
 		"@alphone/plugin-whatsapp": "workspace:*",
 		"@gopherium/godmin": "0.2.2",
-		"@gopherium/react-auth": "^0.1.2",
+		"@gopherium/react-auth": "^0.2.0",
 		"@tanstack/react-query": "^5.101.4",
 		"@tanstack/react-router": "^1.170.18",
 		"@wordpress/theme": "1.1.0",

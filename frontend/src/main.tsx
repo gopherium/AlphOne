@@ -2,7 +2,7 @@
 
 import { Text } from '@alphone/frontend-sdk'
 import { AdminRoot } from '@gopherium/godmin'
-import { AuthGate, createAuthQueryClient } from '@gopherium/react-auth'
+import { AuthGate, configureAuthTransport, createAuthQueryClient } from '@gopherium/react-auth'
 import { LoginScreen } from '@gopherium/react-auth/wpds'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
@@ -12,8 +12,10 @@ import { createRoot } from 'react-dom/client'
 import '@gopherium/godmin/base.css'
 import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
+import { graphAuthTransport } from './auth/graphTransport'
 import { createAppRouter } from './router'
 
+configureAuthTransport(graphAuthTransport)
 const queryClient = createAuthQueryClient()
 const router = createAppRouter()
 
