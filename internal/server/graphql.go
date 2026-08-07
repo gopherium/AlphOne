@@ -12,6 +12,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -33,6 +34,7 @@ const (
 func newGraphQLHandler(root graph.ResolverRoot) http.Handler {
 	srv := handler.New(graphres.ExecutableSchema(root))
 	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.MultipartForm{})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.AroundOperations(graphres.AnonymousGate)
@@ -41,6 +43,9 @@ func newGraphQLHandler(root graph.ResolverRoot) http.Handler {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
 		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
+		if user := authkit.IdentityFromContext(r.Context()); user.ID != uuid.Nil {
+			ctx = sdk.WithUser(ctx, user.ID)
+		}
 		srv.ServeHTTP(w, r.WithContext(ctx))
 	})
 	return withOperationGuards(loaded, newStreamLimiter(graphMaxConcurrentOps), graphOperationTimeout)

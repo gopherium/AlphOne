@@ -22,6 +22,22 @@ func guardedRequest(userID uuid.UUID) *http.Request {
 	return request.WithContext(ctx)
 }
 
+func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
+	t.Parallel()
+
+	jsonRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	jsonRequest.Header.Set("Content-Type", "application/json")
+	if got := graphBodyLimit(jsonRequest); got != graphJSONBodyLimit {
+		t.Errorf("JSON budget = %d, want %d", got, graphJSONBodyLimit)
+	}
+
+	multipartRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
+	if got := graphBodyLimit(multipartRequest); got != graphMultipartBodyLimit {
+		t.Errorf("multipart budget = %d, want %d", got, graphMultipartBodyLimit)
+	}
+}
+
 func TestOperationGuardsRejectTheSixthConcurrentOperation(t *testing.T) {
 	t.Parallel()
 
