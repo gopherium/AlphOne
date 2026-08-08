@@ -7,6 +7,7 @@ import type { Server } from 'node:http'
 import { expect, test } from '@playwright/test'
 
 import { sign } from '../inbound'
+import { subscribed } from '../subscription'
 
 const mockGraphPort = 4791
 const metadataDelayMs = 3000
@@ -103,9 +104,7 @@ test('delivers an inbound photo from the webhook to the thread', async ({
 		caption,
 	)
 
-	const stream = page.waitForResponse((response) =>
-		response.url().includes('/api/plugins/whatsapp/events'),
-	)
+	const stream = subscribed(page, 'whatsAppConversationEvent')
 	await page.goto('/whatsapp')
 	await stream
 

@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
+import { subscribed } from '../subscription'
+
 test('shows a task created through the API without a reload', async ({
 	page,
 	request,
@@ -9,9 +11,7 @@ test('shows a task created through the API without a reload', async ({
 	const title = `Booked by the engine ${Date.now()}`
 	const dueOn = new Date().toISOString().slice(0, 10)
 
-	const stream = page.waitForResponse((response) =>
-		response.url().includes('/api/events'),
-	)
+	const stream = subscribed(page, 'coreEvent')
 	await page.goto('/')
 	await stream
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()

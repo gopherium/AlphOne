@@ -6,6 +6,7 @@ import type { Server } from 'node:http'
 import { expect, test } from '@playwright/test'
 
 import { inboundTextPayload, sign } from '../inbound'
+import { subscribed } from '../subscription'
 
 const mockGraphPort = 4791
 const stamp = Date.now()
@@ -72,9 +73,7 @@ test('progresses delivery ticks on an outbound reply', async ({
 		'hello',
 	)
 
-	const stream = page.waitForResponse((response) =>
-		response.url().includes('/api/plugins/whatsapp/events'),
-	)
+	const stream = subscribed(page, 'whatsAppConversationEvent')
 	await page.goto('/whatsapp')
 	await stream
 

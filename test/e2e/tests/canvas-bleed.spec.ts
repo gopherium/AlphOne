@@ -3,6 +3,7 @@
 import { expect, test } from '@playwright/test'
 
 import { deliverInboundText } from '../inbound'
+import { subscribed } from '../subscription'
 
 function canvasGeometry(page: import('@playwright/test').Page) {
 	return page.evaluate(() => {
@@ -27,9 +28,7 @@ test('a full bleed screen fills the canvas without escaping it', async ({ page, 
 	const waId = `1777${stamp}`
 	const contactName = `Maria ${stamp}`
 
-	const stream = page.waitForResponse((response) =>
-		response.url().includes('/api/plugins/whatsapp/events'),
-	)
+	const stream = subscribed(page, 'whatsAppConversationEvent')
 	await page.goto('/whatsapp')
 	await stream
 
