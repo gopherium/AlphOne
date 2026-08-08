@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -11,22 +11,27 @@ import { renderAt } from './render'
 
 beforeEach(() =>
 	server.use(
-		http.get('/api/users', () =>
-			HttpResponse.json([
-				{
-					id: '0198b2f0-0000-7000-8000-000000000001',
-					email: 'grace@example.com',
-					name: 'Grace Hopper',
-					disabled: false,
-					created_at: '2026-07-06T10:00:00Z',
+		graphql.query('Users', () =>
+			HttpResponse.json({
+				data: {
+					users: [
+						{
+							__typename: 'User',
+							id: '0198b2f0-0000-7000-8000-000000000001',
+							email: 'grace@example.com',
+							name: 'Grace Hopper',
+							disabled: false,
+							createdAt: '2026-07-06T10:00:00Z',
+						},
+					],
 				},
-			]),
+			}),
 		),
 	),
 )
 
 test('ghosts the rows while the accounts arrive', async () => {
-	server.use(http.get('/api/users', () => new Promise(() => {})))
+	server.use(graphql.query('Users', () => new Promise(() => {})))
 	renderAt('/users')
 
 	const status = await screen.findByRole('status')
@@ -63,12 +68,23 @@ test('follows the page template like every other screen', async () => {
 })
 
 test('shows an empty state when no accounts exist', async () => {
-	server.use(http.get('/api/users', () => HttpResponse.json([])))
+	server.use(graphql.query('Users', () => HttpResponse.json({ data: { users: [] } })))
 
 	renderAt('/users')
 
 	expect(await screen.findByText('No users yet.')).toBeInTheDocument()
 })
+
+function userNode(row: Record<string, unknown>, disabled: boolean) {
+	return {
+		__typename: 'User',
+		id: String(row.id),
+		email: String(row.email),
+		name: String(row.name),
+		disabled,
+		createdAt: '2026-07-06T10:00:00Z',
+	}
+}
 
 // Another account, because the seeded list user is the signed-in one.
 const colleague = {
@@ -82,11 +98,13 @@ test('disables an account and shows the new status', async () => {
 	let disabled = false
 	let patched: unknown = null
 	server.use(
-		http.get('/api/users', () => HttpResponse.json([{ ...colleague, disabled }])),
-		http.patch('/api/users/:id', async ({ request }) => {
-			patched = await request.json()
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [userNode(colleague, disabled)] } }),
+		),
+		graphql.mutation('SetUserDisabled', ({ variables }) => {
+			patched = { disabled: variables.disabled }
 			disabled = true
-			return new HttpResponse(null, { status: 204 })
+			return HttpResponse.json({ data: { setUserDisabled: true } })
 		}),
 	)
 	renderAt('/users')
@@ -99,9 +117,11 @@ test('disables an account and shows the new status', async () => {
 
 test('reports when an account cannot be updated', async () => {
 	server.use(
-		http.get('/api/users', () => HttpResponse.json([{ ...colleague, disabled: false }])),
-		http.patch('/api/users/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [userNode(colleague, false)] } }),
+		),
+		graphql.mutation('SetUserDisabled', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/users')
@@ -132,17 +152,19 @@ test('navigates to the users screen from the main menu', async () => {
 
 test('returns to the user list after creating a user', async () => {
 	server.use(
-		http.post('/api/users', () =>
-			HttpResponse.json(
-				{
-					id: '0198b2f0-0000-7000-8000-000000000002',
-					email: 'ada@example.com',
-					name: 'Ada Lovelace',
-					disabled: false,
-					created_at: '2026-07-16T10:00:00Z',
+		graphql.mutation('CreateUser', () =>
+			HttpResponse.json({
+				data: {
+					createUser: {
+						__typename: 'User',
+						id: '0198b2f0-0000-7000-8000-000000000002',
+						email: 'ada@example.com',
+						name: 'Ada Lovelace',
+						disabled: false,
+						createdAt: '2026-07-16T10:00:00Z',
+					},
 				},
-				{ status: 201 },
-			),
+			}),
 		),
 	)
 	renderAt('/users/new')
@@ -175,8 +197,11 @@ async function submitNewUser() {
 
 test('reports a taken email in its own words', async () => {
 	server.use(
-		http.post('/api/users', () =>
-			HttpResponse.json({ error: 'email already in use' }, { status: 409 }),
+		graphql.mutation('CreateUser', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'email already in use', extensions: { code: 'CONFLICT' } }],
+			}),
 		),
 	)
 	renderAt('/users/new')
@@ -188,8 +213,11 @@ test('reports a taken email in its own words', async () => {
 
 test('surfaces a rejection message from the backend', async () => {
 	server.use(
-		http.post('/api/users', () =>
-			HttpResponse.json({ error: 'password too short' }, { status: 422 }),
+		graphql.mutation('CreateUser', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'password too short', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt('/users/new')
@@ -201,8 +229,8 @@ test('surfaces a rejection message from the backend', async () => {
 
 test('falls back to generic copy when creation fails otherwise', async () => {
 	server.use(
-		http.post('/api/users', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('CreateUser', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/users/new')
@@ -214,8 +242,11 @@ test('falls back to generic copy when creation fails otherwise', async () => {
 
 test('drops the session when the users request is unauthorized', async () => {
 	server.use(
-		http.get('/api/users', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.query('Users', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 
@@ -226,8 +257,8 @@ test('drops the session when the users request is unauthorized', async () => {
 
 test('keeps the session when the users request fails for other reasons', async () => {
 	server.use(
-		http.get('/api/users', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 

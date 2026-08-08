@@ -2,14 +2,17 @@
 
 import { GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
-import { createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
+import { configureAuthTransport, createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
 import type { User } from '@gopherium/react-auth'
 import { defaultUser, seedSession } from '@gopherium/react-auth/testing'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { render } from '@testing-library/react'
 
+import { graphAuthTransport } from '../auth/graphTransport'
 import { createAppRouter } from '../router'
+
+configureAuthTransport(graphAuthTransport)
 
 export function renderAt(
 	path: string,

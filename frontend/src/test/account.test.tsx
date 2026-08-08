@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
@@ -19,7 +19,7 @@ test('shows the signed-in user and a logout control', async () => {
 
 test('clears the session when logging out', async () => {
 	server.use(
-		http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
+		graphql.mutation('Logout', () => HttpResponse.json({ data: { logout: true } })),
 	)
 	const client = renderAt('/')
 
@@ -32,7 +32,7 @@ test('clears the session when logging out', async () => {
 
 test('drops all cached data when logging out', async () => {
 	server.use(
-		http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
+		graphql.mutation('Logout', () => HttpResponse.json({ data: { logout: true } })),
 	)
 	const client = renderAt('/')
 	client.setQueryData(['dummy'], [{ id: '1', name: 'Ada Lovelace' }])
@@ -47,8 +47,8 @@ test('drops all cached data when logging out', async () => {
 
 test('shows an error when logging out fails', async () => {
 	server.use(
-		http.post('/api/auth/logout', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('Logout', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/')
