@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { renderAt } from './render'
+import { liveStream, renderAt } from './render'
 
 /**
  * Returns the class tokens the design system adds to a loading button.
@@ -369,16 +369,12 @@ test('loads more done tasks through their own cursor', async () => {
 })
 
 test('shows a task created elsewhere when the live stream announces it', async () => {
-	const { FakeEventSource } = await import('@alphone/frontend-sdk/testing')
+	const live = liveStream()
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
 	tasks = [...tasks, taskRow(addedID, 'Created by an automation')]
-	const source = FakeEventSource.instances.find((s) => s.url === '/api/events')
-	if (!source) {
-		throw new Error('no live stream subscription to /api/events')
-	}
-	source.emit()
+	await live.announce('task.created')
 
 	expect(await screen.findByText('Created by an automation')).toBeInTheDocument()
 })

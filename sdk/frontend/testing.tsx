@@ -14,91 +14,83 @@ import {
 	createRouter,
 	useRouterState,
 } from '@tanstack/react-router'
-import { render } from '@testing-library/react'
-import { afterEach, vi } from 'vitest'
+import { act, render } from '@testing-library/react'
+import { Client, subscriptionExchange } from 'urql'
+import { vi } from 'vitest'
 
+import type { GraphClient } from './graph'
+import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
 
 export { HttpResponse, http, server } from '@gopherium/react-auth/testing'
 export { graphql } from 'msw'
 
+/** FakeGraph drives a graph client's subscriptions from a test. */
+export interface FakeGraph {
+	/** graph stands in for the client the screens and plugins consume. */
+	graph: GraphClient
+	/** documents lists every subscription document the client forwarded. */
+	documents: string[]
+	/** unsubscribes counts the subscriptions torn down so far. */
+	unsubscribes: () => number
+	/** emit delivers one frame to the newest subscription. */
+	emit: (data: Record<string, unknown>) => void
+	/** openStream announces an event stream connection to its listeners. */
+	openStream: () => void
+}
+
 /**
- * FakeEventSource stands in for the browser EventSource, which jsdom does
- * not implement. Tests drive it synchronously via emit().
+ * Returns a graph client whose subscription frames and connections a test drives.
+ * @returns The fake client beside the controls driving it.
  */
-export class FakeEventSource {
-	static readonly CONNECTING = 0
-	static readonly OPEN = 1
-	static readonly CLOSED = 2
-
-	static instances: FakeEventSource[] = []
-
-	/**
-	 * Resets the list of tracked FakeEventSource instances.
-	 */
-	static reset() {
-		FakeEventSource.instances = []
-	}
-
-	/**
-	 * Returns the most recently created FakeEventSource instance.
-	 * @returns The last created instance, throwing if none exists.
-	 */
-	static last() {
-		const source = FakeEventSource.instances.at(-1)
-		if (!source) {
-			throw new Error('no EventSource was created')
-		}
-		return source
-	}
-
-	url: string
-	onmessage: ((event: MessageEvent) => void) | null = null
-	onopen: ((event: Event) => void) | null = null
-	onerror: ((event: Event) => void) | null = null
-	readyState: number = FakeEventSource.CONNECTING
-	closed = false
-
-	/**
-	 * Creates a FakeEventSource for the given URL and records the instance.
-	 * @param url - The URL the EventSource would connect to.
-	 */
-	constructor(url: string) {
-		this.url = url
-		FakeEventSource.instances.push(this)
-	}
-
-	/**
-	 * Marks this EventSource as closed.
-	 */
-	close() {
-		this.closed = true
-		this.readyState = FakeEventSource.CLOSED
-	}
-
-	/**
-	 * Dispatches an empty JSON message event to the registered handler.
-	 */
-	emit() {
-		this.onmessage?.(new MessageEvent('message', { data: '{}' }))
-	}
-
-	/**
-	 * Marks the connection open and dispatches an open event to the registered handler.
-	 */
-	emitOpen() {
-		this.readyState = FakeEventSource.OPEN
-		this.onopen?.(new Event('open'))
-	}
-
-	/**
-	 * Records the connection state the browser would leave after a failure and
-	 * dispatches an error event to the registered handler.
-	 * @param readyState - The state the connection is in once the error fires.
-	 */
-	emitError(readyState: number) {
-		this.readyState = readyState
-		this.onerror?.(new Event('error'))
+export function fakeGraphClient(): FakeGraph {
+	const sinks: { next: (value: { data: Record<string, unknown> }) => void }[] = []
+	const documents: string[] = []
+	const listeners = new Set<() => void>()
+	let torn = 0
+	const client = new Client({
+		url: '/api/graphql',
+		exchanges: [
+			subscriptionExchange({
+				forwardSubscription: (request) => {
+					documents.push(String(request.query))
+					return {
+						subscribe: (sink) => {
+							sinks.push(sink)
+							return {
+								unsubscribe: () => {
+									torn += 1
+								},
+							}
+						},
+					}
+				},
+			}),
+		],
+	})
+	return {
+		graph: {
+			client,
+			refetch: vi.fn(),
+			onStreamOpen: (listener) => {
+				listeners.add(listener)
+				return () => {
+					listeners.delete(listener)
+				}
+			},
+		},
+		documents,
+		unsubscribes: () => torn,
+		emit: (data) =>
+			act(() => {
+				sinks.at(-1)?.next({ data })
+			}),
+		openStream: () =>
+			act(() => {
+				for (const listener of listeners) {
+					listener()
+				}
+			}),
 	}
 }
 
@@ -107,20 +99,17 @@ export class FakeEventSource {
  */
 export function installTestEnvironment() {
 	vi.stubGlobal('scrollTo', () => {})
-	vi.stubGlobal('EventSource', FakeEventSource)
 	installAdminTestEnvironment()
 	installAuthTestEnvironment()
-	afterEach(() => {
-		FakeEventSource.reset()
-	})
 }
 
 /**
  * Renders the given frontend plugin mounted at a specific route path.
  * @param plugin - The frontend plugin whose nav and routes are mounted.
  * @param path - The initial router path to render at.
+ * @returns The fake graph client the mounted plugin consumes.
  */
-export function renderPluginAt(plugin: FrontendPlugin, path: string) {
+export function renderPluginAt(plugin: FrontendPlugin, path: string): FakeGraph {
 	const rootRoute = createRootRoute({
 		component: function TestHost() {
 			const matches = useRouterState({ select: (state) => state.matches })
@@ -164,9 +153,13 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string) {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
+	const fake = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<RouterProvider router={router} />
+			<GraphProvider graph={fake.graph}>
+				<RouterProvider router={router} />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
+	return fake
 }

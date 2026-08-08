@@ -1,85 +1,87 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render } from '@testing-library/react'
-import type { Client } from 'urql'
-import { afterEach, expect, test, vi } from 'vitest'
+import { act, render } from '@testing-library/react'
+import { Provider } from 'urql'
+import { expect, test, vi } from 'vitest'
 
-import type { GraphClient } from '../graph'
 import { useGraphStream } from '../stream'
-import { FakeEventSource } from '../testing'
+import { fakeGraphClient } from '../testing'
+import type { FakeGraph } from '../testing'
 
-afterEach(() => {
-	vi.restoreAllMocks()
-})
-
-/** Returns a graph client whose doorbell rings are observable. */
-function fakeGraph() {
-	const refetch = vi.fn<(operations: readonly string[]) => void>()
-	const graph: GraphClient = { client: {} as Client, refetch }
-	return { graph, refetch }
-}
-
-/** Renders a probe subscribing to the stream for the given operations. */
-function renderProbe(graph: GraphClient, operations: readonly string[]) {
+/** Renders a probe subscribing to the core events, settling its subscription. */
+async function renderProbe(
+	fake: FakeGraph,
+	operations: readonly string[],
+	invalidateKeys?: readonly string[][],
+) {
 	function Probe() {
-		useGraphStream('/stream', { graph, operations })
+		useGraphStream({ graph: fake.graph, operations, invalidateKeys })
 		return null
 	}
 	const client = new QueryClient()
-	return render(
+	const tree = (
 		<QueryClientProvider client={client}>
-			<Probe />
-		</QueryClientProvider>,
+			<Provider value={fake.graph.client}>
+				<Probe />
+			</Provider>
+		</QueryClientProvider>
 	)
+	const view = render(tree)
+	await act(async () => {})
+	return { view, client, tree }
 }
 
-test('rings the doorbell for the named operations on every event', () => {
-	const { graph, refetch } = fakeGraph()
-	renderProbe(graph, ['Tasks', 'Contacts'])
+test('rings the doorbell for the named operations on every frame', async () => {
+	const fake = fakeGraphClient()
+	await renderProbe(fake, ['Tasks', 'Contacts'])
 
-	FakeEventSource.last().emit()
+	fake.emit({ coreEvent: 'task.created' })
 
-	expect(refetch).toHaveBeenCalledWith(['Tasks', 'Contacts'])
+	expect(fake.graph.refetch).toHaveBeenCalledWith(['Tasks', 'Contacts'])
 })
 
-test('rings the doorbell once the stream opens so a reconnect catches up', () => {
-	const { graph, refetch } = fakeGraph()
-	renderProbe(graph, ['Tasks'])
+test('subscribes to the core events rather than a plugin stream', async () => {
+	const fake = fakeGraphClient()
 
-	FakeEventSource.last().emitOpen()
+	await renderProbe(fake, ['Tasks'])
 
-	expect(refetch).toHaveBeenCalledWith(['Tasks'])
+	expect(fake.documents[0]).toContain('coreEvent')
 })
 
-test('closes the stream when the subscriber unmounts', () => {
-	const { graph } = fakeGraph()
-	const view = renderProbe(graph, ['Tasks'])
-	const source = FakeEventSource.last()
+test('rings the doorbell once the stream connects so a reconnect catches up', async () => {
+	const fake = fakeGraphClient()
+	await renderProbe(fake, ['Tasks'])
+
+	fake.openStream()
+
+	expect(fake.graph.refetch).toHaveBeenCalledWith(['Tasks'])
+})
+
+test('invalidates the named query keys on every frame', async () => {
+	const fake = fakeGraphClient()
+	const { client } = await renderProbe(fake, ['Tasks'], [['whatsapp']])
+	const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+	fake.emit({ coreEvent: 'task.created' })
+
+	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] })
+})
+
+test('unsubscribes when the subscriber unmounts', async () => {
+	const fake = fakeGraphClient()
+	const { view } = await renderProbe(fake, ['Tasks'])
 
 	view.unmount()
 
-	expect(source.closed).toBe(true)
+	expect(fake.unsubscribes()).toBe(1)
 })
 
-test('keeps one connection when the operations array is rebuilt each render', () => {
-	const { graph } = fakeGraph()
-	function Probe() {
-		useGraphStream('/stream', { graph, operations: ['Tasks'] })
-		return null
-	}
-	const client = new QueryClient()
-	const view = render(
-		<QueryClientProvider client={client}>
-			<Probe />
-		</QueryClientProvider>,
-	)
+test('keeps one subscription when the operations array is rebuilt each render', async () => {
+	const fake = fakeGraphClient()
+	const { view, tree } = await renderProbe(fake, ['Tasks'])
 
-	view.rerender(
-		<QueryClientProvider client={client}>
-			<Probe />
-		</QueryClientProvider>,
-	)
+	view.rerender(tree)
 
-	expect(FakeEventSource.instances).toHaveLength(1)
+	expect(fake.documents).toHaveLength(1)
 })

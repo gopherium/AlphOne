@@ -16,7 +16,7 @@ const CANVAS_COLOR = { background: '#ffffff' }
  */
 export function Layout() {
 	const graph = useGraph()
-	useGraphStream('/api/events', {
+	useGraphStream({
 		graph,
 		operations: ['DayTasks', 'OverdueTasks', 'Contacts', 'ContactDetail'],
 		invalidateKeys: [['tasks']],
