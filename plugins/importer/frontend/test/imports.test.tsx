@@ -20,7 +20,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers, importID } from '../handlers'
+import { handlers, importID, multipartDocument } from '../handlers'
 import { uploadChosen } from '../ImportsScreen'
 import { routes } from '../routes'
 
@@ -90,24 +90,16 @@ test('the history reports a failed read', async () => {
 test('choosing a file uploads it and refreshes the history', async () => {
 	let uploads = 0
 	server.use(
-		http.post('/api/plugins/importer/imports', () => {
+		http.post('/api/graphql', async ({ request }) => {
+			if (!(await multipartDocument(request)).includes('ImportUpload')) {
+				return undefined
+			}
 			uploads++
-			return HttpResponse.json(
-				{
-					id: importID,
-					user_id: '019f5a00-0000-7000-8000-0000000000aa',
-					filename: 'uploaded.csv',
-					state: 'ready',
-					row_count: 1,
-					imported_count: 0,
-					skipped_count: 0,
-					failed_count: 0,
-					created_at: '2026-08-01T10:00:00Z',
-					columns: ['Name', 'Email'],
-					mapping: {},
+			return HttpResponse.json({
+				data: {
+					importUpload: { __typename: 'ImportJob', id: importID, filename: 'uploaded.csv' },
 				},
-				{ status: 201 },
-			)
+			})
 		}),
 		graphql.query('Imports', () =>
 			HttpResponse.json({
@@ -165,9 +157,20 @@ test('choosing a file hands it to the upload', () => {
 
 test('a refused upload is reported', async () => {
 	server.use(
-		http.post('/api/plugins/importer/imports', () =>
-			HttpResponse.json({ error: 'the file is neither a CSV nor an Excel workbook' }, { status: 422 }),
-		),
+		http.post('/api/graphql', async ({ request }) => {
+			if (!(await multipartDocument(request)).includes('ImportUpload')) {
+				return undefined
+			}
+			return HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'the file is neither a CSV nor an Excel workbook',
+						extensions: { code: 'VALIDATION' },
+					},
+				],
+			})
+		}),
 	)
 	renderAt('/import')
 	await screen.findByRole('link', { name: 'contacts.csv' })

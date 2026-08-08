@@ -5,16 +5,16 @@ import {
 	ErrorNotice,
 	LoadingRows,
 	PageScreen,
+	graphError,
 	useGraph,
+	useGraphMutation,
 	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
-import { uploadImport } from './api'
 import { importerIcon } from './icon'
-import { importsQuery } from './operations'
+import { importUploadMutation, importsQuery } from './operations'
 
 /** ImportRow is one stored import as the history document selects it. */
 interface ImportRow {
@@ -35,10 +35,7 @@ interface ImportRow {
 export function ImportsScreen() {
 	const graph = useGraph()
 	const [imports] = useGraphQuery({ query: importsQuery })
-	const upload = useMutation({
-		mutationFn: (file: File) => uploadImport(file),
-		onSuccess: () => graph.refetch(['Imports']),
-	})
+	const [upload, startUpload] = useGraphMutation(importUploadMutation)
 
 	return (
 		<PageScreen title="Import">
@@ -46,12 +43,16 @@ export function ImportsScreen() {
 				type="file"
 				accept=".csv,.xlsx"
 				aria-label="Contacts file"
-				disabled={upload.isPending}
-				onChange={(event) => uploadChosen(event.target.files, upload.mutate)}
+				disabled={upload.fetching}
+				onChange={(event) =>
+					uploadChosen(event.target.files, (file) => {
+						void startUpload({ file }).then(() => graph.refetch(['Imports']))
+					})
+				}
 			/>
-			{upload.isError ? (
+			{upload.error ? (
 				<ErrorNotice>
-					{validationMessage(upload.error, 'The file could not be imported.')}
+					{validationMessage(graphError(upload.error), 'The file could not be imported.')}
 				</ErrorNotice>
 			) : null}
 			<ImportRows error={imports.error !== undefined} rows={imports.data?.imports} />

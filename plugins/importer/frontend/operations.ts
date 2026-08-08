@@ -43,3 +43,36 @@ export const importDetailQuery = graphql(`
 		}
 	}
 `)
+
+export const importUploadMutation = graphql(`
+	mutation ImportUpload($file: Upload!) {
+		importUpload(file: $file) {
+			id
+			filename
+		}
+	}
+`)
+
+export const importSetMappingMutation = graphql(`
+	mutation ImportSetMapping($id: UUID!, $assignments: [ImportAssignmentInput!]!) {
+		importSetMapping(id: $id, assignments: $assignments) {
+			id
+			state
+			mapping {
+				column
+				field
+			}
+		}
+	}
+`)
+
+export const importCommitMutation = graphql(`
+	mutation ImportCommit($id: UUID!) {
+		importCommit(id: $id) {
+			id
+			imported
+			skipped
+			failed
+		}
+	}
+`)

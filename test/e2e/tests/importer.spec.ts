@@ -37,8 +37,8 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 
 	const upload = page.waitForResponse(
 		(response) =>
-			response.url().includes('/api/plugins/importer/imports') &&
-			response.request().method() === 'POST',
+			response.url().includes('/api/graphql') &&
+			(response.request().headers()['content-type'] ?? '').startsWith('multipart/form-data'),
 	)
 	await page.getByLabel('Contacts file').setInputFiles({
 		name: 'contacts.csv',
@@ -52,7 +52,9 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	})
 
 	const uploaded = await upload
-	expect(uploaded.status(), await uploaded.text()).toBe(201)
+	const body = await uploaded.text()
+	expect(uploaded.status(), body).toBe(200)
+	expect(body, body).toContain('importUpload')
 
 	await page.getByRole('link', { name: 'contacts.csv' }).click()
 	await expect(page.getByRole('heading', { name: 'contacts.csv' })).toBeVisible()

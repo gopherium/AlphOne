@@ -8,16 +8,21 @@ import {
 	PageScreen,
 	SelectControl,
 	Text,
+	graphError,
 	useGraph,
+	useGraphMutation,
 	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation } from '@tanstack/react-query'
+import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Suspense, lazy, useState } from 'react'
 
-import { commitImport, saveMapping } from './api'
 import type { ImportDetailQuery } from './gql/graphql'
-import { importDetailQuery } from './operations'
+import {
+	importCommitMutation,
+	importDetailQuery,
+	importSetMappingMutation,
+} from './operations'
 
 const RowsTable = lazy(() => import('./RowsTable'))
 
@@ -77,21 +82,16 @@ function MappingForm({
 }) {
 	const graph = useGraph()
 	const [assigned, setAssigned] = useState<Record<string, string>>(assignedOf(stored.mapping))
-	const save = useMutation({
-		mutationFn: () => saveMapping(stored.id, assignmentsOf(assigned)),
-		onSuccess: () => graph.refetch(['ImportDetail', 'Imports']),
-	})
-	const commit = useMutation({
-		mutationFn: () => commitImport(stored.id),
-		onSuccess: () => graph.refetch(['ImportDetail', 'Imports']),
-	})
+	const [save, startSave] = useGraphMutation(importSetMappingMutation)
+	const [commit, startCommit] = useGraphMutation(importCommitMutation)
+	const refresh = () => graph.refetch(['ImportDetail', 'Imports'])
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				save.mutate()
+				void startSave({ id: stored.id, assignments: assignmentsOf(assigned) }).then(refresh)
 			}}
 		>
 			{stored.columns.map((column, index) => (
@@ -106,16 +106,18 @@ function MappingForm({
 			))}
 			<Button
 				type="submit"
-				disabled={save.isPending || stored.state !== 'ready'}
-				loading={save.isPending}
+				disabled={save.fetching || stored.state !== 'ready'}
+				loading={save.fetching}
 			>
 				Save mapping
 			</Button>
 			<Button
 				variant="solid"
-				disabled={commit.isPending || stored.state !== 'ready'}
-				loading={commit.isPending}
-				onClick={() => commit.mutate()}
+				disabled={commit.fetching || stored.state !== 'ready'}
+				loading={commit.fetching}
+				onClick={() => {
+					void startCommit({ id: stored.id }).then(refresh)
+				}}
 			>
 				Commit
 			</Button>
@@ -132,14 +134,22 @@ function MappingNotice({
 	save,
 	commit,
 }: {
-	save: { isError: boolean; error: unknown }
-	commit: { isError: boolean; error: unknown }
+	save: { error?: GraphFailure }
+	commit: { error?: GraphFailure }
 }) {
-	if (save.isError) {
-		return <ErrorNotice>{validationMessage(save.error, 'The mapping could not be saved.')}</ErrorNotice>
+	if (save.error) {
+		return (
+			<ErrorNotice>
+				{validationMessage(graphError(save.error), 'The mapping could not be saved.')}
+			</ErrorNotice>
+		)
 	}
-	if (commit.isError) {
-		return <ErrorNotice>{validationMessage(commit.error, 'The import could not be committed.')}</ErrorNotice>
+	if (commit.error) {
+		return (
+			<ErrorNotice>
+				{validationMessage(graphError(commit.error), 'The import could not be committed.')}
+			</ErrorNotice>
+		)
 	}
 	return null
 }

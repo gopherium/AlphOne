@@ -2,7 +2,6 @@
 
 import { GraphProvider } from '@alphone/frontend-sdk'
 import {
-	http,
 	HttpResponse,
 	fakeGraphClient,
 	graphql,
@@ -15,8 +14,6 @@ import { beforeEach, expect, test } from 'vitest'
 
 import { ImportScreen } from '../ImportScreen'
 import { handlers, importID } from '../handlers'
-
-const base = '/api/plugins/importer'
 
 /**
  * Renders the import screen for the fixture import.
@@ -109,9 +106,18 @@ test(
 	async () => {
 		let saved: unknown = null
 		server.use(
-			http.put(`${base}/imports/:id/mapping`, async ({ request }) => {
-				saved = await request.json()
-				return new HttpResponse(null, { status: 204 })
+			graphql.mutation('ImportSetMapping', ({ variables }) => {
+				saved = variables.assignments
+				return HttpResponse.json({
+					data: {
+						importSetMapping: {
+							__typename: 'ImportJob',
+							id: importID,
+							state: 'ready',
+							mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+						},
+					},
+				})
 			}),
 		)
 		await renderSettled()
@@ -119,17 +125,23 @@ test(
 		await chooseField('Name', 'Name')
 		await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
 
-		await waitFor(() =>
-			expect(saved).toEqual({ assignments: [{ column: 0, field: 'name' }] }),
-		)
+		await waitFor(() => expect(saved).toEqual([{ column: 0, field: 'name' }]))
 	},
 	20000,
 )
 
 test('a refused mapping is reported', async () => {
 	server.use(
-		http.put(`${base}/imports/:id/mapping`, () =>
-			HttpResponse.json({ error: 'no assignment claims the required field "name"' }, { status: 422 }),
+		graphql.mutation('ImportSetMapping', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'no assignment claims the required field "name"',
+						extensions: { code: 'VALIDATION' },
+					},
+				],
+			}),
 		),
 	)
 	await renderSettled()
@@ -144,9 +156,19 @@ test('a refused mapping is reported', async () => {
 test('the commit turns the rows into contacts', async () => {
 	let committed = false
 	server.use(
-		http.post(`${base}/imports/:id/commit`, () => {
+		graphql.mutation('ImportCommit', () => {
 			committed = true
-			return HttpResponse.json({ id: importID, imported: 2, skipped: 0, failed: 0 })
+			return HttpResponse.json({
+				data: {
+					importCommit: {
+						__typename: 'ImportCommitPayload',
+						id: importID,
+						imported: 2,
+						skipped: 0,
+						failed: 0,
+					},
+				},
+			})
 		}),
 	)
 	await renderSettled()
@@ -158,8 +180,16 @@ test('the commit turns the rows into contacts', async () => {
 
 test('a refused commit is reported', async () => {
 	server.use(
-		http.post(`${base}/imports/:id/commit`, () =>
-			HttpResponse.json({ error: 'the import carries no mapping yet' }, { status: 422 }),
+		graphql.mutation('ImportCommit', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'the import carries no mapping yet',
+						extensions: { code: 'VALIDATION' },
+					},
+				],
+			}),
 		),
 	)
 	await renderSettled()
