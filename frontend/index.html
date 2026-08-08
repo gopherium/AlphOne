@@ -5,9 +5,49 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AlphOne</title>
+    <style>
+      .alphone-boot {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        max-width: 480px;
+        padding: 32px;
+        opacity: 0;
+        animation: alphone-boot-in 200ms cubic-bezier(0.4, 0, 0.2, 1) 150ms
+          forwards;
+      }
+
+      .alphone-boot__bar {
+        height: 14px;
+        border-radius: 2px;
+        background: #f4f4f4;
+      }
+
+      .alphone-boot__bar--title {
+        height: 32px;
+        width: 40%;
+      }
+
+      .alphone-boot__bar--last {
+        width: 70%;
+      }
+
+      @keyframes alphone-boot-in {
+        100% {
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="alphone-boot" aria-hidden="true">
+        <div class="alphone-boot__bar alphone-boot__bar--title"></div>
+        <div class="alphone-boot__bar"></div>
+        <div class="alphone-boot__bar"></div>
+        <div class="alphone-boot__bar alphone-boot__bar--last"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
