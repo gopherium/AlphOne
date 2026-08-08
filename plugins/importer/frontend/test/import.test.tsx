@@ -154,10 +154,10 @@ test('a refused mapping is reported', async () => {
 })
 
 test('the commit turns the rows into contacts', async () => {
-	let committed = false
+	let committed: unknown = null
 	server.use(
-		graphql.mutation('ImportCommit', () => {
-			committed = true
+		graphql.mutation('ImportCommit', ({ variables }) => {
+			committed = variables.id
 			return HttpResponse.json({
 				data: {
 					importCommit: {
@@ -175,7 +175,7 @@ test('the commit turns the rows into contacts', async () => {
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
 
-	await waitFor(() => expect(committed).toBe(true))
+	await waitFor(() => expect(committed).toBe(importID))
 })
 
 test('a refused commit is reported', async () => {
