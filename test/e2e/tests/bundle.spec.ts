@@ -37,6 +37,13 @@ test('the entry bundle stays free of the import preview', () => {
 	expect(statSync(join(assets, entry)).size).toBeLessThan(entryCeiling)
 })
 
+test('the entry bundle stays free of the test mocks', () => {
+	const source = readFileSync(join(assets, chunk('index-', '.js')), 'utf8')
+
+	expect(source).not.toContain('msw/core/http')
+	expect(source).not.toContain('setupServer')
+})
+
 test('the import preview stays behind its own chunk', () => {
 	const preview = chunk('RowsTable-', '.js')
 
