@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useGraph, useGraphEvents } from '@alphone/frontend-sdk'
-import { useQueryClient } from '@tanstack/react-query'
 
 /** The subscription announcing every conversation the plugin changes. */
 const conversationEventSubscription = `subscription WhatsAppConversationEvent { whatsAppConversationEvent }`
@@ -12,9 +11,7 @@ const conversationEventSubscription = `subscription WhatsAppConversationEvent { 
  */
 export function useLiveUpdates() {
 	const graph = useGraph()
-	const queryClient = useQueryClient()
 	useGraphEvents(graph, conversationEventSubscription, () => {
 		graph.refetch(['WhatsAppConversations', 'WhatsAppThread'])
-		void queryClient.invalidateQueries({ queryKey: ['whatsapp'] })
 	})
 }

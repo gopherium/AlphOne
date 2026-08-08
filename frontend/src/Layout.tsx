@@ -19,7 +19,6 @@ export function Layout() {
 	useGraphStream({
 		graph,
 		operations: ['DayTasks', 'OverdueTasks', 'Contacts', 'ContactDetail'],
-		invalidateKeys: [['tasks']],
 	})
 	const location = useFrameLocation()
 	const canvas = useCanvas()

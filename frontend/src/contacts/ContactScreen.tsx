@@ -16,7 +16,6 @@ import {
 	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
@@ -102,11 +101,9 @@ function identityError(error: Parameters<typeof graphError>[0]): Error | undefin
  * @returns The refresh callback.
  */
 function useContactRefresh() {
-	const queryClient = useQueryClient()
 	const graph = useGraph()
-	return async () => {
+	return () => {
 		graph.refetch([contactDetailOperation])
-		await queryClient.invalidateQueries({ queryKey: ['contacts'] })
 	}
 }
 
@@ -120,7 +117,7 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 	const removeIdentity = async (identityId: string) => {
 		const result = await runRemove({ contactId: contact.id, identityId })
 		if (result.data) {
-			await settled()
+			settled()
 		}
 	}
 
@@ -174,7 +171,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 		if (result.data) {
 			setIdentifier('')
 			setLabel('')
-			await settled()
+			settled()
 		}
 	}
 
@@ -229,7 +226,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 	const submitRename = async () => {
 		const result = await runRename({ id: contact.id, name })
 		if (result.data) {
-			await settled()
+			settled()
 		}
 	}
 

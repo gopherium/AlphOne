@@ -5,7 +5,7 @@ import { fakeGraphClient } from '@alphone/frontend-sdk/testing'
 import type { FakeGraph } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render } from '@testing-library/react'
-import { expect, test, vi } from 'vitest'
+import { expect, test } from 'vitest'
 
 import { useLiveUpdates } from '../live'
 
@@ -27,16 +27,14 @@ async function renderProbe(fake: FakeGraph) {
 	return { client, view }
 }
 
-test('invalidates whatsapp queries when a conversation event arrives', async () => {
+test('reruns the plugin queries when a conversation event arrives', async () => {
 	const fake = fakeGraphClient()
-	const { client } = await renderProbe(fake)
-	const invalidate = vi.spyOn(client, 'invalidateQueries')
+	await renderProbe(fake)
 
 	expect(fake.documents[0]).toContain('whatsAppConversationEvent')
 
 	fake.emit({ whatsAppConversationEvent: 'conversation-id' })
 
-	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] })
 	expect(fake.graph.refetch).toHaveBeenCalledWith(['WhatsAppConversations', 'WhatsAppThread'])
 })
 
