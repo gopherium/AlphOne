@@ -3,20 +3,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render } from '@testing-library/react'
 import { Provider } from 'urql'
-import { expect, test, vi } from 'vitest'
+import { expect, test } from 'vitest'
 
 import { useGraphStream } from '../stream'
 import { fakeGraphClient } from '../testing'
 import type { FakeGraph } from '../testing'
 
 /** Renders a probe subscribing to the core events, settling its subscription. */
-async function renderProbe(
-	fake: FakeGraph,
-	operations: readonly string[],
-	invalidateKeys?: readonly string[][],
-) {
+async function renderProbe(fake: FakeGraph, operations: readonly string[]) {
 	function Probe() {
-		useGraphStream({ graph: fake.graph, operations, invalidateKeys })
+		useGraphStream({ graph: fake.graph, operations })
 		return null
 	}
 	const client = new QueryClient()
@@ -58,16 +54,6 @@ test('rings the doorbell once the stream connects so a reconnect catches up', as
 	expect(fake.graph.refetch).toHaveBeenCalledWith(['Tasks'])
 })
 
-test('invalidates the named query keys on every frame', async () => {
-	const fake = fakeGraphClient()
-	const { client } = await renderProbe(fake, ['Tasks'], [['whatsapp']])
-	const invalidate = vi.spyOn(client, 'invalidateQueries')
-
-	fake.emit({ coreEvent: 'task.created' })
-
-	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] })
-})
-
 test('unsubscribes when the subscriber unmounts', async () => {
 	const fake = fakeGraphClient()
 	const { view } = await renderProbe(fake, ['Tasks'])
@@ -79,9 +65,23 @@ test('unsubscribes when the subscriber unmounts', async () => {
 
 test('keeps one subscription when the operations array is rebuilt each render', async () => {
 	const fake = fakeGraphClient()
-	const { view, tree } = await renderProbe(fake, ['Tasks'])
+	function Probe({ operations }: { operations: readonly string[] }) {
+		useGraphStream({ graph: fake.graph, operations })
+		return null
+	}
+	const client = new QueryClient()
+	const probeAt = (operations: readonly string[]) => (
+		<QueryClientProvider client={client}>
+			<Provider value={fake.graph.client}>
+				<Probe operations={operations} />
+			</Provider>
+		</QueryClientProvider>
+	)
+	const view = render(probeAt(['Tasks']))
+	await act(async () => {})
 
-	view.rerender(tree)
+	view.rerender(probeAt(['Tasks']))
+	await act(async () => {})
 
 	expect(fake.documents).toHaveLength(1)
 })

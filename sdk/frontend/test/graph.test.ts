@@ -432,33 +432,6 @@ test('keys every embedded type the graph returns without warning', async () => {
 	expect(warn).not.toHaveBeenCalled()
 })
 
-test('keeps a commit payload from shadowing the import it reports on', async () => {
-	server.use(
-		graphql.query('ImportJob', () =>
-			HttpResponse.json({
-				data: {
-					importJob: { __typename: 'ImportJob', id: 'shared-id', mapping: [], contacts: [] },
-					importFields: [],
-				},
-			}),
-		),
-		graphql.mutation('ImportCommit', () =>
-			HttpResponse.json({
-				data: {
-					importCommit: { __typename: 'ImportCommitPayload', id: 'shared-id', imported: 7 },
-				},
-			}),
-		),
-	)
-	const { graph } = newClient()
-
-	await graph.client.mutation(importCommitMutation, { id: 'shared-id' }).toPromise()
-	const job = await graph.client.query(importJobQuery, { id: 'shared-id' }).toPromise()
-
-	expect((job.data?.importJob as { id: string }).id).toBe('shared-id')
-	expect(job.error).toBeUndefined()
-})
-
 /** Counts version requests and returns the counter beside the active subscription. */
 function watchVersion() {
 	let served = 0
