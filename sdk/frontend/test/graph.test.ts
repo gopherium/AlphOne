@@ -5,7 +5,7 @@ import { gql } from 'urql'
 import { expect, test, vi } from 'vitest'
 
 import { ValidationError } from '../errors'
-import { createGraphClient, graphError } from '../graph'
+import { createGraphClient, graphError, graphExtensions } from '../graph'
 import { HttpResponse, graphql, server } from '../testing'
 
 const versionQuery = gql`
@@ -152,6 +152,45 @@ test('maps an unclassified graph error onto a plain error carrying its message',
 
 test('reports no error for a result that carries none', () => {
 	expect(graphError(undefined)).toBeUndefined()
+})
+
+test('maps a CONFLICT entry onto the shared validation error with its message', async () => {
+	respondWithError('Version', 'CONFLICT', 'contact: identity already exists')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	const mapped = graphError(result.error)
+	expect(mapped).toBeInstanceOf(ValidationError)
+	expect(mapped?.message).toBe('contact: identity already exists')
+})
+
+test('carries the extensions of a classified failure', async () => {
+	server.use(
+		graphql.query('Version', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'contact: identity already exists',
+						extensions: { code: 'CONFLICT', ownerName: 'Maria Perez' },
+					},
+				],
+			}),
+		),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphExtensions(result.error)).toMatchObject({
+		code: 'CONFLICT',
+		ownerName: 'Maria Perez',
+	})
+})
+
+test('carries no extensions when nothing failed', () => {
+	expect(graphExtensions(undefined)).toEqual({})
 })
 
 /** Returns one contact edge as the graph serializes it. */

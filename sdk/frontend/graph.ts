@@ -23,6 +23,15 @@ function errorCode(error: CombinedError): string | undefined {
 }
 
 /**
+ * Returns the extensions the first graph error of a failure carries.
+ * @param error - The failure a graph operation answered with.
+ * @returns The extensions, empty when the operation succeeded.
+ */
+export function graphExtensions(error: CombinedError | undefined): Record<string, unknown> {
+	return (error?.graphQLErrors[0]?.extensions ?? {}) as Record<string, unknown>
+}
+
+/**
  * Maps a graph failure onto the error class the screens branch on.
  * @param error - The failure a graph operation answered with.
  * @returns The mapped error, or undefined when the operation succeeded.
@@ -36,6 +45,7 @@ export function graphError(error: CombinedError | undefined): Error | undefined 
 		case 'UNAUTHENTICATED':
 			return new UnauthorizedError(message)
 		case 'VALIDATION':
+		case 'CONFLICT':
 			return new ValidationError(message)
 		default:
 			return new Error(message)
