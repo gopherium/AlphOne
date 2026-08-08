@@ -40,8 +40,7 @@ test('the entry bundle stays free of the import preview', () => {
 test('the entry bundle stays free of the test mocks', () => {
 	const source = readFileSync(join(assets, chunk('index-', '.js')), 'utf8')
 
-	expect(source).not.toContain('msw/core/http')
-	expect(source).not.toContain('setupServer')
+	expect(source).not.toContain('[MSW]')
 })
 
 test('the import preview stays behind its own chunk', () => {
