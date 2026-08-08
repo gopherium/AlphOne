@@ -1,3 +1,5 @@
+engineStrict: true
+
 packages:
   - frontend
   - sdk/frontend
