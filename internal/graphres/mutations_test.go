@@ -32,6 +32,16 @@ func (p *recordingPublisher) Publish(_ context.Context, frame event.Frame, data 
 	p.payloads = append(p.payloads, data)
 }
 
+// audienceOf returns the audience of the first frame published under name.
+func (p *recordingPublisher) audienceOf(name event.Name) uuid.UUID {
+	for i, published := range p.names {
+		if published == name {
+			return p.audiences[i]
+		}
+	}
+	return uuid.Nil
+}
+
 // countOf reports how many times name was published.
 func (p *recordingPublisher) countOf(name event.Name) int {
 	count := 0
@@ -398,6 +408,9 @@ func TestUpdateTaskLifecycle(t *testing.T) {
 	}
 	if got := h.events.countOf(event.TaskCompleted); got != 1 {
 		t.Fatalf("task.completed count = %d, want 1", got)
+	}
+	if got := h.events.audienceOf(event.TaskCompleted); got != h.assignee {
+		t.Errorf("task.completed audience = %s, want the assignee %s", got, h.assignee)
 	}
 
 	h.client.MustPost(fmt.Sprintf(

@@ -10,18 +10,18 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 )
 
-// maria and noah stand in for two signed in users.
+// addressee and bystander stand in for two signed in users.
 var (
-	maria = uuid.MustParse("0198c000-0000-7000-8000-000000000001")
-	noah  = uuid.MustParse("0198c000-0000-7000-8000-000000000002")
+	addressee = uuid.MustParse("0198c000-0000-7000-8000-000000000001")
+	bystander = uuid.MustParse("0198c000-0000-7000-8000-000000000002")
 )
 
 func TestHubDeliversSharedFramesToAllSubscribers(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	first := hub.Subscribe(maria)
-	second := hub.Subscribe(noah)
+	first := hub.Subscribe(addressee)
+	second := hub.Subscribe(bystander)
 
 	hub.Broadcast(event.Frame{Name: event.ContactCreated})
 
@@ -37,16 +37,16 @@ func TestHubDeliversATargetedFrameOnlyToItsAudience(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	hers := hub.Subscribe(maria)
-	his := hub.Subscribe(noah)
+	addressed := hub.Subscribe(addressee)
+	unaddressed := hub.Subscribe(bystander)
 
-	hub.Broadcast(event.Frame{Name: event.TaskCreated, Audience: maria})
+	hub.Broadcast(event.Frame{Name: event.TaskCreated, Audience: addressee})
 
-	if got := <-hers; got != event.TaskCreated {
+	if got := <-addressed; got != event.TaskCreated {
 		t.Errorf("the assignee got %q, want %q", got, event.TaskCreated)
 	}
-	if len(his) != 0 {
-		t.Errorf("the other subscriber buffered %d frames, want none", len(his))
+	if len(unaddressed) != 0 {
+		t.Errorf("the other subscriber buffered %d frames, want none", len(unaddressed))
 	}
 }
 
@@ -54,7 +54,7 @@ func TestHubCountsItsSubscribers(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	subscription := hub.Subscribe(maria)
+	subscription := hub.Subscribe(addressee)
 
 	if got := hub.Subscribers(); got != 1 {
 		t.Errorf("Subscribers() = %d, want 1", got)
@@ -69,7 +69,7 @@ func TestHubStopsDeliveringAfterUnsubscribe(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	subscription := hub.Subscribe(maria)
+	subscription := hub.Subscribe(addressee)
 	hub.Unsubscribe(subscription)
 
 	hub.Broadcast(event.Frame{Name: event.ContactCreated})
@@ -83,8 +83,8 @@ func TestHubBroadcastDoesNotBlockOnAFullSubscriber(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	stalled := hub.Subscribe(maria)
-	listening := hub.Subscribe(noah)
+	stalled := hub.Subscribe(addressee)
+	listening := hub.Subscribe(bystander)
 
 	for range 32 {
 		hub.Broadcast(event.Frame{Name: event.ContactCreated})

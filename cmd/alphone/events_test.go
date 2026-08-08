@@ -42,7 +42,8 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	hub := event.NewHub()
 	assignee := uuid.Must(uuid.NewV7())
-	listener := hub.Subscribe(assignee)
+	addressed := hub.Subscribe(assignee)
+	unaddressed := hub.Subscribe(uuid.Must(uuid.NewV7()))
 	publisher := nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
 		worker:     webhook.NewWorker(emptyQueue{}, logger),
@@ -56,11 +57,38 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	)
 
 	select {
-	case got := <-listener:
+	case got := <-addressed:
 		if got != event.TaskCreated {
 			t.Errorf("hub delivered %q, want %q", got, event.TaskCreated)
 		}
 	default:
 		t.Error("hub delivered nothing, want the published name")
+	}
+	if len(unaddressed) != 0 {
+		t.Errorf("a subscriber outside the audience buffered %d frames, want none", len(unaddressed))
+	}
+}
+
+func TestPluginPublishReachesEverySubscriber(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.DiscardHandler)
+	hub := event.NewHub()
+	elsewhere := hub.Subscribe(uuid.Must(uuid.NewV7()))
+	publisher := pluginPublisher{publisher: nudgingPublisher{
+		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
+		worker:     webhook.NewWorker(emptyQueue{}, logger),
+		hub:        hub,
+	}}
+
+	publisher.Publish(t.Context(), "whatsapp.message.received", map[string]any{"id": "abc"})
+
+	select {
+	case got := <-elsewhere:
+		if got != event.Name("whatsapp.message.received") {
+			t.Errorf("hub delivered %q, want the plugin event", got)
+		}
+	default:
+		t.Error("hub delivered nothing to an unrelated subscriber, want a plugin event everyone sees")
 	}
 }

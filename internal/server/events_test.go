@@ -149,6 +149,9 @@ func TestCompletingATaskPublishesTaskCompleted(t *testing.T) {
 	if !events.sawOnly(event.TaskCompleted) {
 		t.Errorf("published %v, want only %q", events.names(), event.TaskCompleted)
 	}
+	if got := events.published[0].Audience; got != onlyTask(t, tasks).AssigneeID {
+		t.Errorf("task.completed audience = %s, want the assignee %s", got, onlyTask(t, tasks).AssigneeID)
+	}
 }
 
 func TestReopeningATaskPublishesNothing(t *testing.T) {
