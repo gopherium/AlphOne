@@ -136,6 +136,9 @@ type Query {
 	importFields: [ImportField!]!
 	whatsAppConversations(limit: Int): [WhatsAppConversation!]!
 }
+type Subscription {
+	coreEvent: String!
+}
 type Task {
 	id: UUID!
 	assigneeId: UUID!

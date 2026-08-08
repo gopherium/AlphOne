@@ -49,6 +49,7 @@ type graphPolicy struct {
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
 func newGraphQLHandler(root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int) http.Handler {
 	srv := handler.New(graphres.ExecutableSchema(root))
+	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})
 	srv.Use(extension.Introspection{})

@@ -19,3 +19,7 @@ type PageInfo {
 type Query {
   version: String!
 }
+
+type Subscription {
+  coreEvent: String!
+}

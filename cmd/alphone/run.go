@@ -95,6 +95,7 @@ func run(
 		Tasks:        tasks,
 		Webhooks:     webhooks,
 		Events:       events,
+		Live:         hub,
 		Auth:         auth,
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),

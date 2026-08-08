@@ -36,6 +36,7 @@ type ResolverRoot interface {
 	ImportJob() ImportJobResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 	Task() TaskResolver
 	WhatsAppConversation() WhatsAppConversationResolver
 }
@@ -180,6 +181,10 @@ type ComplexityRoot struct {
 		WhatsAppConversations func(childComplexity int, limit *int) int
 	}
 
+	Subscription struct {
+		CoreEvent func(childComplexity int) int
+	}
+
 	Task struct {
 		AssigneeID    func(childComplexity int) int
 		Contact       func(childComplexity int) int
@@ -297,6 +302,9 @@ type QueryResolver interface {
 	ImportJob(ctx context.Context, id uuid.UUID) (*model.ImportJob, error)
 	ImportFields(ctx context.Context) ([]*model.ImportField, error)
 	WhatsAppConversations(ctx context.Context, limit *int) ([]*model.WhatsAppConversation, error)
+}
+type SubscriptionResolver interface {
+	CoreEvent(ctx context.Context) (<-chan string, error)
 }
 type TaskResolver interface {
 	Contact(ctx context.Context, obj *model.Task) (*model.Contact, error)
@@ -967,6 +975,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.WhatsAppConversations(childComplexity, args["limit"].(*int)), true
 
+	case "Subscription.coreEvent":
+		if e.ComplexityRoot.Subscription.CoreEvent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.CoreEvent(childComplexity), true
+
 	case "Task.assigneeId":
 		if e.ComplexityRoot.Task.AssigneeID == nil {
 			break
@@ -1317,6 +1332,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
 			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
 			data.MarshalGQL(&buf)
 
 			return &graphql.Response{
@@ -5169,6 +5201,29 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_coreEvent(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_coreEvent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().CoreEvent(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_coreEvent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Task_id(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
@@ -9032,6 +9087,26 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	})
 
 	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		graphql.AddErrorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "coreEvent":
+		return ec._Subscription_coreEvent(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
 }
 
 var taskImplementors = []string{"Task"}

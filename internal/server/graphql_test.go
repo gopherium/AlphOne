@@ -40,7 +40,7 @@ func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-	root, err := graphroot.FromPlugins(&graphres.Resolver{
+	resolver := &graphres.Resolver{
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
 		Tasks:        cfg.Tasks,
@@ -49,7 +49,11 @@ func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
 		Auth:         auth,
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-	}, []sdk.Plugin{whatsappPlugin, importerPlugin})
+	}
+	if cfg.Live != nil {
+		resolver.Live = cfg.Live
+	}
+	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{whatsappPlugin, importerPlugin})
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}

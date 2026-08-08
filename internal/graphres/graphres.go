@@ -60,6 +60,12 @@ type Publisher interface {
 	Publish(ctx context.Context, frame event.Frame, data map[string]any)
 }
 
+// Broadcaster hands out the event names a user may see.
+type Broadcaster interface {
+	Subscribe(user uuid.UUID) chan event.Name
+	Unsubscribe(names chan event.Name)
+}
+
 // AttemptLimiter budgets failed logins per client key.
 type AttemptLimiter interface {
 	Check(key string) (bool, time.Duration, error)
@@ -78,6 +84,8 @@ type Resolver struct {
 	Webhooks WebhookStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
+	// Live hands subscriptions the frames they may see. Nil serves no subscription.
+	Live Broadcaster
 	// Auth serves login sessions through the authkit seams.
 	Auth *authkit.Handlers
 	// Admin serves user administration through the authkit seams.

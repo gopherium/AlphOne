@@ -135,6 +135,9 @@ type PageInfo struct {
 type Query struct {
 }
 
+type Subscription struct {
+}
+
 type Task struct {
 	ID            uuid.UUID  `json:"id"`
 	AssigneeID    uuid.UUID  `json:"assigneeId"`

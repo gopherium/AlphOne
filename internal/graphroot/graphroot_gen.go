@@ -18,6 +18,7 @@ type CoreGraphResolvers interface {
 	ContactResolvers() graphres.ContactResolvers
 	MutationResolvers() graphres.MutationResolvers
 	QueryResolvers() graphres.QueryResolvers
+	SubscriptionResolvers() graphres.SubscriptionResolvers
 	TaskResolvers() graphres.TaskResolvers
 }
 
@@ -146,6 +147,11 @@ func (g graphRoot) Query() graph.QueryResolver {
 		g.importer.QueryResolvers(),
 		g.whatsapp.QueryResolvers(),
 	}
+}
+
+// Subscription returns the Subscription resolver set.
+func (g graphRoot) Subscription() graph.SubscriptionResolver {
+	return g.core.SubscriptionResolvers()
 }
 
 // Task returns the Task resolver set.
