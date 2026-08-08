@@ -128,17 +128,31 @@ answers `404`.
 
 ## Live updates
 
-`GET /api/plugins/whatsapp/events` is a Server-Sent Events stream that
-fires whenever a thread changes, whether from an inbound message, a
-delivery status, or a downloaded file.
+Thread changes ride the GraphQL subscriptions on `/api/graphql` rather
+than a REST route. A client posts with `Accept: text/event-stream`.
 
-```text
-data: {"conversation":"0198e000-0000-7000-8000-000000000001"}
+```graphql
+subscription {
+  whatsAppConversationEvent
+}
 ```
 
-The frame names the thread rather than carrying its contents, so a
-client refetches the parts it cares about. There is no event name, no
-id, and no replay after a disconnect.
+`whatsAppConversationEvent` names the thread that changed, whether from
+an inbound message, a delivery status, or a downloaded file, so a client
+refetches the parts it cares about. There is no replay after a
+disconnect.
 
-A stream holds one of the 5 concurrent plugin request slots a user has,
+An open thread can take its arrivals directly instead of refetching.
+
+```graphql
+subscription ($id: UUID!) {
+  whatsAppMessageReceived(conversationId: $id) {
+    id
+    content
+    sentAt
+  }
+}
+```
+
+A subscription holds one of the 5 concurrent stream slots a user has,
 and is closed after 5 minutes. Clients are expected to reconnect.

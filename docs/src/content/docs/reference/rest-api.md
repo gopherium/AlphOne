@@ -330,16 +330,24 @@ signature, and the retry policy.
 
 ## Live events
 
-`GET /api/events` is a Server-Sent Events stream announcing published
-events as `{"event": "task.created"}`, names only. Shared events reach
-every open session, whoever caused the change. Task events reach only
-the assignee, so a session hears nothing when another user's task is
-created or completed. The AlphOne frontend uses the stream to refresh
-open screens the moment something changes. For payloads or reliable
-delivery, subscribe a [webhook](/reference/webhooks/) instead: the
-stream replays nothing and drops names a slow reader misses. Streams
-rotate on a lifetime bound and are capped per user, so treat a close as
-routine and reconnect.
+Live updates no longer ride a REST route. The GraphQL endpoint serves
+them as subscriptions over Server-Sent Events, so a client posts to
+`/api/graphql` with `Accept: text/event-stream`.
+
+```graphql
+subscription {
+  coreEvent
+}
+```
+
+`coreEvent` announces published event names, `task.created` and the
+rest, names only. Shared events reach every open session, whoever caused
+the change. Task events reach only the assignee, so a session hears
+nothing when another user's task is created or completed. For payloads
+or reliable delivery, subscribe a [webhook](/reference/webhooks/)
+instead: the subscription replays nothing and drops names a slow reader
+misses. Subscriptions rotate on a lifetime bound and are capped per
+user, so treat a close as routine and reconnect.
 
 ## Version
 
