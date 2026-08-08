@@ -138,6 +138,8 @@ type Query {
 }
 type Subscription {
 	coreEvent: String!
+	whatsAppConversationEvent: UUID!
+	whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
 }
 type Task {
 	id: UUID!

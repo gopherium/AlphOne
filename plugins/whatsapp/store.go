@@ -171,31 +171,36 @@ func upsertConversation(
 }
 
 // persistInbound stores an inbound message, its conversation, and any pending
-// media in one transaction, reporting the conversation id and whether the
-// message is new rather than a redelivery.
-func (s *store) persistInbound(ctx context.Context, contactID uuid.UUID, m inboundMessage) (uuid.UUID, bool, error) {
+// media in one transaction, reporting the conversation id and the stored row of
+// a message that is new rather than a redelivery.
+func (s *store) persistInbound(
+	ctx context.Context, contactID uuid.UUID, m inboundMessage,
+) (uuid.UUID, *messageRow, error) {
 	var conversationID uuid.UUID
-	var stored bool
+	var arrival *messageRow
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
 		conversationID, err = upsertConversation(ctx, tx, contactID, m.sender, m.sentAt)
 		if err != nil {
 			return err
 		}
-		var messageID uuid.UUID
-		messageID, stored, err = insertMessage(ctx, tx, conversationID, m)
+		inserted, stored, err := insertMessage(ctx, tx, conversationID, m)
 		if err != nil {
 			return err
 		}
-		if !stored || m.media == nil {
+		if !stored {
 			return nil
 		}
-		return insertMediaPending(ctx, tx, messageID, *m.media)
+		arrival = &inserted
+		if m.media == nil {
+			return nil
+		}
+		return insertMediaPending(ctx, tx, inserted.ID, *m.media)
 	})
 	if err != nil {
-		return uuid.Nil, false, fmt.Errorf("whatsapp: persist inbound: %w", err)
+		return uuid.Nil, nil, fmt.Errorf("whatsapp: persist inbound: %w", err)
 	}
-	return conversationID, stored, nil
+	return conversationID, arrival, nil
 }
 
 type outboundMessage struct {
@@ -304,25 +309,28 @@ func insertMessage(
 	exec pgxExecutor,
 	conversationID uuid.UUID,
 	m inboundMessage,
-) (uuid.UUID, bool, error) {
+) (messageRow, bool, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return uuid.Nil, false, fmt.Errorf("whatsapp: generate message id: %w", err)
+		return messageRow{}, false, fmt.Errorf("whatsapp: generate message id: %w", err)
 	}
-	var insertedID uuid.UUID
+	var inserted messageRow
 	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
 		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8)
 		ON CONFLICT (external_id) DO NOTHING
-		RETURNING id`,
+		RETURNING id, external_id, direction, content, content_type, sent_at`,
 		id, conversationID, m.externalID, m.content, m.contentType, m.sentAt, m.raw, time.Now().UTC(),
-	).Scan(&insertedID)
+	).Scan(
+		&inserted.ID, &inserted.ExternalID, &inserted.Direction,
+		&inserted.Content, &inserted.ContentType, &inserted.SentAt,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, false, nil
+		return messageRow{}, false, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, fmt.Errorf("whatsapp: insert message: %w", err)
+		return messageRow{}, false, fmt.Errorf("whatsapp: insert message: %w", err)
 	}
-	return insertedID, true, nil
+	return inserted, true, nil
 }

@@ -41,3 +41,8 @@ extend type Contact {
 extend type Mutation {
   whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
 }
+
+extend type Subscription {
+  whatsAppConversationEvent: UUID!
+  whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
+}

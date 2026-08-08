@@ -197,7 +197,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 			}
 		},
 		"after pending media": func(t *testing.T, p *Plugin, conversationID uuid.UUID) {
-			messageID, _, err := insertMessage(t.Context(), p.pool, conversationID, inboundMessage{
+			message, _, err := insertMessage(t.Context(), p.pool, conversationID, inboundMessage{
 				externalID:  "wamid.seed.3",
 				content:     "Is it this model?",
 				contentType: "image",
@@ -208,7 +208,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 				t.Fatalf("pre-inserting media message: %v", err)
 			}
 			descriptor := mediaDescriptor{mediaID: "seed-media-1", mimeType: "image/png", sha256: "c2hh"}
-			if err := insertMediaPending(t.Context(), p.pool, messageID, descriptor); err != nil {
+			if err := insertMediaPending(t.Context(), p.pool, message.ID, descriptor); err != nil {
 				t.Fatalf("pre-inserting pending media: %v", err)
 			}
 		},

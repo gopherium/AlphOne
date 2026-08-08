@@ -40,6 +40,7 @@ func newGraphQLServer(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.Pool) *han
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}
 	srv := handler.New(graphres.ExecutableSchema(root))
+	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv

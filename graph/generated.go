@@ -182,7 +182,9 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		CoreEvent func(childComplexity int) int
+		CoreEvent                 func(childComplexity int) int
+		WhatsAppConversationEvent func(childComplexity int) int
+		WhatsAppMessageReceived   func(childComplexity int, conversationID uuid.UUID) int
 	}
 
 	Task struct {
@@ -305,6 +307,8 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	CoreEvent(ctx context.Context) (<-chan string, error)
+	WhatsAppConversationEvent(ctx context.Context) (<-chan uuid.UUID, error)
+	WhatsAppMessageReceived(ctx context.Context, conversationID uuid.UUID) (<-chan *model.WhatsAppMessage, error)
 }
 type TaskResolver interface {
 	Contact(ctx context.Context, obj *model.Task) (*model.Contact, error)
@@ -981,6 +985,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.CoreEvent(childComplexity), true
+	case "Subscription.whatsAppConversationEvent":
+		if e.ComplexityRoot.Subscription.WhatsAppConversationEvent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.WhatsAppConversationEvent(childComplexity), true
+	case "Subscription.whatsAppMessageReceived":
+		if e.ComplexityRoot.Subscription.WhatsAppMessageReceived == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_whatsAppMessageReceived_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.WhatsAppMessageReceived(childComplexity, args["conversationId"].(uuid.UUID)), true
 
 	case "Task.assigneeId":
 		if e.ComplexityRoot.Task.AssigneeID == nil {
@@ -1505,6 +1526,11 @@ extend type Contact {
 
 extend type Mutation {
   whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+}
+
+extend type Subscription {
+  whatsAppConversationEvent: UUID!
+  whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
 }
 `, BuiltIn: false},
 }
@@ -2477,6 +2503,20 @@ func (ec *executionContext) field_Query_whatsAppConversations_args(ctx context.C
 		return nil, err
 	}
 	args["limit"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_whatsAppMessageReceived_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversationId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversationId"] = arg0
 	return args, nil
 }
 
@@ -5224,6 +5264,73 @@ func (ec *executionContext) _Subscription_coreEvent(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_Subscription_coreEvent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Subscription_whatsAppConversationEvent(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_whatsAppConversationEvent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().WhatsAppConversationEvent(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_whatsAppConversationEvent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _Subscription_whatsAppMessageReceived(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_whatsAppMessageReceived(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().WhatsAppMessageReceived(ctx, fc.Args["conversationId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WhatsAppMessage) graphql.Marshaler {
+			return ec.marshalNWhatsAppMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_whatsAppMessageReceived(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_whatsAppMessageReceived_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Task_id(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
@@ -9104,6 +9211,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "coreEvent":
 		return ec._Subscription_coreEvent(ctx, fields[0])
+	case "whatsAppConversationEvent":
+		return ec._Subscription_whatsAppConversationEvent(ctx, fields[0])
+	case "whatsAppMessageReceived":
+		return ec._Subscription_whatsAppMessageReceived(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}

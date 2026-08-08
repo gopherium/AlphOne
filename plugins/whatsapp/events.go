@@ -349,12 +349,12 @@ func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 	if err != nil {
 		return fmt.Errorf("whatsapp: resolve sender: %w", err)
 	}
-	conversationID, stored, err := p.store.persistInbound(ctx, owner.ID, m)
+	conversationID, arrival, err := p.store.persistInbound(ctx, owner.ID, m)
 	if err != nil {
 		return err
 	}
-	if stored {
-		p.events.broadcast(event{Conversation: conversationID})
+	if arrival != nil {
+		p.events.broadcast(event{Conversation: conversationID, Message: arrival})
 		p.publish(ctx, owner, conversationID, m)
 		if m.media != nil {
 			p.fetcher.poke()

@@ -34,6 +34,7 @@ type WhatsappGraphResolvers interface {
 	ContactResolvers() whatsapp.ContactResolvers
 	MutationResolvers() whatsapp.MutationResolvers
 	QueryResolvers() whatsapp.QueryResolvers
+	SubscriptionResolvers() whatsapp.SubscriptionResolvers
 	WhatsAppConversationResolvers() whatsapp.WhatsAppConversationResolvers
 }
 
@@ -79,6 +80,18 @@ type composedQueryResolver struct {
 	coreQueryResolvers
 	importerQueryResolvers
 	whatsappQueryResolvers
+}
+
+// coreSubscriptionResolvers names the core Subscription resolver set for embedding.
+type coreSubscriptionResolvers = graphres.SubscriptionResolvers
+
+// whatsappSubscriptionResolvers names the whatsapp Subscription resolver set for embedding.
+type whatsappSubscriptionResolvers = whatsapp.SubscriptionResolvers
+
+// composedSubscriptionResolver merges every contributed Subscription resolver set.
+type composedSubscriptionResolver struct {
+	coreSubscriptionResolvers
+	whatsappSubscriptionResolvers
 }
 
 // graphRoot composes the core and plugin resolver sets into the resolver root.
@@ -151,7 +164,10 @@ func (g graphRoot) Query() graph.QueryResolver {
 
 // Subscription returns the Subscription resolver set.
 func (g graphRoot) Subscription() graph.SubscriptionResolver {
-	return g.core.SubscriptionResolvers()
+	return composedSubscriptionResolver{
+		g.core.SubscriptionResolvers(),
+		g.whatsapp.SubscriptionResolvers(),
+	}
 }
 
 // Task returns the Task resolver set.

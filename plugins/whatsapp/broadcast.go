@@ -8,9 +8,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// subscriberBuffer is how many events a subscriber can lag behind.
+const subscriberBuffer = 8
+
 // event notifies subscribers that a conversation changed.
 type event struct {
+	// Conversation is the conversation the change belongs to.
 	Conversation uuid.UUID `json:"conversation"`
+	// Message is the arrival the change carries. Nil for every other change.
+	Message *messageRow `json:"-"`
 }
 
 // broadcaster fans out events to every current subscriber. A subscriber
@@ -27,7 +33,7 @@ func newBroadcaster() *broadcaster {
 
 // subscribe registers a new subscriber and returns its buffered channel.
 func (b *broadcaster) subscribe() chan event {
-	ch := make(chan event, 8)
+	ch := make(chan event, subscriberBuffer)
 	b.mu.Lock()
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
