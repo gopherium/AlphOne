@@ -2,6 +2,41 @@
 
 import { graphql } from '../gql'
 
+export const createContactMutation = graphql(`
+	mutation CreateContact($name: String!) {
+		createContact(name: $name) {
+			id
+			name
+		}
+	}
+`)
+
+export const renameContactMutation = graphql(`
+	mutation RenameContact($id: UUID!, $name: String!) {
+		renameContact(id: $id, name: $name) {
+			id
+			name
+		}
+	}
+`)
+
+export const addContactIdentityMutation = graphql(`
+	mutation AddContactIdentity($contactId: UUID!, $identity: ContactIdentityInput!) {
+		addContactIdentity(contactId: $contactId, identity: $identity) {
+			id
+			channel
+			identifier
+			displayName
+		}
+	}
+`)
+
+export const deleteContactIdentityMutation = graphql(`
+	mutation DeleteContactIdentity($contactId: UUID!, $identityId: UUID!) {
+		deleteContactIdentity(contactId: $contactId, identityId: $identityId)
+	}
+`)
+
 export const contactDetailQuery = graphql(`
 	query ContactDetail($id: UUID!, $first: Int, $after: String) {
 		contact(id: $id) {

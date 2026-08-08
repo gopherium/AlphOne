@@ -7,13 +7,12 @@ import {
 	Text,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useGraph } from '@alphone/frontend-sdk'
+import { graphError, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { createTask, patchTask } from './api'
 import { isoDate, laterDate, shiftDate } from './format'
+import { createTaskMutation, updateTaskMutation } from './operations'
 import { TaskList } from './TaskList'
 import type { RowControls, ListedTask } from './TaskList'
 
@@ -32,29 +31,37 @@ export function ContactTasks({
 	tasks: ConnectionResult<ListedTask>
 }) {
 	const today = isoDate(new Date())
-	const queryClient = useQueryClient()
 	const graph = useGraph()
-	const settled = async () => {
-		graph.refetch([contactDetailOperation])
-		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
-	}
 	const [title, setTitle] = useState('')
-	const add = useMutation({
-		mutationFn: () => createTask(title, today, { contact_id: contactId }),
-		onSuccess: async () => {
+	const [pendingID, setPendingID] = useState('')
+	const [add, runAdd] = useGraphMutation(createTaskMutation)
+	const [change, runChange] = useGraphMutation(updateTaskMutation)
+	const [push, runPush] = useGraphMutation(updateTaskMutation)
+	const settled = () => graph.refetch([contactDetailOperation])
+	const submitAdd = async () => {
+		const result = await runAdd({ input: { title, dueOn: today, contactId } })
+		if (result.data) {
 			setTitle('')
-			await settled()
-		},
-	})
-	const change = useMutation({
-		mutationFn: (task: ListedTask) => patchTask(task.id, { status: 'done' }),
-		onSuccess: settled,
-	})
-	const push = useMutation({
-		mutationFn: (task: ListedTask) =>
-			patchTask(task.id, { due_on: shiftDate(laterDate(task.due_on, today), 1) }),
-		onSuccess: settled,
-	})
+			settled()
+		}
+	}
+	const completeTask = async (task: ListedTask) => {
+		setPendingID(task.id)
+		const result = await runChange({ id: task.id, input: { status: 'done' } })
+		setPendingID('')
+		if (result.data) {
+			settled()
+		}
+	}
+	const pushTask = async (task: ListedTask) => {
+		const result = await runPush({
+			id: task.id,
+			input: { dueOn: shiftDate(laterDate(task.due_on, today), 1) },
+		})
+		if (result.data) {
+			settled()
+		}
+	}
 
 	return (
 		<div className="alphone-tasks__contact-block">
@@ -65,7 +72,7 @@ export function ContactTasks({
 				className="alphone-tasks__add"
 				onSubmit={(event) => {
 					event.preventDefault()
-					add.mutate()
+					void submitAdd()
 				}}
 			>
 				<InputControl
@@ -77,24 +84,26 @@ export function ContactTasks({
 				/>
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || add.isPending}
-					loading={add.isPending}
+					disabled={title.trim() === '' || add.fetching}
+					loading={add.fetching}
 				>
 					Add task
 				</Button>
 			</form>
-			{add.isError ? (
-				<ErrorNotice>{validationMessage(add.error, 'The task could not be added.')}</ErrorNotice>
+			{add.error ? (
+				<ErrorNotice>
+					{validationMessage(graphError(add.error), 'The task could not be added.')}
+				</ErrorNotice>
 			) : null}
-			{change.isError || push.isError ? (
+			{change.error || push.error ? (
 				<ErrorNotice>The task could not be updated.</ErrorNotice>
 			) : null}
 			<ContactTaskList
 				tasks={tasks}
 				controls={{
-					onChange: (task) => change.mutate(task),
-					onPush: (task) => push.mutate(task),
-					pendingID: change.isPending ? change.variables.id : '',
+					onChange: (task) => void completeTask(task),
+					onPush: (task) => void pushTask(task),
+					pendingID,
 				}}
 			/>
 		</div>

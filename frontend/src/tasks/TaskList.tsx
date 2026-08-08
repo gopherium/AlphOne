@@ -2,13 +2,9 @@
 
 import { Badge, Button, Checkbox, Link, Stack, Text } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
-import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 
-import type { TaskPage } from './api'
 import { formatDue } from './format'
-
-export type TaskQuery = UseInfiniteQueryResult<InfiniteData<TaskPage>, Error>
 
 /** ListedTask is the part of a task every list row and its controls read. */
 export interface ListedTask {

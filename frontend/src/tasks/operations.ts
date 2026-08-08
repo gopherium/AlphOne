@@ -2,6 +2,33 @@
 
 import { graphql } from '../gql'
 
+export const createTaskMutation = graphql(`
+	mutation CreateTask($input: CreateTaskInput!) {
+		createTask(input: $input) {
+			task {
+				id
+				title
+				status
+				priority
+				dueOn
+			}
+			replay
+		}
+	}
+`)
+
+export const updateTaskMutation = graphql(`
+	mutation UpdateTask($id: UUID!, $input: UpdateTaskInput!) {
+		updateTask(id: $id, input: $input) {
+			id
+			title
+			status
+			priority
+			dueOn
+		}
+	}
+`)
+
 export const taskDetailQuery = graphql(`
 	query TaskDetail($id: UUID!) {
 		task(id: $id) {

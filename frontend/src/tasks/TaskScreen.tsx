@@ -7,16 +7,16 @@ import {
 	LoadingScreen,
 	PageScreen,
 	Text,
+	graphError,
 	useGraph,
+	useGraphMutation,
 	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { patchTask } from './api'
-import { taskDetailQuery } from './operations'
+import { taskDetailQuery, updateTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
 /** taskOperations names the documents a task write must refresh. */
@@ -81,31 +81,28 @@ function ContactLink({ contact }: { contact: { id: string; name: string } }) {
  * @returns The task form.
  */
 function TaskForm({ task }: { task: DetailedTask }) {
-	const queryClient = useQueryClient()
 	const graph = useGraph()
 	const [title, setTitle] = useState(task.title)
 	const [dueOn, setDueOn] = useState(task.dueOn)
 	const [priority, setPriority] = useState(task.priority)
-	const settled = async () => {
-		graph.refetch(taskOperations)
-		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+	const [save, runSave] = useGraphMutation(updateTaskMutation)
+	const [toggle, runToggle] = useGraphMutation(updateTaskMutation)
+	const runUpdate = async (
+		run: typeof runSave,
+		input: { title?: string; dueOn?: string; priority?: number; status?: string },
+	) => {
+		const result = await run({ id: task.id, input })
+		if (result.data) {
+			graph.refetch(taskOperations)
+		}
 	}
-	const save = useMutation({
-		mutationFn: () => patchTask(task.id, { title, due_on: dueOn, priority }),
-		onSuccess: settled,
-	})
-	const toggle = useMutation({
-		mutationFn: () =>
-			patchTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
-		onSuccess: settled,
-	})
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				save.mutate()
+				void runUpdate(runSave, { title, dueOn, priority })
 			}}
 		>
 			<InputControl label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -119,19 +116,27 @@ function TaskForm({ task }: { task: DetailedTask }) {
 			<div className="alphone-tasks__actions">
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || save.isPending}
-					loading={save.isPending}
+					disabled={title.trim() === '' || save.fetching}
+					loading={save.fetching}
 				>
 					Save
 				</Button>
-				<Button variant="outline" loading={toggle.isPending} onClick={() => toggle.mutate()}>
+				<Button
+					variant="outline"
+					loading={toggle.fetching}
+					onClick={() =>
+						void runUpdate(runToggle, { status: task.status === 'done' ? 'open' : 'done' })
+					}
+				>
 					{task.status === 'done' ? 'Reopen' : 'Complete'}
 				</Button>
 			</div>
-			{save.isError ? (
-				<ErrorNotice>{validationMessage(save.error, 'The task could not be saved.')}</ErrorNotice>
+			{save.error ? (
+				<ErrorNotice>
+					{validationMessage(graphError(save.error), 'The task could not be saved.')}
+				</ErrorNotice>
 			) : null}
-			{toggle.isError ? <ErrorNotice>The task could not be saved.</ErrorNotice> : null}
+			{toggle.error ? <ErrorNotice>The task could not be saved.</ErrorNotice> : null}
 		</form>
 	)
 }

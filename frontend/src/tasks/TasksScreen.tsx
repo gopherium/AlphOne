@@ -17,15 +17,13 @@ import {
 	inbox,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useConnection, useGraph } from '@alphone/frontend-sdk'
+import { graphError, useConnection, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { createTask, patchTask } from './api'
 import { formatDay, laterDate, shiftDate } from './format'
-import { dayTasksQuery, overdueTasksQuery } from './operations'
+import { createTaskMutation, dayTasksQuery, overdueTasksQuery, updateTaskMutation } from './operations'
 import { TaskList, toListedTasks } from './TaskList'
 import type { ListedTask, RowControls } from './TaskList'
 
@@ -40,7 +38,6 @@ const taskOperations = ['DayTasks', 'OverdueTasks']
  * @returns The tasks screen.
  */
 export function TasksScreen({ date, today }: { date: string; today: string }) {
-	const queryClient = useQueryClient()
 	const graph = useGraph()
 	const tasks = toListedTasks(
 		useConnection({
@@ -65,31 +62,41 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		}),
 	)
 	const [title, setTitle] = useState('')
-	const settled = async () => {
-		graph.refetch(taskOperations)
-		await queryClient.invalidateQueries({ queryKey: ['tasks'] })
-	}
-	const add = useMutation({
-		mutationFn: () => createTask(title, date),
-		onSuccess: async () => {
+	const [pendingID, setPendingID] = useState('')
+	const [add, runAdd] = useGraphMutation(createTaskMutation)
+	const [change, runChange] = useGraphMutation(updateTaskMutation)
+	const [push, runPush] = useGraphMutation(updateTaskMutation)
+	const submitAdd = async () => {
+		const result = await runAdd({ input: { title, dueOn: date } })
+		if (result.data) {
 			setTitle('')
-			await settled()
-		},
-	})
-	const change = useMutation({
-		mutationFn: (task: ListedTask) =>
-			patchTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
-		onSuccess: settled,
-	})
-	const push = useMutation({
-		mutationFn: (task: ListedTask) =>
-			patchTask(task.id, { due_on: shiftDate(laterDate(task.due_on, today), 1) }),
-		onSuccess: settled,
-	})
+			graph.refetch(taskOperations)
+		}
+	}
+	const changeStatus = async (task: ListedTask) => {
+		setPendingID(task.id)
+		const result = await runChange({
+			id: task.id,
+			input: { status: task.status === 'done' ? 'open' : 'done' },
+		})
+		setPendingID('')
+		if (result.data) {
+			graph.refetch(taskOperations)
+		}
+	}
+	const pushTask = async (task: ListedTask) => {
+		const result = await runPush({
+			id: task.id,
+			input: { dueOn: shiftDate(laterDate(task.due_on, today), 1) },
+		})
+		if (result.data) {
+			graph.refetch(taskOperations)
+		}
+	}
 	const controls: RowControls = {
-		onChange: (task) => change.mutate(task),
-		onPush: (task) => push.mutate(task),
-		pendingID: change.isPending ? change.variables.id : '',
+		onChange: (task) => void changeStatus(task),
+		onPush: (task) => void pushTask(task),
+		pendingID,
 	}
 
 	return (
@@ -110,7 +117,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 				className="alphone-tasks__add"
 				onSubmit={(event) => {
 					event.preventDefault()
-					add.mutate()
+					void submitAdd()
 				}}
 			>
 				<InputControl
@@ -122,16 +129,18 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 				/>
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || add.isPending}
-					loading={add.isPending}
+					disabled={title.trim() === '' || add.fetching}
+					loading={add.fetching}
 				>
 					Add task
 				</Button>
 			</form>
-			{add.isError ? (
-				<ErrorNotice>{validationMessage(add.error, 'The task could not be added.')}</ErrorNotice>
+			{add.error ? (
+				<ErrorNotice>
+					{validationMessage(graphError(add.error), 'The task could not be added.')}
+				</ErrorNotice>
 			) : null}
-			{change.isError || push.isError ? (
+			{change.error || push.error ? (
 				<ErrorNotice>The task could not be updated.</ErrorNotice>
 			) : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />

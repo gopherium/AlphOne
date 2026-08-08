@@ -8,18 +8,27 @@ import {
 	PageScreen,
 	SelectControl,
 	Text,
+	ValidationError,
+	graphError,
+	graphExtensions,
+	useConnection,
+	useGraph,
+	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useConnection, useGraph } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
 import { toListedTasks } from '../tasks/TaskList'
-import { addIdentity, removeIdentity, renameContact } from './api'
 import { channelItemOf, channelItems } from './channel'
 import { formatCreated } from './format'
-import { contactDetailQuery } from './operations'
+import {
+	addContactIdentityMutation,
+	contactDetailQuery,
+	deleteContactIdentityMutation,
+	renameContactMutation,
+} from './operations'
 
 const contactTasksPageSize = 50
 const contactDetailOperation = 'ContactDetail'
@@ -76,7 +85,20 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 }
 
 /**
- * Returns the callback refreshing the contact after a REST write.
+ * Returns the error an identity write should show, naming the owner of a claim.
+ * @param error - The failure the mutation answered with.
+ * @returns The mapped error, or undefined when the write succeeded.
+ */
+function identityError(error: Parameters<typeof graphError>[0]): Error | undefined {
+	const owner = graphExtensions(error).ownerName
+	if (typeof owner === 'string') {
+		return new ValidationError(`Already on contact ${owner}.`)
+	}
+	return graphError(error)
+}
+
+/**
+ * Returns the callback refreshing the contact after a write.
  * @returns The refresh callback.
  */
 function useContactRefresh() {
@@ -94,10 +116,13 @@ function useContactRefresh() {
  */
 function IdentityList({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
-	const remove = useMutation({
-		mutationFn: (identityId: string) => removeIdentity(contact.id, identityId),
-		onSuccess: settled,
-	})
+	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
+	const removeIdentity = async (identityId: string) => {
+		const result = await runRemove({ contactId: contact.id, identityId })
+		if (result.data) {
+			await settled()
+		}
+	}
 
 	if (contact.identities.length === 0) {
 		return <Text role="status">No identities yet.</Text>
@@ -116,15 +141,15 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 							variant="minimal"
 							size="small"
 							aria-label={`Remove ${identity.identifier}`}
-							loading={remove.isPending}
-							onClick={() => remove.mutate(identity.id)}
+							loading={remove.fetching}
+							onClick={() => void removeIdentity(identity.id)}
 						>
 							Remove
 						</Button>
 					</li>
 				))}
 			</ul>
-			{remove.isError ? (
+			{remove.error ? (
 				<ErrorNotice>The identity could not be removed.</ErrorNotice>
 			) : null}
 		</>
@@ -140,22 +165,25 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const [channel, setChannel] = useState(channelItems[0])
 	const [identifier, setIdentifier] = useState('')
 	const [label, setLabel] = useState('')
-	const add = useMutation({
-		mutationFn: () =>
-			addIdentity(contact.id, { channel: channel.value, identifier, displayName: label }),
-		onSuccess: async () => {
+	const [add, runAdd] = useGraphMutation(addContactIdentityMutation)
+	const submitIdentity = async () => {
+		const result = await runAdd({
+			contactId: contact.id,
+			identity: { channel: channel.value, identifier, displayName: label },
+		})
+		if (result.data) {
 			setIdentifier('')
 			setLabel('')
 			await settled()
-		},
-	})
+		}
+	}
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				add.mutate()
+				void submitIdentity()
 			}}
 		>
 			<SelectControl
@@ -176,14 +204,14 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 			/>
 			<Button
 				type="submit"
-				disabled={identifier.trim() === '' || add.isPending}
-				loading={add.isPending}
+				disabled={identifier.trim() === '' || add.fetching}
+				loading={add.fetching}
 			>
 				Add identity
 			</Button>
-			{add.isError ? (
+			{add.error ? (
 				<ErrorNotice>
-					{validationMessage(add.error, 'The identity could not be added.')}
+					{validationMessage(identityError(add.error), 'The identity could not be added.')}
 				</ErrorNotice>
 			) : null}
 		</form>
@@ -197,17 +225,20 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 function RenameForm({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
 	const [name, setName] = useState(contact.name)
-	const rename = useMutation({
-		mutationFn: () => renameContact(contact.id, name),
-		onSuccess: settled,
-	})
+	const [rename, runRename] = useGraphMutation(renameContactMutation)
+	const submitRename = async () => {
+		const result = await runRename({ id: contact.id, name })
+		if (result.data) {
+			await settled()
+		}
+	}
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				rename.mutate()
+				void submitRename()
 			}}
 		>
 			<InputControl
@@ -217,14 +248,14 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 			/>
 			<Button
 				type="submit"
-				disabled={name.trim() === '' || rename.isPending}
-				loading={rename.isPending}
+				disabled={name.trim() === '' || rename.fetching}
+				loading={rename.fetching}
 			>
 				Save
 			</Button>
-			{rename.isError ? (
+			{rename.error ? (
 				<ErrorNotice>
-					{validationMessage(rename.error, 'The contact could not be renamed.')}
+					{validationMessage(graphError(rename.error), 'The contact could not be renamed.')}
 				</ErrorNotice>
 			) : null}
 		</form>

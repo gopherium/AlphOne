@@ -5,28 +5,37 @@ import {
 	ErrorNotice,
 	InputControl,
 	PageScreen,
+	graphError,
+	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { createContact } from './api'
-import type { Contact } from './api'
+import { createContactMutation } from './operations'
+
+/** CreatedContact is the contact the creation form hands back. */
+export interface CreatedContact {
+	id: string
+	name: string
+}
 
 /**
  * Renders the new-contact form.
  * @returns The creation screen.
  */
-export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) => void }) {
-	const queryClient = useQueryClient()
+export function NewContactScreen({
+	onCreated,
+}: {
+	onCreated: (created: CreatedContact) => void
+}) {
 	const [name, setName] = useState('')
-	const create = useMutation({
-		mutationFn: () => createContact(name),
-		onSuccess: (created) => {
-			void queryClient.invalidateQueries({ queryKey: ['contacts'] })
-			onCreated(created)
-		},
-	})
+	const [create, runCreate] = useGraphMutation(createContactMutation)
+	const submit = async () => {
+		const result = await runCreate({ name })
+		if (result.data) {
+			onCreated(result.data.createContact)
+		}
+	}
 
 	return (
 		<PageScreen title="New contact">
@@ -34,7 +43,7 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
-					create.mutate()
+					void submit()
 				}}
 			>
 				<InputControl
@@ -44,14 +53,14 @@ export function NewContactScreen({ onCreated }: { onCreated: (created: Contact) 
 				/>
 				<Button
 					type="submit"
-					disabled={name.trim() === '' || create.isPending}
-					loading={create.isPending}
+					disabled={name.trim() === '' || create.fetching}
+					loading={create.fetching}
 				>
 					Create contact
 				</Button>
-				{create.isError ? (
+				{create.error ? (
 					<ErrorNotice>
-						{validationMessage(create.error, 'The contact could not be created.')}
+						{validationMessage(graphError(create.error), 'The contact could not be created.')}
 					</ErrorNotice>
 				) : null}
 			</form>

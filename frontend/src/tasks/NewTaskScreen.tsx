@@ -6,16 +6,17 @@ import {
 	InputControl,
 	PageScreen,
 	Text,
+	graphError,
+	useGraph,
+	useGraphMutation,
 	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { createTask } from './api'
-import type { Task } from './api'
+import { createTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
 const searchDebounceMs = 300
@@ -35,24 +36,28 @@ export function NewTaskScreen({
 	onCreated,
 }: {
 	date: string
-	onCreated: (created: Task) => void
+	onCreated: (created: { id: string }) => void
 }) {
-	const queryClient = useQueryClient()
+	const graph = useGraph()
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
 	const [priority, setPriority] = useState(0)
 	const [contact, setContact] = useState<PickableContact | null>(null)
-	const create = useMutation({
-		mutationFn: () =>
-			createTask(title, dueOn, {
+	const [create, runCreate] = useGraphMutation(createTaskMutation)
+	const submit = async () => {
+		const result = await runCreate({
+			input: {
+				title,
+				dueOn,
 				priority,
-				...(contact === null ? {} : { contact_id: contact.id }),
-			}),
-		onSuccess: (created) => {
-			void queryClient.invalidateQueries({ queryKey: ['tasks'] })
-			onCreated(created)
-		},
-	})
+				...(contact === null ? {} : { contactId: contact.id }),
+			},
+		})
+		if (result.data) {
+			graph.refetch(['DayTasks', 'OverdueTasks'])
+			onCreated(result.data.createTask.task)
+		}
+	}
 
 	return (
 		<PageScreen title="New task">
@@ -60,7 +65,7 @@ export function NewTaskScreen({
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
-					create.mutate()
+					void submit()
 				}}
 			>
 				<InputControl
@@ -78,13 +83,13 @@ export function NewTaskScreen({
 				<ContactPicker contact={contact} onPick={setContact} />
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || create.isPending}
-					loading={create.isPending}
+					disabled={title.trim() === '' || create.fetching}
+					loading={create.fetching}
 				>
 					Create task
 				</Button>
-				{create.isError ? (
-					<ErrorNotice>{validationMessage(create.error, 'The task could not be created.')}</ErrorNotice>
+				{create.error ? (
+					<ErrorNotice>{validationMessage(graphError(create.error), 'The task could not be created.')}</ErrorNotice>
 				) : null}
 			</form>
 		</PageScreen>
