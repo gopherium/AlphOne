@@ -10,15 +10,15 @@
   "dependencies": {
     "@alphone/frontend-sdk": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
-    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router": "^1.170.21",
     "graphql": "^17.0.2",
     "react": "^19.2.8"
   },
   "devDependencies": {
     "@graphql-typed-document-node/core": "^3.2.0",
     "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/react": "^19.2.17",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/react": "^19.2.18",
     "msw": "^2.15.0",
     "vitest": "^4.1.10"
   }
