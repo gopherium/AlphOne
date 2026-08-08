@@ -64,6 +64,17 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 	}
 }
 
+function taskNode(row: ReturnType<typeof taskRow>) {
+	return {
+		__typename: 'Task',
+		id: row.id,
+		title: row.title,
+		status: row.status,
+		priority: row.priority,
+		dueOn: row.due_on,
+	}
+}
+
 function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
 	return {
 		__typename: 'TaskConnection',
@@ -111,27 +122,30 @@ beforeEach(() => {
 			overdueBefore.push(String(variables.dueBefore))
 			return HttpResponse.json({ data: { tasks: taskPage(overdue) } })
 		}),
-		http.patch('/api/tasks/:id', async ({ request, params }) => {
-			const body = (await request.json()) as { status?: string; due_on?: string }
-			patched.push({ id: String(params.id), body })
-			const stored = [...tasks, ...overdue].find((row) => row.id === String(params.id))
+		graphql.mutation('UpdateTask', ({ variables }) => {
+			const input = variables.input as { status?: string; dueOn?: string }
+			const id = String(variables.id)
+			patched.push({ id, body: { status: input.status, due_on: input.dueOn } })
+			const stored = [...tasks, ...overdue].find((row) => row.id === id)
 			if (stored === undefined) {
-				return HttpResponse.json({ error: 'task: not found' }, { status: 404 })
+				return HttpResponse.json({ data: null, errors: [{ message: 'task: not found' }] })
 			}
 			const updated = {
 				...stored,
-				status: body.status ?? stored.status,
-				due_on: body.due_on ?? stored.due_on,
+				status: input.status ?? stored.status,
+				due_on: input.dueOn ?? stored.due_on,
 			}
 			tasks = tasks.map((row) => (row.id === updated.id ? updated : row))
-			overdue = overdue.filter((row) => row.id !== updated.id || body.due_on === undefined)
-			return HttpResponse.json(updated)
+			overdue = overdue.filter((row) => row.id !== updated.id || input.dueOn === undefined)
+			return HttpResponse.json({ data: { updateTask: taskNode(updated) } })
 		}),
-		http.post('/api/tasks', async ({ request }) => {
-			const body = (await request.json()) as { title: string }
-			const created = taskRow(addedID, body.title)
+		graphql.mutation('CreateTask', ({ variables }) => {
+			const input = variables.input as { title: string }
+			const created = taskRow(addedID, input.title)
 			tasks = [...tasks, created]
-			return HttpResponse.json(created, { status: 201 })
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(created), replay: false } },
+			})
 		}),
 	)
 })
@@ -139,7 +153,7 @@ beforeEach(() => {
 test('shows the add button busy and still refuses a second submit', async () => {
 	const busy = busyClasses()
 	expect(busy.length).toBeGreaterThan(0)
-	server.use(http.post('/api/tasks', () => new Promise(() => {})))
+	server.use(graphql.mutation('CreateTask', () => new Promise(() => {})))
 	renderAt('/tasks')
 	await screen.findByRole('heading', { level: 1, name: 'Tasks' })
 	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Call Maria Perez')
@@ -385,8 +399,11 @@ test('reports when the tasks cannot be loaded', async () => {
 
 test('reports when a task cannot be added', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'task: empty title' }, { status: 422 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt('/tasks')
@@ -400,8 +417,8 @@ test('reports when a task cannot be added', async () => {
 
 test('reports a generic message when adding fails otherwise', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/tasks')
@@ -415,8 +432,8 @@ test('reports a generic message when adding fails otherwise', async () => {
 
 test('reports when a task cannot be updated', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/tasks')
@@ -430,8 +447,11 @@ test('reports when a task cannot be updated', async () => {
 
 test('reports the backend message when an update is rejected', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'task: invalid status' }, { status: 422 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'task: invalid status', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt('/tasks')
@@ -443,31 +463,7 @@ test('reports the backend message when an update is rejected', async () => {
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })
 
-test('falls back to generic copy for an unreadable rejection', async () => {
-	server.use(
-		http.post('/api/tasks', () => new HttpResponse('not json', { status: 422 })),
-	)
-	renderAt('/tasks')
-	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
-	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
-
-	expect(await screen.findByText('invalid task details')).toBeInTheDocument()
-})
-
-test('falls back to generic copy for a rejection without a message', async () => {
-	server.use(
-		http.post('/api/tasks', () => HttpResponse.json({ oops: true }, { status: 422 })),
-	)
-	renderAt('/tasks')
-	await screen.findByText('Call the supplier')
-
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
-	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
-
-	expect(await screen.findByText('invalid task details')).toBeInTheDocument()
-})
 
 test('disables the row control while its update is in flight', async () => {
 	let release: (() => void) | undefined
@@ -691,8 +687,11 @@ test('drops the session when the list is unauthorized', async () => {
 
 test('drops the session when adding is unauthorized', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt('/tasks')
@@ -706,8 +705,11 @@ test('drops the session when adding is unauthorized', async () => {
 
 test('drops the session when updating is unauthorized', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt('/tasks')
@@ -717,4 +719,20 @@ test('drops the session when updating is unauthorized', async () => {
 	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
+})
+
+test('leaves the day alone when pushing a task fails', async () => {
+	server.use(
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+
+	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(screen.getByText('Call the supplier')).toBeInTheDocument()
 })

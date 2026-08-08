@@ -1,4 +1,4 @@
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -44,11 +44,22 @@ beforeEach(() => {
 	}
 	server.use(
 		graphql.query('TaskDetail', () => HttpResponse.json({ data: { task: taskDetail() } })),
-		http.patch('/api/tasks/:id', async ({ request }) => {
-			const body = (await request.json()) as Record<string, unknown>
-			patched.push(body)
-			stored = { ...stored, ...body }
-			return HttpResponse.json(stored)
+		graphql.mutation('UpdateTask', ({ variables }) => {
+			const input = variables.input as Record<string, unknown>
+			patched.push({
+				...(input.title === undefined ? {} : { title: input.title }),
+				...(input.dueOn === undefined ? {} : { due_on: input.dueOn }),
+				...(input.status === undefined ? {} : { status: input.status }),
+				...(input.priority === undefined ? {} : { priority: input.priority }),
+			})
+			stored = {
+				...stored,
+				...(input.title === undefined ? {} : { title: input.title }),
+				...(input.dueOn === undefined ? {} : { due_on: input.dueOn }),
+				...(input.status === undefined ? {} : { status: input.status }),
+				...(input.priority === undefined ? {} : { priority: input.priority }),
+			}
+			return HttpResponse.json({ data: { updateTask: taskDetail() } })
 		}),
 
 	)
@@ -204,8 +215,11 @@ test('reports when the task cannot be loaded', async () => {
 
 test('reports when a save is rejected', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'task: empty title' }, { status: 422 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt(`/tasks/${taskID}`)
@@ -219,8 +233,8 @@ test('reports when a save is rejected', async () => {
 
 test('reports a generic message when a save fails otherwise', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/tasks/${taskID}`)
@@ -234,8 +248,8 @@ test('reports a generic message when a save fails otherwise', async () => {
 
 test('reports when completing from the detail fails', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/tasks/${taskID}`)

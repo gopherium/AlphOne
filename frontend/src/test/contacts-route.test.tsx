@@ -13,10 +13,6 @@ const adaID = '0198c000-0000-7000-8000-000000000004'
 const identityID1 = '0198c000-0000-7000-8000-000000000011'
 const identityID2 = '0198c000-0000-7000-8000-000000000012'
 
-function contactRow(id: string, name: string) {
-	return { id, name, created_at: '2026-07-06T10:00:00Z' }
-}
-
 function contactsPage(named: [string, string][], endCursor: string | null) {
 	return {
 		__typename: 'ContactConnection',
@@ -201,8 +197,10 @@ test('drops the session when the contacts request is unauthorized', async () => 
 test('creates a contact and opens its detail', async () => {
 	const newID = '0198c000-0000-7000-8000-000000000009'
 	server.use(
-		http.post('/api/contacts', () =>
-			HttpResponse.json(contactRow(newID, 'New Ltd'), { status: 201 }),
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({
+				data: { createContact: { __typename: 'Contact', id: newID, name: 'New Ltd' } },
+			}),
 		),
 		graphql.query('ContactDetail', () =>
 			HttpResponse.json({ data: { contact: detailFor(newID, 'New Ltd', []) } }),
@@ -223,8 +221,11 @@ test('creates a contact and opens its detail', async () => {
 
 test('reports invalid contact details on create', async () => {
 	server.use(
-		http.post('/api/contacts', () =>
-			HttpResponse.json({ error: 'name is required' }, { status: 422 }),
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'name is required', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt('/contacts/new')
@@ -237,8 +238,8 @@ test('reports invalid contact details on create', async () => {
 
 test('reports a generic message when the create fails otherwise', async () => {
 	server.use(
-		http.post('/api/contacts', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/contacts/new')
@@ -253,8 +254,11 @@ test('reports a generic message when the create fails otherwise', async () => {
 
 test('drops the session when the create is unauthorized', async () => {
 	server.use(
-		http.post('/api/contacts', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt('/contacts/new')
@@ -289,8 +293,8 @@ test('adds an email identity to the contact', async () => {
 				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
 			}),
 		),
-		http.post('/api/contacts/:id/identities', async ({ request }) => {
-			posted = (await request.json()) as Record<string, unknown>
+		graphql.mutation('AddContactIdentity', ({ variables }) => {
+			posted = variables.identity as Record<string, unknown>
 			const created = {
 				id: identityID2,
 				channel: 'email',
@@ -298,7 +302,17 @@ test('adds an email identity to the contact', async () => {
 				display_name: 'Work',
 			}
 			identities.push(created)
-			return HttpResponse.json(created, { status: 201 })
+			return HttpResponse.json({
+				data: {
+					addContactIdentity: {
+						__typename: 'ContactIdentity',
+						id: created.id,
+						channel: created.channel,
+						identifier: created.identifier,
+						displayName: created.display_name,
+					},
+				},
+			})
 		}),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -312,7 +326,7 @@ test('adds an email identity to the contact', async () => {
 	expect(posted).toEqual({
 		channel: 'email',
 		identifier: ' Maria@Example.COM ',
-		display_name: 'Work',
+		displayName: 'Work',
 	})
 	expect(screen.getByLabelText('Value')).toHaveValue('')
 })
@@ -326,11 +340,21 @@ test('adds a phone identity through the channel select', async () => {
 				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
 			}),
 		),
-		http.post('/api/contacts/:id/identities', async ({ request }) => {
-			posted = (await request.json()) as Record<string, unknown>
+		graphql.mutation('AddContactIdentity', ({ variables }) => {
+			posted = variables.identity as Record<string, unknown>
 			const created = { id: identityID2, channel: 'phone', identifier: '+184467235', display_name: '' }
 			identities.push(created)
-			return HttpResponse.json(created, { status: 201 })
+			return HttpResponse.json({
+				data: {
+					addContactIdentity: {
+						__typename: 'ContactIdentity',
+						id: created.id,
+						channel: created.channel,
+						identifier: created.identifier,
+						displayName: created.display_name,
+					},
+				},
+			})
 		}),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -347,14 +371,14 @@ test('adds a phone identity through the channel select', async () => {
 
 test('names the owner when the identity belongs to someone else', async () => {
 	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json(
-				{
-					error: 'contact: identity already exists',
-					owner: contactRow(brunoID, 'Bruno'),
-				},
-				{ status: 409 },
-			),
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: identity already exists',
+					extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
+				}],
+			}),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -368,8 +392,11 @@ test('names the owner when the identity belongs to someone else', async () => {
 
 test('shows the backend message when the identity is invalid', async () => {
 	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json({ error: 'contact: empty identifier' }, { status: 422 }),
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'contact: empty identifier', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -383,8 +410,14 @@ test('shows the backend message when the identity is invalid', async () => {
 
 test('falls back to the backend message when the conflict names no owner', async () => {
 	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json({ error: 'contact: identity already exists' }, { status: 409 }),
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: identity already exists',
+					extensions: { code: 'CONFLICT', ownerContactId: brunoID },
+				}],
+			}),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -398,45 +431,12 @@ test('falls back to the backend message when the conflict names no owner', async
 	)
 })
 
-test('reports a generic conflict when the response body is unreadable', async () => {
-	server.use(
-		http.post(
-			'/api/contacts/:id/identities',
-			() => new HttpResponse('not json', { status: 409 }),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'the identity already exists',
-	)
-})
-
-test('reports a generic conflict when the body carries no message', async () => {
-	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json({ oops: true }, { status: 409 }),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'the identity already exists',
-	)
-})
 
 test('reports a generic message when the identity add fails otherwise', async () => {
 	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -452,8 +452,11 @@ test('reports a generic message when the identity add fails otherwise', async ()
 
 test('drops the session when the identity add is unauthorized', async () => {
 	server.use(
-		http.post('/api/contacts/:id/identities', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt(`/contacts/${anaID}`)
@@ -467,8 +470,11 @@ test('drops the session when the identity add is unauthorized', async () => {
 
 test('drops the session when the identity removal is unauthorized', async () => {
 	server.use(
-		http.delete('/api/contacts/:id/identities/:identityId', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('DeleteContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt(`/contacts/${anaID}`)
@@ -484,17 +490,17 @@ test('removes an identity', async () => {
 		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
 		{ id: identityID2, channel: 'email', identifier: 'maria@example.com', display_name: '' },
 	]
-	let deletedPath = ''
+	let deleted = ''
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
 				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
 			}),
 		),
-		http.delete('/api/contacts/:id/identities/:identityId', ({ params, request }) => {
-			deletedPath = new URL(request.url).pathname
-			identities = identities.filter((identity) => identity.id !== params.identityId)
-			return new HttpResponse(null, { status: 204 })
+		graphql.mutation('DeleteContactIdentity', ({ variables }) => {
+			deleted = String(variables.identityId)
+			identities = identities.filter((identity) => identity.id !== deleted)
+			return HttpResponse.json({ data: { deleteContactIdentity: true } })
 		}),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -505,14 +511,14 @@ test('removes an identity', async () => {
 	await waitFor(() =>
 		expect(screen.queryByText('email: maria@example.com')).not.toBeInTheDocument(),
 	)
-	expect(deletedPath).toBe(`/api/contacts/${anaID}/identities/${identityID2}`)
+	expect(deleted).toBe(identityID2)
 	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
 })
 
 test('reports a failed removal', async () => {
 	server.use(
-		http.delete('/api/contacts/:id/identities/:identityId', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('DeleteContactIdentity', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -533,10 +539,17 @@ test('renames a contact', async () => {
 				data: { contact: detailFor(String(variables.id), currentName, []) },
 			}),
 		),
-		http.patch('/api/contacts/:id', async ({ request, params }) => {
-			const body = (await request.json()) as { name: string }
-			currentName = body.name
-			return HttpResponse.json(contactRow(String(params.id), currentName))
+		graphql.mutation('RenameContact', ({ variables }) => {
+			currentName = String(variables.name)
+			return HttpResponse.json({
+				data: {
+					renameContact: {
+						__typename: 'Contact',
+						id: String(variables.id),
+						name: currentName,
+					},
+				},
+			})
 		}),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -557,8 +570,11 @@ test('renames a contact', async () => {
 
 test('reports invalid contact details on rename', async () => {
 	server.use(
-		http.patch('/api/contacts/:id', () =>
-			HttpResponse.json({ oops: true }, { status: 422 }),
+		graphql.mutation('RenameContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -589,8 +605,11 @@ test('reports a generic message when the rename fails otherwise', async () => {
 
 test('surfaces the backend message for unreadable rename rejections', async () => {
 	server.use(
-		http.patch('/api/contacts/:id', () =>
-			new HttpResponse('not json', { status: 422 }),
+		graphql.mutation('RenameContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)
@@ -604,8 +623,11 @@ test('surfaces the backend message for unreadable rename rejections', async () =
 
 test('drops the session when the rename is unauthorized', async () => {
 	server.use(
-		http.patch('/api/contacts/:id', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('RenameContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt(`/contacts/${anaID}`)

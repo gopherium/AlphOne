@@ -40,6 +40,17 @@ function taskRow(id: string, title: string, dueOn: string) {
 	}
 }
 
+function taskNode(row: ReturnType<typeof taskRow>) {
+	return {
+		__typename: 'Task',
+		id: row.id,
+		title: row.title,
+		status: row.status,
+		priority: row.priority,
+		dueOn: row.due_on,
+	}
+}
+
 function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
 	return {
 		__typename: 'Contact',
@@ -82,18 +93,28 @@ beforeEach(() => {
 			return HttpResponse.json({ data: { contact: contactDetail(String(variables.id), tasks) } })
 		}),
 		http.get('/api/tasks', () => HttpResponse.json({ tasks: [], next_cursor: null })),
-		http.post('/api/tasks', async ({ request }) => {
-			const body = (await request.json()) as Record<string, unknown>
-			created.push(body)
-			const row = taskRow('0198c000-0000-7000-8000-000000000404', String(body.title), today)
+		graphql.mutation('CreateTask', ({ variables }) => {
+			const input = variables.input as Record<string, unknown>
+			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId })
+			const row = taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), today)
 			tasks = [...tasks, row]
-			return HttpResponse.json(row, { status: 201 })
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
+			})
 		}),
-		http.patch('/api/tasks/:id', async ({ request, params }) => {
-			const body = (await request.json()) as Record<string, unknown>
-			patched.push({ id: String(params.id), ...body })
-			tasks = tasks.filter((row) => row.id !== String(params.id))
-			return HttpResponse.json({ ...taskRow(String(params.id), 'x', today), ...body })
+		graphql.mutation('UpdateTask', ({ variables }) => {
+			const input = variables.input as { status?: string; dueOn?: string }
+			const id = String(variables.id)
+			patched.push({ id, status: input.status, due_on: input.dueOn })
+			tasks = tasks.filter((row) => row.id !== id)
+			return HttpResponse.json({
+				data: {
+					updateTask: taskNode({
+						...taskRow(id, 'x', input.dueOn ?? today),
+						status: input.status ?? 'open',
+					}),
+				},
+			})
 		}),
 	)
 })
@@ -227,8 +248,11 @@ test('reports when the contact detail cannot be loaded', async () => {
 
 test('reports when a contact task cannot be added', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'task: empty title' }, { status: 422 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt(`/contacts/${contactID}`)
@@ -268,8 +292,8 @@ test('disables the row control while its update is in flight', async () => {
 
 test('reports a generic message when adding fails otherwise', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/contacts/${contactID}`)
@@ -283,8 +307,8 @@ test('reports a generic message when adding fails otherwise', async () => {
 
 test('reports when a contact task cannot be updated', async () => {
 	server.use(
-		http.patch('/api/tasks/:id', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt(`/contacts/${contactID}`)
@@ -309,4 +333,20 @@ test('drops the session when the contact detail is unauthorized', async () => {
 	const client = renderAt(`/contacts/${contactID}`)
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
+})
+
+test('leaves the list alone when completing a contact task fails', async () => {
+	server.use(
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	const row = screen.getByRole('listitem', { name: 'Call her back' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
+
+	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(screen.getByText('Call her back')).toBeInTheDocument()
 })

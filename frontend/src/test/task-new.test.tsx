@@ -1,4 +1,4 @@
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -27,30 +27,34 @@ function searchPage(named: [string, string][]) {
 	}
 }
 
-function taskBody(overrides: Record<string, unknown> = {}) {
-	return {
-		id: createdID,
-		assignee_id: '0198c000-0000-7000-8000-0000000000aa',
-		contact_id: null,
-		title: 'Order more boxes',
-		status: 'open',
-		priority: 0,
-		due_on: today,
-		origin_source: null,
-		origin_event_id: null,
-		created_at: '2026-07-29T10:00:00Z',
-		...overrides,
-	}
-}
-
 beforeEach(() => {
 	created = []
 	searches = []
 	server.use(
-		http.post('/api/tasks', async ({ request }) => {
-			const body = (await request.json()) as Record<string, unknown>
-			created.push(body)
-			return HttpResponse.json(taskBody(body), { status: 201 })
+		graphql.mutation('CreateTask', ({ variables }) => {
+			const input = variables.input as Record<string, unknown>
+			created.push({
+				title: input.title,
+				due_on: input.dueOn,
+				priority: input.priority,
+				...(input.contactId === undefined ? {} : { contact_id: input.contactId }),
+			})
+			return HttpResponse.json({
+				data: {
+					createTask: {
+						__typename: 'CreateTaskPayload',
+						task: {
+							__typename: 'Task',
+							id: createdID,
+							title: String(input.title),
+							status: 'open',
+							priority: Number(input.priority ?? 0),
+							dueOn: String(input.dueOn),
+						},
+						replay: false,
+					},
+				},
+			})
 		}),
 		graphql.query('TaskDetail', () =>
 			HttpResponse.json({
@@ -199,8 +203,11 @@ test('refuses to create a task without a title', async () => {
 
 test('reports when the task is rejected', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'task: empty title' }, { status: 422 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+			}),
 		),
 	)
 	renderAt('/tasks/new')
@@ -213,8 +220,8 @@ test('reports when the task is rejected', async () => {
 
 test('reports a generic message when creation fails otherwise', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/tasks/new')
@@ -227,8 +234,11 @@ test('reports a generic message when creation fails otherwise', async () => {
 
 test('drops the session when creation is unauthorized', async () => {
 	server.use(
-		http.post('/api/tasks', () =>
-			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
+			}),
 		),
 	)
 	const client = renderAt('/tasks/new')
