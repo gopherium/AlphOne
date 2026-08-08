@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { mediaURL } from './api'
-
 const maxConcurrentMediaFetches = 2
 
 let activeFetches = 0
@@ -39,17 +37,13 @@ function release(): void {
 /**
  * Downloads a media blob and exposes it as an object URL, keeping at most
  * two downloads in flight across the app.
- * @param conversationId - The conversation owning the message.
- * @param messageId - The message whose blob to download.
+ * @param downloadPath - The path the stored blob is served from.
  * @returns A promise resolving to the blob's object URL.
  */
-async function fetchMediaObjectURL(
-	conversationId: string,
-	messageId: string,
-): Promise<string> {
+async function fetchMediaObjectURL(downloadPath: string): Promise<string> {
 	await acquire()
 	try {
-		const response = await fetch(mediaURL(conversationId, messageId))
+		const response = await fetch(downloadPath)
 		if (!response.ok) {
 			throw new Error(`fetching media failed with status ${response.status}`)
 		}
@@ -62,14 +56,14 @@ async function fetchMediaObjectURL(
 /**
  * useMediaBlob loads a message's stored blob once and caches its object URL
  * for the session, outside the live-invalidated whatsapp namespace.
- * @param conversationId - The conversation owning the message.
  * @param messageId - The message whose blob to load.
+ * @param downloadPath - The path the stored blob is served from.
  * @returns The object URL query.
  */
-export function useMediaBlob(conversationId: string, messageId: string) {
+export function useMediaBlob(messageId: string, downloadPath: string) {
 	return useQuery({
 		queryKey: ['whatsapp-media', messageId],
-		queryFn: () => fetchMediaObjectURL(conversationId, messageId),
+		queryFn: () => fetchMediaObjectURL(downloadPath),
 		staleTime: Infinity,
 		gcTime: Infinity,
 	})

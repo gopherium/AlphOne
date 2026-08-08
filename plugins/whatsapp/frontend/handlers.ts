@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, http } from 'msw'
+import { HttpResponse, graphql } from 'msw'
+
+/**
+ * Builds one thread message in graph shape.
+ * @param id - The message id.
+ * @param externalId - The WhatsApp message id.
+ * @param fields - The fields overriding the inbound text defaults.
+ * @returns The message the thread document returns.
+ */
+function threadMessage(id: string, externalId: string, fields: Record<string, unknown>) {
+	return {
+		__typename: 'WhatsAppMessage',
+		id,
+		externalId,
+		direction: 'inbound',
+		contentType: 'text',
+		status: null,
+		statusDetail: null,
+		media: null,
+		...fields,
+	}
+}
 
 const conversations = [
 	{
@@ -45,24 +66,25 @@ export const handlers = [
 	graphql.query('WhatsAppConversations', () =>
 		HttpResponse.json({ data: { whatsAppConversations: conversations } }),
 	),
-	http.get('/api/plugins/whatsapp/conversations/:conversationId/messages', () =>
-		HttpResponse.json([
-			{
-				id: '019f4a00-0000-7000-8000-0000000000b1',
-				external_id: 'wamid.HBgLMTU1NTAwMDExMQ',
-				direction: 'inbound',
-				content: 'Hi, is the order ready?',
-				content_type: 'text',
-				sent_at: '2026-07-06T09:05:00Z',
+	graphql.query('WhatsAppThread', () =>
+		HttpResponse.json({
+			data: {
+				whatsAppConversation: {
+					__typename: 'WhatsAppConversation',
+					id: conversations[0].id,
+					contact: conversations[0].contact,
+					messages: [
+						threadMessage('019f4a00-0000-7000-8000-0000000000b1', 'wamid.HBgLMTU1NTAwMDExMQ', {
+							content: 'Hi, is the order ready?',
+							sentAt: '2026-07-06T09:05:00Z',
+						}),
+						threadMessage('019f4a00-0000-7000-8000-0000000000b2', 'wamid.HBgLMTU1NTAwMDExMg', {
+							content: 'I can pick it up after 5pm.',
+							sentAt: '2026-07-06T10:05:00Z',
+						}),
+					],
+				},
 			},
-			{
-				id: '019f4a00-0000-7000-8000-0000000000b2',
-				external_id: 'wamid.HBgLMTU1NTAwMDExMg',
-				direction: 'inbound',
-				content: 'I can pick it up after 5pm.',
-				content_type: 'text',
-				sent_at: '2026-07-06T10:05:00Z',
-			},
-		]),
+		}),
 	),
 ]

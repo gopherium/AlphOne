@@ -16,6 +16,7 @@ function clientPreset(root: string) {
 	return {
 		[`${root}/gql/`]: {
 			preset: 'client' as const,
+			presetConfig: { fragmentMasking: false },
 			documents: [
 			`${root}/**/*.{ts,tsx}`,
 			`!${root}/gql/**`,

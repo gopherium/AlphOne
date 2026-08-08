@@ -9,22 +9,29 @@ import {
 	Stack,
 	Text,
 	VisuallyHidden,
+	graphExtensions,
+	useGraphMutation,
 	useGraphQuery,
+	useGraphSubscription,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import type { GraphFailure } from '@alphone/frontend-sdk'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import {
-	SendFailedError,
-	fetchMessages,
-	mediaURL,
-	sendMessage,
-} from './api'
-import type { Message, MessageMedia } from './api'
 import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
-import { conversationsQuery } from './operations'
 import { useMediaBlob } from './media'
+import type { ThreadMessageFragment } from './gql/graphql'
+import {
+	messageReceivedSubscription,
+	sendMessageMutation,
+	threadQuery,
+} from './operations'
 import { copyForFailureCode, copyForFailureDetail } from './status'
+
+/** Message is one thread message as the graph selects it. */
+type Message = ThreadMessageFragment
+
+/** MessageMedia is one message's attachment as the graph selects it. */
+type MessageMedia = NonNullable<Message['media']>
 
 const tickGlyphs: Record<string, { glyph: string; label: string; modifier?: string }> = {
 	sent: { glyph: '✓', label: 'Message sent' },
@@ -55,29 +62,23 @@ const followThresholdPx = 100
  * the local calendar date changes between consecutive messages.
  * @param messages - The conversation messages, oldest first.
  * @param now - The current moment, anchoring the Today and Yesterday labels.
- * @param conversationId - The conversation the messages belong to.
  * @returns The list items to render inside the message log.
  */
-function threadItems(messages: Message[], now: Date, conversationId: string) {
+function threadItems(messages: Message[], now: Date) {
 	const items = []
 	let previousDay = ''
 	for (const message of messages) {
-		const day = formatDay(message.sent_at)
+		const sentAt = new Date(message.sentAt)
+		const day = formatDay(sentAt)
 		if (day !== previousDay) {
 			items.push(
 				<li key={`day-${day}`} className="alphone-message-day">
-					<time dateTime={day}>{formatDayLabel(message.sent_at, now)}</time>
+					<time dateTime={day}>{formatDayLabel(sentAt, now)}</time>
 				</li>,
 			)
 			previousDay = day
 		}
-		items.push(
-			<MessageBubble
-				key={message.id}
-				conversationId={conversationId}
-				message={message}
-			/>,
-		)
+		items.push(<MessageBubble key={message.id} message={message} />)
 	}
 	return items
 }
@@ -87,30 +88,21 @@ function threadItems(messages: Message[], now: Date, conversationId: string) {
  * screen-reader-only direction label plus the sent time.
  * @returns The message list item.
  */
-function MessageBubble({
-	conversationId,
-	message,
-}: {
-	conversationId: string
-	message: Message
-}) {
+function MessageBubble({ message }: { message: Message }) {
 	return (
 		<li className={`alphone-message alphone-message--${message.direction}`}>
 			<div className="alphone-message__bubble">
 				<VisuallyHidden>
 					{message.direction === 'inbound' ? 'Received' : 'Sent'}
 				</VisuallyHidden>
-				<MessageBody conversationId={conversationId} message={message} />
-				<time
-					className="alphone-message__time"
-					dateTime={message.sent_at.toISOString()}
-				>
-					{formatTime(message.sent_at)}
+				<MessageBody message={message} />
+				<time className="alphone-message__time" dateTime={message.sentAt}>
+					{formatTime(new Date(message.sentAt))}
 				</time>
 				<DeliveryStatus message={message} />
 				{message.direction === 'outbound' && message.status === 'failed' ? (
 					<Text className="alphone-message__failure">
-						{copyForFailureDetail(message.status_detail)}
+						{copyForFailureDetail(message.statusDetail)}
 					</Text>
 				) : null}
 			</div>
@@ -124,9 +116,10 @@ function MessageBubble({
  * @param error - The reply mutation error.
  * @returns The operator-facing line under the composer.
  */
-function replyErrorCopy(error: unknown): string {
-	if (error instanceof SendFailedError && error.code !== null) {
-		return copyForFailureCode(error.code) ?? 'The reply could not be sent.'
+function replyErrorCopy(error: GraphFailure): string {
+	const metaCode = graphExtensions(error).metaCode
+	if (typeof metaCode === 'number') {
+		return copyForFailureCode(metaCode) ?? 'The reply could not be sent.'
 	}
 	return 'The reply could not be sent.'
 }
@@ -158,20 +151,14 @@ function DeliveryStatus({ message }: { message: Message }) {
  * a typed placeholder.
  * @returns The bubble body.
  */
-function MessageBody({
-	conversationId,
-	message,
-}: {
-	conversationId: string
-	message: Message
-}) {
-	if (mediaContentTypes.has(message.content_type)) {
-		return <MediaBody conversationId={conversationId} message={message} />
+function MessageBody({ message }: { message: Message }) {
+	if (mediaContentTypes.has(message.contentType)) {
+		return <MediaBody message={message} />
 	}
-	if (message.content_type === 'text') {
+	if (message.contentType === 'text') {
 		return <Text className="alphone-message__content">{message.content}</Text>
 	}
-	const decorate = decoratedContent[message.content_type]
+	const decorate = decoratedContent[message.contentType]
 	return (
 		<Text className="alphone-message__content">
 			{decorate ? decorate(message) : 'Unsupported message.'}
@@ -183,13 +170,7 @@ function MessageBody({
  * Renders a media message's attachment by its download state.
  * @returns The attachment body.
  */
-function MediaBody({
-	conversationId,
-	message,
-}: {
-	conversationId: string
-	message: Message
-}) {
+function MediaBody({ message }: { message: Message }) {
 	const media = message.media
 	if (!media || media.status === 'failed') {
 		return <UnavailableAttachment media={media} message={message} />
@@ -197,13 +178,7 @@ function MediaBody({
 	if (media.status === 'pending') {
 		return <MediaGhost />
 	}
-	return (
-		<ReadyAttachment
-			conversationId={conversationId}
-			media={media}
-			message={message}
-		/>
-	)
+	return <ReadyAttachment media={media} message={message} />
 }
 
 /**
@@ -218,7 +193,7 @@ function UnavailableAttachment({
 	media: MessageMedia | null | undefined
 	message: Message
 }) {
-	if (media && message.content_type === 'document') {
+	if (media && message.contentType === 'document') {
 		return <DocumentChip media={media} caption={message.content} />
 	}
 	return <Text className="alphone-message__content">Attachment unavailable.</Text>
@@ -229,19 +204,17 @@ function UnavailableAttachment({
  * @returns The attachment body.
  */
 function ReadyAttachment({
-	conversationId,
 	media,
 	message,
 }: {
-	conversationId: string
 	media: MessageMedia
 	message: Message
 }) {
-	const source = mediaURL(conversationId, message.id)
-	switch (message.content_type) {
+	const source = media.downloadPath
+	switch (message.contentType) {
 		case 'image':
 		case 'sticker':
-			return <MediaImage conversationId={conversationId} message={message} />
+			return <MediaImage media={media} message={message} />
 		case 'audio':
 			return <AudioAttachment media={media} source={source} />
 		case 'video':
@@ -316,20 +289,20 @@ function MediaGhost({ sticker = false }: { sticker?: boolean }) {
  * @returns The image body.
  */
 function MediaImage({
-	conversationId,
+	media,
 	message,
 }: {
-	conversationId: string
+	media: MessageMedia
 	message: Message
 }) {
-	const blob = useMediaBlob(conversationId, message.id)
+	const blob = useMediaBlob(message.id, media.downloadPath)
 	if (blob.isPending) {
-		return <MediaGhost sticker={message.content_type === 'sticker'} />
+		return <MediaGhost sticker={message.contentType === 'sticker'} />
 	}
 	if (blob.isError) {
 		return <Text className="alphone-message__content">Attachment unavailable.</Text>
 	}
-	const sticker = message.content_type === 'sticker'
+	const sticker = message.contentType === 'sticker'
 	return (
 		<div className="alphone-message__media">
 			<img
@@ -364,7 +337,7 @@ function DocumentChip({
 }) {
 	const name = media.filename ?? 'Document'
 	const label =
-		media.file_size === null ? name : `${name} (${formatFileSize(media.file_size)})`
+		media.fileSize === null ? name : `${name} (${formatFileSize(media.fileSize)})`
 	return (
 		<div className="alphone-message__media">
 			{href ? (
@@ -386,19 +359,49 @@ function DocumentChip({
 }
 
 /**
- * Renders the conversation's header, naming the contact it belongs to.
- * @returns The thread header element.
+ * useThread reads the conversation, appending the arrivals its subscription
+ * delivers so a new message needs no reload.
+ * @param conversationId - The conversation to read.
+ * @returns The thread result beside its merged messages.
  */
-function ThreadHeader({ conversationId }: { conversationId: string }) {
-	const [conversations] = useGraphQuery({ query: conversationsQuery })
-	const named = conversations.data?.whatsAppConversations.find(
-		(conversation) => conversation.id === conversationId,
+function useThread(conversationId: string) {
+	const [arrivals, setArrivals] = useState<Message[]>([])
+	const [thread] = useGraphQuery({ query: threadQuery, variables: { conversationId } })
+	useGraphSubscription(
+		{ query: messageReceivedSubscription, variables: { conversationId } },
+		(_previous, frame) => {
+			setArrivals((current) => [...current, frame.whatsAppMessageReceived])
+			return frame
+		},
 	)
-	return (
-		<header className="alphone-thread__header">
-			<PageTitle variant="heading-md">{named?.contact.name ?? 'Conversation'}</PageTitle>
-		</header>
+	const loaded = thread.data?.whatsAppConversation
+	const messages = useMemo(
+		() => mergeById(loaded?.messages ?? [], arrivals),
+		[loaded, arrivals],
 	)
+	return { thread, conversation: loaded, messages, append: appendTo(setArrivals) }
+}
+
+/**
+ * appendTo returns the appender adding one message to the arrivals.
+ * @param setArrivals - The arrivals state setter.
+ * @returns The appender.
+ */
+function appendTo(setArrivals: (update: (current: Message[]) => Message[]) => void) {
+	return (message: Message) => {
+		setArrivals((current) => [...current, message])
+	}
+}
+
+/**
+ * mergeById returns the loaded messages followed by the arrivals they lack.
+ * @param loaded - The messages the thread document returned.
+ * @param arrivals - The messages delivered since, newest last.
+ * @returns The merged messages, oldest first.
+ */
+function mergeById(loaded: readonly Message[], arrivals: readonly Message[]): Message[] {
+	const known = new Set(loaded.map((message) => message.id))
+	return [...loaded, ...arrivals.filter((message) => !known.has(message.id))]
 }
 
 /**
@@ -406,10 +409,21 @@ function ThreadHeader({ conversationId }: { conversationId: string }) {
  * @returns The thread element.
  */
 export function Thread({ conversationId }: { conversationId: string }) {
+	const { thread, conversation, messages, append } = useThread(conversationId)
 	return (
 		<div className="alphone-thread">
-			<ThreadHeader conversationId={conversationId} />
-			<ThreadBody conversationId={conversationId} />
+			<header className="alphone-thread__header">
+				<PageTitle variant="heading-md">
+					{conversation?.contact.name ?? 'Conversation'}
+				</PageTitle>
+			</header>
+			<ThreadBody
+				conversationId={conversationId}
+				error={thread.error !== undefined}
+				loaded={conversation !== undefined}
+				messages={messages}
+				onSent={append}
+			/>
 		</div>
 	)
 }
@@ -419,25 +433,33 @@ export function Thread({ conversationId }: { conversationId: string }) {
  * The always-mounted conversation list owns the live-update stream.
  * @returns The chat log and composer, or a loading or error message.
  */
-function ThreadBody({ conversationId }: { conversationId: string }) {
+function ThreadBody({
+	conversationId,
+	error,
+	loaded,
+	messages,
+	onSent,
+}: {
+	conversationId: string
+	error: boolean
+	loaded: boolean
+	messages: Message[]
+	onSent: (message: Message) => void
+}) {
 	const logRef = useRef<HTMLDivElement>(null)
 	const followRef = useRef(true)
-	const messages = useQuery({
-		queryKey: ['whatsapp', 'messages', conversationId],
-		queryFn: () => fetchMessages(conversationId),
-	})
 	useEffect(() => {
 		const log = logRef.current
 		if (log && followRef.current) {
 			log.scrollTop = log.scrollHeight
 		}
-	}, [messages.data])
+	}, [messages])
 
-	if (messages.isPending) {
-		return <LoadingRows label="Loading messages…" />
-	}
-	if (messages.isError) {
+	if (error) {
 		return <Text role="alert">Messages could not be loaded.</Text>
+	}
+	if (!loaded) {
+		return <LoadingRows label="Loading messages…" />
 	}
 	return (
 		<>
@@ -454,15 +476,13 @@ function ThreadBody({ conversationId }: { conversationId: string }) {
 						followThresholdPx
 				}}
 			>
-				{messages.data.length === 0 ? (
+				{messages.length === 0 ? (
 					<Text role="status">No messages yet.</Text>
 				) : (
-					<ul className="alphone-messages">
-						{threadItems(messages.data, new Date(), conversationId)}
-					</ul>
+					<ul className="alphone-messages">{threadItems(messages, new Date())}</ul>
 				)}
 			</div>
-			<ThreadComposer conversationId={conversationId} />
+			<ThreadComposer conversationId={conversationId} onSent={onSent} />
 		</>
 	)
 }
@@ -471,14 +491,15 @@ function ThreadBody({ conversationId }: { conversationId: string }) {
  * Renders the reply composer for a conversation.
  * @returns The composer form.
  */
-function ThreadComposer({ conversationId }: { conversationId: string }) {
-	const queryClient = useQueryClient()
+function ThreadComposer({
+	conversationId,
+	onSent,
+}: {
+	conversationId: string
+	onSent: (message: Message) => void
+}) {
 	const [draft, setDraft] = useState('')
-	const reply = useMutation({
-		mutationFn: (content: string) => sendMessage(conversationId, content),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp'] }),
-		onError: (_error, content) => setDraft(content),
-	})
+	const [reply, send] = useGraphMutation(sendMessageMutation)
 	return (
 		<form
 			className="alphone-composer"
@@ -486,7 +507,13 @@ function ThreadComposer({ conversationId }: { conversationId: string }) {
 				event.preventDefault()
 				const content = draft.trim()
 				setDraft('')
-				reply.mutate(content)
+				void send({ conversationId, content }).then((result) => {
+					if (result.data) {
+						onSent(result.data.whatsAppSendMessage)
+						return
+					}
+					setDraft(content)
+				})
 			}}
 		>
 			<Stack direction="column" gap="sm">
@@ -500,13 +527,13 @@ function ThreadComposer({ conversationId }: { conversationId: string }) {
 					/>
 					<Button
 						type="submit"
-						disabled={draft.trim() === '' || reply.isPending}
-						loading={reply.isPending}
+						disabled={draft.trim() === '' || reply.fetching}
+						loading={reply.fetching}
 					>
 						Send
 					</Button>
 				</Stack>
-				{reply.isError ? (
+				{reply.error ? (
 					<Text role="alert">{replyErrorCopy(reply.error)}</Text>
 				) : null}
 			</Stack>

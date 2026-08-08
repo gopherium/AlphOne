@@ -63,6 +63,11 @@ export type { GraphClient } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'
 export type { ConnectionPage, ConnectionResult } from './useConnection'
-export { useQuery as useGraphQuery, useMutation as useGraphMutation } from 'urql'
+export {
+	useQuery as useGraphQuery,
+	useMutation as useGraphMutation,
+	useSubscription as useGraphSubscription,
+} from 'urql'
+export type { CombinedError as GraphFailure } from 'urql'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useGraphEvents, useGraphStream } from './stream'

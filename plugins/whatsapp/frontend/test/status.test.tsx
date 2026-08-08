@@ -3,13 +3,13 @@ import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { HttpResponse, http } from 'msw'
+import { HttpResponse, graphql } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from '../handlers'
 import { Thread } from '../Thread'
 
-const messagesPath = '/api/plugins/whatsapp/conversations/:conversationId/messages'
+const conversationId = '019f4a00-0000-7000-8000-000000000001'
 
 let messageCounter = 0
 
@@ -26,14 +26,15 @@ beforeEach(() => {
 function message(overrides: Record<string, unknown>): Record<string, unknown> {
 	messageCounter += 1
 	return {
+		__typename: 'WhatsAppMessage',
 		id: `mid-${messageCounter}`,
-		external_id: `wamid.status.${messageCounter}`,
+		externalId: `wamid.status.${messageCounter}`,
 		direction: 'outbound',
 		content: 'hello',
-		content_type: 'text',
-		sent_at: '2026-07-06T09:05:00Z',
+		contentType: 'text',
+		sentAt: '2026-07-06T09:05:00Z',
 		status: null,
-		status_detail: null,
+		statusDetail: null,
 		media: null,
 		...overrides,
 	}
@@ -44,14 +45,28 @@ function message(overrides: Record<string, unknown>): Record<string, unknown> {
  * @param messages - The raw message payloads to return.
  */
 function renderThreadOf(...messages: Array<Record<string, unknown>>) {
-	server.use(http.get(messagesPath, () => HttpResponse.json(messages)))
+	server.use(
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: conversationId,
+						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
+						messages,
+					},
+				},
+			}),
+		),
+	)
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
+	const { graph } = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<GraphProvider graph={fakeGraphClient().graph}>
-				<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+			<GraphProvider graph={graph}>
+				<Thread conversationId={conversationId} />
 			</GraphProvider>
 		</QueryClientProvider>,
 	)
@@ -98,7 +113,7 @@ test('renders played voice notes like read', async () => {
 })
 
 test('renders failed messages with the mapped explanation', async () => {
-	renderThreadOf(message({ status: 'failed', status_detail: '131047 Re-engagement message' }))
+	renderThreadOf(message({ status: 'failed', statusDetail: '131047 Re-engagement message' }))
 
 	expect(await screen.findByText('Message not delivered')).toBeInTheDocument()
 	expect(tickElement()).toHaveClass('alphone-message__ticks--failed')
@@ -108,13 +123,13 @@ test('renders failed messages with the mapped explanation', async () => {
 })
 
 test('renders unmapped failure codes with the generic explanation', async () => {
-	renderThreadOf(message({ status: 'failed', status_detail: '999 Something strange' }))
+	renderThreadOf(message({ status: 'failed', statusDetail: '999 Something strange' }))
 
 	expect(await screen.findByText('Not delivered.')).toBeInTheDocument()
 })
 
 test('renders unparsable failure details with the generic explanation', async () => {
-	renderThreadOf(message({ status: 'failed', status_detail: 'no code here' }))
+	renderThreadOf(message({ status: 'failed', statusDetail: 'no code here' }))
 
 	expect(await screen.findByText('Not delivered.')).toBeInTheDocument()
 })
@@ -158,8 +173,16 @@ async function sendReply() {
 test('shows the mapped explanation when a send is rejected with a known code', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
 	server.use(
-		http.post(messagesPath, () =>
-			HttpResponse.json({ error: 'Re-engagement message', code: 131047 }, { status: 502 }),
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'Re-engagement message',
+						extensions: { code: 'UPSTREAM', metaCode: 131047 },
+					},
+				],
+			}),
 		),
 	)
 	await screen.findByText('hello')
@@ -174,8 +197,11 @@ test('shows the mapped explanation when a send is rejected with a known code', a
 test('shows the generic line when a send is rejected with an unknown code', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
 	server.use(
-		http.post(messagesPath, () =>
-			HttpResponse.json({ error: 'strange', code: 999 }, { status: 502 }),
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'strange', extensions: { code: 'UPSTREAM', metaCode: 999 } }],
+			}),
 		),
 	)
 	await screen.findByText('hello')
@@ -185,9 +211,16 @@ test('shows the generic line when a send is rejected with an unknown code', asyn
 	expect(await screen.findByText('The reply could not be sent.')).toBeInTheDocument()
 })
 
-test('shows the generic line when a rejection carries no JSON body', async () => {
+test('shows the generic line when a rejection carries no code', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
-	server.use(http.post(messagesPath, () => new HttpResponse('bad gateway', { status: 502 })))
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
+			}),
+		),
+	)
 	await screen.findByText('hello')
 
 	await sendReply()
@@ -197,7 +230,7 @@ test('shows the generic line when a rejection carries no JSON body', async () =>
 
 test('shows the generic line when the send fails on the network', async () => {
 	renderThreadOf(message({ direction: 'inbound' }))
-	server.use(http.post(messagesPath, () => HttpResponse.error()))
+	server.use(graphql.mutation('WhatsAppSendMessage', () => HttpResponse.error()))
 	await screen.findByText('hello')
 
 	await sendReply()

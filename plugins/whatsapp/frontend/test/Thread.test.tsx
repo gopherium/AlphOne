@@ -1,20 +1,62 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { GraphProvider } from '@alphone/frontend-sdk'
-import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
+import type { FakeGraph } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers } from '../handlers'
 import { Thread } from '../Thread'
 
+const conversationId = '019f4a00-0000-7000-8000-000000000001'
+
 beforeEach(() => server.use(...handlers))
 afterEach(() => vi.restoreAllMocks())
 
-function renderThread() {
+/** Builds one graph message, defaulting to an inbound text. */
+function message(fields: Record<string, unknown> = {}) {
+	return {
+		__typename: 'WhatsAppMessage',
+		id: '019f4a00-0000-7000-8000-0000000000b1',
+		externalId: 'wamid.HBgLMTU1NTAwMDExMQ',
+		direction: 'inbound',
+		content: 'Hi, is the order ready?',
+		contentType: 'text',
+		sentAt: '2026-07-06T10:00:00Z',
+		status: null,
+		statusDetail: null,
+		media: null,
+		...fields,
+	}
+}
+
+/** Serves the thread document with the given messages. */
+function threadOf(...messages: Record<string, unknown>[]) {
+	server.use(
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: conversationId,
+						contact: {
+							__typename: 'Contact',
+							id: '019f4a00-0000-7000-8000-0000000000a1',
+							name: 'John Doe',
+						},
+						messages,
+					},
+				},
+			}),
+		),
+	)
+}
+
+/** Renders the thread under a fresh query client and a drivable graph client. */
+function renderThread(): FakeGraph {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
@@ -22,20 +64,15 @@ function renderThread() {
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>
-				<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+				<Thread conversationId={conversationId} />
 			</GraphProvider>
 		</QueryClientProvider>,
 	)
-	return client
+	return fake
 }
 
 test('ghosts the log while the messages arrive', async () => {
-	server.use(
-		http.get(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => new Promise(() => {}),
-		),
-	)
+	server.use(graphql.query('WhatsAppThread', () => new Promise(() => {})))
 	renderThread()
 
 	const status = await screen.findByRole('status')
@@ -53,7 +90,9 @@ test('names the contact the conversation belongs to in its header', async () => 
 
 test('titles the header generically while the conversation is unknown', async () => {
 	server.use(
-		http.get('/api/plugins/whatsapp/conversations', () => HttpResponse.json([])),
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({ data: { whatsAppConversation: null } }),
+		),
 	)
 	renderThread()
 
@@ -65,9 +104,7 @@ test('titles the header generically while the conversation is unknown', async ()
 test('lists the conversation messages, oldest first', async () => {
 	renderThread()
 
-	expect(
-		await screen.findByText('Hi, is the order ready?'),
-	).toBeInTheDocument()
+	expect(await screen.findByText('Hi, is the order ready?')).toBeInTheDocument()
 	expect(screen.getByText('I can pick it up after 5pm.')).toBeInTheDocument()
 
 	const contents = screen
@@ -89,12 +126,7 @@ test('lists the conversation messages, oldest first', async () => {
 })
 
 test('shows an empty state when the conversation has no messages', async () => {
-	server.use(
-		http.get(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => HttpResponse.json([]),
-		),
-	)
+	threadOf()
 
 	renderThread()
 
@@ -103,9 +135,8 @@ test('shows an empty state when the conversation has no messages', async () => {
 
 test('reports when messages cannot be loaded', async () => {
 	server.use(
-		http.get(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 
@@ -114,62 +145,106 @@ test('reports when messages cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 })
 
-test('sends a reply and appends it to the thread', async () => {
+test('sends a reply and shows it in the thread', async () => {
 	const user = userEvent.setup()
-	let thread = [
-		{
-			id: '019f4a00-0000-7000-8000-0000000000b1',
-			external_id: 'wamid.HBgLMTU1NTAwMDExMQ',
-			direction: 'inbound',
-			content: 'Hi, is the order ready?',
-			content_type: 'text',
-			sent_at: '2026-07-06T10:00:00Z',
-		},
-	]
 	server.use(
-		http.get(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => HttpResponse.json(thread),
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: conversationId,
+						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
+						messages: [message()],
+					},
+				},
+			}),
 		),
-		http.post(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			async ({ request }) => {
-				const body = (await request.json()) as { content: string }
-				const message = {
-					id: '019f4a00-0000-7000-8000-0000000000c1',
-					external_id: 'wamid.out.1',
-					direction: 'outbound',
-					content: body.content,
-					content_type: 'text',
-					sent_at: '2026-07-07T18:00:00Z',
-				}
-				thread = [...thread, message]
-				return HttpResponse.json(message, { status: 201 })
-			},
+		graphql.mutation('WhatsAppSendMessage', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					whatsAppSendMessage: message({
+						id: '019f4a00-0000-7000-8000-0000000000c1',
+						externalId: 'wamid.out.1',
+						direction: 'outbound',
+						content: variables.content,
+						sentAt: '2026-07-07T18:00:00Z',
+						status: 'sent',
+					}),
+				},
+			}),
 		),
 	)
-
 	renderThread()
 	await screen.findByText('Hi, is the order ready?')
 
-	await user.type(
-		screen.getByRole('textbox', { name: /reply/i }),
-		'Ready at 5pm',
-	)
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
 	await user.click(screen.getByRole('button', { name: /send/i }))
 
 	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
-	expect(screen.getByText('Sent')).toBeInTheDocument()
+	expect(screen.getByText('Message sent')).toBeInTheDocument()
 	expect(screen.getByText('Jul 7, 2026')).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
+})
+
+test('appends an arriving message without refetching the thread', async () => {
+	let threadReads = 0
+	server.use(
+		graphql.query('WhatsAppThread', () => {
+			threadReads += 1
+			return HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: conversationId,
+						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
+						messages: [message()],
+					},
+				},
+			})
+		}),
+	)
+	const fake = renderThread()
+	await screen.findByText('Hi, is the order ready?')
+	const readsBeforeArrival = threadReads
+
+	fake.emit({
+		whatsAppMessageReceived: message({
+			id: '019f4a00-0000-7000-8000-0000000000e1',
+			externalId: 'wamid.in.2',
+			content: 'One more thing',
+			sentAt: '2026-07-06T10:30:00Z',
+		}),
+	})
+
+	expect(await screen.findByText('One more thing')).toBeInTheDocument()
+	expect(threadReads).toBe(readsBeforeArrival)
+	expect(fake.documents[0]).toContain('whatsAppMessageReceived')
+})
+
+test('keeps one copy of an arrival the thread reload also returns', async () => {
+	const arrival = message({
+		id: '019f4a00-0000-7000-8000-0000000000e1',
+		content: 'One more thing',
+		sentAt: '2026-07-06T10:30:00Z',
+	})
+	threadOf(message(), arrival)
+	const fake = renderThread()
+	await screen.findByText('Hi, is the order ready?')
+
+	fake.emit({ whatsAppMessageReceived: arrival })
+
+	expect(await screen.findAllByText('One more thing')).toHaveLength(1)
 })
 
 test('reports when the reply cannot be sent', async () => {
 	const user = userEvent.setup()
 	server.use(
-		http.post(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => HttpResponse.json({ error: 'upstream failure' }, { status: 502 }),
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
+			}),
 		),
 	)
 
@@ -181,6 +256,31 @@ test('reports when the reply cannot be sent', async () => {
 
 	expect(await screen.findByText(/could not be sent/i)).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
+})
+
+test('explains a rejected reply with the code the graph surfaced', async () => {
+	const user = userEvent.setup()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'outside the window',
+						extensions: { code: 'UPSTREAM', metaCode: 131047 },
+					},
+				],
+			}),
+		),
+	)
+
+	renderThread()
+	await screen.findByText('Hi, is the order ready?')
+
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(/24-hour/i)
 })
 
 test('refuses to send a blank reply', async () => {
@@ -198,39 +298,7 @@ test('refuses to send a blank reply', async () => {
 	expect(send).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('refreshes the whole plugin cache after a reply is sent', async () => {
-	const user = userEvent.setup()
-	server.use(
-		http.post(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() =>
-				HttpResponse.json(
-					{
-						id: '019f4a00-0000-7000-8000-0000000000d1',
-						external_id: 'wamid.out.9',
-						direction: 'outbound',
-						content: 'done',
-						content_type: 'text',
-						sent_at: '2026-07-07T18:00:00Z',
-					},
-					{ status: 201 },
-				),
-		),
-	)
-	const client = renderThread()
-	await screen.findByText('Hi, is the order ready?')
-	const invalidate = vi.spyOn(client, 'invalidateQueries')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'done')
-	await user.click(screen.getByRole('button', { name: /send/i }))
-
-	await waitFor(() =>
-		expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] }),
-	)
-})
-
 test('follows the newest message unless the reader scrolls up', async () => {
-	const user = userEvent.setup()
 	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(400)
 	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(100)
 	const scrollTopGet = vi
@@ -239,55 +307,25 @@ test('follows the newest message unless the reader scrolls up', async () => {
 	const scrollTopSet = vi
 		.spyOn(Element.prototype, 'scrollTop', 'set')
 		.mockImplementation(() => {})
-	let thread = [
-		{
-			id: '019f4a00-0000-7000-8000-0000000000b1',
-			external_id: 'wamid.HBgLMTU1NTAwMDExMQ',
-			direction: 'inbound',
-			content: 'Hi, is the order ready?',
-			content_type: 'text',
-			sent_at: '2026-07-06T10:00:00Z',
-		},
-	]
-	server.use(
-		http.get(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			() => HttpResponse.json(thread),
-		),
-		http.post(
-			'/api/plugins/whatsapp/conversations/:conversationId/messages',
-			async ({ request }) => {
-				const body = (await request.json()) as { content: string }
-				const message = {
-					id: `019f4a00-0000-7000-8000-0000000000c${thread.length}`,
-					external_id: `wamid.out.${thread.length}`,
-					direction: 'outbound',
-					content: body.content,
-					content_type: 'text',
-					sent_at: '2026-07-07T18:00:00Z',
-				}
-				thread = [...thread, message]
-				return HttpResponse.json(message, { status: 201 })
-			},
-		),
-	)
-
-	renderThread()
+	threadOf(message())
+	const fake = renderThread()
 	await screen.findByText('Hi, is the order ready?')
 	expect(scrollTopSet).toHaveBeenCalledTimes(1)
 	expect(scrollTopSet).toHaveBeenLastCalledWith(400)
 
 	const log = screen.getByRole('log')
 	fireEvent.scroll(log)
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'first')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	fake.emit({
+		whatsAppMessageReceived: message({ id: 'first-id', content: 'first' }),
+	})
 	await screen.findByText('first')
 	expect(scrollTopSet).toHaveBeenCalledTimes(1)
 
 	scrollTopGet.mockReturnValue(350)
 	fireEvent.scroll(log)
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'second')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	fake.emit({
+		whatsAppMessageReceived: message({ id: 'second-id', content: 'second' }),
+	})
 	await screen.findByText('second')
 	expect(scrollTopSet).toHaveBeenCalledTimes(2)
 })

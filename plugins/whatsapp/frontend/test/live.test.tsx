@@ -37,7 +37,7 @@ test('invalidates whatsapp queries when a conversation event arrives', async () 
 	fake.emit({ whatsAppConversationEvent: 'conversation-id' })
 
 	expect(invalidate).toHaveBeenCalledWith({ queryKey: ['whatsapp'] })
-	expect(fake.graph.refetch).toHaveBeenCalledWith(['WhatsAppConversations'])
+	expect(fake.graph.refetch).toHaveBeenCalledWith(['WhatsAppConversations', 'WhatsAppThread'])
 })
 
 test('ends the subscription on unmount', async () => {

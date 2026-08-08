@@ -2,10 +2,9 @@ import { GraphProvider } from '@alphone/frontend-sdk'
 import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { HttpResponse, http } from 'msw'
+import { HttpResponse, graphql, http } from 'msw'
 import { beforeEach, expect, test, vi } from 'vitest'
 
-import { mediaURL } from '../api'
 import { handlers } from '../handlers'
 import { Thread } from '../Thread'
 
@@ -32,16 +31,24 @@ beforeEach(() => {
  */
 function message(overrides: Record<string, unknown>): Record<string, unknown> {
 	messageCounter += 1
-	return {
-		id: `mid-${messageCounter}`,
-		external_id: `wamid.media.${messageCounter}`,
+	const id = `mid-${messageCounter}`
+	const built: Record<string, unknown> = {
+		__typename: 'WhatsAppMessage',
+		id,
+		externalId: `wamid.media.${messageCounter}`,
 		direction: 'inbound',
 		content: '',
-		content_type: 'text',
-		sent_at: '2026-07-06T09:05:00Z',
+		contentType: 'text',
+		sentAt: '2026-07-06T09:05:00Z',
+		status: null,
+		statusDetail: null,
 		media: null,
 		...overrides,
 	}
+	if (built.media) {
+		built.media = { ...(built.media as object), downloadPath: mediaURL(conversationId, id) }
+	}
+	return built
 }
 
 /**
@@ -51,10 +58,11 @@ function message(overrides: Record<string, unknown>): Record<string, unknown> {
  */
 function media(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
+		__typename: 'WhatsAppMedia',
 		status: 'stored',
-		mime_type: 'image/jpeg',
+		mimeType: 'image/jpeg',
 		filename: null,
-		file_size: null,
+		fileSize: null,
 		voice: false,
 		animated: false,
 		...overrides,
@@ -66,7 +74,30 @@ function media(overrides: Record<string, unknown> = {}): Record<string, unknown>
  * @param messages - The raw message payloads to return.
  */
 function threadOf(...messages: Array<Record<string, unknown>>) {
-	server.use(http.get(messagesPath, () => HttpResponse.json(messages)))
+	server.use(
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: conversationId,
+						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
+						messages,
+					},
+				},
+			}),
+		),
+	)
+}
+
+/**
+ * Builds the download path of a message's stored blob.
+ * @param conversation - The conversation owning the message.
+ * @param messageId - The message whose blob to address.
+ * @returns The media endpoint path.
+ */
+function mediaURL(conversation: string, messageId: string): string {
+	return `/api/plugins/whatsapp/conversations/${conversation}/messages/${messageId}/media`
 }
 
 /**
@@ -94,9 +125,10 @@ function renderThread(): QueryClient {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
+	const { graph } = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<GraphProvider graph={fakeGraphClient().graph}>
+			<GraphProvider graph={graph}>
 				<Thread conversationId={conversationId} />
 			</GraphProvider>
 		</QueryClientProvider>,
@@ -105,7 +137,7 @@ function renderThread(): QueryClient {
 }
 
 test('renders a stored image with its caption', async () => {
-	threadOf(message({ content_type: 'image', content: 'the invoice', media: media() }))
+	threadOf(message({ contentType: 'image', content: 'the invoice', media: media() }))
 	const downloads = serveMediaBlobs()
 
 	renderThread()
@@ -119,7 +151,7 @@ test('renders a stored image with its caption', async () => {
 })
 
 test('renders a sticker smaller and without a caption', async () => {
-	threadOf(message({ content_type: 'sticker', media: media({ mime_type: 'image/webp', animated: true }) }))
+	threadOf(message({ contentType: 'sticker', media: media({ mimeType: 'image/webp', animated: true }) }))
 	serveMediaBlobs()
 
 	renderThread()
@@ -129,7 +161,7 @@ test('renders a sticker smaller and without a caption', async () => {
 })
 
 test('shows a downloading state without touching the media endpoint', async () => {
-	threadOf(message({ content_type: 'image', media: media({ status: 'pending' }) }))
+	threadOf(message({ contentType: 'image', media: media({ status: 'pending' }) }))
 	const downloads = serveMediaBlobs()
 
 	renderThread()
@@ -139,7 +171,7 @@ test('shows a downloading state without touching the media endpoint', async () =
 })
 
 test('ghosts the bubble in the shape of the media it is downloading', async () => {
-	threadOf(message({ content_type: 'image', media: media({ status: 'pending' }) }))
+	threadOf(message({ contentType: 'image', media: media({ status: 'pending' }) }))
 	serveMediaBlobs()
 
 	renderThread()
@@ -152,7 +184,7 @@ test('ghosts the bubble in the shape of the media it is downloading', async () =
 })
 
 test('ghosts a sticker at sticker size while its blob arrives', async () => {
-	threadOf(message({ content_type: 'sticker', media: media({ status: 'ready' }) }))
+	threadOf(message({ contentType: 'sticker', media: media({ status: 'ready' }) }))
 	let release: () => void = () => {}
 	const held = new Promise<void>((resolve) => {
 		release = resolve
@@ -175,7 +207,7 @@ test('ghosts a sticker at sticker size while its blob arrives', async () => {
 })
 
 test('shows failed attachments as unavailable', async () => {
-	threadOf(message({ content_type: 'image', media: media({ status: 'failed' }) }))
+	threadOf(message({ contentType: 'image', media: media({ status: 'failed' }) }))
 	const downloads = serveMediaBlobs()
 
 	renderThread()
@@ -185,7 +217,7 @@ test('shows failed attachments as unavailable', async () => {
 })
 
 test('shows media messages without a media record as unavailable', async () => {
-	threadOf(message({ content_type: 'video', media: null }))
+	threadOf(message({ contentType: 'video', media: null }))
 
 	renderThread()
 
@@ -193,7 +225,7 @@ test('shows media messages without a media record as unavailable', async () => {
 })
 
 test('shows an unavailable state when the blob download fails', async () => {
-	threadOf(message({ content_type: 'image', media: media() }))
+	threadOf(message({ contentType: 'image', media: media() }))
 	server.use(http.get(mediaPath, () => new HttpResponse(null, { status: 500 })))
 
 	renderThread()
@@ -202,7 +234,7 @@ test('shows an unavailable state when the blob download fails', async () => {
 })
 
 test('renders a voice note with a native player', async () => {
-	const item = message({ content_type: 'audio', media: media({ mime_type: 'audio/ogg', voice: true }) })
+	const item = message({ contentType: 'audio', media: media({ mimeType: 'audio/ogg', voice: true }) })
 	threadOf(item)
 
 	renderThread()
@@ -215,7 +247,7 @@ test('renders a voice note with a native player', async () => {
 })
 
 test('renders an audio file without the voice label', async () => {
-	threadOf(message({ content_type: 'audio', media: media({ mime_type: 'audio/mpeg' }) }))
+	threadOf(message({ contentType: 'audio', media: media({ mimeType: 'audio/mpeg' }) }))
 
 	renderThread()
 
@@ -226,9 +258,9 @@ test('renders an audio file without the voice label', async () => {
 
 test('renders a video with its caption', async () => {
 	const item = message({
-		content_type: 'video',
+		contentType: 'video',
 		content: 'look at this',
-		media: media({ mime_type: 'video/mp4' }),
+		media: media({ mimeType: 'video/mp4' }),
 	})
 	threadOf(item)
 
@@ -240,7 +272,7 @@ test('renders a video with its caption', async () => {
 })
 
 test('renders a video without a caption', async () => {
-	threadOf(message({ content_type: 'video', media: media({ mime_type: 'video/mp4' }) }))
+	threadOf(message({ contentType: 'video', media: media({ mimeType: 'video/mp4' }) }))
 
 	renderThread()
 
@@ -250,8 +282,8 @@ test('renders a video without a caption', async () => {
 
 test('renders a stored document as a download link', async () => {
 	const item = message({
-		content_type: 'document',
-		media: media({ mime_type: 'application/pdf', filename: 'receipt.pdf', file_size: 2048 }),
+		contentType: 'document',
+		media: media({ mimeType: 'application/pdf', filename: 'receipt.pdf', fileSize: 2048 }),
 	})
 	threadOf(item)
 
@@ -263,7 +295,7 @@ test('renders a stored document as a download link', async () => {
 })
 
 test('renders a nameless document without a size', async () => {
-	threadOf(message({ content_type: 'document', media: media({ mime_type: 'application/pdf' }) }))
+	threadOf(message({ contentType: 'document', media: media({ mimeType: 'application/pdf' }) }))
 
 	renderThread()
 
@@ -273,13 +305,13 @@ test('renders a nameless document without a size', async () => {
 test('renders a failed document as a chip without a link', async () => {
 	threadOf(
 		message({
-			content_type: 'document',
+			contentType: 'document',
 			content: 'the contract',
 			media: media({
 				status: 'failed',
-				mime_type: 'application/pdf',
+				mimeType: 'application/pdf',
 				filename: 'contract.pdf',
-				file_size: 40 << 20,
+				fileSize: 40 << 20,
 			}),
 		}),
 	)
@@ -293,12 +325,12 @@ test('renders a failed document as a chip without a link', async () => {
 
 test('renders typed placeholders for non-media types', async () => {
 	threadOf(
-		message({ content_type: 'location', content: 'British Museum' }),
-		message({ content_type: 'contacts', content: 'Ana García, Luis Ruiz' }),
-		message({ content_type: 'contacts', content: '' }),
-		message({ content_type: 'reaction', content: '👍' }),
-		message({ content_type: 'reaction', content: '' }),
-		message({ content_type: 'poll', content: '' }),
+		message({ contentType: 'location', content: 'British Museum' }),
+		message({ contentType: 'contacts', content: 'Ana García, Luis Ruiz' }),
+		message({ contentType: 'contacts', content: '' }),
+		message({ contentType: 'reaction', content: '👍' }),
+		message({ contentType: 'reaction', content: '' }),
+		message({ contentType: 'poll', content: '' }),
 	)
 
 	renderThread()
@@ -313,9 +345,9 @@ test('renders typed placeholders for non-media types', async () => {
 
 test('downloads at most two blobs at once', async () => {
 	threadOf(
-		message({ content_type: 'image', media: media() }),
-		message({ content_type: 'image', media: media() }),
-		message({ content_type: 'image', media: media() }),
+		message({ contentType: 'image', media: media() }),
+		message({ contentType: 'image', media: media() }),
+		message({ contentType: 'image', media: media() }),
 	)
 	let active = 0
 	let peak = 0
@@ -338,7 +370,7 @@ test('downloads at most two blobs at once', async () => {
 })
 
 test('live invalidations never re-download blobs', async () => {
-	threadOf(message({ content_type: 'image', media: media() }))
+	threadOf(message({ contentType: 'image', media: media() }))
 	const downloads = serveMediaBlobs()
 	const client = renderThread()
 	await screen.findByAltText('Photo')
