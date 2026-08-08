@@ -32,19 +32,34 @@ func TestRealScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 	t.Parallel()
 
 	screens := map[string]string{
-		"tasks screen": `{ tasks(date: "2026-08-06", first: 50) {
-			edges { node { id title status priority dueOn contact { id name } } cursor }
-			pageInfo { hasNextPage endCursor }
-		} }`,
-		"contact detail": `query($id: UUID!) { contact(id: $id) {
-			id name createdAt
-			identities { id channel identifier displayName }
-			tasks(first: 50) { edges { node { id title status dueOn } cursor } pageInfo { hasNextPage endCursor } }
-		} }`,
-		"contacts list": `{ contacts(first: 50) {
-			edges { node { id name createdAt } cursor }
-			pageInfo { hasNextPage endCursor }
-		} }`,
+		"contacts list": `query Contacts($q: String, $first: Int, $after: String) {
+			contacts(q: $q, first: $first, after: $after) {
+				edges { node { id name createdAt } cursor }
+				pageInfo { hasNextPage endCursor }
+			}
+		}`,
+		"contact detail": `query ContactDetail($id: UUID!, $first: Int, $after: String) {
+			contact(id: $id) {
+				id name createdAt
+				identities { id channel identifier displayName }
+				tasks(status: "open", first: $first, after: $after) {
+					edges { node { id title status priority dueOn } cursor }
+					pageInfo { hasNextPage endCursor }
+				}
+			}
+		}`,
+		"day tasks": `query DayTasks($date: Date!, $status: String!, $first: Int!, $after: String) {
+			tasks(date: $date, status: $status, first: $first, after: $after) {
+				edges { node { id title status priority dueOn } cursor }
+				pageInfo { hasNextPage endCursor }
+			}
+		}`,
+		"task detail": `query TaskDetail($id: UUID!) {
+			task(id: $id) {
+				id title status priority dueOn contactId
+				contact { id name }
+			}
+		}`,
 	}
 	for name, doc := range screens {
 		cost := operationCost(t, doc)
