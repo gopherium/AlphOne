@@ -14,6 +14,9 @@ import (
 
 const testPassword = "correct horse battery"
 
+// secondUserEmail addresses the second user of a two user store.
+const secondUserEmail = "grace@example.com"
+
 // newFakeUserStore returns an empty in-memory user store double.
 func newFakeUserStore() *testkit.Store {
 	return testkit.NewStore()
@@ -23,6 +26,25 @@ func newFakeUserStore() *testkit.Store {
 func addAda(t *testing.T, store *testkit.Store) gouncer.User {
 	t.Helper()
 	return store.AddUser(t, "ada@example.com", "Ada Lovelace", testPassword)
+}
+
+// twoUserStore returns a store holding the default test user and a second one, beside the first.
+func twoUserStore(t *testing.T) (*testkit.Store, gouncer.User) {
+	t.Helper()
+	store := newFakeUserStore()
+	first := addAda(t, store)
+	store.AddUser(t, secondUserEmail, "Grace Hopper", testPassword)
+	return store, first
+}
+
+// twoUserCookies logs both users of a two user store in and returns a cookie each.
+func twoUserCookies(t *testing.T, handler http.Handler) [2]*http.Cookie {
+	t.Helper()
+	second := doLogin(t, handler, `{"email":"`+secondUserEmail+`","password":"`+testPassword+`"}`)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second login status = %d, want %d", second.Code, http.StatusOK)
+	}
+	return [2]*http.Cookie{loginCookie(t, handler), sessionCookie(t, second)}
 }
 
 // doLogin posts credentials to the login route.

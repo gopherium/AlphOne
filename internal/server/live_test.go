@@ -38,9 +38,7 @@ func liveServer(t *testing.T, hub *event.Hub, lifetime time.Duration, perUser in
 // twoUserLiveServer returns a running test server, the first user, and a cookie each.
 func twoUserLiveServer(t *testing.T, hub *event.Hub) (*httptest.Server, gouncer.User, [2]*http.Cookie) {
 	t.Helper()
-	users := newFakeUserStore()
-	ada := addAda(t, users)
-	users.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+	users, ada := twoUserStore(t)
 	handler := server.NewServer(server.Config{
 		Contacts:          newFakeContactStore(),
 		Users:             users,
@@ -48,14 +46,9 @@ func twoUserLiveServer(t *testing.T, hub *event.Hub) (*httptest.Server, gouncer.
 		MaxStreamLifetime: time.Minute,
 		MaxStreamsPerUser: 5,
 	})
-	second := doLogin(t, handler, `{"email":"grace@example.com","password":"`+testPassword+`"}`)
-	if second.Code != http.StatusOK {
-		t.Fatalf("second login status = %d, want %d", second.Code, http.StatusOK)
-	}
-	cookies := [2]*http.Cookie{loginCookie(t, handler), sessionCookie(t, second)}
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return srv, ada, cookies
+	return srv, ada, twoUserCookies(t, handler)
 }
 
 // openStream connects to the event stream and returns a reader over its frames.
