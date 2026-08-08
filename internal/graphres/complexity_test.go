@@ -104,3 +104,48 @@ func TestComplexityCapRejectsAtTheEndpoint(t *testing.T) {
 		t.Errorf("code = %q, want COMPLEXITY_LIMIT_EXCEEDED", got)
 	}
 }
+
+func TestWhatsAppListFieldsMultiplyLikeTheCoreLists(t *testing.T) {
+	t.Parallel()
+
+	monster := `{ whatsAppConversations(limit: 200) {
+		messages(limit: 200) { content }
+	} }`
+
+	if cost := operationCost(t, monster); cost <= graphres.ComplexityLimit {
+		t.Errorf("nested 200x200 whatsapp query costs %d, want above the cap %d", cost, graphres.ComplexityLimit)
+	}
+}
+
+func TestWhatsAppScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
+	t.Parallel()
+
+	screens := map[string]string{
+		"conversation list": `query WhatsAppConversations {
+			whatsAppConversations {
+				id status lastActivityAt lastMessagePreview
+				contact { id name }
+			}
+		}`,
+		"thread": `query WhatsAppThread($conversationId: UUID!) {
+			whatsAppConversation(id: $conversationId) {
+				id
+				contact { id name }
+				messages {
+					id externalId direction content contentType sentAt status statusDetail
+					media { status mimeType filename fileSize voice animated downloadPath }
+				}
+			}
+		}`,
+	}
+	for name, doc := range screens {
+		cost := operationCost(t, doc)
+		t.Logf("%s costs %d of the %d cap", name, cost, graphres.ComplexityLimit)
+		if cost*3 > graphres.ComplexityLimit {
+			t.Errorf("%s costs %d, want three times headroom under the cap %d", name, cost, graphres.ComplexityLimit)
+		}
+		if cost == 0 {
+			t.Errorf("%s costs 0, the pricing is not engaged", name)
+		}
+	}
+}

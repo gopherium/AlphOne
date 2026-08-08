@@ -34,5 +34,11 @@ func ExecutableSchema(root graph.ResolverRoot) graphql.ExecutableSchema {
 	cfg.Complexity.Contact.Tasks = func(child int, _ *string, first *int, _ *string) int {
 		return pageCost(first) * child
 	}
+	cfg.Complexity.Query.WhatsAppConversations = func(child int, limit *int) int {
+		return pageCost(limit) * child
+	}
+	cfg.Complexity.WhatsAppConversation.Messages = func(child int, limit *int) int {
+		return pageCost(limit) * child
+	}
 	return graph.NewExecutableSchema(cfg)
 }
