@@ -14,7 +14,7 @@ import (
 )
 
 // defaultMaxStreamLifetime and defaultMaxStreamsPerUser bound authenticated
-// plugin requests when the host config leaves them zero.
+// plugin requests and graph subscriptions when the host config leaves them zero.
 const (
 	defaultMaxStreamLifetime = 5 * time.Minute
 	defaultMaxStreamsPerUser = 5

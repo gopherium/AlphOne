@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -26,6 +25,12 @@ import (
 // newGraphServer returns a server whose graph root composes cfg's stores with
 // graph plugins whose lazy pools never connect.
 func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
+	t.Helper()
+	return newSubscribingGraphServer(t, cfg, nil)
+}
+
+// newSubscribingGraphServer returns a graph server whose subscriptions read hub.
+func newSubscribingGraphServer(t *testing.T, cfg server.Config, hub *event.Hub) http.Handler {
 	t.Helper()
 	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
 	admin := authkit.NewAdmin(cfg.Users)
@@ -50,8 +55,8 @@ func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}
-	if cfg.Live != nil {
-		resolver.Live = cfg.Live
+	if hub != nil {
+		resolver.Live = hub
 	}
 	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{whatsappPlugin, importerPlugin})
 	if err != nil {
@@ -210,50 +215,6 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 	}
 	if body.Data.Version != "" {
 		t.Error("version resolved, want no execution on an oversized body")
-	}
-}
-
-func TestGraphStreamPassesWhileEveryLegacyStreamSlotIsHeld(t *testing.T) {
-	t.Parallel()
-
-	hub := event.NewHub()
-	users := newFakeUserStore()
-	addAda(t, users)
-	handler := newGraphServer(t, server.Config{
-		Contacts:          newFakeContactStore(),
-		Users:             users,
-		Live:              hub,
-		Version:           "9.9.9",
-		MaxStreamLifetime: 30 * time.Second,
-		MaxStreamsPerUser: 5,
-	})
-	cookie := loginCookie(t, handler)
-	srv := httptest.NewServer(handler)
-	t.Cleanup(srv.Close)
-	for range 5 {
-		openStream(t, srv, cookie)
-	}
-	waitForSubscribers(t, hub, 5)
-
-	request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/graphql", strings.NewReader(versionQuery))
-	if err != nil {
-		t.Fatalf("building request: %v", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "text/event-stream")
-	request.AddCookie(cookie)
-	response, err := srv.Client().Do(request)
-	if err != nil {
-		t.Fatalf("posting the graph request: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	if response.StatusCode != http.StatusOK {
-		t.Errorf("graph stream while the legacy budget is spent = %d, want %d",
-			response.StatusCode, http.StatusOK)
-	}
-	if held := hub.Subscribers(); held != 5 {
-		t.Errorf("%d legacy streams still open, want the 5 that spend the legacy budget", held)
 	}
 }
 

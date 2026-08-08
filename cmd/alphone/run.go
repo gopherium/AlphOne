@@ -114,7 +114,6 @@ func run(
 		Tokens:            tokens,
 		Webhooks:          webhooks,
 		Events:            events,
-		Live:              hub,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		Version:           version.Version(),

@@ -33,14 +33,13 @@ func subscribingServer(
 ) (*httptest.Server, gouncer.User, [2]*http.Cookie) {
 	t.Helper()
 	users, ada := twoUserStore(t)
-	handler := newGraphServer(t, server.Config{
+	handler := newSubscribingGraphServer(t, server.Config{
 		Contacts:          newFakeContactStore(),
 		Users:             users,
-		Live:              hub,
 		Version:           "9.9.9",
 		MaxStreamLifetime: lifetime,
 		MaxStreamsPerUser: subscriptionSlots,
-	})
+	}, hub)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	return srv, ada, twoUserCookies(t, handler)
@@ -178,5 +177,22 @@ func TestSubscriptionClosesAtTheStreamLifetime(t *testing.T) {
 	}
 	if hub.Subscribers() != 0 {
 		t.Error("the subscription outlived its stream on the hub, want it removed")
+	}
+}
+
+func TestTheLegacyEventStreamIsGone(t *testing.T) {
+	t.Parallel()
+
+	users, _ := twoUserStore(t)
+	handler := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users})
+	cookie := loginCookie(t, handler)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("GET /api/events = %d, want %d", recorder.Code, http.StatusNotFound)
 	}
 }

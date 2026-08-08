@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit/testkit"
+
+	"github.com/gopherium/alphone/internal/event"
 )
 
 const testPassword = "correct horse battery"
@@ -26,6 +29,18 @@ func newFakeUserStore() *testkit.Store {
 func addAda(t *testing.T, store *testkit.Store) gouncer.User {
 	t.Helper()
 	return store.AddUser(t, "ada@example.com", "Ada Lovelace", testPassword)
+}
+
+// waitForSubscribers blocks until the hub holds count subscriptions.
+func waitForSubscribers(t *testing.T, hub *event.Hub, count int) {
+	t.Helper()
+	for range 200 {
+		if hub.Subscribers() == count {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("hub holds %d subscriptions, want %d", hub.Subscribers(), count)
 }
 
 // twoUserStore returns a store holding the default test user and a second one, beside the first.

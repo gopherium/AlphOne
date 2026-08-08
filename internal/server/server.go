@@ -16,7 +16,6 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/graph"
-	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -43,9 +42,6 @@ type Config struct {
 	Webhooks WebhookStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
-	// Live fans published event names out to browser streams. Nil answers
-	// the stream route with 503.
-	Live *event.Hub
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -58,11 +54,11 @@ type Config struct {
 	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
 	// set X-Forwarded-For for the login rate limiter.
 	TrustedProxies []string
-	// MaxStreamLifetime bounds how long any authenticated plugin request,
-	// including an SSE stream, may stay open. Zero applies the host default.
+	// MaxStreamLifetime bounds how long an authenticated plugin request or a
+	// graph subscription may stay open. Zero applies the host default.
 	MaxStreamLifetime time.Duration
-	// MaxStreamsPerUser caps concurrent authenticated plugin requests per
-	// user. Zero applies the host default.
+	// MaxStreamsPerUser caps concurrent authenticated plugin requests and
+	// graph subscriptions per user. Zero applies the host default.
 	MaxStreamsPerUser int
 	// Version is the application version reported at /api/version.
 	Version string
@@ -91,7 +87,6 @@ func NewServer(cfg Config) http.Handler {
 		tokens:            cfg.Tokens,
 		webhooks:          cfg.Webhooks,
 		events:            cfg.Events,
-		live:              cfg.Live,
 		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
@@ -116,7 +111,6 @@ func NewServer(cfg Config) http.Handler {
 		protected.Get("/api/users", admin.List)
 		protected.Post("/api/users", admin.Create)
 		protected.Patch("/api/users/{id}", admin.SetDisabled)
-		protected.Method(http.MethodGet, "/api/events", s.boundPluginRequest(s.handleEventStream()))
 		protected.Get("/api/webhooks", s.handleWebhookList())
 		protected.Post("/api/webhooks", s.handleWebhookCreate())
 		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
@@ -152,7 +146,6 @@ type server struct {
 	tokens            TokenStore
 	webhooks          WebhookStore
 	events            Publisher
-	live              *event.Hub
 	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
