@@ -18,6 +18,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// waitFor blocks until cond holds, failing the test after two seconds.
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition not met within 2s")
+}
+
 type graphStub struct {
 	mu           sync.Mutex
 	server       *httptest.Server

@@ -178,3 +178,23 @@ func TestMessageSubscriptionIgnoresAnotherConversation(t *testing.T) {
 	}
 	noDataWithin(t, elsewhere, 300*time.Millisecond)
 }
+
+func TestConversationEventSubscriptionDeliversAnOutboundSend(t *testing.T) {
+	t.Parallel()
+
+	p, _, pool := newSendingHarness(t, nil)
+	routes := p.Routes()
+	srv := subscribingServer(t, p, pool)
+	ingestEvent(t, routes, "wamid.1", "184467235", "Maria Perez", "1751791000", "hello")
+	conversationID := onlyConversationID(t, pool)
+	frames := openSubscription(t, srv, "subscription { whatsAppConversationEvent }")
+
+	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"On my way"}`)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+	if got := nextData(t, frames); !strings.Contains(got, conversationID.String()) {
+		t.Errorf("subscription read %q, want the changed conversation %s", got, conversationID)
+	}
+}

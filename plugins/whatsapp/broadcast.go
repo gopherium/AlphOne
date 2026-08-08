@@ -14,9 +14,9 @@ const subscriberBuffer = 8
 // event notifies subscribers that a conversation changed.
 type event struct {
 	// Conversation is the conversation the change belongs to.
-	Conversation uuid.UUID `json:"conversation"`
+	Conversation uuid.UUID
 	// Message is the arrival the change carries. Nil for every other change.
-	Message *messageRow `json:"-"`
+	Message *messageRow
 }
 
 // broadcaster fans out events to every current subscriber. A subscriber

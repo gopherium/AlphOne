@@ -230,3 +230,16 @@ func TestMigrateReportsConnectionFailure(t *testing.T) {
 		t.Fatal("Migrate() on unreachable database error = nil, want an error")
 	}
 }
+
+func TestTheEventStreamRouteIsGone(t *testing.T) {
+	t.Parallel()
+
+	p := newPlugin(t, "postgres://whatsapp:whatsapp@localhost:1/whatsapp", nil, nil)
+
+	recorder := httptest.NewRecorder()
+	p.Routes().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/events", nil))
+
+	if recorder.Code != http.StatusNotFound {
+		t.Errorf("GET /events = %d, want %d", recorder.Code, http.StatusNotFound)
+	}
+}

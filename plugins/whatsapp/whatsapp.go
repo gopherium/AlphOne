@@ -131,7 +131,6 @@ func (p *Plugin) Routes() http.Handler {
 	router.Get("/conversations/{id}/messages", p.handleMessagesList())
 	router.Post("/conversations/{id}/messages", p.handleMessageSend())
 	router.Get("/conversations/{id}/messages/{mid}/media", p.handleMediaDownload())
-	router.Get("/events", p.handleStream())
 	return router
 }
 
