@@ -3,7 +3,8 @@
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { cacheExchange } from '@urql/exchange-graphcache'
 import { relayPagination } from '@urql/exchange-graphcache/extras'
-import { Client, fetchExchange, getOperationName } from 'urql'
+import { createClient as createEventStreamClient } from 'graphql-sse'
+import { Client, fetchExchange, getOperationName, subscriptionExchange } from 'urql'
 import type { CombinedError, Exchange, Operation } from 'urql'
 import { pipe, tap } from 'wonka'
 
@@ -11,6 +12,20 @@ import { ValidationError } from './errors'
 
 /** The graph endpoint every operation is posted to. */
 const graphEndpoint = '/api/graphql'
+
+/** The bounds of the wait between event stream reconnections. */
+const initialRetryDelay = 1_000
+const maxRetryDelay = 30_000
+
+/**
+ * Returns how long to wait before the next event stream reconnection.
+ * @param retries - How many reconnections have already been attempted.
+ * @returns The delay in milliseconds, capped and jittered.
+ */
+function retryDelay(retries: number): number {
+	const delay = Math.min(initialRetryDelay * 2 ** retries, maxRetryDelay)
+	return delay / 2 + (Math.random() * delay) / 2
+}
 
 /**
  * Returns the extensions code the first graph error of a failure carries.
@@ -76,6 +91,48 @@ export interface GraphClient {
 	client: Client
 	/** refetch reruns the named active queries against the network. */
 	refetch: (operations: readonly string[]) => void
+	/** onStreamOpen calls the listener on every event stream connection, returning its removal. */
+	onStreamOpen: (listener: () => void) => () => void
+}
+
+/**
+ * Returns the subscription exchange beside the registrar for its connections.
+ * @returns The exchange and the registrar taking connection listeners.
+ */
+function eventStreamExchange(): { exchange: Exchange; onStreamOpen: GraphClient['onStreamOpen'] } {
+	const listeners = new Set<() => void>()
+	const stream = createEventStreamClient({
+		url: graphEndpoint,
+		credentials: 'same-origin',
+		retryAttempts: Infinity,
+		retry: (retries) =>
+			new Promise((resolve) => {
+				setTimeout(resolve, retryDelay(retries))
+			}),
+		on: {
+			connected: () => {
+				for (const listener of listeners) {
+					listener()
+				}
+			},
+		},
+	})
+	const exchange = subscriptionExchange({
+		forwardSubscription: (request) => ({
+			subscribe: (sink) => ({
+				unsubscribe: stream.subscribe({ ...request, query: request.query as string }, sink),
+			}),
+		}),
+	})
+	return {
+		exchange,
+		onStreamOpen: (listener) => {
+			listeners.add(listener)
+			return () => {
+				listeners.delete(listener)
+			}
+		},
+	}
 }
 
 /**
@@ -152,6 +209,7 @@ function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['refetch
  */
 export function createGraphClient(options: { onSessionExpired: () => void }): GraphClient {
 	const doorbell = doorbellExchange()
+	const stream = eventStreamExchange()
 	const client = new Client({
 		url: graphEndpoint,
 		fetchOptions: { credentials: 'same-origin' },
@@ -160,8 +218,9 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 			doorbell.exchange,
 			graphCacheExchange(),
 			sessionExchange(options.onSessionExpired),
+			stream.exchange,
 			fetchExchange,
 		],
 	})
-	return { client, refetch: doorbell.refetch }
+	return { client, refetch: doorbell.refetch, onStreamOpen: stream.onStreamOpen }
 }

@@ -3,10 +3,11 @@
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { gql } from 'urql'
 import { expect, test, vi } from 'vitest'
+import { pipe, subscribe } from 'wonka'
 
 import { ValidationError } from '../errors'
 import { createGraphClient, graphError, graphExtensions } from '../graph'
-import { HttpResponse, graphql, server } from '../testing'
+import { HttpResponse, graphql, http, server } from '../testing'
 
 const versionQuery = gql`
 	query Version {
@@ -29,6 +30,12 @@ const contactsQuery = gql`
 				endCursor
 			}
 		}
+	}
+`
+
+const coreEventSubscription = gql`
+	subscription CoreEvent {
+		coreEvent
 	}
 `
 
@@ -534,4 +541,71 @@ test('sends a file variable as a multipart request in the graph upload shape', a
 	}
 	expect(operations.query).toContain('importUpload')
 	expect(operations.variables).toEqual({ file: null })
+})
+
+test('delivers subscription frames over the event stream transport', async () => {
+	const requests: Request[] = []
+	server.use(
+		http.post('/api/graphql', ({ request }) => {
+			requests.push(request)
+			return new HttpResponse(
+				'event: next\ndata: {"data":{"coreEvent":"task.created"}}\n\nevent: complete\n\n',
+				{ headers: { 'content-type': 'text/event-stream' } },
+			)
+		}),
+	)
+	const { graph } = newClient()
+
+	const frame = await new Promise<unknown>((resolve) => {
+		pipe(
+			graph.client.subscription(coreEventSubscription, {}),
+			subscribe((result) => resolve(result.data)),
+		)
+	})
+
+	expect(frame).toEqual({ coreEvent: 'task.created' })
+	expect(requests).toHaveLength(1)
+	expect(requests[0].headers.get('accept')).toContain('text/event-stream')
+})
+
+test('announces every event stream connection to its listeners', async () => {
+	server.use(
+		http.post('/api/graphql', () =>
+			new HttpResponse('event: complete\n\n', {
+				headers: { 'content-type': 'text/event-stream' },
+			}),
+		),
+	)
+	const { graph } = newClient()
+	const opened = vi.fn()
+	graph.onStreamOpen(opened)
+
+	await new Promise<void>((resolve) => {
+		pipe(
+			graph.client.subscription(coreEventSubscription, {}),
+			subscribe({ complete: () => resolve() } as never),
+		)
+		setTimeout(resolve, 500)
+	})
+
+	expect(opened).toHaveBeenCalled()
+})
+
+test('reconnects after the event stream drops', async () => {
+	const requests: Request[] = []
+	server.use(
+		http.post('/api/graphql', ({ request }) => {
+			requests.push(request)
+			return new HttpResponse('', { headers: { 'content-type': 'text/event-stream' } })
+		}),
+	)
+	const { graph } = newClient()
+	const subscription = pipe(
+		graph.client.subscription(coreEventSubscription, {}),
+		subscribe(() => {}),
+	)
+
+	await vi.waitFor(() => expect(requests.length).toBeGreaterThan(1), { timeout: 4_000 })
+
+	subscription.unsubscribe()
 })

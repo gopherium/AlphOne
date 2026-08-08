@@ -225,6 +225,9 @@ importers:
       graphql:
         specifier: ^17.0.2
         version: 17.0.2
+      graphql-sse:
+        specifier: 2.6.0
+        version: 2.6.0(graphql@17.0.2)
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -3258,6 +3261,12 @@ packages:
     peerDependenciesMeta:
       cosmiconfig-toml-loader:
         optional: true
+
+  graphql-sse@2.6.0:
+    resolution: {integrity: sha512-BXT5Rjv9UFunjQsmN9WWEIq+TFNhgYibgwo1xkXLxzguQVyOd6paJ4v5DlL9K5QplS0w74bhF+aUiqaGXZBaug==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      graphql: '>=0.11 <=16'
 
   graphql-tag@2.12.7:
     resolution: {integrity: sha512-xnE/NFzy+0eIesvAsREJZ284zTl/wYuBAvpsFSDhRGRdRHdnE90M21Q3xAWyYInb0J756c6x0pIQ62+vtvOs1Q==}
@@ -8050,6 +8059,10 @@ snapshots:
       - crossws
       - typescript
       - utf-8-validate
+
+  graphql-sse@2.6.0(graphql@17.0.2):
+    dependencies:
+      graphql: 17.0.2
 
   graphql-tag@2.12.7(graphql@17.0.2):
     dependencies:
