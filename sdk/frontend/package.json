@@ -9,7 +9,7 @@
 		"./testing": "./testing.tsx"
 	},
 	"dependencies": {
-		"@gopherium/godmin": "0.6.0",
+		"@gopherium/godmin": "0.7.0",
 		"@gopherium/react-auth": "0.3.0",
 		"@tanstack/react-query": "^5.101.4",
 		"@urql/exchange-graphcache": "9.0.1",
