@@ -16,3 +16,30 @@ export const importsQuery = graphql(`
 		}
 	}
 `)
+
+export const importDetailQuery = graphql(`
+	query ImportDetail($id: UUID!) {
+		importJob(id: $id) {
+			id
+			filename
+			state
+			columns
+			mapping {
+				column
+				field
+			}
+			rows {
+				id
+				position
+				cells
+				outcome
+				reason
+			}
+		}
+		importFields {
+			name
+			label
+			required
+		}
+	}
+`)

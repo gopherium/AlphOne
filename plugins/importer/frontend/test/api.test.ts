@@ -7,43 +7,12 @@ import { expect, test } from 'vitest'
 
 import {
 	commitImport,
-	fetchFields,
-	fetchImport,
-		fetchRows,
 	saveMapping,
 	uploadImport,
 } from '../api'
-import { handlers, importID } from '../handlers'
+import { importID } from '../handlers'
 
 const base = '/api/plugins/importer'
-
-test('fetchFields reads the mappable registry', async () => {
-	server.use(...handlers)
-
-	const fields = await fetchFields()
-
-	expect(fields).toHaveLength(3)
-	expect(fields[0]).toEqual({ name: 'name', label: 'Name', required: true })
-})
-
-test('fetchImport reads one import with its columns', async () => {
-	server.use(...handlers)
-
-	const stored = await fetchImport(importID)
-
-	expect(stored.columns).toEqual(['Name', 'Email'])
-	expect(stored.mapping).toEqual({})
-})
-
-test('fetchRows reads the staged rows', async () => {
-	server.use(...handlers)
-
-	const rows = await fetchRows(importID)
-
-	expect(rows).toHaveLength(2)
-	expect(rows[0].cells).toEqual(['Maria Perez', 'maria@example.com'])
-	expect(rows[0].reason).toBeNull()
-})
 
 test('uploadImport posts the file as multipart form data', async () => {
 	let sent = false
@@ -107,10 +76,12 @@ test('commitImport asks for the commit', async () => {
 
 test('an unauthorized read drops the session', async () => {
 	server.use(
-		http.get(`${base}/fields`, () => HttpResponse.json({ error: 'no session' }, { status: 401 })),
+		http.post(`${base}/imports/:id/commit`, () =>
+			HttpResponse.json({ error: 'no session' }, { status: 401 }),
+		),
 	)
 
-	await expect(fetchFields()).rejects.toBeInstanceOf(UnauthorizedError)
+	await expect(commitImport(importID)).rejects.toBeInstanceOf(UnauthorizedError)
 })
 
 test('a refused mapping carries the backend message', async () => {
@@ -153,8 +124,12 @@ test('a refusal whose body carries no message falls back', async () => {
 
 test('any other failure reports its status', async () => {
 	server.use(
-		http.get(`${base}/fields`, () => HttpResponse.json({ error: 'boom' }, { status: 500 })),
+		http.post(`${base}/imports/:id/commit`, () =>
+			HttpResponse.json({ error: 'boom' }, { status: 500 }),
+		),
 	)
 
-	await expect(fetchFields()).rejects.toThrow('the fields could not be read (status 500)')
+	await expect(commitImport(importID)).rejects.toThrow(
+		'the import could not be committed (status 500)',
+	)
 })

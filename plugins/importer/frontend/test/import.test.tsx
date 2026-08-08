@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import {
+	http,
+	HttpResponse,
+	fakeGraphClient,
+	graphql,
+	server,
+} from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -16,12 +23,47 @@ const base = '/api/plugins/importer'
  */
 function renderScreen() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	const { graph } = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<ImportScreen importId={importID} />
+			<GraphProvider graph={graph}>
+				<ImportScreen importId={importID} />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 }
+
+/**
+ * Serves the detail document for an import with the given fields.
+ * @param job - The import job fields overriding the ready defaults.
+ */
+function detailOf(job: Record<string, unknown> = {}) {
+	server.use(
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({
+				data: {
+					importJob: {
+						__typename: 'ImportJob',
+						id: importID,
+						filename: 'contacts.csv',
+						state: 'ready',
+						columns: ['Name', 'Email'],
+						mapping: [],
+						rows: [],
+						...job,
+					},
+					importFields: importFields,
+				},
+			}),
+		),
+	)
+}
+
+const importFields = [
+	{ __typename: 'ImportField', name: 'name', label: 'Name', required: true },
+	{ __typename: 'ImportField', name: 'email', label: 'Email', required: false },
+	{ __typename: 'ImportField', name: 'phone', label: 'Phone', required: false },
+]
 
 /**
  * Renders the screen and waits until its mapping form has settled.
@@ -47,25 +89,13 @@ beforeEach(() => {
 })
 
 test('keeps the page chrome while the import is on its way', async () => {
-	server.use(http.get(`${base}/imports/:id`, () => new Promise(() => {})))
+	server.use(graphql.query('ImportDetail', () => new Promise(() => {})))
 	renderScreen()
 
 	expect(await screen.findByRole('heading', { level: 1, name: 'Import' })).toBeInTheDocument()
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading import…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
-})
-
-test('ghosts one row per column while the fields arrive', async () => {
-	server.use(http.get(`${base}/fields`, () => new Promise(() => {})))
-	renderScreen()
-	await screen.findByRole('heading', { level: 1, name: 'contacts.csv' })
-
-	const status = screen.getByText('Loading fields…')
-	expect(status).toHaveAttribute('role', 'status')
-	const ghost = status.closest('.godmin-loading-rows')
-	expect(ghost).not.toBeNull()
-	expect(ghost?.querySelectorAll('.godmin-loading-rows__row')).toHaveLength(2)
 })
 
 test('the screen names the file it is mapping', async () => {
@@ -140,23 +170,12 @@ test('a refused commit is reported', async () => {
 })
 
 test('a committed import accepts neither a mapping nor another commit', async () => {
-	server.use(
-		http.get(`${base}/imports/:id`, () =>
-			HttpResponse.json({
-				id: importID,
-				user_id: '019f5a00-0000-7000-8000-0000000000aa',
-				filename: 'done.csv',
-				state: 'committed',
-				row_count: 1,
-				imported_count: 1,
-				skipped_count: 0,
-				failed_count: 0,
-				created_at: '2026-08-01T10:00:00Z',
-				columns: ['Name'],
-				mapping: { '0': 'name' },
-			}),
-		),
-	)
+	detailOf({
+		filename: 'done.csv',
+		state: 'committed',
+		columns: ['Name'],
+		mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+	})
 	renderScreen()
 	await screen.findByRole('heading', { name: 'done.csv' })
 
@@ -172,19 +191,20 @@ test('a committed import accepts neither a mapping nor another commit', async ()
 
 test('a stored mapping arrives already chosen', async () => {
 	server.use(
-		http.get(`${base}/imports/:id`, () =>
+		graphql.query('ImportDetail', () =>
 			HttpResponse.json({
-				id: importID,
-				user_id: '019f5a00-0000-7000-8000-0000000000aa',
-				filename: 'mapped.csv',
-				state: 'ready',
-				row_count: 1,
-				imported_count: 0,
-				skipped_count: 0,
-				failed_count: 0,
-				created_at: '2026-08-01T10:00:00Z',
-				columns: ['Name', ''],
-				mapping: { '0': 'name' },
+				data: {
+					importJob: {
+						__typename: 'ImportJob',
+						id: importID,
+						filename: 'mapped.csv',
+						state: 'ready',
+						columns: ['Name', ''],
+						mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+						rows: [],
+					},
+					importFields,
+				},
 			}),
 		),
 	)
@@ -198,7 +218,9 @@ test('a stored mapping arrives already chosen', async () => {
 
 test('the screen reports an import it cannot read', async () => {
 	server.use(
-		http.get(`${base}/imports/:id`, () => HttpResponse.json({ error: 'gone' }, { status: 404 })),
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'gone' }] }),
+		),
 	)
 
 	renderScreen()
@@ -206,13 +228,14 @@ test('the screen reports an import it cannot read', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
 })
 
-test('the screen reports fields it cannot read', async () => {
+test('the screen reports an import that is gone', async () => {
 	server.use(
-		http.get(`${base}/fields`, () => HttpResponse.json({ error: 'gone' }, { status: 500 })),
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({ data: { importJob: null, importFields } }),
+		),
 	)
+
 	renderScreen()
 
-	await screen.findByRole('heading', { name: 'contacts.csv' })
-
-	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
+	expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
 })

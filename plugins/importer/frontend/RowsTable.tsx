@@ -3,7 +3,10 @@
 import { DataViews, type Field, type View } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
-import type { ImportDetail, ImportRow } from './api'
+import type { StoredImport } from './ImportScreen'
+
+/** ImportRow is one staged row as the detail document selects it. */
+type ImportRow = StoredImport['rows'][number]
 
 type previewRow = {
 	id: string
@@ -18,7 +21,7 @@ type previewRow = {
  * @param rows - The staged rows.
  * @returns The rows in preview shape.
  */
-function previewRows(rows: ImportRow[]): previewRow[] {
+function previewRows(rows: readonly ImportRow[]): previewRow[] {
 	return rows.map((row) => ({
 		id: row.id,
 		position: row.position,
@@ -33,7 +36,7 @@ function previewRows(rows: ImportRow[]): previewRow[] {
  * @param columns - The column list of the import.
  * @returns The fields the table renders.
  */
-function previewFields(columns: string[]): Field<previewRow>[] {
+function previewFields(columns: readonly string[]): Field<previewRow>[] {
 	const cells: Field<previewRow>[] = columns.map((column, index) => ({
 		id: `cell-${index}`,
 		label: column === '' ? `Column ${index + 1}` : column,
@@ -55,8 +58,8 @@ export default function RowsTable({
 	stored,
 	rows,
 }: {
-	stored: ImportDetail
-	rows: ImportRow[]
+	stored: StoredImport
+	rows: readonly ImportRow[]
 }) {
 	const fields = previewFields(stored.columns)
 	const [view, setView] = useState<View>({

@@ -6,14 +6,6 @@ import { z } from 'zod'
 
 const base = '/api/plugins/importer'
 
-const fieldSchema = z.object({
-	name: z.string(),
-	label: z.string(),
-	required: z.boolean(),
-})
-
-export type ImportField = z.infer<typeof fieldSchema>
-
 const summarySchema = z.object({
 	id: z.string(),
 	user_id: z.string(),
@@ -32,17 +24,6 @@ const detailSchema = summarySchema.extend({
 })
 
 export type ImportDetail = z.infer<typeof detailSchema>
-
-const rowSchema = z.object({
-	id: z.string(),
-	position: z.number(),
-	cells: z.array(z.string()),
-	outcome: z.string(),
-	reason: z.string().nullable(),
-	contact_id: z.string().nullable(),
-})
-
-export type ImportRow = z.infer<typeof rowSchema>
 
 const errorSchema = z.object({ error: z.string() })
 
@@ -76,38 +57,6 @@ async function refuse(response: Response, fallback: string): Promise<void> {
 	if (!response.ok) {
 		throw new Error(`${fallback} (status ${response.status})`)
 	}
-}
-
-/**
- * Fetches the fields a column may be mapped onto.
- * @returns The mappable fields.
- */
-export async function fetchFields(): Promise<ImportField[]> {
-	const response = await fetch(`${base}/fields`)
-	await refuse(response, 'the fields could not be read')
-	return z.array(fieldSchema).parse(await response.json())
-}
-
-/**
- * Fetches one import with its columns and mapping.
- * @param id - The import identifier.
- * @returns The parsed import.
- */
-export async function fetchImport(id: string): Promise<ImportDetail> {
-	const response = await fetch(`${base}/imports/${id}`)
-	await refuse(response, 'the import could not be read')
-	return detailSchema.parse(await response.json())
-}
-
-/**
- * Fetches the staged rows of one import.
- * @param id - The import identifier.
- * @returns The staged rows.
- */
-export async function fetchRows(id: string): Promise<ImportRow[]> {
-	const response = await fetch(`${base}/imports/${id}/rows`)
-	await refuse(response, 'the rows could not be read')
-	return z.array(rowSchema).parse(await response.json())
 }
 
 /**

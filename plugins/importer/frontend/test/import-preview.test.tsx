@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { use } from 'react'
@@ -24,9 +25,12 @@ beforeEach(() => {
 
 test('ghosts the preview until its table arrives', async () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	const { graph } = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<ImportScreen importId={importID} />
+			<GraphProvider graph={graph}>
+				<ImportScreen importId={importID} />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 

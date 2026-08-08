@@ -8,18 +8,24 @@ import {
 	PageScreen,
 	SelectControl,
 	Text,
+	useGraph,
+	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { Suspense, lazy, useState } from 'react'
 
-import { commitImport, fetchFields, fetchImport, fetchRows, saveMapping } from './api'
-import type { ImportDetail, ImportField } from './api'
+import { commitImport, saveMapping } from './api'
+import type { ImportDetailQuery } from './gql/graphql'
+import { importDetailQuery } from './operations'
 
 const RowsTable = lazy(() => import('./RowsTable'))
 
-/** importQueryKey names the cached reads of one stored import. */
-const importQueryKey = ['importer', 'imports']
+/** StoredImport is one import as the detail document selects it. */
+export type StoredImport = NonNullable<ImportDetailQuery['importJob']>
+
+/** ImportField is one target field as the detail document selects it. */
+type ImportField = ImportDetailQuery['importFields'][number]
 
 // unmapped is the select value a column carries until a field is chosen.
 const unmapped = 'not-imported'
@@ -29,33 +35,30 @@ const unmapped = 'not-imported'
  * @returns The import screen.
  */
 export function ImportScreen({ importId }: { importId: string }) {
-	const stored = useQuery({
-		queryKey: [...importQueryKey, importId],
-		queryFn: () => fetchImport(importId),
-	})
-	const rows = useQuery({
-		queryKey: [...importQueryKey, importId, 'rows'],
-		queryFn: () => fetchRows(importId),
-	})
+	const [detail] = useGraphQuery({ query: importDetailQuery, variables: { id: importId } })
 
-	if (stored.isPending || rows.isPending) {
+	if (detail.error) {
+		return <ErrorNotice>The import could not be loaded.</ErrorNotice>
+	}
+	if (!detail.data) {
 		return (
 			<PageScreen title="Import">
 				<LoadingScreen label="Loading import…" />
 			</PageScreen>
 		)
 	}
-	if (stored.isError || rows.isError) {
+	const { importJob: stored, importFields } = detail.data
+	if (!stored) {
 		return <ErrorNotice>The import could not be loaded.</ErrorNotice>
 	}
 	return (
-		<PageScreen title={stored.data.filename}>
-			<MappingForm stored={stored.data} />
+		<PageScreen title={stored.filename}>
+			<MappingForm stored={stored} fields={importFields} />
 			<Text variant="heading-sm" render={<h2 />}>
 				Rows
 			</Text>
 			<Suspense fallback={<LoadingRows label="Loading the preview…" rows={3} />}>
-				<RowsTable stored={stored.data} rows={rows.data} />
+				<RowsTable stored={stored} rows={stored.rows} />
 			</Suspense>
 		</PageScreen>
 	)
@@ -65,25 +68,24 @@ export function ImportScreen({ importId }: { importId: string }) {
  * Renders the column assignments and the control that commits them.
  * @returns The mapping form.
  */
-function MappingForm({ stored }: { stored: ImportDetail }) {
-	const queryClient = useQueryClient()
-	const fields = useQuery({ queryKey: ['importer', 'fields'], queryFn: fetchFields })
-	const [assigned, setAssigned] = useState<Record<string, string>>(stored.mapping)
+function MappingForm({
+	stored,
+	fields,
+}: {
+	stored: StoredImport
+	fields: readonly ImportField[]
+}) {
+	const graph = useGraph()
+	const [assigned, setAssigned] = useState<Record<string, string>>(assignedOf(stored.mapping))
 	const save = useMutation({
 		mutationFn: () => saveMapping(stored.id, assignmentsOf(assigned)),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: importQueryKey }),
+		onSuccess: () => graph.refetch(['ImportDetail', 'Imports']),
 	})
 	const commit = useMutation({
 		mutationFn: () => commitImport(stored.id),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: importQueryKey }),
+		onSuccess: () => graph.refetch(['ImportDetail', 'Imports']),
 	})
 
-	if (fields.isPending) {
-		return <LoadingRows label="Loading fields…" rows={stored.columns.length} />
-	}
-	if (fields.isError) {
-		return <ErrorNotice>The fields could not be loaded.</ErrorNotice>
-	}
 	return (
 		<form
 			className="godmin-form"
@@ -97,7 +99,7 @@ function MappingForm({ stored }: { stored: ImportDetail }) {
 					key={index}
 					column={column}
 					index={index}
-					fields={fields.data}
+					fields={fields}
 					chosen={assigned[String(index)] ?? unmapped}
 					onChoose={(field) => setAssigned(withAssignment(assigned, index, field))}
 				/>
@@ -155,7 +157,7 @@ function ColumnSelect({
 }: {
 	column: string
 	index: number
-	fields: ImportField[]
+	fields: readonly ImportField[]
 	chosen: string
 	onChoose: (field: string) => void
 }) {
@@ -214,6 +216,17 @@ export function withAssignment(
 	}
 	next[String(index)] = field
 	return next
+}
+
+/**
+ * Returns the column to field map the stored assignments stand for.
+ * @param mapping - The assignments the import carries.
+ * @returns The map the selects read.
+ */
+export function assignedOf(
+	mapping: readonly { column: number; field: string }[],
+): Record<string, string> {
+	return Object.fromEntries(mapping.map((one) => [String(one.column), one.field]))
 }
 
 /**
