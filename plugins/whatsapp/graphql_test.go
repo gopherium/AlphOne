@@ -490,3 +490,56 @@ func TestGraphContactConversationsRequireTheRequestScope(t *testing.T) {
 		t.Errorf("code = %v, want INTERNAL", extensions["code"])
 	}
 }
+
+func TestGraphReadsOneConversationWithItsMessages(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newMessagingPlugin(t)
+	contactID := seedGraphContact(t, pool, "Maria Perez", time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC))
+	conversationID := seedGraphConversation(
+		t, pool, contactID, "184467235", time.Date(2026, 7, 6, 10, 5, 0, 0, time.UTC),
+	)
+	seedGraphMessage(
+		t, pool, conversationID, "wamid.1", "Hi, is the order ready?", "text",
+		time.Date(2026, 7, 6, 9, 5, 0, 0, time.UTC),
+	)
+	client := newGraphQLClient(t, p, pool)
+
+	var response struct{ WhatsAppConversation *graphConversation }
+	client.MustPost(
+		`query($id: UUID!) { whatsAppConversation(id: $id) {
+			id status contact { id name } messages { id content contentType }
+		} }`,
+		&response,
+		gqlclient.Var("id", conversationID.String()),
+	)
+
+	found := response.WhatsAppConversation
+	if found == nil || found.ID != conversationID.String() {
+		t.Fatalf("conversation = %+v, want %s", found, conversationID)
+	}
+	if found.Contact.Name != "Maria Perez" {
+		t.Errorf("contact name = %q, want Maria Perez", found.Contact.Name)
+	}
+	if len(found.Messages) != 1 || found.Messages[0].Content != "Hi, is the order ready?" {
+		t.Errorf("messages = %+v, want the seeded arrival", found.Messages)
+	}
+}
+
+func TestGraphReadsNoConversationForAnUnknownID(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newMessagingPlugin(t)
+	client := newGraphQLClient(t, p, pool)
+
+	var response struct{ WhatsAppConversation *graphConversation }
+	client.MustPost(
+		`query($id: UUID!) { whatsAppConversation(id: $id) { id } }`,
+		&response,
+		gqlclient.Var("id", uuid.Must(uuid.NewV7()).String()),
+	)
+
+	if response.WhatsAppConversation != nil {
+		t.Errorf("conversation = %+v, want none", response.WhatsAppConversation)
+	}
+}

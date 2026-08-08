@@ -1,5 +1,6 @@
 extend type Query {
   whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+  whatsAppConversation(id: UUID!): WhatsAppConversation
 }
 
 type WhatsAppConversation {

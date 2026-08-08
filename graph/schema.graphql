@@ -135,6 +135,7 @@ type Query {
 	importJob(id: UUID!): ImportJob
 	importFields: [ImportField!]!
 	whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+	whatsAppConversation(id: UUID!): WhatsAppConversation
 }
 type Subscription {
 	coreEvent: String!

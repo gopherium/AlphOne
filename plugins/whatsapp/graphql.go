@@ -116,6 +116,20 @@ func (q QueryResolvers) WhatsAppConversations(
 	return conversations, nil
 }
 
+// WhatsAppConversation reads one conversation, or nothing when it is unknown.
+func (q QueryResolvers) WhatsAppConversation(
+	ctx context.Context, id uuid.UUID,
+) (*model.WhatsAppConversation, error) {
+	row, err := q.plugin.store.getConversation(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if row.ID == uuid.Nil {
+		return nil, nil
+	}
+	return toGraphConversation(row), nil
+}
+
 // conversationsLoaderKey keys the conversations by contact loader in the request scope.
 type conversationsLoaderKey struct{}
 

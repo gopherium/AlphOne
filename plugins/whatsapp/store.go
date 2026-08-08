@@ -45,34 +45,51 @@ type messageRow struct {
 	MediaAnimated *bool     `db:"media_animated"`
 }
 
+// conversationSelect reads a conversation beside its contact and newest preview.
+const conversationSelect = `
+	SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
+		conv.last_activity_at, last_message.preview AS last_message_preview
+	FROM plugin_whatsapp.conversations conv
+	JOIN core.contacts c ON c.id = conv.contact_id
+	LEFT JOIN LATERAL (
+		SELECT CASE
+			WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)
+			WHEN m.content_type = 'image' THEN '[photo]'
+			WHEN m.content_type = 'audio' THEN '[voice message]'
+			WHEN m.content_type = 'video' THEN '[video]'
+			WHEN m.content_type = 'document' THEN '[document]'
+			WHEN m.content_type = 'sticker' THEN '[sticker]'
+			WHEN m.content_type = 'location' THEN '[location]'
+			WHEN m.content_type = 'contacts' THEN '[contact]'
+			WHEN m.content_type = 'reaction' THEN '[reaction]'
+			ELSE '[unsupported]'
+		END AS preview
+		FROM plugin_whatsapp.messages m
+		WHERE m.conversation_id = conv.id
+		ORDER BY m.sent_at DESC, m.id DESC
+		LIMIT 1
+	) last_message ON TRUE`
+
+// getConversation returns the conversation with the given id.
+func (s *store) getConversation(ctx context.Context, id uuid.UUID) (conversationRow, error) {
+	rows, _ := s.pool.Query(ctx, conversationSelect+`
+	WHERE conv.id = $1`, id)
+	conversation, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[conversationRow])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return conversationRow{}, nil
+	}
+	if err != nil {
+		return conversationRow{}, fmt.Errorf("whatsapp: get conversation: %w", err)
+	}
+	return conversation, nil
+}
+
 // listConversations returns up to limit conversations with their contact names and a preview of their
 // newest message, most recently active first.
 func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
-	rows, _ := s.pool.Query(ctx, `
-		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
-			conv.last_activity_at, last_message.preview AS last_message_preview
-		FROM plugin_whatsapp.conversations conv
-		JOIN core.contacts c ON c.id = conv.contact_id
-		LEFT JOIN LATERAL (
-			SELECT CASE
-				WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)
-				WHEN m.content_type = 'image' THEN '[photo]'
-				WHEN m.content_type = 'audio' THEN '[voice message]'
-				WHEN m.content_type = 'video' THEN '[video]'
-				WHEN m.content_type = 'document' THEN '[document]'
-				WHEN m.content_type = 'sticker' THEN '[sticker]'
-				WHEN m.content_type = 'location' THEN '[location]'
-				WHEN m.content_type = 'contacts' THEN '[contact]'
-				WHEN m.content_type = 'reaction' THEN '[reaction]'
-				ELSE '[unsupported]'
-			END AS preview
-			FROM plugin_whatsapp.messages m
-			WHERE m.conversation_id = conv.id
-			ORDER BY m.sent_at DESC, m.id DESC
-			LIMIT 1
-		) last_message ON TRUE
-		ORDER BY conv.last_activity_at DESC
-		LIMIT $1`,
+	rows, _ := s.pool.Query(ctx, conversationSelect+`
+	ORDER BY conv.last_activity_at DESC
+	LIMIT $1`,
 		limit,
 	)
 	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
@@ -87,31 +104,9 @@ func (s *store) listConversations(ctx context.Context, limit int) ([]conversatio
 func (s *store) listConversationsByContactIDs(
 	ctx context.Context, contactIDs []uuid.UUID,
 ) ([]conversationRow, error) {
-	rows, _ := s.pool.Query(ctx, `
-		SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
-			conv.last_activity_at, last_message.preview AS last_message_preview
-		FROM plugin_whatsapp.conversations conv
-		JOIN core.contacts c ON c.id = conv.contact_id
-		LEFT JOIN LATERAL (
-			SELECT CASE
-				WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)
-				WHEN m.content_type = 'image' THEN '[photo]'
-				WHEN m.content_type = 'audio' THEN '[voice message]'
-				WHEN m.content_type = 'video' THEN '[video]'
-				WHEN m.content_type = 'document' THEN '[document]'
-				WHEN m.content_type = 'sticker' THEN '[sticker]'
-				WHEN m.content_type = 'location' THEN '[location]'
-				WHEN m.content_type = 'contacts' THEN '[contact]'
-				WHEN m.content_type = 'reaction' THEN '[reaction]'
-				ELSE '[unsupported]'
-			END AS preview
-			FROM plugin_whatsapp.messages m
-			WHERE m.conversation_id = conv.id
-			ORDER BY m.sent_at DESC, m.id DESC
-			LIMIT 1
-		) last_message ON TRUE
-		WHERE conv.contact_id = ANY($1)
-		ORDER BY conv.last_activity_at DESC`,
+	rows, _ := s.pool.Query(ctx, conversationSelect+`
+	WHERE conv.contact_id = ANY($1)
+	ORDER BY conv.last_activity_at DESC`,
 		contactIDs,
 	)
 	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
