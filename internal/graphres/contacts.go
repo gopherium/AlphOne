@@ -14,6 +14,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // errInvalidFirst reports a page size outside the accepted range.
@@ -176,7 +177,7 @@ func (m MutationResolvers) CreateContact(
 		return nil, err
 	}
 	if err := m.storeContact(ctx, created, writable); err != nil {
-		return nil, err
+		return nil, m.root.identityConflict(ctx, err)
 	}
 	m.root.publish(ctx, event.ContactCreated, contact.EventData(created))
 	m.root.primeContact(ctx, created)
@@ -216,9 +217,22 @@ func (m MutationResolvers) AddContactIdentity(
 		return nil, err
 	}
 	if err := m.root.Contacts.AddIdentity(ctx, writable); err != nil {
-		return nil, err
+		return nil, m.root.identityConflict(ctx, err)
 	}
 	return toIdentity(writable), nil
+}
+
+// identityConflict names the contact owning a claimed identity in the error extensions.
+func (r *Resolver) identityConflict(ctx context.Context, err error) error {
+	var claimed contact.IdentityExistsError
+	if !errors.As(err, &claimed) {
+		return err
+	}
+	extensions := map[string]any{"ownerContactId": claimed.OwnerID.String()}
+	if owner, lookupErr := r.Contacts.Get(ctx, claimed.OwnerID); lookupErr == nil {
+		extensions["ownerName"] = owner.Name
+	}
+	return sdk.GraphError{Code: "CONFLICT", Extensions: extensions, Err: err}
 }
 
 // DeleteContactIdentity removes a contact's identity.

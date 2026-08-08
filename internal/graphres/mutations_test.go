@@ -134,6 +134,36 @@ func TestCreateContactStoresIdentitiesAndPublishes(t *testing.T) {
 	}
 }
 
+func TestAddContactIdentityNamesTheOwnerOfAClaimedIdentity(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	var owner createdContact
+	h.client.MustPost(`mutation { createContact(
+		name: "Maria Perez", identities: [{channel: "phone", identifier: "184467235"}]
+	) { id } }`, &owner)
+	var other createdContact
+	h.client.MustPost(`mutation { createContact(name: "John Doe") { id } }`, &other)
+
+	conflict, err := h.client.RawPost(fmt.Sprintf(`mutation { addContactIdentity(
+		contactId: %q, identity: {channel: "phone", identifier: "184467235"}
+	) { id } }`, other.CreateContact.ID))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	extensions := firstErrorExtensions(t, conflict.Errors)
+	if extensions["code"] != "CONFLICT" {
+		t.Errorf("code = %v, want CONFLICT", extensions["code"])
+	}
+	if extensions["ownerContactId"] != owner.CreateContact.ID {
+		t.Errorf("ownerContactId = %v, want %s", extensions["ownerContactId"], owner.CreateContact.ID)
+	}
+	if extensions["ownerName"] != "Maria Perez" {
+		t.Errorf("ownerName = %v, want Maria Perez", extensions["ownerName"])
+	}
+}
+
 func TestCreateContactRejectsConflictsAndBadInput(t *testing.T) {
 	t.Parallel()
 
