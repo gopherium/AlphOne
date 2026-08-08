@@ -1,4 +1,4 @@
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -588,8 +588,8 @@ test('reports invalid contact details on rename', async () => {
 
 test('reports a generic message when the rename fails otherwise', async () => {
 	server.use(
-		http.patch('/api/contacts/:id', () =>
-			new HttpResponse('bad gateway', { status: 502 }),
+		graphql.mutation('RenameContact', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'bad gateway' }] }),
 		),
 	)
 	renderAt(`/contacts/${anaID}`)

@@ -1,4 +1,4 @@
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -92,7 +92,6 @@ beforeEach(() => {
 			contactFilters.push(String(variables.id))
 			return HttpResponse.json({ data: { contact: contactDetail(String(variables.id), tasks) } })
 		}),
-		http.get('/api/tasks', () => HttpResponse.json({ tasks: [], next_cursor: null })),
 		graphql.mutation('CreateTask', ({ variables }) => {
 			const input = variables.input as Record<string, unknown>
 			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId })
@@ -270,9 +269,13 @@ test('disables the row control while its update is in flight', async () => {
 		release = resolve
 	})
 	server.use(
-		http.patch('/api/tasks/:id', async ({ params }) => {
+		graphql.mutation('UpdateTask', async ({ variables }) => {
 			await held
-			return HttpResponse.json(taskRow(String(params.id), 'Call her back', today))
+			return HttpResponse.json({
+				data: {
+					updateTask: taskNode(taskRow(String(variables.id), 'Call her back', today)),
+				},
+			})
 		}),
 	)
 	renderAt(`/contacts/${contactID}`)

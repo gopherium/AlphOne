@@ -1,5 +1,5 @@
 import { Button } from '@alphone/frontend-sdk'
-import { http, HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -467,10 +467,13 @@ test('disables the row control while its update is in flight', async () => {
 		release = resolve
 	})
 	server.use(
-		http.patch('/api/tasks/:id', async ({ params }) => {
+		graphql.mutation('UpdateTask', async ({ variables }) => {
 			await held
-			const stored = tasks.find((row) => row.id === String(params.id))
-			return HttpResponse.json({ ...stored, status: 'done' })
+			const id = String(variables.id)
+			const stored = tasks.find((row) => row.id === id) ?? taskRow(id, 'Call the supplier')
+			return HttpResponse.json({
+				data: { updateTask: taskNode({ ...stored, status: 'done' }) },
+			})
 		}),
 	)
 	renderAt('/tasks')
