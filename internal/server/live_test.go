@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 package server_test
 
@@ -74,6 +74,18 @@ func openStream(t *testing.T, srv *httptest.Server, cookie *http.Cookie) *bufio.
 	return bufio.NewReader(response.Body)
 }
 
+// waitForSubscribers blocks until the hub holds count subscriptions.
+func waitForSubscribers(t *testing.T, hub *event.Hub, count int) {
+	t.Helper()
+	for range 200 {
+		if hub.Subscribers() == count {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("hub holds %d subscriptions, want %d", hub.Subscribers(), count)
+}
+
 // nextFrame returns the next data frame written to the stream.
 func nextFrame(t *testing.T, reader *bufio.Reader) string {
 	t.Helper()
@@ -91,12 +103,7 @@ func TestEventStreamDeliversATargetedNameOnlyToItsAudience(t *testing.T) {
 	srv, assignee, cookies := twoUserLiveServer(t, hub)
 	assigneeStream := openStream(t, srv, cookies[0])
 	bystanderStream := openStream(t, srv, cookies[1])
-	for range 200 {
-		if hub.Subscribers() == 2 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitForSubscribers(t, hub, 2)
 
 	hub.Broadcast(event.Frame{Name: event.TaskCreated, Audience: assignee.ID})
 	hub.Broadcast(event.Frame{Name: event.ContactCreated})
@@ -129,12 +136,7 @@ func TestEventStreamDeliversNamesAndClosesAtItsLifetime(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want text/event-stream", ct)
 	}
 
-	for range 200 {
-		if hub.Subscribers() == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitForSubscribers(t, hub, 1)
 	hub.Broadcast(event.Frame{Name: event.TaskCreated})
 
 	reader := bufio.NewReader(response.Body)

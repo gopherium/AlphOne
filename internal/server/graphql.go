@@ -30,8 +30,24 @@ const (
 	graphMultipartBodyLimit = 6 << 20
 )
 
+// Graph endpoint budget overflow answers.
+const (
+	overflowOperations = "too many concurrent operations"
+	overflowStreams    = "too many concurrent streams"
+)
+
+// graphPolicy is the budget one kind of graph request is held to.
+type graphPolicy struct {
+	// limiter caps concurrent requests of this kind per user.
+	limiter *streamLimiter
+	// lifetime bounds one request of this kind.
+	lifetime time.Duration
+	// overflow is the answer when the budget is spent.
+	overflow string
+}
+
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
-func newGraphQLHandler(root graph.ResolverRoot) http.Handler {
+func newGraphQLHandler(root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int) http.Handler {
 	srv := handler.New(graphres.ExecutableSchema(root))
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})
@@ -48,7 +64,22 @@ func newGraphQLHandler(root graph.ResolverRoot) http.Handler {
 		}
 		srv.ServeHTTP(w, r.WithContext(ctx))
 	})
-	return withOperationGuards(loaded, newStreamLimiter(graphMaxConcurrentOps), graphOperationTimeout)
+	operations, streams := graphPolicies(streamLifetime, maxStreams)
+	return withOperationGuards(loaded, operations, streams)
+}
+
+// graphPolicies returns the budget the endpoint holds operations to beside the
+// one it holds streams to.
+func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
+	return graphPolicy{
+			limiter:  newStreamLimiter(graphMaxConcurrentOps),
+			lifetime: graphOperationTimeout,
+			overflow: overflowOperations,
+		}, graphPolicy{
+			limiter:  newStreamLimiter(maxStreams),
+			lifetime: streamLifetime,
+			overflow: overflowStreams,
+		}
 }
 
 // graphBodyLimit returns the body budget of the request content type.
@@ -59,18 +90,28 @@ func graphBodyLimit(r *http.Request) int64 {
 	return graphJSONBodyLimit
 }
 
-// withOperationGuards bounds a graph request's body, lifetime, and per user concurrency.
-func withOperationGuards(next http.Handler, ops *streamLimiter, timeout time.Duration) http.Handler {
+// acceptsEventStream reports whether the request asks for a stream.
+func acceptsEventStream(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("Accept"), "text/event-stream")
+}
+
+// withOperationGuards bounds a graph request's body, lifetime, and per user
+// concurrency under the policy of its kind.
+func withOperationGuards(next http.Handler, operations, streams graphPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		policy := operations
+		if acceptsEventStream(r) {
+			policy = streams
+		}
 		user := authkit.IdentityFromContext(r.Context())
-		if !ops.acquire(user.ID) {
-			w.Header().Set("Retry-After", strconv.Itoa(int(timeout.Seconds())))
-			authkit.RespondError(w, http.StatusTooManyRequests, "too many concurrent operations")
+		if !policy.limiter.acquire(user.ID) {
+			w.Header().Set("Retry-After", strconv.Itoa(int(policy.lifetime.Seconds())))
+			authkit.RespondError(w, http.StatusTooManyRequests, policy.overflow)
 			return
 		}
-		defer ops.release(user.ID)
+		defer policy.limiter.release(user.ID)
 		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r))
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

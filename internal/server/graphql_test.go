@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/server"
@@ -204,6 +206,73 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 	}
 	if body.Data.Version != "" {
 		t.Error("version resolved, want no execution on an oversized body")
+	}
+}
+
+func TestGraphStreamPassesWhileEveryLegacyStreamSlotIsHeld(t *testing.T) {
+	t.Parallel()
+
+	hub := event.NewHub()
+	users := newFakeUserStore()
+	addAda(t, users)
+	handler := newGraphServer(t, server.Config{
+		Contacts:          newFakeContactStore(),
+		Users:             users,
+		Live:              hub,
+		Version:           "9.9.9",
+		MaxStreamLifetime: 30 * time.Second,
+		MaxStreamsPerUser: 5,
+	})
+	cookie := loginCookie(t, handler)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	for range 5 {
+		openStream(t, srv, cookie)
+	}
+	waitForSubscribers(t, hub, 5)
+
+	request, err := http.NewRequest(http.MethodPost, srv.URL+"/api/graphql", strings.NewReader(versionQuery))
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	request.AddCookie(cookie)
+	response, err := srv.Client().Do(request)
+	if err != nil {
+		t.Fatalf("posting the graph request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf("graph stream while the legacy budget is spent = %d, want %d",
+			response.StatusCode, http.StatusOK)
+	}
+	if held := hub.Subscribers(); held != 5 {
+		t.Errorf("%d legacy streams still open, want the 5 that spend the legacy budget", held)
+	}
+}
+
+func TestGraphStreamPassesUnderTheDefaultStreamBounds(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	handler := newGraphServer(t, server.Config{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
+	})
+	cookie := loginCookie(t, handler)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(versionQuery))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("graph stream without configured bounds = %d, want %d: %s",
+			recorder.Code, http.StatusOK, recorder.Body)
 	}
 }
 

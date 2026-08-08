@@ -126,7 +126,8 @@ func NewServer(cfg Config) http.Handler {
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)
-			graphed.Method(http.MethodPost, "/api/graphql", newGraphQLHandler(cfg.GraphRoot))
+			graphed.Method(http.MethodPost, "/api/graphql",
+				newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser))
 			if cfg.GraphiQL {
 				graphed.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
 			}
