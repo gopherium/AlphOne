@@ -179,7 +179,7 @@ func (m MutationResolvers) CreateContact(
 	if err := m.storeContact(ctx, created, writable); err != nil {
 		return nil, m.root.identityConflict(ctx, err)
 	}
-	m.root.publish(ctx, event.ContactCreated, contact.EventData(created))
+	m.root.publish(ctx, event.Frame{Name: event.ContactCreated}, contact.EventData(created))
 	m.root.primeContact(ctx, created)
 	return toContact(created), nil
 }

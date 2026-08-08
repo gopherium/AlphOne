@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/gouncer"
+
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/server"
 )
@@ -31,6 +33,80 @@ func liveServer(t *testing.T, hub *event.Hub, lifetime time.Duration, perUser in
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	return srv, cookie
+}
+
+// twoUserLiveServer returns a running test server, the first user, and a cookie each.
+func twoUserLiveServer(t *testing.T, hub *event.Hub) (*httptest.Server, gouncer.User, [2]*http.Cookie) {
+	t.Helper()
+	users := newFakeUserStore()
+	ada := addAda(t, users)
+	users.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+	handler := server.NewServer(server.Config{
+		Contacts:          newFakeContactStore(),
+		Users:             users,
+		Live:              hub,
+		MaxStreamLifetime: time.Minute,
+		MaxStreamsPerUser: 5,
+	})
+	second := doLogin(t, handler, `{"email":"grace@example.com","password":"`+testPassword+`"}`)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second login status = %d, want %d", second.Code, http.StatusOK)
+	}
+	cookies := [2]*http.Cookie{loginCookie(t, handler), sessionCookie(t, second)}
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return srv, ada, cookies
+}
+
+// openStream connects to the event stream and returns a reader over its frames.
+func openStream(t *testing.T, srv *httptest.Server, cookie *http.Cookie) *bufio.Reader {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodGet, srv.URL+"/api/events", nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+	request.AddCookie(cookie)
+	response, err := srv.Client().Do(request)
+	if err != nil {
+		t.Fatalf("connecting to stream: %v", err)
+	}
+	t.Cleanup(func() { _ = response.Body.Close() })
+	return bufio.NewReader(response.Body)
+}
+
+// nextFrame returns the next data frame written to the stream.
+func nextFrame(t *testing.T, reader *bufio.Reader) string {
+	t.Helper()
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("reading a frame: %v", err)
+	}
+	return line
+}
+
+func TestEventStreamDeliversATargetedNameOnlyToItsAudience(t *testing.T) {
+	t.Parallel()
+
+	hub := event.NewHub()
+	srv, assignee, cookies := twoUserLiveServer(t, hub)
+	assigneeStream := openStream(t, srv, cookies[0])
+	bystanderStream := openStream(t, srv, cookies[1])
+	for range 200 {
+		if hub.Subscribers() == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	hub.Broadcast(event.Frame{Name: event.TaskCreated, Audience: assignee.ID})
+	hub.Broadcast(event.Frame{Name: event.ContactCreated})
+
+	if got := nextFrame(t, assigneeStream); !strings.Contains(got, "task.created") {
+		t.Errorf("the assignee read %q, want it to carry task.created", got)
+	}
+	if got := nextFrame(t, bystanderStream); !strings.Contains(got, "contact.created") {
+		t.Errorf("the bystander read %q, want the targeted name withheld", got)
+	}
 }
 
 func TestEventStreamDeliversNamesAndClosesAtItsLifetime(t *testing.T) {
@@ -59,7 +135,7 @@ func TestEventStreamDeliversNamesAndClosesAtItsLifetime(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	hub.Broadcast(event.TaskCreated)
+	hub.Broadcast(event.Frame{Name: event.TaskCreated})
 
 	reader := bufio.NewReader(response.Body)
 	line, err := reader.ReadString('\n')

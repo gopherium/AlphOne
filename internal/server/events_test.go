@@ -18,8 +18,9 @@ import (
 )
 
 type publishedEvent struct {
-	Name event.Name
-	Data map[string]any
+	Name     event.Name
+	Audience uuid.UUID
+	Data     map[string]any
 }
 
 type fakePublisher struct {
@@ -27,10 +28,10 @@ type fakePublisher struct {
 	published []publishedEvent
 }
 
-func (p *fakePublisher) Publish(_ context.Context, name event.Name, data map[string]any) {
+func (p *fakePublisher) Publish(_ context.Context, frame event.Frame, data map[string]any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.published = append(p.published, publishedEvent{Name: name, Data: data})
+	p.published = append(p.published, publishedEvent{Name: frame.Name, Audience: frame.Audience, Data: data})
 }
 
 // names returns every published event name in order.
@@ -77,10 +78,20 @@ func doJSON(handler http.Handler, cookie *http.Cookie, method, path, body string
 	return recorder
 }
 
+// onlyTask returns the single task the store holds.
+func onlyTask(t *testing.T, tasks *fakeTaskStore) task.Task {
+	t.Helper()
+	for _, stored := range tasks.tasks {
+		return stored
+	}
+	t.Fatal("no task in the store, want the created one")
+	return task.Task{}
+}
+
 func TestCreatingATaskPublishesTaskCreated(t *testing.T) {
 	t.Parallel()
 
-	handler, events, _, cookie := newEventingServer(t)
+	handler, events, tasks, cookie := newEventingServer(t)
 
 	recorder := doJSON(handler, cookie, http.MethodPost, "/api/tasks",
 		`{"title":"Call Maria","due_on":"2026-07-30"}`)
@@ -97,6 +108,9 @@ func TestCreatingATaskPublishesTaskCreated(t *testing.T) {
 	}
 	if data["id"] == nil {
 		t.Error("data.id is absent, want the task identifier a consumer refetches with")
+	}
+	if got := events.published[0].Audience; got != onlyTask(t, tasks).AssigneeID {
+		t.Errorf("audience = %s, want the assignee %s", got, onlyTask(t, tasks).AssigneeID)
 	}
 }
 
@@ -223,6 +237,9 @@ func TestCreatingAContactPublishesContactCreated(t *testing.T) {
 	}
 	if events.published[0].Data["name"] != "Maria Perez" {
 		t.Errorf("data.name = %v, want the contact name", events.published[0].Data["name"])
+	}
+	if got := events.published[0].Audience; got != uuid.Nil {
+		t.Errorf("audience = %s, want everyone", got)
 	}
 }
 

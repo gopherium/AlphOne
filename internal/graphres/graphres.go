@@ -57,7 +57,7 @@ type WebhookStore interface {
 
 // Publisher announces domain events.
 type Publisher interface {
-	Publish(ctx context.Context, name event.Name, data map[string]any)
+	Publish(ctx context.Context, frame event.Frame, data map[string]any)
 }
 
 // AttemptLimiter budgets failed logins per client key.
@@ -89,11 +89,11 @@ type Resolver struct {
 }
 
 // publish announces an event unless the resolver was built without a publisher.
-func (r *Resolver) publish(ctx context.Context, name event.Name, data map[string]any) {
+func (r *Resolver) publish(ctx context.Context, frame event.Frame, data map[string]any) {
 	if r.Events == nil {
 		return
 	}
-	r.Events.Publish(ctx, name, data)
+	r.Events.Publish(ctx, frame, data)
 }
 
 // QueryResolvers returns the core Query resolver set.

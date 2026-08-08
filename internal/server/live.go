@@ -25,7 +25,7 @@ func (s *server) handleEventStream() http.HandlerFunc {
 		w.Header().Set("X-Accel-Buffering", "no")
 
 		controller := http.NewResponseController(w)
-		subscription := s.live.Subscribe()
+		subscription := s.live.Subscribe(authkit.IdentityFromContext(r.Context()).ID)
 		defer s.live.Unsubscribe(subscription)
 
 		if err := controller.Flush(); err != nil {

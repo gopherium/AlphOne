@@ -28,7 +28,7 @@ type Resolver struct {
 
 // Publisher announces domain events.
 type Publisher interface {
-	Publish(ctx context.Context, name event.Name, data map[string]any)
+	Publish(ctx context.Context, frame event.Frame, data map[string]any)
 }
 
 // Option configures a [Resolver].
@@ -50,11 +50,11 @@ func NewResolver(store Store, options ...Option) *Resolver {
 
 // publish announces an event unless the resolver was built without a
 // publisher.
-func (r *Resolver) publish(ctx context.Context, name event.Name, data map[string]any) {
+func (r *Resolver) publish(ctx context.Context, frame event.Frame, data map[string]any) {
 	if r.events == nil {
 		return
 	}
-	r.events.Publish(ctx, name, data)
+	r.events.Publish(ctx, frame, data)
 }
 
 // Resolve returns the contact owning the identity for channel and
@@ -97,7 +97,7 @@ func (r *Resolver) createOwner(ctx context.Context, channel Channel, identifier,
 	if err != nil {
 		return Contact{}, err
 	}
-	r.publish(ctx, event.ContactCreated, EventData(created))
+	r.publish(ctx, event.Frame{Name: event.ContactCreated}, EventData(created))
 	return created, nil
 }
 

@@ -123,7 +123,7 @@ func (s *server) respondTaskCreation(
 		authkit.Respond(w, http.StatusOK, newTaskResponse(stored))
 		return
 	}
-	s.publish(r.Context(), event.TaskCreated, task.EventData(stored))
+	s.publish(r.Context(), event.Frame{Name: event.TaskCreated, Audience: stored.AssigneeID}, task.EventData(stored))
 	authkit.Respond(w, http.StatusCreated, newTaskResponse(stored))
 }
 
@@ -378,7 +378,7 @@ func (s *server) patchTask(
 		return task.Task{}, err
 	}
 	if stored.Status != task.StatusDone && updated.Status == task.StatusDone {
-		s.publish(ctx, event.TaskCompleted, task.EventData(updated))
+		s.publish(ctx, event.Frame{Name: event.TaskCompleted, Audience: updated.AssigneeID}, task.EventData(updated))
 	}
 	return updated, nil
 }

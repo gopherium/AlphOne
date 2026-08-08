@@ -327,8 +327,8 @@ type recordingEvents struct {
 	data  []map[string]any
 }
 
-func (r *recordingEvents) Publish(_ context.Context, name event.Name, data map[string]any) {
-	r.names = append(r.names, name)
+func (r *recordingEvents) Publish(_ context.Context, frame event.Frame, data map[string]any) {
+	r.names = append(r.names, frame.Name)
 	r.data = append(r.data, data)
 }
 

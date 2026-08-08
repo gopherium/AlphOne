@@ -20,13 +20,15 @@ import (
 
 // recordingPublisher captures every published event in order.
 type recordingPublisher struct {
-	names    []event.Name
-	payloads []map[string]any
+	names     []event.Name
+	audiences []uuid.UUID
+	payloads  []map[string]any
 }
 
 // Publish records the event.
-func (p *recordingPublisher) Publish(_ context.Context, name event.Name, data map[string]any) {
-	p.names = append(p.names, name)
+func (p *recordingPublisher) Publish(_ context.Context, frame event.Frame, data map[string]any) {
+	p.names = append(p.names, frame.Name)
+	p.audiences = append(p.audiences, frame.Audience)
 	p.payloads = append(p.payloads, data)
 }
 
@@ -131,6 +133,9 @@ func TestCreateContactStoresIdentitiesAndPublishes(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantPayload, h.events.payloads[0]); diff != "" {
 		t.Errorf("contact.created payload mismatch (-want +got):\n%s", diff)
+	}
+	if h.events.audiences[0] != uuid.Nil {
+		t.Errorf("contact.created audience = %s, want everyone", h.events.audiences[0])
 	}
 }
 
@@ -322,6 +327,9 @@ func TestCreateTaskPublishesThePinnedPayload(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantPayload, h.events.payloads[0]); diff != "" {
 		t.Errorf("task.created payload mismatch (-want +got):\n%s", diff)
+	}
+	if h.events.audiences[0] != h.assignee {
+		t.Errorf("task.created audience = %s, want the assignee %s", h.events.audiences[0], h.assignee)
 	}
 }
 

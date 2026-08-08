@@ -41,14 +41,19 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 
 	logger := slog.New(slog.DiscardHandler)
 	hub := event.NewHub()
-	listener := hub.Subscribe()
+	assignee := uuid.Must(uuid.NewV7())
+	listener := hub.Subscribe(assignee)
 	publisher := nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
 		worker:     webhook.NewWorker(emptyQueue{}, logger),
 		hub:        hub,
 	}
 
-	publisher.Publish(t.Context(), event.TaskCreated, map[string]any{"id": "abc"})
+	publisher.Publish(
+		t.Context(),
+		event.Frame{Name: event.TaskCreated, Audience: assignee},
+		map[string]any{"id": "abc"},
+	)
 
 	select {
 	case got := <-listener:

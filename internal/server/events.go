@@ -10,14 +10,14 @@ import (
 
 // Publisher announces domain events.
 type Publisher interface {
-	Publish(ctx context.Context, name event.Name, data map[string]any)
+	Publish(ctx context.Context, frame event.Frame, data map[string]any)
 }
 
 // publish announces an event unless the server was built without a
 // publisher.
-func (s *server) publish(ctx context.Context, name event.Name, data map[string]any) {
+func (s *server) publish(ctx context.Context, frame event.Frame, data map[string]any) {
 	if s.events == nil {
 		return
 	}
-	s.events.Publish(ctx, name, data)
+	s.events.Publish(ctx, frame, data)
 }

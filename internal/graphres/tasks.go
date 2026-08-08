@@ -222,7 +222,7 @@ func (m MutationResolvers) CreateTask(
 		return nil, err
 	}
 	if isNew {
-		m.root.publish(ctx, event.TaskCreated, task.EventData(stored))
+		m.root.publish(ctx, event.Frame{Name: event.TaskCreated, Audience: stored.AssigneeID}, task.EventData(stored))
 	}
 	return &model.CreateTaskPayload{Task: toTask(stored), Replay: !isNew}, nil
 }
@@ -262,7 +262,7 @@ func (m MutationResolvers) patchTask(ctx context.Context, stored task.Task, chan
 		return task.Task{}, err
 	}
 	if completesTask(stored, updated) {
-		m.root.publish(ctx, event.TaskCompleted, task.EventData(updated))
+		m.root.publish(ctx, event.Frame{Name: event.TaskCompleted, Audience: updated.AssigneeID}, task.EventData(updated))
 	}
 	return updated, nil
 }

@@ -59,7 +59,7 @@ func (r *Resolver) CreateWithIdentities(
 	if err != nil {
 		return Contact{}, false, err
 	}
-	r.publish(ctx, event.ContactCreated, map[string]any{
+	r.publish(ctx, event.Frame{Name: event.ContactCreated}, map[string]any{
 		"id": created.ID.String(), "name": created.Name,
 	})
 	return created, true, nil

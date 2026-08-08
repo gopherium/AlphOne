@@ -198,7 +198,7 @@ func (s *server) handleContactCreate() http.HandlerFunc {
 			s.respondContactStoreError(w, r, err)
 			return
 		}
-		s.publish(r.Context(), event.ContactCreated, contact.EventData(c))
+		s.publish(r.Context(), event.Frame{Name: event.ContactCreated}, contact.EventData(c))
 		authkit.Respond(w, http.StatusCreated, newContactResponse(c))
 	}
 }

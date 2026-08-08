@@ -18,11 +18,11 @@ type nudgingPublisher struct {
 }
 
 // Publish queues the event for its subscribers, wakes the worker, and
-// broadcasts the name to live listeners.
-func (n nudgingPublisher) Publish(ctx context.Context, name event.Name, data map[string]any) {
-	n.dispatcher.Publish(ctx, name, data)
+// broadcasts the frame to live listeners.
+func (n nudgingPublisher) Publish(ctx context.Context, frame event.Frame, data map[string]any) {
+	n.dispatcher.Publish(ctx, frame.Name, data)
 	n.worker.Poke()
-	n.hub.Broadcast(name)
+	n.hub.Broadcast(frame)
 }
 
 // pluginPublisher maps a plugin's untyped event name onto the core publisher.
@@ -32,5 +32,5 @@ type pluginPublisher struct {
 
 // Publish announces a plugin's event under its core name.
 func (p pluginPublisher) Publish(ctx context.Context, name string, data map[string]any) {
-	p.publisher.Publish(ctx, event.Name(name), data)
+	p.publisher.Publish(ctx, event.Frame{Name: event.Name(name)}, data)
 }

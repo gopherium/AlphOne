@@ -120,7 +120,7 @@ func TestEventStreamStopsWhenAWriteFails(t *testing.T) {
 		s.handleEventStream()(w, httptest.NewRequest(http.MethodGet, "/api/events", nil).WithContext(ctx))
 	}()
 	waitForCondition(t, func() bool { return s.live.Subscribers() == 1 })
-	s.live.Broadcast(event.TaskCreated)
+	s.live.Broadcast(event.Frame{Name: event.TaskCreated})
 
 	select {
 	case <-done:
@@ -161,7 +161,7 @@ func TestEventStreamWritesBufferedNamesBeforeClosing(t *testing.T) {
 	}()
 	waitForCondition(t, func() bool { return s.live.Subscribers() == 1 })
 	for range 3 {
-		s.live.Broadcast(event.TaskCreated)
+		s.live.Broadcast(event.Frame{Name: event.TaskCreated})
 	}
 	cancel()
 	close(w.release)
