@@ -9,19 +9,20 @@ import {
 	Stack,
 	Text,
 	VisuallyHidden,
+	useGraphQuery,
 } from '@alphone/frontend-sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import {
 	SendFailedError,
-	fetchConversations,
 	fetchMessages,
 	mediaURL,
 	sendMessage,
 } from './api'
 import type { Message, MessageMedia } from './api'
 import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
+import { conversationsQuery } from './operations'
 import { useMediaBlob } from './media'
 import { copyForFailureCode, copyForFailureDetail } from './status'
 
@@ -389,16 +390,13 @@ function DocumentChip({
  * @returns The thread header element.
  */
 function ThreadHeader({ conversationId }: { conversationId: string }) {
-	const conversations = useQuery({
-		queryKey: ['whatsapp', 'conversations'],
-		queryFn: fetchConversations,
-	})
-	const named = conversations.data?.find(
+	const [conversations] = useGraphQuery({ query: conversationsQuery })
+	const named = conversations.data?.whatsAppConversations.find(
 		(conversation) => conversation.id === conversationId,
 	)
 	return (
 		<header className="alphone-thread__header">
-			<PageTitle variant="heading-md">{named?.contact_name ?? 'Conversation'}</PageTitle>
+			<PageTitle variant="heading-md">{named?.contact.name ?? 'Conversation'}</PageTitle>
 		</header>
 	)
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -17,9 +18,12 @@ function renderThread() {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
+	const fake = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+			<GraphProvider graph={fake.graph}>
+				<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 	return client

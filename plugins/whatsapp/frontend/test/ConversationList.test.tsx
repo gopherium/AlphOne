@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { renderPluginAt, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, renderPluginAt, server } from '@alphone/frontend-sdk/testing'
 import { screen } from '@testing-library/react'
-import { HttpResponse, http } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from '../handlers'
@@ -11,7 +10,7 @@ import { plugin } from '../index'
 beforeEach(() => server.use(...handlers))
 
 test('ghosts the rail rows while the conversations arrive', async () => {
-	server.use(http.get('/api/plugins/whatsapp/conversations', () => new Promise(() => {})))
+	server.use(graphql.query('WhatsAppConversations', () => new Promise(() => {})))
 	renderPluginAt(plugin, '/whatsapp')
 
 	const status = await screen.findByRole('status')
@@ -19,7 +18,7 @@ test('ghosts the rail rows while the conversations arrive', async () => {
 	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
 })
 
-test('lists conversations from the API, most recent first', async () => {
+test('lists conversations from the graph, most recent first', async () => {
 	renderPluginAt(plugin, '/whatsapp')
 
 	expect(await screen.findByText('John Doe')).toBeInTheDocument()
@@ -49,8 +48,8 @@ test('shows each conversation preview and last activity', async () => {
 
 test('shows an empty state when no conversations exist', async () => {
 	server.use(
-		http.get('/api/plugins/whatsapp/conversations', () =>
-			HttpResponse.json([]),
+		graphql.query('WhatsAppConversations', () =>
+			HttpResponse.json({ data: { whatsAppConversations: [] } }),
 		),
 	)
 
@@ -62,8 +61,8 @@ test('shows an empty state when no conversations exist', async () => {
 
 test('reports when conversations cannot be loaded', async () => {
 	server.use(
-		http.get('/api/plugins/whatsapp/conversations', () =>
-			HttpResponse.json({ error: 'internal error' }, { status: 500 }),
+		graphql.query('WhatsAppConversations', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 

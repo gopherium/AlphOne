@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, http, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, within } from '@testing-library/react'
 import { beforeEach, expect, test } from 'vitest'
 
@@ -8,18 +8,25 @@ import { renderAt } from './render'
 
 beforeEach(() =>
 	server.use(
-		http.get('/api/plugins/whatsapp/conversations', () =>
-			HttpResponse.json([
-				{
-					id: '019f4a00-0000-7000-8000-000000000001',
-					contact_id: '019f4a00-0000-7000-8000-0000000000a1',
-					contact_name: 'Ada Lovelace',
-					external_id: '555000111',
-					status: 'open',
-					last_activity_at: '2026-07-06T10:05:00Z',
-					last_message_preview: 'The analytical engine awaits.',
+		graphql.query('WhatsAppConversations', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversations: [
+						{
+							__typename: 'WhatsAppConversation',
+							id: '019f4a00-0000-7000-8000-000000000001',
+							status: 'open',
+							lastActivityAt: '2026-07-06T10:05:00Z',
+							lastMessagePreview: 'The analytical engine awaits.',
+							contact: {
+								__typename: 'Contact',
+								id: '019f4a00-0000-7000-8000-0000000000a1',
+								name: 'Ada Lovelace',
+							},
+						},
+					],
 				},
-			]),
+			}),
 		),
 	),
 )

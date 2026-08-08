@@ -2,18 +2,6 @@
 
 import { z } from 'zod'
 
-const conversationSchema = z.object({
-	id: z.string(),
-	contact_id: z.string(),
-	contact_name: z.string(),
-	external_id: z.string(),
-	status: z.string(),
-	last_activity_at: z.coerce.date(),
-	last_message_preview: z.string().nullable(),
-})
-
-export type Conversation = z.infer<typeof conversationSchema>
-
 const mediaSchema = z.object({
 	status: z.string(),
 	mime_type: z.string(),
@@ -47,18 +35,6 @@ export type Message = z.infer<typeof messageSchema>
  */
 export function mediaURL(conversationId: string, messageId: string): string {
 	return `/api/plugins/whatsapp/conversations/${conversationId}/messages/${messageId}/media`
-}
-
-/**
- * Fetches all WhatsApp conversations from the backend API.
- * @returns A promise resolving to the parsed list of conversations.
- */
-export async function fetchConversations(): Promise<Conversation[]> {
-	const response = await fetch('/api/plugins/whatsapp/conversations')
-	if (!response.ok) {
-		throw new Error(`listing conversations failed with status ${response.status}`)
-	}
-	return z.array(conversationSchema).parse(await response.json())
 }
 
 /**

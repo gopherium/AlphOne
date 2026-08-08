@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, LoadingRows, Text, VisuallyHidden } from '@alphone/frontend-sdk'
-import { useQuery } from '@tanstack/react-query'
+import { Badge, LoadingRows, Text, VisuallyHidden, useGraphQuery } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 
-import { fetchConversations } from './api'
 import { formatListTime } from './format'
 import { useLiveUpdates } from './live'
+import { conversationsQuery } from './operations'
 
 /**
  * Renders the WhatsApp conversation list for the sidebar, with live updates.
@@ -15,23 +14,24 @@ import { useLiveUpdates } from './live'
  */
 export function ConversationList() {
 	useLiveUpdates()
-	const conversations = useQuery({
-		queryKey: ['whatsapp', 'conversations'],
-		queryFn: fetchConversations,
+	const [conversations] = useGraphQuery({
+		query: conversationsQuery,
+		requestPolicy: 'cache-and-network',
 	})
+	const rows = conversations.data?.whatsAppConversations
 
-	if (conversations.isPending) {
-		return <LoadingRows label="Loading conversations…" />
-	}
-	if (conversations.isError) {
+	if (conversations.error) {
 		return <Text role="alert">Conversations could not be loaded.</Text>
 	}
-	if (conversations.data.length === 0) {
+	if (!rows) {
+		return <LoadingRows label="Loading conversations…" />
+	}
+	if (rows.length === 0) {
 		return <Text role="status">No conversations yet.</Text>
 	}
 	return (
 		<ul className="alphone-conversations">
-			{conversations.data.map((conversation) => (
+			{rows.map((conversation) => (
 				<li key={conversation.id}>
 					<Link
 						to="/whatsapp/conversations/$conversationId"
@@ -40,18 +40,18 @@ export function ConversationList() {
 					>
 						<span className="alphone-conversation__top">
 							<span className="alphone-conversation__name">
-								{conversation.contact_name}
+								{conversation.contact.name}
 							</span>
 							<time
 								className="alphone-conversation__time"
-								dateTime={conversation.last_activity_at.toISOString()}
+								dateTime={conversation.lastActivityAt}
 							>
-								{formatListTime(conversation.last_activity_at, new Date())}
+								{formatListTime(new Date(conversation.lastActivityAt), new Date())}
 							</time>
 						</span>
 						<span className="alphone-conversation__bottom">
 							<span className="alphone-conversation__preview">
-								{conversation.last_message_preview ?? ''}
+								{conversation.lastMessagePreview ?? ''}
 							</span>
 							<VisuallyHidden render={<span />}>status</VisuallyHidden>
 							<Badge>{conversation.status}</Badge>

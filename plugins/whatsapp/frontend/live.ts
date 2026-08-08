@@ -14,6 +14,7 @@ export function useLiveUpdates() {
 	const graph = useGraph()
 	const queryClient = useQueryClient()
 	useGraphEvents(graph, conversationEventSubscription, () => {
+		graph.refetch(['WhatsAppConversations'])
 		void queryClient.invalidateQueries({ queryKey: ['whatsapp'] })
 	})
 }

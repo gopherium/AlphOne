@@ -1,4 +1,5 @@
-import { server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -49,7 +50,9 @@ function renderThreadOf(...messages: Array<Record<string, unknown>>) {
 	})
 	render(
 		<QueryClientProvider client={client}>
-			<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+			<GraphProvider graph={fakeGraphClient().graph}>
+				<Thread conversationId="019f4a00-0000-7000-8000-000000000001" />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 }

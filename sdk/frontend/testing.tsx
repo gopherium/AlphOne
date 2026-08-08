@@ -15,9 +15,10 @@ import {
 	useRouterState,
 } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
-import { Client, subscriptionExchange } from 'urql'
+import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
+import { graphCacheExchange } from './graph'
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
@@ -50,7 +51,10 @@ export function fakeGraphClient(): FakeGraph {
 	let torn = 0
 	const client = new Client({
 		url: '/api/graphql',
+		fetchOptions: { credentials: 'same-origin' },
+		preferGetMethod: false,
 		exchanges: [
+			graphCacheExchange(),
 			subscriptionExchange({
 				forwardSubscription: (request) => {
 					documents.push(String(request.query))
@@ -66,6 +70,7 @@ export function fakeGraphClient(): FakeGraph {
 					}
 				},
 			}),
+			fetchExchange,
 		],
 	})
 	return {

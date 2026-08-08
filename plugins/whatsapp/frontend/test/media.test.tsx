@@ -1,4 +1,5 @@
-import { server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
@@ -95,7 +96,9 @@ function renderThread(): QueryClient {
 	})
 	render(
 		<QueryClientProvider client={client}>
-			<Thread conversationId={conversationId} />
+			<GraphProvider graph={fakeGraphClient().graph}>
+				<Thread conversationId={conversationId} />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 	return client

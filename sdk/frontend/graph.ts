@@ -139,7 +139,7 @@ function eventStreamExchange(): { exchange: Exchange; onStreamOpen: GraphClient[
  * Returns the normalized cache exchange configured for the AlphOne schema.
  * @returns The cache exchange.
  */
-function graphCacheExchange(): Exchange {
+export function graphCacheExchange(): Exchange {
 	return cacheExchange({
 		keys: {
 			CreateTaskPayload: () => null,

@@ -1,38 +1,49 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, http } from 'msw'
+import { HttpResponse, graphql, http } from 'msw'
+
+const conversations = [
+	{
+		__typename: 'WhatsAppConversation',
+		id: '019f4a00-0000-7000-8000-000000000001',
+		status: 'open',
+		lastActivityAt: '2026-07-06T10:05:00Z',
+		lastMessagePreview: 'I can pick it up after 5pm.',
+		contact: {
+			__typename: 'Contact',
+			id: '019f4a00-0000-7000-8000-0000000000a1',
+			name: 'John Doe',
+		},
+	},
+	{
+		__typename: 'WhatsAppConversation',
+		id: '019f4a00-0000-7000-8000-000000000002',
+		status: 'open',
+		lastActivityAt: '2026-07-06T10:00:00Z',
+		lastMessagePreview: 'hello',
+		contact: {
+			__typename: 'Contact',
+			id: '019f4a00-0000-7000-8000-0000000000a2',
+			name: 'María Pérez',
+		},
+	},
+	{
+		__typename: 'WhatsAppConversation',
+		id: '019f4a00-0000-7000-8000-000000000003',
+		status: 'open',
+		lastActivityAt: '2026-07-05T09:00:00Z',
+		lastMessagePreview: null,
+		contact: {
+			__typename: 'Contact',
+			id: '019f4a00-0000-7000-8000-0000000000a3',
+			name: 'Quiet Contact',
+		},
+	},
+]
 
 export const handlers = [
-	http.get('/api/plugins/whatsapp/conversations', () =>
-		HttpResponse.json([
-			{
-				id: '019f4a00-0000-7000-8000-000000000001',
-				contact_id: '019f4a00-0000-7000-8000-0000000000a1',
-				contact_name: 'John Doe',
-				external_id: '555000111',
-				status: 'open',
-				last_activity_at: '2026-07-06T10:05:00Z',
-				last_message_preview: 'I can pick it up after 5pm.',
-			},
-			{
-				id: '019f4a00-0000-7000-8000-000000000002',
-				contact_id: '019f4a00-0000-7000-8000-0000000000a2',
-				contact_name: 'María Pérez',
-				external_id: '184467235',
-				status: 'open',
-				last_activity_at: '2026-07-06T10:00:00Z',
-				last_message_preview: 'hello',
-			},
-			{
-				id: '019f4a00-0000-7000-8000-000000000003',
-				contact_id: '019f4a00-0000-7000-8000-0000000000a3',
-				contact_name: 'Quiet Contact',
-				external_id: '184467236',
-				status: 'open',
-				last_activity_at: '2026-07-05T09:00:00Z',
-				last_message_preview: null,
-			},
-		]),
+	graphql.query('WhatsAppConversations', () =>
+		HttpResponse.json({ data: { whatsAppConversations: conversations } }),
 	),
 	http.get('/api/plugins/whatsapp/conversations/:conversationId/messages', () =>
 		HttpResponse.json([
