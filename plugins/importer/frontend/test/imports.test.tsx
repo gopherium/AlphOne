@@ -20,7 +20,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { handlers, importID, multipartDocument } from '../handlers'
+import { handlers, importID, multipartBody } from '../handlers'
 import { uploadChosen } from '../ImportsScreen'
 import { routes } from '../routes'
 
@@ -91,7 +91,7 @@ test('choosing a file uploads it and refreshes the history', async () => {
 	let uploads = 0
 	server.use(
 		http.post('/api/graphql', async ({ request }) => {
-			if (!(await multipartDocument(request)).includes('ImportUpload')) {
+			if (!(await multipartBody(request)).includes('ImportUpload')) {
 				return undefined
 			}
 			uploads++
@@ -158,7 +158,7 @@ test('choosing a file hands it to the upload', () => {
 test('a refused upload is reported', async () => {
 	server.use(
 		http.post('/api/graphql', async ({ request }) => {
-			if (!(await multipartDocument(request)).includes('ImportUpload')) {
+			if (!(await multipartBody(request)).includes('ImportUpload')) {
 				return undefined
 			}
 			return HttpResponse.json({

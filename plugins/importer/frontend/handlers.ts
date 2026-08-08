@@ -3,16 +3,15 @@
 import { HttpResponse, graphql } from 'msw'
 
 /**
- * Returns the document a multipart graph request carries.
- * @param request - The posted multipart request.
- * @returns The document text, or an empty string when the body carries none.
+ * Returns the raw body of a multipart graph request.
+ * @param request - The posted request.
+ * @returns The body, or an empty string for a request that is not multipart.
  */
-export async function multipartDocument(request: Request): Promise<string> {
+export async function multipartBody(request: Request): Promise<string> {
 	if (!request.headers.get('content-type')?.startsWith('multipart/form-data')) {
 		return ''
 	}
-	const form = await request.clone().formData()
-	return (JSON.parse(String(form.get('operations'))) as { query: string }).query
+	return request.clone().text()
 }
 
 export const importID = '019f5a00-0000-7000-8000-000000000001'
