@@ -330,13 +330,16 @@ signature, and the retry policy.
 
 ## Live events
 
-`GET /api/events` is a Server-Sent Events stream announcing each
-published event as `{"event": "task.created"}`, names only. The AlphOne
-frontend uses it to refresh open screens the moment something changes,
-whoever caused the change. For payloads or reliable delivery, subscribe
-a [webhook](/reference/webhooks/) instead: the stream replays nothing
-and drops names a slow reader misses. Streams rotate on a lifetime bound
-and are capped per user, so treat a close as routine and reconnect.
+`GET /api/events` is a Server-Sent Events stream announcing published
+events as `{"event": "task.created"}`, names only. Shared events reach
+every open session, whoever caused the change. Task events reach only
+the assignee, so a session hears nothing when another user's task is
+created or completed. The AlphOne frontend uses the stream to refresh
+open screens the moment something changes. For payloads or reliable
+delivery, subscribe a [webhook](/reference/webhooks/) instead: the
+stream replays nothing and drops names a slow reader misses. Streams
+rotate on a lifetime bound and are capped per user, so treat a close as
+routine and reconnect.
 
 ## Version
 
