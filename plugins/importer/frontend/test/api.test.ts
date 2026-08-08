@@ -9,8 +9,7 @@ import {
 	commitImport,
 	fetchFields,
 	fetchImport,
-	fetchImports,
-	fetchRows,
+		fetchRows,
 	saveMapping,
 	uploadImport,
 } from '../api'
@@ -25,15 +24,6 @@ test('fetchFields reads the mappable registry', async () => {
 
 	expect(fields).toHaveLength(3)
 	expect(fields[0]).toEqual({ name: 'name', label: 'Name', required: true })
-})
-
-test('fetchImports reads the history', async () => {
-	server.use(...handlers)
-
-	const imports = await fetchImports()
-
-	expect(imports[0].filename).toBe('contacts.csv')
-	expect(imports[0].created_at).toBeInstanceOf(Date)
 })
 
 test('fetchImport reads one import with its columns', async () => {
@@ -117,10 +107,10 @@ test('commitImport asks for the commit', async () => {
 
 test('an unauthorized read drops the session', async () => {
 	server.use(
-		http.get(`${base}/imports`, () => HttpResponse.json({ error: 'no session' }, { status: 401 })),
+		http.get(`${base}/fields`, () => HttpResponse.json({ error: 'no session' }, { status: 401 })),
 	)
 
-	await expect(fetchImports()).rejects.toBeInstanceOf(UnauthorizedError)
+	await expect(fetchFields()).rejects.toBeInstanceOf(UnauthorizedError)
 })
 
 test('a refused mapping carries the backend message', async () => {

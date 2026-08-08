@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, http } from 'msw'
+import { HttpResponse, graphql, http } from 'msw'
 
 export const importID = '019f5a00-0000-7000-8000-000000000001'
 
@@ -26,7 +26,25 @@ export const handlers = [
 			{ name: 'phone', label: 'Phone', required: false },
 		]),
 	),
-	http.get('/api/plugins/importer/imports', () => HttpResponse.json([storedImport])),
+	graphql.query('Imports', () =>
+		HttpResponse.json({
+			data: {
+				imports: [
+					{
+						__typename: 'ImportJob',
+						id: importID,
+						filename: 'contacts.csv',
+						state: 'ready',
+						rowCount: 2,
+						importedCount: 0,
+						skippedCount: 0,
+						failedCount: 0,
+						createdAt: '2026-08-01T10:00:00Z',
+					},
+				],
+			},
+		}),
+	),
 	http.get('/api/plugins/importer/imports/:id', () => HttpResponse.json(storedDetail)),
 	http.get('/api/plugins/importer/imports/:id/rows', () =>
 		HttpResponse.json([

@@ -18,7 +18,7 @@ import { act, render } from '@testing-library/react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
-import { graphCacheExchange } from './graph'
+import { doorbellExchange, graphCacheExchange } from './graph'
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
@@ -49,11 +49,13 @@ export function fakeGraphClient(): FakeGraph {
 	const documents: string[] = []
 	const listeners = new Set<() => void>()
 	let torn = 0
+	const doorbell = doorbellExchange()
 	const client = new Client({
 		url: '/api/graphql',
 		fetchOptions: { credentials: 'same-origin' },
 		preferGetMethod: false,
 		exchanges: [
+			doorbell.exchange,
 			graphCacheExchange(),
 			subscriptionExchange({
 				forwardSubscription: (request) => {
@@ -76,7 +78,7 @@ export function fakeGraphClient(): FakeGraph {
 	return {
 		graph: {
 			client,
-			refetch: vi.fn(),
+			refetch: vi.fn(doorbell.refetch),
 			onStreamOpen: (listener) => {
 				listeners.add(listener)
 				return () => {

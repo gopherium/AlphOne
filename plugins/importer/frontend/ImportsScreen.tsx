@@ -5,27 +5,39 @@ import {
 	ErrorNotice,
 	LoadingRows,
 	PageScreen,
+	useGraph,
+	useGraphQuery,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
-import { fetchImports, uploadImport } from './api'
-import type { ImportSummary } from './api'
+import { uploadImport } from './api'
 import { importerIcon } from './icon'
+import { importsQuery } from './operations'
 
-export const importsQueryKey = ['importer', 'imports']
+/** ImportRow is one stored import as the history document selects it. */
+interface ImportRow {
+	id: string
+	filename: string
+	state: string
+	rowCount: number
+	importedCount: number
+	skippedCount: number
+	failedCount: number
+	createdAt: string
+}
 
 /**
  * Renders the import history beside the control that starts a new import.
  * @returns The imports screen.
  */
 export function ImportsScreen() {
-	const queryClient = useQueryClient()
-	const imports = useQuery({ queryKey: importsQueryKey, queryFn: fetchImports })
+	const graph = useGraph()
+	const [imports] = useGraphQuery({ query: importsQuery })
 	const upload = useMutation({
 		mutationFn: (file: File) => uploadImport(file),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: importsQueryKey }),
+		onSuccess: () => graph.refetch(['Imports']),
 	})
 
 	return (
@@ -42,7 +54,7 @@ export function ImportsScreen() {
 					{validationMessage(upload.error, 'The file could not be imported.')}
 				</ErrorNotice>
 			) : null}
-			<ImportRows imports={imports} />
+			<ImportRows error={imports.error !== undefined} rows={imports.data?.imports} />
 		</PageScreen>
 	)
 }
@@ -52,17 +64,19 @@ export function ImportsScreen() {
  * @returns The history body.
  */
 function ImportRows({
-	imports,
+	error,
+	rows,
 }: {
-	imports: ReturnType<typeof useQuery<ImportSummary[], Error>>
+	error: boolean
+	rows: readonly ImportRow[] | undefined
 }) {
-	if (imports.isPending) {
-		return <LoadingRows label="Loading imports…" />
-	}
-	if (imports.isError) {
+	if (error) {
 		return <ErrorNotice>Imports could not be loaded.</ErrorNotice>
 	}
-	if (imports.data.length === 0) {
+	if (!rows) {
+		return <LoadingRows label="Loading imports…" />
+	}
+	if (rows.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={importerIcon} />
@@ -86,7 +100,7 @@ function ImportRows({
 					</tr>
 				</thead>
 				<tbody>
-					{imports.data.map((stored) => (
+					{rows.map((stored) => (
 						<tr key={stored.id}>
 							<td>
 								<Link to="/import/$importId" params={{ importId: stored.id }}>
@@ -94,11 +108,11 @@ function ImportRows({
 								</Link>
 							</td>
 							<td>{stored.state}</td>
-							<td>{stored.row_count}</td>
-							<td>{stored.imported_count}</td>
-							<td>{stored.skipped_count}</td>
-							<td>{stored.failed_count}</td>
-							<td>{formatStarted(stored.created_at)}</td>
+							<td>{stored.rowCount}</td>
+							<td>{stored.importedCount}</td>
+							<td>{stored.skippedCount}</td>
+							<td>{stored.failedCount}</td>
+							<td>{formatStarted(new Date(stored.createdAt))}</td>
 						</tr>
 					))}
 				</tbody>

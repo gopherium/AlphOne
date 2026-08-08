@@ -167,7 +167,7 @@ export function graphCacheExchange(): Exchange {
  * Returns an exchange tracking active queries beside the trigger rerunning them.
  * @returns The exchange and the trigger naming which queries to rerun.
  */
-function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['refetch'] } {
+export function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['refetch'] } {
 	const active = new Map<number, Operation>()
 	let graphClient!: Client
 	const exchange: Exchange = ({ client, forward }) => {

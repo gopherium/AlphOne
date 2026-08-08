@@ -15,9 +15,11 @@ import { Suspense, lazy, useState } from 'react'
 
 import { commitImport, fetchFields, fetchImport, fetchRows, saveMapping } from './api'
 import type { ImportDetail, ImportField } from './api'
-import { importsQueryKey } from './ImportsScreen'
 
 const RowsTable = lazy(() => import('./RowsTable'))
+
+/** importQueryKey names the cached reads of one stored import. */
+const importQueryKey = ['importer', 'imports']
 
 // unmapped is the select value a column carries until a field is chosen.
 const unmapped = 'not-imported'
@@ -28,11 +30,11 @@ const unmapped = 'not-imported'
  */
 export function ImportScreen({ importId }: { importId: string }) {
 	const stored = useQuery({
-		queryKey: [...importsQueryKey, importId],
+		queryKey: [...importQueryKey, importId],
 		queryFn: () => fetchImport(importId),
 	})
 	const rows = useQuery({
-		queryKey: [...importsQueryKey, importId, 'rows'],
+		queryKey: [...importQueryKey, importId, 'rows'],
 		queryFn: () => fetchRows(importId),
 	})
 
@@ -69,11 +71,11 @@ function MappingForm({ stored }: { stored: ImportDetail }) {
 	const [assigned, setAssigned] = useState<Record<string, string>>(stored.mapping)
 	const save = useMutation({
 		mutationFn: () => saveMapping(stored.id, assignmentsOf(assigned)),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: importsQueryKey }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: importQueryKey }),
 	})
 	const commit = useMutation({
 		mutationFn: () => commitImport(stored.id),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: importsQueryKey }),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: importQueryKey }),
 	})
 
 	if (fields.isPending) {

@@ -26,8 +26,6 @@ const summarySchema = z.object({
 	created_at: z.coerce.date(),
 })
 
-export type ImportSummary = z.infer<typeof summarySchema>
-
 const detailSchema = summarySchema.extend({
 	columns: z.array(z.string()),
 	mapping: z.record(z.string(), z.string()),
@@ -88,16 +86,6 @@ export async function fetchFields(): Promise<ImportField[]> {
 	const response = await fetch(`${base}/fields`)
 	await refuse(response, 'the fields could not be read')
 	return z.array(fieldSchema).parse(await response.json())
-}
-
-/**
- * Fetches every stored import, newest first.
- * @returns The import history.
- */
-export async function fetchImports(): Promise<ImportSummary[]> {
-	const response = await fetch(`${base}/imports`)
-	await refuse(response, 'the imports could not be read')
-	return z.array(summarySchema).parse(await response.json())
 }
 
 /**

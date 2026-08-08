@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider } from '@alphone/frontend-sdk'
+import {
+	http,
+	HttpResponse,
+	fakeGraphClient,
+	graphql,
+	server,
+} from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	RouterProvider,
@@ -29,9 +36,12 @@ function renderAt(path: string) {
 		history: createMemoryHistory({ initialEntries: [path] }),
 	})
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	const { graph } = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
-			<RouterProvider router={router as never} />
+			<GraphProvider graph={graph}>
+				<RouterProvider router={router as never} />
+			</GraphProvider>
 		</QueryClientProvider>,
 	)
 }
@@ -41,7 +51,7 @@ beforeEach(() => {
 })
 
 test('the history ghosts its rows while they arrive', async () => {
-	server.use(http.get('/api/plugins/importer/imports', () => new Promise(() => {})))
+	server.use(graphql.query('Imports', () => new Promise(() => {})))
 	renderAt('/import')
 
 	const status = await screen.findByRole('status')
@@ -58,7 +68,7 @@ test('the history lists every stored import with its counts', async () => {
 })
 
 test('the history shows an empty state without imports', async () => {
-	server.use(http.get('/api/plugins/importer/imports', () => HttpResponse.json([])))
+	server.use(graphql.query('Imports', () => HttpResponse.json({ data: { imports: [] } })))
 
 	renderAt('/import')
 
@@ -67,8 +77,8 @@ test('the history shows an empty state without imports', async () => {
 
 test('the history reports a failed read', async () => {
 	server.use(
-		http.get('/api/plugins/importer/imports', () =>
-			HttpResponse.json({ error: 'nope' }, { status: 500 }),
+		graphql.query('Imports', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'nope' }] }),
 		),
 	)
 
@@ -99,24 +109,27 @@ test('choosing a file uploads it and refreshes the history', async () => {
 				{ status: 201 },
 			)
 		}),
-		http.get('/api/plugins/importer/imports', () =>
-			HttpResponse.json(
-				uploads === 0
-					? []
-					: [
-							{
-								id: importID,
-								user_id: '019f5a00-0000-7000-8000-0000000000aa',
-								filename: 'uploaded.csv',
-								state: 'ready',
-								row_count: 1,
-								imported_count: 0,
-								skipped_count: 0,
-								failed_count: 0,
-								created_at: '2026-08-01T10:00:00Z',
-							},
-						],
-			),
+		graphql.query('Imports', () =>
+			HttpResponse.json({
+				data: {
+					imports:
+						uploads === 0
+							? []
+							: [
+									{
+										__typename: 'ImportJob',
+										id: importID,
+										filename: 'uploaded.csv',
+										state: 'ready',
+										rowCount: 1,
+										importedCount: 0,
+										skippedCount: 0,
+										failedCount: 0,
+										createdAt: '2026-08-01T10:00:00Z',
+									},
+								],
+				},
+			}),
 		),
 	)
 	renderAt('/import')
