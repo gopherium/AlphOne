@@ -107,6 +107,19 @@ func deliverMessage(t *testing.T, p *whatsapp.Plugin, wamid, text string) {
 	}
 }
 
+// waitForListeners blocks until the plugin's broadcaster holds count listeners.
+func waitForListeners(t *testing.T, p *whatsapp.Plugin, count int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.Subscribers() == count {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("broadcaster holds %d listeners, want %d", p.Subscribers(), count)
+}
+
 // onlyConversationID returns the id of the single stored conversation.
 func onlyConversationID(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
@@ -127,6 +140,7 @@ func TestConversationEventSubscriptionDeliversAChangedConversation(t *testing.T)
 	deliverMessage(t, p, "wamid.first", "Hello there")
 	conversationID := onlyConversationID(t, pool)
 	frames := openSubscription(t, srv, "subscription { whatsAppConversationEvent }")
+	waitForListeners(t, p, 1)
 
 	deliverMessage(t, p, "wamid.second", "Are you there")
 
@@ -146,6 +160,7 @@ func TestMessageSubscriptionDeliversTheArrival(t *testing.T) {
 		`subscription { whatsAppMessageReceived(conversationId: %q) { externalId content direction } }`,
 		conversationID,
 	))
+	waitForListeners(t, p, 1)
 
 	deliverMessage(t, p, "wamid.second", "Are you there")
 
@@ -170,6 +185,7 @@ func TestMessageSubscriptionIgnoresAnotherConversation(t *testing.T) {
 	watched := openSubscription(t, srv, fmt.Sprintf(
 		`subscription { whatsAppMessageReceived(conversationId: %q) { content } }`, conversationID,
 	))
+	waitForListeners(t, p, 2)
 
 	deliverMessage(t, p, "wamid.second", "Are you there")
 
@@ -188,6 +204,7 @@ func TestConversationEventSubscriptionDeliversAnOutboundSend(t *testing.T) {
 	ingestEvent(t, routes, "wamid.1", "184467235", "Maria Perez", "1751791000", "hello")
 	conversationID := onlyConversationID(t, pool)
 	frames := openSubscription(t, srv, "subscription { whatsAppConversationEvent }")
+	waitForListeners(t, p, 1)
 
 	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"On my way"}`)
 
