@@ -175,9 +175,7 @@ func TestSubscriptionClosesAtTheStreamLifetime(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the subscription outlived its stream lifetime, want the deadline to close it")
 	}
-	if hub.Subscribers() != 0 {
-		t.Error("the subscription outlived its stream on the hub, want it removed")
-	}
+	waitForSubscribers(t, hub, 0)
 }
 
 func TestTheLegacyEventStreamIsGone(t *testing.T) {
