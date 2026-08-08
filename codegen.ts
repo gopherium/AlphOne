@@ -1,21 +1,36 @@
 import type { CodegenConfig } from '@graphql-codegen/cli'
 
+const scalars = {
+	UUID: 'string',
+	DateTime: 'string',
+	Date: 'string',
+	Upload: 'File',
+}
+
+/**
+ * Builds the client preset output for one package's documents.
+ * @param root - The package directory holding the documents.
+ * @returns The generates entry writing that package's gql module.
+ */
+function clientPreset(root: string) {
+	return {
+		[`${root}/gql/`]: {
+			preset: 'client' as const,
+			documents: [
+			`${root}/**/*.{ts,tsx}`,
+			`!${root}/gql/**`,
+			`!${root}/node_modules/**`,
+		],
+			config: { useTypeImports: true, scalars },
+		},
+	}
+}
+
 const config: CodegenConfig = {
 	schema: ['graph/schema/*.graphqls', 'plugins/*/graph/*.graphqls'],
-	documents: ['frontend/src/**/*.{ts,tsx}', '!frontend/src/gql/**'],
 	generates: {
-		'frontend/src/gql/': {
-			preset: 'client',
-			config: {
-				useTypeImports: true,
-				scalars: {
-					UUID: 'string',
-					DateTime: 'string',
-					Date: 'string',
-					Upload: 'File',
-				},
-			},
-		},
+		...clientPreset('frontend/src'),
+		...clientPreset('plugins/whatsapp/frontend'),
 	},
 	ignoreNoDocuments: true,
 }
