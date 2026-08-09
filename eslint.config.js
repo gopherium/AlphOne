@@ -12,6 +12,7 @@ export default [
 			'frontend/src/**/*.{ts,tsx}',
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
+			'test/runbook/**/*.ts',
 		],
 		ignores: ['frontend/src/plugins/index.ts'],
 		languageOptions: {
@@ -27,6 +28,7 @@ export default [
 			'frontend/src/**/*.{ts,tsx}',
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
+			'test/runbook/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',
@@ -48,6 +50,7 @@ export default [
 			'frontend/src/**/*.{ts,tsx}',
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
+			'test/runbook/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',

@@ -1,0 +1,14 @@
+{
+  "name": "@alphone/runbook",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "runbook": "node run.ts",
+    "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^6.0.2"
+  }
+}

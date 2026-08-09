@@ -1,5 +1,5 @@
 .PHONY: peers test test-race cover cover-html lint vuln fmt generate outdated db-up db-down db-reset \
-	seed dev demo n8n n8n-down n8n-node \
+	seed dev demo n8n n8n-down n8n-node n8n-node-local runbook \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e '/alphone/graph$$' -e '/alphone/graph/model$$')
@@ -70,6 +70,22 @@ n8n-node:
 	docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm install $(N8N_NODE)@latest'
 	docker compose --profile n8n restart n8n
 	@docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm ls $(N8N_NODE)' || true
+
+N8N_NODE_DIR ?= ../n8n-nodes-alphone
+
+n8n-node-local:
+	cd $(N8N_NODE_DIR) && npx n8n-node build && npm pack
+	docker compose cp $(N8N_NODE_DIR)/$(N8N_NODE)-*.tgz n8n:/tmp/node.tgz
+	docker compose exec -T n8n sh -c 'cd /home/node/.n8n/nodes && npm install /tmp/node.tgz'
+	docker compose --profile n8n restart n8n
+	@docker compose exec -T n8n sh -c \
+		'grep -c "api/graphql" /home/node/.n8n/nodes/node_modules/$(N8N_NODE)/dist/nodes/AlphOne/graph.js' \
+		&& echo "the graph build is installed" || echo "the graph build is NOT installed"
+
+runbook:
+	@test -n "$(ALPHONE_TOKEN)" || \
+		(echo "set ALPHONE_TOKEN, mint one with: ./alphone token create -email you@example.com -name runbook" && false)
+	node test/runbook/run.ts
 
 seed: db-up
 	go run ./cmd/alphone seed

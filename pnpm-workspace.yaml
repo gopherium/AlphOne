@@ -6,6 +6,7 @@ packages:
   - sdk/ui-primitives
   - plugins/*/frontend
   - test/e2e
+  - test/runbook
 
 minimumReleaseAgeExclude:
   - '@gopherium/godmin'
