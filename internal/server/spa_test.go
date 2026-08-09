@@ -14,8 +14,7 @@ import (
 func spaServer(t *testing.T) http.Handler {
 	t.Helper()
 	return server.NewServer(server.Config{
-		Contacts: newFakeContactStore(),
-		Users:    newFakeUserStore(),
+		Users: newFakeUserStore(),
 		Web: fstest.MapFS{
 			"index.html":    {Data: []byte("<!doctype html><title>AlphOne</title>")},
 			"assets/app.js": {Data: []byte("console.log('app')")},
@@ -26,7 +25,7 @@ func spaServer(t *testing.T) http.Handler {
 func TestServesTheSPAAtTheRoot(t *testing.T) {
 	t.Parallel()
 
-	recorder := doRequest(t, spaServer(t), http.MethodGet, "/", "")
+	recorder := doRequest(t, spaServer(t), "/")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
@@ -39,7 +38,7 @@ func TestServesTheSPAAtTheRoot(t *testing.T) {
 func TestServesSPAAssets(t *testing.T) {
 	t.Parallel()
 
-	recorder := doRequest(t, spaServer(t), http.MethodGet, "/assets/app.js", "")
+	recorder := doRequest(t, spaServer(t), "/assets/app.js")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
@@ -52,7 +51,7 @@ func TestServesSPAAssets(t *testing.T) {
 func TestFallsBackToIndexForClientRoutes(t *testing.T) {
 	t.Parallel()
 
-	recorder := doRequest(t, spaServer(t), http.MethodGet, "/users", "")
+	recorder := doRequest(t, spaServer(t), "/users")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
@@ -65,7 +64,7 @@ func TestFallsBackToIndexForClientRoutes(t *testing.T) {
 func TestUnknownAPIPathIsNotServedTheSPA(t *testing.T) {
 	t.Parallel()
 
-	recorder := doRequest(t, spaServer(t), http.MethodGet, "/api/nope", "")
+	recorder := doRequest(t, spaServer(t), "/api/nope")
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
@@ -78,9 +77,9 @@ func TestUnknownAPIPathIsNotServedTheSPA(t *testing.T) {
 func TestWithoutWebFSUnknownPathsAre404(t *testing.T) {
 	t.Parallel()
 
-	srv := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: newFakeUserStore()})
+	srv := server.NewServer(server.Config{Users: newFakeUserStore()})
 
-	recorder := doRequest(t, srv, http.MethodGet, "/", "")
+	recorder := doRequest(t, srv, "/")
 
 	if recorder.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d when no SPA is configured", recorder.Code, http.StatusNotFound)

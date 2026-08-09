@@ -105,18 +105,12 @@ func run(
 	}
 
 	cfg := server.Config{
-		Contacts:          contacts,
-		Tasks:             tasks,
 		Users:             userStore,
 		Auth:              auth,
-		Admin:             admin,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
-		Webhooks:          webhooks,
-		Events:            events,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
-		Version:           version.Version(),
 		TrustedProxies:    settings.trustedProxies,
 		GraphiQL:          settings.graphiql,
 	}

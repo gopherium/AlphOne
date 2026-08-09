@@ -3,6 +3,7 @@
 package server_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,21 +56,50 @@ func twoUserStore(t *testing.T) (*testkit.Store, gouncer.User) {
 // twoUserCookies logs both users of a two user store in and returns a cookie each.
 func twoUserCookies(t *testing.T, handler http.Handler) [2]*http.Cookie {
 	t.Helper()
-	second := doLogin(t, handler, `{"email":"`+secondUserEmail+`","password":"`+testPassword+`"}`)
+	second := doLogin(t, handler, secondUserEmail)
 	if second.Code != http.StatusOK {
 		t.Fatalf("second login status = %d, want %d", second.Code, http.StatusOK)
 	}
 	return [2]*http.Cookie{loginCookie(t, handler), sessionCookie(t, second)}
 }
 
-// doLogin posts credentials to the login route.
-func doLogin(t *testing.T, handler http.Handler, body string) *httptest.ResponseRecorder {
+// doLogin posts the graph login mutation as the given user.
+func doLogin(t *testing.T, handler http.Handler, email string) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(body))
+	query := `mutation { login(email: "` + email + `", password: "` + testPassword + `") { me { id } } }`
+	body, err := json.Marshal(map[string]string{"query": query})
+	if err != nil {
+		t.Fatalf("encoding the login body: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(string(body)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
+}
+
+// errorBody is the JSON error envelope a refused request answers with.
+type errorBody struct {
+	Error string `json:"error"`
+}
+
+// doRequest serves one GET against handler and returns the recording.
+func doRequest(t *testing.T, handler http.Handler, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodGet, target, nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// decodeBody decodes a recorded JSON response body into T.
+func decodeBody[T any](t *testing.T, recorder *httptest.ResponseRecorder) T {
+	t.Helper()
+	var v T
+	if err := json.Unmarshal(recorder.Body.Bytes(), &v); err != nil {
+		t.Fatalf("decoding response %q: %v", recorder.Body.String(), err)
+	}
+	return v
 }
 
 // sessionCookie returns the response's session cookie, failing without one.
@@ -87,7 +117,7 @@ func sessionCookie(t *testing.T, recorder *httptest.ResponseRecorder) *http.Cook
 // loginCookie logs the default test user in and returns the issued cookie.
 func loginCookie(t *testing.T, handler http.Handler) *http.Cookie {
 	t.Helper()
-	recorder := doLogin(t, handler, `{"email":"ada@example.com","password":"correct horse battery"}`)
+	recorder := doLogin(t, handler, "ada@example.com")
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("login status = %d, want %d", recorder.Code, http.StatusOK)
 	}

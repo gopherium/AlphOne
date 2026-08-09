@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func coverBinary(t *testing.T) (string, []string) {
@@ -177,7 +175,7 @@ func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill() })
 
-	waitForServer(t, "http://"+addr+"/api/contacts/"+uuid.Must(uuid.NewV7()).String())
+	waitForServer(t, "http://"+addr)
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatalf("signalling alphone: %v", err)
 	}

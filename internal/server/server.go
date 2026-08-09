@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
-// Package server exposes the CRM core over a JSON HTTP API.
+// Package server exposes the CRM core over its GraphQL endpoint and mounts
+// the plugin routes.
 package server
 
 import (
@@ -24,24 +25,16 @@ const SessionCookieName = "__Host-alphone_session"
 
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
-	Contacts ContactStore
-	Tasks    TaskStore
-	Users    UserStore
-	// Auth serves the login sessions. Nil builds a default over Users with
-	// the product cookie.
+	Users UserStore
+	// Auth validates the login sessions plugin requests present. Nil builds
+	// a default over Users with the product cookie.
 	Auth *authkit.Handlers
-	// Admin serves user administration. Nil builds a default over Users.
-	Admin *authkit.AdminHandlers
 	// GraphRoot is the composed resolver root served at /api/graphql. Nil
 	// leaves the graph endpoint unmounted.
 	GraphRoot graph.ResolverRoot
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
-	// Webhooks persists the outbound event subscriptions the API manages.
-	Webhooks WebhookStore
-	// Events announces domain events. Nil publishes nothing.
-	Events Publisher
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -52,7 +45,7 @@ type Config struct {
 	// paths unhandled, which suits development behind the Vite dev server.
 	Web fs.FS
 	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
-	// set X-Forwarded-For for the login rate limiter.
+	// set X-Forwarded-For for the graph rate limiter.
 	TrustedProxies []string
 	// MaxStreamLifetime bounds how long an authenticated plugin request or a
 	// graph subscription may stay open. Zero applies the host default.
@@ -60,62 +53,27 @@ type Config struct {
 	// MaxStreamsPerUser caps concurrent authenticated plugin requests and
 	// graph subscriptions per user. Zero applies the host default.
 	MaxStreamsPerUser int
-	// Version is the application version reported at /api/version.
-	Version string
 	// GraphiQL enables the interactive query page on GET /api/graphql.
 	GraphiQL bool
 }
 
 // NewServer returns the HTTP handler serving the CRM API. Every route
-// requires a login session except login, logout, and each plugin's
-// declared public paths.
+// requires a login session except the graph login mutation and each
+// plugin's declared public paths.
 func NewServer(cfg Config) http.Handler {
 	maxStreamLifetime, maxStreamsPerUser := streamDefaults(cfg)
 	auth := cfg.Auth
 	if auth == nil {
 		auth = authkit.New(authkit.Config{Store: cfg.Users, CookieName: SessionCookieName})
 	}
-	admin := cfg.Admin
-	if admin == nil {
-		admin = authkit.NewAdmin(cfg.Users)
-	}
 	s := &server{
-		store:             cfg.Contacts,
-		tasks:             cfg.Tasks,
 		auth:              auth,
 		users:             cfg.Users,
 		tokens:            cfg.Tokens,
-		webhooks:          cfg.Webhooks,
-		events:            cfg.Events,
-		version:           cfg.Version,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
 	router := chi.NewRouter()
-	router.With(ratelimit.Middleware(ratelimit.Config{TrustedProxies: cfg.TrustedProxies})).
-		Post("/api/auth/login", auth.Login)
-	router.Post("/api/auth/logout", auth.Logout)
-	router.Group(func(protected chi.Router) {
-		protected.Use(s.requireIdentity)
-		protected.Get("/api/auth/session", auth.Session)
-		protected.Get("/api/contacts", s.handleContactList())
-		protected.Post("/api/contacts", s.handleContactCreate())
-		protected.Get("/api/contacts/{id}", s.handleContactGet())
-		protected.Patch("/api/contacts/{id}", s.handleContactRename())
-		protected.Post("/api/contacts/{id}/identities", s.handleIdentityCreate())
-		protected.Delete("/api/contacts/{id}/identities/{identityID}", s.handleIdentityDelete())
-		protected.Get("/api/tasks", s.handleTaskList())
-		protected.Post("/api/tasks", s.handleTaskCreate())
-		protected.Get("/api/tasks/{id}", s.handleTaskGet())
-		protected.Patch("/api/tasks/{id}", s.handleTaskPatch())
-		protected.Get("/api/users", admin.List)
-		protected.Post("/api/users", admin.Create)
-		protected.Patch("/api/users/{id}", admin.SetDisabled)
-		protected.Get("/api/webhooks", s.handleWebhookList())
-		protected.Post("/api/webhooks", s.handleWebhookCreate())
-		protected.Delete("/api/webhooks/{id}", s.handleWebhookDelete())
-		protected.Get("/api/version", s.handleVersion())
-	})
 	if cfg.GraphRoot != nil {
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
@@ -139,14 +97,9 @@ func NewServer(cfg Config) http.Handler {
 }
 
 type server struct {
-	store             ContactStore
-	tasks             TaskStore
 	auth              *authkit.Handlers
 	users             UserStore
 	tokens            TokenStore
-	webhooks          WebhookStore
-	events            Publisher
-	version           string
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
 }

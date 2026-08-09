@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gopherium/alphone/internal/server"
 )
 
 // graphResponse is a GraphQL response body with raw data and typed errors.
@@ -38,7 +36,7 @@ func newAuthGraphServer(t *testing.T) http.Handler {
 	t.Helper()
 	users := newFakeUserStore()
 	addAda(t, users)
-	return newGraphServer(t, server.Config{
+	return newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,

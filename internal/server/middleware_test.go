@@ -13,7 +13,6 @@ import (
 
 	"github.com/gopherium/gouncer/authkit/testkit"
 
-	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -28,7 +27,7 @@ func newProtectedServer(t *testing.T) (http.Handler, *testkit.Store) {
 	t.Helper()
 	users := newFakeUserStore()
 	addAda(t, users)
-	handler := server.NewServer(server.Config{
+	handler := newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Users:    users,
 		Plugins: map[string]http.Handler{
@@ -48,7 +47,7 @@ func TestMiddlewareHandsThePluginTheActingUser(t *testing.T) {
 	ada := addAda(t, users)
 	var seen uuid.UUID
 	var known bool
-	handler := server.NewServer(server.Config{
+	handler := newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Users:    users,
 		Plugins: map[string]http.Handler{
@@ -81,9 +80,8 @@ func TestMiddlewareRejectsRequestsWithoutASession(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodPost, "/api/contacts"},
-		{http.MethodGet, "/api/contacts/00000000-0000-0000-0000-000000000000"},
 		{http.MethodGet, "/api/plugins/echo/conversations"},
+		{http.MethodPost, "/api/plugins/echo/conversations"},
 	} {
 		request := httptest.NewRequest(target.method, target.path, strings.NewReader("{}"))
 		recorder := httptest.NewRecorder()
@@ -141,22 +139,5 @@ func TestMiddlewareReportsSessionStoreFailure(t *testing.T) {
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
-	}
-}
-
-func TestMiddlewareAdmitsContactWritesWithASession(t *testing.T) {
-	t.Parallel()
-
-	handler, _ := newProtectedServer(t)
-	cookie := loginCookie(t, handler)
-
-	request := httptest.NewRequest(http.MethodPost, "/api/contacts", strings.NewReader(`{"name":"Grace"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(cookie)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusCreated {
-		t.Errorf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
 }

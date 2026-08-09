@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -22,15 +23,29 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// graphConfig carries the stores and bounds a test graph server composes.
+type graphConfig struct {
+	Contacts          graphres.ContactStore
+	Tasks             graphres.TaskStore
+	Users             server.UserStore
+	Tokens            server.TokenStore
+	Version           string
+	Plugins           map[string]http.Handler
+	PluginPublicPaths map[string][]string
+	MaxStreamLifetime time.Duration
+	MaxStreamsPerUser int
+	GraphiQL          bool
+}
+
 // newGraphServer returns a server whose graph root composes cfg's stores with
 // graph plugins whose lazy pools never connect.
-func newGraphServer(t *testing.T, cfg server.Config) http.Handler {
+func newGraphServer(t *testing.T, cfg graphConfig) http.Handler {
 	t.Helper()
 	return newSubscribingGraphServer(t, cfg, nil)
 }
 
 // newSubscribingGraphServer returns a graph server whose subscriptions read hub.
-func newSubscribingGraphServer(t *testing.T, cfg server.Config, hub *event.Hub) http.Handler {
+func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) http.Handler {
 	t.Helper()
 	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
 	admin := authkit.NewAdmin(cfg.Users)
@@ -49,8 +64,6 @@ func newSubscribingGraphServer(t *testing.T, cfg server.Config, hub *event.Hub) 
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
 		Tasks:        cfg.Tasks,
-		Webhooks:     cfg.Webhooks,
-		Events:       cfg.Events,
 		Auth:         auth,
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
@@ -62,8 +75,17 @@ func newSubscribingGraphServer(t *testing.T, cfg server.Config, hub *event.Hub) 
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}
-	cfg.Auth, cfg.Admin, cfg.GraphRoot = auth, admin, root
-	return server.NewServer(cfg)
+	return server.NewServer(server.Config{
+		Users:             cfg.Users,
+		Auth:              auth,
+		GraphRoot:         root,
+		Tokens:            cfg.Tokens,
+		Plugins:           cfg.Plugins,
+		PluginPublicPaths: cfg.PluginPublicPaths,
+		MaxStreamLifetime: cfg.MaxStreamLifetime,
+		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
+		GraphiQL:          cfg.GraphiQL,
+	})
 }
 
 // postGraphQL posts a GraphQL request body to /api/graphql.
@@ -101,7 +123,7 @@ func TestGraphQLAnswersACallerTakingJSONWithJSON(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(versionQuery))
@@ -125,7 +147,7 @@ func TestGraphQLRequiresAuthentication(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 
 	recorder := postGraphQL(t, srv, versionQuery, nil)
 
@@ -140,7 +162,7 @@ func TestGraphQLVersionQueryWithSessionCookie(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 
 	recorder := postGraphQL(t, srv, versionQuery, cookie)
@@ -214,7 +236,7 @@ func TestGraphQLRejectsAnUnknownField(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 
 	recorder := postGraphQL(t, srv, `{"query":"{ nope }"}`, cookie)
@@ -232,7 +254,7 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	cookie := loginCookie(t, srv)
 	oversized := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 1<<20) + `"}}`
 
@@ -252,7 +274,7 @@ func TestGraphStreamPassesUnderTheDefaultStreamBounds(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	handler := newGraphServer(t, server.Config{
+	handler := newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
 	})
 	cookie := loginCookie(t, handler)
@@ -275,7 +297,7 @@ func TestGraphiQLServesOnlyWhenEnabled(t *testing.T) {
 
 	users := newFakeUserStore()
 	addAda(t, users)
-	enabled := newGraphServer(t, server.Config{
+	enabled := newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9", GraphiQL: true,
 	})
 	cookie := loginCookie(t, enabled)
@@ -292,7 +314,7 @@ func TestGraphiQLServesOnlyWhenEnabled(t *testing.T) {
 		t.Errorf("content type = %q, want text/html", contentType)
 	}
 
-	disabled := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	disabled := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
 	request = httptest.NewRequest(http.MethodGet, "/api/graphql", nil)
 	request.AddCookie(cookie)
 	recorder = httptest.NewRecorder()

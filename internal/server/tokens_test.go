@@ -4,10 +4,10 @@ package server_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +16,6 @@ import (
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/apitoken"
-	"github.com/gopherium/alphone/internal/server"
 )
 
 var errTokenBackend = errors.New("token backend unavailable")
@@ -59,7 +58,7 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
 	}
 	tokens.tokens[minted.Token.Hash] = minted.Token
-	handler := newGraphServer(t, server.Config{
+	handler := newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,
@@ -72,6 +71,16 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 	return handler, tokens, users, minted.Secret
 }
 
+// postGraphWithBearer posts a GraphQL body carrying a bearer credential.
+func postGraphWithBearer(handler http.Handler, body, secret string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+secret)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
 // getWithBearer issues a GET carrying the given bearer credential.
 func getWithBearer(handler http.Handler, path, secret string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, path, nil)
@@ -79,18 +88,6 @@ func getWithBearer(handler http.Handler, path, secret string) *httptest.Response
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
-}
-
-func TestBearerTokenAuthenticatesACoreRoute(t *testing.T) {
-	t.Parallel()
-
-	handler, _, _, secret := newTokenServer(t)
-
-	recorder := getWithBearer(handler, "/api/version", secret)
-
-	if recorder.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
 }
 
 func TestBearerTokenAuthenticatesAPluginRoute(t *testing.T) {
@@ -110,56 +107,68 @@ func TestBearerTokenCarriesTheOwnersIdentity(t *testing.T) {
 
 	handler, _, _, secret := newTokenServer(t)
 
-	recorder := getWithBearer(handler, "/api/auth/session", secret)
+	recorder := postGraphWithBearer(handler, `{"query":"{ me { email name } }"}`, secret)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	var identity struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
+	body := decodeBody[struct {
+		Data struct {
+			Me struct {
+				Email string `json:"email"`
+				Name  string `json:"name"`
+			} `json:"me"`
+		} `json:"data"`
+	}](t, recorder)
+	if body.Data.Me.Email != "ada@example.com" {
+		t.Errorf("email = %q, want the token owner's email", body.Data.Me.Email)
 	}
-	if err := json.NewDecoder(recorder.Body).Decode(&identity); err != nil {
-		t.Fatalf("decoding identity: %v", err)
-	}
-	if identity.Email != "ada@example.com" {
-		t.Errorf("email = %q, want the token owner's email", identity.Email)
-	}
-	if identity.Name != "Ada Lovelace" {
-		t.Errorf("name = %q, want the token owner's name", identity.Name)
+	if body.Data.Me.Name != "Ada Lovelace" {
+		t.Errorf("name = %q, want the token owner's name", body.Data.Me.Name)
 	}
 }
-
 func TestBearerTokenStampsTaskOrigin(t *testing.T) {
 	t.Parallel()
 
-	srv, _, _, secret := newTokenServer(t)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Header.Set("Authorization", "Bearer "+secret)
-		srv.ServeHTTP(w, r)
-	})
+	handler, _, _, secret := newTokenServer(t)
+	mutation := `{"query":"mutation { createTask(input: {title: \"Follow up with Maria Perez\",` +
+		` dueOn: \"2026-08-01\"}) { task { originSource originEventId } } }"}`
 
-	recorder := doRequest(t, handler, http.MethodPost, "/api/tasks",
-		`{"title":"Follow up with Maria Perez","due_on":"2026-08-01"}`)
+	recorder := postGraphWithBearer(handler, mutation, secret)
 
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	got := decodeBody[taskBody](t, recorder)
+	body := decodeBody[struct {
+		Data struct {
+			CreateTask struct {
+				Task struct {
+					OriginSource  *string `json:"originSource"`
+					OriginEventID *string `json:"originEventId"`
+				} `json:"task"`
+			} `json:"createTask"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}](t, recorder)
+	if len(body.Errors) != 0 {
+		t.Fatalf("errors = %v, want none", body.Errors)
+	}
+	got := body.Data.CreateTask.Task
 	if got.OriginSource == nil || *got.OriginSource != "token:n8n production" {
-		t.Errorf("origin_source = %v, want the stamped token name", got.OriginSource)
+		t.Errorf("originSource = %v, want the stamped token name", got.OriginSource)
 	}
 	if got.OriginEventID != nil {
-		t.Errorf("origin_event_id = %v, want null", got.OriginEventID)
+		t.Errorf("originEventId = %v, want null", got.OriginEventID)
 	}
 }
-
 func TestBearerTokenIsRejectedWhenUnknown(t *testing.T) {
 	t.Parallel()
 
 	handler, _, _, _ := newTokenServer(t)
 
-	recorder := getWithBearer(handler, "/api/version", "a1_never_minted")
+	recorder := getWithBearer(handler, "/api/plugins/echo/ping", "a1_never_minted")
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
@@ -178,7 +187,7 @@ func TestBearerTokenIsRejectedForADisabledUser(t *testing.T) {
 		t.Fatalf("SetUserDisabled() error = %v, want nil", err)
 	}
 
-	recorder := getWithBearer(handler, "/api/version", secret)
+	recorder := getWithBearer(handler, "/api/plugins/echo/ping", secret)
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
@@ -195,7 +204,7 @@ func TestBearerTokenIsRejectedWhenTheOwnerIsGone(t *testing.T) {
 	}
 	tokens.tokens[orphan.Token.Hash] = orphan.Token
 
-	recorder := getWithBearer(handler, "/api/version", orphan.Secret)
+	recorder := getWithBearer(handler, "/api/plugins/echo/ping", orphan.Secret)
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
@@ -208,7 +217,7 @@ func TestBearerTokenReportsAStoreFailure(t *testing.T) {
 	handler, tokens, _, secret := newTokenServer(t)
 	tokens.err = errTokenBackend
 
-	recorder := getWithBearer(handler, "/api/version", secret)
+	recorder := getWithBearer(handler, "/api/plugins/echo/ping", secret)
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
@@ -221,7 +230,7 @@ func TestBearerTokenReportsAUserLookupFailure(t *testing.T) {
 	handler, _, users, secret := newTokenServer(t)
 	users.LookupErr = errTokenBackend
 
-	recorder := getWithBearer(handler, "/api/version", secret)
+	recorder := getWithBearer(handler, "/api/plugins/echo/ping", secret)
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
@@ -233,7 +242,7 @@ func TestBearerTokenRecordsItsLastUse(t *testing.T) {
 
 	handler, tokens, _, secret := newTokenServer(t)
 
-	if recorder := getWithBearer(handler, "/api/version", secret); recorder.Code != http.StatusOK {
+	if recorder := getWithBearer(handler, "/api/plugins/echo/ping", secret); recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 
@@ -254,7 +263,7 @@ func TestUnusableAuthorizationHeadersFallBackToTheSession(t *testing.T) {
 		"no scheme at all":   "a1_looks_like_a_token",
 		"bearer with no gap": "Bearer",
 	} {
-		request := httptest.NewRequest(http.MethodGet, "/api/version", nil)
+		request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/ping", nil)
 		request.Header.Set("Authorization", header)
 		request.AddCookie(cookie)
 		recorder := httptest.NewRecorder()
@@ -276,7 +285,7 @@ func TestUnusableAuthorizationHeadersStayUnauthorizedWithoutASession(t *testing.
 		"another scheme":   "Basic YWRhOnNlY3JldA==",
 		"no scheme at all": "a1_looks_like_a_token",
 	} {
-		request := httptest.NewRequest(http.MethodGet, "/api/version", nil)
+		request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/ping", nil)
 		request.Header.Set("Authorization", header)
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
@@ -293,7 +302,7 @@ func TestSessionCookieStillAuthenticatesAlongsideTokens(t *testing.T) {
 	handler, _, _, _ := newTokenServer(t)
 	cookie := loginCookie(t, handler)
 
-	request := httptest.NewRequest(http.MethodGet, "/api/version", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/ping", nil)
 	request.AddCookie(cookie)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)

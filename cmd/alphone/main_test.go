@@ -176,13 +176,14 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
-func waitForServer(t *testing.T, url string) {
+func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		response, err := http.Get(url)
+		response, err := http.Post(
+			baseURL+"/api/graphql", "application/json", strings.NewReader(versionProbe))
 		if err == nil {
-			ready := response.StatusCode == http.StatusUnauthorized
+			ready := response.StatusCode == http.StatusOK
 			_ = response.Body.Close()
 			if ready {
 				return
@@ -402,6 +403,29 @@ func TestRunReportsBindFailure(t *testing.T) {
 	}
 }
 
+// versionProbe is the graph body the readiness probe posts.
+const versionProbe = `{"query":"{ version }"}`
+
+// postGraphAuthed posts a graph body with the session cookie and returns the answer.
+func postGraphAuthed(
+	t *testing.T, ctx context.Context, session *http.Cookie, baseURL, body string,
+) string {
+	t.Helper()
+	response := doAuthed(t, ctx, session, http.MethodPost, baseURL+"/api/graphql", body)
+	answer, err := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if err != nil {
+		t.Fatalf("reading the graph answer: %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("graph status = %d, want %d: %s", response.StatusCode, http.StatusOK, answer)
+	}
+	if strings.Contains(string(answer), `"errors"`) {
+		t.Fatalf("graph answer = %s, want no errors", answer)
+	}
+	return string(answer)
+}
+
 func doAuthed(
 	t *testing.T,
 	ctx context.Context,
@@ -448,7 +472,7 @@ func TestRunServesAPI(t *testing.T) {
 	}()
 
 	baseURL := "http://" + addr
-	waitForServer(t, baseURL+"/api/contacts/"+uuid.Must(uuid.NewV7()).String())
+	waitForServer(t, baseURL)
 
 	spa, err := http.Get(baseURL + "/")
 	if err != nil {
@@ -461,14 +485,16 @@ func TestRunServesAPI(t *testing.T) {
 	}
 
 	unauthorized, err := http.Post(
-		baseURL+"/api/contacts", "application/json", strings.NewReader(`{"name":"María Pérez"}`),
+		baseURL+"/api/graphql", "application/json",
+		strings.NewReader(`{"query":"mutation { createContact(name: \"María Pérez\") { id } }"}`),
 	)
 	if err != nil {
-		t.Fatalf("POST /api/contacts without a session: %v", err)
+		t.Fatalf("anonymous createContact: %v", err)
 	}
-	defer func() { _ = unauthorized.Body.Close() }()
-	if unauthorized.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated POST status = %d, want %d", unauthorized.StatusCode, http.StatusUnauthorized)
+	anonymousBody, _ := io.ReadAll(unauthorized.Body)
+	_ = unauthorized.Body.Close()
+	if !strings.Contains(string(anonymousBody), "authentication required") {
+		t.Fatalf("anonymous createContact = %q, want the gate's rejection", anonymousBody)
 	}
 
 	pool, err := pgxpool.New(t.Context(), databaseURL)
@@ -485,12 +511,13 @@ func TestRunServesAPI(t *testing.T) {
 	}
 
 	login, err := http.Post(
-		baseURL+"/api/auth/login",
+		baseURL+"/api/graphql",
 		"application/json",
-		strings.NewReader(`{"email":"admin@example.com","password":"correct horse battery"}`),
+		strings.NewReader(
+			`{"query":"mutation { login(email: \"admin@example.com\", password: \"correct horse battery\") { me { id } } }"}`),
 	)
 	if err != nil {
-		t.Fatalf("POST /api/auth/login: %v", err)
+		t.Fatalf("graph login: %v", err)
 	}
 	defer func() { _ = login.Body.Close() }()
 	if login.StatusCode != http.StatusOK {
@@ -506,38 +533,38 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatal("login response carries no alphone_session cookie")
 	}
 
-	createContact := doAuthed(t, ctx, session, http.MethodPost, baseURL+"/api/contacts",
-		`{"name":"María Pérez"}`)
-	_ = createContact.Body.Close()
-	if createContact.StatusCode != http.StatusCreated {
-		t.Fatalf("POST status = %d, want %d", createContact.StatusCode, http.StatusCreated)
+	createContact := postGraphAuthed(t, ctx, session, baseURL,
+		`{"query":"mutation { createContact(name: \"María Pérez\") { id name } }"}`)
+	if !strings.Contains(createContact, `"name":"María Pérez"`) {
+		t.Fatalf("createContact = %q, want the stored contact", createContact)
 	}
 
-	createUser := doAuthed(t, ctx, session, http.MethodPost, baseURL+"/api/users",
-		`{"email":"grace@example.com","name":"Grace Hopper","password":"correct horse battery"}`)
-	if createUser.StatusCode != http.StatusCreated {
-		t.Fatalf("POST /api/users status = %d, want %d", createUser.StatusCode, http.StatusCreated)
-	}
+	createUser := postGraphAuthed(t, ctx, session, baseURL,
+		`{"query":"mutation { createUser(email: \"grace@example.com\", name: \"Grace Hopper\",`+
+			` password: \"correct horse battery\") { id } }"}`)
 	var created struct {
-		ID uuid.UUID `json:"id"`
+		Data struct {
+			CreateUser struct {
+				ID uuid.UUID `json:"id"`
+			} `json:"createUser"`
+		} `json:"data"`
 	}
-	if err := json.NewDecoder(createUser.Body).Decode(&created); err != nil {
-		t.Fatalf("decoding created user: %v", err)
+	if err := json.Unmarshal([]byte(createUser), &created); err != nil {
+		t.Fatalf("decoding created user from %q: %v", createUser, err)
 	}
-	_ = createUser.Body.Close()
+	if created.Data.CreateUser.ID == uuid.Nil {
+		t.Fatalf("createUser = %q, want the stored user's id", createUser)
+	}
 
-	listUsers := doAuthed(t, ctx, session, http.MethodGet, baseURL+"/api/users", "")
-	body, _ := io.ReadAll(listUsers.Body)
-	_ = listUsers.Body.Close()
-	if listUsers.StatusCode != http.StatusOK || !strings.Contains(string(body), "grace@example.com") {
-		t.Fatalf("GET /api/users = %d %q, want %d listing the new user", listUsers.StatusCode, body, http.StatusOK)
+	listUsers := postGraphAuthed(t, ctx, session, baseURL, `{"query":"{ users { email } }"}`)
+	if !strings.Contains(listUsers, "grace@example.com") {
+		t.Fatalf("users query = %q, want it listing the new user", listUsers)
 	}
 
-	disableUser := doAuthed(t, ctx, session, http.MethodPatch,
-		baseURL+"/api/users/"+created.ID.String(), `{"disabled":true}`)
-	_ = disableUser.Body.Close()
-	if disableUser.StatusCode != http.StatusNoContent {
-		t.Fatalf("PATCH /api/users status = %d, want %d", disableUser.StatusCode, http.StatusNoContent)
+	disableUser := postGraphAuthed(t, ctx, session, baseURL,
+		`{"query":"mutation { setUserDisabled(id: \"`+created.Data.CreateUser.ID.String()+`\", disabled: true) }"}`)
+	if !strings.Contains(disableUser, `"setUserDisabled":true`) {
+		t.Fatalf("setUserDisabled = %q, want true", disableUser)
 	}
 
 	verification, err := http.Get(

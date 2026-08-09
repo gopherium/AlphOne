@@ -10,11 +10,9 @@ import (
 	"time"
 
 	"github.com/gopherium/gouncer/authkit/testkit"
-
-	"github.com/gopherium/alphone/internal/server"
 )
 
-const streamLogin = `{"email":"ada@example.com","password":"correct horse battery"}`
+const streamLogin = "ada@example.com"
 
 func blockingPlugin(entered chan<- struct{}) http.Handler {
 	return http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -23,8 +21,11 @@ func blockingPlugin(entered chan<- struct{}) http.Handler {
 	})
 }
 
-func newStreamServer(users *testkit.Store, entered chan struct{}, lifetime time.Duration, perUser int) http.Handler {
-	return server.NewServer(server.Config{
+func newStreamServer(
+	t *testing.T, users *testkit.Store, entered chan struct{}, lifetime time.Duration, perUser int,
+) http.Handler {
+	t.Helper()
+	return newGraphServer(t, graphConfig{
 		Contacts:          newFakeContactStore(),
 		Users:             users,
 		Plugins:           map[string]http.Handler{"stub": blockingPlugin(entered)},
@@ -59,7 +60,7 @@ func TestHostBoundsPluginStreamLifetime(t *testing.T) {
 	users := newFakeUserStore()
 	addAda(t, users)
 	entered := make(chan struct{}, 8)
-	handler := newStreamServer(users, entered, 30*time.Millisecond, 5)
+	handler := newStreamServer(t, users, entered, 30*time.Millisecond, 5)
 	cookie := sessionCookie(t, doLogin(t, handler, streamLogin))
 
 	cancel, done := openPluginRequest(handler, "/api/plugins/stub/events", cookie)
@@ -80,10 +81,9 @@ func TestHostCapsConcurrentPluginStreamsPerUser(t *testing.T) {
 	addAda(t, users)
 	users.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
 	entered := make(chan struct{}, 8)
-	handler := newStreamServer(users, entered, 2*time.Second, 2)
+	handler := newStreamServer(t, users, entered, 2*time.Second, 2)
 	ada := sessionCookie(t, doLogin(t, handler, streamLogin))
-	grace := sessionCookie(t, doLogin(t, handler,
-		`{"email":"grace@example.com","password":"correct horse battery"}`))
+	grace := sessionCookie(t, doLogin(t, handler, "grace@example.com"))
 
 	cancelFirst, doneFirst := openPluginRequest(handler, "/api/plugins/stub/events", ada)
 	cancelSecond, doneSecond := openPluginRequest(handler, "/api/plugins/stub/events", ada)
@@ -129,7 +129,7 @@ func TestHostLeavesPublicPluginPathsUnbounded(t *testing.T) {
 
 	users := newFakeUserStore()
 	entered := make(chan struct{}, 8)
-	handler := newStreamServer(users, entered, 20*time.Millisecond, 1)
+	handler := newStreamServer(t, users, entered, 20*time.Millisecond, 1)
 
 	cancelFirst, doneFirst := openPluginRequest(handler, "/api/plugins/stub/webhook", nil)
 	cancelSecond, doneSecond := openPluginRequest(handler, "/api/plugins/stub/webhook", nil)

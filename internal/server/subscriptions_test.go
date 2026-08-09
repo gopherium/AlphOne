@@ -15,7 +15,6 @@ import (
 	"github.com/gopherium/gouncer"
 
 	"github.com/gopherium/alphone/internal/event"
-	"github.com/gopherium/alphone/internal/server"
 )
 
 // subscriptionPatience bounds how long a test waits on a subscription.
@@ -33,7 +32,7 @@ func subscribingServer(
 ) (*httptest.Server, gouncer.User, [2]*http.Cookie) {
 	t.Helper()
 	users, ada := twoUserStore(t)
-	handler := newSubscribingGraphServer(t, server.Config{
+	handler := newSubscribingGraphServer(t, graphConfig{
 		Contacts:          newFakeContactStore(),
 		Users:             users,
 		Version:           "9.9.9",
@@ -182,7 +181,7 @@ func TestTheLegacyEventStreamIsGone(t *testing.T) {
 	t.Parallel()
 
 	users, _ := twoUserStore(t)
-	handler := server.NewServer(server.Config{Contacts: newFakeContactStore(), Users: users})
+	handler := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users})
 	cookie := loginCookie(t, handler)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/events", nil)
