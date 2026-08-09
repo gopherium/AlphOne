@@ -21,8 +21,16 @@ licence, and point it at the API.
 ## What you need
 
 - An n8n instance you administer, self hosted or cloud
-- An AlphOne instance n8n can reach over HTTP
+- AlphOne 0.7.0 or newer, reachable from n8n over HTTP
 - An AlphOne login, to mint a token
+
+:::caution[Version 0.3.0 of the node needs AlphOne 0.7.0]
+From 0.3.0 the node talks to AlphOne over GraphQL, which is one endpoint you
+send a query to describing exactly what you want back. That endpoint arrived
+in AlphOne 0.7.0, so every operation fails against an older instance. Install
+`n8n-nodes-alphone@0.2.0` instead until you upgrade, since it speaks the older
+REST API and still works against 0.7.0.
+:::
 
 ## 1. Install the node
 
@@ -84,7 +92,7 @@ The base URL depends on where each side runs:
 `localhost` inside a container means the container itself, never your
 machine, so it will not reach AlphOne.
 
-Press the test button. It calls `GET /api/version`, which needs a valid
+Press the test button. It asks AlphOne for its version, which needs a valid
 credential, so a success there proves the whole connection.
 
 ## 4. Start a workflow
@@ -170,10 +178,10 @@ Name the workflow and press **Publish**.
 
 ![The finished workflow with the trigger and the task node connected, and the Publish button highlighted.](../../../assets/n8n/12-publish.png)
 
-Publishing is what registers the webhook. The trigger calls
-`POST /api/webhooks` on AlphOne and stores the subscription id and its
-signing secret in workflow static data. An unpublished trigger has no
-subscription, so nothing is delivered to it.
+Publishing is what registers the webhook. The trigger asks AlphOne to create
+a subscription and stores its id and its signing secret in workflow static
+data. An unpublished trigger has no subscription, so nothing is delivered to
+it.
 
 Confirm AlphOne agrees, using the token from step 2:
 
