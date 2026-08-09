@@ -123,8 +123,13 @@ lose them.
 ## Managing subscriptions
 
 Every route needs a credential, see
-[authentication](/reference/rest-api/). A subscription belongs to the user
-who created it, who is the only one who can see or revoke it.
+[authenticating](/reference/graphql-api/#authenticating). A subscription
+belongs to the user who created it, who is the only one who can see or revoke
+it.
+
+The routes below are being retired. The graph does the same three things with
+`webhooks`, `createWebhook` and `deleteWebhook`. What AlphOne delivers to your
+endpoint is unchanged either way.
 
 ### `POST /api/webhooks`
 

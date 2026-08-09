@@ -4,10 +4,14 @@ description: The endpoints the WhatsApp plugin serves, from the Meta webhook to 
 ---
 
 The WhatsApp plugin serves its own endpoints under
-`/api/plugins/whatsapp/`. They follow the
-[core API conventions](/reference/rest-api/): a session cookie, JSON
-bodies, and the same error envelope. The webhook is the exception, and
-authenticates itself with a signature instead.
+`/api/plugins/whatsapp/`. They take a session cookie or a bearer token, see
+[authenticating](/reference/graphql-api/#authenticating). The webhook is the
+exception, and authenticates itself with a signature instead.
+
+The webhook and the media download are staying. Conversations and messages are
+being retired, and the [GraphQL API](/reference/graphql-api/) already serves
+them as `whatsAppConversations`, `whatsAppConversation.messages` and
+`whatsAppSendMessage`.
 
 ## Webhook
 

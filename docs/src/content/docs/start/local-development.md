@@ -170,7 +170,7 @@ Create an **AlphOne API** credential:
 | Base URL | `http://host.docker.internal:8080` |
 | API Token | a secret from `alphone token create` |
 
-Press the test button. It calls `GET /api/version` and should report
+Press the test button. It asks AlphOne for its version and should report
 success. `localhost` inside the container means the container itself, so
 it never reaches AlphOne. See the [automation
 guide](/guides/automation/) for the base URL in other layouts.
@@ -184,9 +184,9 @@ the API to your network.
 ### Prove the loop
 
 Activating a workflow that starts with **AlphOne Trigger** is what
-registers the webhook: the node calls `POST /api/webhooks` and stores
-the subscription id and signing secret. An inactive trigger has no
-subscription, so nothing is delivered.
+registers the webhook: the node asks AlphOne to create a subscription and
+stores its id and signing secret. An inactive trigger has no subscription,
+so nothing is delivered.
 
 With a workflow active, create a contact in AlphOne and confirm it
 arrives. To check from the AlphOne side:
@@ -200,8 +200,9 @@ docker compose exec postgres psql -U postgres -d postgres -c \
 A row reading `delivered` with `attempts = 1` means the whole chain
 worked. A row stuck `pending` with `subscriber answered 404` means the
 subscription outlived its workflow, which happens when a workflow is
-deleted without being deactivated first. List subscriptions with `GET
-/api/webhooks` and delete the stale one, otherwise it retries for a day.
+deleted without being deactivated first. List them with the `webhooks`
+query and remove the stale one with `deleteWebhook`, otherwise it retries
+for a day.
 
 ## Running the checks
 
