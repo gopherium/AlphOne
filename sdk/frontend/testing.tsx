@@ -18,7 +18,7 @@ import { act, render } from '@testing-library/react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
-import { doorbellExchange, graphCacheExchange } from './graph'
+import { doorbellExchange, graphCacheExchange, graphRetryExchange } from './graph'
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
@@ -72,6 +72,7 @@ export function fakeGraphClient(): FakeGraph {
 					}
 				},
 			}),
+			graphRetryExchange(),
 			fetchExchange,
 		],
 	})

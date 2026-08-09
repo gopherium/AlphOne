@@ -100,21 +100,71 @@ func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	}
 }
 
-func TestAcceptsEventStreamMatchesTheSSETransportOnAccept(t *testing.T) {
+// acceptHeaders maps an Accept header onto whether it names a stream and no JSON answer.
+var acceptHeaders = map[string]bool{
+	"text/event-stream":                  true,
+	"text/event-stream, multipart/mixed": true,
+	"application/graphql-response+json, application/graphql+json, application/json, " +
+		"text/event-stream, multipart/mixed": false,
+	"text/event-stream, application/json":                  false,
+	"application/graphql-response+json, text/event-stream": false,
+	"application/graphql+json, text/event-stream":          false,
+	"application/graphql-response+json, application/json":  false,
+	"*/*": false,
+	"":    false,
+}
+
+func TestAcceptsEventStreamRejectsACallerTakingJSON(t *testing.T) {
 	t.Parallel()
 
-	for _, accept := range []string{
-		"text/event-stream",
-		"text/event-stream, application/json",
-		"application/graphql-response+json, application/json",
-		"*/*",
-		"",
-	} {
+	for accept, want := range acceptHeaders {
 		request := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Accept", accept)
-		if got, want := acceptsEventStream(request), (transport.SSE{}).Supports(request); got != want {
-			t.Errorf("Accept %q classified as stream = %t, want the SSE transport's %t", accept, got, want)
+		if got := acceptsEventStream(request); got != want {
+			t.Errorf("Accept %q classified as stream = %t, want %t", accept, got, want)
+		}
+	}
+}
+
+func TestSubscriptionSSEMatchesTheStreamClassifier(t *testing.T) {
+	t.Parallel()
+
+	for accept, want := range acceptHeaders {
+		request := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", accept)
+		if got := (subscriptionSSE{}).Supports(request); got != want {
+			t.Errorf("Accept %q served over the stream transport = %t, want %t", accept, got, want)
+		}
+	}
+}
+
+func TestSubscriptionSSENarrowsTheStockTransport(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json, text/event-stream")
+
+	if !(transport.SSE{}).Supports(request) {
+		t.Fatal("the stock transport no longer claims a caller offering JSON, so this narrowing is stale")
+	}
+	if (subscriptionSSE{}).Supports(request) {
+		t.Error("a caller offering JSON is served an event stream, so its queries spend the stream budget")
+	}
+}
+
+func TestGraphOperationBudgetFitsAScreenLoad(t *testing.T) {
+	t.Parallel()
+
+	const screenLoad = 8
+	operations, _ := graphPolicies(time.Minute, defaultMaxStreamsPerUser)
+	user := uuid.Must(uuid.NewV7())
+
+	for i := range screenLoad {
+		if !operations.limiter.acquire(user) {
+			t.Fatalf("operation %d of a screen load was refused, want a budget fitting %d", i+1, screenLoad)
 		}
 	}
 }

@@ -91,6 +91,35 @@ type graphqlData struct {
 
 const versionQuery = `{"query":"{ version }"}`
 
+// urqlAccept is what the graph client sends on an ordinary query, offering
+// every answer type it can read including an event stream.
+const urqlAccept = "application/graphql-response+json, application/graphql+json, " +
+	"application/json, text/event-stream, multipart/mixed"
+
+func TestGraphQLAnswersACallerTakingJSONWithJSON(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, server.Config{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	cookie := loginCookie(t, srv)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(versionQuery))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", urqlAccept)
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	srv.ServeHTTP(recorder, request)
+
+	if got := recorder.Header().Get("Content-Type"); !strings.Contains(got, "json") {
+		t.Fatalf("content type = %q, want JSON so a query does not spend the stream budget", got)
+	}
+	body := decodeBody[graphqlData](t, recorder)
+	if body.Data.Version != "9.9.9" {
+		t.Errorf("version = %q, want %q", body.Data.Version, "9.9.9")
+	}
+}
+
 func TestGraphQLRequiresAuthentication(t *testing.T) {
 	t.Parallel()
 

@@ -25,7 +25,7 @@ import (
 // Graph endpoint guard bounds.
 const (
 	graphOperationTimeout   = 60 * time.Second
-	graphMaxConcurrentOps   = 5
+	graphMaxConcurrentOps   = 20
 	graphJSONBodyLimit      = 1 << 20
 	graphMultipartBodyLimit = 6 << 20
 )
@@ -49,7 +49,7 @@ type graphPolicy struct {
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
 func newGraphQLHandler(root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int) http.Handler {
 	srv := handler.New(graphres.ExecutableSchema(root))
-	srv.AddTransport(transport.SSE{})
+	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})
 	srv.Use(extension.Introspection{})
@@ -91,9 +91,37 @@ func graphBodyLimit(r *http.Request) int64 {
 	return graphJSONBodyLimit
 }
 
-// acceptsEventStream reports whether the request asks for a stream.
+// jsonAnswerTypes lists the answer media types a caller offers to read JSON with.
+var jsonAnswerTypes = []string{
+	"application/json",
+	"application/graphql-response+json",
+	"application/graphql+json",
+}
+
+// acceptsJSON reports whether the caller reads a JSON answer.
+func acceptsJSON(accept string) bool {
+	for _, mediaType := range jsonAnswerTypes {
+		if strings.Contains(accept, mediaType) {
+			return true
+		}
+	}
+	return false
+}
+
+// subscriptionSSE serves the event stream transport to callers reading no JSON answer.
+type subscriptionSSE struct {
+	transport.SSE
+}
+
+// Supports reports whether the caller asks for a stream and reads no JSON answer.
+func (t subscriptionSSE) Supports(r *http.Request) bool {
+	return t.SSE.Supports(r) && !acceptsJSON(r.Header.Get("Accept"))
+}
+
+// acceptsEventStream reports whether the request asks for a stream and reads no JSON answer.
 func acceptsEventStream(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Accept"), "text/event-stream")
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/event-stream") && !acceptsJSON(accept)
 }
 
 // withOperationGuards bounds a graph request's body, lifetime, and per user
