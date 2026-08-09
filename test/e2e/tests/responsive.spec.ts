@@ -2,6 +2,7 @@
 
 import { expect, test } from '@playwright/test'
 
+import { createTask } from '../graph'
 import { deliverInboundText } from '../inbound'
 
 const phone = { width: 390, height: 844 }
@@ -67,10 +68,7 @@ test.describe('on a phone', () => {
 		request,
 	}) => {
 		const title = `Approve the pricing before the renewal ${Date.now()}`
-		const created = await request.post('/api/tasks', {
-			data: { title, due_on: new Date().toISOString().slice(0, 10) },
-		})
-		expect(created.status()).toBe(201)
+		await createTask(request, { title, dueOn: new Date().toISOString().slice(0, 10) })
 
 		await page.goto('/tasks')
 		await expect(page.getByRole('listitem', { name: title })).toBeVisible()

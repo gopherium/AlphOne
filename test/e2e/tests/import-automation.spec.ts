@@ -10,6 +10,7 @@ import { promisify } from 'node:util'
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 
+import { createTask, graph } from '../graph'
 import { baseURL, credentials, databaseURL, repoRoot } from '../env'
 
 const run = promisify(execFile)
@@ -104,11 +105,15 @@ test('an import announces itself, and its rows create each task exactly once', a
 		extraHTTPHeaders: { Authorization: `Bearer ${token}` },
 	})
 
-	const subscription = await api.post('/api/webhooks', {
-		data: { url: receiver.url, events: ['import.completed'] },
-	})
-	expect(subscription.status(), await subscription.text()).toBe(201)
-	const subscribed = (await subscription.json()) as { id: string; secret: string }
+	const subscription = await graph<{
+		createWebhook: { webhook: { id: string }; secret: string }
+	}>(
+		api,
+		'mutation($url: String!, $events: [String!]!) {' +
+			' createWebhook(url: $url, events: $events) { webhook { id } secret } }',
+		{ url: receiver.url, events: ['import.completed'] },
+	)
+	const subscribed = { id: subscription.createWebhook.webhook.id, secret: subscription.createWebhook.secret }
 
 	try {
 		const csv = [
@@ -143,37 +148,38 @@ test('an import announces itself, and its rows create each task exactly once', a
 
 		const dueOn = new Date(stamp + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 		for (const contact of contacts) {
-			const created = await api.post('/api/tasks', {
-				data: {
-					title: `Call ${contact.name}`,
-					due_on: dueOn,
-					contact_id: contact.contact_id,
-					origin_event_id: contact.row_id,
-				},
+			const created = await createTask(api, {
+				title: `Call ${contact.name}`,
+				dueOn,
+				contactId: contact.contact_id,
+				originEventId: contact.row_id,
 			})
-			expect(created.status(), await created.text()).toBe(201)
+			expect(created.replay, `${contact.name} answered a replay on the first create`).toBe(false)
 		}
 
 		for (const contact of contacts) {
-			const replayed = await api.post('/api/tasks', {
-				data: {
-					title: `Call ${contact.name}`,
-					due_on: dueOn,
-					contact_id: contact.contact_id,
-					origin_event_id: contact.row_id,
-				},
+			const replayed = await createTask(api, {
+				title: `Call ${contact.name}`,
+				dueOn,
+				contactId: contact.contact_id,
+				originEventId: contact.row_id,
 			})
-			expect(replayed.status(), await replayed.text()).toBe(200)
+			expect(replayed.replay, `${contact.name} created a second task for one row`).toBe(true)
 		}
 
 		for (const contact of contacts) {
-			const tasks = await api.get(`/api/tasks?contact_id=${contact.contact_id}`)
-			expect(tasks.status(), await tasks.text()).toBe(200)
-			const { tasks: found } = (await tasks.json()) as { tasks: { id: string }[] }
-			expect(found, `${contact.name} has more than the one task its row created`).toHaveLength(1)
+			const listed = await graph<{ tasks: { edges: { node: { id: string } }[] } }>(
+				api,
+				'query($contactId: UUID!) { tasks(contactId: $contactId) { edges { node { id } } } }',
+				{ contactId: contact.contact_id },
+			)
+			expect(
+				listed.tasks.edges,
+				`${contact.name} has more than the one task its row created`,
+			).toHaveLength(1)
 		}
 	} finally {
-		await api.delete(`/api/webhooks/${subscribed.id}`)
+		await graph(api, 'mutation($id: UUID!) { deleteWebhook(id: $id) }', { id: subscribed.id })
 		await api.dispose()
 		await receiver.close()
 	}

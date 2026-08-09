@@ -3,6 +3,7 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 
+import { createTask, graph } from '../graph'
 import { deliverInboundText } from '../inbound'
 
 test.use({ viewport: { width: 390, height: 844 } })
@@ -15,25 +16,25 @@ test.use({ viewport: { width: 390, height: 844 } })
 async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 	const stamp = Date.now()
 	const unbreakable = 'W'.repeat(60)
-	const task = await request.post('/api/tasks', {
-		data: {
-			title: `Approve the revised pricing schedule before the renewal closes ${stamp}`,
-			due_on: new Date().toISOString().slice(0, 10),
-		},
+	const task = await createTask(request, {
+		title: `Approve the revised pricing schedule before the renewal closes ${stamp}`,
+		dueOn: new Date().toISOString().slice(0, 10),
 	})
-	expect(task.status()).toBe(201)
-	const contact = await request.post('/api/contacts', {
-		data: { name: `Maria Perez de la Fuente y Rodriguez ${stamp}` },
-	})
-	expect(contact.status()).toBe(201)
-	const user = await request.post('/api/users', {
-		data: {
+	const contact = await graph<{ createContact: { id: string } }>(
+		request,
+		'mutation($name: String!) { createContact(name: $name) { id } }',
+		{ name: `Maria Perez de la Fuente y Rodriguez ${stamp}` },
+	)
+	await graph(
+		request,
+		'mutation($email: String!, $name: String!, $password: String!) {' +
+			' createUser(email: $email, name: $name, password: $password) { id } }',
+		{
 			email: `maria.perez.de.la.fuente.${stamp}@example.com`,
 			name: `Maria Perez de la Fuente ${stamp}`,
 			password: 'correct horse battery',
 		},
-	})
-	expect(user.status()).toBe(201)
+	)
 
 	await deliverInboundText(request, `1999${stamp}`, `Ada ${stamp}`, unbreakable)
 	const conversations = await request.get('/api/plugins/whatsapp/conversations')
@@ -54,8 +55,8 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 	expect(staged.status()).toBe(201)
 	const importID = (await staged.json()).id as string
 
-	const taskID = (await task.json()).id as string
-	const contactID = (await contact.json()).id as string
+	const taskID = task.id
+	const contactID = contact.createContact.id
 	const conversationID = ((await conversations.json()) as { id: string }[])[0].id
 
 	return [

@@ -45,8 +45,8 @@ const token = process.env.ALPHONE_TOKEN ?? ''
 /** credentialID names the credential every generated workflow carries. */
 const credentialID = 'alphoneRunbook'
 
-/** answered matches what AlphOne itself replies with, rather than any reachable host. */
-const answered = /\b401\b|"version"/
+/** answered matches what AlphOne's graph replies with, rather than any reachable host. */
+const answered = /authentication required|"data"/
 
 /** work is the scratch directory generated files are staged in. */
 const work = mkdtempSync(join(tmpdir(), 'alphone-runbook-'))
@@ -94,9 +94,10 @@ function copyIn(name: string, body: string): string {
  * @returns Whether AlphOne answered rather than some other host.
  */
 function reaches(host: string, port: string): boolean {
-	return answered.test(
-		inN8n(`wget -q -O- --timeout=2 http://${host}:${port}/api/version 2>&1 || true`),
-	)
+	const probe =
+		`wget -q -O- --timeout=2 --header='Content-Type: application/json'` +
+		` --post-data='{"query":"{ version }"}' http://${host}:${port}/api/graphql 2>&1 || true`
+	return answered.test(inN8n(probe))
 }
 
 /**
@@ -170,13 +171,27 @@ async function callAlphOne(path: string, init: RequestInit = {}): Promise<unknow
 }
 
 /**
+ * Posts one graph operation as the runbook token.
+ * @param query - The operation document.
+ * @param variables - The operation variables.
+ */
+async function callGraph(query: string, variables: Record<string, unknown> = {}): Promise<void> {
+	const answer = (await callAlphOne('/api/graphql', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ query, variables }),
+	})) as { errors?: { message: string }[] }
+	if (answer.errors?.length) {
+		throw new Error(`the graph refused the seed: ${answer.errors[0].message}`)
+	}
+}
+
+/**
  * Stores the contact the search case has to single out.
  */
 async function seedContacts(): Promise<void> {
-	await callAlphOne('/api/contacts', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ name: 'Ada Lovelace' }),
+	await callGraph('mutation($name: String!) { createContact(name: $name) { id } }', {
+		name: 'Ada Lovelace',
 	})
 }
 

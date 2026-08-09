@@ -2,6 +2,7 @@
 
 import { expect, test } from '@playwright/test'
 
+import { createTask } from '../graph'
 import { subscribed } from '../subscription'
 
 test('shows a task created through the API without a reload', async ({
@@ -16,10 +17,7 @@ test('shows a task created through the API without a reload', async ({
 	await stream
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
 
-	const created = await request.post('/api/tasks', {
-		data: { title, due_on: dueOn },
-	})
-	expect(created.status()).toBe(201)
+	await createTask(request, { title, dueOn })
 
 	await expect(page.getByRole('listitem', { name: title })).toBeVisible()
 })

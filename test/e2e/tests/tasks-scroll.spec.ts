@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
+import { createTask, rescheduleTask } from '../graph'
+
 test('a day taller than the screen scrolls to its last task', async ({
 	page,
 	request,
@@ -11,11 +13,8 @@ test('a day taller than the screen scrolls to its last task', async ({
 	const created: string[] = []
 	try {
 		for (let i = 0; i < 15; i++) {
-			const response = await request.post('/api/tasks', {
-				data: { title: `Scroll filler ${stamp} ${i}`, due_on: dueOn },
-			})
-			expect(response.status()).toBe(201)
-			created.push(((await response.json()) as { id: string }).id)
+			const task = await createTask(request, { title: `Scroll filler ${stamp} ${i}`, dueOn })
+			created.push(task.id)
 		}
 
 		await page.goto('/')
@@ -32,7 +31,7 @@ test('a day taller than the screen scrolls to its last task', async ({
 			.toBeGreaterThan(0)
 	} finally {
 		for (const id of created) {
-			await request.patch(`/api/tasks/${id}`, { data: { due_on: '2124-01-01' } })
+			await rescheduleTask(request, id, '2124-01-01')
 		}
 	}
 })
