@@ -36,14 +36,28 @@ const (
 	overflowStreams    = "too many concurrent streams"
 )
 
+// graphRetryAfter is how soon a caller may retry an operation the budget refused.
+const graphRetryAfter = time.Second
+
 // graphPolicy is the budget one kind of graph request is held to.
 type graphPolicy struct {
 	// limiter caps concurrent requests of this kind per user.
 	limiter *streamLimiter
 	// lifetime bounds one request of this kind.
 	lifetime time.Duration
+	// retryAfter is how soon a slot of this kind is expected to free.
+	retryAfter time.Duration
 	// overflow is the answer when the budget is spent.
 	overflow string
+}
+
+// retryAfterSeconds returns the whole seconds a retry hint rounds up to, never below one.
+func retryAfterSeconds(hint time.Duration) int {
+	seconds := int((hint + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
 }
 
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
@@ -73,13 +87,15 @@ func newGraphQLHandler(root graph.ResolverRoot, streamLifetime time.Duration, ma
 // one it holds streams to.
 func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
 	return graphPolicy{
-			limiter:  newStreamLimiter(graphMaxConcurrentOps),
-			lifetime: graphOperationTimeout,
-			overflow: overflowOperations,
+			limiter:    newStreamLimiter(graphMaxConcurrentOps),
+			lifetime:   graphOperationTimeout,
+			retryAfter: graphRetryAfter,
+			overflow:   overflowOperations,
 		}, graphPolicy{
-			limiter:  newStreamLimiter(maxStreams),
-			lifetime: streamLifetime,
-			overflow: overflowStreams,
+			limiter:    newStreamLimiter(maxStreams),
+			lifetime:   streamLifetime,
+			retryAfter: streamLifetime,
+			overflow:   overflowStreams,
 		}
 }
 
@@ -134,7 +150,7 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy) htt
 		}
 		user := authkit.IdentityFromContext(r.Context())
 		if !policy.limiter.acquire(user.ID) {
-			w.Header().Set("Retry-After", strconv.Itoa(int(policy.lifetime.Seconds())))
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
 			authkit.RespondError(w, http.StatusTooManyRequests, policy.overflow)
 			return
 		}

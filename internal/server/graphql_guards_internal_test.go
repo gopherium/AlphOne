@@ -169,6 +169,73 @@ func TestGraphOperationBudgetFitsAScreenLoad(t *testing.T) {
 	}
 }
 
+func TestRetryAfterSecondsRoundsUpToAWholeSecond(t *testing.T) {
+	t.Parallel()
+
+	tests := map[time.Duration]int{
+		0:                       1,
+		time.Millisecond:        1,
+		time.Second:             1,
+		1500 * time.Millisecond: 2,
+		90 * time.Second:        90,
+		5 * time.Minute:         300,
+	}
+
+	for given, want := range tests {
+		if got := retryAfterSeconds(given); got != want {
+			t.Errorf("retryAfterSeconds(%v) = %d, want %d", given, got, want)
+		}
+	}
+}
+
+func TestGraphPoliciesHintARetryMatchingHowSoonASlotFrees(t *testing.T) {
+	t.Parallel()
+
+	operations, streams := graphPolicies(90*time.Second, 3)
+
+	if operations.retryAfter != graphRetryAfter {
+		t.Errorf("operation retry hint = %v, want %v", operations.retryAfter, graphRetryAfter)
+	}
+	if operations.retryAfter >= operations.lifetime {
+		t.Errorf("operation retry hint = %v, want well under the %v one operation may hold a slot",
+			operations.retryAfter, operations.lifetime)
+	}
+	if streams.retryAfter != 90*time.Second {
+		t.Errorf("stream retry hint = %v, want the %v a stream may hold a slot", streams.retryAfter, 90*time.Second)
+	}
+}
+
+func TestOperationGuardsHintTheRetryOfTheSpentBudget(t *testing.T) {
+	t.Parallel()
+
+	operations := graphPolicy{
+		limiter:    newStreamLimiter(0),
+		lifetime:   time.Minute,
+		retryAfter: 2 * time.Second,
+		overflow:   overflowOperations,
+	}
+	streams := graphPolicy{
+		limiter:    newStreamLimiter(0),
+		lifetime:   time.Hour,
+		retryAfter: 90 * time.Second,
+		overflow:   overflowStreams,
+	}
+	guarded := withOperationGuards(noContent(), operations, streams)
+	user := uuid.Must(uuid.NewV7())
+
+	refusedOperation := httptest.NewRecorder()
+	guarded.ServeHTTP(refusedOperation, guardedRequest(user))
+	if got := refusedOperation.Header().Get("Retry-After"); got != "2" {
+		t.Errorf("operation Retry-After = %q, want %q rather than its lifetime", got, "2")
+	}
+
+	refusedStream := httptest.NewRecorder()
+	guarded.ServeHTTP(refusedStream, streamingRequest(user))
+	if got := refusedStream.Header().Get("Retry-After"); got != "90" {
+		t.Errorf("stream Retry-After = %q, want %q rather than its lifetime", got, "90")
+	}
+}
+
 func TestGraphPoliciesGiveStreamsTheHostBounds(t *testing.T) {
 	t.Parallel()
 
