@@ -51,11 +51,19 @@ type Worker struct {
 	done     chan struct{}
 }
 
+// transportTemplate is the pool settings every delivery client is cloned from.
+var transportTemplate = http.DefaultTransport.(*http.Transport)
+
+// newDeliveryTransport returns the connection pool deliveries are posted over.
+func newDeliveryTransport() http.RoundTripper {
+	return transportTemplate.Clone()
+}
+
 // NewWorker returns a [Worker] draining queue.
 func NewWorker(queue WorkerQueue, logger *slog.Logger) *Worker {
 	return &Worker{
 		queue:    queue,
-		client:   &http.Client{Timeout: requestTimeout},
+		client:   &http.Client{Timeout: requestTimeout, Transport: newDeliveryTransport()},
 		logger:   logger,
 		nudge:    make(chan struct{}, 1),
 		interval: sweepInterval,

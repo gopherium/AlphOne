@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -59,6 +60,19 @@ func TestWorkerSweepsOnEveryTick(t *testing.T) {
 
 	if got := queue.sweeps(); got < 3 {
 		t.Errorf("swept %d times, want the ticker driving repeated sweeps", got)
+	}
+}
+
+func TestWorkerPostsOverItsOwnConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)))
+
+	if worker.client.Transport == nil {
+		t.Fatal("worker transport = nil, so it posts over the pool every other caller shares")
+	}
+	if worker.client.Transport == http.DefaultTransport {
+		t.Error("worker shares http.DefaultTransport, so an idle connection closed elsewhere can break a delivery")
 	}
 }
 

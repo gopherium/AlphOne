@@ -42,6 +42,14 @@ type Plugin struct {
 	publisher   sdk.Publisher
 }
 
+// transportTemplate is the pool settings every outbound client is cloned from.
+var transportTemplate = http.DefaultTransport.(*http.Transport)
+
+// newOutboundClient returns a client calling over its own connection pool.
+func newOutboundClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, Transport: transportTemplate.Clone()}
+}
+
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
 // reading its Meta credentials from ALPHONE_WHATSAPP_VERIFY_TOKEN and
 // ALPHONE_WHATSAPP_APP_SECRET.
@@ -70,7 +78,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
 		store:       &store{pool: pool},
 		sender: &sender{
-			client:        &http.Client{Timeout: 10 * time.Second},
+			client:        newOutboundClient(10 * time.Second),
 			baseURL:       graphURL,
 			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
 			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),

@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -40,6 +41,33 @@ func newUnreachablePool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+func TestOutboundClientsCarryTheirOwnConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	p, err := Register(sdk.Deps{
+		DatabaseURL: "postgres://whatsapp:whatsapp@localhost:1/whatsapp",
+		Getenv:      func(string) string { return "" },
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(t.Context()) })
+
+	clients := map[string]*http.Client{
+		"the sender":        p.sender.client,
+		"the media fetcher": p.fetcher.client,
+	}
+	for name, client := range clients {
+		if client.Transport == nil {
+			t.Errorf("%s transport = nil, so it posts over the pool every other caller shares", name)
+			continue
+		}
+		if client.Transport == http.DefaultTransport {
+			t.Errorf("%s shares http.DefaultTransport, so an idle connection closed elsewhere can break a call", name)
+		}
+	}
 }
 
 func TestIngestReportsConversationFailure(t *testing.T) {

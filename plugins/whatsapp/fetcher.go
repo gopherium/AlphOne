@@ -71,7 +71,7 @@ func newMediaFetcher(s *store, events *broadcaster, cfg mediaFetcherConfig) *med
 	return &mediaFetcher{
 		store:         s,
 		events:        events,
-		client:        &http.Client{Timeout: mediaDownloadTimeout},
+		client:        newOutboundClient(mediaDownloadTimeout),
 		baseURL:       cfg.baseURL,
 		accessToken:   cfg.accessToken,
 		phoneNumberID: cfg.phoneNumberID,
