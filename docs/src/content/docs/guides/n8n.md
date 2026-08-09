@@ -186,7 +186,9 @@ it.
 Confirm AlphOne agrees, using the token from step 2:
 
 ```sh
-curl -s -H "Authorization: Bearer $TOKEN" https://your-domain/api/webhooks
+curl -s https://your-domain/api/graphql \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"query":"{ webhooks { id url events } }"}'
 ```
 
 A subscription pointing at your n8n webhook url means the loop is live.
@@ -224,10 +226,10 @@ docker compose exec postgres psql -U postgres -d alphone -c \
 | ------- | ----- |
 | The credential test fails | The base URL has a trailing slash, or says `localhost` where the container cannot reach AlphOne |
 | `invalid token` | The token id was pasted instead of the secret. Only the value starting `a1_` authenticates |
-| Nothing arrives after publishing | No subscription exists. Check `GET /api/webhooks` and republish |
+| Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
 | A task titled with literal `{{ }}` | The field is not in expression mode. Use its `fx` toggle |
 | The task node answers 400, previews show a leading `=` | An `=` was typed into the expression editor. n8n adds it, so delete yours |
-| Deliveries stuck `pending` with `subscriber answered 404` | A subscription outlived its workflow. Delete it with `DELETE /api/webhooks/{id}` |
+| Deliveries stuck `pending` with `subscriber answered 404` | A subscription outlived its workflow. Delete it with the `deleteWebhook` mutation |
 
 ## Beyond this workflow
 

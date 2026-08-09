@@ -26,7 +26,7 @@ nothing on the AlphOne side.
 ## Mint a token
 
 An engine cannot log in, so give it an API token. See the
-[REST API reference](/reference/rest-api/) for the full auth rules.
+[GraphQL API reference](/reference/graphql-api/) for the full auth rules.
 
 ```sh
 alphone token create -email you@example.com -name "n8n production"
@@ -80,14 +80,35 @@ Do that only on a development machine, and mind that it exposes the API
 to your network. Docker Desktop forwards loopback for you, so the
 default `localhost:8080` is already reachable there.
 
-## Verify the credential
+## Every call looks the same
 
-Point an HTTP Request node at `GET /api/version`. It needs a valid
-credential and returns a small body, which makes it a good connection
-test:
+AlphOne serves one GraphQL API, so every request is a `POST` to the same
+address with a JSON body naming what you want. There are no per resource
+URLs to look up.
+
+```text
+POST <base url>/api/graphql
+Content-Type: application/json
+```
 
 ```json
-{ "version": "x.y.z" }
+{ "query": "...", "variables": {} }
+```
+
+Read the answer from `data`, and always check `errors`, because a refused
+operation still answers `200`.
+
+## Verify the credential
+
+Point an HTTP Request node at the endpoint and ask for the version. It
+needs a valid credential, which makes it a good connection test:
+
+```json
+{ "query": "{ version }" }
+```
+
+```json
+{ "data": { "version": "0.7.1" } }
 ```
 
 ## A first automation
@@ -95,20 +116,22 @@ test:
 A morning digest of overdue work needs three nodes: a Schedule Trigger, an
 HTTP Request, and a Code node.
 
-The HTTP Request node calls `GET /api/tasks` with these query parameters:
+The HTTP Request node sends:
 
-| Parameter | Value |
-| --------- | ----- |
-| `due_before` | `{{ $now.toFormat('yyyy-MM-dd') }}` |
-| `status` | `open` |
-| `limit` | `200` |
+```json
+{
+  "query": "query($before: Date!) { tasks(dueBefore: $before, status: \"open\", first: 200) { edges { node { title dueOn } } } }",
+  "variables": { "before": "{{ $now.toFormat('yyyy-MM-dd') }}" }
+}
+```
 
-The Code node turns the response into a message:
+A list comes back as a connection, so the rows sit under `edges` and each
+row under `node`:
 
 ```js
-const tasks = $input.first().json.tasks ?? [];
-const lines = tasks.map((t) => `- ${t.title} (due ${t.due_on})`);
-return [{ json: { overdue: tasks.length, digest: lines.join('\n') } }];
+const edges = $input.first().json.data.tasks.edges ?? [];
+const lines = edges.map((e) => `- ${e.node.title} (due ${e.node.dueOn})`);
+return [{ json: { overdue: edges.length, digest: lines.join('\n') } }];
 ```
 
 Swap the Code node for Slack, Gmail, or Telegram to deliver it.
@@ -116,16 +139,18 @@ Swap the Code node for Slack, Gmail, or Telegram to deliver it.
 ## Writing back
 
 A token has the same permissions as the user who created it, so an engine
-can create and update records too. `POST /api/tasks` with a JSON body
-creates work:
+can create and update records too:
 
 ```json
-{ "title": "Follow up on the renewal", "due_on": "2026-08-03" }
+{
+  "query": "mutation($input: CreateTaskInput!) { createTask(input: $input) { task { id title } } }",
+  "variables": { "input": { "title": "Follow up on the renewal", "dueOn": "2026-08-12" } }
+}
 ```
 
 Tasks created with an API token record the token automatically in
-`origin_source` as `token:<name>`, which keeps automated work
-distinguishable from work a person typed. `origin_source` comes from the
+`originSource` as `token:<name>`, which keeps automated work
+distinguishable from work a person typed. `originSource` comes from the
 credential rather than the request body, so it cannot be faked and it
 needs nothing from the workflow.
 
@@ -133,14 +158,27 @@ needs nothing from the workflow.
 
 Delivery is at least once, so a workflow can run twice for one event. A
 plain create would then leave two identical tasks. Send the event you are
-reacting to as `origin_event_id` and the second create answers `200` with
-the task the first one made:
+reacting to as `originEventId`, and the second create returns the task the
+first one made with `replay: true`:
 
 ```json
 {
-  "title": "Follow up on the renewal",
-  "due_on": "2026-08-03",
-  "origin_event_id": "0198d000-0000-7000-8000-0000000000e1"
+  "input": {
+    "title": "Follow up on the renewal",
+    "dueOn": "2026-08-12",
+    "originEventId": "0198d000-0000-7000-8000-0000000000e1"
+  }
+}
+```
+
+```json
+{
+  "data": {
+    "createTask": {
+      "replay": true,
+      "task": { "id": "019fe769-7df3-7cf8-be91-7242a58e357a" }
+    }
+  }
 }
 ```
 
@@ -159,44 +197,54 @@ today. This recipe spreads them over as many days as it takes.
 Subscribe to `import.completed`. It carries the import `id`, so the next
 step reads what that import produced:
 
-```text
-GET /api/plugins/importer/imports/{id}/contacts
+```graphql
+query($id: UUID!) {
+  importJob(id: $id) {
+    contacts { contactId name rowId }
+  }
+}
 ```
 
-Every entry carries `contact_id`, `name`, and `row_id`, the row of the
-file that created the contact:
+Every entry carries `contactId`, `name`, and `rowId`, the row of the file
+that created the contact:
 
 ```json
 {
-  "contacts": [
-    {
-      "contact_id": "0198d000-0000-7000-8000-000000000101",
-      "name": "Maria Perez",
-      "row_id": "0198d000-0000-7000-8000-0000000000b1"
+  "data": {
+    "importJob": {
+      "contacts": [
+        {
+          "contactId": "019fdd4b-b6ce-7dc1-af71-313ea3825797",
+          "name": "Maria Perez",
+          "rowId": "0198d000-0000-7000-8000-0000000000b1"
+        }
+      ]
     }
-  ]
+  }
 }
 ```
 
-Create one task per entry, with `contact_id` linking the task to the
-person and `row_id` as the `origin_event_id`:
+Create one task per entry, with `contactId` linking the task to the person
+and `rowId` as the `originEventId`:
 
 ```json
 {
-  "title": "Call Maria Perez",
-  "due_on": "2026-08-05",
-  "contact_id": "0198d000-0000-7000-8000-000000000101",
-  "origin_event_id": "0198d000-0000-7000-8000-0000000000b1"
+  "input": {
+    "title": "Call Maria Perez",
+    "dueOn": "2026-08-12",
+    "contactId": "019fdd4b-b6ce-7dc1-af71-313ea3825797",
+    "originEventId": "0198d000-0000-7000-8000-0000000000b1"
+  }
 }
 ```
 
-The `row_id` is what makes this safe to re-run. A workflow that fails
+The `rowId` is what makes this safe to re-run. A workflow that fails
 halfway through, or a delivery that arrives twice, creates no second task
 for a row that already has one, because AlphOne answers the repeat with
 the task it already stored.
 
 To spread the calls, batch the entries and push each batch a day further
-out. Twenty per batch with `due_on` set to today plus the batch index
+out. Twenty per batch with `dueOn` set to today plus the batch index
 gives twenty calls a day until the list runs out. The batch size is the
 only number to change if the daily load is wrong.
 
