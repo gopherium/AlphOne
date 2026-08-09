@@ -3,6 +3,7 @@
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { cacheExchange } from '@urql/exchange-graphcache'
 import { relayPagination } from '@urql/exchange-graphcache/extras'
+import { retryExchange } from '@urql/exchange-retry'
 import { createClient as createEventStreamClient } from 'graphql-sse'
 import { Client, fetchExchange, getOperationName, subscriptionExchange } from 'urql'
 import type { CombinedError, Exchange, Operation } from 'urql'
@@ -135,6 +136,35 @@ function eventStreamExchange(): { exchange: Exchange; onStreamOpen: GraphClient[
 	}
 }
 
+/** The bounds of the wait between resends of a refused read. */
+const initialResendDelay = 100
+const maxResendDelay = 1_000
+const maxResendAttempts = 3
+
+/**
+ * Returns whether a failure is the graph endpoint refusing a read for concurrency.
+ * @param error - The failure a graph operation answered with.
+ * @param operation - The operation that failed.
+ * @returns Whether the operation is worth resending.
+ */
+function refusedRead(error: CombinedError, operation: Operation): boolean {
+	return operation.kind === 'query' && (error.response as Response | undefined)?.status === 429
+}
+
+/**
+ * Returns the exchange resending a read the graph endpoint refused for concurrency.
+ * @returns The retry exchange.
+ */
+export function graphRetryExchange(): Exchange {
+	return retryExchange({
+		initialDelayMs: initialResendDelay,
+		maxDelayMs: maxResendDelay,
+		maxNumberAttempts: maxResendAttempts,
+		randomDelay: true,
+		retryIf: refusedRead,
+	})
+}
+
 /**
  * Returns the normalized cache exchange configured for the AlphOne schema.
  * @returns The cache exchange.
@@ -219,6 +249,7 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 			graphCacheExchange(),
 			sessionExchange(options.onSessionExpired),
 			stream.exchange,
+			graphRetryExchange(),
 			fetchExchange,
 		],
 	})

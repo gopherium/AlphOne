@@ -13,6 +13,7 @@
 		"@gopherium/react-auth": "0.3.0",
 		"@tanstack/react-query": "^5.101.4",
 		"@urql/exchange-graphcache": "9.0.1",
+		"@urql/exchange-retry": "2.0.0",
 		"@wordpress/components": "38.0.0",
 		"@wordpress/dataviews": "17.3.0",
 		"@wordpress/icons": "15.3.0",

@@ -210,6 +210,9 @@ importers:
       '@urql/exchange-graphcache':
         specifier: 9.0.1
         version: 9.0.1(@urql/core@6.0.3(graphql@17.0.2))(graphql@17.0.2)
+      '@urql/exchange-retry':
+        specifier: 2.0.0
+        version: 2.0.0(@urql/core@6.0.3(graphql@17.0.2))
       '@wordpress/components':
         specifier: 38.0.0
         version: 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -2313,6 +2316,11 @@ packages:
 
   '@urql/exchange-graphcache@9.0.1':
     resolution: {integrity: sha512-22V46OIIkJTz8Ex23e95+ZmvgRWqbzH77wpNjdfMknmmhR8bjBFNd24oDoQUI4AbYUhoTKmvAZ5XOBQSsbBzaQ==}
+    peerDependencies:
+      '@urql/core': ^6.0.0
+
+  '@urql/exchange-retry@2.0.0':
+    resolution: {integrity: sha512-VdSMCiOptd6Ah6g5Bo+MzrNMAGzgRMC775W86strLRQN7lvvNlhx1LwU0gzb2h/z0atcJFAmDJEbMyvupkT+7A==}
     peerDependencies:
       '@urql/core': ^6.0.0
 
@@ -6921,6 +6929,11 @@ snapshots:
       wonka: 6.3.6
     transitivePeerDependencies:
       - graphql
+
+  '@urql/exchange-retry@2.0.0(@urql/core@6.0.3(graphql@17.0.2))':
+    dependencies:
+      '@urql/core': 6.0.3(graphql@17.0.2)
+      wonka: 6.3.6
 
   '@use-gesture/core@10.3.1': {}
 
