@@ -56,7 +56,11 @@ export default defineConfig({
 				},
 				{
 					label: 'Reference',
-					items: [{ slug: 'reference/rest-api' }, { slug: 'reference/webhooks' }],
+					items: [
+						{ slug: 'reference/graphql-api' },
+						{ slug: 'reference/rest-api' },
+						{ slug: 'reference/webhooks' },
+					],
 				},
 				{
 					label: 'Legal',
