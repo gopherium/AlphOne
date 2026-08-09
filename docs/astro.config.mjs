@@ -52,7 +52,7 @@ export default defineConfig({
 				},
 				{
 					label: 'Extending',
-					items: [{ slug: 'extending/screens' }],
+					items: [{ slug: 'extending/screens' }, { slug: 'extending/graph' }],
 				},
 				{
 					label: 'Reference',
