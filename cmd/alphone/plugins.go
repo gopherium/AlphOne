@@ -4,10 +4,30 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/sdk"
 )
+
+// invalidContactErrors lists the domain errors a plugin reads as unusable details.
+var invalidContactErrors = []error{
+	contact.ErrEmptyName,
+	contact.ErrEmptyChannel,
+	contact.ErrEmptyIdentifier,
+	contact.ErrChannelNotWritable,
+}
+
+// markInvalid returns err with unusable contact details marked for the plugin.
+func markInvalid(err error) error {
+	for _, invalid := range invalidContactErrors {
+		if errors.Is(err, invalid) {
+			return fmt.Errorf("%w: %w", sdk.ErrInvalidContact, err)
+		}
+	}
+	return err
+}
 
 type resolverBridge struct {
 	resolver *contact.Resolver
@@ -21,7 +41,7 @@ func (b resolverBridge) Resolve(
 ) (sdk.Contact, error) {
 	owner, err := b.resolver.Resolve(ctx, contact.Channel(channel), identifier, displayName)
 	if err != nil {
-		return sdk.Contact{}, err
+		return sdk.Contact{}, markInvalid(err)
 	}
 	return sdk.Contact{ID: owner.ID, Name: owner.Name}, nil
 }
@@ -36,7 +56,7 @@ func (b directoryBridge) FindByIdentity(
 ) (sdk.Contact, bool, error) {
 	owner, found, err := b.resolver.FindByIdentity(ctx, contact.Channel(channel), identifier)
 	if err != nil || !found {
-		return sdk.Contact{}, false, err
+		return sdk.Contact{}, false, markInvalid(err)
 	}
 	return sdk.Contact{ID: owner.ID, Name: owner.Name}, true, nil
 }
@@ -55,7 +75,7 @@ func (b directoryBridge) CreateWithIdentities(
 	}
 	owner, created, err := b.resolver.CreateWithIdentities(ctx, name, addresses)
 	if err != nil {
-		return sdk.Contact{}, false, err
+		return sdk.Contact{}, false, markInvalid(err)
 	}
 	return sdk.Contact{ID: owner.ID, Name: owner.Name}, created, nil
 }

@@ -78,15 +78,31 @@ func (p *Plugin) commitRows(ctx context.Context, importID uuid.UUID, assigned ma
 		return err
 	}
 	for _, row := range pending {
-		settled, err := p.settle(ctx, draftOf(row.Cells, assigned))
-		if err != nil {
-			return err
-		}
-		if err := p.store.settleRow(ctx, row.ID, settled); err != nil {
+		if err := p.commitRow(ctx, row, assigned); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// commitRow settles one staged row, recording details the host refuses as a failure.
+func (p *Plugin) commitRow(ctx context.Context, staged stagedRow, assigned mapping) error {
+	settled, err := p.settle(ctx, draftOf(staged.Cells, assigned))
+	if errors.Is(err, sdk.ErrInvalidContact) {
+		settled, err = refused(), nil
+	}
+	if err != nil {
+		return err
+	}
+	return p.store.settleRow(ctx, staged.ID, settled)
+}
+
+// refused returns the settlement of a row whose details the host would not store.
+func refused() settlement {
+	return settlement{
+		outcome: outcomeFailed,
+		reason:  "the row holds a name or a contact detail AlphOne cannot use",
+	}
 }
 
 // settle turns one drafted contact into the outcome its row records.

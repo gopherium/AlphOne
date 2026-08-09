@@ -5,6 +5,7 @@ package importer_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -29,6 +30,7 @@ type directory struct {
 	identities map[sdk.Identity]uuid.UUID
 	findErr    error
 	createErr  error
+	refused    string
 	hideClaims bool
 	creates    int
 }
@@ -73,6 +75,9 @@ func (d *directory) FindByIdentity(
 	defer d.mu.Unlock()
 	if d.findErr != nil {
 		return sdk.Contact{}, false, d.findErr
+	}
+	if d.refused != "" && identifier == d.refused {
+		return sdk.Contact{}, false, fmt.Errorf("%w: unusable identifier", sdk.ErrInvalidContact)
 	}
 	ownerID, ok := d.identities[key(channel, identifier)]
 	if !ok || d.hideClaims {
@@ -439,6 +444,52 @@ func TestCommitRejectsMalformedAndUnknownIDs(t *testing.T) {
 				t.Fatalf("status = %d, want %d", recorder.Code, tc.wantStatus)
 			}
 		})
+	}
+}
+
+// refusedCSV holds a row that imports and a row whose contact detail is unusable.
+const refusedCSV = "Name,Email\n" +
+	"Maria Perez,maria@example.com\n" +
+	"Ana Lopez,n/a\n"
+
+func TestCommitFailsOnlyTheRowTheHostRefuses(t *testing.T) {
+	t.Parallel()
+
+	p, pool, contacts, _ := newCommittingPlugin(t)
+	id := uploadNamed(t, p, "refused.csv", refusedCSV)
+	mapNameAndEmail(t, p, id)
+	contacts.refused = "n/a"
+
+	recorder := postCommit(t, p, id.String())
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusOK, recorder.Body)
+	}
+	want := []string{"imported", "failed"}
+	if diff := slices.Compare(want, outcomesOf(t, pool, id)); diff != 0 {
+		t.Errorf("outcomes = %v, want %v", outcomesOf(t, pool, id), want)
+	}
+	var state string
+	var imported, failed int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT state, imported_count, failed_count FROM plugin_importer.imports WHERE id = $1", id,
+	).Scan(&state, &imported, &failed); err != nil {
+		t.Fatalf("reading the import: %v", err)
+	}
+	if state != "committed" {
+		t.Errorf("state = %q, want committed so one bad cell does not strand the import", state)
+	}
+	if imported != 1 || failed != 1 {
+		t.Errorf("counts = %d imported, %d failed, want 1, 1", imported, failed)
+	}
+	var reason *string
+	if err := pool.QueryRow(t.Context(),
+		"SELECT reason FROM plugin_importer.import_rows WHERE import_id = $1 AND position = 2", id,
+	).Scan(&reason); err != nil {
+		t.Fatalf("reading the refused row: %v", err)
+	}
+	if reason == nil || *reason == "" {
+		t.Errorf("refused row reason = %v, want a reason naming the unusable detail", reason)
 	}
 }
 

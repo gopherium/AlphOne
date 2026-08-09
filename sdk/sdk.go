@@ -10,10 +10,14 @@ package sdk
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/gopherium/pluginkit"
 )
+
+// ErrInvalidContact reports contact details the host refuses to store.
+var ErrInvalidContact = errors.New("sdk: invalid contact details")
 
 // Plugin is an independently addable unit of functionality with a
 // managed lifecycle.
