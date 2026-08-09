@@ -3,6 +3,7 @@
 package whatsapp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -35,6 +36,23 @@ func seedPreviewConversation(
 		t.Fatalf("inserting message: %v", err)
 	}
 	return conversationID
+}
+
+func TestGetConversationReportsAReadFailure(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.store.getConversation(ctx, uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Fatal("getConversation() error = nil, want the read failure reported")
+	}
+	if !strings.Contains(err.Error(), "whatsapp: get conversation") {
+		t.Errorf("getConversation() error = %v, want it to name the read", err)
+	}
 }
 
 func TestListConversationsPreviewsEveryContentType(t *testing.T) {

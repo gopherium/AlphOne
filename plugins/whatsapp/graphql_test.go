@@ -346,6 +346,23 @@ func firstGraphError(t *testing.T, client *gqlclient.Client, query string, optio
 	return parsed[0].Message, parsed[0].Extensions
 }
 
+func TestGraphConversationReportsAReadFailure(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newMessagingPlugin(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	conversation, err := p.QueryResolvers().WhatsAppConversation(ctx, uuid.Must(uuid.NewV7()))
+
+	if conversation != nil {
+		t.Errorf("conversation = %+v, want none when the read failed", conversation)
+	}
+	if err == nil {
+		t.Fatal("WhatsAppConversation() error = nil, want the read failure reported")
+	}
+}
+
 func TestGraphListLimitsAreValidated(t *testing.T) {
 	t.Parallel()
 
