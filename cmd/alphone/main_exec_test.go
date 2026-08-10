@@ -51,7 +51,7 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 	}
 }
 
-func TestMainBinaryTreatsAnUnknownArgumentAsServe(t *testing.T) {
+func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 	t.Parallel()
 
 	binary, env := coverBinary(t)
@@ -67,8 +67,11 @@ func TestMainBinaryTreatsAnUnknownArgumentAsServe(t *testing.T) {
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
 		t.Fatalf("alphone with an unknown argument: %v, want exit code 1", err)
 	}
-	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
-		t.Errorf("stderr = %q, want the server path reached", stderr.String())
+	if !strings.Contains(stderr.String(), "unknown subcommand") {
+		t.Errorf("stderr = %q, want the argument refused", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
+		t.Errorf("stderr = %q, want the server never started", stderr.String())
 	}
 }
 

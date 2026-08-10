@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/joho/godotenv"
 )
+
+// errUnknownSubcommand reports a first argument naming no subcommand.
+var errUnknownSubcommand = errors.New("unknown subcommand")
 
 // main runs the alphone server, or one of its subcommands.
 func main() {
@@ -37,6 +41,7 @@ func dispatch(ctx context.Context, args []string) error {
 	case "seed":
 		return seed(ctx, os.Getenv, os.Stdout)
 	default:
-		return run(ctx, os.Getenv, os.Stderr, registerPlugins)
+		return fmt.Errorf("%w %q, want createadmin, seed or token, or no argument to serve",
+			errUnknownSubcommand, args[0])
 	}
 }

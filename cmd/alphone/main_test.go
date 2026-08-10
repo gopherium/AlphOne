@@ -194,6 +194,24 @@ func waitForServer(t *testing.T, baseURL string) {
 	t.Fatal("server never became ready")
 }
 
+func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
+	t.Parallel()
+
+	err := dispatch(t.Context(), []string{"not-a-subcommand"})
+
+	if !errors.Is(err, errUnknownSubcommand) {
+		t.Fatalf("dispatch() error = %v, want the unknown subcommand refused", err)
+	}
+	if !strings.Contains(err.Error(), "not-a-subcommand") {
+		t.Errorf("error = %v, want the offending argument named", err)
+	}
+	for _, name := range []string{"createadmin", "seed", "token"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error = %v, want %q offered", err, name)
+		}
+	}
+}
+
 func TestRunRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
