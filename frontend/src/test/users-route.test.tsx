@@ -91,7 +91,6 @@ const colleague = {
 	id: '0198b2f0-0000-7000-8000-0000000000ff',
 	email: 'ada@example.com',
 	name: 'Ada Lovelace',
-	created_at: '2026-07-06T10:00:00Z',
 }
 
 test('disables an account and shows the new status', async () => {

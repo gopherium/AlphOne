@@ -19,7 +19,6 @@ import {
 import { useState } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
-import { toListedTasks } from '../tasks/TaskList'
 import { channelItemOf, channelItems } from './channel'
 import { formatCreated } from './format'
 import {
@@ -75,7 +74,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			</Text>
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
-			<ContactTasks contactId={contact.id} tasks={toListedTasks(detail)} />
+			<ContactTasks contactId={contact.id} tasks={detail} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(new Date(contact.createdAt))}`}
 			</Text>

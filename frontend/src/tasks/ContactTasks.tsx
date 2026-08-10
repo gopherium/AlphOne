@@ -56,7 +56,7 @@ export function ContactTasks({
 	const pushTask = async (task: ListedTask) => {
 		const result = await runPush({
 			id: task.id,
-			input: { dueOn: shiftDate(laterDate(task.due_on, today), 1) },
+			input: { dueOn: shiftDate(laterDate(task.dueOn, today), 1) },
 		})
 		if (result.data) {
 			settled()

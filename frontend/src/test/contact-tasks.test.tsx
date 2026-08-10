@@ -28,15 +28,11 @@ const tomorrow = localDate(1)
 function taskRow(id: string, title: string, dueOn: string) {
 	return {
 		id,
-		assignee_id: '0198c000-0000-7000-8000-0000000000aa',
 		contact_id: contactID,
 		title,
 		status: 'open',
 		priority: 0,
 		due_on: dueOn,
-		origin_source: null,
-		origin_event_id: null,
-		created_at: '2026-07-29T10:00:00Z',
 	}
 }
 

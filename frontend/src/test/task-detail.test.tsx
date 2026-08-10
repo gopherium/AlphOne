@@ -32,15 +32,11 @@ beforeEach(() => {
 	patched = []
 	stored = {
 		id: taskID,
-		assignee_id: '0198c000-0000-7000-8000-0000000000aa',
 		contact_id: null,
 		title: 'Call the supplier',
 		status: 'open',
 		priority: 0,
 		due_on: '2026-08-10',
-		origin_source: null,
-		origin_event_id: null,
-		created_at: '2026-07-29T10:00:00Z',
 	}
 	server.use(
 		graphql.query('TaskDetail', () => HttpResponse.json({ data: { task: taskDetail() } })),

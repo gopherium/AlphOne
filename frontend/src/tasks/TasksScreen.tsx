@@ -24,7 +24,7 @@ import { useState } from 'react'
 
 import { formatDay, laterDate, shiftDate } from './format'
 import { createTaskMutation, dayTasksQuery, overdueTasksQuery, updateTaskMutation } from './operations'
-import { TaskList, toListedTasks } from './TaskList'
+import { TaskList } from './TaskList'
 import type { ListedTask, RowControls } from './TaskList'
 
 const tasksPageSize = 50
@@ -39,28 +39,22 @@ const taskOperations = ['DayTasks', 'OverdueTasks']
  */
 export function TasksScreen({ date, today }: { date: string; today: string }) {
 	const graph = useGraph()
-	const tasks = toListedTasks(
-		useConnection({
-			query: dayTasksQuery,
-			variables: { date, status: 'open', first: tasksPageSize },
-			select: (data) => data.tasks,
-		}),
-	)
-	const done = toListedTasks(
-		useConnection({
-			query: dayTasksQuery,
-			variables: { date, status: 'done', first: tasksPageSize },
-			select: (data) => data.tasks,
-		}),
-	)
-	const overdue = toListedTasks(
-		useConnection({
-			query: overdueTasksQuery,
-			variables: { dueBefore: today, status: 'open', first: tasksPageSize },
-			select: (data) => data.tasks,
-			pause: date !== today,
-		}),
-	)
+	const tasks = useConnection({
+		query: dayTasksQuery,
+		variables: { date, status: 'open', first: tasksPageSize },
+		select: (data) => data.tasks,
+	})
+	const done = useConnection({
+		query: dayTasksQuery,
+		variables: { date, status: 'done', first: tasksPageSize },
+		select: (data) => data.tasks,
+	})
+	const overdue = useConnection({
+		query: overdueTasksQuery,
+		variables: { dueBefore: today, status: 'open', first: tasksPageSize },
+		select: (data) => data.tasks,
+		pause: date !== today,
+	})
 	const [title, setTitle] = useState('')
 	const [pendingID, setPendingID] = useState('')
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
@@ -87,7 +81,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 	const pushTask = async (task: ListedTask) => {
 		const result = await runPush({
 			id: task.id,
-			input: { dueOn: shiftDate(laterDate(task.due_on, today), 1) },
+			input: { dueOn: shiftDate(laterDate(task.dueOn, today), 1) },
 		})
 		if (result.data) {
 			graph.refetch(taskOperations)
