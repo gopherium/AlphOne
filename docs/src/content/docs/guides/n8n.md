@@ -162,10 +162,12 @@ Then **Add Field** under **Additional Fields**:
 
 Switch each of those to expression mode with its `fx` toggle, then type
 the value without a leading `=`. n8n adds that prefix itself when it
-stores the parameter, so typing one leaves a stray `=` in the value and
-AlphOne answers 400. The small preview under each field shows the
-resolved value, so check it reads `Write back to Maria Perez` and a bare
-uuid before running.
+stores the parameter, so typing one leaves a stray `=` in the value. A
+stray `=` in Title is stored as part of the task title, and a stray `=`
+in Contact ID is refused with a `VALIDATION` error naming the bad uuid,
+which the node reports as a failed step. The small preview under each
+field shows the resolved value, so check it reads
+`Write back to Maria Perez` and a bare uuid before running.
 
 Press **Execute step**.
 
@@ -229,7 +231,7 @@ docker compose exec postgres psql -U postgres -d alphone -c \
 | `invalid token` | The token id was pasted instead of the secret. Only the value starting `a1_` authenticates |
 | Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
 | A task titled with literal `{{ }}` | The field is not in expression mode. Use its `fx` toggle |
-| The task node answers 400, previews show a leading `=` | An `=` was typed into the expression editor. n8n adds it, so delete yours |
+| The task node fails with a validation error naming the id, previews show a leading `=` | An `=` was typed into the expression editor. n8n adds it, so delete yours |
 | Deliveries stuck `pending` with `subscriber answered 404` | A subscription outlived its workflow. Delete it with the `deleteWebhook` mutation |
 
 ## Beyond this workflow

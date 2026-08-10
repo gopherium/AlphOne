@@ -33,14 +33,14 @@ linters:
             - $gostd
             - github.com/google/uuid
             - github.com/gopherium/pluginkit
-        plugins-import-only-the-sdk:
+        plugins-never-import-internal:
           list-mode: lax
           files:
             - "**/plugins/**/*.go"
             - "!$test"
           deny:
             - pkg: github.com/gopherium/alphone/internal
-              desc: plugins may import only the sdk package from AlphOne
+              desc: plugins may import only the sdk and graph packages from AlphOne
   exclusions:
     rules:
       - path: _test\.go

@@ -26,7 +26,7 @@ export interface Case {
 	repeat?: number
 }
 
-/** taskKeys is the shape every task operation answered with under REST. */
+/** taskKeys is the shape every task operation answers with. */
 const taskKeys = [
 	'id',
 	'assignee_id',
@@ -40,7 +40,7 @@ const taskKeys = [
 	'created_at',
 ]
 
-/** importKeys is the shape every import summary answered with under REST. */
+/** importKeys is the shape every import summary answers with. */
 const importKeys = [
 	'id',
 	'user_id',
@@ -65,7 +65,7 @@ function text(value: unknown): string {
 /**
  * Returns the complaint when an item carries other than the wanted keys.
  * @param item - The answered record.
- * @param wanted - The keys the REST answer carried.
+ * @param wanted - The keys the answer must carry.
  * @returns The complaint, or null when the keys match.
  */
 function hasExactly(item: Item, wanted: string[]): string | null {

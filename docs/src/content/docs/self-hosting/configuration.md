@@ -23,6 +23,7 @@ database is all an upgrade takes.
 | `ALPHONE_ADDR` | no | `localhost:8080` | Listen address. The container image sets `0.0.0.0:8080`. |
 | `ALPHONE_WEB_DIR` | no | unset | Directory holding the built frontend, served for all non-API paths. The container image sets `/web`. Unset, only the API is served, which suits development behind Vite. |
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is rejected at startup. |
+| `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
 ## WhatsApp plugin
 
@@ -57,7 +58,9 @@ see [Meta setup](/whatsapp/meta-setup/).
   field, so no extra Meta configuration is needed.
 - **Login rate limiting** allows 10 failed attempts per client address
   per minute. Successful logins never consume the budget. Over the limit
-  the API answers `429` with a `Retry-After` header. The limit is per
+  `login` answers with an error whose `extensions.code` is
+  `RATE_LIMITED` and whose `extensions.retryAfter` is the wait in
+  seconds, see [errors](/reference/graphql-api/#errors). The limit is per
   address and there is no per-account lockout, so an attacker spreading
   guesses across many addresses is bounded only by password strength and
   the argon2id hashing cost. Passwords must be at least 12 characters.
