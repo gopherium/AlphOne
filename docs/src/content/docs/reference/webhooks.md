@@ -122,63 +122,63 @@ lose them.
 
 ## Managing subscriptions
 
-Every route needs a credential, see
+Subscriptions are managed on the graph, with `createWebhook`, `webhooks` and
+`deleteWebhook`. Every operation needs a credential, see
 [authenticating](/reference/graphql-api/#authenticating). A subscription
 belongs to the user who created it, who is the only one who can see or revoke
 it.
 
-The routes below are being retired. The graph does the same three things with
-`webhooks`, `createWebhook` and `deleteWebhook`. What AlphOne delivers to your
-endpoint is unchanged either way.
+### Creating one
 
-### `POST /api/webhooks`
-
-```json
-{
-  "url": "https://example.com/hooks/alphone",
-  "events": ["task.created", "contact.created"]
-}
-```
-
-Answers `201` with the subscription and its signing secret:
-
-```json
-{
-  "id": "019fb341-270d-744e-b0fd-8d18d53cd6be",
-  "url": "https://example.com/hooks/alphone",
-  "events": ["task.created", "contact.created"],
-  "secret": "whsec_GlNGnDYSNuOdBCKSaglvqmUDUVONRtNtCmTk4OOH1WQ",
-  "created_at": "2026-07-30T13:26:47.720971759Z"
+```graphql
+mutation {
+  createWebhook(
+    url: "https://example.com/hooks/alphone"
+    events: ["task.created", "contact.created"]
+  ) {
+    webhook {
+      id
+      url
+      events
+      createdAt
+    }
+    secret
+  }
 }
 ```
 
 The `secret` appears here and nowhere else. Store it now. To replace a
 lost one, revoke the subscription and create another.
 
-An unusable URL or an event name AlphOne does not publish answers `422`.
+An unusable URL or an event name AlphOne does not publish is refused with the
+code `VALIDATION`.
 
-### `GET /api/webhooks`
+### Listing them
 
-```json
-{
-  "webhooks": [
-    {
-      "id": "019fb341-270d-744e-b0fd-8d18d53cd6be",
-      "url": "https://example.com/hooks/alphone",
-      "events": ["task.created", "contact.created"],
-      "created_at": "2026-07-30T13:26:47.720971759Z"
-    }
-  ]
+```graphql
+query {
+  webhooks {
+    id
+    url
+    events
+    createdAt
+  }
 }
 ```
 
 Secrets are never listed.
 
-### `DELETE /api/webhooks/{id}`
+### Revoking one
 
-Answers `204`, and drops any deliveries still queued for it. Revoking
-someone else's subscription answers `404`, the same as one that never
-existed.
+```graphql
+mutation ($id: UUID!) {
+  deleteWebhook(id: $id)
+}
+```
+
+Revoking answers `true` and drops any deliveries still queued for the
+subscription. Revoking someone else's is refused with the code `NOT_FOUND`,
+the same as one that never existed.
 
 ## Notes for self-hosters
 

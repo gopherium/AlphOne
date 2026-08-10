@@ -29,7 +29,8 @@ From 0.3.0 the node talks to AlphOne over GraphQL, which is one endpoint you
 send a query to describing exactly what you want back. That endpoint arrived
 in AlphOne 0.7.0, so every operation fails against an older instance. Install
 `n8n-nodes-alphone@0.2.0` instead until you upgrade, since it speaks the older
-REST API and still works against 0.7.0.
+REST API. Those routes were removed in 0.8.0, so 0.2.0 works against 0.7.x and
+nothing later.
 :::
 
 ## 1. Install the node

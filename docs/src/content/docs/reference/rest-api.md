@@ -1,23 +1,37 @@
 ---
 title: REST API
-description: What still answers on REST, and the graph operation that replaced each route that is going away.
+description: The two routes AlphOne still serves outside the graph, and where everything else went.
 ---
 
-The [GraphQL API](/reference/graphql-api/) is AlphOne's API. Write new
-integrations against it.
+The [GraphQL API](/reference/graphql-api/) is AlphOne's API. Every read and
+every write is a `POST /api/graphql`.
 
-The REST routes below still answer, so nothing you already built stops
-working today. They are being retired, and this page exists to tell you what
-replaced each one. Two routes are staying, and they are listed at the end.
+The REST routes that used to answer beside it are gone. If you built against
+them, see [what replaced them](#what-replaced-the-retired-routes) below.
 
-## Still answering, already replaced
+## Staying on REST
 
-Every route here works now and will be removed. Move to the operation beside
-it. Reads and writes are all `POST /api/graphql`, so the whole table collapses
-to one address once you have moved.
+Two routes are not going anywhere, because neither is something a GraphQL
+client asks for.
 
-| REST route | Graph operation |
-| ---------- | --------------- |
+**Meta's webhook pair.** `GET` and `POST /api/plugins/whatsapp/webhook`. Meta
+calls these, so their shape is Meta's to decide, not ours. They authenticate by
+signature rather than by session.
+
+**The media download.** `GET
+/api/plugins/whatsapp/conversations/{id}/messages/{mid}/media` answers with the
+file bytes. A graph field can name a download path, but the bytes themselves
+need a plain HTTP response.
+
+Both are documented in the [WhatsApp API](/whatsapp/api/).
+
+## What replaced the retired routes
+
+Reads and writes are all `POST /api/graphql`, so the whole table collapses to
+one address.
+
+| Retired REST route | Graph operation |
+| ------------------ | --------------- |
 | `POST /api/auth/login` | `login` |
 | `POST /api/auth/logout` | `logout` |
 | `GET /api/auth/session` | `me` |
@@ -50,30 +64,10 @@ to one address once you have moved.
 | `GET /api/plugins/importer/imports/{id}/contacts` | `importJob.contacts` |
 | `POST /api/plugins/importer/imports/{id}/commit` | `importCommit` |
 
-Field names differ. REST answers `due_on` and `origin_event_id`, the graph
+Field names differ. REST answered `due_on` and `origin_event_id`, the graph
 answers `dueOn` and `originEventId`. Lists that were a plain array with a
 `next_cursor` are connections on the graph, with rows under `edges` and each
 row under `node`. See [paging](/reference/graphql-api/#paging).
-
-While these routes serve, they take the same two credentials the graph takes,
-a session cookie or an `Authorization: Bearer` token. See
-[authenticating](/reference/graphql-api/#authenticating).
-
-## Staying on REST
-
-Two routes are not going anywhere, because neither is something a GraphQL
-client asks for.
-
-**Meta's webhook pair.** `GET` and `POST /api/plugins/whatsapp/webhook`. Meta
-calls these, so their shape is Meta's to decide, not ours. They authenticate by
-signature rather than by session.
-
-**The media download.** `GET
-/api/plugins/whatsapp/conversations/{id}/messages/{mid}/media` answers with the
-file bytes. A graph field can name a download path, but the bytes themselves
-need a plain HTTP response.
-
-Both are documented in the [WhatsApp API](/whatsapp/api/).
 
 ## Limits on what remains
 
