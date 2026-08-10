@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import jsdoc from 'eslint-plugin-jsdoc'
 import sonarjs from 'eslint-plugin-sonarjs'
 import tsdoc from 'eslint-plugin-tsdoc'

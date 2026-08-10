@@ -40,7 +40,8 @@ func TestMainBinaryPassesOnDocumentedTree(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	dir := t.TempDir()
-	writeFixture(t, dir, "documented.go", "package fixture\n\n// Documented does nothing.\nfunc Documented() {}\n")
+	writeFixture(t, dir, "documented.go",
+		"// SPDX-License-Identifier: Elastic-2.0\n\npackage fixture\n\n// Documented does nothing.\nfunc Documented() {}\n")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = dir

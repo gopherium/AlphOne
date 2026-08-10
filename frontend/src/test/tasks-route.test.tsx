@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { Button } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'

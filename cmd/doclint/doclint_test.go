@@ -59,7 +59,8 @@ func TestRunPassesWhenEveryFunctionIsDocumented(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, "good.go", "package x\n\n// Ok is documented.\nfunc Ok() {}\n")
+	write(t, root, "good.go",
+		"// SPDX-License-Identifier: Elastic-2.0\n\npackage x\n\n// Ok is documented.\nfunc Ok() {}\n")
 
 	if err := run(root, os.Stderr); err != nil {
 		t.Fatalf("run() error = %v, want nil", err)

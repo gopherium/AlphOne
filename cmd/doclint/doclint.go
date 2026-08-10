@@ -87,8 +87,8 @@ func isGenerated(file *ast.File) bool {
 	return false
 }
 
-// run reports every documentation violation under root to out and fails
-// when any exist.
+// run reports every documentation and license violation under root to out
+// and fails when any exist.
 func run(root string, out io.Writer) error {
 	violations, err := collectViolations(root)
 	if err != nil {
@@ -97,8 +97,16 @@ func run(root string, out io.Writer) error {
 	for _, v := range violations {
 		_, _ = fmt.Fprintf(out, "%s:%d: %s is missing a doc comment\n", v.file, v.line, v.name)
 	}
-	if len(violations) > 0 {
-		return fmt.Errorf("doclint: %d undocumented functions", len(violations))
+	unlicensed, err := collectUnlicensed(root)
+	if err != nil {
+		return err
+	}
+	for _, path := range unlicensed {
+		_, _ = fmt.Fprintf(out, "%s: missing an SPDX-License-Identifier header\n", path)
+	}
+	if len(violations) > 0 || len(unlicensed) > 0 {
+		return fmt.Errorf("doclint: %d undocumented functions, %d unlicensed files",
+			len(violations), len(unlicensed))
 	}
 	return nil
 }

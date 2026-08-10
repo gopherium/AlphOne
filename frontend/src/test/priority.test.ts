@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { expect, test } from 'vitest'
 
 import { priorityOf } from '../tasks/priority'
