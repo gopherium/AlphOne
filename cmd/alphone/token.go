@@ -25,6 +25,9 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 	}
 	verb := args[0]
 	opts, err := parseTokenFlags(verb, args[1:], stdout)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

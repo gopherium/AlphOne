@@ -51,6 +51,24 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 	}
 }
 
+func TestMainBinaryPrintsHelp(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stdout bytes.Buffer
+	cmd := exec.Command(binary, "--help")
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("alphone --help: %v, want it to succeed", err)
+	}
+	if !strings.Contains(stdout.String(), "createadmin") {
+		t.Errorf("stdout = %q, want the subcommands listed", stdout.String())
+	}
+}
+
 func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 	t.Parallel()
 

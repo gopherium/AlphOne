@@ -307,3 +307,18 @@ func TestTokenVerbsReportStoreFailures(t *testing.T) {
 		t.Error("revokeToken() on a closed pool error = nil, want error")
 	}
 }
+
+func TestTokenPrintsItsFlags(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+
+	err := token(t.Context(), testGetenv(nil), []string{"create", "-h"}, &stdout)
+
+	if err != nil {
+		t.Fatalf("token() error = %v, want nil", err)
+	}
+	if !strings.Contains(stdout.String(), "-email") {
+		t.Errorf("output = %q, want the flags listed", stdout.String())
+	}
+}

@@ -29,6 +29,9 @@ func createAdmin(
 	email := flags.String("email", "", "email address of the new user")
 	name := flags.String("name", "", "display name of the new user")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return fmt.Errorf("parse flags: %w", err)
 	}
 

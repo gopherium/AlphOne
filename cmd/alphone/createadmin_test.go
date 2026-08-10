@@ -116,3 +116,18 @@ func TestCreateAdminValidatesItsInput(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateAdminPrintsItsFlags(t *testing.T) {
+	t.Parallel()
+
+	var stdout strings.Builder
+
+	err := createAdmin(t.Context(), testGetenv(nil), []string{"-h"}, strings.NewReader(""), &stdout)
+
+	if err != nil {
+		t.Fatalf("createAdmin() error = %v, want nil", err)
+	}
+	if !strings.Contains(stdout.String(), "-email") {
+		t.Errorf("output = %q, want the flags listed", stdout.String())
+	}
+}

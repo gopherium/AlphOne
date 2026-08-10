@@ -212,6 +212,26 @@ func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
 	}
 }
 
+func TestUsageNamesEverySubcommand(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"createadmin", "seed", "token"} {
+		if !strings.Contains(usage, name) {
+			t.Errorf("usage = %q, want %q named", usage, name)
+		}
+	}
+}
+
+func TestDispatchAnswersHelp(t *testing.T) {
+	t.Parallel()
+
+	for _, arg := range []string{"help", "-h", "--help"} {
+		if err := dispatch(t.Context(), []string{arg}); err != nil {
+			t.Errorf("dispatch(%q) error = %v, want nil", arg, err)
+		}
+	}
+}
+
 func TestRunRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
