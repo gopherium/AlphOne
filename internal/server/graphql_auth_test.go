@@ -154,7 +154,7 @@ func TestGraphLoginRateLimitsByClientIP(t *testing.T) {
 		t.Errorf("blocked code = %q, want RATE_LIMITED", code)
 	}
 	if retryAfter, _ := body.Errors[0].Extensions["retryAfter"].(float64); retryAfter != 120 {
-		t.Errorf("retryAfter = %v, want the REST limiter's 120 seconds", body.Errors[0].Extensions["retryAfter"])
+		t.Errorf("retryAfter = %v, want the login limiter's 120 seconds", body.Errors[0].Extensions["retryAfter"])
 	}
 }
 

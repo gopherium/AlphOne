@@ -31,7 +31,7 @@ func TestContactCursorRoundTrip(t *testing.T) {
 	}
 }
 
-func TestContactCursorPinsTheRESTWireShape(t *testing.T) {
+func TestContactCursorPinsTheWireShape(t *testing.T) {
 	t.Parallel()
 
 	maria := contact.Contact{ID: uuid.MustParse("6f1c2e6a-8f2b-4c1d-9e3f-5a7b9c1d2e3f"), Name: "Maria Perez"}
@@ -82,7 +82,7 @@ func TestTaskCursorRoundTrip(t *testing.T) {
 	}
 }
 
-func TestTaskCursorPinsTheRESTWireShape(t *testing.T) {
+func TestTaskCursorPinsTheWireShape(t *testing.T) {
 	t.Parallel()
 
 	followUp := task.Task{

@@ -183,7 +183,7 @@ type connectionResult struct {
 	} `json:"pageInfo"`
 }
 
-func TestContactsConnectionPagesWithTheRESTCursor(t *testing.T) {
+func TestContactsConnectionPagesWithTheEncodedCursor(t *testing.T) {
 	t.Parallel()
 
 	resolver, contacts, _ := newDBResolver(t)
@@ -215,7 +215,7 @@ func TestContactsConnectionPagesWithTheRESTCursor(t *testing.T) {
 	}
 	wantEnd := cursor.EncodeContact(john)
 	if page.Contacts.PageInfo.EndCursor == nil || *page.Contacts.PageInfo.EndCursor != wantEnd {
-		t.Errorf("endCursor = %v, want the REST cursor %q", page.Contacts.PageInfo.EndCursor, wantEnd)
+		t.Errorf("endCursor = %v, want the encoded cursor %q", page.Contacts.PageInfo.EndCursor, wantEnd)
 	}
 
 	var rest struct {

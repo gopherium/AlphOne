@@ -15,8 +15,7 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 )
 
-// The fakes double the stores the graph resolves from, shared by the
-// remaining server tests.
+// The fakes double the stores the graph resolves from.
 var (
 	_ graphres.ContactStore = (*postgres.ContactStore)(nil)
 	_ graphres.ContactStore = (*fakeContactStore)(nil)
@@ -25,16 +24,8 @@ var (
 )
 
 type fakeContactStore struct {
-	contacts       map[uuid.UUID]contact.Contact
-	identities     map[uuid.UUID][]contact.Identity
-	createErr      error
-	getErr         error
-	listErr        error
-	identitiesErr  error
-	renameErr      error
-	addIdentityErr error
-	lastQuery      string
-	lastDigits     string
+	contacts   map[uuid.UUID]contact.Contact
+	identities map[uuid.UUID][]contact.Identity
 }
 
 func newFakeContactStore() *fakeContactStore {
@@ -47,9 +38,6 @@ func newFakeContactStore() *fakeContactStore {
 func (f *fakeContactStore) ListContactIdentities(
 	_ context.Context, contactID uuid.UUID,
 ) ([]contact.Identity, error) {
-	if f.identitiesErr != nil {
-		return nil, f.identitiesErr
-	}
 	return f.identities[contactID], nil
 }
 
@@ -75,9 +63,6 @@ func (f *fakeContactStore) identityOwner(channel contact.Channel, identifier str
 }
 
 func (f *fakeContactStore) AddIdentity(_ context.Context, identity contact.Identity) error {
-	if f.addIdentityErr != nil {
-		return f.addIdentityErr
-	}
 	if _, ok := f.contacts[identity.ContactID]; !ok {
 		return contact.ErrNotFound
 	}
@@ -116,9 +101,6 @@ func (f *fakeContactStore) CreateContactWithIdentities(
 func (f *fakeContactStore) RenameContact(
 	_ context.Context, id uuid.UUID, name string,
 ) (contact.Contact, error) {
-	if f.renameErr != nil {
-		return contact.Contact{}, f.renameErr
-	}
 	c, ok := f.contacts[id]
 	if !ok {
 		return contact.Contact{}, contact.ErrNotFound
@@ -129,17 +111,11 @@ func (f *fakeContactStore) RenameContact(
 }
 
 func (f *fakeContactStore) Create(_ context.Context, c contact.Contact) error {
-	if f.createErr != nil {
-		return f.createErr
-	}
 	f.contacts[c.ID] = c
 	return nil
 }
 
 func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error) {
-	if f.getErr != nil {
-		return contact.Contact{}, f.getErr
-	}
 	c, ok := f.contacts[id]
 	if !ok {
 		return contact.Contact{}, contact.ErrNotFound
@@ -148,13 +124,8 @@ func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 }
 
 func (f *fakeContactStore) ListContacts(
-	_ context.Context, query, digits string, afterName string, afterID uuid.UUID, limit int,
+	_ context.Context, _, _ string, afterName string, afterID uuid.UUID, limit int,
 ) ([]contact.Contact, error) {
-	f.lastQuery = query
-	f.lastDigits = digits
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
 	all := make([]contact.Contact, 0, len(f.contacts))
 	for _, c := range f.contacts {
 		all = append(all, c)
@@ -178,23 +149,8 @@ func (f *fakeContactStore) ListContacts(
 	return page, nil
 }
 
-type taskListCall struct {
-	mode       string
-	assigneeID uuid.UUID
-	contactID  uuid.UUID
-	on         time.Time
-	status     string
-	page       task.Page
-}
-
 type fakeTaskStore struct {
-	tasks     map[uuid.UUID]task.Task
-	listed    []task.Task
-	lastList  taskListCall
-	createErr error
-	getErr    error
-	listErr   error
-	updateErr error
+	tasks map[uuid.UUID]task.Task
 }
 
 func newFakeTaskStore() *fakeTaskStore {
@@ -202,44 +158,24 @@ func newFakeTaskStore() *fakeTaskStore {
 }
 
 func (f *fakeTaskStore) ListForDay(
-	_ context.Context, assigneeID uuid.UUID, dueOn time.Time, status string, page task.Page,
+	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
-	f.lastList = taskListCall{
-		mode: "day", assigneeID: assigneeID, on: dueOn, status: status, page: page,
-	}
-	return f.listPage(page)
+	return nil, nil
 }
 
 func (f *fakeTaskStore) ListDueBefore(
-	_ context.Context, assigneeID uuid.UUID, dueBefore time.Time, status string, page task.Page,
+	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
-	f.lastList = taskListCall{
-		mode: "before", assigneeID: assigneeID, on: dueBefore, status: status, page: page,
-	}
-	return f.listPage(page)
+	return nil, nil
 }
 
 func (f *fakeTaskStore) ListForContact(
-	_ context.Context, contactID uuid.UUID, status string, page task.Page,
+	_ context.Context, _ uuid.UUID, _ string, _ task.Page,
 ) ([]task.Task, error) {
-	f.lastList = taskListCall{mode: "contact", contactID: contactID, status: status, page: page}
-	return f.listPage(page)
-}
-
-func (f *fakeTaskStore) listPage(page task.Page) ([]task.Task, error) {
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	if len(f.listed) > page.Limit {
-		return f.listed[:page.Limit], nil
-	}
-	return f.listed, nil
+	return nil, nil
 }
 
 func (f *fakeTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
-	if f.createErr != nil {
-		return task.Task{}, false, f.createErr
-	}
 	if stored, ok := f.byOrigin(t); ok {
 		return stored, false, nil
 	}
@@ -261,9 +197,6 @@ func (f *fakeTaskStore) byOrigin(t task.Task) (task.Task, bool) {
 }
 
 func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
-	if f.updateErr != nil {
-		return task.Task{}, f.updateErr
-	}
 	if _, ok := f.tasks[t.ID]; !ok {
 		return task.Task{}, task.ErrNotFound
 	}
@@ -272,9 +205,6 @@ func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error
 }
 
 func (f *fakeTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) {
-	if f.getErr != nil {
-		return task.Task{}, f.getErr
-	}
 	stored, ok := f.tasks[id]
 	if !ok {
 		return task.Task{}, task.ErrNotFound

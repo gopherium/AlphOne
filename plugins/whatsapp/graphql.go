@@ -21,7 +21,7 @@ var (
 	errMissingContactStash = errors.New("whatsapp: conversation carries no contact")
 )
 
-// graphListLimit resolves a limit argument against the REST list bounds.
+// graphListLimit resolves a limit argument against the list bounds.
 func graphListLimit(limit *int) (int, error) {
 	if limit == nil {
 		return defaultListLimit, nil

@@ -20,7 +20,7 @@ import (
 // errInvalidFirst reports a page size outside the accepted range.
 var errInvalidFirst = errors.New("graph: first must be between 1 and 200")
 
-// defaultPageSize and maxPageSize bound a connection page, matching REST.
+// defaultPageSize and maxPageSize bound a connection page.
 const (
 	defaultPageSize = 50
 	maxPageSize     = 200
