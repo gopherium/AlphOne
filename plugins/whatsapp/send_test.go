@@ -14,9 +14,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/plugins/whatsapp"
+	"github.com/gopherium/alphone/sdk"
 )
 
 type graphStub struct {
@@ -76,18 +78,40 @@ func newSendingPlugin(t *testing.T, envOverrides map[string]string) (*whatsapp.P
 	return p, stub
 }
 
-func postJSON(t *testing.T, routes http.Handler, target, body string) *httptest.ResponseRecorder {
+// sendMessage sends one reply through the graph resolver.
+func sendMessage(
+	t *testing.T, p *whatsapp.Plugin, conversationID uuid.UUID, content string,
+) (*model.WhatsAppMessage, error) {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	routes.ServeHTTP(recorder, request)
-	return recorder
+	return p.MutationResolvers().WhatsAppSendMessage(t.Context(), conversationID, content)
 }
 
-func onlyConversation(t *testing.T, routes http.Handler) conversationBody {
+// mustSend sends one reply, failing the test on any refusal.
+func mustSend(
+	t *testing.T, p *whatsapp.Plugin, conversationID uuid.UUID, content string,
+) *model.WhatsAppMessage {
 	t.Helper()
-	conversations := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	sent, err := sendMessage(t, p, conversationID, content)
+	if err != nil {
+		t.Fatalf("WhatsAppSendMessage() error = %v, want nil", err)
+	}
+	return sent
+}
+
+// sendRefusalCode returns the graph code a refused send carries.
+func sendRefusalCode(t *testing.T, err error) string {
+	t.Helper()
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v, want a graph error", err)
+	}
+	return refused.Code
+}
+
+// onlyConversation returns the single conversation the plugin holds.
+func onlyConversation(t *testing.T, p *whatsapp.Plugin) *model.WhatsAppConversation {
+	t.Helper()
+	conversations := listConversations(t, p, nil)
 	if len(conversations) != 1 {
 		t.Fatalf("conversations = %d, want 1", len(conversations))
 	}
@@ -100,17 +124,10 @@ func TestSendMessageDeliversReply(t *testing.T) {
 	p, stub := newSendingPlugin(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 
-	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"Ready at 5pm"}`)
+	sent := mustSend(t, p, conversationID, "Ready at 5pm")
 
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
-	}
-	var sent messageBody
-	if err := json.Unmarshal(recorder.Body.Bytes(), &sent); err != nil {
-		t.Fatalf("decoding %q: %v", recorder.Body.String(), err)
-	}
 	if sent.Direction != "outbound" || sent.Content != "Ready at 5pm" || sent.ExternalID != "wamid.out.1" {
 		t.Errorf("message = %+v, want an outbound reply delivered as wamid.out.1", sent)
 	}
@@ -137,7 +154,7 @@ func TestSendMessageDeliversReply(t *testing.T) {
 		t.Errorf("graph payload = %+v, want a whatsapp text to 184467235", payload)
 	}
 
-	messages := getJSON[[]messageBody](t, routes, "/conversations/"+conversationID.String()+"/messages", http.StatusOK)
+	messages := listMessages(t, p, conversationID)
 	if len(messages) != 2 || messages[1].Direction != "outbound" {
 		t.Errorf("thread = %+v, want the outbound reply appended after the inbound message", messages)
 	}
@@ -149,67 +166,13 @@ func TestSendMessageAdvancesConversationActivity(t *testing.T) {
 	p, _ := newSendingPlugin(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	before := onlyConversation(t, routes).LastActivityAt
+	before := onlyConversation(t, p).LastActivityAt
 
-	recorder := postJSON(
-		t,
-		routes,
-		"/conversations/"+onlyConversation(t, routes).ID.String()+"/messages",
-		`{"content":"Ready at 5pm"}`,
-	)
+	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
 
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
-	}
-	after := onlyConversation(t, routes).LastActivityAt
+	after := onlyConversation(t, p).LastActivityAt
 	if !after.After(before) {
-		t.Errorf("last_activity_at = %v, want later than %v after replying", after, before)
-	}
-}
-
-func TestSendMessageValidatesRequests(t *testing.T) {
-	t.Parallel()
-
-	p, _ := newSendingPlugin(t, nil)
-	routes := p.Routes()
-
-	tests := map[string]struct {
-		target     string
-		body       string
-		wantStatus int
-	}{
-		"malformed conversation id": {
-			target:     "/conversations/not-a-uuid/messages",
-			body:       `{"content":"hey"}`,
-			wantStatus: http.StatusBadRequest,
-		},
-		"malformed body": {
-			target:     "/conversations/" + uuid.Must(uuid.NewV7()).String() + "/messages",
-			body:       `{"content":`,
-			wantStatus: http.StatusBadRequest,
-		},
-		"blank content": {
-			target:     "/conversations/" + uuid.Must(uuid.NewV7()).String() + "/messages",
-			body:       `{"content":" \t "}`,
-			wantStatus: http.StatusBadRequest,
-		},
-		"unknown conversation": {
-			target:     "/conversations/" + uuid.Must(uuid.NewV7()).String() + "/messages",
-			body:       `{"content":"hey"}`,
-			wantStatus: http.StatusNotFound,
-		},
-	}
-
-	for testName, tc := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			recorder := postJSON(t, routes, tc.target, tc.body)
-
-			if recorder.Code != tc.wantStatus {
-				t.Fatalf("status = %d, want %d", recorder.Code, tc.wantStatus)
-			}
-		})
+		t.Errorf("lastActivityAt = %v, want later than %v after replying", after, before)
 	}
 }
 
@@ -232,15 +195,15 @@ func TestSendMessageReportsUpstreamFailure(t *testing.T) {
 			p, stub := newSendingPlugin(t, nil)
 			routes := p.Routes()
 			ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-			conversationID := onlyConversation(t, routes).ID
+			conversationID := onlyConversation(t, p).ID
 			tc.configure(stub)
 
-			recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
+			_, err := sendMessage(t, p, conversationID, "hey")
 
-			if recorder.Code != http.StatusBadGateway {
-				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadGateway)
+			if code := sendRefusalCode(t, err); code != "UPSTREAM" {
+				t.Fatalf("code = %q, want UPSTREAM", code)
 			}
-			messages := getJSON[[]messageBody](t, routes, "/conversations/"+conversationID.String()+"/messages", http.StatusOK)
+			messages := listMessages(t, p, conversationID)
 			if len(messages) != 1 {
 				t.Errorf("thread = %d messages, want the failed reply not to be stored", len(messages))
 			}
@@ -254,24 +217,21 @@ func TestSendMessageSurfacesGraphErrors(t *testing.T) {
 	p, stub := newSendingPlugin(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 	stub.status = http.StatusBadRequest
 	stub.body = `{"error":{"message":"Re-engagement message","code":131047}}`
 
-	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
+	_, err := sendMessage(t, p, conversationID, "hey")
 
-	if recorder.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadGateway)
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v, want a graph error", err)
 	}
-	var failure struct {
-		Error string `json:"error"`
-		Code  int    `json:"code"`
+	if refused.Extensions["metaCode"] != 131047 {
+		t.Fatalf("metaCode = %v, want the rejection code surfaced", refused.Extensions["metaCode"])
 	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &failure); err != nil {
-		t.Fatalf("decoding failure payload: %v", err)
-	}
-	if failure.Code != 131047 || failure.Error != "Re-engagement message" {
-		t.Fatalf("failure = %+v, want the graph error surfaced", failure)
+	if !strings.Contains(err.Error(), "Re-engagement message") {
+		t.Fatalf("error = %v, want the rejection message surfaced", err)
 	}
 }
 
@@ -281,12 +241,12 @@ func TestSendMessageRejectsMisconfiguredGraphURL(t *testing.T) {
 	p, _ := newSendingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_GRAPH_URL": "://not-a-url"})
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 
-	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
+	_, err := sendMessage(t, p, conversationID, "hey")
 
-	if recorder.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadGateway)
+	if code := sendRefusalCode(t, err); code != "UPSTREAM" {
+		t.Fatalf("code = %q, want UPSTREAM", code)
 	}
 }
 
@@ -300,15 +260,15 @@ func TestSendMessageReportsStoreFailure(t *testing.T) {
 	p, _ := newSendingPlugin(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 
 	uuid.SetRand(failingEntropy{})
 	defer uuid.SetRand(nil)
 
-	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"hey"}`)
+	_, err := sendMessage(t, p, conversationID, "hey")
 
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	if err == nil {
+		t.Fatal("WhatsAppSendMessage() error = nil, want the store failure")
 	}
 }
 
@@ -316,11 +276,10 @@ func TestSendMessageReportsLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	p := newPlugin(t, unreachableDatabaseURL, nil, nil)
-	routes := p.Routes()
 
-	recorder := postJSON(t, routes, "/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages", `{"content":"hey"}`)
+	_, err := sendMessage(t, p, uuid.Must(uuid.NewV7()), "hey")
 
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	if err == nil {
+		t.Fatal("WhatsAppSendMessage() error = nil, want the lookup failure")
 	}
 }

@@ -3,13 +3,13 @@
 package importer_test
 
 import (
-	"net/http"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/alphone/graph/model"
 )
 
 func TestSeedStoresACommittedDemoImport(t *testing.T) {
@@ -102,33 +102,30 @@ func TestSeedStoresTheImportedContact(t *testing.T) {
 	}
 }
 
-func TestSeedIsReadableThroughTheAPI(t *testing.T) {
+func TestSeedIsReadableThroughTheGraph(t *testing.T) {
 	t.Parallel()
 
-	p, pool, _, _ := newCommittingPlugin(t)
+	p, _, _, _ := newCommittingPlugin(t)
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
-	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(),
-		"SELECT id FROM plugin_importer.imports").Scan(&id); err != nil {
-		t.Fatalf("reading the seeded import: %v", err)
+	history, err := p.QueryResolvers().Imports(t.Context())
+	if err != nil {
+		t.Fatalf("Imports() error = %v, want nil", err)
 	}
-	history := getPath(t, p, "/imports")
-	if history.Code != http.StatusOK {
-		t.Fatalf("history status = %d, want %d, body %s",
-			history.Code, http.StatusOK, history.Body)
+	if len(history) != 1 || history[0].Filename != "spring-leads.csv" {
+		t.Fatalf("history = %+v, want the demo import listed", history)
 	}
-	if !strings.Contains(history.Body.String(), "spring-leads.csv") {
-		t.Errorf("history = %s, want the demo import listed", history.Body)
+	rows, err := p.ImportJobResolvers().Rows(t.Context(), history[0], nil)
+	if err != nil {
+		t.Fatalf("Rows() error = %v, want nil", err)
 	}
-	rows := getPath(t, p, "/imports/"+id.String()+"/rows")
-	if rows.Code != http.StatusOK {
-		t.Fatalf("rows status = %d, want %d, body %s", rows.Code, http.StatusOK, rows.Body)
-	}
-	if !strings.Contains(rows.Body.String(), "Grace Hopper") {
-		t.Errorf("rows = %s, want the scripted cells served", rows.Body)
+	scripted := slices.ContainsFunc(rows, func(row *model.ImportRow) bool {
+		return slices.Contains(row.Cells, "Grace Hopper")
+	})
+	if !scripted {
+		t.Errorf("rows = %+v, want the scripted cells served", rows)
 	}
 }
 

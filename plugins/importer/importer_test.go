@@ -21,9 +21,8 @@ import (
 )
 
 var (
-	_ sdk.Plugin        = (*importer.Plugin)(nil)
-	_ sdk.Migrator      = (*importer.Plugin)(nil)
-	_ sdk.RouteProvider = (*importer.Plugin)(nil)
+	_ sdk.Plugin   = (*importer.Plugin)(nil)
+	_ sdk.Migrator = (*importer.Plugin)(nil)
 )
 
 const uniqueViolation = "23505"

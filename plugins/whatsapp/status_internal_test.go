@@ -3,13 +3,12 @@
 package whatsapp
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/graph/model"
 )
 
 func seedOutboundMessage(t *testing.T, p *Plugin, externalID string) uuid.UUID {
@@ -258,24 +257,16 @@ func TestMessagesListCarriesDeliveryStatus(t *testing.T) {
 		t.Errorf("row StatusDetail = %v, want the failure detail", rows[0].StatusDetail)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/conversations/"+conversationID.String()+"/messages", nil)
-	recorder := httptest.NewRecorder()
-	p.Routes().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	messages, err := p.WhatsAppConversationResolvers().Messages(
+		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil)
+	if err != nil {
+		t.Fatalf("Messages() error = %v, want nil", err)
 	}
-	var payload []struct {
-		Status       *string `json:"status"`
-		StatusDetail *string `json:"status_detail"`
+	if len(messages) != 1 || messages[0].Status == nil || *messages[0].Status != "failed" {
+		t.Fatalf("message status = %+v, want failed", messages)
 	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decoding messages: %v", err)
-	}
-	if len(payload) != 1 || payload[0].Status == nil || *payload[0].Status != "failed" {
-		t.Fatalf("payload status = %+v, want failed", payload)
-	}
-	if payload[0].StatusDetail == nil || *payload[0].StatusDetail != "131047 Re-engagement message" {
-		t.Errorf("payload status_detail = %v, want the failure detail", payload[0].StatusDetail)
+	if messages[0].StatusDetail == nil || *messages[0].StatusDetail != "131047 Re-engagement message" {
+		t.Errorf("message statusDetail = %v, want the failure detail", messages[0].StatusDetail)
 	}
 
 	inboundConversation, _ := seedMessage(t, p, "wamid.in.nullstatus")

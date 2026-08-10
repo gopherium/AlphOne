@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -117,15 +116,6 @@ func sentMessageID(raw []byte) (string, error) {
 	return decoded.Messages[0].ID, nil
 }
 
-type sendMessageRequest struct {
-	Content string `json:"content"`
-}
-
-type sendFailureResponse struct {
-	Error string `json:"error"`
-	Code  int    `json:"code"`
-}
-
 // Send service errors.
 var (
 	errEmptyMessageContent  = errors.New("whatsapp: message content must not be empty")
@@ -170,77 +160,4 @@ func upstreamError(err error) error {
 		coded.Extensions = map[string]any{"metaCode": rejection.Code}
 	}
 	return coded
-}
-
-// handleMessageSend returns an HTTP handler that sends an outbound message on a conversation and persists it.
-func (p *Plugin) handleMessageSend() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		conversationID, content, ok := decodeSendRequest(w, r)
-		if !ok {
-			return
-		}
-		row, err := p.sendMessage(r.Context(), conversationID, content)
-		if err != nil {
-			respondSendError(w, err)
-			return
-		}
-		respondJSON(w, http.StatusCreated, messageResponse{
-			ID:          row.ID,
-			ExternalID:  row.ExternalID,
-			Direction:   row.Direction,
-			Content:     row.Content,
-			ContentType: row.ContentType,
-			SentAt:      row.SentAt.UTC(),
-		})
-	}
-}
-
-// respondSendError maps a failed send onto the REST status contract.
-func respondSendError(w http.ResponseWriter, err error) {
-	var coded sdk.GraphError
-	if !errors.As(err, &coded) {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	switch coded.Code {
-	case "NOT_FOUND":
-		w.WriteHeader(http.StatusNotFound)
-	case "UPSTREAM":
-		respondSendFailure(w, err)
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-}
-
-// decodeSendRequest returns the conversation id and trimmed content of a send request, answering 400 when invalid.
-func decodeSendRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID, string, bool) {
-	conversationID, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return uuid.Nil, "", false
-	}
-	var body sendMessageRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return uuid.Nil, "", false
-	}
-	content := strings.TrimSpace(body.Content)
-	if content == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return uuid.Nil, "", false
-	}
-	return conversationID, content, true
-}
-
-// respondSendFailure answers a failed Graph send, carrying any rejection detail.
-func respondSendFailure(w http.ResponseWriter, err error) {
-	var rejection graphError
-	if errors.As(err, &rejection) {
-		respondJSON(w, http.StatusBadGateway, sendFailureResponse{
-			Error: rejection.Message,
-			Code:  rejection.Code,
-		})
-		return
-	}
-	w.WriteHeader(http.StatusBadGateway)
 }

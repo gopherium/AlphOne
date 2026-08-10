@@ -6,8 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"slices"
 	"sync"
 	"testing"
@@ -148,25 +146,6 @@ func newCommittingPlugin(t *testing.T) (
 	return p, pool, contacts, events
 }
 
-// postCommit asks the plugin to commit one import.
-func postCommit(t *testing.T, p *importer.Plugin, id string) *httptest.ResponseRecorder {
-	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, "/imports/"+id+"/commit", nil)
-	recorder := httptest.NewRecorder()
-	p.Routes().ServeHTTP(recorder, request)
-	return recorder
-}
-
-// mapNameAndEmail assigns the first column to name and the second to email.
-func mapNameAndEmail(t *testing.T, p *importer.Plugin, id uuid.UUID) {
-	t.Helper()
-	recorder := putMapping(t, p, id.String(),
-		`{"assignments":[{"column":0,"field":"name"},{"column":1,"field":"email"}]}`)
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("mapping status = %d, want %d, body %s", recorder.Code, http.StatusNoContent, recorder.Body)
-	}
-}
-
 // outcomesOf returns each row outcome of an import in position order.
 func outcomesOf(t *testing.T, pool *pgxpool.Pool, importID uuid.UUID) []string {
 	t.Helper()
@@ -204,11 +183,8 @@ func TestCommitImportsSkipsAndFailsEachRow(t *testing.T) {
 	id := uploadNamed(t, p, "mixed.csv", mixedCSV)
 	mapNameAndEmail(t, p, id)
 
-	recorder := postCommit(t, p, id.String())
+	mustCommit(t, p, id)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusOK, recorder.Body)
-	}
 	want := []string{"skipped", "failed", "imported", "failed", "imported"}
 	if diff := slices.Compare(want, outcomesOf(t, pool, id)); diff != 0 {
 		t.Errorf("outcomes = %v, want %v", outcomesOf(t, pool, id), want)
@@ -248,9 +224,7 @@ func TestCommitAnnouncesTheCompletedImport(t *testing.T) {
 	id := uploadNamed(t, p, "two.csv", "Name,Email\nMaria Perez,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	if len(events.names) != 1 || events.names[0] != "import.completed" {
 		t.Fatalf("published %v, want exactly one import.completed", events.names)
@@ -271,9 +245,7 @@ func TestCommitStoresTheIdentitiesNormalized(t *testing.T) {
 	id := uploadNamed(t, p, "case.csv", "Name,Email\nMaria Perez,MARIA@Example.COM\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	if _, found, _ := contacts.FindByIdentity(t.Context(), "email", "MARIA@Example.COM"); !found {
 		t.Error("the identity was not handed to the directory as written in the file")
@@ -288,9 +260,7 @@ func TestCommitSkipsARowSharingAnIdentityWithAnEarlierRow(t *testing.T) {
 		"Name,Email\nMaria Perez,shared@example.com\nMaria P,shared@example.com\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	want := []string{"imported", "skipped"}
 	if diff := slices.Compare(want, outcomesOf(t, pool, id)); diff != 0 {
@@ -306,9 +276,7 @@ func TestCommitNeverOffersAKnownContactForCreation(t *testing.T) {
 	id := uploadNamed(t, p, "known.csv", "Name,Email\nMaria P,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	if contacts.creates != 0 {
 		t.Errorf("offered %d contacts for creation, want the dedup lookup to spare the write",
@@ -325,9 +293,7 @@ func TestCommitSkipsARowClaimedWhileTheImportRuns(t *testing.T) {
 	id := uploadNamed(t, p, "race.csv", "Name,Email\nMaria P,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	var outcome string
 	var owner *uuid.UUID
@@ -369,9 +335,7 @@ func TestCommitFinishesOnlyThePendingRowsOnAResume(t *testing.T) {
 		t.Fatalf("settling the first row: %v", err)
 	}
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
 	var owner uuid.UUID
 	if err := pool.QueryRow(t.Context(),
@@ -394,14 +358,12 @@ func TestCommitRefusesAnImportThatIsAlreadyCommitted(t *testing.T) {
 	p, _, _, events := newCommittingPlugin(t)
 	id := uploadNamed(t, p, "once.csv", "Name,Email\nMaria Perez,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("first commit status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 
-	replay := postCommit(t, p, id.String())
+	_, err := commitImport(t, p, id)
 
-	if replay.Code != http.StatusConflict {
-		t.Fatalf("replay status = %d, want %d", replay.Code, http.StatusConflict)
+	if code := refusalCode(t, err); code != "CONFLICT" {
+		t.Fatalf("replay code = %q, want CONFLICT", code)
 	}
 	if len(events.names) != 1 {
 		t.Errorf("published %v, want the replay to announce nothing", events.names)
@@ -414,36 +376,10 @@ func TestCommitRefusesAnImportWithoutAMapping(t *testing.T) {
 	p, _, _, _ := newCommittingPlugin(t)
 	id := uploadNamed(t, p, "unmapped.csv", "Name,Email\nMaria Perez,maria@example.com\n")
 
-	recorder := postCommit(t, p, id.String())
+	_, err := commitImport(t, p, id)
 
-	if recorder.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnprocessableEntity)
-	}
-}
-
-func TestCommitRejectsMalformedAndUnknownIDs(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		id         string
-		wantStatus int
-	}{
-		"malformed id": {id: "not-a-uuid", wantStatus: http.StatusBadRequest},
-		"unknown id":   {id: uuid.Must(uuid.NewV7()).String(), wantStatus: http.StatusNotFound},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			p, _, _, _ := newCommittingPlugin(t)
-
-			recorder := postCommit(t, p, tc.id)
-
-			if recorder.Code != tc.wantStatus {
-				t.Fatalf("status = %d, want %d", recorder.Code, tc.wantStatus)
-			}
-		})
+	if code := refusalCode(t, err); code != "VALIDATION" {
+		t.Fatalf("code = %q, want VALIDATION", code)
 	}
 }
 
@@ -460,11 +396,8 @@ func TestCommitFailsOnlyTheRowTheHostRefuses(t *testing.T) {
 	mapNameAndEmail(t, p, id)
 	contacts.refused = "n/a"
 
-	recorder := postCommit(t, p, id.String())
+	mustCommit(t, p, id)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d, body %s", recorder.Code, http.StatusOK, recorder.Body)
-	}
 	want := []string{"imported", "failed"}
 	if diff := slices.Compare(want, outcomesOf(t, pool, id)); diff != 0 {
 		t.Errorf("outcomes = %v, want %v", outcomesOf(t, pool, id), want)
@@ -501,10 +434,10 @@ func TestCommitReportsADirectoryFailure(t *testing.T) {
 	mapNameAndEmail(t, p, id)
 	contacts.findErr = errDirectory
 
-	recorder := postCommit(t, p, id.String())
+	_, err := commitImport(t, p, id)
 
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	if err == nil {
+		t.Fatal("ImportCommit() error = nil, want the directory failure")
 	}
 	var state string
 	if err := pool.QueryRow(t.Context(),
@@ -524,10 +457,10 @@ func TestCommitReportsACreateFailure(t *testing.T) {
 	mapNameAndEmail(t, p, id)
 	contacts.createErr = errDirectory
 
-	recorder := postCommit(t, p, id.String())
+	_, err := commitImport(t, p, id)
 
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	if err == nil {
+		t.Fatal("ImportCommit() error = nil, want the create failure")
 	}
 }
 
@@ -553,11 +486,10 @@ func TestCommitReportsAFailureAtEachWrite(t *testing.T) {
 				t.Fatalf("adding the constraint: %v", err)
 			}
 
-			recorder := postCommit(t, p, id.String())
+			_, err := commitImport(t, p, id)
 
-			if recorder.Code != http.StatusInternalServerError {
-				t.Fatalf("status = %d, want %d, body %s",
-					recorder.Code, http.StatusInternalServerError, recorder.Body)
+			if err == nil {
+				t.Fatal("ImportCommit() error = nil, want the refused write")
 			}
 		})
 	}
@@ -580,9 +512,7 @@ func TestCommitWorksWithoutAPublisher(t *testing.T) {
 	id := uploadNamed(t, p, "quiet.csv", "Name,Email\nMaria Perez,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 
-	if recorder := postCommit(t, p, id.String()); recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+	mustCommit(t, p, id)
 }
 
 func TestCommitReportsARowReadFailure(t *testing.T) {
@@ -595,9 +525,9 @@ func TestCommitReportsARowReadFailure(t *testing.T) {
 		t.Fatalf("dropping the rows table: %v", err)
 	}
 
-	recorder := postCommit(t, p, id.String())
+	_, err := commitImport(t, p, id)
 
-	if recorder.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	if err == nil {
+		t.Fatal("ImportCommit() error = nil, want the row read failure")
 	}
 }

@@ -3,7 +3,6 @@
 package whatsapp
 
 import (
-	"encoding/json"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/graph/model"
 )
 
 func seedStoredMedia(
@@ -303,18 +304,19 @@ func TestMediaDownloadRejectsMalformedIDs(t *testing.T) {
 	}
 }
 
-type mediaPayload struct {
-	Status   string  `json:"status"`
-	MimeType string  `json:"mime_type"`
-	Filename *string `json:"filename"`
-	FileSize *int64  `json:"file_size"`
-	Voice    bool    `json:"voice"`
-	Animated bool    `json:"animated"`
-}
-
-type messagePayload struct {
-	ID    uuid.UUID     `json:"id"`
-	Media *mediaPayload `json:"media"`
+// threadMedia reads a conversation's messages and keys their media by message id.
+func threadMedia(t *testing.T, p *Plugin, conversationID uuid.UUID) map[uuid.UUID]*model.WhatsAppMedia {
+	t.Helper()
+	messages, err := p.WhatsAppConversationResolvers().Messages(
+		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil)
+	if err != nil {
+		t.Fatalf("Messages() error = %v, want nil", err)
+	}
+	byID := make(map[uuid.UUID]*model.WhatsAppMedia, len(messages))
+	for _, message := range messages {
+		byID[message.ID] = message.Media
+	}
+	return byID
 }
 
 func TestMessagesListCarriesMedia(t *testing.T) {
@@ -346,21 +348,8 @@ func TestMessagesListCarriesMedia(t *testing.T) {
 		mediaID: "MEDIA2", mimeType: "audio/ogg", sha256: "c2hh", voice: true,
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/conversations/"+conversationID.String()+"/messages", nil)
-	recorder := httptest.NewRecorder()
-	p.Routes().ServeHTTP(recorder, request)
+	byID := threadMedia(t, p, conversationID)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-	var messages []messagePayload
-	if err := json.Unmarshal(recorder.Body.Bytes(), &messages); err != nil {
-		t.Fatalf("decoding messages: %v", err)
-	}
-	byID := make(map[uuid.UUID]*mediaPayload, len(messages))
-	for _, message := range messages {
-		byID[message.ID] = message.Media
-	}
 	if byID[textID] != nil {
 		t.Errorf("text message media = %+v, want null", byID[textID])
 	}
@@ -374,8 +363,8 @@ func TestMessagesListCarriesMedia(t *testing.T) {
 	if stored.Filename == nil || *stored.Filename != "photo.jpg" {
 		t.Errorf("stored filename = %v, want photo.jpg", stored.Filename)
 	}
-	if stored.FileSize == nil || *stored.FileSize != int64(len(data)) {
-		t.Errorf("stored file_size = %v, want %d", stored.FileSize, len(data))
+	if stored.FileSize == nil || *stored.FileSize != len(data) {
+		t.Errorf("stored fileSize = %v, want %d", stored.FileSize, len(data))
 	}
 	voice := byID[voiceID]
 	if voice == nil {
@@ -385,7 +374,7 @@ func TestMessagesListCarriesMedia(t *testing.T) {
 		t.Errorf("voice media = (%q, voice=%t), want (pending, voice=true)", voice.Status, voice.Voice)
 	}
 	if voice.FileSize != nil {
-		t.Errorf("pending file_size = %v, want null", voice.FileSize)
+		t.Errorf("pending fileSize = %v, want null", voice.FileSize)
 	}
 }
 

@@ -206,11 +206,8 @@ func TestConversationEventSubscriptionDeliversAnOutboundSend(t *testing.T) {
 	frames := openSubscription(t, srv, "subscription { whatsAppConversationEvent }")
 	waitForListeners(t, p, 1)
 
-	recorder := postJSON(t, routes, "/conversations/"+conversationID.String()+"/messages", `{"content":"On my way"}`)
+	mustSend(t, p, conversationID, "On my way")
 
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusCreated, recorder.Body.String())
-	}
 	if got := nextData(t, frames); !strings.Contains(got, conversationID.String()) {
 		t.Errorf("subscription read %q, want the changed conversation %s", got, conversationID)
 	}

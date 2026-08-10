@@ -389,7 +389,7 @@ func TestGraphSendMessageDeliversAndPersists(t *testing.T) {
 	p, stub, pool := newSendingHarness(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 	client := newGraphQLClient(t, p, pool)
 
 	var response struct{ WhatsAppSendMessage graphMessage }
@@ -426,7 +426,7 @@ func TestGraphSendMessageClassifiesFailures(t *testing.T) {
 	p, stub, pool := newSendingHarness(t, nil)
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
-	conversationID := onlyConversation(t, routes).ID
+	conversationID := onlyConversation(t, p).ID
 	client := newGraphQLClient(t, p, pool)
 	sendDocument := `mutation($id: UUID!, $content: String!) {
 		whatsAppSendMessage(conversationId: $id, content: $content) { id }

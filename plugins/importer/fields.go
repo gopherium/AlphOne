@@ -2,8 +2,6 @@
 
 package importer
 
-import "net/http"
-
 // fieldName is a contact detail a column may be mapped onto.
 type fieldName string
 
@@ -14,24 +12,18 @@ const (
 	fieldPhone       fieldName = "phone"
 )
 
-type fieldResponse struct {
-	Name     fieldName `json:"name"`
-	Label    string    `json:"label"`
-	Required bool      `json:"required"`
+// mappableField is one field of the registry, as the graph reports it.
+type mappableField struct {
+	Name     fieldName
+	Label    string
+	Required bool
 }
 
 // mappableFields lists every field a column may be mapped onto.
-var mappableFields = []fieldResponse{
+var mappableFields = []mappableField{
 	{Name: fieldContactName, Label: "Name", Required: true},
 	{Name: fieldEmail, Label: "Email", Required: false},
 	{Name: fieldPhone, Label: "Phone", Required: false},
-}
-
-// handleFields returns a handler serving the fields a column may be mapped onto.
-func (p *Plugin) handleFields() http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		respondJSON(w, http.StatusOK, mappableFields)
-	}
 }
 
 // mappable reports whether the registry carries the named field.

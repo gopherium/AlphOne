@@ -3,10 +3,8 @@
 package importer
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 )
 
@@ -16,51 +14,10 @@ var errRequiredFieldUnmapped = fmt.Errorf("no assignment claims the required fie
 // errMappingLocked reports a mapping change on an import past its ready state.
 var errMappingLocked = errors.New("the import no longer accepts a mapping")
 
+// assignment binds one column of an import to a field of the registry.
 type assignment struct {
-	Column int       `json:"column"`
-	Field  fieldName `json:"field"`
-}
-
-type mappingRequest struct {
-	Assignments []assignment `json:"assignments"`
-}
-
-// handleMappingPut returns a handler storing the column assignments of an import.
-func (p *Plugin) handleMappingPut() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req mappingRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondError(w, http.StatusBadRequest, "the request body is malformed")
-			return
-		}
-		stored, ok := p.loadImport(w, r)
-		if !ok {
-			return
-		}
-		assigned, ok := usableMapping(w, req.Assignments, stored)
-		if !ok {
-			return
-		}
-		if err := p.store.updateMapping(r.Context(), stored.ID, assigned); err != nil {
-			respondError(w, http.StatusInternalServerError, "the mapping could not be stored")
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-// usableMapping returns the mapping assignments stand for, answering the caller itself when they do not.
-func usableMapping(w http.ResponseWriter, assignments []assignment, stored importRow) (mapping, bool) {
-	if stored.State != stateReady {
-		respondError(w, http.StatusConflict, errMappingLocked.Error())
-		return nil, false
-	}
-	assigned, err := buildMapping(assignments, len(stored.Columns))
-	if err != nil {
-		respondError(w, http.StatusUnprocessableEntity, err.Error())
-		return nil, false
-	}
-	return assigned, true
+	Column int
+	Field  fieldName
 }
 
 // buildMapping turns assignments into the stored mapping, refusing an unusable set.

@@ -5,11 +5,9 @@ package importer
 import (
 	"context"
 	"errors"
-	"net/http"
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -34,41 +32,6 @@ type settlement struct {
 	outcome   string
 	reason    string
 	contactID *uuid.UUID
-}
-
-type commitResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Imported int       `json:"imported"`
-	Skipped  int       `json:"skipped"`
-	Failed   int       `json:"failed"`
-}
-
-// handleCommit returns a handler turning the staged rows of an import into contacts.
-func (p *Plugin) handleCommit() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		stored, ok := p.loadImport(w, r)
-		if !ok {
-			return
-		}
-		claimed, err := p.store.claimForCommit(r.Context(), stored.ID)
-		if err != nil {
-			respondClaimError(w, err)
-			return
-		}
-		if err := p.commitRows(r.Context(), stored.ID, claimed); err != nil {
-			respondError(w, http.StatusInternalServerError, "the import could not be committed")
-			return
-		}
-		counts, err := p.store.finishCommit(r.Context(), stored.ID)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "the import could not be finished")
-			return
-		}
-		p.announceCompletion(r.Context(), stored.ID, counts)
-		respondJSON(w, http.StatusOK, commitResponse{
-			ID: stored.ID, Imported: counts.Imported, Skipped: counts.Skipped, Failed: counts.Failed,
-		})
-	}
 }
 
 // commitRows settles every row of the import still waiting to be committed.
@@ -197,16 +160,4 @@ func (p *Plugin) announceCompletion(ctx context.Context, importID uuid.UUID, cou
 	p.events.Publish(ctx, eventImportCompleted, map[string]any{
 		"id": importID.String(), "imported": counts.Imported, "skipped": counts.Skipped,
 	})
-}
-
-// respondClaimError answers the status a refused commit maps to.
-func respondClaimError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, errAlreadyCommitted):
-		respondError(w, http.StatusConflict, errAlreadyCommitted.Error())
-	case errors.Is(err, errNoMapping), errors.Is(err, pgx.ErrNoRows):
-		respondError(w, http.StatusUnprocessableEntity, errNoMapping.Error())
-	default:
-		respondError(w, http.StatusInternalServerError, "the import could not be claimed")
-	}
 }

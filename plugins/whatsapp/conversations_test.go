@@ -3,59 +3,50 @@
 package whatsapp_test
 
 import (
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/plugins/whatsapp"
 )
 
-type conversationBody struct {
-	ID                 uuid.UUID `json:"id"`
-	ContactID          uuid.UUID `json:"contact_id"`
-	ContactName        string    `json:"contact_name"`
-	ExternalID         string    `json:"external_id"`
-	Status             string    `json:"status"`
-	LastActivityAt     time.Time `json:"last_activity_at"`
-	LastMessagePreview *string   `json:"last_message_preview"`
-}
-
-type messageBody struct {
-	ID          uuid.UUID `json:"id"`
-	ExternalID  string    `json:"external_id"`
-	Direction   string    `json:"direction"`
-	Content     string    `json:"content"`
-	ContentType string    `json:"content_type"`
-	SentAt      time.Time `json:"sent_at"`
-}
-
-func getJSON[T any](t *testing.T, routes http.Handler, target string, wantStatus int) T {
-	t.Helper()
-	request := httptest.NewRequest(http.MethodGet, target, nil)
-	recorder := httptest.NewRecorder()
-	routes.ServeHTTP(recorder, request)
-	if recorder.Code != wantStatus {
-		t.Fatalf("GET %s status = %d, want %d", target, recorder.Code, wantStatus)
-	}
-	var v T
-	if wantStatus == http.StatusOK {
-		if err := json.Unmarshal(recorder.Body.Bytes(), &v); err != nil {
-			t.Fatalf("decoding %q: %v", recorder.Body.String(), err)
-		}
-	}
-	return v
-}
-
+// ingestEvent delivers one inbound text through the webhook.
 func ingestEvent(t *testing.T, routes http.Handler, wamid, waID, name, timestamp, text string) {
 	t.Helper()
 	body := eventBody(wamid, waID, name, timestamp, text)
 	if recorder := postEvent(t, routes, sign("app-secret", body), body); recorder.Code != http.StatusOK {
 		t.Fatalf("ingesting %s status = %d, want %d", wamid, recorder.Code, http.StatusOK)
 	}
+}
+
+// listConversations reads the conversations through the graph resolver.
+func listConversations(
+	t *testing.T, p *whatsapp.Plugin, limit *int,
+) []*model.WhatsAppConversation {
+	t.Helper()
+	conversations, err := p.QueryResolvers().WhatsAppConversations(t.Context(), limit)
+	if err != nil {
+		t.Fatalf("WhatsAppConversations() error = %v, want nil", err)
+	}
+	return conversations
+}
+
+// listMessages reads one conversation's messages through the graph resolver.
+func listMessages(
+	t *testing.T, p *whatsapp.Plugin, id uuid.UUID,
+) []*model.WhatsAppMessage {
+	t.Helper()
+	messages, err := p.WhatsAppConversationResolvers().Messages(
+		t.Context(), &model.WhatsAppConversation{ID: id}, nil)
+	if err != nil {
+		t.Fatalf("Messages() error = %v, want nil", err)
+	}
+	return messages
 }
 
 func TestListConversationsOrdersByRecentActivity(t *testing.T) {
@@ -66,20 +57,20 @@ func TestListConversationsOrdersByRecentActivity(t *testing.T) {
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.2", "555000111", "John Doe", "1751791100", "hey")
 
-	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	got := listConversations(t, p, nil)
 
 	if len(got) != 2 {
 		t.Fatalf("conversations = %d, want 2", len(got))
 	}
-	if got[0].ContactName != "John Doe" || got[1].ContactName != "María Pérez" {
+	if got[0].Contact.Name != "John Doe" || got[1].Contact.Name != "María Pérez" {
 		t.Errorf("order = [%q, %q], want most recent first [%q, %q]",
-			got[0].ContactName, got[1].ContactName, "John Doe", "María Pérez")
+			got[0].Contact.Name, got[1].Contact.Name, "John Doe", "María Pérez")
 	}
 	if got[0].Status != "open" || got[0].ExternalID != "555000111" {
 		t.Errorf("conversation = %+v, want status open and external id 555000111", got[0])
 	}
 	if got[0].LastActivityAt.Location() != time.UTC {
-		t.Errorf("last_activity_at location = %v, want UTC", got[0].LastActivityAt.Location())
+		t.Errorf("lastActivityAt location = %v, want UTC", got[0].LastActivityAt.Location())
 	}
 }
 
@@ -92,7 +83,7 @@ func TestListConversationsIncludeLastMessagePreview(t *testing.T) {
 	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "how are you?")
 	ingestEvent(t, routes, "wamid.3", "555000111", "John Doe", "1751791200", strings.Repeat("é", 200))
 
-	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	got := listConversations(t, p, nil)
 
 	if len(got) != 2 {
 		t.Fatalf("conversations = %d, want 2", len(got))
@@ -113,7 +104,7 @@ func TestListConversationsPreviewPrefersTheLatestOfTiedTimestamps(t *testing.T) 
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "first")
 	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791000", "second")
 
-	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	got := listConversations(t, p, nil)
 
 	if len(got) != 1 {
 		t.Fatalf("conversations = %d, want 1", len(got))
@@ -131,30 +122,25 @@ func TestListConversationsWithoutMessagesHasNullPreview(t *testing.T) {
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.1", "555000111", "John Doe", "1751791100", "stolen id")
 
-	got := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	got := listConversations(t, p, nil)
 
 	if len(got) != 2 {
 		t.Fatalf("conversations = %d, want 2", len(got))
 	}
-	if got[0].ContactName != "John Doe" || got[0].LastMessagePreview != nil {
+	if got[0].Contact.Name != "John Doe" || got[0].LastMessagePreview != nil {
 		t.Errorf("conversation = %+v, want John Doe with a null preview for a message-less conversation", got[0])
 	}
 }
 
-func TestListConversationsEmptyIsAnArray(t *testing.T) {
+func TestListConversationsEmptyIsAList(t *testing.T) {
 	t.Parallel()
 
 	p, _ := newIngestingPlugin(t)
 
-	request := httptest.NewRequest(http.MethodGet, "/conversations", nil)
-	recorder := httptest.NewRecorder()
-	p.Routes().ServeHTTP(recorder, request)
+	got := listConversations(t, p, nil)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-	if body := strings.TrimSpace(recorder.Body.String()); body != "[]" {
-		t.Errorf("body = %q, want %q, never null", body, "[]")
+	if got == nil || len(got) != 0 {
+		t.Errorf("conversations = %v, want an empty list, never null", got)
 	}
 }
 
@@ -165,27 +151,12 @@ func TestListConversationsHonorsLimit(t *testing.T) {
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.2", "555000111", "John Doe", "1751791100", "hey")
+	one := 1
 
-	got := getJSON[[]conversationBody](t, routes, "/conversations?limit=1", http.StatusOK)
+	got := listConversations(t, p, &one)
 
-	if len(got) != 1 || got[0].ContactName != "John Doe" {
+	if len(got) != 1 || got[0].Contact.Name != "John Doe" {
 		t.Fatalf("limited list = %+v, want only the most recent conversation", got)
-	}
-}
-
-func TestListConversationsRejectsBadLimits(t *testing.T) {
-	t.Parallel()
-
-	p, _ := newIngestingPlugin(t)
-	routes := p.Routes()
-
-	for _, target := range []string{
-		"/conversations?limit=abc",
-		"/conversations?limit=0",
-		"/conversations?limit=1000",
-		"/conversations/" + uuid.Must(uuid.NewV7()).String() + "/messages?limit=abc",
-	} {
-		getJSON[struct{}](t, routes, target, http.StatusBadRequest)
 	}
 }
 
@@ -196,13 +167,12 @@ func TestListMessagesReturnsChronologicalThread(t *testing.T) {
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.1", "184467235", "María Pérez", "1751791000", "hello")
 	ingestEvent(t, routes, "wamid.2", "184467235", "María Pérez", "1751791100", "how are you?")
-
-	conversations := getJSON[[]conversationBody](t, routes, "/conversations", http.StatusOK)
+	conversations := listConversations(t, p, nil)
 	if len(conversations) != 1 {
 		t.Fatalf("conversations = %d, want 1", len(conversations))
 	}
 
-	got := getJSON[[]messageBody](t, routes, "/conversations/"+conversations[0].ID.String()+"/messages", http.StatusOK)
+	got := listMessages(t, p, conversations[0].ID)
 
 	if len(got) != 2 {
 		t.Fatalf("messages = %d, want 2", len(got))
@@ -215,7 +185,7 @@ func TestListMessagesReturnsChronologicalThread(t *testing.T) {
 		t.Errorf("message = %+v, want inbound text", got[0])
 	}
 	if got[0].SentAt.Location() != time.UTC {
-		t.Errorf("sent_at location = %v, want UTC", got[0].SentAt.Location())
+		t.Errorf("sentAt location = %v, want UTC", got[0].SentAt.Location())
 	}
 }
 
@@ -224,37 +194,9 @@ func TestListMessagesUnknownConversationIsEmpty(t *testing.T) {
 
 	p, _ := newIngestingPlugin(t)
 
-	got := getJSON[[]messageBody](
-		t,
-		p.Routes(),
-		"/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages",
-		http.StatusOK,
-	)
+	got := listMessages(t, p, uuid.Must(uuid.NewV7()))
 
 	if len(got) != 0 {
 		t.Fatalf("messages = %d, want 0 for an unknown conversation", len(got))
 	}
-}
-
-func TestListMessagesRejectsMalformedID(t *testing.T) {
-	t.Parallel()
-
-	p, _ := newIngestingPlugin(t)
-
-	getJSON[struct{}](t, p.Routes(), "/conversations/not-a-uuid/messages", http.StatusBadRequest)
-}
-
-func TestReadEndpointsReportStoreFailure(t *testing.T) {
-	t.Parallel()
-
-	p := newPlugin(t, unreachableDatabaseURL, nil, nil)
-	routes := p.Routes()
-
-	getJSON[struct{}](t, routes, "/conversations", http.StatusInternalServerError)
-	getJSON[struct{}](
-		t,
-		routes,
-		"/conversations/"+uuid.Must(uuid.NewV7()).String()+"/messages",
-		http.StatusInternalServerError,
-	)
 }

@@ -341,25 +341,6 @@ func TestGraphImportCommitCreatesContacts(t *testing.T) {
 		t.Errorf("first contact = %+v, want Maria Perez in row order", job.Contacts[0])
 	}
 
-	rest := httptest.NewRecorder()
-	p.Routes().ServeHTTP(rest,
-		httptest.NewRequest(http.MethodGet, "/imports/"+staged.ID+"/contacts", nil))
-	var restPayload struct {
-		Contacts []struct {
-			ContactID uuid.UUID `json:"contact_id"`
-			RowID     uuid.UUID `json:"row_id"`
-		} `json:"contacts"`
-	}
-	if err := json.NewDecoder(rest.Body).Decode(&restPayload); err != nil {
-		t.Fatalf("decoding REST contacts: %v", err)
-	}
-	for i, linked := range restPayload.Contacts {
-		if job.Contacts[i].ContactID != linked.ContactID.String() ||
-			job.Contacts[i].RowID != linked.RowID.String() {
-			t.Errorf("graph contact %d = %+v, want the REST twin %+v", i, job.Contacts[i], linked)
-		}
-	}
-
 	if len(events.names) != 1 || events.names[0] != "import.completed" {
 		t.Errorf("events = %v, want import.completed announced once", events.names)
 	}
