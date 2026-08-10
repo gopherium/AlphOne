@@ -10,15 +10,21 @@ import { sign } from '../inbound'
 import { subscribed } from '../subscription'
 
 const mockGraphPort = 4791
-const metadataDelayMs = 3000
 const imageBytes = Buffer.from(`e2e-image-bytes-${Date.now()}`)
 const imageSha = createHash('sha256').update(imageBytes).digest('base64')
 
+/** MockGraph is the Meta stand in beside the lever releasing its metadata answer. */
+type MockGraph = { server: Server; releaseMetadata: () => void }
+
 /**
- * Starts a stand in for Meta, serving media metadata and blobs.
- * @returns The listening server.
+ * Starts a stand in for Meta, holding its metadata answer until released.
+ * @returns The listening server beside the lever releasing the held answer.
  */
-function startMockGraph(): Promise<Server> {
+function startMockGraph(): Promise<MockGraph> {
+	let releaseMetadata: () => void = () => {}
+	const held = new Promise<void>((resolve) => {
+		releaseMetadata = resolve
+	})
 	const server = createServer((request, response) => {
 		const url = new URL(request.url ?? '/', `http://127.0.0.1:${mockGraphPort}`)
 		if (url.pathname.startsWith('/binary/')) {
@@ -27,7 +33,7 @@ function startMockGraph(): Promise<Server> {
 			return
 		}
 		const mediaID = url.pathname.slice(1)
-		setTimeout(() => {
+		void held.then(() => {
 			response.writeHead(200, { 'Content-Type': 'application/json' })
 			response.end(
 				JSON.stringify({
@@ -38,10 +44,12 @@ function startMockGraph(): Promise<Server> {
 					id: mediaID,
 				}),
 			)
-		}, metadataDelayMs)
+		})
 	})
 	return new Promise((resolve) => {
-		server.listen(mockGraphPort, '127.0.0.1', () => resolve(server))
+		server.listen(mockGraphPort, '127.0.0.1', () =>
+			resolve({ server, releaseMetadata }),
+		)
 	})
 }
 
@@ -91,14 +99,15 @@ function inboundImagePayload(
 }
 
 
-let mockGraph: Server
+let mockGraph: MockGraph
 
 test.beforeAll(async () => {
 	mockGraph = await startMockGraph()
 })
 
 test.afterAll(async () => {
-	await new Promise((resolve) => mockGraph.close(resolve))
+	mockGraph.releaseMetadata()
+	await new Promise((resolve) => mockGraph.server.close(resolve))
 })
 
 test('delivers an inbound photo from the webhook to the thread', async ({
@@ -135,6 +144,8 @@ test('delivers an inbound photo from the webhook to the thread', async ({
 
 	const log = page.getByRole('log', { name: 'Messages' })
 	await expect(log.getByText('Downloading…')).toBeVisible()
+
+	mockGraph.releaseMetadata()
 
 	const image = page.getByAltText('Photo')
 	await expect(image).toBeVisible({ timeout: 15_000 })
