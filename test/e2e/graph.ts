@@ -26,6 +26,31 @@ export async function graph<T>(
 }
 
 /**
+ * Uploads a file through the graph, following the multipart request specification.
+ * @param request - The Playwright request context carrying the credential.
+ * @param query - The mutation document taking one Upload variable named file.
+ * @param file - The file to send.
+ * @returns The data the mutation answered with.
+ */
+export async function graphUpload<T>(
+	request: APIRequestContext,
+	query: string,
+	file: { name: string; mimeType: string; buffer: Buffer },
+): Promise<T> {
+	const response = await request.post('/api/graphql', {
+		multipart: {
+			operations: JSON.stringify({ query, variables: { file: null } }),
+			map: JSON.stringify({ upload: ['variables.file'] }),
+			upload: file,
+		},
+	})
+	expect(response.status(), await response.text()).toBe(200)
+	const answer = (await response.json()) as GraphAnswer<T>
+	expect(answer.errors, JSON.stringify(answer.errors)).toBeUndefined()
+	return answer.data as T
+}
+
+/**
  * Creates a task through the graph.
  * @param request - The Playwright request context carrying the credential.
  * @param input - The CreateTaskInput fields.

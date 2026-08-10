@@ -3,7 +3,7 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 
-import { createTask, graph } from '../graph'
+import { createTask, graph, graphUpload } from '../graph'
 import { deliverInboundText } from '../inbound'
 
 test.use({ viewport: { width: 390, height: 844 } })
@@ -37,27 +37,28 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 	)
 
 	await deliverInboundText(request, `1999${stamp}`, `Ada ${stamp}`, unbreakable)
-	const conversations = await request.get('/api/plugins/whatsapp/conversations')
-	expect(conversations.status()).toBe(200)
+	const conversations = await graph<{ whatsAppConversations: { id: string }[] }>(
+		request,
+		'{ whatsAppConversations { id } }',
+	)
 
-	const staged = await request.post('/api/plugins/importer/imports', {
-		multipart: {
-			file: {
-				name: `contacts-${stamp}.csv`,
-				mimeType: 'text/csv',
-				buffer: Buffer.from(
-					`Name,Email address of the person being imported\n` +
-						`Maria Perez de la Fuente ${stamp},${unbreakable}@example.com\n`,
-				),
-			},
+	const staged = await graphUpload<{ importUpload: { id: string } }>(
+		request,
+		'mutation($file: Upload!) { importUpload(file: $file) { id } }',
+		{
+			name: `contacts-${stamp}.csv`,
+			mimeType: 'text/csv',
+			buffer: Buffer.from(
+				`Name,Email address of the person being imported\n` +
+					`Maria Perez de la Fuente ${stamp},${unbreakable}@example.com\n`,
+			),
 		},
-	})
-	expect(staged.status()).toBe(201)
-	const importID = (await staged.json()).id as string
+	)
+	const importID = staged.importUpload.id
 
 	const taskID = task.id
 	const contactID = contact.createContact.id
-	const conversationID = ((await conversations.json()) as { id: string }[])[0].id
+	const conversationID = conversations.whatsAppConversations[0].id
 
 	return [
 		'/tasks',

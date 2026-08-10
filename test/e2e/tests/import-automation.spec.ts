@@ -10,7 +10,7 @@ import { promisify } from 'node:util'
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 
-import { createTask, graph } from '../graph'
+import { createTask, graph, graphUpload } from '../graph'
 import { baseURL, credentials, databaseURL, repoRoot } from '../env'
 
 const run = promisify(execFile)
@@ -73,24 +73,25 @@ async function startReceiver(): Promise<Receiver> {
  * @returns The import id.
  */
 async function commitImport(api: APIRequestContext, csv: string): Promise<string> {
-	const upload = await api.post('/api/plugins/importer/imports', {
-		multipart: {
-			file: { name: 'leads.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) },
-		},
-	})
-	expect(upload.status(), await upload.text()).toBe(201)
-	const { id } = (await upload.json()) as { id: string }
-	const mapping = await api.put(`/api/plugins/importer/imports/${id}/mapping`, {
-		data: {
+	const uploaded = await graphUpload<{ importUpload: { id: string } }>(
+		api,
+		'mutation($file: Upload!) { importUpload(file: $file) { id } }',
+		{ name: 'leads.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) },
+	)
+	const id = uploaded.importUpload.id
+	await graph(
+		api,
+		'mutation($id: UUID!, $assignments: [ImportAssignmentInput!]!) {' +
+			' importSetMapping(id: $id, assignments: $assignments) { id } }',
+		{
+			id,
 			assignments: [
 				{ column: 0, field: 'name' },
 				{ column: 1, field: 'email' },
 			],
 		},
-	})
-	expect(mapping.status(), await mapping.text()).toBe(204)
-	const commit = await api.post(`/api/plugins/importer/imports/${id}/commit`)
-	expect(commit.status(), await commit.text()).toBe(200)
+	)
+	await graph(api, 'mutation($id: UUID!) { importCommit(id: $id) { id imported } }', { id })
 	return id
 }
 
@@ -139,11 +140,14 @@ test('an import announces itself, and its rows create each task exactly once', a
 		expect(event.event).toBe('import.completed')
 		expect(event.data).toMatchObject({ id: importID, imported: 3, skipped: 0 })
 
-		const listed = await api.get(`/api/plugins/importer/imports/${importID}/contacts`)
-		expect(listed.status(), await listed.text()).toBe(200)
-		const { contacts } = (await listed.json()) as {
-			contacts: { contact_id: string; name: string; row_id: string }[]
-		}
+		const listed = await graph<{
+			importJob: { contacts: { contactId: string; name: string; rowId: string }[] }
+		}>(
+			api,
+			'query($id: UUID!) { importJob(id: $id) { contacts { contactId name rowId } } }',
+			{ id: importID },
+		)
+		const contacts = listed.importJob.contacts
 		expect(contacts).toHaveLength(3)
 
 		const dueOn = new Date(stamp + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -151,8 +155,8 @@ test('an import announces itself, and its rows create each task exactly once', a
 			const created = await createTask(api, {
 				title: `Call ${contact.name}`,
 				dueOn,
-				contactId: contact.contact_id,
-				originEventId: contact.row_id,
+				contactId: contact.contactId,
+				originEventId: contact.rowId,
 			})
 			expect(created.replay, `${contact.name} answered a replay on the first create`).toBe(false)
 		}
@@ -161,8 +165,8 @@ test('an import announces itself, and its rows create each task exactly once', a
 			const replayed = await createTask(api, {
 				title: `Call ${contact.name}`,
 				dueOn,
-				contactId: contact.contact_id,
-				originEventId: contact.row_id,
+				contactId: contact.contactId,
+				originEventId: contact.rowId,
 			})
 			expect(replayed.replay, `${contact.name} created a second task for one row`).toBe(true)
 		}
@@ -171,7 +175,7 @@ test('an import announces itself, and its rows create each task exactly once', a
 			const listed = await graph<{ tasks: { edges: { node: { id: string } }[] } }>(
 				api,
 				'query($contactId: UUID!) { tasks(contactId: $contactId) { edges { node { id } } } }',
-				{ contactId: contact.contact_id },
+				{ contactId: contact.contactId },
 			)
 			expect(
 				listed.tasks.edges,

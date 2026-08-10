@@ -171,19 +171,46 @@ async function callAlphOne(path: string, init: RequestInit = {}): Promise<unknow
 }
 
 /**
+ * Reads the data out of a graph answer, raising on any error it carries.
+ * @param answer - The envelope the graph replied with.
+ * @returns The data the operation answered with.
+ */
+function graphData<T>(answer: unknown): T {
+	const envelope = answer as { data?: T; errors?: { message: string }[] }
+	if (envelope.errors?.length) {
+		throw new Error(`the graph refused the seed: ${envelope.errors[0].message}`)
+	}
+	return envelope.data as T
+}
+
+/**
  * Posts one graph operation as the runbook token.
  * @param query - The operation document.
  * @param variables - The operation variables.
+ * @returns The data the operation answered with.
  */
-async function callGraph(query: string, variables: Record<string, unknown> = {}): Promise<void> {
-	const answer = (await callAlphOne('/api/graphql', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ query, variables }),
-	})) as { errors?: { message: string }[] }
-	if (answer.errors?.length) {
-		throw new Error(`the graph refused the seed: ${answer.errors[0].message}`)
-	}
+async function callGraph<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+	return graphData<T>(
+		await callAlphOne('/api/graphql', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ query, variables }),
+		}),
+	)
+}
+
+/**
+ * Uploads one file through the graph, following the multipart request specification.
+ * @param query - The mutation document taking one Upload variable named file.
+ * @param file - The file to send.
+ * @returns The data the mutation answered with.
+ */
+async function uploadThroughGraph<T>(query: string, file: File): Promise<T> {
+	const form = new FormData()
+	form.append('operations', JSON.stringify({ query, variables: { file: null } }))
+	form.append('map', JSON.stringify({ upload: ['variables.file'] }))
+	form.append('upload', file)
+	return graphData<T>(await callAlphOne('/api/graphql', { method: 'POST', body: form }))
 }
 
 /**
@@ -201,23 +228,23 @@ async function seedContacts(): Promise<void> {
  */
 async function seedImport(runID: number): Promise<void> {
 	const csv = `Name,Email\nGrace Hopper,grace.${runID}@example.com\n`
-	const form = new FormData()
-	form.append('file', new Blob([csv], { type: 'text/csv' }), 'contacts.csv')
-	const uploaded = (await callAlphOne('/api/plugins/importer/imports', {
-		method: 'POST',
-		body: form,
-	})) as { id: string }
-	await callAlphOne(`/api/plugins/importer/imports/${uploaded.id}/mapping`, {
-		method: 'PUT',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
+	const uploaded = await uploadThroughGraph<{ importUpload: { id: string } }>(
+		'mutation($file: Upload!) { importUpload(file: $file) { id } }',
+		new File([csv], 'contacts.csv', { type: 'text/csv' }),
+	)
+	const id = uploaded.importUpload.id
+	await callGraph(
+		'mutation($id: UUID!, $assignments: [ImportAssignmentInput!]!) {' +
+			' importSetMapping(id: $id, assignments: $assignments) { id } }',
+		{
+			id,
 			assignments: [
 				{ column: 0, field: 'name' },
 				{ column: 1, field: 'email' },
 			],
-		}),
-	})
-	await callAlphOne(`/api/plugins/importer/imports/${uploaded.id}/commit`, { method: 'POST' })
+		},
+	)
+	await callGraph('mutation($id: UUID!) { importCommit(id: $id) { id } }', { id })
 }
 
 /**
