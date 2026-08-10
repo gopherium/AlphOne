@@ -9,4 +9,5 @@ go.work
 go.work.sum
 /deploy/
 .claude/
+.mcp.json
 scripts/
