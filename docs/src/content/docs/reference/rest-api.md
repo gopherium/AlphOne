@@ -1,13 +1,14 @@
 ---
 title: REST API
-description: The two routes AlphOne still serves outside the graph, and where everything else went.
+description: The two routes AlphOne still serves outside the graph.
 ---
 
 The [GraphQL API](/reference/graphql-api/) is AlphOne's API. Every read and
 every write is a `POST /api/graphql`.
 
-The REST routes that used to answer beside it are gone. If you built against
-them, see [what replaced them](#what-replaced-the-retired-routes) below.
+The REST routes that used to answer beside it were removed in 0.8.0. If you
+built against them, the 0.8.0 release notes map each one to the graph
+operation that replaced it.
 
 ## Staying on REST
 
@@ -24,50 +25,6 @@ file bytes. A graph field can name a download path, but the bytes themselves
 need a plain HTTP response.
 
 Both are documented in the [WhatsApp API](/whatsapp/api/).
-
-## What replaced the retired routes
-
-Reads and writes are all `POST /api/graphql`, so the whole table collapses to
-one address.
-
-| Retired REST route | Graph operation |
-| ------------------ | --------------- |
-| `POST /api/auth/login` | `login` |
-| `POST /api/auth/logout` | `logout` |
-| `GET /api/auth/session` | `me` |
-| `GET /api/contacts` | `contacts` |
-| `POST /api/contacts` | `createContact` |
-| `GET /api/contacts/{id}` | `contact` |
-| `PATCH /api/contacts/{id}` | `renameContact` |
-| `POST /api/contacts/{id}/identities` | `addContactIdentity` |
-| `DELETE /api/contacts/{id}/identities/{identityId}` | `deleteContactIdentity` |
-| `GET /api/tasks` | `tasks` |
-| `POST /api/tasks` | `createTask` |
-| `GET /api/tasks/{id}` | `task` |
-| `PATCH /api/tasks/{id}` | `updateTask` |
-| `GET /api/users` | `users` |
-| `POST /api/users` | `createUser` |
-| `PATCH /api/users/{id}` | `setUserDisabled` |
-| `GET /api/webhooks` | `webhooks` |
-| `POST /api/webhooks` | `createWebhook` |
-| `DELETE /api/webhooks/{id}` | `deleteWebhook` |
-| `GET /api/version` | `version` |
-| `GET /api/plugins/whatsapp/conversations` | `whatsAppConversations` |
-| `GET /api/plugins/whatsapp/conversations/{id}/messages` | `whatsAppConversation.messages` |
-| `POST /api/plugins/whatsapp/conversations/{id}/messages` | `whatsAppSendMessage` |
-| `GET /api/plugins/importer/fields` | `importFields` |
-| `POST /api/plugins/importer/imports` | `importUpload` |
-| `GET /api/plugins/importer/imports` | `imports` |
-| `GET /api/plugins/importer/imports/{id}` | `importJob` |
-| `PUT /api/plugins/importer/imports/{id}/mapping` | `importSetMapping` |
-| `GET /api/plugins/importer/imports/{id}/rows` | `importJob.rows` |
-| `GET /api/plugins/importer/imports/{id}/contacts` | `importJob.contacts` |
-| `POST /api/plugins/importer/imports/{id}/commit` | `importCommit` |
-
-Field names differ. REST answered `due_on` and `origin_event_id`, the graph
-answers `dueOn` and `originEventId`. Lists that were a plain array with a
-`next_cursor` are connections on the graph, with rows under `edges` and each
-row under `node`. See [paging](/reference/graphql-api/#paging).
 
 ## Limits on what remains
 
