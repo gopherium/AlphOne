@@ -12,6 +12,10 @@ const mockGraphPort = 4791
 const stamp = Date.now()
 const sentWamid = `wamid.e2e.status.out.${stamp}`
 
+/**
+ * Starts a stand in for Meta, answering every send with one message id.
+ * @returns The listening server.
+ */
 function startMockGraph(): Promise<Server> {
 	const server = createServer((request, response) => {
 		request.resume()
@@ -26,6 +30,12 @@ function startMockGraph(): Promise<Server> {
 }
 
 
+/**
+ * Builds the webhook body Meta posts for a delivery status.
+ * @param wamid - The WhatsApp message id the status belongs to.
+ * @param status - The delivery status Meta reports.
+ * @returns The serialized webhook body.
+ */
 function statusPayload(wamid: string, status: string) {
 	return JSON.stringify({
 		entry: [

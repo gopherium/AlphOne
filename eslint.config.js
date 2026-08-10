@@ -13,6 +13,7 @@ export default [
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
+			'test/e2e/**/*.ts',
 		],
 		ignores: ['frontend/src/plugins/index.ts'],
 		languageOptions: {
@@ -29,6 +30,7 @@ export default [
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
+			'test/e2e/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',
@@ -51,6 +53,7 @@ export default [
 			'sdk/frontend/**/*.{ts,tsx}',
 			'plugins/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
+			'test/e2e/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',

@@ -14,6 +14,10 @@ const metadataDelayMs = 3000
 const imageBytes = Buffer.from(`e2e-image-bytes-${Date.now()}`)
 const imageSha = createHash('sha256').update(imageBytes).digest('base64')
 
+/**
+ * Starts a stand in for Meta, serving media metadata and blobs.
+ * @returns The listening server.
+ */
 function startMockGraph(): Promise<Server> {
 	const server = createServer((request, response) => {
 		const url = new URL(request.url ?? '/', `http://127.0.0.1:${mockGraphPort}`)
@@ -41,6 +45,15 @@ function startMockGraph(): Promise<Server> {
 	})
 }
 
+/**
+ * Builds the webhook body Meta posts for an inbound image.
+ * @param waId - The sender WhatsApp id.
+ * @param name - The sender profile name.
+ * @param messageId - The WhatsApp message id.
+ * @param mediaID - The media id the image is fetched by.
+ * @param caption - The caption riding with the image.
+ * @returns The serialized webhook body.
+ */
 function inboundImagePayload(
 	waId: string,
 	name: string,

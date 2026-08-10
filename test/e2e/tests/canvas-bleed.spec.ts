@@ -5,6 +5,11 @@ import { expect, test } from '@playwright/test'
 import { deliverInboundText } from '../inbound'
 import { subscribed } from '../subscription'
 
+/**
+ * Reads the rendered box of the layout canvas.
+ * @param page - The page under test.
+ * @returns The canvas padding and its content box.
+ */
 function canvasGeometry(page: import('@playwright/test').Page) {
 	return page.evaluate(() => {
 		const canvas = document.querySelector('.godmin-layout__canvas')
