@@ -108,7 +108,7 @@ needs a valid credential, which makes it a good connection test:
 ```
 
 ```json
-{ "data": { "version": "0.7.1" } }
+{ "data": { "version": "0.8.0" } }
 ```
 
 ## A first automation
