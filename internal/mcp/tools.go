@@ -124,11 +124,6 @@ func register(server *mcp.Server, run *tools) {
 	})
 }
 
-// tasks lists the caller's tasks for one day or the backlog.
-func (t *tools) tasks(context.Context, TasksInput) (*mcp.CallToolResult, TasksOutput, error) {
-	return nil, TasksOutput{}, errNotImplemented
-}
-
 // contacts searches the directory, marking who holds open work.
 func (t *tools) contacts(context.Context, ContactsInput) (*mcp.CallToolResult, ContactsOutput, error) {
 	return nil, ContactsOutput{}, errNotImplemented

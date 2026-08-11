@@ -19,6 +19,7 @@ import (
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/internal/apitoken"
+	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
@@ -44,17 +45,19 @@ type worldKey struct{}
 
 // world holds everything one scenario needs, torn down when it ends.
 type world struct {
-	t       *testing.T
-	pool    *pgxpool.Pool
-	tasks   *postgres.TaskStore
-	users   *authkitpg.UserStore
-	server  *httptest.Server
-	ownerID uuid.UUID
-	secret  string
-	tokenID uuid.UUID
-	session *mcp.ClientSession
-	connErr error
-	called  *mcp.CallToolResult
+	t           *testing.T
+	pool        *pgxpool.Pool
+	tasks       *postgres.TaskStore
+	contacts    *postgres.ContactStore
+	lastContact uuid.UUID
+	users       *authkitpg.UserStore
+	server      *httptest.Server
+	ownerID     uuid.UUID
+	secret      string
+	tokenID     uuid.UUID
+	session     *mcp.ClientSession
+	connErr     error
+	called      *mcp.CallToolResult
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -117,14 +120,15 @@ func newWorld(t *testing.T) *world {
 	t.Cleanup(srv.Close)
 
 	return &world{
-		t:       t,
-		pool:    pool,
-		tasks:   tasks,
-		users:   users,
-		server:  srv,
-		ownerID: owner.ID,
-		secret:  minted.Secret,
-		tokenID: minted.Token.ID,
+		t:        t,
+		pool:     pool,
+		tasks:    tasks,
+		contacts: contacts,
+		users:    users,
+		server:   srv,
+		ownerID:  owner.ID,
+		secret:   minted.Secret,
+		tokenID:  minted.Token.ID,
 	}
 }
 
@@ -160,4 +164,17 @@ func (w *world) addUser(ctx context.Context, email, name string) (uuid.UUID, err
 		return uuid.Nil, fmt.Errorf("reading %s: %w", email, err)
 	}
 	return stored.ID, nil
+}
+
+// seedContact stores a contact and remembers it for the steps that follow.
+func (w *world) seedContact(ctx context.Context, name string) (uuid.UUID, error) {
+	created, err := contact.New(name)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("building the contact: %w", err)
+	}
+	if err := w.contacts.Create(ctx, created); err != nil {
+		return uuid.Nil, fmt.Errorf("storing the contact: %w", err)
+	}
+	w.lastContact = created.ID
+	return created.ID, nil
 }

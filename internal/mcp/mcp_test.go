@@ -102,7 +102,7 @@ func TestEveryUnfilledToolReportsItIsNotImplementedYet(t *testing.T) {
 	arguments := map[string]map[string]any{
 		"get_contact": {"contact_id": "0198c000-0000-7000-8000-000000000001"},
 	}
-	for _, name := range []string{"find_contacts", "get_contact", "list_my_tasks"} {
+	for _, name := range []string{"find_contacts", "get_contact"} {
 		result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{
 			Name:      name,
 			Arguments: arguments[name],
@@ -200,4 +200,35 @@ func canonical(t *testing.T, raw string) string {
 		t.Fatalf("re-encoding %q: %v", raw, err)
 	}
 	return string(encoded)
+}
+
+func TestListMyTasksAnswersItemsThroughTheSession(t *testing.T) {
+	t.Parallel()
+
+	listing := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"tasks":{"edges":[{"node":{
+			"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","status":"open",
+			"priority":0,"contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
+		}}]}}}`))
+	})
+	session := connect(t, listing)
+
+	result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "list_my_tasks"})
+
+	if err != nil {
+		t.Fatalf("CallTool() error = %v, want nil", err)
+	}
+	if result.IsError {
+		t.Fatalf("the tool failed: %v", result.Content)
+	}
+	structured, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("encoding the structured answer: %v", err)
+	}
+	for _, want := range []string{`"contact_name":"Maria Perez"`, `"contact_id":"c1"`, `"due_on":"2026-08-11"`} {
+		if !strings.Contains(string(structured), want) {
+			t.Errorf("structured = %s, want it to carry %s", structured, want)
+		}
+	}
 }
