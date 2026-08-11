@@ -10,8 +10,8 @@ earlier and are still open. Use this first when someone asks about their day,
 their workload, or what is outstanding. It takes no arguments and reads only
 the tasks of the user whose token opened this session.
 
-Counts are read one page deep. When a count reaches the page bound the answer
-sets capped to true and the number is a lower bound, so say "at least" when
+Counts are read one page deep. When more tasks exist past a page the answer
+sets capped to true and that count is a lower bound, so say "at least" when
 reporting it.`
 
 // tasksDescription tells an agent what list_my_tasks answers.
@@ -24,7 +24,9 @@ Naming both is refused. Naming neither lists today.
 Dates are calendar days written YYYY-MM-DD, for example 2026-08-14. Status is
 open, done, or all, and defaults to open. Each task carries its contact's name
 beside the contact id when it is linked to one, so there is no need to look the
-contact up separately.`
+contact up separately. Every task here belongs to the caller, so assignee_id
+is always the caller's own user id, which is how to tell the caller's work
+apart in contact answers.`
 
 // contactsDescription tells an agent what find_contacts answers.
 const contactsDescription = `Search the contact directory and report who holds open work.
@@ -33,8 +35,9 @@ Give a query to match a contact name or a channel address. Digits are pulled
 out of the query, so "184 467" finds the identity 184467235. A blank query
 lists contacts up to the limit.
 
-Each answer says whether that contact holds at least one open task, which is
-how to answer questions like how many contacts have outstanding work. To read
+Each answer says whether that contact holds at least one open task. That flag
+counts every user's tasks, not only the caller's, the same way the contact
+page in AlphOne shows the contact's work across the whole account. To read
 one contact in full, pass the id from here into get_contact.`
 
 // contactDescription tells an agent what get_contact answers.
@@ -42,4 +45,10 @@ const contactDescription = `Read one contact in full, with its channel addresses
 
 Takes the contact uuid. Take that id from find_contacts or from a task's
 contact_id. Never guess a uuid and never pass a name here, an id AlphOne does
-not hold is refused.`
+not hold is refused.
+
+Open tasks span every user, not only the caller, and each carries the
+assignee_id of the user it belongs to. Compare it against the caller's own
+assignee_id from list_my_tasks to tell whose work is whose. When
+open_tasks_capped is true the contact holds more open tasks than this answer
+carries.`

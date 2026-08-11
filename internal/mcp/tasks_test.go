@@ -10,7 +10,7 @@ import (
 // oneTaskGraph answers the task document with a single linked task.
 const oneTaskGraph = `{"data":{"tasks":{"edges":[{"node":{
 	"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","status":"open","priority":2,
-	"contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
+	"assigneeId":"u1","contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
 }}]}}}`
 
 func TestTasksReadsTheListedTasks(t *testing.T) {
@@ -32,7 +32,7 @@ func TestTasksReadsTheListedTasks(t *testing.T) {
 	got := out.Tasks[0]
 	want := TaskItem{
 		ID: "t1", Title: "Call Maria Perez back", DueOn: "2026-08-11", Status: "open",
-		Priority: 2, ContactID: "c1", ContactName: "Maria Perez",
+		Priority: 2, AssigneeID: "u1", ContactID: "c1", ContactName: "Maria Perez",
 	}
 	if got != want {
 		t.Errorf("task = %+v, want %+v", got, want)

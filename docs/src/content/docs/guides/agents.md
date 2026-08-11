@@ -53,10 +53,11 @@ mcpServers: {
 ```
 
 :::caution[Bearer tokens only]
-The claude.ai and Claude Desktop connector screens accept OAuth (Open
-Authorization) servers, or servers with no login at all. They have no field
-for an `Authorization` header, and AlphOne needs one. So the endpoint works
-from Claude Code and the Agent SDK today, and not from those two.
+The claude.ai and Claude Desktop connector screens expect OAuth (Open
+Authorization). Their request header option, which could carry AlphOne's
+token, is still in beta and not available to everyone. So the endpoint works
+from Claude Code and the Agent SDK today, and from those two only once that
+feature reaches you.
 :::
 
 ## 3. Ask it something
@@ -90,8 +91,10 @@ Two details worth knowing when you read an answer:
 **Counts stop at 200.** When there are more, the answer sets `capped` to
 true and the number means at least that many.
 
-**Tasks are yours alone.** Every tool reads as the token's owner. Another
-user's tasks never appear, whoever asks.
+**Task lists are yours, contact answers are shared.** `workload_summary` and
+`list_my_tasks` read only the token owner's tasks. The two contact tools show
+a contact's open work across every user, exactly like the contact page in the
+web app, and each task says whose it is in `assignee_id`.
 
 ## Reaching further
 
@@ -106,9 +109,9 @@ actually does, not one tool per operation.
 ## Security
 
 The MCP endpoint takes the same API tokens as the rest of AlphOne, so
-everything under [authenticating](/reference/graphql-api/#authenticating) applies. A token
-acts as its user, disabling that user stops the token, and the secret is
-stored hashed and cannot be recovered.
+everything under [authenticating](/reference/graphql-api/#authenticating)
+applies. A token acts as its user, disabling that user stops the token, and
+the secret is stored hashed and cannot be recovered.
 
 Give an agent its own token rather than sharing one with an automation
 engine. Revoking it then costs nothing else.

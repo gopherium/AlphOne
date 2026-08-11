@@ -18,19 +18,20 @@ const taskPageMax = 100
 // tasksDocument reads one page of the caller's tasks with their contacts.
 const tasksDocument = `query($date: Date, $dueBefore: Date, $status: String, $first: Int!) {
 	tasks(date: $date, dueBefore: $dueBefore, status: $status, first: $first) {
-		edges { node { id title dueOn status priority contactId contact { id name } } }
+		edges { node { id title dueOn status priority assigneeId contactId contact { id name } } }
 	}
 }`
 
 // taskNode is one task as the graph answers it.
 type taskNode struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	DueOn     string `json:"dueOn"`
-	Status    string `json:"status"`
-	Priority  int    `json:"priority"`
-	ContactID string `json:"contactId"`
-	Contact   *struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	DueOn      string `json:"dueOn"`
+	Status     string `json:"status"`
+	Priority   int    `json:"priority"`
+	AssigneeID string `json:"assigneeId"`
+	ContactID  string `json:"contactId"`
+	Contact    *struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"contact"`
@@ -87,12 +88,13 @@ func (t *tools) tasks(ctx context.Context, in TasksInput) (*mcp.CallToolResult, 
 // toTaskItem maps one answered task onto the item an agent reads.
 func toTaskItem(node taskNode) TaskItem {
 	item := TaskItem{
-		ID:        node.ID,
-		Title:     node.Title,
-		DueOn:     node.DueOn,
-		Status:    node.Status,
-		Priority:  node.Priority,
-		ContactID: node.ContactID,
+		ID:         node.ID,
+		Title:      node.Title,
+		DueOn:      node.DueOn,
+		Status:     node.Status,
+		Priority:   node.Priority,
+		AssigneeID: node.AssigneeID,
+		ContactID:  node.ContactID,
 	}
 	if node.Contact != nil {
 		item.ContactName = node.Contact.Name

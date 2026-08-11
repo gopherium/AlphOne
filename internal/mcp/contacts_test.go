@@ -129,7 +129,7 @@ func TestContactReadsOneContactInFull(t *testing.T) {
 		"id":"c1","name":"Maria Perez","createdAt":"2026-08-01T10:00:00Z",
 		"identities":[{"channel":"whatsapp","identifier":"184467235","displayName":""}],
 		"tasks":{"edges":[{"node":{"id":"t1","title":"Call Maria Perez back",
-			"dueOn":"2026-08-11","status":"open","priority":1}}]}
+			"dueOn":"2026-08-11","status":"open","priority":1,"assigneeId":"u2"}}]}
 	}}}`)}
 
 	_, out, err := run.contact(t.Context(), ContactInput{ContactID: "c1"})
@@ -145,6 +145,32 @@ func TestContactReadsOneContactInFull(t *testing.T) {
 	}
 	if len(out.OpenTasks) != 1 || out.OpenTasks[0].Title != "Call Maria Perez back" {
 		t.Errorf("open tasks = %+v, want the linked task", out.OpenTasks)
+	}
+	if out.OpenTasks[0].AssigneeID != "u2" {
+		t.Errorf("assignee_id = %q, want the task holder's id", out.OpenTasks[0].AssigneeID)
+	}
+	if out.OpenTasksCapped {
+		t.Error("open_tasks_capped = true, want false when no next page exists")
+	}
+}
+
+func TestContactMarksOpenTasksCutShort(t *testing.T) {
+	t.Parallel()
+
+	run := &tools{graph: answering(`{"data":{"contact":{
+		"id":"c1","name":"Maria Perez","createdAt":"2026-08-01T10:00:00Z","identities":[],
+		"tasks":{"edges":[{"node":{"id":"t1","title":"Call Maria Perez back",
+			"dueOn":"2026-08-11","status":"open","priority":1}}],
+			"pageInfo":{"hasNextPage":true}}
+	}}}`)}
+
+	_, out, err := run.contact(t.Context(), ContactInput{ContactID: "c1"})
+
+	if err != nil {
+		t.Fatalf("contact() error = %v, want nil", err)
+	}
+	if !out.OpenTasksCapped {
+		t.Error("open_tasks_capped = false, want true when a next page exists")
 	}
 }
 

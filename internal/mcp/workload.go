@@ -14,13 +14,23 @@ const workloadPage = 200
 
 // workloadDocument counts today's open tasks beside the open backlog.
 const workloadDocument = `query($today: Date!, $first: Int!) {
-	due: tasks(date: $today, status: "open", first: $first) { edges { node { id } } }
-	overdue: tasks(dueBefore: $today, status: "open", first: $first) { edges { node { id } } }
+	due: tasks(date: $today, status: "open", first: $first) {
+		edges { node { id } } pageInfo { hasNextPage }
+	}
+	overdue: tasks(dueBefore: $today, status: "open", first: $first) {
+		edges { node { id } } pageInfo { hasNextPage }
+	}
 }`
 
-// edgeCount is a connection read only for how many rows it carries.
+// edgeCount is a connection read for its row count and next page flag.
 type edgeCount struct {
-	Edges []struct{} `json:"edges"`
+	Edges    []struct{} `json:"edges"`
+	PageInfo pageInfo   `json:"pageInfo"`
+}
+
+// pageInfo is the part of a connection that says whether more rows exist.
+type pageInfo struct {
+	HasNextPage bool `json:"hasNextPage"`
 }
 
 // workloadData is what the workload document answers with.
@@ -43,6 +53,6 @@ func (t *tools) workload(ctx context.Context, _ WorkloadInput) (*mcp.CallToolRes
 		DueToday: len(data.Due.Edges),
 		Overdue:  len(data.Overdue.Edges),
 	}
-	out.Capped = out.DueToday >= workloadPage || out.Overdue >= workloadPage
+	out.Capped = data.Due.PageInfo.HasNextPage || data.Overdue.PageInfo.HasNextPage
 	return nil, out, nil
 }

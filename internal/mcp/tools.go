@@ -39,6 +39,7 @@ type TaskItem struct {
 	DueOn       string `json:"due_on"`
 	Status      string `json:"status"`
 	Priority    int    `json:"priority"`
+	AssigneeID  string `json:"assignee_id" jsonschema:"the user this task belongs to"`
 	ContactID   string `json:"contact_id,omitempty"`
 	ContactName string `json:"contact_name,omitempty"`
 }
@@ -81,11 +82,12 @@ type ContactInput struct {
 
 // ContactOutput reports one contact in full.
 type ContactOutput struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	CreatedAt  string     `json:"created_at"`
-	Identities []Identity `json:"identities"`
-	OpenTasks  []TaskItem `json:"open_tasks"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	CreatedAt       string     `json:"created_at"`
+	Identities      []Identity `json:"identities"`
+	OpenTasks       []TaskItem `json:"open_tasks"`
+	OpenTasksCapped bool       `json:"open_tasks_capped" jsonschema:"true when more open tasks exist than answered"`
 }
 
 // register declares every tool AlphOne serves, in a fixed order.

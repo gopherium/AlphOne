@@ -8,38 +8,40 @@ import (
 	"testing"
 )
 
-// countingGraph answers a workload document with the given edge counts.
-func countingGraph(due, overdue int) string {
-	edges := func(n int) string {
+// countingGraph answers a workload document with the given counts and next page flags.
+func countingGraph(due, overdue int, moreDue, moreOverdue bool) string {
+	connection := func(n int, more bool) string {
 		rows := make([]string, n)
 		for i := range rows {
 			rows[i] = `{"node":{"id":"t"}}`
 		}
-		return "[" + strings.Join(rows, ",") + "]"
+		return fmt.Sprintf(`{"edges":[%s],"pageInfo":{"hasNextPage":%t}}`, strings.Join(rows, ","), more)
 	}
-	return fmt.Sprintf(`{"data":{"due":{"edges":%s},"overdue":{"edges":%s}}}`, edges(due), edges(overdue))
+	return fmt.Sprintf(`{"data":{"due":%s,"overdue":%s}}`,
+		connection(due, moreDue), connection(overdue, moreOverdue))
 }
 
 func TestWorkloadCountsTheAnswer(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		due, overdue int
-		capped       bool
+		due, overdue         int
+		moreDue, moreOverdue bool
+		capped               bool
 	}{
-		"work on both":       {due: 10, overdue: 3},
-		"a free day":         {due: 0, overdue: 0},
-		"only overdue":       {due: 0, overdue: 2},
-		"a capped day":       {due: workloadPage, overdue: 0, capped: true},
-		"a capped backlog":   {due: 0, overdue: workloadPage, capped: true},
-		"both counts capped": {due: workloadPage, overdue: workloadPage, capped: true},
+		"work on both":             {due: 10, overdue: 3},
+		"a free day":               {due: 0, overdue: 0},
+		"only overdue":             {due: 0, overdue: 2},
+		"exactly the page, no cap": {due: workloadPage, overdue: workloadPage},
+		"a capped day":             {due: workloadPage, moreDue: true, capped: true},
+		"a capped backlog":         {overdue: workloadPage, moreOverdue: true, capped: true},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			run := &tools{graph: answering(countingGraph(tc.due, tc.overdue))}
+			run := &tools{graph: answering(countingGraph(tc.due, tc.overdue, tc.moreDue, tc.moreOverdue))}
 
 			result, out, err := run.workload(t.Context(), WorkloadInput{})
 
@@ -75,13 +77,13 @@ func TestWorkloadAsksForTodayAndTheBacklog(t *testing.T) {
 	t.Parallel()
 
 	var body string
-	run := &tools{graph: recording(&body, countingGraph(0, 0))}
+	run := &tools{graph: recording(&body, countingGraph(0, 0, false, false))}
 
 	if _, _, err := run.workload(t.Context(), WorkloadInput{}); err != nil {
 		t.Fatalf("workload() error = %v, want nil", err)
 	}
 
-	for _, want := range []string{`"today"`, "due:", "overdue:", `status: \"open\"`, `"first":200`} {
+	for _, want := range []string{`"today"`, "due:", "overdue:", `status: \"open\"`, `"first":200`, "hasNextPage"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("document = %s, want it to carry %s", body, want)
 		}

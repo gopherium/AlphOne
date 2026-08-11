@@ -38,7 +38,8 @@ const contactDocument = `query($id: UUID!, $first: Int!) {
 		id name createdAt
 		identities { channel identifier displayName }
 		tasks(status: "open", first: $first) {
-			edges { node { id title dueOn status priority } }
+			edges { node { id title dueOn status priority assigneeId } }
+			pageInfo { hasNextPage }
 		}
 	}
 }`
@@ -60,6 +61,7 @@ type contactNode struct {
 		Edges []struct {
 			Node taskNode `json:"node"`
 		} `json:"edges"`
+		PageInfo pageInfo `json:"pageInfo"`
 	} `json:"tasks"`
 }
 
@@ -132,11 +134,12 @@ func (t *tools) contact(ctx context.Context, in ContactInput) (*mcp.CallToolResu
 		return nil, ContactOutput{}, errNoContact
 	}
 	out := ContactOutput{
-		ID:         data.Contact.ID,
-		Name:       data.Contact.Name,
-		CreatedAt:  data.Contact.CreatedAt,
-		Identities: toIdentities(data.Contact.Identities),
-		OpenTasks:  make([]TaskItem, 0, len(data.Contact.Tasks.Edges)),
+		ID:              data.Contact.ID,
+		Name:            data.Contact.Name,
+		CreatedAt:       data.Contact.CreatedAt,
+		Identities:      toIdentities(data.Contact.Identities),
+		OpenTasks:       make([]TaskItem, 0, len(data.Contact.Tasks.Edges)),
+		OpenTasksCapped: data.Contact.Tasks.PageInfo.HasNextPage,
 	}
 	for _, edge := range data.Contact.Tasks.Edges {
 		out.OpenTasks = append(out.OpenTasks, toTaskItem(edge.Node))
