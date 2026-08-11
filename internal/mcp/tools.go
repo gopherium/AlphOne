@@ -38,7 +38,7 @@ type TaskItem struct {
 	Title       string `json:"title"`
 	DueOn       string `json:"due_on"`
 	Status      string `json:"status"`
-	Priority    int    `json:"priority"`
+	Priority    int    `json:"priority" jsonschema:"0 to 9 where higher is more urgent, 0 is normal"`
 	AssigneeID  string `json:"assignee_id" jsonschema:"the user this task belongs to"`
 	ContactID   string `json:"contact_id,omitempty"`
 	ContactName string `json:"contact_name,omitempty"`

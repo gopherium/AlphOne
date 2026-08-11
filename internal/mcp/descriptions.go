@@ -22,11 +22,12 @@ list one day, or due_before to list everything still open from before that day.
 Naming both is refused. Naming neither lists today.
 
 Dates are calendar days written YYYY-MM-DD, for example 2026-08-14. Status is
-open, done, or all, and defaults to open. Each task carries its contact's name
-beside the contact id when it is linked to one, so there is no need to look the
-contact up separately. Every task here belongs to the caller, so assignee_id
-is always the caller's own user id, which is how to tell the caller's work
-apart in contact answers.`
+open, done, or all, and defaults to open. Priority runs 0 to 9 where higher
+is more urgent and 0 is the normal default. Each task carries its contact's
+name beside the contact id when it is linked to one, so there is no need to
+look the contact up separately. Every task here belongs to the caller, so
+assignee_id is always the caller's own user id, which is how to tell the
+caller's work apart in contact answers.`
 
 // contactsDescription tells an agent what find_contacts answers.
 const contactsDescription = `Search the contact directory and report who holds open work.
@@ -49,6 +50,7 @@ not hold is refused.
 
 Open tasks span every user, not only the caller, and each carries the
 assignee_id of the user it belongs to. Compare it against the caller's own
-assignee_id from list_my_tasks to tell whose work is whose. When
+assignee_id from list_my_tasks to tell whose work is whose. Priority runs
+0 to 9 where higher is more urgent and 0 is the normal default. When
 open_tasks_capped is true the contact holds more open tasks than this answer
 carries.`

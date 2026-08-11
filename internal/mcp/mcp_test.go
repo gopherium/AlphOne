@@ -71,6 +71,34 @@ func TestServerAdvertisesEveryToolAsReadOnly(t *testing.T) {
 	}
 }
 
+func TestTaskAnswersTeachThePriorityScale(t *testing.T) {
+	t.Parallel()
+
+	session := connect(t, stubGraph())
+
+	listed, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v, want nil", err)
+	}
+	for _, tool := range listed.Tools {
+		if tool.Name != "list_my_tasks" && tool.Name != "get_contact" {
+			continue
+		}
+		schema, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("marshalling the %s output schema: %v", tool.Name, err)
+		}
+		for _, want := range []string{"0 to 9", "higher is more urgent"} {
+			if !strings.Contains(string(schema), want) {
+				t.Errorf("the %s output schema does not teach %q", tool.Name, want)
+			}
+		}
+		if !strings.Contains(tool.Description, "0 to 9") {
+			t.Errorf("the %s description does not teach the priority scale", tool.Name)
+		}
+	}
+}
+
 func TestHandlerServesTheSessionOverHTTP(t *testing.T) {
 	t.Parallel()
 
