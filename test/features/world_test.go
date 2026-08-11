@@ -4,6 +4,7 @@ package features_test
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -45,12 +46,15 @@ type worldKey struct{}
 type world struct {
 	t       *testing.T
 	pool    *pgxpool.Pool
+	tasks   *postgres.TaskStore
+	users   *authkitpg.UserStore
 	server  *httptest.Server
 	ownerID uuid.UUID
 	secret  string
 	tokenID uuid.UUID
 	session *mcp.ClientSession
 	connErr error
+	called  *mcp.CallToolResult
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -115,6 +119,8 @@ func newWorld(t *testing.T) *world {
 	return &world{
 		t:       t,
 		pool:    pool,
+		tasks:   tasks,
+		users:   users,
 		server:  srv,
 		ownerID: owner.ID,
 		secret:  minted.Secret,
@@ -142,4 +148,16 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
 	return []sdk.Plugin{whatsappPlugin, importerPlugin}
+}
+
+// addUser stores another user and returns its id.
+func (w *world) addUser(ctx context.Context, email, name string) (uuid.UUID, error) {
+	if _, err := authkit.EnsureAdmin(ctx, w.users, email, name, ownerPassword); err != nil {
+		return uuid.Nil, fmt.Errorf("seeding %s: %w", email, err)
+	}
+	stored, err := w.users.UserByEmail(ctx, email)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("reading %s: %w", email, err)
+	}
+	return stored.ID, nil
 }

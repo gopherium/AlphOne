@@ -44,7 +44,9 @@ func initializeSession(t *testing.T) func(*godog.ScenarioContext) {
 }
 
 // initializeWorkload registers the workload summary steps.
-func initializeWorkload(*godog.ScenarioContext) {}
+func initializeWorkload(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerWorkloadSteps(sc, t) }
+}
 
 // initializeTasks registers the task listing steps.
 func initializeTasks(*godog.ScenarioContext) {}
@@ -57,7 +59,7 @@ func TestMCPSession(t *testing.T) {
 }
 
 func TestMCPWorkload(t *testing.T) {
-	runFeature(t, "features/mcp-workload.feature", initializeWorkload)
+	runFeature(t, "features/mcp-workload.feature", initializeWorkload(t))
 }
 
 func TestMCPTasks(t *testing.T) {

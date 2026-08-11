@@ -3,6 +3,7 @@
 package mcp_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -93,7 +94,7 @@ func TestHandlerServesTheSessionOverHTTP(t *testing.T) {
 	}
 }
 
-func TestEveryToolReportsItIsNotImplementedYet(t *testing.T) {
+func TestEveryUnfilledToolReportsItIsNotImplementedYet(t *testing.T) {
 	t.Parallel()
 
 	session := connect(t, stubGraph())
@@ -101,7 +102,7 @@ func TestEveryToolReportsItIsNotImplementedYet(t *testing.T) {
 	arguments := map[string]map[string]any{
 		"get_contact": {"contact_id": "0198c000-0000-7000-8000-000000000001"},
 	}
-	for _, name := range toolNames {
+	for _, name := range []string{"find_contacts", "get_contact", "list_my_tasks"} {
 		result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{
 			Name:      name,
 			Arguments: arguments[name],
@@ -148,4 +149,55 @@ func TestUnknownToolIsRefused(t *testing.T) {
 	if !strings.Contains(err.Error(), "no_such_tool") {
 		t.Errorf("error = %v, want it to name the tool", err)
 	}
+}
+
+func TestWorkloadAnswersDataNotProse(t *testing.T) {
+	t.Parallel()
+
+	counting := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"due":{"edges":[{},{}]},"overdue":{"edges":[{}]}}}`))
+	})
+	session := connect(t, counting)
+
+	result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "workload_summary"})
+
+	if err != nil {
+		t.Fatalf("CallTool() error = %v, want nil", err)
+	}
+	if result.IsError {
+		t.Fatalf("the tool failed: %v", result.Content)
+	}
+	structured, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("encoding the structured answer: %v", err)
+	}
+	want := `{"capped":false,"due_today":2,"overdue":1}`
+	if canonical(t, string(structured)) != want {
+		t.Errorf("structured = %s, want %s", structured, want)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("content blocks = %d, want exactly the JSON mirror", len(result.Content))
+	}
+	text, ok := result.Content[0].(*sdkmcp.TextContent)
+	if !ok {
+		t.Fatalf("content = %T, want a text block", result.Content[0])
+	}
+	if canonical(t, text.Text) != want {
+		t.Errorf("text = %s, want the JSON mirror %s", text.Text, want)
+	}
+}
+
+// canonical reorders a JSON object's keys for a stable comparison.
+func canonical(t *testing.T, raw string) string {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("decoding %q: %v", raw, err)
+	}
+	encoded, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatalf("re-encoding %q: %v", raw, err)
+	}
+	return string(encoded)
 }

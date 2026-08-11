@@ -124,11 +124,6 @@ func register(server *mcp.Server, run *tools) {
 	})
 }
 
-// workload answers how much work the caller holds.
-func (t *tools) workload(context.Context, WorkloadInput) (*mcp.CallToolResult, WorkloadOutput, error) {
-	return nil, WorkloadOutput{}, errNotImplemented
-}
-
 // tasks lists the caller's tasks for one day or the backlog.
 func (t *tools) tasks(context.Context, TasksInput) (*mcp.CallToolResult, TasksOutput, error) {
 	return nil, TasksOutput{}, errNotImplemented
