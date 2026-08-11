@@ -105,6 +105,7 @@ func run(
 	}
 
 	cfg := server.Config{
+		Version:           version.Version(),
 		Users:             userStore,
 		Auth:              auth,
 		GraphRoot:         graphRoot,
