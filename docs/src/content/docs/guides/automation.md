@@ -16,6 +16,9 @@ this page with two ready made nodes. To use it, follow the [n8n
 guide](/guides/n8n/) instead. The rest of this page shows the plain HTTP
 approach that any engine can take.
 
+To connect an AI agent instead of an automation engine, see
+[AI agents](/guides/agents/).
+
 :::note[AlphOne does not include an engine]
 AlphOne neither bundles nor redistributes n8n, and the released image
 contains only AlphOne itself. You run the engine you choose, under its

@@ -1,6 +1,6 @@
 ---
 title: REST API
-description: The two routes AlphOne still serves outside the graph.
+description: The routes AlphOne serves outside the graph.
 ---
 
 The [GraphQL API](/reference/graphql-api/) is AlphOne's API. Every read and
@@ -10,10 +10,10 @@ The REST routes that used to answer beside it were removed in 0.8.0. If you
 built against them, the 0.8.0 release notes map each one to the graph
 operation that replaced it.
 
-## Staying on REST
+## Staying outside the graph
 
-Two routes are not going anywhere, because neither is something a GraphQL
-client asks for.
+Three routes are not going anywhere, because none of them is something a
+GraphQL client asks for.
 
 **Meta's webhook pair.** `GET` and `POST /api/plugins/whatsapp/webhook`. Meta
 calls these, so their shape is Meta's to decide, not ours. They authenticate by
@@ -24,7 +24,12 @@ signature rather than by session.
 file bytes. A graph field can name a download path, but the bytes themselves
 need a plain HTTP response.
 
-Both are documented in the [WhatsApp API](/whatsapp/api/).
+**The MCP endpoint.** `POST /api/mcp` speaks the Model Context Protocol
+(MCP), so an AI agent can read AlphOne with its own client. It takes the same
+API tokens, and its tools run graph operations underneath. See
+[AI agents](/guides/agents/).
+
+The first two are documented in the [WhatsApp API](/whatsapp/api/).
 
 ## Limits on what remains
 

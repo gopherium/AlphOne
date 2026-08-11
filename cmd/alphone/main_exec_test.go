@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/gopherium/alphone/internal/version"
 )
 
 func coverBinary(t *testing.T) (string, []string) {
@@ -215,6 +220,83 @@ func TestMainBinaryServesUntilSignalled(t *testing.T) {
 		if !strings.Contains(stderr.String(), message) {
 			t.Errorf("stderr = %q, want it to log %q", stderr.String(), message)
 		}
+	}
+}
+
+// bearerTransport sends every request with the given bearer secret.
+type bearerTransport struct {
+	secret string
+}
+
+// RoundTrip adds the Authorization header and forwards the request.
+func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	cloned := r.Clone(r.Context())
+	cloned.Header.Set("Authorization", "Bearer "+b.secret)
+	return http.DefaultTransport.RoundTrip(cloned)
+}
+
+// tokenSecret pulls the a1_ secret out of the token create output.
+func tokenSecret(t *testing.T, stdout string) string {
+	t.Helper()
+	start := strings.Index(stdout, "a1_")
+	if start < 0 {
+		t.Fatalf("stdout = %q, want it to carry the secret", stdout)
+	}
+	secret := stdout[start:]
+	if end := strings.IndexAny(secret, " \n"); end >= 0 {
+		secret = secret[:end]
+	}
+	return secret
+}
+
+func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("createadmin: %v", err)
+	}
+	var stdout bytes.Buffer
+	mint := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "agent")
+	mint.Dir = t.TempDir()
+	mint.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	mint.Stdout = &stdout
+	if err := mint.Run(); err != nil {
+		t.Fatalf("token create: %v", err)
+	}
+	addr := freeAddr(t)
+	serve := exec.Command(binary)
+	serve.Dir = t.TempDir()
+	serve.Env = append(env,
+		"ALPHONE_DATABASE_URL="+databaseURL,
+		"ALPHONE_ADDR="+addr,
+		"ALPHONE_WHATSAPP_VERIFY_TOKEN=e2e-secret",
+		"ALPHONE_WHATSAPP_APP_SECRET=e2e-app-secret",
+	)
+	if err := serve.Start(); err != nil {
+		t.Fatalf("starting alphone: %v", err)
+	}
+	t.Cleanup(func() { _ = serve.Process.Kill() })
+	waitForServer(t, "http://"+addr)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "exec-test", Version: "test"}, nil)
+	session, err := client.Connect(t.Context(), &mcp.StreamableClientTransport{
+		Endpoint:   "http://" + addr + "/api/mcp",
+		HTTPClient: &http.Client{Transport: bearerTransport{secret: tokenSecret(t, stdout.String())}},
+	}, nil)
+	if err != nil {
+		t.Fatalf("connecting over MCP: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	served := session.InitializeResult().ServerInfo.Version
+	if served != version.Version() {
+		t.Errorf("advertised version = %q, want %q", served, version.Version())
 	}
 }
 
