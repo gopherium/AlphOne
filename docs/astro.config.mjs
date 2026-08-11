@@ -1,8 +1,13 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+import { remarkVersion } from './version.mjs';
+
 export default defineConfig({
 	site: 'https://docs.alph.one',
+	markdown: {
+		remarkPlugins: [remarkVersion],
+	},
 	integrations: [
 		starlight({
 			title: 'AlphOne',

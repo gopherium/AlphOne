@@ -111,7 +111,7 @@ needs a valid credential, which makes it a good connection test:
 ```
 
 ```json
-{ "data": { "version": "0.8.0" } }
+{ "data": { "version": "%VERSION%" } }
 ```
 
 ## A first automation
