@@ -12,6 +12,9 @@ import (
 // taskPageDefault is how many tasks a call reads when none is asked for.
 const taskPageDefault = 50
 
+// taskPageMax bounds how many tasks one call may read.
+const taskPageMax = 100
+
 // tasksDocument reads one page of the caller's tasks with their contacts.
 const tasksDocument = `query($date: Date, $dueBefore: Date, $status: String, $first: Int!) {
 	tasks(date: $date, dueBefore: $dueBefore, status: $status, first: $first) {
@@ -46,7 +49,7 @@ type tasksData struct {
 func taskVariables(in TasksInput) map[string]any {
 	variables := map[string]any{
 		"status": firstNonEmpty(in.Status, "open"),
-		"first":  positiveOr(in.Limit, taskPageDefault),
+		"first":  boundedPage(in.Limit, taskPageDefault, taskPageMax),
 	}
 	switch {
 	case in.DueBefore != "" && in.Date == "":
@@ -66,14 +69,6 @@ func firstNonEmpty(value, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-// positiveOr returns value when it is above zero, otherwise fallback.
-func positiveOr(value, fallback int) int {
-	if value > 0 {
-		return value
-	}
-	return fallback
 }
 
 // tasks lists the caller's tasks for one day or the backlog.

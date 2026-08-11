@@ -54,7 +54,9 @@ func initializeTasks(t *testing.T) func(*godog.ScenarioContext) {
 }
 
 // initializeContacts registers the contact reading steps.
-func initializeContacts(*godog.ScenarioContext) {}
+func initializeContacts(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerContactSteps(sc, t) }
+}
 
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
@@ -69,5 +71,5 @@ func TestMCPTasks(t *testing.T) {
 }
 
 func TestMCPContacts(t *testing.T) {
-	runFeature(t, "features/mcp-contacts.feature", initializeContacts)
+	runFeature(t, "features/mcp-contacts.feature", initializeContacts(t))
 }

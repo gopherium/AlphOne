@@ -94,28 +94,6 @@ func TestHandlerServesTheSessionOverHTTP(t *testing.T) {
 	}
 }
 
-func TestEveryUnfilledToolReportsItIsNotImplementedYet(t *testing.T) {
-	t.Parallel()
-
-	session := connect(t, stubGraph())
-
-	arguments := map[string]map[string]any{
-		"get_contact": {"contact_id": "0198c000-0000-7000-8000-000000000001"},
-	}
-	for _, name := range []string{"find_contacts", "get_contact"} {
-		result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{
-			Name:      name,
-			Arguments: arguments[name],
-		})
-		if err != nil {
-			t.Fatalf("CallTool(%q) error = %v, want a tool failure", name, err)
-		}
-		if !result.IsError {
-			t.Errorf("CallTool(%q) succeeded, want the unimplemented refusal", name)
-		}
-	}
-}
-
 func TestToolCallsCarryTheCallerContext(t *testing.T) {
 	t.Parallel()
 
@@ -229,6 +207,50 @@ func TestListMyTasksAnswersItemsThroughTheSession(t *testing.T) {
 	for _, want := range []string{`"contact_name":"Maria Perez"`, `"contact_id":"c1"`, `"due_on":"2026-08-11"`} {
 		if !strings.Contains(string(structured), want) {
 			t.Errorf("structured = %s, want it to carry %s", structured, want)
+		}
+	}
+}
+
+func TestContactToolsAnswerThroughTheSession(t *testing.T) {
+	t.Parallel()
+
+	directory := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		read := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(read)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(string(read), "contacts(") {
+			_, _ = w.Write([]byte(`{"data":{"contacts":{"edges":[{"node":{
+				"id":"c1","name":"Maria Perez","identities":[],"tasks":{"edges":[{"node":{"id":"t1"}}]}
+			}}]}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"contact":{"id":"c1","name":"Maria Perez",
+			"createdAt":"2026-08-01T10:00:00Z","identities":[],"tasks":{"edges":[]}}}}`))
+	})
+	session := connect(t, directory)
+
+	for name, want := range map[string]string{
+		"find_contacts": `"has_open_tasks":true`,
+		"get_contact":   `"created_at":"2026-08-01T10:00:00Z"`,
+	} {
+		arguments := map[string]any{}
+		if name == "get_contact" {
+			arguments["contact_id"] = "0198c000-0000-7000-8000-000000000001"
+		}
+		result, err := session.CallTool(t.Context(),
+			&sdkmcp.CallToolParams{Name: name, Arguments: arguments})
+		if err != nil {
+			t.Fatalf("CallTool(%q) error = %v, want nil", name, err)
+		}
+		if result.IsError {
+			t.Fatalf("%s failed: %v", name, result.Content)
+		}
+		structured, err := json.Marshal(result.StructuredContent)
+		if err != nil {
+			t.Fatalf("encoding %s: %v", name, err)
+		}
+		if !strings.Contains(string(structured), want) {
+			t.Errorf("%s = %s, want it to carry %s", name, structured, want)
 		}
 	}
 }

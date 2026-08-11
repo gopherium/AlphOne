@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -14,9 +13,6 @@ import (
 type tools struct {
 	graph http.Handler
 }
-
-// errNotImplemented reports a tool declared ahead of the stage that fills it in.
-var errNotImplemented = errors.New("mcp: this tool is not implemented yet")
 
 // WorkloadInput carries the arguments of workload_summary.
 type WorkloadInput struct{}
@@ -33,7 +29,7 @@ type TasksInput struct {
 	Date      string `json:"date,omitempty" jsonschema:"the day to list as YYYY-MM-DD, defaults to today"`
 	DueBefore string `json:"due_before,omitempty" jsonschema:"list the backlog due before this day as YYYY-MM-DD"`
 	Status    string `json:"status,omitempty" jsonschema:"open, done or all, defaults to open"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"how many tasks to read, 1 to 200, defaults to 50"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"how many tasks to read, 1 to 100, defaults to 50"`
 }
 
 // TaskItem is one task as an agent reads it.
@@ -122,14 +118,4 @@ func register(server *mcp.Server, run *tools) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ContactInput) (*mcp.CallToolResult, ContactOutput, error) {
 		return run.contact(ctx, in)
 	})
-}
-
-// contacts searches the directory, marking who holds open work.
-func (t *tools) contacts(context.Context, ContactsInput) (*mcp.CallToolResult, ContactsOutput, error) {
-	return nil, ContactsOutput{}, errNotImplemented
-}
-
-// contact reports one contact in full.
-func (t *tools) contact(context.Context, ContactInput) (*mcp.CallToolResult, ContactOutput, error) {
-	return nil, ContactOutput{}, errNotImplemented
 }

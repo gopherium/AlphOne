@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -139,12 +140,15 @@ func TestRunCarriesTheCallerContext(t *testing.T) {
 	}
 }
 
+// errUnencodable reports a value that refuses to become JSON.
+var errUnencodable = errors.New("mcp: unencodable")
+
 // unmarshalable refuses to encode, forcing the request build to fail.
 type unmarshalable struct{}
 
 // MarshalJSON always fails.
 func (unmarshalable) MarshalJSON() ([]byte, error) {
-	return nil, errNotImplemented
+	return nil, errUnencodable
 }
 
 func TestRunReportsAnUnencodableOperation(t *testing.T) {
