@@ -33,6 +33,7 @@ export default defineConfig({
 						{ slug: 'guides/contacts' },
 						{ slug: 'guides/automation' },
 						{ slug: 'guides/n8n' },
+						{ slug: 'guides/agents' },
 					],
 				},
 				{

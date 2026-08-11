@@ -13,6 +13,9 @@ Content-Type: application/json
 
 Send `{"query": "...", "variables": {...}}` and read `data` and `errors` back.
 
+An AI agent can read AlphOne without writing queries, see
+[AI agents](/guides/agents/).
+
 ## Authenticating
 
 Two credentials work, and every operation needs one.
