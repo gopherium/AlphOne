@@ -98,7 +98,7 @@ func taskConnection(rows []task.Task, limit int) *model.TaskConnection {
 	return &model.TaskConnection{Edges: edges, PageInfo: pageInfo}
 }
 
-// Tasks pages the acting user's tasks filtered by exactly one dimension.
+// Tasks pages tasks filtered by exactly one dimension.
 func (q QueryResolvers) Tasks(
 	ctx context.Context,
 	date, dueBefore *time.Time,

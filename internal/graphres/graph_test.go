@@ -339,6 +339,47 @@ func TestTasksConnectionFiltersAndResolvesContacts(t *testing.T) {
 	}
 }
 
+func TestTasksScopesByAssigneeExceptWhenFilteredByContact(t *testing.T) {
+	t.Parallel()
+
+	resolver, contacts, tasks := newDBResolver(t)
+	maria := mustSeedContact(t, contacts, "Maria Perez")
+	owner := uuid.Must(uuid.NewV7())
+	caller := uuid.Must(uuid.NewV7())
+	day := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+	mustSeedTask(t, tasks, task.Input{
+		Title: "Call Maria Perez about the renewal", DueOn: day, AssigneeID: owner, ContactID: maria.ID,
+	})
+	client := newGraphClient(t, resolver, caller)
+
+	var listed struct {
+		Tasks struct {
+			Edges []struct {
+				Node struct {
+					Title string `json:"title"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"tasks"`
+	}
+	client.MustPost(`{ tasks(dueBefore: "2026-08-07", status: "all", first: 10) {
+		edges { node { title } }
+	} }`, &listed)
+	if len(listed.Tasks.Edges) != 0 {
+		t.Errorf("dueBefore listed %+v, want another assignee's task withheld", listed.Tasks.Edges)
+	}
+
+	client.MustPost(fmt.Sprintf(`{ tasks(contactId: %q, status: "all", first: 10) {
+		edges { node { title } }
+	} }`, maria.ID), &listed)
+
+	if len(listed.Tasks.Edges) != 1 {
+		t.Fatalf("contactId listed %d tasks, want the contact's work whoever holds it", len(listed.Tasks.Edges))
+	}
+	if listed.Tasks.Edges[0].Node.Title != "Call Maria Perez about the renewal" {
+		t.Errorf("task = %q, want the other assignee's task", listed.Tasks.Edges[0].Node.Title)
+	}
+}
+
 func TestTasksRejectsFilterViolations(t *testing.T) {
 	t.Parallel()
 
