@@ -1,6 +1,7 @@
 /alphone
 cover.out
 .covdata/
+.air/
 node_modules/
 .env
 /pluginwire

@@ -1,5 +1,5 @@
 .PHONY: peers test test-race cover cover-html lint vuln fmt generate outdated db-up db-down db-reset \
-	seed dev demo n8n n8n-down n8n-node n8n-node-local runbook \
+	seed dev dev-watch demo n8n n8n-down n8n-node n8n-node-local runbook \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e '/alphone/graph$$' -e '/alphone/graph/model$$')
@@ -92,6 +92,9 @@ seed: db-up
 
 dev: db-up
 	go run ./cmd/alphone
+
+dev-watch: db-up
+	GOWORK=off go tool air
 
 demo: db-up e2e-build
 	ALPHONE_WEB_DIR=frontend/dist ./alphone
