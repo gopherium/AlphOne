@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/internal/mcp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -55,6 +56,8 @@ type Config struct {
 	MaxStreamsPerUser int
 	// GraphiQL enables the interactive query page on GET /api/graphql.
 	GraphiQL bool
+	// Version names this build to a connecting agent.
+	Version string
 }
 
 // NewServer returns the HTTP handler serving the CRM API. Every route
@@ -75,15 +78,16 @@ func NewServer(cfg Config) http.Handler {
 	}
 	router := chi.NewRouter()
 	if cfg.GraphRoot != nil {
+		graph := newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)
-			graphed.Method(http.MethodPost, "/api/graphql",
-				newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser))
+			graphed.Method(http.MethodPost, "/api/graphql", graph)
 			if cfg.GraphiQL {
 				graphed.Method(http.MethodGet, "/api/graphql", playground.Handler("AlphOne GraphiQL", "/api/graphql"))
 			}
 		})
+		router.Method(http.MethodPost, "/api/mcp", s.requireIdentity(mcp.Handler(graph, cfg.Version)))
 	}
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id
