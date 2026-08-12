@@ -228,6 +228,17 @@ test('unchecking a boolean field sends false', async () => {
 	)
 })
 
+test('a boolean field shows its label on screen', async () => {
+	serveCatalogue([subscribed])
+	serveValues({ subscribed: false })
+
+	renderPanel()
+
+	const box = await screen.findByLabelText('Subscribed')
+	expect(box).toBeInTheDocument()
+	expect(screen.getByText('Subscribed')).toBeVisible()
+})
+
 test('a boolean field shows its stored value', async () => {
 	serveCatalogue([subscribed])
 	serveValues({ subscribed: true })

@@ -112,11 +112,14 @@ function FieldInput({
 }) {
 	if (field.kind === 'BOOLEAN') {
 		return (
-			<Checkbox
-				aria-label={field.label}
-				checked={value === 'true'}
-				onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
-			/>
+			<Stack direction="row" gap="sm" align="center">
+				<Checkbox
+					aria-label={field.label}
+					checked={value === 'true'}
+					onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
+				/>
+				<Text>{field.label}</Text>
+			</Stack>
 		)
 	}
 	return (
