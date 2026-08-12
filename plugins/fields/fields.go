@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -25,9 +26,10 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin holds the catalogue of contact fields an operator defines.
 type Plugin struct {
-	pool    *pgxpool.Pool
-	store   *store
-	catalog *catalog
+	pool      *pgxpool.Pool
+	store     *store
+	catalog   *catalog
+	batchWait time.Duration
 }
 
 // Register builds the fields [Plugin] from the host-provided deps.

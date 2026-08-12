@@ -23,6 +23,7 @@ type view struct {
 	version uint64
 	fields  []sdk.GraphField
 	names   map[string]bool
+	kinds   map[string]kind
 }
 
 // catalog holds the versioned view of the live definitions.
@@ -35,7 +36,7 @@ type catalog struct {
 // newCatalog returns an empty catalogue reading through the given loader.
 func newCatalog(source loader) *catalog {
 	held := &catalog{loader: source}
-	held.live.Store(&view{names: map[string]bool{}})
+	held.live.Store(&view{names: map[string]bool{}, kinds: map[string]kind{}})
 	return held
 }
 
@@ -51,6 +52,7 @@ func (c *catalog) reload(ctx context.Context) error {
 		version: c.live.Load().version + 1,
 		fields:  make([]sdk.GraphField, 0, len(definitions)),
 		names:   make(map[string]bool, len(definitions)),
+		kinds:   make(map[string]kind, len(definitions)),
 	}
 	for _, definition := range definitions {
 		next.fields = append(next.fields, sdk.GraphField{
@@ -59,6 +61,7 @@ func (c *catalog) reload(ctx context.Context) error {
 			Type:   definition.Kind.scalar(),
 		})
 		next.names[definition.Name] = true
+		next.kinds[definition.Name] = definition.Kind
 	}
 	c.live.Store(next)
 	return nil
@@ -73,4 +76,9 @@ func (c *catalog) snapshot() (uint64, []sdk.GraphField) {
 // holds reports whether a live definition carries the given name.
 func (c *catalog) holds(name string) bool {
 	return c.live.Load().names[name]
+}
+
+// liveKinds reports the kind every live definition declares, by name.
+func (c *catalog) liveKinds() map[string]kind {
+	return c.live.Load().kinds
 }

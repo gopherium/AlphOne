@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,30 +16,43 @@ import (
 var (
 	errNameTaken    = errors.New("fields: another definition holds that name")
 	errNoDefinition = errors.New("fields: no live definition holds that id")
+	errKindLocked   = errors.New("fields: the archived definition of that name holds another kind")
 )
-
-// uniqueViolation is the Postgres code a duplicate name raises.
-const uniqueViolation = "23505"
 
 // store reads and writes the definition catalogue.
 type store struct {
 	pool *pgxpool.Pool
 }
 
-// create stores a definition.
-func (s *store) create(ctx context.Context, definition Definition) error {
+// define stores a definition, reviving an archived one of the same name and kind.
+func (s *store) define(ctx context.Context, definition Definition) error {
 	const statement = `INSERT INTO plugin_fields.definitions (id, name, label, kind, created_at)
-		VALUES ($1, $2, $3, $4, $5)`
-	_, err := s.pool.Exec(ctx, statement,
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
+		WHERE plugin_fields.definitions.archived_at IS NOT NULL
+			AND plugin_fields.definitions.kind = EXCLUDED.kind`
+	tag, err := s.pool.Exec(ctx, statement,
 		definition.ID, definition.Name, definition.Label, string(definition.Kind), definition.CreatedAt)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
-		return errNameTaken
-	}
 	if err != nil {
-		return fmt.Errorf("fields: create definition: %w", err)
+		return fmt.Errorf("fields: define definition: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return s.refusalFor(ctx, definition)
 	}
 	return nil
+}
+
+// refusalFor reports why a definition the store refused could not be written.
+func (s *store) refusalFor(ctx context.Context, definition Definition) error {
+	const query = `SELECT archived_at IS NULL FROM plugin_fields.definitions WHERE name = $1`
+	var live bool
+	if err := s.pool.QueryRow(ctx, query, definition.Name).Scan(&live); err != nil {
+		return fmt.Errorf("fields: read the held definition: %w", err)
+	}
+	if live {
+		return errNameTaken
+	}
+	return errKindLocked
 }
 
 // archive marks a live definition archived.
@@ -69,6 +81,75 @@ func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
 	const query = `SELECT id, name, label, kind, archived_at, created_at
 		FROM plugin_fields.definitions ORDER BY created_at, id`
 	return s.query(ctx, query)
+}
+
+// writeValues merges values into a contact's bag, dropping the keys written null.
+func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map[string]any) error {
+	const statement = `INSERT INTO plugin_fields.contact_values (contact_id, values)
+		VALUES ($1, $2::jsonb)
+		ON CONFLICT (contact_id) DO UPDATE
+		SET values = plugin_fields.contact_values.values || EXCLUDED.values`
+	stripped := make(map[string]any, len(values))
+	var cleared []string
+	for name, value := range values {
+		if value == nil {
+			cleared = append(cleared, name)
+			continue
+		}
+		stripped[name] = value
+	}
+	if _, err := s.pool.Exec(ctx, statement, contactID, stripped); err != nil {
+		return fmt.Errorf("fields: write contact values: %w", err)
+	}
+	return s.clearValues(ctx, contactID, cleared)
+}
+
+// clearValues removes the named keys from a contact's bag.
+func (s *store) clearValues(ctx context.Context, contactID uuid.UUID, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	const statement = `UPDATE plugin_fields.contact_values
+		SET values = values - $2::text[] WHERE contact_id = $1`
+	if _, err := s.pool.Exec(ctx, statement, contactID, names); err != nil {
+		return fmt.Errorf("fields: clear contact values: %w", err)
+	}
+	return nil
+}
+
+// valueRow pairs a contact with the value bag it holds.
+type valueRow struct {
+	contactID uuid.UUID
+	values    map[string]any
+}
+
+// valuesFor reads the value bags of the given contacts.
+func (s *store) valuesFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]map[string]any, error) {
+	const query = `SELECT contact_id, values FROM plugin_fields.contact_values WHERE contact_id = ANY($1)`
+	return s.collectValues(ctx, query, ids)
+}
+
+// collectValues reads the value bags the given statement selects.
+func (s *store) collectValues(
+	ctx context.Context, statement string, ids []uuid.UUID,
+) (map[uuid.UUID]map[string]any, error) {
+	rows, err := s.pool.Query(ctx, statement, ids)
+	if err != nil {
+		return nil, fmt.Errorf("fields: read contact values: %w", err)
+	}
+	defer rows.Close()
+	collected, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (valueRow, error) {
+		var held valueRow
+		return held, row.Scan(&held.contactID, &held.values)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fields: read one contact's values: %w", err)
+	}
+	held := make(map[uuid.UUID]map[string]any, len(collected))
+	for _, row := range collected {
+		held[row.contactID] = row.values
+	}
+	return held, nil
 }
 
 // query reads the definitions the given statement selects.
