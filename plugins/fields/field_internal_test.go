@@ -125,6 +125,19 @@ func TestNewDefinitionRefusesALabelBeyondTheCap(t *testing.T) {
 	}
 }
 
+func TestNewDefinitionCountsLabelCharactersNotBytes(t *testing.T) {
+	t.Parallel()
+
+	accented := strings.Repeat("é", labelMax)
+
+	if _, err := newDefinition("birthDate", accented, "DATE", nil); err != nil {
+		t.Errorf("newDefinition() error = %v, want a %d character label accepted", err, labelMax)
+	}
+	if _, err := newDefinition("birthDate", accented+"é", "DATE", nil); !errors.Is(err, errLabelTooLong) {
+		t.Errorf("error = %v, want errLabelTooLong one character past the cap", err)
+	}
+}
+
 func TestEveryKindMapsToAScalar(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ package fields
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"testing"
 )
@@ -66,6 +67,49 @@ func TestCoerceRefusesAValueOfAnotherKind(t *testing.T) {
 
 			if !errors.Is(err, errWrongKind) {
 				t.Errorf("coerce(%s, %#v) error = %v, want errWrongKind", tc.kind, tc.given, err)
+			}
+		})
+	}
+}
+
+func TestCoerceRefusesANumberTheScalarCannotHold(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]float64{
+		"above the Int ceiling": 2147483648,
+		"below the Int floor":   -2147483649,
+		"far above":             1e100,
+		"positive infinity":     math.Inf(1),
+		"negative infinity":     math.Inf(-1),
+	}
+
+	for name, given := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := coerce(kindNumber, given)
+
+			if !errors.Is(err, errWrongKind) {
+				t.Errorf("coerce(NUMBER, %v) error = %v, want errWrongKind", given, err)
+			}
+		})
+	}
+}
+
+func TestCoerceAcceptsTheIntLimits(t *testing.T) {
+	t.Parallel()
+
+	for name, given := range map[string]float64{"ceiling": 2147483647, "floor": -2147483648} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := coerce(kindNumber, given)
+
+			if err != nil {
+				t.Fatalf("coerce(NUMBER, %v) error = %v, want nil", given, err)
+			}
+			if got != int64(given) {
+				t.Errorf("coerce() = %#v, want %d", got, int64(given))
 			}
 		})
 	}

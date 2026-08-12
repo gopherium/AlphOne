@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -81,7 +82,7 @@ func newDefinition(name, label, declared string, reserved map[string]bool) (Defi
 	if trimmed == "" {
 		return Definition{}, errBlankLabel
 	}
-	if len(trimmed) > labelMax {
+	if utf8.RuneCountInString(trimmed) > labelMax {
 		return Definition{}, errLabelTooLong
 	}
 	return Definition{

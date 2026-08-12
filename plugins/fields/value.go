@@ -45,10 +45,13 @@ func coerceString(given any) (any, error) {
 	return text, nil
 }
 
-// coerceNumber returns the value as a whole number.
+// coerceNumber returns the value as a whole number the Int scalar holds.
 func coerceNumber(given any) (any, error) {
 	number, ok := given.(float64)
 	if !ok || number != math.Trunc(number) {
+		return nil, errWrongKind
+	}
+	if number < math.MinInt32 || number > math.MaxInt32 {
 		return nil, errWrongKind
 	}
 	return int64(number), nil
