@@ -13,7 +13,6 @@ Feature: The widened graph keeps the compiled schema's promises
     When the Contact type is introspected
     Then the introspection lists "birthDate" answering the scalar "Date"
 
-  @wip
   Scenario: A core query answers the same with and without fields
     Given a contact named "Maria Perez"
     And the core contact listing is captured

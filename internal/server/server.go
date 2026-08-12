@@ -54,6 +54,8 @@ type Config struct {
 	// MaxStreamsPerUser caps concurrent authenticated plugin requests and
 	// graph subscriptions per user. Zero applies the host default.
 	MaxStreamsPerUser int
+	// FieldSources lists the plugins serving runtime defined graph fields.
+	FieldSources []sdk.FieldSource
 	// GraphiQL enables the interactive query page on GET /api/graphql.
 	GraphiQL bool
 	// Version names this build to a connecting agent.
@@ -78,7 +80,7 @@ func NewServer(cfg Config) http.Handler {
 	}
 	router := chi.NewRouter()
 	if cfg.GraphRoot != nil {
-		graph := newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser)
+		graph := newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)

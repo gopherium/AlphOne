@@ -53,6 +53,21 @@ type Publisher interface {
 	Publish(ctx context.Context, name string, data map[string]any)
 }
 
+// GraphField is one runtime defined field a plugin serves over the graph.
+type GraphField struct {
+	// Entity is the GraphQL type the field hangs on, such as Contact.
+	Entity string
+	// Name is the field name a caller selects.
+	Name string
+	// Type is the GraphQL scalar the field answers with.
+	Type string
+}
+
+// FieldSource reports the runtime defined fields a plugin serves.
+type FieldSource interface {
+	FieldsSnapshot(ctx context.Context) (uint64, []GraphField, error)
+}
+
 // Channel names a communication medium, such as "whatsapp" or "email".
 type Channel string
 

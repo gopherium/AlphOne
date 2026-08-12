@@ -28,6 +28,23 @@ func operationCost(t *testing.T, doc string) int {
 	return total
 }
 
+func TestExecutableSchemaOverServesTheInjectedSchema(t *testing.T) {
+	t.Parallel()
+
+	root := composedRoot(t, &graphres.Resolver{})
+	compiled := graphres.ExecutableSchema(root).Schema()
+	widened := *compiled
+
+	schema := graphres.ExecutableSchemaOver(root, &widened)
+
+	if schema.Schema() != &widened {
+		t.Error("Schema() = the compiled schema, want the injected one served")
+	}
+	if graphres.ExecutableSchemaOver(root, nil).Schema() != compiled {
+		t.Error("Schema() with nil = a substitute, want the compiled schema")
+	}
+}
+
 func TestRealScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 	t.Parallel()
 

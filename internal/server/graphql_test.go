@@ -32,6 +32,7 @@ type graphConfig struct {
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
+	FieldSources      []sdk.FieldSource
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
 	GraphiQL          bool
@@ -82,10 +83,49 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Tokens:            cfg.Tokens,
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
+		FieldSources:      cfg.FieldSources,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
 		GraphiQL:          cfg.GraphiQL,
 	})
+}
+
+// stubFieldSource serves one fixed field snapshot.
+type stubFieldSource struct {
+	fields []sdk.GraphField
+}
+
+// FieldsSnapshot reports the fixed snapshot.
+func (s stubFieldSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphField, error) {
+	return 1, s.fields, nil
+}
+
+func TestGraphQLPassesThroughAFieldSourceWithoutACarrier(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	source := stubFieldSource{fields: []sdk.GraphField{
+		{Entity: "Contact", Name: "birthDate", Type: "JSON"},
+	}}
+	srv := newGraphServer(t, graphConfig{
+		Contacts:     newFakeContactStore(),
+		Users:        users,
+		Version:      "9.9.9",
+		FieldSources: []sdk.FieldSource{source},
+	})
+	cookie := loginCookie(t, srv)
+
+	answered := postGraphQL(t, srv, versionQuery, cookie)
+	body := decodeBody[graphqlData](t, answered)
+	if body.Data.Version != "9.9.9" {
+		t.Errorf("version = %q, want the graph unchanged under a carrierless source", body.Data.Version)
+	}
+
+	refused := postGraphQL(t, srv, `{"query":"{ contacts(first: 1) { edges { node { birthDate } } } }"}`, cookie)
+	if !strings.Contains(refused.Body.String(), "Cannot query field") {
+		t.Errorf("body = %q, want birthDate refused while no carrier exists", refused.Body.String())
+	}
 }
 
 // postGraphQL posts a GraphQL request body to /api/graphql.

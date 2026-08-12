@@ -58,6 +58,25 @@ type world struct {
 	session     *mcp.ClientSession
 	connErr     error
 	called      *mcp.CallToolResult
+	fields      *worldFieldSource
+	captured    []byte
+}
+
+// worldFieldSource serves the fields a scenario defines by hand.
+type worldFieldSource struct {
+	version uint64
+	fields  []sdk.GraphField
+}
+
+// FieldsSnapshot reports the scenario's defined fields.
+func (s *worldFieldSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphField, error) {
+	return s.version, s.fields, nil
+}
+
+// defineField declares a field and bumps the catalogue version.
+func (s *worldFieldSource) defineField(name, scalar string) {
+	s.fields = append(s.fields, sdk.GraphField{Entity: "Contact", Name: name, Type: scalar})
+	s.version++
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -110,12 +129,14 @@ func newWorld(t *testing.T) *world {
 		t.Fatalf("storing the token: %v", err)
 	}
 
+	fields := &worldFieldSource{}
 	srv := httptest.NewServer(server.NewServer(server.Config{
-		Users:     users,
-		Auth:      auth,
-		GraphRoot: root,
-		Tokens:    tokens,
-		Version:   "test",
+		Users:        users,
+		Auth:         auth,
+		GraphRoot:    root,
+		Tokens:       tokens,
+		FieldSources: []sdk.FieldSource{fields},
+		Version:      "test",
 	}))
 	t.Cleanup(srv.Close)
 
@@ -129,6 +150,7 @@ func newWorld(t *testing.T) *world {
 		ownerID:  owner.ID,
 		secret:   minted.Secret,
 		tokenID:  minted.Token.ID,
+		fields:   fields,
 	}
 }
 

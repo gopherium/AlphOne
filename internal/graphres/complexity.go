@@ -7,6 +7,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
+	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/gopherium/alphone/graph"
 )
@@ -24,7 +25,13 @@ func pageCost(first *int) int {
 
 // ExecutableSchema builds the priced executable schema over the resolver root.
 func ExecutableSchema(root graph.ResolverRoot) graphql.ExecutableSchema {
-	cfg := graph.Config{Resolvers: root}
+	return ExecutableSchemaOver(root, nil)
+}
+
+// ExecutableSchemaOver builds the priced executable schema serving schema in
+// place of the compiled in one.
+func ExecutableSchemaOver(root graph.ResolverRoot, schema *ast.Schema) graphql.ExecutableSchema {
+	cfg := graph.Config{Resolvers: root, Schema: schema}
 	cfg.Complexity.Query.Contacts = func(child int, _ *string, first *int, _ *string) int {
 		return pageCost(first) * child
 	}

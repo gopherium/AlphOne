@@ -69,8 +69,8 @@ func initializeFieldsValues(*testing.T) func(*godog.ScenarioContext) {
 }
 
 // initializeFieldsGraph registers the widened graph steps.
-func initializeFieldsGraph(*testing.T) func(*godog.ScenarioContext) {
-	return func(*godog.ScenarioContext) {}
+func initializeFieldsGraph(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsGraphSteps(sc, t) }
 }
 
 func TestMCPSession(t *testing.T) {
