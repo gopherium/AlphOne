@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -247,6 +248,77 @@ func tokenSecret(t *testing.T, stdout string) string {
 		secret = secret[:end]
 	}
 	return secret
+}
+
+// postGraph posts one graph operation to the running binary as the given token.
+func postGraph(t *testing.T, addr, secret, body string) string {
+	t.Helper()
+	request, err := http.NewRequestWithContext(
+		t.Context(), http.MethodPost, "http://"+addr+"/api/graphql", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("building the graph request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+secret)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("posting the graph request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	answered, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("reading the graph answer: %v", err)
+	}
+	return string(answered)
+}
+
+func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("createadmin: %v", err)
+	}
+	var minted bytes.Buffer
+	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "fields")
+	token.Dir = t.TempDir()
+	token.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	token.Stdout = &minted
+	if err := token.Run(); err != nil {
+		t.Fatalf("token create: %v", err)
+	}
+	secret := tokenSecret(t, minted.String())
+	addr := freeAddr(t)
+	serve := exec.Command(binary)
+	serve.Dir = t.TempDir()
+	serve.Env = append(env,
+		"ALPHONE_DATABASE_URL="+databaseURL,
+		"ALPHONE_ADDR="+addr,
+		"ALPHONE_WHATSAPP_VERIFY_TOKEN=e2e-secret",
+		"ALPHONE_WHATSAPP_APP_SECRET=e2e-app-secret",
+	)
+	if err := serve.Start(); err != nil {
+		t.Fatalf("starting alphone: %v", err)
+	}
+	t.Cleanup(func() { _ = serve.Process.Kill() })
+	waitForServer(t, "http://"+addr)
+
+	defined := postGraph(t, addr, secret,
+		`{"query":"mutation { defineField(name: \"birthDate\", label: \"Birth date\", kind: DATE) { id } }"}`)
+	if !strings.Contains(defined, `"defineField"`) {
+		t.Fatalf("defineField answered %s, want the definition stored", defined)
+	}
+
+	read := postGraph(t, addr, secret, `{"query":"{ contacts(first: 1) { edges { node { birthDate } } } }"}`)
+
+	if strings.Contains(read, "Cannot query field") {
+		t.Errorf("the graph refused birthDate, answered %s, want the running binary to widen its schema", read)
+	}
 }
 
 func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
