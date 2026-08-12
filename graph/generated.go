@@ -81,6 +81,14 @@ type ComplexityRoot struct {
 		Webhook func(childComplexity int) int
 	}
 
+	FieldDefinition struct {
+		ArchivedAt func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Label      func(childComplexity int) int
+		Name       func(childComplexity int) int
+	}
+
 	Identity struct {
 		Email func(childComplexity int) int
 		ID    func(childComplexity int) int
@@ -142,10 +150,12 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		AddContactIdentity    func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
+		ArchiveField          func(childComplexity int, id uuid.UUID) int
 		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
 		CreateTask            func(childComplexity int, input model.CreateTaskInput) int
 		CreateUser            func(childComplexity int, email string, name string, password string) int
 		CreateWebhook         func(childComplexity int, url string, events []string) int
+		DefineField           func(childComplexity int, name string, label string, kind model.FieldKind) int
 		DeleteContactIdentity func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
 		DeleteWebhook         func(childComplexity int, id uuid.UUID) int
 		ImportCommit          func(childComplexity int, id uuid.UUID) int
@@ -169,6 +179,7 @@ type ComplexityRoot struct {
 	Query struct {
 		Contact               func(childComplexity int, id uuid.UUID) int
 		Contacts              func(childComplexity int, q *string, first *int, after *string) int
+		Fields                func(childComplexity int, includeArchived *bool) int
 		ImportFields          func(childComplexity int) int
 		ImportJob             func(childComplexity int, id uuid.UUID) int
 		Imports               func(childComplexity int) int
@@ -287,6 +298,8 @@ type MutationResolver interface {
 	UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error)
 	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
+	DefineField(ctx context.Context, name string, label string, kind model.FieldKind) (*model.FieldDefinition, error)
+	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
 	ImportSetMapping(ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput) (*model.ImportJob, error)
 	ImportCommit(ctx context.Context, id uuid.UUID) (*model.ImportCommitPayload, error)
@@ -301,6 +314,7 @@ type QueryResolver interface {
 	Tasks(ctx context.Context, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) (*model.TaskConnection, error)
 	Task(ctx context.Context, id uuid.UUID) (*model.Task, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
+	Fields(ctx context.Context, includeArchived *bool) ([]*model.FieldDefinition, error)
 	Imports(ctx context.Context) ([]*model.ImportJob, error)
 	ImportJob(ctx context.Context, id uuid.UUID) (*model.ImportJob, error)
 	ImportFields(ctx context.Context) ([]*model.ImportField, error)
@@ -456,6 +470,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreateWebhookPayload.Webhook(childComplexity), true
+
+	case "FieldDefinition.archivedAt":
+		if e.ComplexityRoot.FieldDefinition.ArchivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.ArchivedAt(childComplexity), true
+	case "FieldDefinition.id":
+		if e.ComplexityRoot.FieldDefinition.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.ID(childComplexity), true
+	case "FieldDefinition.kind":
+		if e.ComplexityRoot.FieldDefinition.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.Kind(childComplexity), true
+	case "FieldDefinition.label":
+		if e.ComplexityRoot.FieldDefinition.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.Label(childComplexity), true
+	case "FieldDefinition.name":
+		if e.ComplexityRoot.FieldDefinition.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.Name(childComplexity), true
 
 	case "Identity.email":
 		if e.ComplexityRoot.Identity.Email == nil {
@@ -691,6 +736,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AddContactIdentity(childComplexity, args["contactId"].(uuid.UUID), args["identity"].(model.ContactIdentityInput)), true
+	case "Mutation.archiveField":
+		if e.ComplexityRoot.Mutation.ArchiveField == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_archiveField_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ArchiveField(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.createContact":
 		if e.ComplexityRoot.Mutation.CreateContact == nil {
 			break
@@ -735,6 +791,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateWebhook(childComplexity, args["url"].(string), args["events"].([]string)), true
+	case "Mutation.defineField":
+		if e.ComplexityRoot.Mutation.DefineField == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_defineField_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DefineField(childComplexity, args["name"].(string), args["label"].(string), args["kind"].(model.FieldKind)), true
 	case "Mutation.deleteContactIdentity":
 		if e.ComplexityRoot.Mutation.DeleteContactIdentity == nil {
 			break
@@ -899,6 +966,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Contacts(childComplexity, args["q"].(*string), args["first"].(*int), args["after"].(*string)), true
+	case "Query.fields":
+		if e.ComplexityRoot.Query.Fields == nil {
+			break
+		}
+
+		args, err := ec.field_Query_fields_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Fields(childComplexity, args["includeArchived"].(*bool)), true
 	case "Query.importFields":
 		if e.ComplexityRoot.Query.ImportFields == nil {
 			break
@@ -1431,6 +1509,32 @@ var sources = []*ast.Source{
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
+	{Name: "../plugins/fields/graph/schema.graphqls", Input: `type FieldDefinition {
+  id: UUID!
+  name: String!
+  label: String!
+  kind: FieldKind!
+  archivedAt: DateTime
+}
+
+enum FieldKind {
+  TEXT
+  LONGTEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  SELECT
+}
+
+extend type Query {
+  fields(includeArchived: Boolean): [FieldDefinition!]!
+}
+
+extend type Mutation {
+  defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+  archiveField(id: UUID!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../plugins/importer/graph/schema.graphqls", Input: `extend type Query {
   imports: [ImportJob!]!
   importJob(id: UUID!): ImportJob
@@ -1624,6 +1728,22 @@ func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context
 		return ec.fieldContext_CreateWebhookPayload_secret(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CreateWebhookPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_FieldDefinition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_FieldDefinition_id(ctx, field)
+	case "name":
+		return ec.fieldContext_FieldDefinition_name(ctx, field)
+	case "label":
+		return ec.fieldContext_FieldDefinition_label(ctx, field)
+	case "kind":
+		return ec.fieldContext_FieldDefinition_kind(ctx, field)
+	case "archivedAt":
+		return ec.fieldContext_FieldDefinition_archivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FieldDefinition", field.Name)
 }
 
 func (ec *executionContext) childFields_Identity(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2082,6 +2202,20 @@ func (ec *executionContext) field_Mutation_addContactIdentity_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_archiveField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createContact_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2167,6 +2301,36 @@ func (ec *executionContext) field_Mutation_createWebhook_args(ctx context.Contex
 		return nil, err
 	}
 	args["events"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_defineField_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "label",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["label"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
+		func(ctx context.Context, v any) (model.FieldKind, error) {
+			return ec.unmarshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kind"] = arg2
 	return args, nil
 }
 
@@ -2421,6 +2585,20 @@ func (ec *executionContext) field_Query_contacts_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_fields_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "includeArchived",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["includeArchived"] = arg0
 	return args, nil
 }
 
@@ -3118,6 +3296,121 @@ func (ec *executionContext) _CreateWebhookPayload_secret(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_CreateWebhookPayload_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreateWebhookPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FieldDefinition_id(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _FieldDefinition_name(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FieldDefinition_label(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FieldDefinition_kind(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.FieldKind) graphql.Marshaler {
+			return ec.marshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type FieldKind does not have child fields"))
+}
+
+func (ec *executionContext) _FieldDefinition_archivedAt(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_archivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type DateTime does not have child fields"))
 }
 
 func (ec *executionContext) _Identity_id(ctx context.Context, field graphql.CollectedField, obj *model.Identity) (ret graphql.Marshaler) {
@@ -4480,6 +4773,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_defineField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_defineField(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DefineField(ctx, fc.Args["name"].(string), fc.Args["label"].(string), fc.Args["kind"].(model.FieldKind))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.FieldDefinition) graphql.Marshaler {
+			return ec.marshalNFieldDefinition2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinition(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_defineField(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FieldDefinition(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_defineField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_archiveField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_archiveField(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ArchiveField(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_archiveField(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_archiveField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_importUpload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5039,6 +5420,50 @@ func (ec *executionContext) fieldContext_Query_webhooks(_ context.Context, field
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Webhook(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fields(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_fields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Fields(ctx, fc.Args["includeArchived"].(*bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FieldDefinition) graphql.Marshaler {
+			return ec.marshalNFieldDefinition2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinitionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_fields(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FieldDefinition(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_fields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -8238,6 +8663,64 @@ func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.S
 	return out
 }
 
+var fieldDefinitionImplementors = []string{"FieldDefinition"}
+
+func (ec *executionContext) _FieldDefinition(ctx context.Context, sel ast.SelectionSet, obj *model.FieldDefinition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fieldDefinitionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FieldDefinition")
+		case "id":
+			out.Values[i] = ec._FieldDefinition_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._FieldDefinition_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._FieldDefinition_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._FieldDefinition_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archivedAt":
+			out.Values[i] = ec._FieldDefinition_archivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var identityImplementors = []string{"Identity"}
 
 func (ec *executionContext) _Identity(ctx context.Context, sel ast.SelectionSet, obj *model.Identity) graphql.Marshaler {
@@ -8847,6 +9330,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "defineField":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_defineField(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveField":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_archiveField(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "importUpload":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_importUpload(ctx, field)
@@ -9133,6 +9630,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_webhooks(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fields":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fields(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -10501,6 +11020,46 @@ func (ec *executionContext) marshalNDateTime2ᚖtimeᚐTime(ctx context.Context,
 	return res
 }
 
+func (ec *executionContext) marshalNFieldDefinition2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinition(ctx context.Context, sel ast.SelectionSet, v model.FieldDefinition) graphql.Marshaler {
+	return ec._FieldDefinition(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNFieldDefinition2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FieldDefinition) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFieldDefinition2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinition(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFieldDefinition2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinition(ctx context.Context, sel ast.SelectionSet, v *model.FieldDefinition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FieldDefinition(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx context.Context, v any) (model.FieldKind, error) {
+	var res model.FieldKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx context.Context, sel ast.SelectionSet, v model.FieldKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNIdentity2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐIdentity(ctx context.Context, sel ast.SelectionSet, v model.Identity) graphql.Marshaler {
 	return ec._Identity(ctx, sel, &v)
 }
@@ -11179,6 +11738,24 @@ func (ec *executionContext) marshalODate2ᚖtimeᚐTime(ctx context.Context, sel
 	_ = sel
 	_ = ctx
 	res := scalar.MarshalDate(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalODateTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalDateTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalDateTime(*v)
 	return res
 }
 

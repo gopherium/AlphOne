@@ -16,7 +16,7 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// carrierField is the one compiled in field every runtime field rides on.
+// carrierField is the compiled field every runtime field rides on.
 const carrierField = "field"
 
 // carrierArg names the carrier argument holding the runtime field name.
@@ -26,8 +26,7 @@ const carrierArg = "name"
 // schema. A nil schema means the compiled in one.
 type Build func(*ast.Schema) graphql.ExecutableSchema
 
-// snapshot is one immutable view of the catalogue, the schema it widens, and
-// the generated executor bound to that schema.
+// snapshot is one immutable view of the catalogue, its schema and its executor.
 type snapshot struct {
 	inner    graphql.ExecutableSchema
 	schema   *ast.Schema
@@ -74,7 +73,7 @@ func (s *Schema) refresh(ctx context.Context) {
 	s.live.Store(&snapshot{inner: s.build(served), schema: widened, byEntity: byEntity, versions: versions})
 }
 
-// collect gathers every source's snapshot, refusing the whole read on any error.
+// collect gathers every source's snapshot.
 func (s *Schema) collect(ctx context.Context) ([]uint64, []sdk.GraphField, error) {
 	versions := make([]uint64, len(s.sources))
 	var fields []sdk.GraphField
@@ -155,15 +154,14 @@ func (s *Schema) Schema() *ast.Schema {
 	return s.live.Load().schema
 }
 
-// Complexity prices a field, leaving runtime defined fields at the default cost.
+// Complexity prices a field.
 func (s *Schema) Complexity(
 	ctx context.Context, typeName, field string, childComplexity int, args map[string]any,
 ) (int, bool) {
 	return s.live.Load().inner.Complexity(ctx, typeName, field, childComplexity, args)
 }
 
-// Exec rewrites every runtime defined selection onto the carrier field, then
-// runs the generated executor.
+// Exec runs the generated executor over the rewritten operation.
 func (s *Schema) Exec(ctx context.Context) graphql.ResponseHandler {
 	s.refresh(ctx)
 	live := s.live.Load()
@@ -177,7 +175,7 @@ func (s *Schema) Exec(ctx context.Context) graphql.ResponseHandler {
 	return live.inner.Exec(ctx)
 }
 
-// rewrite walks a selection set, pointing runtime defined fields at the carrier.
+// rewrite points every runtime defined field in a selection set at the carrier.
 func (s *Schema) rewrite(live *snapshot, selections ast.SelectionSet) {
 	for _, selection := range selections {
 		switch node := selection.(type) {

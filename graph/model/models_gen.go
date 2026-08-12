@@ -3,6 +3,10 @@
 package model
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,6 +60,14 @@ type CreateTaskPayload struct {
 type CreateWebhookPayload struct {
 	Webhook *Webhook `json:"webhook"`
 	Secret  string   `json:"secret"`
+}
+
+type FieldDefinition struct {
+	ID         uuid.UUID  `json:"id"`
+	Name       string     `json:"name"`
+	Label      string     `json:"label"`
+	Kind       FieldKind  `json:"kind"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 }
 
 type Identity struct {
@@ -214,4 +226,67 @@ type WhatsAppMessage struct {
 	Status       *string        `json:"status,omitempty"`
 	StatusDetail *string        `json:"statusDetail,omitempty"`
 	Media        *WhatsAppMedia `json:"media,omitempty"`
+}
+
+type FieldKind string
+
+const (
+	FieldKindText     FieldKind = "TEXT"
+	FieldKindLongtext FieldKind = "LONGTEXT"
+	FieldKindNumber   FieldKind = "NUMBER"
+	FieldKindBoolean  FieldKind = "BOOLEAN"
+	FieldKindDate     FieldKind = "DATE"
+	FieldKindSelect   FieldKind = "SELECT"
+)
+
+var AllFieldKind = []FieldKind{
+	FieldKindText,
+	FieldKindLongtext,
+	FieldKindNumber,
+	FieldKindBoolean,
+	FieldKindDate,
+	FieldKindSelect,
+}
+
+func (e FieldKind) IsValid() bool {
+	switch e {
+	case FieldKindText, FieldKindLongtext, FieldKindNumber, FieldKindBoolean, FieldKindDate, FieldKindSelect:
+		return true
+	}
+	return false
+}
+
+func (e FieldKind) String() string {
+	return string(e)
+}
+
+func (e *FieldKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FieldKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FieldKind", str)
+	}
+	return nil
+}
+
+func (e FieldKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FieldKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FieldKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

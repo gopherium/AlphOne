@@ -1,0 +1,6 @@
+{
+	"id": "fields",
+	"name": "Fields",
+	"backend": "github.com/gopherium/alphone/plugins/fields",
+	"graphql": true
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -26,20 +27,31 @@ func TestFromPluginsRequiresEveryGraphPlugin(t *testing.T) {
 	t.Parallel()
 
 	_, err := graphroot.FromPlugins(nil, nil)
-	if err == nil || !strings.Contains(err.Error(), "importer") {
-		t.Errorf("FromPlugins(no plugins) error = %v, want the importer complaint", err)
+	if err == nil || !strings.Contains(err.Error(), "fields") {
+		t.Errorf("FromPlugins(no plugins) error = %v, want the fields complaint", err)
 	}
 
 	deps := sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"}
+	fieldsPlugin, err := fields.Register(deps)
+	if err != nil {
+		t.Fatalf("fields.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = fieldsPlugin.Stop(context.Background()) })
+
+	_, err = graphroot.FromPlugins(nil, []sdk.Plugin{fieldsPlugin})
+	if err == nil || !strings.Contains(err.Error(), "importer") {
+		t.Errorf("FromPlugins(fields only) error = %v, want the importer complaint", err)
+	}
+
 	importerPlugin, err := importer.Register(deps)
 	if err != nil {
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
 
-	_, err = graphroot.FromPlugins(nil, []sdk.Plugin{importerPlugin})
+	_, err = graphroot.FromPlugins(nil, []sdk.Plugin{fieldsPlugin, importerPlugin})
 	if err == nil || !strings.Contains(err.Error(), "whatsapp") {
-		t.Errorf("FromPlugins(importer only) error = %v, want the whatsapp complaint", err)
+		t.Errorf("FromPlugins(without whatsapp) error = %v, want the whatsapp complaint", err)
 	}
 }
 

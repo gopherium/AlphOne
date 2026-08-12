@@ -23,6 +23,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
@@ -44,10 +45,15 @@ func newGraphHandler(t *testing.T, p *importer.Plugin, pool *pgxpool.Pool, user 
 		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = whatsappPlugin.Stop(t.Context()) })
+	fieldsPlugin, err := fields.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	if err != nil {
+		t.Fatalf("fields.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = fieldsPlugin.Stop(t.Context()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:  "9.9.9",
 		Contacts: postgres.NewContactStore(pool),
-	}, []sdk.Plugin{whatsappPlugin, p})
+	}, []sdk.Plugin{whatsappPlugin, p, fieldsPlugin})
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}

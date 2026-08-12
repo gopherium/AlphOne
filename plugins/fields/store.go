@@ -27,7 +27,7 @@ type store struct {
 	pool *pgxpool.Pool
 }
 
-// create stores a definition, refusing a name another already holds.
+// create stores a definition.
 func (s *store) create(ctx context.Context, definition Definition) error {
 	const statement = `INSERT INTO plugin_fields.definitions (id, name, label, kind, created_at)
 		VALUES ($1, $2, $3, $4, $5)`
@@ -43,7 +43,7 @@ func (s *store) create(ctx context.Context, definition Definition) error {
 	return nil
 }
 
-// archive marks a live definition archived, refusing an id no live row holds.
+// archive marks a live definition archived.
 func (s *store) archive(ctx context.Context, id uuid.UUID) error {
 	const statement = `UPDATE plugin_fields.definitions SET archived_at = now()
 		WHERE id = $1 AND archived_at IS NULL`

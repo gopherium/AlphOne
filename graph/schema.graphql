@@ -43,6 +43,21 @@ type CreateWebhookPayload {
 }
 scalar Date
 scalar DateTime
+type FieldDefinition {
+	id: UUID!
+	name: String!
+	label: String!
+	kind: FieldKind!
+	archivedAt: DateTime
+}
+enum FieldKind {
+	TEXT
+	LONGTEXT
+	NUMBER
+	BOOLEAN
+	DATE
+	SELECT
+}
 type Identity {
 	id: UUID!
 	email: String!
@@ -111,6 +126,8 @@ type Mutation {
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
 	deleteWebhook(id: UUID!): Boolean!
+	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+	archiveField(id: UUID!): Boolean!
 	importUpload(file: Upload!): ImportJob!
 	importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
 	importCommit(id: UUID!): ImportCommitPayload!
@@ -131,6 +148,7 @@ type Query {
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
 	task(id: UUID!): Task
 	webhooks: [Webhook!]!
+	fields(includeArchived: Boolean): [FieldDefinition!]!
 	imports: [ImportJob!]!
 	importJob(id: UUID!): ImportJob
 	importFields: [ImportField!]!

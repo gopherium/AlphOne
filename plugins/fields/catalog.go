@@ -25,7 +25,7 @@ type view struct {
 	names   map[string]bool
 }
 
-// catalog caches the live definitions, versioned so the graph reloads on a write.
+// catalog holds the versioned view of the live definitions.
 type catalog struct {
 	loader  loader
 	live    atomic.Pointer[view]
@@ -39,7 +39,7 @@ func newCatalog(source loader) *catalog {
 	return held
 }
 
-// reload reads the catalogue afresh, keeping the last good view on failure.
+// reload replaces the held view with a fresh read.
 func (c *catalog) reload(ctx context.Context) error {
 	c.reading.Lock()
 	defer c.reading.Unlock()

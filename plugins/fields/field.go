@@ -65,7 +65,7 @@ type Definition struct {
 	CreatedAt  time.Time
 }
 
-// newDefinition builds a catalogue entry, refusing anything the graph cannot serve.
+// newDefinition builds a validated catalogue entry.
 func newDefinition(name, label, declared string, reserved map[string]bool) (Definition, error) {
 	if !namePattern.MatchString(name) {
 		return Definition{}, errMalformedName
