@@ -28,7 +28,7 @@ because it cannot be changed later.
 | Number | A whole number, such as loyalty points |
 | Yes or no | A checkbox |
 | Date | A calendar day, written as `1990-04-17` |
-| Choice | One value out of a set you decide |
+| Choice | A short line, kept apart from Text so a later release can add a fixed option list |
 
 Save, and the field exists. Open any contact and it is there, waiting to be
 filled in.
@@ -87,7 +87,12 @@ mutation {
 }
 ```
 
-Send only the fields you want to change. Send `null` to clear one.
+Send only the fields you want to change. A field you leave out keeps the value
+it already holds, a field you send replaces it, and a field you send as `null`
+is cleared.
+
+A `Number` field holds a whole number between -2147483648 and 2147483647.
+Anything outside that is refused, because the API answers it as an `Int`.
 
 ## What stays fixed
 
