@@ -151,6 +151,7 @@ func widen(base *ast.Schema, byEntity map[string]map[string]sdk.GraphField) *ast
 
 // Schema reports the widened schema every request validates and introspects against.
 func (s *Schema) Schema() *ast.Schema {
+	s.refresh(context.Background())
 	return s.live.Load().schema
 }
 
@@ -163,43 +164,43 @@ func (s *Schema) Complexity(
 
 // Exec runs the generated executor over the rewritten operation.
 func (s *Schema) Exec(ctx context.Context) graphql.ResponseHandler {
-	s.refresh(ctx)
 	live := s.live.Load()
-	if len(live.byEntity) > 0 {
-		opCtx := graphql.GetOperationContext(ctx)
-		s.rewrite(live, opCtx.Operation.SelectionSet)
-		for _, fragment := range opCtx.Doc.Fragments {
-			s.rewrite(live, fragment.SelectionSet)
-		}
+	opCtx := graphql.GetOperationContext(ctx)
+	s.rewrite(opCtx.Operation.SelectionSet)
+	for _, fragment := range opCtx.Doc.Fragments {
+		s.rewrite(fragment.SelectionSet)
 	}
 	return live.inner.Exec(ctx)
 }
 
-// rewrite points every runtime defined field in a selection set at the carrier.
-func (s *Schema) rewrite(live *snapshot, selections ast.SelectionSet) {
+// rewrite points every field the compiled schema lacks at the carrier.
+func (s *Schema) rewrite(selections ast.SelectionSet) {
 	for _, selection := range selections {
 		switch node := selection.(type) {
 		case *ast.Field:
-			if !s.rewriteField(live, node) {
-				s.rewrite(live, node.SelectionSet)
+			if !s.rewriteField(node) {
+				s.rewrite(node.SelectionSet)
 			}
 		case *ast.InlineFragment:
-			s.rewrite(live, node.SelectionSet)
+			s.rewrite(node.SelectionSet)
 		case *ast.FragmentSpread:
 		}
 	}
 }
 
 // rewriteField points one field at the carrier, reporting whether it did.
-func (s *Schema) rewriteField(live *snapshot, field *ast.Field) bool {
+func (s *Schema) rewriteField(field *ast.Field) bool {
 	if field.ObjectDefinition == nil || strings.HasPrefix(field.Name, "__") {
 		return false
 	}
-	entity := live.byEntity[field.ObjectDefinition.Name]
-	if _, defined := entity[field.Name]; !defined {
+	owner := s.base.Types[field.ObjectDefinition.Name]
+	if owner == nil || owner.Fields.ForName(field.Name) != nil {
 		return false
 	}
-	carrier := s.base.Types[field.ObjectDefinition.Name].Fields.ForName(carrierField)
+	carrier := owner.Fields.ForName(carrierField)
+	if carrier == nil {
+		return false
+	}
 	field.Arguments = ast.ArgumentList{{
 		Name:  carrierArg,
 		Value: &ast.Value{Raw: field.Name, Kind: ast.StringValue},

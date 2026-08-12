@@ -236,6 +236,63 @@ func TestServesASourceStartingAtVersionZero(t *testing.T) {
 	}
 }
 
+func TestSchemaRefreshesBeforeValidationSeesIt(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	dyn := dyngraph.New(build, source)
+	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") == nil {
+		t.Fatal("birthDate missing, want the first load served")
+	}
+
+	source.version, source.fields = 2, nil
+
+	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") != nil {
+		t.Error("birthDate still declared, want Schema() to serve the archived catalogue")
+	}
+}
+
+func TestRewritesAnyFieldTheCompiledSchemaLacks(t *testing.T) {
+	t.Parallel()
+
+	var seen *ast.OperationDefinition
+	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
+	build, _ := stubBuild(t, carriedSDL, &seen, nil)
+	dyn := dyngraph.New(build, source)
+	ctx := operationFor(t, dyn.Schema(), `{ contact { birthDate } }`)
+	source.version, source.fields = 2, nil
+
+	dyn.Exec(ctx)
+
+	rewritten := seen.SelectionSet[0].(*ast.Field).SelectionSet[0].(*ast.Field)
+	if rewritten.Name != "field" {
+		t.Errorf("selection = %q, want the carrier so the executor never meets an unknown field", rewritten.Name)
+	}
+}
+
+func TestLeavesAFieldAloneOnATypeCarryingNoCarrier(t *testing.T) {
+	t.Parallel()
+
+	var seen *ast.OperationDefinition
+	build, compiled := stubBuild(t, bareSDL, &seen, nil)
+	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	contact := compiled.Types["Contact"]
+	selection := &ast.Field{Name: "birthDate", ObjectDefinition: contact}
+	operation := &ast.OperationDefinition{
+		Operation:    ast.Query,
+		SelectionSet: ast.SelectionSet{selection},
+	}
+	ctx := graphql.WithOperationContext(t.Context(),
+		&graphql.OperationContext{Operation: operation, Doc: &ast.QueryDocument{}})
+
+	dyn.Exec(ctx)
+
+	if selection.Name != "birthDate" {
+		t.Errorf("selection = %q, want it untouched when the type carries no carrier", selection.Name)
+	}
+}
+
 func TestDelegatesComplexityToTheInnerExecutor(t *testing.T) {
 	t.Parallel()
 
