@@ -50,6 +50,34 @@ func TestSeedRunsTwiceWithoutDuplicating(t *testing.T) {
 	}
 }
 
+func TestSeedRevivesAnArchivedDemoField(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+	held, err := p.store.liveDefinitions(t.Context())
+	if err != nil {
+		t.Fatalf("liveDefinitions() error = %v, want nil", err)
+	}
+	if err := p.store.archive(t.Context(), held[0].ID); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("second Seed() error = %v, want nil", err)
+	}
+
+	live, err := p.store.liveDefinitions(t.Context())
+	if err != nil {
+		t.Fatalf("liveDefinitions() error = %v, want nil", err)
+	}
+	if len(live) != 1 || live[0].Name != seedFieldName {
+		t.Errorf("live = %+v, want the archived demo field revived", live)
+	}
+}
+
 func TestSeedWritesTheValueOntoTheDemoContact(t *testing.T) {
 	t.Parallel()
 

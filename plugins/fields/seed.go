@@ -38,7 +38,7 @@ func (p *Plugin) seedDefinition(ctx context.Context) error {
 		return err
 	}
 	for _, definition := range held {
-		if definition.Name == seedFieldName {
+		if definition.Name == seedFieldName && definition.ArchivedAt == nil {
 			return nil
 		}
 	}
