@@ -3,6 +3,7 @@
 package fields
 
 import (
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
@@ -91,6 +92,33 @@ func TestCoerceRefusesANumberTheScalarCannotHold(t *testing.T) {
 
 			if !errors.Is(err, errWrongKind) {
 				t.Errorf("coerce(NUMBER, %v) error = %v, want errWrongKind", given, err)
+			}
+		})
+	}
+}
+
+func TestCoerceReadsTheNumberTheDecoderProduces(t *testing.T) {
+	t.Parallel()
+
+	accepted, err := coerce(kindNumber, json.Number("420"))
+
+	if err != nil {
+		t.Fatalf("coerce() error = %v, want a decoded JSON number accepted", err)
+	}
+	if accepted != int64(420) {
+		t.Errorf("coerce() = %#v, want int64(420)", accepted)
+	}
+	refused := map[string]json.Number{
+		"a fraction":       json.Number("4.5"),
+		"past the ceiling": json.Number("2147483648"),
+		"not a number":     json.Number("nonsense"),
+	}
+	for name, given := range refused {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := coerce(kindNumber, given); !errors.Is(err, errWrongKind) {
+				t.Errorf("coerce(NUMBER, %q) error = %v, want errWrongKind", given, err)
 			}
 		})
 	}

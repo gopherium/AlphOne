@@ -36,6 +36,39 @@ func TestGraphWritesAndReadsAValue(t *testing.T) {
 	}
 }
 
+func TestGraphWritesAndReadsANumber(t *testing.T) {
+	t.Parallel()
+
+	client, contactID := newValuesClient(t)
+	var defined struct {
+		DefineField struct {
+			ID string `json:"id"`
+		}
+	}
+	client.MustPost(
+		`mutation { defineField(name: "loyaltyPoints", label: "Loyalty points", kind: NUMBER) { id } }`,
+		&defined)
+
+	var written struct{ WriteContactFields bool }
+	client.MustPost(`mutation($id: UUID!, $values: JSON!) { writeContactFields(contactId: $id, values: $values) }`,
+		&written, gqlclient.Var("id", contactID.String()),
+		gqlclient.Var("values", map[string]any{"loyaltyPoints": 420}))
+
+	if !written.WriteContactFields {
+		t.Fatal("writeContactFields = false, want the number stored")
+	}
+	var read struct {
+		Contact struct {
+			Field any `json:"field"`
+		}
+	}
+	client.MustPost(`query($id: UUID!) { contact(id: $id) { field(name: "loyaltyPoints") } }`, &read,
+		gqlclient.Var("id", contactID.String()))
+	if read.Contact.Field != float64(420) {
+		t.Errorf("field = %#v, want the written number", read.Contact.Field)
+	}
+}
+
 func TestGraphAnswersNullForAnUnwrittenField(t *testing.T) {
 	t.Parallel()
 

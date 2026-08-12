@@ -3,6 +3,7 @@
 package fields
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -47,7 +48,7 @@ func coerceString(given any) (any, error) {
 
 // coerceNumber returns the value as a whole number the Int scalar holds.
 func coerceNumber(given any) (any, error) {
-	number, ok := given.(float64)
+	number, ok := decimalOf(given)
 	if !ok || number != math.Trunc(number) {
 		return nil, errWrongKind
 	}
@@ -55,6 +56,18 @@ func coerceNumber(given any) (any, error) {
 		return nil, errWrongKind
 	}
 	return int64(number), nil
+}
+
+// decimalOf reads a decoded JSON number, which arrives typed either way.
+func decimalOf(given any) (float64, bool) {
+	switch held := given.(type) {
+	case float64:
+		return held, true
+	case json.Number:
+		number, err := held.Float64()
+		return number, err == nil
+	}
+	return 0, false
 }
 
 // coerceBoolean returns the value as a boolean.
