@@ -132,9 +132,10 @@ func TestGraphReadsManyContactsInOneBatch(t *testing.T) {
 	if len(listed.Contacts.Edges) != 2 {
 		t.Fatalf("contacts = %d, want 2", len(listed.Contacts.Edges))
 	}
+	want := map[string]any{"Maria Perez": "1990-04-17", "Ada Lovelace": "1815-12-10"}
 	for _, edge := range listed.Contacts.Edges {
-		if edge.Node.Field == nil {
-			t.Errorf("%s answered no field, want its written date", edge.Node.Name)
+		if edge.Node.Field != want[edge.Node.Name] {
+			t.Errorf("%s field = %#v, want %#v", edge.Node.Name, edge.Node.Field, want[edge.Node.Name])
 		}
 	}
 }
