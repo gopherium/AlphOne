@@ -26,6 +26,7 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
@@ -58,25 +59,9 @@ type world struct {
 	session     *mcp.ClientSession
 	connErr     error
 	called      *mcp.CallToolResult
-	fields      *worldFieldSource
 	captured    []byte
-}
-
-// worldFieldSource serves the fields a scenario defines by hand.
-type worldFieldSource struct {
-	version uint64
-	fields  []sdk.GraphField
-}
-
-// FieldsSnapshot reports the scenario's defined fields.
-func (s *worldFieldSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphField, error) {
-	return s.version, s.fields, nil
-}
-
-// defineField declares a field and bumps the catalogue version.
-func (s *worldFieldSource) defineField(name, scalar string) {
-	s.fields = append(s.fields, sdk.GraphField{Entity: "Contact", Name: name, Type: scalar})
-	s.version++
+	answered    []byte
+	lastField   uuid.UUID
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -100,7 +85,8 @@ func newWorld(t *testing.T) *world {
 	hub := event.NewHub()
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
 
-	registered := inertPlugins(t)
+	fieldsPlugin := livePlugin(t, cfg.URL())
+	registered := append(inertPlugins(t), fieldsPlugin)
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -129,13 +115,12 @@ func newWorld(t *testing.T) *world {
 		t.Fatalf("storing the token: %v", err)
 	}
 
-	fields := &worldFieldSource{}
 	srv := httptest.NewServer(server.NewServer(server.Config{
 		Users:        users,
 		Auth:         auth,
 		GraphRoot:    root,
 		Tokens:       tokens,
-		FieldSources: []sdk.FieldSource{fields},
+		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
 	}))
 	t.Cleanup(srv.Close)
@@ -150,8 +135,24 @@ func newWorld(t *testing.T) *world {
 		ownerID:  owner.ID,
 		secret:   minted.Secret,
 		tokenID:  minted.Token.ID,
-		fields:   fields,
 	}
+}
+
+// livePlugin registers the fields plugin against the scenario's own database.
+func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
+	t.Helper()
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: databaseURL})
+	if err != nil {
+		t.Fatalf("registering fields: %v", err)
+	}
+	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	if err := plugin.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrating fields: %v", err)
+	}
+	if err := plugin.Start(context.Background()); err != nil {
+		t.Fatalf("starting fields: %v", err)
+	}
+	return plugin
 }
 
 // worldFrom returns the world the scenario carries.

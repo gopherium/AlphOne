@@ -17,12 +17,6 @@ import (
 // coreListingQuery is the fixed contact listing the byte identity scenario pins.
 const coreListingQuery = `{"query":"{ contacts(first: 5) { edges { node { id name createdAt } } } }"}`
 
-// scalarForKind maps a catalogue kind onto the GraphQL scalar it answers with.
-var scalarForKind = map[string]string{
-	"TEXT": "String", "LONGTEXT": "String", "NUMBER": "Int",
-	"BOOLEAN": "Boolean", "DATE": "Date", "SELECT": "String",
-}
-
 // postGraph posts a graph request with the world's bearer token.
 func (w *world) postGraph(ctx context.Context, body string) ([]byte, error) {
 	request, err := http.NewRequestWithContext(
@@ -73,13 +67,8 @@ func registerFieldsGraphSteps(sc *godog.ScenarioContext, t *testing.T) {
 	})
 
 	sc.Step(`^the field "([^"]*)" labelled "([^"]*)" of kind ([A-Z]+) is defined$`,
-		func(ctx context.Context, name, _, kind string) error {
-			scalar, known := scalarForKind[kind]
-			if !known {
-				return fmt.Errorf("kind %q maps to no scalar", kind)
-			}
-			worldFrom(ctx).fields.defineField(name, scalar)
-			return nil
+		func(ctx context.Context, name, label, kind string) error {
+			return worldFrom(ctx).defineField(ctx, name, label, kind)
 		})
 
 	sc.Then(`^the core contact listing answers byte identical to the capture$`,

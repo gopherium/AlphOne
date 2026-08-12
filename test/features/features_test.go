@@ -59,8 +59,8 @@ func initializeContacts(t *testing.T) func(*godog.ScenarioContext) {
 }
 
 // initializeFieldsCatalog registers the field catalogue steps.
-func initializeFieldsCatalog(*testing.T) func(*godog.ScenarioContext) {
-	return func(*godog.ScenarioContext) {}
+func initializeFieldsCatalog(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsCatalogSteps(sc, t) }
 }
 
 // initializeFieldsValues registers the field value steps.
