@@ -64,8 +64,8 @@ func initializeFieldsCatalog(t *testing.T) func(*godog.ScenarioContext) {
 }
 
 // initializeFieldsValues registers the field value steps.
-func initializeFieldsValues(*testing.T) func(*godog.ScenarioContext) {
-	return func(*godog.ScenarioContext) {}
+func initializeFieldsValues(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsValuesSteps(sc, t) }
 }
 
 // initializeFieldsGraph registers the widened graph steps.

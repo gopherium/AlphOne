@@ -5,6 +5,7 @@ package features_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,6 +70,47 @@ func registerFieldsGraphSteps(sc *godog.ScenarioContext, t *testing.T) {
 	sc.Step(`^the field "([^"]*)" labelled "([^"]*)" of kind ([A-Z]+) is defined$`,
 		func(ctx context.Context, name, label, kind string) error {
 			return worldFrom(ctx).defineField(ctx, name, label, kind)
+		})
+
+	sc.When(`^the Contact type is introspected$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		const query = `{"query":"{ __type(name: \"Contact\") { fields { name type { name } } } }"}`
+		raw, err := w.postGraph(ctx, query)
+		if err != nil {
+			return err
+		}
+		w.answered = raw
+		return nil
+	})
+
+	sc.Then(`^the introspection lists "([^"]*)" answering the scalar "([^"]*)"$`,
+		func(ctx context.Context, name, scalar string) error {
+			var answer struct {
+				Data struct {
+					Type struct {
+						Fields []struct {
+							Name string `json:"name"`
+							Type struct {
+								Name string `json:"name"`
+							} `json:"type"`
+						} `json:"fields"`
+					} `json:"__type"`
+				} `json:"data"`
+			}
+			w := worldFrom(ctx)
+			if err := json.Unmarshal(w.answered, &answer); err != nil {
+				return fmt.Errorf("decoding %s: %w", w.answered, err)
+			}
+			for _, held := range answer.Data.Type.Fields {
+				if held.Name != name {
+					continue
+				}
+				if held.Type.Name != scalar {
+					return fmt.Errorf("%s answers %q, want %q", name, held.Type.Name, scalar)
+				}
+				return nil
+			}
+			return fmt.Errorf("introspection lists no field %q, answered %s", name, w.answered)
 		})
 
 	sc.Then(`^the core contact listing answers byte identical to the capture$`,

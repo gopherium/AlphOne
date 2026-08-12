@@ -7,7 +7,6 @@ Feature: The widened graph keeps the compiled schema's promises
   Background:
     Given a running AlphOne holding a user with an API token
 
-  @wip
   Scenario: Introspection lists a defined field with its scalar
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     When the Contact type is introspected
