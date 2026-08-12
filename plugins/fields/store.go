@@ -86,33 +86,11 @@ func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
 // writeValues merges values into a contact's bag, dropping the keys written null.
 func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map[string]any) error {
 	const statement = `INSERT INTO plugin_fields.contact_values (contact_id, values)
-		VALUES ($1, $2::jsonb)
+		VALUES ($1, jsonb_strip_nulls($2::jsonb))
 		ON CONFLICT (contact_id) DO UPDATE
-		SET values = plugin_fields.contact_values.values || EXCLUDED.values`
-	stripped := make(map[string]any, len(values))
-	var cleared []string
-	for name, value := range values {
-		if value == nil {
-			cleared = append(cleared, name)
-			continue
-		}
-		stripped[name] = value
-	}
-	if _, err := s.pool.Exec(ctx, statement, contactID, stripped); err != nil {
+		SET values = jsonb_strip_nulls(plugin_fields.contact_values.values || $2::jsonb)`
+	if _, err := s.pool.Exec(ctx, statement, contactID, values); err != nil {
 		return fmt.Errorf("fields: write contact values: %w", err)
-	}
-	return s.clearValues(ctx, contactID, cleared)
-}
-
-// clearValues removes the named keys from a contact's bag.
-func (s *store) clearValues(ctx context.Context, contactID uuid.UUID, names []string) error {
-	if len(names) == 0 {
-		return nil
-	}
-	const statement = `UPDATE plugin_fields.contact_values
-		SET values = values - $2::text[] WHERE contact_id = $1`
-	if _, err := s.pool.Exec(ctx, statement, contactID, names); err != nil {
-		return fmt.Errorf("fields: clear contact values: %w", err)
 	}
 	return nil
 }

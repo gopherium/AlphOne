@@ -76,18 +76,6 @@ func TestWriteContactFieldsReportsAStoreFailure(t *testing.T) {
 	}
 }
 
-func TestClearValuesReportsAClosedPool(t *testing.T) {
-	t.Parallel()
-
-	p := newClosedPlugin(t)
-
-	err := p.store.clearValues(t.Context(), uuid.Must(uuid.NewV7()), []string{"birthDate"})
-
-	if err == nil {
-		t.Error("clearValues() error = nil, want the closed pool reported")
-	}
-}
-
 func TestRefusalForReportsAClosedPool(t *testing.T) {
 	t.Parallel()
 
