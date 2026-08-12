@@ -19,7 +19,7 @@ var pluginTypeAllowlist = map[string][]string{
 		"ImportJob", "ImportRow", "ImportField", "ImportContact",
 		"ImportAssignment", "ImportAssignmentInput", "ImportCommitPayload",
 	},
-	"fields": {"FieldDefinition", "FieldKind", "JSON"},
+	"fields": {"FieldDefinition", "FieldKind"},
 }
 
 // misnamedTypes reports the types source defines outside the plugin's prefix and allowlist.

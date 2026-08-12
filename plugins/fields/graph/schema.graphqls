@@ -1,5 +1,3 @@
-scalar JSON
-
 extend type Contact {
   field(name: String!): JSON @goField(forceResolver: true)
 }

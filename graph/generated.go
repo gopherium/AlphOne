@@ -1535,9 +1535,7 @@ var sources = []*ast.Source{
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
-	{Name: "../plugins/fields/graph/schema.graphqls", Input: `scalar JSON
-
-extend type Contact {
+	{Name: "../plugins/fields/graph/schema.graphqls", Input: `extend type Contact {
   field(name: String!): JSON @goField(forceResolver: true)
 }
 
