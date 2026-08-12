@@ -35,6 +35,7 @@ const config: CodegenConfig = {
 		...clientPreset('frontend/src'),
 		...clientPreset('plugins/whatsapp/frontend'),
 		...clientPreset('plugins/importer/frontend'),
+		...clientPreset('plugins/fields/frontend'),
 	},
 	ignoreNoDocuments: true,
 }
