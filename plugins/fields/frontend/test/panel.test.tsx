@@ -150,6 +150,31 @@ function captureWrite() {
 	return written
 }
 
+const jobTitle = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000504',
+	name: 'jobTitle',
+	label: 'Job title',
+	kind: 'TEXT',
+}
+
+test('a text field sends its text unchanged', async () => {
+	serveCatalogue([jobTitle])
+	serveValues({ jobTitle: null })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.type(await screen.findByLabelText('Job title'), 'Rear Admiral')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { jobTitle: 'Rear Admiral' },
+		}),
+	)
+})
+
 test('a number field sends a number, not its text', async () => {
 	serveCatalogue([loyaltyPoints])
 	serveValues({ loyaltyPoints: null })

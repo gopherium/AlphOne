@@ -8,7 +8,7 @@ import {
 	server,
 } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 
@@ -40,14 +40,20 @@ function serveFields(fields: unknown[]) {
 	)
 }
 
-test('the catalogue lists every defined field', async () => {
+test('the catalogue lists every defined field in a table', async () => {
 	serveFields([birthDate])
 
 	renderScreen()
 
-	expect(await screen.findByText('Birth date')).toBeInTheDocument()
-	expect(screen.getByText('birthDate')).toBeInTheDocument()
-	expect(screen.getByText('DATE')).toBeInTheDocument()
+	const table = await screen.findByRole('table')
+	const row = within(table).getAllByRole('row')[1]
+	const cells = within(row).getAllByRole('cell')
+	expect(cells[0]).toHaveTextContent('Birth date')
+	expect(cells[1]).toHaveTextContent('birthDate')
+	expect(cells[2]).toHaveTextContent('Date')
+	expect(within(table).getByRole('columnheader', { name: 'Label' })).toBeInTheDocument()
+	expect(within(table).getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
+	expect(within(table).getByRole('columnheader', { name: 'Kind' })).toBeInTheDocument()
 })
 
 test('an empty catalogue invites the first field', async () => {
@@ -148,6 +154,23 @@ test('the chosen kind is sent with the definition', async () => {
 			kind: 'DATE',
 		}),
 	)
+})
+
+test('a defined field appears in the catalogue without a reload', async () => {
+	let served: unknown[] = []
+	server.use(
+		graphql.query('Fields', () => HttpResponse.json({ data: { fields: served } })),
+		graphql.mutation('DefineField', () => {
+			served = [birthDate]
+			return HttpResponse.json({ data: { defineField: birthDate } })
+		}),
+	)
+
+	renderScreen()
+	await submitField()
+
+	expect(await screen.findByRole('table')).toBeInTheDocument()
+	expect(screen.getByText('Birth date')).toBeInTheDocument()
 })
 
 test('an answer carrying no catalogue reads as empty', async () => {

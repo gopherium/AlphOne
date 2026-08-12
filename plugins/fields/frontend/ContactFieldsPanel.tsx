@@ -8,6 +8,7 @@ import {
 	Stack,
 	Text,
 	graphError,
+	useGraph,
 	useGraphMutation,
 	useGraphQuery,
 	validationMessage,
@@ -16,6 +17,8 @@ import { useState } from 'react'
 
 import { contactValuesDocument } from './document'
 import { fieldsQuery, writeContactFieldsMutation } from './operations'
+
+const valuesOperation = 'ContactFieldValues'
 
 /** FieldRow is one catalogue entry the panel renders an input for. */
 interface FieldRow {
@@ -52,19 +55,26 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 	})
 	const [edited, setEdited] = useState<Record<string, string>>({})
 	const [written, write] = useGraphMutation(writeContactFieldsMutation)
+	const graph = useGraph()
 	const stored = (values.data?.contact ?? {}) as Record<string, unknown>
 
 	return (
-		<form
-			onSubmit={(event) => {
-				event.preventDefault()
-				void write({ contactId, values: writable(fields, edited) })
-			}}
-		>
-			<Stack>
-				<Text variant="heading-sm" render={<h2 />}>
-					Fields
-				</Text>
+		<Stack direction="column" gap="sm">
+			<Text variant="heading-sm" render={<h2 />}>
+				Fields
+			</Text>
+			<form
+				className="godmin-form"
+				onSubmit={(event) => {
+					event.preventDefault()
+					void write({ contactId, values: writable(fields, edited) }).then((result) => {
+						if (!result.error) {
+							setEdited({})
+							graph.refetch([valuesOperation])
+						}
+					})
+				}}
+			>
 				{written.error ? (
 					<ErrorNotice>
 						{validationMessage(graphError(written.error), 'The fields could not be saved.')}
@@ -78,9 +88,11 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 						onChange={(next) => setEdited({ ...edited, [field.name]: next })}
 					/>
 				))}
-				<Button type="submit">Save fields</Button>
-			</Stack>
-		</form>
+				<Button type="submit" loading={written.fetching}>
+					Save fields
+				</Button>
+			</form>
+		</Stack>
 	)
 }
 
@@ -125,6 +137,9 @@ function FieldInput({
 function inputType(kind: string) {
 	if (kind === 'NUMBER') {
 		return 'number'
+	}
+	if (kind === 'DATE') {
+		return 'date'
 	}
 	return 'text'
 }

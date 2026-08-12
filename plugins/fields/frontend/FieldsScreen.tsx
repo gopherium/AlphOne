@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
+	Badge,
 	Button,
 	EmptyState,
 	ErrorNotice,
@@ -11,15 +12,18 @@ import {
 	Stack,
 	Text,
 	graphError,
-	validationMessage,
+	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
-import { kindItems, kindOf } from './kind'
 import { fieldsIcon } from './icon'
+import { kindItems, kindOf } from './kind'
 import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
+
+const catalogueOperation = 'Fields'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {
@@ -34,7 +38,8 @@ interface FieldRow {
  * @returns The fields screen.
  */
 export function FieldsScreen() {
-	const [catalogue, reload] = useGraphQuery({ query: fieldsQuery })
+	const [catalogue] = useGraphQuery({ query: fieldsQuery })
+	const reload = useCatalogueRefresh()
 
 	if (catalogue.fetching && !catalogue.data) {
 		return (
@@ -53,10 +58,28 @@ export function FieldsScreen() {
 	const fields = (catalogue.data?.fields ?? []) as FieldRow[]
 	return (
 		<PageScreen title="Fields">
-			<FieldList fields={fields} onChanged={reload} />
-			<AddFieldForm onAdded={reload} />
+			<Stack direction="column" gap="lg">
+				<FieldList fields={fields} onChanged={reload} />
+				<Stack direction="column" gap="sm">
+					<Text variant="heading-sm" render={<h2 />}>
+						Add a field
+					</Text>
+					<AddFieldForm onAdded={reload} />
+				</Stack>
+			</Stack>
 		</PageScreen>
 	)
+}
+
+/**
+ * Returns the refresh rerunning the catalogue query against the network.
+ * @returns The refresh callback.
+ */
+function useCatalogueRefresh() {
+	const graph = useGraph()
+	return () => {
+		graph.refetch([catalogueOperation])
+	}
 }
 
 /**
@@ -79,31 +102,65 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 		)
 	}
 	return (
-		<>
+		<Stack direction="column" gap="sm">
 			{archived.error ? (
 				<ErrorNotice>
 					{validationMessage(graphError(archived.error), 'The field could not be archived.')}
 				</ErrorNotice>
 			) : null}
-			<ul className="alphone-fields__list">
-				{fields.map((field) => (
-					<li key={field.id}>
-						<Text>{field.label}</Text>
-						<Text>{field.name}</Text>
-						<Text>{field.kind}</Text>
-						<Button
-							variant="outline"
-							onClick={() => {
-								void archive({ id: field.id }).then(onChanged)
-							}}
-						>
-							{`Archive ${field.label}`}
-						</Button>
-					</li>
-				))}
-			</ul>
-		</>
+			<div
+				className="godmin-table-scroll godmin-arrival"
+				role="region"
+				aria-label="Fields"
+				tabIndex={0}
+			>
+				<table className="godmin-table">
+					<thead>
+						<tr>
+							<th scope="col">Label</th>
+							<th scope="col">Name</th>
+							<th scope="col">Kind</th>
+							<th scope="col" className="godmin-table__actions" />
+						</tr>
+					</thead>
+					<tbody>
+						{fields.map((field) => (
+							<tr key={field.id}>
+								<td>{field.label}</td>
+								<td>
+									<code>{field.name}</code>
+								</td>
+								<td>
+									<Badge intent="stable">{kindLabel(field.kind)}</Badge>
+								</td>
+								<td className="godmin-table__actions">
+									<Button
+										variant="outline"
+										aria-label={`Archive ${field.label}`}
+										loading={archived.fetching}
+										onClick={() => {
+											void archive({ id: field.id }).then(onChanged)
+										}}
+									>
+										Archive
+									</Button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</Stack>
 	)
+}
+
+/**
+ * Returns the human label of one field kind.
+ * @param kind - The kind the definition declares.
+ * @returns The label shown in the catalogue.
+ */
+function kindLabel(kind: string) {
+	return kindOf({ value: kind }).label
 }
 
 /**
@@ -119,6 +176,7 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 
 	return (
 		<form
+			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
 				void define({ name, label, kind: kind.value }).then((result) => {
@@ -130,30 +188,32 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 				})
 			}}
 		>
-			<Stack>
-				{defined.error ? (
-					<ErrorNotice>
-						{validationMessage(graphError(defined.error), 'The field could not be defined.')}
-					</ErrorNotice>
-				) : null}
-				<InputControl
-					label="Label"
-					value={label}
-					onChange={(event) => setLabel(event.target.value)}
-				/>
-				<InputControl
-					label="Name"
-					value={name}
-					onChange={(event) => setName(event.target.value)}
-				/>
-				<SelectControl
-					label="Kind"
-					items={kindItems}
-					value={kind}
-					onValueChange={(item) => setKind(kindOf(item))}
-				/>
-				<Button type="submit">Add field</Button>
-			</Stack>
+			{defined.error ? (
+				<ErrorNotice>
+					{validationMessage(graphError(defined.error), 'The field could not be defined.')}
+				</ErrorNotice>
+			) : null}
+			<InputControl
+				label="Label"
+				autoComplete="off"
+				value={label}
+				onChange={(event) => setLabel(event.target.value)}
+			/>
+			<InputControl
+				label="Name"
+				autoComplete="off"
+				value={name}
+				onChange={(event) => setName(event.target.value)}
+			/>
+			<SelectControl
+				label="Kind"
+				items={kindItems}
+				value={kind}
+				onValueChange={(item) => setKind(kindOf(item))}
+			/>
+			<Button type="submit" loading={defined.fetching}>
+				Add field
+			</Button>
 		</form>
 	)
 }
