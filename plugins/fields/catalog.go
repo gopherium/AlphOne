@@ -30,6 +30,7 @@ type view struct {
 type catalog struct {
 	loader  loader
 	live    atomic.Pointer[view]
+	missed  atomic.Bool
 	reading sync.Mutex
 }
 
@@ -46,8 +47,10 @@ func (c *catalog) reload(ctx context.Context) error {
 	defer c.reading.Unlock()
 	definitions, err := c.loader.liveDefinitions(ctx)
 	if err != nil {
+		c.missed.Store(true)
 		return err
 	}
+	c.missed.Store(false)
 	next := &view{
 		version: c.live.Load().version + 1,
 		fields:  make([]sdk.GraphField, 0, len(definitions)),
@@ -68,7 +71,10 @@ func (c *catalog) reload(ctx context.Context) error {
 }
 
 // snapshot reports the catalogue version beside the fields the graph serves.
-func (c *catalog) snapshot() (uint64, []sdk.GraphField) {
+func (c *catalog) snapshot(ctx context.Context) (uint64, []sdk.GraphField) {
+	if c.missed.Load() {
+		_ = c.reload(ctx)
+	}
 	held := c.live.Load()
 	return held.version, held.fields
 }

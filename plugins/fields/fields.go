@@ -85,8 +85,8 @@ func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 }
 
 // FieldsSnapshot reports the catalogue version and the fields the graph serves.
-func (p *Plugin) FieldsSnapshot(_ context.Context) (uint64, []sdk.GraphField, error) {
-	version, held := p.catalog.snapshot()
+func (p *Plugin) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
+	version, held := p.catalog.snapshot(ctx)
 	return version, held, nil
 }
 

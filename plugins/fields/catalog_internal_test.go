@@ -36,7 +36,7 @@ func TestCatalogStartsEmptyAtVersionZero(t *testing.T) {
 
 	held := newCatalog(&fakeLoader{})
 
-	version, fields := held.snapshot()
+	version, fields := held.snapshot(t.Context())
 
 	if version != 0 {
 		t.Errorf("version = %d, want 0 before the first load", version)
@@ -56,7 +56,7 @@ func TestCatalogServesLoadedDefinitionsAsGraphFields(t *testing.T) {
 		t.Fatalf("reload() error = %v, want nil", err)
 	}
 
-	version, fields := held.snapshot()
+	version, fields := held.snapshot(t.Context())
 	if version != 1 {
 		t.Errorf("version = %d, want 1 after the first load", version)
 	}
@@ -77,7 +77,7 @@ func TestCatalogBumpsTheVersionOnEveryReload(t *testing.T) {
 		if err := held.reload(t.Context()); err != nil {
 			t.Fatalf("reload() error = %v, want nil", err)
 		}
-		if version, _ := held.snapshot(); version != want {
+		if version, _ := held.snapshot(t.Context()); version != want {
 			t.Errorf("version = %d, want %d", version, want)
 		}
 	}
@@ -98,9 +98,30 @@ func TestCatalogKeepsTheLastSnapshotWhenALoadFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("reload() error = nil, want the failure reported")
 	}
-	version, fields := held.snapshot()
+	version, fields := held.snapshot(t.Context())
 	if version != 1 || len(fields) != 1 {
 		t.Errorf("snapshot = %d and %v, want the last good load kept", version, fields)
+	}
+}
+
+func TestCatalogRetriesAfterAFailedReload(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeLoader{err: errors.New("catalogue unavailable")}
+	held := newCatalog(loader)
+	if err := held.reload(t.Context()); err == nil {
+		t.Fatal("reload() error = nil, want the failure reported")
+	}
+
+	loader.err = nil
+	loader.held = []Definition{defined(t, "birthDate", "DATE")}
+	version, fields := held.snapshot(t.Context())
+
+	if len(fields) != 1 || fields[0].Name != "birthDate" {
+		t.Errorf("fields = %+v, want the snapshot to recover the missed reload", fields)
+	}
+	if version == 0 {
+		t.Errorf("version = %d, want a bumped version so the graph rebuilds", version)
 	}
 }
 
