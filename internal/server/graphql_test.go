@@ -106,13 +106,13 @@ func (s stubFieldSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphFie
 	return 1, s.fields, nil
 }
 
-func TestGraphQLPassesThroughAFieldSourceWithoutACarrier(t *testing.T) {
+func TestGraphQLIgnoresAFieldOnACarrierlessType(t *testing.T) {
 	t.Parallel()
 
 	users := newFakeUserStore()
 	addAda(t, users)
 	source := stubFieldSource{fields: []sdk.GraphField{
-		{Entity: "Contact", Name: "birthDate", Type: "JSON"},
+		{Entity: "Task", Name: "estimatedHours", Type: "Int"},
 	}}
 	srv := newGraphServer(t, graphConfig{
 		Contacts:     newFakeContactStore(),
@@ -125,12 +125,13 @@ func TestGraphQLPassesThroughAFieldSourceWithoutACarrier(t *testing.T) {
 	answered := postGraphQL(t, srv, versionQuery, cookie)
 	body := decodeBody[graphqlData](t, answered)
 	if body.Data.Version != "9.9.9" {
-		t.Errorf("version = %q, want the graph unchanged under a carrierless source", body.Data.Version)
+		t.Errorf("version = %q, want the graph unchanged under a carrierless type", body.Data.Version)
 	}
 
-	refused := postGraphQL(t, srv, `{"query":"{ contacts(first: 1) { edges { node { birthDate } } } }"}`, cookie)
+	refused := postGraphQL(t, srv,
+		`{"query":"{ tasks(date: \"2026-08-12\", first: 1) { edges { node { estimatedHours } } } }"}`, cookie)
 	if !strings.Contains(refused.Body.String(), "Cannot query field") {
-		t.Errorf("body = %q, want birthDate refused while no carrier exists", refused.Body.String())
+		t.Errorf("body = %q, want the field refused on a type carrying no carrier", refused.Body.String())
 	}
 }
 

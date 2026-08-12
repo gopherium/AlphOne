@@ -47,6 +47,7 @@ type DirectiveRoot struct {
 type ComplexityRoot struct {
 	Contact struct {
 		CreatedAt             func(childComplexity int) int
+		Field                 func(childComplexity int, name string) int
 		ID                    func(childComplexity int) int
 		Identities            func(childComplexity int) int
 		Name                  func(childComplexity int) int
@@ -167,6 +168,7 @@ type ComplexityRoot struct {
 		SetUserDisabled       func(childComplexity int, id uuid.UUID, disabled bool) int
 		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
 		WhatsAppSendMessage   func(childComplexity int, conversationID uuid.UUID, content string) int
+		WriteContactFields    func(childComplexity int, contactID uuid.UUID, values any) int
 	}
 
 	PageInfo struct {
@@ -279,6 +281,7 @@ type ContactResolver interface {
 	CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error)
 	Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error)
 	Tasks(ctx context.Context, obj *model.Contact, status *string, first *int, after *string) (*model.TaskConnection, error)
+	Field(ctx context.Context, obj *model.Contact, name string) (any, error)
 	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
 type ImportJobResolver interface {
@@ -300,6 +303,7 @@ type MutationResolver interface {
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
+	WriteContactFields(ctx context.Context, contactID uuid.UUID, values any) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
 	ImportSetMapping(ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput) (*model.ImportJob, error)
 	ImportCommit(ctx context.Context, id uuid.UUID) (*model.ImportCommitPayload, error)
@@ -358,6 +362,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Contact.CreatedAt(childComplexity), true
+	case "Contact.field":
+		if e.ComplexityRoot.Contact.Field == nil {
+			break
+		}
+
+		args, err := ec.field_Contact_field_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Contact.Field(childComplexity, args["name"].(string)), true
 	case "Contact.id":
 		if e.ComplexityRoot.Contact.ID == nil {
 			break
@@ -918,6 +933,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.WhatsAppSendMessage(childComplexity, args["conversationId"].(uuid.UUID), args["content"].(string)), true
+	case "Mutation.writeContactFields":
+		if e.ComplexityRoot.Mutation.WriteContactFields == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_writeContactFields_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.WriteContactFields(childComplexity, args["contactId"].(uuid.UUID), args["values"].(any)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -1509,7 +1535,13 @@ var sources = []*ast.Source{
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
-	{Name: "../plugins/fields/graph/schema.graphqls", Input: `type FieldDefinition {
+	{Name: "../plugins/fields/graph/schema.graphqls", Input: `scalar JSON
+
+extend type Contact {
+  field(name: String!): JSON @goField(forceResolver: true)
+}
+
+type FieldDefinition {
   id: UUID!
   name: String!
   label: String!
@@ -1533,6 +1565,7 @@ extend type Query {
 extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
   archiveField(id: UUID!): Boolean!
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../plugins/importer/graph/schema.graphqls", Input: `extend type Query {
@@ -1670,6 +1703,8 @@ func (ec *executionContext) childFields_Contact(ctx context.Context, field graph
 		return ec.fieldContext_Contact_identities(ctx, field)
 	case "tasks":
 		return ec.fieldContext_Contact_tasks(ctx, field)
+	case "field":
+		return ec.fieldContext_Contact_field(ctx, field)
 	case "whatsAppConversations":
 		return ec.fieldContext_Contact_whatsAppConversations(ctx, field)
 	}
@@ -2136,6 +2171,20 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Contact_field_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Contact_tasks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2527,6 +2576,28 @@ func (ec *executionContext) field_Mutation_whatsAppSendMessage_args(ctx context.
 		return nil, err
 	}
 	args["content"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_writeContactFields_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "values",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalNJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["values"] = arg1
 	return args, nil
 }
 
@@ -2939,6 +3010,50 @@ func (ec *executionContext) fieldContext_Contact_tasks(ctx context.Context, fiel
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Contact_tasks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Contact_field(ctx context.Context, field graphql.CollectedField, obj *model.Contact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Contact_field(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Contact().Field(ctx, obj, fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalOJSON2interface(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Contact_field(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Contact",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Contact_field_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4855,6 +4970,56 @@ func (ec *executionContext) fieldContext_Mutation_archiveField(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_archiveField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_writeContactFields(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_writeContactFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().WriteContactFields(ctx, fc.Args["contactId"].(uuid.UUID),
+				func() any {
+					if fc.Args["values"] == nil {
+						return nil
+					}
+					return fc.Args["values"].(any)
+				}())
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_writeContactFields(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_writeContactFields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8379,6 +8544,44 @@ func (ec *executionContext) _Contact(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "field":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Contact_field(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "whatsAppConversations":
 			field := field
 
@@ -9340,6 +9543,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "archiveField":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_archiveField(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "writeContactFields":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_writeContactFields(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -11257,6 +11467,28 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNJSON2interface(ctx context.Context, v any) (any, error) {
+	res, err := graphql.UnmarshalAny(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJSON2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalAny(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNLoginPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐLoginPayload(ctx context.Context, sel ast.SelectionSet, v model.LoginPayload) graphql.Marshaler {
 	return ec._LoginPayload(ctx, sel, &v)
 }
@@ -11781,6 +12013,24 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2interface(ctx context.Context, v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalAny(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalAny(v)
 	return res
 }
 

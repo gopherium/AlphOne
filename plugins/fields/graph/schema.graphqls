@@ -1,3 +1,9 @@
+scalar JSON
+
+extend type Contact {
+  field(name: String!): JSON @goField(forceResolver: true)
+}
+
 type FieldDefinition {
   id: UUID!
   name: String!
@@ -22,4 +28,5 @@ extend type Query {
 extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
   archiveField(id: UUID!): Boolean!
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
 }

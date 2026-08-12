@@ -25,6 +25,7 @@ type CoreGraphResolvers interface {
 
 // FieldsGraphResolvers lists the resolver sets the fields plugin contributes to the graph.
 type FieldsGraphResolvers interface {
+	ContactResolvers() fields.ContactResolvers
 	MutationResolvers() fields.MutationResolvers
 	QueryResolvers() fields.QueryResolvers
 }
@@ -48,12 +49,16 @@ type WhatsappGraphResolvers interface {
 // coreContactResolvers names the core Contact resolver set for embedding.
 type coreContactResolvers = graphres.ContactResolvers
 
+// fieldsContactResolvers names the fields Contact resolver set for embedding.
+type fieldsContactResolvers = fields.ContactResolvers
+
 // whatsappContactResolvers names the whatsapp Contact resolver set for embedding.
 type whatsappContactResolvers = whatsapp.ContactResolvers
 
 // composedContactResolver merges every contributed Contact resolver set.
 type composedContactResolver struct {
 	coreContactResolvers
+	fieldsContactResolvers
 	whatsappContactResolvers
 }
 
@@ -159,6 +164,7 @@ func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverR
 func (g graphRoot) Contact() graph.ContactResolver {
 	return composedContactResolver{
 		g.core.ContactResolvers(),
+		g.fields.ContactResolvers(),
 		g.whatsapp.ContactResolvers(),
 	}
 }

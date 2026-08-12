@@ -18,6 +18,7 @@ type Contact struct {
 	CreatedAt             time.Time               `json:"createdAt"`
 	Identities            []*ContactIdentity      `json:"identities"`
 	Tasks                 *TaskConnection         `json:"tasks"`
+	Field                 any                     `json:"field,omitempty"`
 	WhatsAppConversations []*WhatsAppConversation `json:"whatsAppConversations"`
 }
 

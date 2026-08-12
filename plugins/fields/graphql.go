@@ -74,8 +74,8 @@ func (m MutationResolvers) DefineField(
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
 	}
-	if err := m.plugin.store.create(ctx, definition); err != nil {
-		if errors.Is(err, errNameTaken) {
+	if err := m.plugin.store.define(ctx, definition); err != nil {
+		if errors.Is(err, errNameTaken) || errors.Is(err, errKindLocked) {
 			return nil, sdk.GraphError{Code: "CONFLICT", Err: err}
 		}
 		return nil, err
@@ -84,6 +84,43 @@ func (m MutationResolvers) DefineField(
 		return nil, err
 	}
 	return toGraphDefinition(definition), nil
+}
+
+// ContactResolvers serves the plugin's Contact fields.
+type ContactResolvers struct {
+	plugin *Plugin
+}
+
+// ContactResolvers returns the plugin's Contact resolver set.
+func (p *Plugin) ContactResolvers() ContactResolvers {
+	return ContactResolvers{plugin: p}
+}
+
+// Field answers one runtime defined value of a contact.
+func (c ContactResolvers) Field(ctx context.Context, obj *model.Contact, name string) (any, error) {
+	held, err := c.plugin.loadValues(ctx, obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	return held[name], nil
+}
+
+// WriteContactFields merges values into a contact's fields.
+func (m MutationResolvers) WriteContactFields(
+	ctx context.Context, contactID uuid.UUID, values any,
+) (bool, error) {
+	given, ok := values.(map[string]any)
+	if !ok {
+		return false, sdk.GraphError{Code: "VALIDATION", Err: errValuesNotAnObject}
+	}
+	checked, err := checkValues(m.plugin.catalog.liveKinds(), given)
+	if err != nil {
+		return false, sdk.GraphError{Code: "VALIDATION", Err: err}
+	}
+	if err := m.plugin.store.writeValues(ctx, contactID, checked); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ArchiveField archives a definition and republishes the catalogue.

@@ -4,6 +4,7 @@ package fields_test
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -11,10 +12,12 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
@@ -32,6 +35,11 @@ func newFieldsClient(t *testing.T) *gqlclient.Client {
 		t.Skip("skipping database test in short mode")
 	}
 	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	if err != nil {
+		t.Fatalf("connecting the test pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
 	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL()})
 	if err != nil {
 		t.Fatalf("fields.Register() error = %v, want nil", err)
@@ -53,15 +61,55 @@ func newFieldsClient(t *testing.T) *gqlclient.Client {
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-	root, err := graphroot.FromPlugins(&graphres.Resolver{Version: "9.9.9"},
-		[]sdk.Plugin{whatsappPlugin, importerPlugin, plugin})
+	root, err := graphroot.FromPlugins(&graphres.Resolver{
+		Version:  "9.9.9",
+		Contacts: postgres.NewContactStore(pool),
+	}, []sdk.Plugin{whatsappPlugin, importerPlugin, plugin})
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}
 	srv := handler.New(graphres.ExecutableSchema(root))
 	srv.AddTransport(transport.POST{})
 	srv.SetErrorPresenter(graphres.PresentError)
-	return gqlclient.New(srv)
+	scoped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv.ServeHTTP(w, r.WithContext(sdk.WithRequestScope(r.Context(), sdk.NewRequestScope())))
+	})
+	return gqlclient.New(scoped)
+}
+
+// newValuesClient returns a scoped graph client beside a seeded contact.
+func newValuesClient(t *testing.T) (*gqlclient.Client, uuid.UUID) {
+	t.Helper()
+	client := newFieldsClient(t)
+	return client, seedGraphContact(t, client, "Maria Perez")
+}
+
+// seedGraphContact stores a contact through the graph and returns its id.
+func seedGraphContact(t *testing.T, client *gqlclient.Client, name string) uuid.UUID {
+	t.Helper()
+	var created struct {
+		CreateContact struct {
+			ID string `json:"id"`
+		}
+	}
+	client.MustPost(`mutation($name: String!) { createContact(name: $name) { id } }`, &created,
+		gqlclient.Var("name", name))
+	id, err := uuid.Parse(created.CreateContact.ID)
+	if err != nil {
+		t.Fatalf("parsing the contact id: %v", err)
+	}
+	return id
+}
+
+// defineDate declares the birthDate field every value test writes into.
+func defineDate(t *testing.T, client *gqlclient.Client) {
+	t.Helper()
+	var created struct {
+		DefineField struct {
+			ID string `json:"id"`
+		}
+	}
+	client.MustPost(`mutation { defineField(name: "birthDate", label: "Birth date", kind: DATE) { id } }`, &created)
 }
 
 // definition is one catalogue entry as the graph answers it.
