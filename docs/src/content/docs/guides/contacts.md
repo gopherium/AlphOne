@@ -44,6 +44,12 @@ A contact's detail page lists its identities: the per-channel handles
 that link conversations to the contact, such as a WhatsApp phone number.
 Identities are created automatically by channels and cannot be edited.
 
+## Storing more about a contact
+
+A contact holds only a name and its identities out of the box. To store an
+address, a birth date, or anything else your business needs, create your own
+fields. See [Fields](/guides/fields/).
+
 ## Deleting
 
 Contacts cannot be deleted yet. A contact anchors its whole conversation
