@@ -184,6 +184,43 @@ func TestMainBinarySeedStoresDemoData(t *testing.T) {
 	}
 }
 
+func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	var stderr bytes.Buffer
+	seedCmd := exec.Command(binary, "seed")
+	seedCmd.Dir = t.TempDir()
+	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	seedCmd.Stderr = &stderr
+	if err := seedCmd.Run(); err != nil {
+		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
+	}
+	addr, secret := servedSeededBinary(t, databaseURL)
+
+	read := postGraph(t, addr, secret,
+		`{"query":"{ contacts(first: 50) { edges { node { name birthDate } } } }"}`)
+
+	if read.Data.Contacts == nil {
+		t.Fatal("the read answered no contacts, want the seeded demo import")
+	}
+	var found bool
+	for _, edge := range read.Data.Contacts.Edges {
+		if edge.Node["name"] != "Grace Hopper" {
+			continue
+		}
+		found = true
+		if edge.Node["birthDate"] != "1906-12-09" {
+			t.Errorf("birthDate = %#v, want the value the seed path's providers wrote",
+				edge.Node["birthDate"])
+		}
+	}
+	if !found {
+		t.Error("the seeded demo import listed no Grace Hopper, want the imported contact")
+	}
+}
+
 func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	t.Parallel()
 
@@ -385,6 +422,13 @@ func servedBinary(t *testing.T, databaseURL string) (string, string) {
 	if err := createUser.Run(); err != nil {
 		t.Fatalf("createadmin: %v", err)
 	}
+	return servedSeededBinary(t, databaseURL)
+}
+
+// servedSeededBinary starts the real binary on a database already holding the admin.
+func servedSeededBinary(t *testing.T, databaseURL string) (string, string) {
+	t.Helper()
+	binary, env := coverBinary(t)
 	var minted bytes.Buffer
 	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "exec")
 	token.Dir = t.TempDir()
