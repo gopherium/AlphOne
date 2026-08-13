@@ -24,12 +24,14 @@ var errProvider = errors.New("the field catalogue is unreachable")
 
 // fieldProvider answers the importer with a settable set of live fields.
 type fieldProvider struct {
-	mu      sync.Mutex
-	fields  []sdk.ContactField
-	listErr error
-	refuse  map[string]string
-	written map[uuid.UUID]map[string]string
-	writes  int
+	mu       sync.Mutex
+	fields   []sdk.ContactField
+	listErr  error
+	checkErr error
+	writeErr error
+	refuse   map[string]string
+	written  map[uuid.UUID]map[string]string
+	writes   int
 }
 
 // newFieldProvider returns a provider serving one date field.
@@ -51,6 +53,9 @@ func (f *fieldProvider) LiveContactFields(context.Context) ([]sdk.ContactField, 
 
 // CheckContactFieldTexts refuses a name the provider does not serve or a settable text.
 func (f *fieldProvider) CheckContactFieldTexts(_ context.Context, values map[string]string) error {
+	if f.checkErr != nil {
+		return f.checkErr
+	}
 	for name, text := range values {
 		if !f.holds(name) {
 			return fmt.Errorf("%w: no live field holds %s", sdk.ErrInvalidFieldText, name)
@@ -66,6 +71,9 @@ func (f *fieldProvider) CheckContactFieldTexts(_ context.Context, values map[str
 func (f *fieldProvider) WriteContactFieldTexts(
 	ctx context.Context, contactID uuid.UUID, values map[string]string,
 ) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
 	if err := f.CheckContactFieldTexts(ctx, values); err != nil {
 		return err
 	}
@@ -441,5 +449,78 @@ func TestCommitReportsAProviderOutageWithoutClaiming(t *testing.T) {
 	}
 	if got := stateOf(t, pool, id); got != "ready" {
 		t.Errorf("state = %q, want the import left editable", got)
+	}
+}
+
+func TestCommitReportsAProviderCheckFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := newFieldProvider(birthDate())
+	provider.checkErr = errProvider
+	p, _, _ := newServedPlugin(t, provider)
+	id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+	if err := mapNameEmailAndField(t, p, id, "birthDate"); err != nil {
+		t.Fatalf("ImportSetMapping() error = %v, want nil", err)
+	}
+
+	if _, err := commitImport(t, p, id); !errors.Is(err, errProvider) {
+		t.Errorf("error = %v, want an outage reported rather than a failed row", err)
+	}
+}
+
+func TestCommitReportsAProviderWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := newFieldProvider(birthDate())
+	p, _, _ := newServedPlugin(t, provider)
+	id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+	if err := mapNameEmailAndField(t, p, id, "birthDate"); err != nil {
+		t.Fatalf("ImportSetMapping() error = %v, want nil", err)
+	}
+	provider.writeErr = errProvider
+
+	if _, err := commitImport(t, p, id); !errors.Is(err, errProvider) {
+		t.Errorf("error = %v, want the write failure reported", err)
+	}
+}
+
+func TestCommitFailsAResumedRowWhoseFieldVanished(t *testing.T) {
+	t.Parallel()
+
+	provider := newFieldProvider(birthDate())
+	p, pool, contacts := newServedPlugin(t, provider)
+	id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+	if err := mapNameEmailAndField(t, p, id, "birthDate"); err != nil {
+		t.Fatalf("ImportSetMapping() error = %v, want nil", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", id); err != nil {
+		t.Fatalf("resuming the import: %v", err)
+	}
+	provider.fields = nil
+
+	committed := mustCommit(t, p, id)
+
+	if committed.Failed != 1 {
+		t.Fatalf("failed = %d, want the resumed row refused by its own check", committed.Failed)
+	}
+	if contacts.creates != 0 {
+		t.Errorf("creates = %d, want no contact for a row naming a vanished field", contacts.creates)
+	}
+	if reason := reasonOf(t, pool, id, 1); !strings.Contains(reason, "birthDate") {
+		t.Errorf("reason = %q, want it to name the vanished field", reason)
+	}
+}
+
+func TestSetMappingReportsAProviderFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := newFieldProvider(birthDate())
+	p, _, _ := newServedPlugin(t, provider)
+	id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+	provider.listErr = errProvider
+
+	if err := mapNameEmailAndField(t, p, id, "birthDate"); !errors.Is(err, errProvider) {
+		t.Errorf("error = %v, want the outage reported rather than a shrunken registry", err)
 	}
 }

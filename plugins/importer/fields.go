@@ -96,37 +96,12 @@ func (r registry) holds(name fieldName) bool {
 	return served
 }
 
-// checkTexts reports whether every provider accepts the texts its own fields carry.
-func (r registry) checkTexts(ctx context.Context, texts map[string]string) error {
-	grouped, err := r.group(texts)
-	if err != nil {
-		return err
-	}
-	for index, held := range grouped {
-		if err := r.providers[index].CheckContactFieldTexts(ctx, held); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// writeTexts stores each text through the provider serving its field.
-func (r registry) writeTexts(ctx context.Context, contactID uuid.UUID, texts map[string]string) error {
-	grouped, err := r.group(texts)
-	if err != nil {
-		return err
-	}
-	for index, held := range grouped {
-		if err := r.providers[index].WriteContactFieldTexts(ctx, contactID, held); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// shares is one row's field texts, keyed by the provider serving each field.
+type shares map[int]map[string]string
 
 // group sorts the texts by the provider serving each field, refusing the unserved.
-func (r registry) group(texts map[string]string) (map[int]map[string]string, error) {
-	grouped := make(map[int]map[string]string, len(texts))
+func (r registry) group(texts map[string]string) (shares, error) {
+	grouped := make(shares, len(texts))
 	var unserved []string
 	for name, text := range texts {
 		index, served := r.owner[fieldName(name)]
@@ -145,4 +120,33 @@ func (r registry) group(texts map[string]string) (map[int]map[string]string, err
 			sdk.ErrInvalidFieldText, strings.Join(unserved, ", "))
 	}
 	return grouped, nil
+}
+
+// check reports whether every provider accepts the share its own fields carry.
+func (r registry) check(ctx context.Context, grouped shares) error {
+	for index, held := range grouped {
+		if err := r.providers[index].CheckContactFieldTexts(ctx, held); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// write stores every share through the provider serving it.
+func (r registry) write(ctx context.Context, contactID uuid.UUID, grouped shares) error {
+	for index, held := range grouped {
+		if err := r.providers[index].WriteContactFieldTexts(ctx, contactID, held); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeOne stores one text through the provider serving its field, if any does.
+func (r registry) writeOne(ctx context.Context, contactID uuid.UUID, name, text string) error {
+	index, served := r.owner[fieldName(name)]
+	if !served {
+		return nil
+	}
+	return r.providers[index].WriteContactFieldTexts(ctx, contactID, map[string]string{name: text})
 }

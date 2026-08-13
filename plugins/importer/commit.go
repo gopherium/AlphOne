@@ -79,7 +79,11 @@ func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlemen
 	if !d.usable() {
 		return settlement{outcome: outcomeFailed, reason: "the row carries no name or no contact detail"}, nil
 	}
-	if err := known.checkTexts(ctx, d.texts); err != nil {
+	grouped, err := known.group(d.texts)
+	if err != nil {
+		return refusedText(err), nil
+	}
+	if err := known.check(ctx, grouped); err != nil {
 		if errors.Is(err, sdk.ErrInvalidFieldText) {
 			return refusedText(err), nil
 		}
@@ -92,7 +96,7 @@ func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlemen
 	if claimed {
 		return skipped(owner), nil
 	}
-	return p.create(ctx, d, known)
+	return p.create(ctx, d, known, grouped)
 }
 
 // refusedText returns the settlement of a row carrying a value no field accepts.
@@ -109,7 +113,9 @@ func (d draft) usable() bool {
 }
 
 // create stores the drafted contact and its field values, reporting a lost race as a skip.
-func (p *Plugin) create(ctx context.Context, d draft, known registry) (settlement, error) {
+func (p *Plugin) create(
+	ctx context.Context, d draft, known registry, grouped shares,
+) (settlement, error) {
 	created, wasCreated, err := p.contacts.CreateWithIdentities(ctx, d.name, d.identities)
 	if err != nil {
 		return settlement{}, err
@@ -117,7 +123,7 @@ func (p *Plugin) create(ctx context.Context, d draft, known registry) (settlemen
 	if !wasCreated {
 		return skipped(created), nil
 	}
-	if err := known.writeTexts(ctx, created.ID, d.texts); err != nil {
+	if err := known.write(ctx, created.ID, grouped); err != nil {
 		return settlement{}, err
 	}
 	return settlement{outcome: outcomeImported, contactID: &created.ID}, nil
