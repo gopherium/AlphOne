@@ -73,6 +73,11 @@ func initializeFieldsGraph(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerFieldsGraphSteps(sc, t) }
 }
 
+// initializeImportFields registers the import mapping steps.
+func initializeImportFields(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerImportFieldsSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -99,4 +104,8 @@ func TestFieldsValues(t *testing.T) {
 
 func TestFieldsGraph(t *testing.T) {
 	runFeature(t, "features/fields-graph.feature", initializeFieldsGraph(t))
+}
+
+func TestImportFields(t *testing.T) {
+	runFeature(t, "features/import-fields.feature", initializeImportFields(t))
 }
