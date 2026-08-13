@@ -5,7 +5,6 @@ FROM node:26-slim AS frontend
 RUN npm install -g pnpm@11.10.0
 WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY patches ./patches
 COPY frontend ./frontend
 COPY sdk ./sdk
 COPY plugins ./plugins
