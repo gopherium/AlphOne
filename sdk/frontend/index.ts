@@ -15,10 +15,16 @@ export interface NavItem {
 	icon: ReactElement<ComponentProps<'svg'>>
 }
 
+export interface ContactPanel {
+	id: string
+	Panel: ComponentType<{ contactId: string }>
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
+	contactPanels?: ContactPanel[]
 }
 
 export {

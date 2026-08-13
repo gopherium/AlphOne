@@ -12,6 +12,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
@@ -51,8 +52,13 @@ func composedSchema(t *testing.T) graphql.ExecutableSchema {
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(t.Context()) })
+	fieldsPlugin, err := fields.Register(deps)
+	if err != nil {
+		t.Fatalf("fields.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = fieldsPlugin.Stop(t.Context()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{},
-		[]sdk.Plugin{whatsappPlugin, importerPlugin})
+		[]sdk.Plugin{whatsappPlugin, importerPlugin, fieldsPlugin})
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}

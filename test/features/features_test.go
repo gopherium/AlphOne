@@ -58,6 +58,21 @@ func initializeContacts(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerContactSteps(sc, t) }
 }
 
+// initializeFieldsCatalog registers the field catalogue steps.
+func initializeFieldsCatalog(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsCatalogSteps(sc, t) }
+}
+
+// initializeFieldsValues registers the field value steps.
+func initializeFieldsValues(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsValuesSteps(sc, t) }
+}
+
+// initializeFieldsGraph registers the widened graph steps.
+func initializeFieldsGraph(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsGraphSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -72,4 +87,16 @@ func TestMCPTasks(t *testing.T) {
 
 func TestMCPContacts(t *testing.T) {
 	runFeature(t, "features/mcp-contacts.feature", initializeContacts(t))
+}
+
+func TestFieldsCatalog(t *testing.T) {
+	runFeature(t, "features/fields-catalog.feature", initializeFieldsCatalog(t))
+}
+
+func TestFieldsValues(t *testing.T) {
+	runFeature(t, "features/fields-values.feature", initializeFieldsValues(t))
+}
+
+func TestFieldsGraph(t *testing.T) {
+	runFeature(t, "features/fields-graph.feature", initializeFieldsGraph(t))
 }

@@ -9,15 +9,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/internal/dyngraph"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -38,6 +41,16 @@ const (
 
 // graphRetryAfter is how soon a caller may retry an operation the budget refused.
 const graphRetryAfter = time.Second
+
+// executableSchema serves the compiled schema, widened when field sources exist.
+func executableSchema(root graph.ResolverRoot, sources []sdk.FieldSource) graphql.ExecutableSchema {
+	if len(sources) == 0 {
+		return graphres.ExecutableSchema(root)
+	}
+	return dyngraph.New(func(widened *ast.Schema) graphql.ExecutableSchema {
+		return graphres.ExecutableSchemaOver(root, widened)
+	}, sources...)
+}
 
 // graphPolicy is the budget one kind of graph request is held to.
 type graphPolicy struct {
@@ -61,8 +74,10 @@ func retryAfterSeconds(hint time.Duration) int {
 }
 
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
-func newGraphQLHandler(root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int) http.Handler {
-	srv := handler.New(graphres.ExecutableSchema(root))
+func newGraphQLHandler(
+	root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int, sources []sdk.FieldSource,
+) http.Handler {
+	srv := handler.New(executableSchema(root, sources))
 	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})

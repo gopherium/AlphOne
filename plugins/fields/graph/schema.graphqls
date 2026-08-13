@@ -1,0 +1,30 @@
+extend type Contact {
+  field(name: String!): JSON @goField(forceResolver: true)
+}
+
+type FieldDefinition {
+  id: UUID!
+  name: String!
+  label: String!
+  kind: FieldKind!
+  archivedAt: DateTime
+}
+
+enum FieldKind {
+  TEXT
+  LONGTEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  SELECT
+}
+
+extend type Query {
+  fields(includeArchived: Boolean): [FieldDefinition!]!
+}
+
+extend type Mutation {
+  defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+  archiveField(id: UUID!): Boolean!
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
+}

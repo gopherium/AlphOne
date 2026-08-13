@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -247,6 +249,120 @@ func tokenSecret(t *testing.T, stdout string) string {
 		secret = secret[:end]
 	}
 	return secret
+}
+
+// graphAnswer is the envelope the exec tests read one operation back through.
+type graphAnswer struct {
+	Data struct {
+		DefineField struct {
+			ID string `json:"id"`
+		} `json:"defineField"`
+		CreateContact struct {
+			ID string `json:"id"`
+		} `json:"createContact"`
+		Contacts *struct {
+			Edges []struct {
+				Node map[string]any `json:"node"`
+			} `json:"edges"`
+		} `json:"contacts"`
+	} `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+// postGraph runs one graph operation against the running binary, refusing any failure.
+func postGraph(t *testing.T, addr, secret, body string) graphAnswer {
+	t.Helper()
+	request, err := http.NewRequestWithContext(
+		t.Context(), http.MethodPost, "http://"+addr+"/api/graphql", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("building the graph request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+secret)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("posting the graph request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	answered, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("reading the graph answer: %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d, answered %s", response.StatusCode, http.StatusOK, answered)
+	}
+	var envelope graphAnswer
+	if err := json.Unmarshal(answered, &envelope); err != nil {
+		t.Fatalf("decoding %s: %v", answered, err)
+	}
+	if len(envelope.Errors) > 0 {
+		t.Fatalf("the graph refused the operation: %s", answered)
+	}
+	return envelope
+}
+
+func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("createadmin: %v", err)
+	}
+	var minted bytes.Buffer
+	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "fields")
+	token.Dir = t.TempDir()
+	token.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	token.Stdout = &minted
+	if err := token.Run(); err != nil {
+		t.Fatalf("token create: %v", err)
+	}
+	secret := tokenSecret(t, minted.String())
+	addr := freeAddr(t)
+	serve := exec.Command(binary)
+	serve.Dir = t.TempDir()
+	serve.Env = append(env,
+		"ALPHONE_DATABASE_URL="+databaseURL,
+		"ALPHONE_ADDR="+addr,
+		"ALPHONE_WHATSAPP_VERIFY_TOKEN=e2e-secret",
+		"ALPHONE_WHATSAPP_APP_SECRET=e2e-app-secret",
+	)
+	if err := serve.Start(); err != nil {
+		t.Fatalf("starting alphone: %v", err)
+	}
+	t.Cleanup(func() { _ = serve.Process.Kill() })
+	waitForServer(t, "http://"+addr)
+
+	defined := postGraph(t, addr, secret,
+		`{"query":"mutation { defineField(name: \"birthDate\", label: \"Birth date\", kind: DATE) { id } }"}`)
+	if defined.Data.DefineField.ID == "" {
+		t.Fatal("defineField answered no id, want the definition stored")
+	}
+	created := postGraph(t, addr, secret,
+		`{"query":"mutation { createContact(name: \"Maria Perez\") { id } }"}`)
+	if created.Data.CreateContact.ID == "" {
+		t.Fatal("createContact answered no id, want a contact to read the field back from")
+	}
+
+	read := postGraph(t, addr, secret,
+		`{"query":"{ contacts(first: 1) { edges { node { name birthDate } } } }"}`)
+
+	if read.Data.Contacts == nil {
+		t.Fatal("the read answered no contacts, want the connection served")
+	}
+	if len(read.Data.Contacts.Edges) == 0 {
+		t.Fatal("the read answered no contact, want the seeded contact")
+	}
+	node := read.Data.Contacts.Edges[0].Node
+	if _, selected := node["birthDate"]; !selected {
+		t.Errorf("node = %v, want birthDate answered by the running binary's widened schema", node)
+	}
 }
 
 func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {

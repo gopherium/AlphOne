@@ -112,6 +112,7 @@ func run(
 		Tokens:            tokens,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
+		FieldSources:      fieldSources(registered),
 		TrustedProxies:    settings.trustedProxies,
 		GraphiQL:          settings.graphiql,
 	}
@@ -127,6 +128,17 @@ func run(
 		IdleTimeout:       120 * time.Second,
 	}
 	return serveUntilDone(ctx, httpServer, host, logger)
+}
+
+// fieldSources returns every registered plugin serving runtime defined fields.
+func fieldSources(registered []sdk.Plugin) []sdk.FieldSource {
+	var sources []sdk.FieldSource
+	for _, plugin := range registered {
+		if source, ok := plugin.(sdk.FieldSource); ok {
+			sources = append(sources, source)
+		}
+	}
+	return sources
 }
 
 // runConfig carries the environment-derived settings of the server.

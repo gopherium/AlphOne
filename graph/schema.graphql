@@ -5,6 +5,7 @@ type Contact {
 	createdAt: DateTime! @goField(forceResolver: true)
 	identities: [ContactIdentity!]! @goField(forceResolver: true)
 	tasks(status: String, first: Int, after: String): TaskConnection! @goField(forceResolver: true)
+	field(name: String!): JSON @goField(forceResolver: true)
 	whatsAppConversations: [WhatsAppConversation!]! @goField(forceResolver: true)
 }
 type ContactConnection {
@@ -43,6 +44,21 @@ type CreateWebhookPayload {
 }
 scalar Date
 scalar DateTime
+type FieldDefinition {
+	id: UUID!
+	name: String!
+	label: String!
+	kind: FieldKind!
+	archivedAt: DateTime
+}
+enum FieldKind {
+	TEXT
+	LONGTEXT
+	NUMBER
+	BOOLEAN
+	DATE
+	SELECT
+}
 type Identity {
 	id: UUID!
 	email: String!
@@ -95,6 +111,7 @@ type ImportRow {
 	reason: String
 	contactId: UUID
 }
+scalar JSON
 type LoginPayload {
 	me: Identity!
 }
@@ -111,6 +128,9 @@ type Mutation {
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
 	deleteWebhook(id: UUID!): Boolean!
+	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+	archiveField(id: UUID!): Boolean!
+	writeContactFields(contactId: UUID!, values: JSON!): Boolean!
 	importUpload(file: Upload!): ImportJob!
 	importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
 	importCommit(id: UUID!): ImportCommitPayload!
@@ -131,6 +151,7 @@ type Query {
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
 	task(id: UUID!): Task
 	webhooks: [Webhook!]!
+	fields(includeArchived: Boolean): [FieldDefinition!]!
 	imports: [ImportJob!]!
 	importJob(id: UUID!): ImportJob
 	importFields: [ImportField!]!

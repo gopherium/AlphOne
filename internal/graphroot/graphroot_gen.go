@@ -8,6 +8,7 @@ import (
 	"errors"
 	graph "github.com/gopherium/alphone/graph"
 	graphres "github.com/gopherium/alphone/internal/graphres"
+	fields "github.com/gopherium/alphone/plugins/fields"
 	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
 	sdk "github.com/gopherium/alphone/sdk"
@@ -20,6 +21,13 @@ type CoreGraphResolvers interface {
 	QueryResolvers() graphres.QueryResolvers
 	SubscriptionResolvers() graphres.SubscriptionResolvers
 	TaskResolvers() graphres.TaskResolvers
+}
+
+// FieldsGraphResolvers lists the resolver sets the fields plugin contributes to the graph.
+type FieldsGraphResolvers interface {
+	ContactResolvers() fields.ContactResolvers
+	MutationResolvers() fields.MutationResolvers
+	QueryResolvers() fields.QueryResolvers
 }
 
 // ImporterGraphResolvers lists the resolver sets the importer plugin contributes to the graph.
@@ -41,17 +49,24 @@ type WhatsappGraphResolvers interface {
 // coreContactResolvers names the core Contact resolver set for embedding.
 type coreContactResolvers = graphres.ContactResolvers
 
+// fieldsContactResolvers names the fields Contact resolver set for embedding.
+type fieldsContactResolvers = fields.ContactResolvers
+
 // whatsappContactResolvers names the whatsapp Contact resolver set for embedding.
 type whatsappContactResolvers = whatsapp.ContactResolvers
 
 // composedContactResolver merges every contributed Contact resolver set.
 type composedContactResolver struct {
 	coreContactResolvers
+	fieldsContactResolvers
 	whatsappContactResolvers
 }
 
 // coreMutationResolvers names the core Mutation resolver set for embedding.
 type coreMutationResolvers = graphres.MutationResolvers
+
+// fieldsMutationResolvers names the fields Mutation resolver set for embedding.
+type fieldsMutationResolvers = fields.MutationResolvers
 
 // importerMutationResolvers names the importer Mutation resolver set for embedding.
 type importerMutationResolvers = importer.MutationResolvers
@@ -62,12 +77,16 @@ type whatsappMutationResolvers = whatsapp.MutationResolvers
 // composedMutationResolver merges every contributed Mutation resolver set.
 type composedMutationResolver struct {
 	coreMutationResolvers
+	fieldsMutationResolvers
 	importerMutationResolvers
 	whatsappMutationResolvers
 }
 
 // coreQueryResolvers names the core Query resolver set for embedding.
 type coreQueryResolvers = graphres.QueryResolvers
+
+// fieldsQueryResolvers names the fields Query resolver set for embedding.
+type fieldsQueryResolvers = fields.QueryResolvers
 
 // importerQueryResolvers names the importer Query resolver set for embedding.
 type importerQueryResolvers = importer.QueryResolvers
@@ -78,6 +97,7 @@ type whatsappQueryResolvers = whatsapp.QueryResolvers
 // composedQueryResolver merges every contributed Query resolver set.
 type composedQueryResolver struct {
 	coreQueryResolvers
+	fieldsQueryResolvers
 	importerQueryResolvers
 	whatsappQueryResolvers
 }
@@ -97,6 +117,7 @@ type composedSubscriptionResolver struct {
 // graphRoot composes the core and plugin resolver sets into the resolver root.
 type graphRoot struct {
 	core     CoreGraphResolvers
+	fields   FieldsGraphResolvers
 	importer ImporterGraphResolvers
 	whatsapp WhatsappGraphResolvers
 }
@@ -104,17 +125,22 @@ type graphRoot struct {
 // NewGraphRoot composes the core resolver sets with every graphql plugin's.
 func NewGraphRoot(
 	core CoreGraphResolvers,
+	fieldsPlugin FieldsGraphResolvers,
 	importerPlugin ImporterGraphResolvers,
 	whatsappPlugin WhatsappGraphResolvers,
 ) graph.ResolverRoot {
-	return graphRoot{core: core, importer: importerPlugin, whatsapp: whatsappPlugin}
+	return graphRoot{core: core, fields: fieldsPlugin, importer: importerPlugin, whatsapp: whatsappPlugin}
 }
 
 // FromPlugins finds each graphql plugin among the registered plugins and composes the resolver root.
 func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverRoot, error) {
+	var fieldsPlugin FieldsGraphResolvers
 	var importerPlugin ImporterGraphResolvers
 	var whatsappPlugin WhatsappGraphResolvers
 	for _, plugin := range plugins {
+		if candidate, ok := plugin.(FieldsGraphResolvers); ok {
+			fieldsPlugin = candidate
+		}
 		if candidate, ok := plugin.(ImporterGraphResolvers); ok {
 			importerPlugin = candidate
 		}
@@ -122,19 +148,23 @@ func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverR
 			whatsappPlugin = candidate
 		}
 	}
+	if fieldsPlugin == nil {
+		return nil, errors.New("graphroot: no registered plugin provides the fields resolver sets")
+	}
 	if importerPlugin == nil {
 		return nil, errors.New("graphroot: no registered plugin provides the importer resolver sets")
 	}
 	if whatsappPlugin == nil {
 		return nil, errors.New("graphroot: no registered plugin provides the whatsapp resolver sets")
 	}
-	return NewGraphRoot(core, importerPlugin, whatsappPlugin), nil
+	return NewGraphRoot(core, fieldsPlugin, importerPlugin, whatsappPlugin), nil
 }
 
 // Contact returns the Contact resolver set.
 func (g graphRoot) Contact() graph.ContactResolver {
 	return composedContactResolver{
 		g.core.ContactResolvers(),
+		g.fields.ContactResolvers(),
 		g.whatsapp.ContactResolvers(),
 	}
 }
@@ -148,6 +178,7 @@ func (g graphRoot) ImportJob() graph.ImportJobResolver {
 func (g graphRoot) Mutation() graph.MutationResolver {
 	return composedMutationResolver{
 		g.core.MutationResolvers(),
+		g.fields.MutationResolvers(),
 		g.importer.MutationResolvers(),
 		g.whatsapp.MutationResolvers(),
 	}
@@ -157,6 +188,7 @@ func (g graphRoot) Mutation() graph.MutationResolver {
 func (g graphRoot) Query() graph.QueryResolver {
 	return composedQueryResolver{
 		g.core.QueryResolvers(),
+		g.fields.QueryResolvers(),
 		g.importer.QueryResolvers(),
 		g.whatsapp.QueryResolvers(),
 	}

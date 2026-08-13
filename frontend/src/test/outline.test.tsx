@@ -36,6 +36,7 @@ const paths: Record<string, string> = {
 	'/whatsapp/conversations/$conversationId': `/whatsapp/conversations/${conversationID}`,
 	'/import': '/import',
 	'/import/$importId': `/import/${importID}`,
+	'/fields': '/fields',
 }
 
 beforeEach(() => {

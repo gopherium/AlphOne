@@ -5,6 +5,7 @@
 package main
 
 import (
+	fields "github.com/gopherium/alphone/plugins/fields"
 	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
 
@@ -12,7 +13,12 @@ import (
 )
 
 func registerPlugins(deps sdk.Deps) ([]sdk.Plugin, error) {
-	plugins := make([]sdk.Plugin, 0, 2)
+	plugins := make([]sdk.Plugin, 0, 3)
+	fieldsPlugin, err := fields.Register(deps)
+	if err != nil {
+		return nil, err
+	}
+	plugins = append(plugins, fieldsPlugin)
 	importerPlugin, err := importer.Register(deps)
 	if err != nil {
 		return nil, err

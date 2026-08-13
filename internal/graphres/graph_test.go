@@ -29,6 +29,7 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
@@ -59,7 +60,12 @@ func lazyGraphPlugins(t *testing.T) []sdk.Plugin {
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-	return []sdk.Plugin{whatsappPlugin, importerPlugin}
+	fieldsPlugin, err := fields.Register(deps)
+	if err != nil {
+		t.Fatalf("fields.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = fieldsPlugin.Stop(context.Background()) })
+	return []sdk.Plugin{whatsappPlugin, importerPlugin, fieldsPlugin}
 }
 
 // newTestPool returns a pgxpool over a fresh migrated test database.

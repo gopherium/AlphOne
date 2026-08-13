@@ -8,6 +8,7 @@ scalar UUID
 scalar DateTime
 scalar Date
 scalar Upload
+scalar JSON
 
 type PageInfo {
   hasNextPage: Boolean!

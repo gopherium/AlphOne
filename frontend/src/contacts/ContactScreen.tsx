@@ -18,7 +18,9 @@ import {
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
+import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
+import { ContactPanels } from './ContactPanels'
 import { channelItemOf, channelItems } from './channel'
 import { formatCreated } from './format'
 import {
@@ -28,6 +30,7 @@ import {
 	renameContactMutation,
 } from './operations'
 
+const contactPanels = plugins.flatMap((plugin) => plugin.contactPanels ?? [])
 const contactTasksPageSize = 50
 const contactDetailOperation = 'ContactDetail'
 
@@ -75,6 +78,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
+			<ContactPanels contactId={contact.id} panels={contactPanels} />
 			<Text className="alphone-contacts__created">
 				{`Created ${formatCreated(new Date(contact.createdAt))}`}
 			</Text>

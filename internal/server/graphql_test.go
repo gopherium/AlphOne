@@ -18,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
@@ -32,6 +33,7 @@ type graphConfig struct {
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
+	FieldSources      []sdk.FieldSource
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
 	GraphiQL          bool
@@ -60,6 +62,11 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		t.Fatalf("importer.Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
+	fieldsPlugin, err := fields.Register(deps)
+	if err != nil {
+		t.Fatalf("fields.Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = fieldsPlugin.Stop(context.Background()) })
 	resolver := &graphres.Resolver{
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
@@ -71,7 +78,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 	if hub != nil {
 		resolver.Live = hub
 	}
-	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{whatsappPlugin, importerPlugin})
+	root, err := graphroot.FromPlugins(resolver, []sdk.Plugin{whatsappPlugin, importerPlugin, fieldsPlugin})
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}
@@ -82,10 +89,50 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Tokens:            cfg.Tokens,
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
+		FieldSources:      cfg.FieldSources,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
 		GraphiQL:          cfg.GraphiQL,
 	})
+}
+
+// stubFieldSource serves one fixed field snapshot.
+type stubFieldSource struct {
+	fields []sdk.GraphField
+}
+
+// FieldsSnapshot reports the fixed snapshot.
+func (s stubFieldSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphField, error) {
+	return 1, s.fields, nil
+}
+
+func TestGraphQLIgnoresAFieldOnACarrierlessType(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	source := stubFieldSource{fields: []sdk.GraphField{
+		{Entity: "Task", Name: "estimatedHours", Type: "Int"},
+	}}
+	srv := newGraphServer(t, graphConfig{
+		Contacts:     newFakeContactStore(),
+		Users:        users,
+		Version:      "9.9.9",
+		FieldSources: []sdk.FieldSource{source},
+	})
+	cookie := loginCookie(t, srv)
+
+	answered := postGraphQL(t, srv, versionQuery, cookie)
+	body := decodeBody[graphqlData](t, answered)
+	if body.Data.Version != "9.9.9" {
+		t.Errorf("version = %q, want the graph unchanged under a carrierless type", body.Data.Version)
+	}
+
+	refused := postGraphQL(t, srv,
+		`{"query":"{ tasks(date: \"2026-08-12\", first: 1) { edges { node { estimatedHours } } } }"}`, cookie)
+	if !strings.Contains(refused.Body.String(), "Cannot query field") {
+		t.Errorf("body = %q, want the field refused on a type carrying no carrier", refused.Body.String())
+	}
 }
 
 // postGraphQL posts a GraphQL request body to /api/graphql.
