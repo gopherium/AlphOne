@@ -125,9 +125,13 @@ func (q QueryResolvers) ImportJob(ctx context.Context, id uuid.UUID) (*model.Imp
 }
 
 // ImportFields lists the fields a column may be mapped onto.
-func (q QueryResolvers) ImportFields(context.Context) ([]*model.ImportField, error) {
-	fields := make([]*model.ImportField, len(mappableFields))
-	for i, field := range mappableFields {
+func (q QueryResolvers) ImportFields(ctx context.Context) ([]*model.ImportField, error) {
+	known, err := q.plugin.registry(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fields := make([]*model.ImportField, len(known.fields))
+	for i, field := range known.fields {
 		fields[i] = &model.ImportField{
 			Name:     string(field.Name),
 			Label:    field.Label,
@@ -228,7 +232,11 @@ func (m MutationResolvers) ImportSetMapping(
 	if stored.State != stateReady {
 		return nil, sdk.GraphError{Code: "CONFLICT", Err: errMappingLocked}
 	}
-	assigned, err := buildMapping(toAssignments(assignments), len(stored.Columns))
+	known, err := m.plugin.registry(ctx)
+	if err != nil {
+		return nil, err
+	}
+	assigned, err := buildMapping(toAssignments(assignments), len(stored.Columns), known)
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
 	}
@@ -256,11 +264,18 @@ func (m MutationResolvers) ImportCommit(
 	if err != nil {
 		return nil, err
 	}
+	known, err := m.plugin.registry(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkEntry(stored, known); err != nil {
+		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
+	}
 	claimed, err := m.plugin.store.claimForCommit(ctx, stored.ID)
 	if err != nil {
 		return nil, classifyClaimError(err)
 	}
-	if err := m.plugin.commitRows(ctx, stored.ID, claimed); err != nil {
+	if err := m.plugin.commitRows(ctx, stored.ID, claimed, known); err != nil {
 		return nil, err
 	}
 	counts, err := m.plugin.store.finishCommit(ctx, stored.ID)

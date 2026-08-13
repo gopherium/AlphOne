@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -25,6 +26,7 @@ var errAlreadyCommitted = errors.New("the import is already committed")
 type draft struct {
 	name       string
 	identities []sdk.Identity
+	texts      map[string]string
 }
 
 // settlement is the outcome one staged row settles into.
@@ -35,13 +37,15 @@ type settlement struct {
 }
 
 // commitRows settles every row of the import still waiting to be committed.
-func (p *Plugin) commitRows(ctx context.Context, importID uuid.UUID, assigned mapping) error {
+func (p *Plugin) commitRows(
+	ctx context.Context, importID uuid.UUID, assigned mapping, known registry,
+) error {
 	pending, err := p.store.pendingRows(ctx, importID)
 	if err != nil {
 		return err
 	}
 	for _, row := range pending {
-		if err := p.commitRow(ctx, row, assigned); err != nil {
+		if err := p.commitRow(ctx, row, assigned, known); err != nil {
 			return err
 		}
 	}
@@ -49,8 +53,10 @@ func (p *Plugin) commitRows(ctx context.Context, importID uuid.UUID, assigned ma
 }
 
 // commitRow settles one staged row, recording details the host refuses as a failure.
-func (p *Plugin) commitRow(ctx context.Context, staged stagedRow, assigned mapping) error {
-	settled, err := p.settle(ctx, draftOf(staged.Cells, assigned))
+func (p *Plugin) commitRow(
+	ctx context.Context, staged stagedRow, assigned mapping, known registry,
+) error {
+	settled, err := p.settle(ctx, draftOf(staged.Cells, assigned), known)
 	if errors.Is(err, sdk.ErrInvalidContact) {
 		settled, err = refused(), nil
 	}
@@ -69,9 +75,15 @@ func refused() settlement {
 }
 
 // settle turns one drafted contact into the outcome its row records.
-func (p *Plugin) settle(ctx context.Context, d draft) (settlement, error) {
+func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlement, error) {
 	if !d.usable() {
 		return settlement{outcome: outcomeFailed, reason: "the row carries no name or no contact detail"}, nil
+	}
+	if err := known.checkTexts(ctx, d.texts); err != nil {
+		if errors.Is(err, sdk.ErrInvalidFieldText) {
+			return refusedText(err), nil
+		}
+		return settlement{}, err
 	}
 	owner, claimed, err := p.claimant(ctx, d.identities)
 	if err != nil {
@@ -80,7 +92,15 @@ func (p *Plugin) settle(ctx context.Context, d draft) (settlement, error) {
 	if claimed {
 		return skipped(owner), nil
 	}
-	return p.create(ctx, d)
+	return p.create(ctx, d, known)
+}
+
+// refusedText returns the settlement of a row carrying a value no field accepts.
+func refusedText(err error) settlement {
+	return settlement{
+		outcome: outcomeFailed,
+		reason:  strings.TrimPrefix(err.Error(), sdk.ErrInvalidFieldText.Error()+": "),
+	}
 }
 
 // usable reports whether the draft carries enough to become a contact.
@@ -88,14 +108,17 @@ func (d draft) usable() bool {
 	return d.name != "" && len(d.identities) > 0
 }
 
-// create stores the drafted contact, reporting a lost race as a skip.
-func (p *Plugin) create(ctx context.Context, d draft) (settlement, error) {
+// create stores the drafted contact and its field values, reporting a lost race as a skip.
+func (p *Plugin) create(ctx context.Context, d draft, known registry) (settlement, error) {
 	created, wasCreated, err := p.contacts.CreateWithIdentities(ctx, d.name, d.identities)
 	if err != nil {
 		return settlement{}, err
 	}
 	if !wasCreated {
 		return skipped(created), nil
+	}
+	if err := known.writeTexts(ctx, created.ID, d.texts); err != nil {
+		return settlement{}, err
 	}
 	return settlement{outcome: outcomeImported, contactID: &created.ID}, nil
 }
@@ -132,13 +155,19 @@ func draftOf(cells []string, assigned mapping) draft {
 		if value == "" {
 			continue
 		}
-		if field == fieldContactName {
+		switch {
+		case field == fieldContactName:
 			d.name = value
-			continue
+		case core(field):
+			d.identities = append(d.identities, sdk.Identity{
+				Channel: sdk.Channel(field), Identifier: value,
+			})
+		default:
+			if d.texts == nil {
+				d.texts = map[string]string{}
+			}
+			d.texts[string(field)] = value
 		}
-		d.identities = append(d.identities, sdk.Identity{
-			Channel: sdk.Channel(field), Identifier: value,
-		})
 	}
 	return d
 }

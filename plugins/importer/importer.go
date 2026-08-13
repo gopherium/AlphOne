@@ -25,10 +25,11 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin imports contacts from CSV and Excel files.
 type Plugin struct {
-	pool     *pgxpool.Pool
-	store    *store
-	contacts sdk.ContactDirectory
-	events   sdk.Publisher
+	pool      *pgxpool.Pool
+	store     *store
+	contacts  sdk.ContactDirectory
+	events    sdk.Publisher
+	providers []sdk.FieldProvider
 }
 
 // Register builds the importer [Plugin] from the host-provided deps.
