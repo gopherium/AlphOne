@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -70,11 +71,23 @@ type world struct {
 // newWorld boots an isolated database and a real server for one scenario.
 func newWorld(t *testing.T) *world {
 	t.Helper()
+	return bootWorld(t, false)
+}
+
+// newImportWorld boots a scenario whose importer runs against the real database.
+func newImportWorld(t *testing.T) *world {
+	t.Helper()
+	return bootWorld(t, true)
+}
+
+// bootWorld boots one scenario, running the importer live only when asked.
+func bootWorld(t *testing.T, liveImports bool) *world {
+	t.Helper()
 	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
 	if err := authkitpg.Migrate(context.Background(), cfg.URL()); err != nil {
 		t.Fatalf("migrating the auth schema: %v", err)
 	}
-	pool, err := pgxpool.New(context.Background(), cfg.URL())
+	pool, err := pgxpool.New(context.Background(), sparingly(cfg.URL()))
 	if err != nil {
 		t.Fatalf("connecting the scenario pool: %v", err)
 	}
@@ -90,9 +103,12 @@ func newWorld(t *testing.T) *world {
 
 	resolver := contact.NewResolver(contacts)
 	fieldsPlugin := livePlugin(t, cfg.URL())
-	importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
-	importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
-	registered := append(inertPlugins(t), importerPlugin, fieldsPlugin)
+	registered := append(inertPlugins(t, liveImports), fieldsPlugin)
+	if liveImports {
+		importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
+		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
+		registered = append(registered, importerPlugin)
+	}
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -145,10 +161,19 @@ func newWorld(t *testing.T) *world {
 	}
 }
 
+// sparingly returns the database URL with a pool small enough for a whole suite.
+func sparingly(databaseURL string) string {
+	separator := "?"
+	if strings.Contains(databaseURL, "?") {
+		separator = "&"
+	}
+	return databaseURL + separator + "pool_max_conns=2"
+}
+
 // livePlugin registers the fields plugin against the scenario's own database.
 func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
 	t.Helper()
-	plugin, err := fields.Register(sdk.Deps{DatabaseURL: databaseURL})
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: sparingly(databaseURL)})
 	if err != nil {
 		t.Fatalf("registering fields: %v", err)
 	}
@@ -165,7 +190,9 @@ func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
 // liveImporter registers the importer plugin against the scenario's own database.
 func liveImporter(t *testing.T, databaseURL string, directory sdk.ContactDirectory) *importer.Plugin {
 	t.Helper()
-	plugin, err := importer.Register(sdk.Deps{DatabaseURL: databaseURL, Contacts: directory})
+	plugin, err := importer.Register(sdk.Deps{
+		DatabaseURL: sparingly(databaseURL), Contacts: directory,
+	})
 	if err != nil {
 		t.Fatalf("registering importer: %v", err)
 	}
@@ -238,7 +265,7 @@ func worldFrom(ctx context.Context) *world {
 }
 
 // inertPlugins registers every graph contributing plugin against a lazy pool.
-func inertPlugins(t *testing.T) []sdk.Plugin {
+func inertPlugins(t *testing.T, liveImports bool) []sdk.Plugin {
 	t.Helper()
 	const unreachable = "postgres://plugin:plugin@localhost:1/plugin"
 	whatsappPlugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: unreachable})
@@ -246,7 +273,16 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 		t.Fatalf("registering whatsapp: %v", err)
 	}
 	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
-	return []sdk.Plugin{whatsappPlugin}
+	registered := []sdk.Plugin{whatsappPlugin}
+	if liveImports {
+		return registered
+	}
+	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: unreachable})
+	if err != nil {
+		t.Fatalf("registering importer: %v", err)
+	}
+	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
+	return append(registered, importerPlugin)
 }
 
 // addUser stores another user and returns its id.

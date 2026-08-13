@@ -100,7 +100,11 @@ func registerFieldsCatalogSteps(sc *godog.ScenarioContext, t *testing.T) {
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		return context.WithValue(ctx, worldKey{}, newWorld(t)), nil
 	})
+	bindFieldsCatalogSteps(sc)
+}
 
+// bindFieldsCatalogSteps binds the catalogue steps onto an already booted world.
+func bindFieldsCatalogSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^a running AlphOne holding a user with an API token$`, func(ctx context.Context) error {
 		if worldFrom(ctx).secret == "" {
 			return fmt.Errorf("the scenario holds no token")

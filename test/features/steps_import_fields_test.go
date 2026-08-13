@@ -178,7 +178,10 @@ func (w *world) readContactField(ctx context.Context, contactName, field string)
 
 // registerImportFieldsSteps binds the import mapping steps and the world lifecycle.
 func registerImportFieldsSteps(sc *godog.ScenarioContext, t *testing.T) {
-	registerFieldsCatalogSteps(sc, t)
+	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
+		return context.WithValue(ctx, worldKey{}, newImportWorld(t)), nil
+	})
+	bindFieldsCatalogSteps(sc)
 
 	sc.Given(`^a contact named "([^"]*)" reachable at "([^"]*)"$`,
 		func(ctx context.Context, name, email string) error {
