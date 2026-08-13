@@ -26,7 +26,12 @@ None. The package stays as the scaffold for the next one.
 | Finding | Where | Notes |
 | --- | --- | --- |
 | `Notice.Root` announces through `@wordpress/a11y`, so its text appears twice in the DOM. Consumer test suites cannot use plain text queries without ignoring the live region. | `@wordpress/ui` 0.17.0 Notice | Discussed in WordPress/gutenberg#80706, where a reviewer proposes the primitive should carry no live region at all. We work around it with `configure({ defaultIgnore })` in `frontend/src/test/setup.ts`. Real external-consumer evidence for that thread. |
-| `@wordpress/element` named-imports React DOM APIs removed in React 19, so it crashes on load under React 19. | `@wordpress/element` 8.4.0 | Patched locally through pnpm `patchedDependencies`. The patch file is the pull request draft. Present since 8.2.0 at least, and the package still requires `react: ^18.3.1`. |
+
+## Fixed upstream
+
+| Finding | Reported against | Fixed in | Notes |
+| --- | --- | --- | --- |
+| `@wordpress/element` named-imports React DOM APIs removed in React 19, so it crashes on load under React 19. | `@wordpress/element` 8.4.0 | `@wordpress/element` 8.5.0 | WordPress/gutenberg#80053 imports the namespace and destructures, so a missing API reads as `undefined` instead of failing the module load, and it moves `react` and `react-dom` to peer dependencies at `^18 \|\| ^19`. The local pnpm patch was dropped with the upgrade. |
 
 ## Conventions to keep
 
