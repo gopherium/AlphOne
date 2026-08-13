@@ -197,6 +197,10 @@ Importing a spreadsheet of contacts is only half the job. The work is
 calling them, and a thousand new contacts is not a thousand tasks for
 today. This recipe spreads them over as many days as it takes.
 
+A spreadsheet column can also fill a field you defined yourself, so the
+contacts arrive with a birth date or a loyalty score already on them. See
+[Fields](/guides/fields/).
+
 Subscribe to `import.completed`. It carries the import `id`, so the next
 step reads what that import produced:
 

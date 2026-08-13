@@ -81,6 +81,7 @@ func run(
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
 	}
+	wireFieldProviders(registered)
 
 	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
@@ -139,6 +140,21 @@ func fieldSources(registered []sdk.Plugin) []sdk.FieldSource {
 		}
 	}
 	return sources
+}
+
+// wireFieldProviders hands every registered field provider to every consumer.
+func wireFieldProviders(registered []sdk.Plugin) {
+	var providers []sdk.FieldProvider
+	for _, plugin := range registered {
+		if provider, ok := plugin.(sdk.FieldProvider); ok {
+			providers = append(providers, provider)
+		}
+	}
+	for _, plugin := range registered {
+		if consumer, ok := plugin.(sdk.FieldConsumer); ok {
+			consumer.UseFieldProviders(providers)
+		}
+	}
 }
 
 // runConfig carries the environment-derived settings of the server.

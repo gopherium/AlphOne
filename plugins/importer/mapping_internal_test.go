@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+// coreOnly returns the registry a plugin serving no provider answers with.
+func coreOnly() registry {
+	return registry{fields: coreFields, owner: map[fieldName]int{}}
+}
+
 func TestBuildMappingRefusesAnUnusableSet(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +51,7 @@ func TestBuildMappingRefusesAnUnusableSet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			assigned, err := buildMapping(tc.assignments, 2)
+			assigned, err := buildMapping(tc.assignments, 2, coreOnly())
 
 			if assigned != nil {
 				t.Errorf("mapping = %v, want nil for a refused set", assigned)
@@ -64,7 +69,7 @@ func TestBuildMappingKeysByColumn(t *testing.T) {
 	assigned, err := buildMapping([]assignment{
 		{Column: 1, Field: fieldEmail},
 		{Column: 0, Field: fieldContactName},
-	}, 2)
+	}, 2, coreOnly())
 
 	if err != nil {
 		t.Fatalf("buildMapping() error = %v, want nil", err)

@@ -19,6 +19,9 @@ import (
 // ErrInvalidContact reports contact details the host refuses to store.
 var ErrInvalidContact = errors.New("sdk: invalid contact details")
 
+// ErrInvalidFieldText reports field text no live definition accepts.
+var ErrInvalidFieldText = errors.New("sdk: invalid field text")
+
 // Plugin is an independently addable unit of functionality with a
 // managed lifecycle.
 type Plugin = pluginkit.Plugin
@@ -66,6 +69,29 @@ type GraphField struct {
 // FieldSource reports the runtime defined fields a plugin serves.
 type FieldSource interface {
 	FieldsSnapshot(ctx context.Context) (uint64, []GraphField, error)
+}
+
+// ContactField is one live field a column may be mapped onto.
+type ContactField struct {
+	// Name is the field name a mapping stores.
+	Name string
+	// Label is the text an operator reads on screen.
+	Label string
+}
+
+// FieldProvider serves live contact fields and writes their values from text.
+type FieldProvider interface {
+	// LiveContactFields lists every field a column may be mapped onto.
+	LiveContactFields(ctx context.Context) ([]ContactField, error)
+	// CheckContactFieldTexts reports a text no field accepts by wrapping ErrInvalidFieldText.
+	CheckContactFieldTexts(ctx context.Context, values map[string]string) error
+	// WriteContactFieldTexts stores the values the texts describe on one contact.
+	WriteContactFieldTexts(ctx context.Context, contactID uuid.UUID, values map[string]string) error
+}
+
+// FieldConsumer receives the registered field providers.
+type FieldConsumer interface {
+	UseFieldProviders(providers []FieldProvider)
 }
 
 // Channel names a communication medium, such as "whatsapp" or "email".

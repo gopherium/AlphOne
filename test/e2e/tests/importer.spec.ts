@@ -75,3 +75,46 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(page.getByRole('link', { name: wanted })).toBeVisible()
 	await expect(page.getByRole('link', { name: known })).toHaveCount(1)
 })
+
+test('maps a spreadsheet column onto a field an operator defined', async ({ page }) => {
+	const stamp = Date.now()
+	const wanted = `Maria Perez ${stamp}`
+	const field = `joinedOn${stamp}`
+	const fieldLabel = `Joined on ${stamp}`
+
+	await page.goto('/')
+	await page.getByRole('link', { name: 'Fields' }).click()
+	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
+	await page.getByLabel('Label').fill(fieldLabel)
+	await page.getByLabel('Name').fill(field)
+	await page.getByRole('combobox', { name: 'Kind' }).click()
+	await page.getByRole('listbox').getByRole('option', { name: 'Date', exact: true }).click()
+	await page.getByRole('button', { name: 'Add field' }).click()
+	await expect(page.getByRole('region', { name: 'Fields' }).getByText(field)).toBeVisible()
+
+	await page.getByRole('link', { name: 'Import' }).click()
+	await page.getByLabel('Contacts file').setInputFiles({
+		name: 'joined.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from(
+			'Full name,Email address,Joined\n' + `${wanted},maria.${stamp}@example.com,2026-03-01\n`,
+		),
+	})
+	await page.getByRole('link', { name: 'joined.csv' }).click()
+	await expect(page.getByRole('heading', { name: 'joined.csv' })).toBeVisible()
+
+	await chooseField(page, 'Full name', 'Name')
+	await chooseField(page, 'Email address', 'Email')
+	await chooseField(page, 'Joined', fieldLabel)
+	await page.getByRole('button', { name: 'Save mapping' }).click()
+	await page.getByRole('button', { name: 'Commit' }).click()
+	await expect(
+		page.getByRole('region', { name: 'Rows' }).getByText('imported', { exact: true }).first(),
+	).toBeVisible()
+
+	await page.getByRole('link', { name: 'Contacts' }).click()
+	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
+	await page.getByRole('link', { name: wanted }).click()
+	await expect(page.getByRole('heading', { name: wanted })).toBeVisible()
+	await expect(page.getByLabel(fieldLabel)).toHaveValue('2026-03-01')
+})

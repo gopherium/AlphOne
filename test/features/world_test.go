@@ -4,8 +4,10 @@ package features_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -50,7 +52,9 @@ type world struct {
 	pool        *pgxpool.Pool
 	tasks       *postgres.TaskStore
 	contacts    *postgres.ContactStore
+	resolver    *contact.Resolver
 	lastContact uuid.UUID
+	lastImport  uuid.UUID
 	users       *authkitpg.UserStore
 	server      *httptest.Server
 	ownerID     uuid.UUID
@@ -67,11 +71,23 @@ type world struct {
 // newWorld boots an isolated database and a real server for one scenario.
 func newWorld(t *testing.T) *world {
 	t.Helper()
+	return bootWorld(t, false)
+}
+
+// newImportWorld boots a scenario whose importer runs against the real database.
+func newImportWorld(t *testing.T) *world {
+	t.Helper()
+	return bootWorld(t, true)
+}
+
+// bootWorld boots one scenario, running the importer live only when asked.
+func bootWorld(t *testing.T, liveImports bool) *world {
+	t.Helper()
 	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
 	if err := authkitpg.Migrate(context.Background(), cfg.URL()); err != nil {
 		t.Fatalf("migrating the auth schema: %v", err)
 	}
-	pool, err := pgxpool.New(context.Background(), cfg.URL())
+	pool, err := pgxpool.New(context.Background(), sparingly(cfg.URL()))
 	if err != nil {
 		t.Fatalf("connecting the scenario pool: %v", err)
 	}
@@ -85,8 +101,14 @@ func newWorld(t *testing.T) *world {
 	hub := event.NewHub()
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
 
+	resolver := contact.NewResolver(contacts)
 	fieldsPlugin := livePlugin(t, cfg.URL())
-	registered := append(inertPlugins(t), fieldsPlugin)
+	registered := append(inertPlugins(t, liveImports), fieldsPlugin)
+	if liveImports {
+		importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
+		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
+		registered = append(registered, importerPlugin)
+	}
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -130,6 +152,7 @@ func newWorld(t *testing.T) *world {
 		pool:     pool,
 		tasks:    tasks,
 		contacts: contacts,
+		resolver: resolver,
 		users:    users,
 		server:   srv,
 		ownerID:  owner.ID,
@@ -138,10 +161,19 @@ func newWorld(t *testing.T) *world {
 	}
 }
 
+// sparingly returns the database URL with a pool small enough for a whole suite.
+func sparingly(databaseURL string) string {
+	separator := "?"
+	if strings.Contains(databaseURL, "?") {
+		separator = "&"
+	}
+	return databaseURL + separator + "pool_max_conns=2"
+}
+
 // livePlugin registers the fields plugin against the scenario's own database.
 func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
 	t.Helper()
-	plugin, err := fields.Register(sdk.Deps{DatabaseURL: databaseURL})
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: sparingly(databaseURL)})
 	if err != nil {
 		t.Fatalf("registering fields: %v", err)
 	}
@@ -155,13 +187,85 @@ func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
 	return plugin
 }
 
+// liveImporter registers the importer plugin against the scenario's own database.
+func liveImporter(t *testing.T, databaseURL string, directory sdk.ContactDirectory) *importer.Plugin {
+	t.Helper()
+	plugin, err := importer.Register(sdk.Deps{
+		DatabaseURL: sparingly(databaseURL), Contacts: directory,
+	})
+	if err != nil {
+		t.Fatalf("registering importer: %v", err)
+	}
+	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	if err := plugin.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrating importer: %v", err)
+	}
+	if err := plugin.Start(context.Background()); err != nil {
+		t.Fatalf("starting importer: %v", err)
+	}
+	return plugin
+}
+
+// invalidContactErrors lists the domain errors a plugin reads as unusable details.
+var invalidContactErrors = []error{
+	contact.ErrEmptyName,
+	contact.ErrEmptyChannel,
+	contact.ErrEmptyIdentifier,
+	contact.ErrChannelNotWritable,
+}
+
+// markInvalid returns err with unusable contact details marked for the plugin.
+func markInvalid(err error) error {
+	for _, invalid := range invalidContactErrors {
+		if errors.Is(err, invalid) {
+			return fmt.Errorf("%w: %w", sdk.ErrInvalidContact, err)
+		}
+	}
+	return err
+}
+
+// scenarioDirectory bridges the scenario's contact resolver to the plugin contract.
+type scenarioDirectory struct {
+	resolver *contact.Resolver
+}
+
+// FindByIdentity returns the [sdk.Contact] owning an identity, reporting whether one exists.
+func (d scenarioDirectory) FindByIdentity(
+	ctx context.Context, channel sdk.Channel, identifier string,
+) (sdk.Contact, bool, error) {
+	owner, found, err := d.resolver.FindByIdentity(ctx, contact.Channel(channel), identifier)
+	if err != nil || !found {
+		return sdk.Contact{}, false, markInvalid(err)
+	}
+	return sdk.Contact{ID: owner.ID, Name: owner.Name}, true, nil
+}
+
+// CreateWithIdentities stores an [sdk.Contact] owning every identity, reporting whether it was created.
+func (d scenarioDirectory) CreateWithIdentities(
+	ctx context.Context, name string, identities []sdk.Identity,
+) (sdk.Contact, bool, error) {
+	addresses := make([]contact.Address, 0, len(identities))
+	for _, identity := range identities {
+		addresses = append(addresses, contact.Address{
+			Channel:     contact.Channel(identity.Channel),
+			Identifier:  identity.Identifier,
+			DisplayName: identity.DisplayName,
+		})
+	}
+	owner, created, err := d.resolver.CreateWithIdentities(ctx, name, addresses)
+	if err != nil {
+		return sdk.Contact{}, false, markInvalid(err)
+	}
+	return sdk.Contact{ID: owner.ID, Name: owner.Name}, created, nil
+}
+
 // worldFrom returns the world the scenario carries.
 func worldFrom(ctx context.Context) *world {
 	return ctx.Value(worldKey{}).(*world)
 }
 
 // inertPlugins registers every graph contributing plugin against a lazy pool.
-func inertPlugins(t *testing.T) []sdk.Plugin {
+func inertPlugins(t *testing.T, liveImports bool) []sdk.Plugin {
 	t.Helper()
 	const unreachable = "postgres://plugin:plugin@localhost:1/plugin"
 	whatsappPlugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: unreachable})
@@ -169,12 +273,16 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 		t.Fatalf("registering whatsapp: %v", err)
 	}
 	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
+	registered := []sdk.Plugin{whatsappPlugin}
+	if liveImports {
+		return registered
+	}
 	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: unreachable})
 	if err != nil {
 		t.Fatalf("registering importer: %v", err)
 	}
 	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-	return []sdk.Plugin{whatsappPlugin, importerPlugin}
+	return append(registered, importerPlugin)
 }
 
 // addUser stores another user and returns its id.
@@ -200,4 +308,16 @@ func (w *world) seedContact(ctx context.Context, name string) (uuid.UUID, error)
 	}
 	w.lastContact = created.ID
 	return created.ID, nil
+}
+
+// seedReachableContact stores a contact owning an email identity.
+func (w *world) seedReachableContact(ctx context.Context, name, email string) error {
+	created, _, err := w.resolver.CreateWithIdentities(ctx, name, []contact.Address{
+		{Channel: contact.Channel("email"), Identifier: email},
+	})
+	if err != nil {
+		return fmt.Errorf("storing the reachable contact: %w", err)
+	}
+	w.lastContact = created.ID
+	return nil
 }

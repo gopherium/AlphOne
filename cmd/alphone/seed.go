@@ -180,6 +180,7 @@ func seedPlugins(
 	if err != nil {
 		return err
 	}
+	wireFieldProviders(registered)
 	host := pluginkit.NewHost(registered...)
 	defer func() { _ = host.Stop(context.WithoutCancel(ctx)) }()
 	if err := host.Start(ctx); err != nil {
