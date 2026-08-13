@@ -41,6 +41,23 @@ input per field you created. Type, then press **Save fields**.
 A field you never fill in stays empty. AlphOne stores nothing for it and it
 costs nothing.
 
+## Fill a field from a spreadsheet
+
+You do not have to type every value in by hand. When you import a CSV or an
+Excel file, your fields sit in the mapping dropdown beside Name, Email and
+Phone. Point a column at one and the values arrive with the contacts.
+
+The kind is checked before anything is stored. A row whose cell does not fit
+its field fails, the reason names the field and its kind, and no contact is
+created for that row. Fix the spreadsheet and import it again.
+
+An empty cell stores nothing. The contact is created and the field stays
+waiting, exactly as if you had never touched it.
+
+One thing an import will not do is change a contact you already have. A row
+matching an existing contact is skipped, and its fields are left alone. That
+keeps an import from quietly overwriting work.
+
 ## The kind is checked when you save
 
 AlphOne refuses a value that does not match the kind. A `Date` field will not
