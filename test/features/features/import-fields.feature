@@ -47,7 +47,7 @@ Feature: A spreadsheet fills the fields
 
   Scenario: A field named after a core column stays out of the registry
     When the operator defines the field "email" labelled "Second email" of kind TEXT
-    Then the mapping registry lists "email" exactly once
+    Then the mapping registry lists "email" exactly once, labelled "Email"
 
   Scenario: A skipped row leaves the existing contact's fields untouched
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined

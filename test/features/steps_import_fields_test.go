@@ -308,21 +308,26 @@ func registerImportFieldsSteps(sc *godog.ScenarioContext, t *testing.T) {
 			return nil
 		})
 
-	sc.Then(`^the mapping registry lists "([^"]*)" exactly once$`,
-		func(ctx context.Context, name string) error {
+	sc.Then(`^the mapping registry lists "([^"]*)" exactly once, labelled "([^"]*)"$`,
+		func(ctx context.Context, name, label string) error {
 			w := worldFrom(ctx)
 			answer, err := w.importOperation(ctx, registryQuery, nil)
 			if err != nil {
 				return err
 			}
 			var seen int
+			var found string
 			for _, field := range answer.Data.ImportFields {
 				if field.Name == name {
 					seen++
+					found = field.Label
 				}
 			}
 			if seen != 1 {
 				return fmt.Errorf("the registry lists %q %d times, want once", name, seen)
+			}
+			if found != label {
+				return fmt.Errorf("%s is labelled %q, want the core column's %q", name, found, label)
 			}
 			return nil
 		})
