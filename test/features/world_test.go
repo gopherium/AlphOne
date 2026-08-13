@@ -91,6 +91,7 @@ func newWorld(t *testing.T) *world {
 	resolver := contact.NewResolver(contacts)
 	fieldsPlugin := livePlugin(t, cfg.URL())
 	importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
+	importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
 	registered := append(inertPlugins(t), importerPlugin, fieldsPlugin)
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",

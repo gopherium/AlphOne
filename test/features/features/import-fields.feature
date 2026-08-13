@@ -7,12 +7,10 @@ Feature: A spreadsheet fills the fields
   Background:
     Given a running AlphOne holding a user with an API token
 
-  @wip
   Scenario: A live field joins the mapping registry beside the core columns
     When the operator defines the field "birthDate" labelled "Birth date" of kind DATE
     Then the mapping registry lists "birthDate" labelled "Birth date" beside the core columns
 
-  @wip
   Scenario: A committed import writes a mapped cell into its field
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And an uploaded spreadsheet holding the row "Maria Perez,maria@example.com,1990-04-17"
@@ -21,7 +19,6 @@ Feature: A spreadsheet fills the fields
     Then the commit answers 1 imported
     And the contact "Maria Perez" answers "1990-04-17" for the field "birthDate"
 
-  @wip
   Scenario: An empty cell writes nothing
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And an uploaded spreadsheet holding the row "Maria Perez,maria@example.com,"
@@ -30,7 +27,6 @@ Feature: A spreadsheet fills the fields
     Then the commit answers 1 imported
     And the contact "Maria Perez" answers null for the field "birthDate"
 
-  @wip
   Scenario: A cell that does not fit its kind fails the row and creates no contact
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And an uploaded spreadsheet holding the row "Maria Perez,maria@example.com,not a date"
@@ -40,7 +36,6 @@ Feature: A spreadsheet fills the fields
     And a row settles failed naming "birthDate" and kind DATE
     And no contact named "Maria Perez" exists
 
-  @wip
   Scenario: Archiving a mapped field refuses the commit and keeps the import ready
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And an uploaded spreadsheet holding the row "Maria Perez,maria@example.com,1990-04-17"
@@ -50,12 +45,10 @@ Feature: A spreadsheet fills the fields
     Then the commit is refused naming "birthDate"
     And the import stays ready for a new mapping
 
-  @wip
   Scenario: A field named after a core column stays out of the registry
     When the operator defines the field "email" labelled "Second email" of kind TEXT
     Then the mapping registry lists "email" exactly once
 
-  @wip
   Scenario: A skipped row leaves the existing contact's fields untouched
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And a contact named "Maria Perez" reachable at "maria@example.com"
