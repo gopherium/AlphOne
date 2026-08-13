@@ -11,11 +11,7 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: npm
-    directories:
-      - /
-      - /frontend
-      - /sdk/frontend
-      - /plugins/*/frontend
+    directory: /
     schedule:
       interval: weekly
     cooldown:
