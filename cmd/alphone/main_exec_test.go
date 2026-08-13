@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -260,6 +261,16 @@ type graphAnswer struct {
 		CreateContact struct {
 			ID string `json:"id"`
 		} `json:"createContact"`
+		ImportUpload struct {
+			ID string `json:"id"`
+		} `json:"importUpload"`
+		ImportCommit struct {
+			Imported int `json:"imported"`
+			Failed   int `json:"failed"`
+		} `json:"importCommit"`
+		ImportFields []struct {
+			Name string `json:"name"`
+		} `json:"importFields"`
 		Contacts *struct {
 			Edges []struct {
 				Node map[string]any `json:"node"`
@@ -303,11 +314,70 @@ func postGraph(t *testing.T, addr, secret, body string) graphAnswer {
 	return envelope
 }
 
-func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
-	t.Parallel()
+// uploadCSV posts one CSV file through the graph multipart upload protocol.
+func uploadCSV(t *testing.T, addr, secret, content string) graphAnswer {
+	t.Helper()
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	const operations = `{"query":"mutation($file: Upload!) { importUpload(file: $file) { id } }",` +
+		`"variables":{"file":null}}`
+	for field, value := range map[string]string{
+		"operations": operations,
+		"map":        `{"0":["variables.file"]}`,
+	} {
+		if err := form.WriteField(field, value); err != nil {
+			t.Fatalf("writing the %s part: %v", field, err)
+		}
+	}
+	part, err := form.CreateFormFile("0", "leads.csv")
+	if err != nil {
+		t.Fatalf("creating the file part: %v", err)
+	}
+	if _, err := part.Write([]byte(content)); err != nil {
+		t.Fatalf("writing the file part: %v", err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatalf("closing the form: %v", err)
+	}
+	return postForm(t, addr, secret, form.FormDataContentType(), &body)
+}
 
+// postForm posts a multipart body to the graph, refusing any failure.
+func postForm(t *testing.T, addr, secret, contentType string, body io.Reader) graphAnswer {
+	t.Helper()
+	request, err := http.NewRequestWithContext(
+		t.Context(), http.MethodPost, "http://"+addr+"/api/graphql", body)
+	if err != nil {
+		t.Fatalf("building the upload request: %v", err)
+	}
+	request.Header.Set("Content-Type", contentType)
+	request.Header.Set("Authorization", "Bearer "+secret)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("posting the upload: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	answered, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("reading the upload answer: %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d, answered %s", response.StatusCode, http.StatusOK, answered)
+	}
+	var envelope graphAnswer
+	if err := json.Unmarshal(answered, &envelope); err != nil {
+		t.Fatalf("decoding %s: %v", answered, err)
+	}
+	if len(envelope.Errors) > 0 {
+		t.Fatalf("the graph refused the upload: %s", answered)
+	}
+	return envelope
+}
+
+// servedBinary starts the real binary on its own database, answering its address and token.
+func servedBinary(t *testing.T, databaseURL string) (string, string) {
+	t.Helper()
 	binary, env := coverBinary(t)
-	databaseURL := testDatabaseURL(t)
 	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
@@ -316,14 +386,13 @@ func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
 		t.Fatalf("createadmin: %v", err)
 	}
 	var minted bytes.Buffer
-	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "fields")
+	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "exec")
 	token.Dir = t.TempDir()
 	token.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	token.Stdout = &minted
 	if err := token.Run(); err != nil {
 		t.Fatalf("token create: %v", err)
 	}
-	secret := tokenSecret(t, minted.String())
 	addr := freeAddr(t)
 	serve := exec.Command(binary)
 	serve.Dir = t.TempDir()
@@ -338,6 +407,13 @@ func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = serve.Process.Kill() })
 	waitForServer(t, "http://"+addr)
+	return addr, tokenSecret(t, minted.String())
+}
+
+func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t))
 
 	defined := postGraph(t, addr, secret,
 		`{"query":"mutation { defineField(name: \"birthDate\", label: \"Birth date\", kind: DATE) { id } }"}`)
@@ -362,6 +438,49 @@ func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
 	node := read.Data.Contacts.Edges[0].Node
 	if _, selected := node["birthDate"]; !selected {
 		t.Errorf("node = %v, want birthDate answered by the running binary's widened schema", node)
+	}
+}
+
+func TestMainBinaryImportsASpreadsheetColumnIntoAField(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t))
+	postGraph(t, addr, secret,
+		`{"query":"mutation { defineField(name: \"birthDate\", label: \"Birth date\", kind: DATE) { id } }"}`)
+
+	listed := postGraph(t, addr, secret, `{"query":"{ importFields { name } }"}`)
+	var mappable bool
+	for _, field := range listed.Data.ImportFields {
+		mappable = mappable || field.Name == "birthDate"
+	}
+	if !mappable {
+		t.Fatalf("importFields = %v, want the defined field mappable in the real binary", listed.Data.ImportFields)
+	}
+
+	uploaded := uploadCSV(t, addr, secret,
+		"Name,Email,Birth date\nMaria Perez,maria@example.com,1990-04-17\n")
+	if uploaded.Data.ImportUpload.ID == "" {
+		t.Fatal("importUpload answered no id, want the spreadsheet staged")
+	}
+	postGraph(t, addr, secret, `{"query":"mutation { importSetMapping(id: \"`+uploaded.Data.ImportUpload.ID+
+		`\", assignments: [{column: 0, field: \"name\"}, {column: 1, field: \"email\"},`+
+		` {column: 2, field: \"birthDate\"}]) { id } }"}`)
+	committed := postGraph(t, addr, secret,
+		`{"query":"mutation { importCommit(id: \"`+uploaded.Data.ImportUpload.ID+
+			`\") { imported failed } }"}`)
+
+	if committed.Data.ImportCommit.Imported != 1 {
+		t.Fatalf("imported = %d, failed = %d, want the row imported",
+			committed.Data.ImportCommit.Imported, committed.Data.ImportCommit.Failed)
+	}
+	read := postGraph(t, addr, secret,
+		`{"query":"{ contacts(first: 5) { edges { node { name birthDate } } } }"}`)
+	if read.Data.Contacts == nil || len(read.Data.Contacts.Edges) == 0 {
+		t.Fatal("the read answered no contacts, want the imported contact")
+	}
+	node := read.Data.Contacts.Edges[0].Node
+	if node["birthDate"] != "1990-04-17" {
+		t.Errorf("birthDate = %#v, want the imported cell served by the real binary", node["birthDate"])
 	}
 }
 
