@@ -524,3 +524,43 @@ func TestSetMappingReportsAProviderFailure(t *testing.T) {
 		t.Errorf("error = %v, want the outage reported rather than a shrunken registry", err)
 	}
 }
+
+func TestRefusedRowReasonsCarryNoSentinelText(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*fieldProvider){
+		"a text of another kind":     func(f *fieldProvider) { f.refuse["1990-04-17"] = "DATE" },
+		"a field no provider serves": func(f *fieldProvider) { f.fields = nil },
+		"a provider naming the field first": func(f *fieldProvider) {
+			f.checkErr = fmt.Errorf("birthDate expects DATE: %w", sdk.ErrInvalidFieldText)
+		},
+	}
+
+	for name, arrange := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			provider := newFieldProvider(birthDate())
+			p, pool, _ := newServedPlugin(t, provider)
+			id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+			if err := mapNameEmailAndField(t, p, id, "birthDate"); err != nil {
+				t.Fatalf("ImportSetMapping() error = %v, want nil", err)
+			}
+			if _, err := pool.Exec(t.Context(),
+				"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", id); err != nil {
+				t.Fatalf("resuming the import: %v", err)
+			}
+			arrange(provider)
+
+			mustCommit(t, p, id)
+
+			reason := reasonOf(t, pool, id, 1)
+			if strings.Contains(reason, sdk.ErrInvalidFieldText.Error()) {
+				t.Errorf("reason = %q, want no sentinel text shown to an operator", reason)
+			}
+			if !strings.Contains(reason, "birthDate") {
+				t.Errorf("reason = %q, want it to name the field", reason)
+			}
+		})
+	}
+}

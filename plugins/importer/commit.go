@@ -101,10 +101,22 @@ func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlemen
 
 // refusedText returns the settlement of a row carrying a value no field accepts.
 func refusedText(err error) settlement {
-	return settlement{
-		outcome: outcomeFailed,
-		reason:  strings.TrimPrefix(err.Error(), sdk.ErrInvalidFieldText.Error()+": "),
+	return settlement{outcome: outcomeFailed, reason: refusalDetail(err)}
+}
+
+// refusalDetail returns the half of a refusal naming what the row got wrong.
+func refusalDetail(err error) string {
+	var wrapped interface{ Unwrap() []error }
+	if errors.As(err, &wrapped) {
+		for _, held := range wrapped.Unwrap() {
+			if !errors.Is(held, sdk.ErrInvalidFieldText) {
+				return held.Error()
+			}
+		}
 	}
+	return strings.TrimSpace(strings.ReplaceAll(
+		strings.ReplaceAll(err.Error(), sdk.ErrInvalidFieldText.Error()+": ", ""),
+		sdk.ErrInvalidFieldText.Error(), ""))
 }
 
 // usable reports whether the draft carries enough to become a contact.
