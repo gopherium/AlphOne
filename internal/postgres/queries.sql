@@ -190,3 +190,11 @@ WHERE id = $1;
 SELECT id, name, created_at
 FROM core.contacts
 WHERE id = ANY(@ids::uuid[]);
+
+-- name: TenantForUser :one
+SELECT t.id, t.name
+FROM core.tenants t
+LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = @user_id::uuid
+WHERE m.user_id IS NOT NULL OR t.id = @default_id::uuid
+ORDER BY m.user_id IS NOT NULL DESC
+LIMIT 1;
