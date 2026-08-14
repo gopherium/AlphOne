@@ -168,10 +168,10 @@ github.com/gopherium/gouncer/authkit/postgres v0.3.0 h1:4PURjXtqCLj819AiHljt1E8q
 github.com/gopherium/gouncer/authkit/postgres v0.3.0/go.mod h1:c2pqWGX6L0hjIjq7+1NrGzXI7yE/AP07TYU9QcQlrmY=
 github.com/gopherium/gouncer/authkit/ratelimit v0.2.0 h1:vWXD+2Hi+OQ66eUAAZ26fhuDdr3qVrmIs6BvF8cOEbc=
 github.com/gopherium/gouncer/authkit/ratelimit v0.2.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
-github.com/gopherium/pluginkit v0.3.0 h1:PCcD6fBacedtqv+MDhVXTlXglFyd+ckMynPckLvNR8E=
-github.com/gopherium/pluginkit v0.3.0/go.mod h1:7/KK/KzRVYkF0cLXJ8uBEJzMJwmf/xcePjrx/zRl0Qk=
-github.com/gopherium/pluginkit/graphwire v0.2.1 h1:BrB5DXBGmAe1C8ZqKXAEKXry7IikxD3KrbhLQ6u7wqw=
-github.com/gopherium/pluginkit/graphwire v0.2.1/go.mod h1:cQ13SU8ZcUjra5s6ihF/WH6/9B20jAJHDE6YbwxkPX0=
+github.com/gopherium/pluginkit v0.4.0 h1:nBJjaxdYUOkrfNSUFNxkIvPRE1ZJ+bgW/eyR70kF50I=
+github.com/gopherium/pluginkit v0.4.0/go.mod h1:7/KK/KzRVYkF0cLXJ8uBEJzMJwmf/xcePjrx/zRl0Qk=
+github.com/gopherium/pluginkit/graphwire v0.3.0 h1:Q9ov7mYvlxrE3OvXneby9uI4InjDXhFsHD8X1fa5Co0=
+github.com/gopherium/pluginkit/graphwire v0.3.0/go.mod h1:cQ13SU8ZcUjra5s6ihF/WH6/9B20jAJHDE6YbwxkPX0=
 github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
 github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
 github.com/hairyhenderson/go-codeowners v0.7.0 h1:s0W4wF8bdsBEjTWzwzSlsatSthWtTAF2xLgo4a4RwAo=
