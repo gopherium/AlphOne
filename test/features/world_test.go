@@ -115,6 +115,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Contacts:     contacts,
 		Tasks:        tasks,
 		Webhooks:     webhooks,
+		Tenants:      postgres.NewTenantStore(pool),
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(users),
