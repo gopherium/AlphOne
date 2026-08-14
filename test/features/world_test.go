@@ -66,6 +66,7 @@ type world struct {
 	captured    []byte
 	answered    []byte
 	lastField   uuid.UUID
+	altSecret   string
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -308,6 +309,47 @@ func (w *world) seedContact(ctx context.Context, name string) (uuid.UUID, error)
 	}
 	w.lastContact = created.ID
 	return created.ID, nil
+}
+
+// seedTenant stores a tenant and returns its id.
+func (w *world) seedTenant(ctx context.Context, name string) (uuid.UUID, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("generating the tenant id: %w", err)
+	}
+	if _, err := w.pool.Exec(ctx,
+		"INSERT INTO core.tenants (id, name, created_at) VALUES ($1, $2, now())", id, name); err != nil {
+		return uuid.Nil, fmt.Errorf("storing the tenant: %w", err)
+	}
+	return id, nil
+}
+
+// placeMember upserts one user's membership into the named tenant.
+func (w *world) placeMember(ctx context.Context, userID uuid.UUID, tenantName string) error {
+	tag, err := w.pool.Exec(ctx,
+		`INSERT INTO core.tenant_members (user_id, tenant_id, created_at)
+		SELECT $1, id, now() FROM core.tenants WHERE name = $2
+		ON CONFLICT (user_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id`,
+		userID, tenantName)
+	if err != nil {
+		return fmt.Errorf("placing the member: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no tenant named %q holds a row", tenantName)
+	}
+	return nil
+}
+
+// mintSecretFor mints and stores an API token for the given user.
+func (w *world) mintSecretFor(ctx context.Context, userID uuid.UUID, name string) (string, error) {
+	minted, err := apitoken.Mint(userID, name)
+	if err != nil {
+		return "", fmt.Errorf("minting the token: %w", err)
+	}
+	if err := postgres.NewTokenStore(w.pool).Create(ctx, minted.Token); err != nil {
+		return "", fmt.Errorf("storing the token: %w", err)
+	}
+	return minted.Secret, nil
 }
 
 // seedReachableContact stores a contact owning an email identity.
