@@ -175,6 +175,11 @@ type TaskEdge struct {
 	Cursor string `json:"cursor"`
 }
 
+type Tenant struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
 type UpdateTaskInput struct {
 	Title    *string    `json:"title,omitempty"`
 	DueOn    *time.Time `json:"dueOn,omitempty"`

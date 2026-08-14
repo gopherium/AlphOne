@@ -11,9 +11,11 @@ import (
 
 	"github.com/gopherium/gouncer/authkit"
 
+	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
@@ -46,6 +48,11 @@ type TaskStore interface {
 	) ([]task.Task, error)
 	Create(ctx context.Context, t task.Task) (task.Task, bool, error)
 	Update(ctx context.Context, t task.Task) (task.Task, error)
+}
+
+// TenantStore reads the tenant a caller stands in.
+type TenantStore interface {
+	TenantForUser(ctx context.Context, userID uuid.UUID) (tenant.Tenant, error)
 }
 
 // WebhookStore provides the webhook subscriptions the graph manages.
@@ -82,6 +89,8 @@ type Resolver struct {
 	Tasks TaskStore
 	// Webhooks serves the webhook subscriptions.
 	Webhooks WebhookStore
+	// Tenants serves the caller's own tenant.
+	Tenants TenantStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
 	// Live hands subscriptions the frames they may see. Nil serves no subscription.
@@ -137,4 +146,13 @@ type QueryResolvers struct {
 // Version reports the application version.
 func (q QueryResolvers) Version(context.Context) (string, error) {
 	return q.root.Version, nil
+}
+
+// Tenant answers the caller's own tenant.
+func (q QueryResolvers) Tenant(ctx context.Context) (*model.Tenant, error) {
+	held, err := q.root.Tenants.TenantForUser(ctx, authkit.IdentityFromContext(ctx).ID)
+	if err != nil {
+		return nil, err
+	}
+	return &model.Tenant{ID: held.ID, Name: held.Name}, nil
 }

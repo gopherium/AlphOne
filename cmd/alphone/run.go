@@ -95,6 +95,7 @@ func run(
 		Contacts:     contacts,
 		Tasks:        tasks,
 		Webhooks:     webhooks,
+		Tenants:      postgres.NewTenantStore(pool),
 		Events:       events,
 		Live:         hub,
 		Auth:         auth,

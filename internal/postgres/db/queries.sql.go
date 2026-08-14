@@ -850,6 +850,32 @@ func (q *Queries) SettleWebhookDelivery(ctx context.Context, arg SettleWebhookDe
 	return err
 }
 
+const tenantForUser = `-- name: TenantForUser :one
+SELECT t.id, t.name
+FROM core.tenants t
+LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = $1::uuid
+WHERE m.user_id IS NOT NULL OR t.id = $2::uuid
+ORDER BY m.user_id IS NOT NULL DESC
+LIMIT 1
+`
+
+type TenantForUserParams struct {
+	UserID    uuid.UUID
+	DefaultID uuid.UUID
+}
+
+type TenantForUserRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) TenantForUser(ctx context.Context, arg TenantForUserParams) (TenantForUserRow, error) {
+	row := q.db.QueryRow(ctx, tenantForUser, arg.UserID, arg.DefaultID)
+	var i TenantForUserRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
 const touchAPIToken = `-- name: TouchAPIToken :exec
 UPDATE core.api_tokens
 SET last_used_at = $2

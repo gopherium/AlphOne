@@ -48,6 +48,18 @@ type CoreTask struct {
 	CreatedAt     time.Time
 }
 
+type CoreTenant struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+type CoreTenantMember struct {
+	UserID    uuid.UUID
+	TenantID  uuid.UUID
+	CreatedAt time.Time
+}
+
 type CoreWebhookDelivery struct {
 	ID             uuid.UUID
 	SubscriptionID uuid.UUID

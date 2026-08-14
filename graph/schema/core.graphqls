@@ -17,8 +17,14 @@ type PageInfo {
   endCursor: String
 }
 
+type Tenant {
+  id: UUID!
+  name: String!
+}
+
 type Query {
   version: String!
+  tenant: Tenant!
 }
 
 type Subscription {

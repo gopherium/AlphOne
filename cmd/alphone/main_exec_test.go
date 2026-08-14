@@ -298,6 +298,10 @@ type graphAnswer struct {
 		CreateContact struct {
 			ID string `json:"id"`
 		} `json:"createContact"`
+		Tenant struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"tenant"`
 		ImportUpload struct {
 			ID string `json:"id"`
 		} `json:"importUpload"`
@@ -482,6 +486,21 @@ func TestMainBinaryServesARuntimeDefinedField(t *testing.T) {
 	node := read.Data.Contacts.Edges[0].Node
 	if _, selected := node["birthDate"]; !selected {
 		t.Errorf("node = %v, want birthDate answered by the running binary's widened schema", node)
+	}
+}
+
+func TestMainBinaryAnswersTheCallersTenant(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t))
+
+	read := postGraph(t, addr, secret, `{"query":"{ tenant { id name } }"}`)
+
+	if read.Data.Tenant.Name != "Default" {
+		t.Errorf("tenant = %q, want Default answered by the running binary", read.Data.Tenant.Name)
+	}
+	if read.Data.Tenant.ID == "" {
+		t.Error("the tenant carries no id, want the fixed default identifier")
 	}
 }
 
