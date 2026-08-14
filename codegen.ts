@@ -30,7 +30,7 @@ function clientPreset(root: string) {
 }
 
 const config: CodegenConfig = {
-	schema: ['graph/schema/*.graphqls', 'plugins/*/graph/*.graphqls'],
+	schema: ['graph/schema/*.graphqls', 'plugins/*/graph/*.graphqls', 'enterprise/*/graph/*.graphqls'],
 	generates: {
 		...clientPreset('frontend/src'),
 		...clientPreset('plugins/whatsapp/frontend'),

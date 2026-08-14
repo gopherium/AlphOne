@@ -28,12 +28,14 @@ export default defineConfig({
 			'src/**/*.test.{ts,tsx}',
 			'../sdk/*/test/*.test.{ts,tsx}',
 			'../plugins/*/frontend/test/*.test.{ts,tsx}',
+			'../enterprise/*/frontend/test/*.test.{ts,tsx}',
 		],
 		coverage: {
 			include: [
 				'src/**',
 				'../sdk/*/**/*.{ts,tsx}',
 				'../plugins/*/frontend/**/*.{ts,tsx}',
+				'../enterprise/*/frontend/**/*.{ts,tsx}',
 			],
 			exclude: ['src/main.tsx', '**/gql/**', '**/test/**', '**/node_modules/**', '**/*.d.ts'],
 			allowExternal: true,
