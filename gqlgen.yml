@@ -1,6 +1,7 @@
 schema:
   - graph/schema/*.graphqls
   - plugins/*/graph/*.graphqls
+  - enterprise/*/graph/*.graphqls
 exec:
   filename: graph/generated.go
   package: graph

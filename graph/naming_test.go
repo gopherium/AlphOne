@@ -53,10 +53,7 @@ func hasPluginPrefix(typeName, pluginID string) bool {
 func TestPluginTypesCarryTheirPluginPrefix(t *testing.T) {
 	t.Parallel()
 
-	dirs, err := filepath.Glob("../plugins/*/graph")
-	if err != nil {
-		t.Fatalf("globbing plugin schemas: %v", err)
-	}
+	dirs := pluginGraphDirs(t)
 	if len(dirs) == 0 {
 		t.Fatal("found no plugin graph dirs, the glob is broken")
 	}

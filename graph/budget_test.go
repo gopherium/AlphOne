@@ -17,6 +17,20 @@ const (
 	pluginRootFieldBudget = 10
 )
 
+// pluginGraphDirs returns the graph directory of every plugin under every plugin root.
+func pluginGraphDirs(t *testing.T) []string {
+	t.Helper()
+	var dirs []string
+	for _, pluginRoot := range []string{"../plugins", "../enterprise"} {
+		matches, err := filepath.Glob(filepath.Join(pluginRoot, "*", "graph"))
+		if err != nil {
+			t.Fatalf("globbing %s: %v", pluginRoot, err)
+		}
+		dirs = append(dirs, matches...)
+	}
+	return dirs
+}
+
 // rootFieldCount counts the Query and Mutation fields declared in the SDL files matching glob.
 func rootFieldCount(t *testing.T, glob string) int {
 	t.Helper()
@@ -67,10 +81,7 @@ func TestCoreStaysWithinItsRootFieldBudget(t *testing.T) {
 func TestEveryPluginStaysWithinItsRootFieldBudget(t *testing.T) {
 	t.Parallel()
 
-	dirs, err := filepath.Glob("../plugins/*/graph")
-	if err != nil {
-		t.Fatalf("globbing plugin schemas: %v", err)
-	}
+	dirs := pluginGraphDirs(t)
 	if len(dirs) == 0 {
 		t.Fatal("found no plugin graph dirs, the glob is broken")
 	}

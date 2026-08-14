@@ -15,19 +15,24 @@ func TestRepositoryWiringIsUpToDate(t *testing.T) {
 
 	repo := filepath.Join("..", "..")
 	tmp := t.TempDir()
-	entries, err := os.ReadDir(filepath.Join(repo, "plugins"))
-	if err != nil {
-		t.Fatalf("reading plugins directory: %v", err)
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	for _, pluginRoot := range roots {
+		if err := os.MkdirAll(filepath.Join(tmp, pluginRoot), 0o755); err != nil {
+			t.Fatalf("creating %s: %v", pluginRoot, err)
 		}
-		manifest, err := os.ReadFile(filepath.Join(repo, "plugins", entry.Name(), "plugin.json"))
+		entries, err := os.ReadDir(filepath.Join(repo, pluginRoot))
 		if err != nil {
-			t.Fatalf("reading manifest: %v", err)
+			t.Fatalf("reading the %s directory: %v", pluginRoot, err)
 		}
-		writePlugin(t, tmp, entry.Name(), string(manifest))
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			manifest, err := os.ReadFile(filepath.Join(repo, pluginRoot, entry.Name(), "plugin.json"))
+			if err != nil {
+				t.Fatalf("reading manifest: %v", err)
+			}
+			writePluginIn(t, tmp, pluginRoot, entry.Name(), string(manifest))
+		}
 	}
 	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins"} {
 		if err := os.MkdirAll(filepath.Join(tmp, dir), 0o755); err != nil {

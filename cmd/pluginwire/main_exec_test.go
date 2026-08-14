@@ -12,9 +12,9 @@ import (
 	"testing"
 )
 
-func writePlugin(t *testing.T, root, dir, manifestJSON string) {
+func writePluginIn(t *testing.T, root, pluginRoot, dir, manifestJSON string) {
 	t.Helper()
-	pluginDir := filepath.Join(root, "plugins", dir)
+	pluginDir := filepath.Join(root, pluginRoot, dir)
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatalf("creating %s: %v", pluginDir, err)
 	}
@@ -23,6 +23,20 @@ func writePlugin(t *testing.T, root, dir, manifestJSON string) {
 	}
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(manifestJSON), 0o644); err != nil {
 		t.Fatalf("writing manifest: %v", err)
+	}
+}
+
+func writeTree(t *testing.T, root string) {
+	t.Helper()
+	dirs := []string{"cmd/alphone", "frontend/src/plugins", "internal/graphroot", "enterprise", "graph/schema"}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatalf("creating %s: %v", dir, err)
+		}
+	}
+	coreSDL := "type Query {\n\tversion: String!\n}\n"
+	if err := os.WriteFile(filepath.Join(root, "graph", "schema", "core.graphqls"), []byte(coreSDL), 0o644); err != nil {
+		t.Fatalf("writing core schema: %v", err)
 	}
 }
 
@@ -47,24 +61,12 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	root := t.TempDir()
-	writePlugin(t, root, "demo", `{
+	writeTree(t, root)
+	writePluginIn(t, root, "plugins", "demo", `{
 		"id": "demo",
 		"name": "Demo",
 		"backend": "github.com/gopherium/alphone/plugins/demo"
 	}`)
-	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "internal/graphroot"} {
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
-			t.Fatalf("creating %s: %v", dir, err)
-		}
-	}
-	schemaDir := filepath.Join(root, "graph", "schema")
-	if err := os.MkdirAll(schemaDir, 0o755); err != nil {
-		t.Fatalf("creating %s: %v", schemaDir, err)
-	}
-	coreSDL := "type Query {\n\tversion: String!\n}\n"
-	if err := os.WriteFile(filepath.Join(schemaDir, "core.graphqls"), []byte(coreSDL), 0o644); err != nil {
-		t.Fatalf("writing core schema: %v", err)
-	}
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = root
@@ -87,17 +89,92 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 	}
 }
 
+func TestMainBinaryWiresTheEnterpriseRoot(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	root := t.TempDir()
+	writeTree(t, root)
+	writePluginIn(t, root, "plugins", "demo", `{
+		"id": "demo",
+		"name": "Demo",
+		"backend": "github.com/gopherium/alphone/plugins/demo"
+	}`)
+	writePluginIn(t, root, "enterprise", "tenancy", `{
+		"id": "tenancy",
+		"name": "Tenancy",
+		"backend": "github.com/gopherium/alphone-enterprise/plugins/tenancy"
+	}`)
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary)
+	cmd.Dir = root
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("pluginwire on a tree with both roots: %v, stderr: %s", err, stderr.String())
+	}
+
+	wiring, err := os.ReadFile(filepath.Join(root, "cmd", "alphone", "plugins_gen.go"))
+	if err != nil {
+		t.Fatalf("reading the generated wiring: %v", err)
+	}
+	if !strings.Contains(string(wiring), "alphone-enterprise/plugins/tenancy") {
+		t.Errorf("plugins_gen.go = %q, want the enterprise plugin wired", wiring)
+	}
+}
+
+func TestMainBinaryEmptyEnterpriseRootReproducesTheCommittedBytes(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	root := t.TempDir()
+	writeTree(t, root)
+	writePluginIn(t, root, "plugins", "demo", `{
+		"id": "demo",
+		"name": "Demo",
+		"backend": "github.com/gopherium/alphone/plugins/demo"
+	}`)
+	readme := filepath.Join(root, "enterprise", "README.md")
+	if err := os.WriteFile(readme, []byte("enterprise plugins land here"), 0o644); err != nil {
+		t.Fatalf("writing the enterprise README: %v", err)
+	}
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary)
+	cmd.Dir = root
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("pluginwire with an empty enterprise root: %v, stderr: %s", err, stderr.String())
+	}
+
+	for _, generated := range []string{
+		"cmd/alphone/plugins_gen.go",
+		"frontend/src/plugins/index.ts",
+		"internal/graphroot/graphroot_gen.go",
+	} {
+		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(generated)))
+		if err != nil {
+			t.Fatalf("reading %s: %v", generated, err)
+		}
+		if strings.Contains(string(content), "enterprise") {
+			t.Errorf("%s names the enterprise root while it holds no plugins", generated)
+		}
+	}
+}
+
 func TestMainBinaryFailsWithoutCoreSchemas(t *testing.T) {
 	t.Parallel()
 
 	binary, env := coverBinary(t)
 	root := t.TempDir()
-	writePlugin(t, root, "demo", `{
+	writePluginIn(t, root, "plugins", "demo", `{
 		"id": "demo",
 		"name": "Demo",
 		"backend": "github.com/gopherium/alphone/plugins/demo"
 	}`)
-	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins"} {
+	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "enterprise"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("creating %s: %v", dir, err)
 		}
