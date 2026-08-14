@@ -144,6 +144,7 @@ type PageInfo {
 }
 type Query {
 	version: String!
+	tenant: Tenant!
 	me: Identity!
 	users: [User!]!
 	contacts(q: String, first: Int, after: String): ContactConnection!
@@ -183,6 +184,10 @@ type TaskConnection {
 type TaskEdge {
 	node: Task!
 	cursor: String!
+}
+type Tenant {
+	id: UUID!
+	name: String!
 }
 scalar UUID
 input UpdateTaskInput {

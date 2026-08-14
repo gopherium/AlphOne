@@ -13,7 +13,7 @@ import (
 
 // Root field budgets per schema owner.
 const (
-	coreRootFieldBudget   = 20
+	coreRootFieldBudget   = 21
 	pluginRootFieldBudget = 10
 )
 
