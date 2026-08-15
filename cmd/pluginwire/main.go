@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 // Command pluginwire regenerates the plugin wiring files from the
-// plugin.json manifest of every directory under plugins/.
+// plugin.json manifest of every directory under each plugin root.
 package main
 
 import (
@@ -12,6 +12,9 @@ import (
 	"github.com/gopherium/pluginkit/wire"
 )
 
+// roots lists the plugin root directories scanned in order.
+var roots = []string{"plugins", "enterprise"}
+
 // config parameterizes the shared wiring generator for AlphOne.
 var config = wire.Config{
 	SDKImport:    "github.com/gopherium/alphone/sdk",
@@ -20,6 +23,10 @@ var config = wire.Config{
 	TSWiringPath: "frontend/src/plugins/index.ts",
 	License:      "Elastic-2.0",
 	TSLicense:    "AGPL-3.0-or-later",
+	Roots:        roots,
+
+	GoRegistryPath:    "internal/graphroot/registry_gen.go",
+	GoRegistryPackage: "graphroot",
 }
 
 // graphConfig parameterizes the graph resolver root generator for AlphOne.
@@ -31,6 +38,7 @@ var graphConfig = graphwire.Config{
 	License:         "Elastic-2.0",
 	Package:         "graphroot",
 	SDKImport:       "github.com/gopherium/alphone/sdk",
+	Roots:           roots,
 }
 
 // main regenerates the plugin wiring files.

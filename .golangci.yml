@@ -37,6 +37,7 @@ linters:
           list-mode: lax
           files:
             - "**/plugins/**/*.go"
+            - "**/enterprise/**/*.go"
             - "!$test"
           deny:
             - pkg: github.com/gopherium/alphone/internal

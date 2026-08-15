@@ -12,9 +12,6 @@ import (
 
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
-	"github.com/gopherium/alphone/plugins/fields"
-	"github.com/gopherium/alphone/plugins/importer"
-	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -41,24 +38,14 @@ func toolDocuments() map[string]struct {
 // composedSchema builds the executable schema every tool document runs against.
 func composedSchema(t *testing.T) graphql.ExecutableSchema {
 	t.Helper()
-	deps := sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"}
-	whatsappPlugin, err := whatsapp.Register(deps)
+	plugins, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
-		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+		t.Fatalf("graphroot.All() error = %v, want nil", err)
 	}
-	t.Cleanup(func() { _ = whatsappPlugin.Stop(t.Context()) })
-	importerPlugin, err := importer.Register(deps)
-	if err != nil {
-		t.Fatalf("importer.Register() error = %v, want nil", err)
+	for _, plugin := range plugins {
+		t.Cleanup(func() { _ = plugin.Stop(t.Context()) })
 	}
-	t.Cleanup(func() { _ = importerPlugin.Stop(t.Context()) })
-	fieldsPlugin, err := fields.Register(deps)
-	if err != nil {
-		t.Fatalf("fields.Register() error = %v, want nil", err)
-	}
-	t.Cleanup(func() { _ = fieldsPlugin.Stop(t.Context()) })
-	root, err := graphroot.FromPlugins(&graphres.Resolver{},
-		[]sdk.Plugin{whatsappPlugin, importerPlugin, fieldsPlugin})
+	root, err := graphroot.FromPlugins(&graphres.Resolver{}, plugins)
 	if err != nil {
 		t.Fatalf("graphroot.FromPlugins() error = %v, want nil", err)
 	}

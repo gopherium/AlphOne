@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Elastic-2.0
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

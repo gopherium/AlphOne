@@ -5,6 +5,7 @@ packages:
   - sdk/frontend
   - sdk/ui-primitives
   - plugins/*/frontend
+  - enterprise/*/frontend
   - test/e2e
   - test/runbook
 

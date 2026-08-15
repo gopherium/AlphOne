@@ -23,9 +23,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
-	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
-	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -40,20 +38,17 @@ const uploadDocument = `mutation($file: Upload!) {
 // newGraphHandler returns the composed graph handler acting as the given user.
 func newGraphHandler(t *testing.T, p *importer.Plugin, pool *pgxpool.Pool, user uuid.UUID) http.Handler {
 	t.Helper()
-	whatsappPlugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	inert, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
-		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+		t.Fatalf("graphroot.All() error = %v, want nil", err)
 	}
-	t.Cleanup(func() { _ = whatsappPlugin.Stop(t.Context()) })
-	fieldsPlugin, err := fields.Register(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
-	if err != nil {
-		t.Fatalf("fields.Register() error = %v, want nil", err)
+	for _, registered := range inert {
+		t.Cleanup(func() { _ = registered.Stop(t.Context()) })
 	}
-	t.Cleanup(func() { _ = fieldsPlugin.Stop(t.Context()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:  "9.9.9",
 		Contacts: postgres.NewContactStore(pool),
-	}, []sdk.Plugin{whatsappPlugin, p, fieldsPlugin})
+	}, append(inert, p))
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}

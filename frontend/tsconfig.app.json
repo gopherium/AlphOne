@@ -22,5 +22,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "../sdk/frontend", "../plugins/*/frontend"]
+  "include": ["src", "../sdk/frontend", "../plugins/*/frontend", "../enterprise/*/frontend"]
 }

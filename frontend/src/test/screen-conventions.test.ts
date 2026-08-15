@@ -3,7 +3,12 @@
 import { expect, test } from 'vitest'
 
 const sources = import.meta.glob(
-	['../**/*.tsx', '../../../plugins/*/frontend/**/*.tsx', '../../../sdk/frontend/**/*.tsx'],
+	[
+		'../**/*.tsx',
+		'../../../plugins/*/frontend/**/*.tsx',
+		'../../../enterprise/*/frontend/**/*.tsx',
+		'../../../sdk/frontend/**/*.tsx',
+	],
 	{ query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>
 
