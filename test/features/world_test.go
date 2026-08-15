@@ -30,7 +30,6 @@ import (
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
-	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -104,7 +103,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 
 	resolver := contact.NewResolver(contacts)
 	fieldsPlugin := livePlugin(t, cfg.URL())
-	registered := append(inertPlugins(t, liveImports), fieldsPlugin)
+	registered := append(inertPlugins(t), fieldsPlugin)
 	if liveImports {
 		importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
 		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
@@ -267,24 +266,16 @@ func worldFrom(ctx context.Context) *world {
 }
 
 // inertPlugins registers every graph contributing plugin against a lazy pool.
-func inertPlugins(t *testing.T, liveImports bool) []sdk.Plugin {
+func inertPlugins(t *testing.T) []sdk.Plugin {
 	t.Helper()
-	const unreachable = "postgres://plugin:plugin@localhost:1/plugin"
-	whatsappPlugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: unreachable})
+	registered, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://plugin:plugin@localhost:1/plugin"})
 	if err != nil {
-		t.Fatalf("registering whatsapp: %v", err)
+		t.Fatalf("registering the inert plugins: %v", err)
 	}
-	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
-	registered := []sdk.Plugin{whatsappPlugin}
-	if liveImports {
-		return registered
+	for _, plugin := range registered {
+		t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
 	}
-	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: unreachable})
-	if err != nil {
-		t.Fatalf("registering importer: %v", err)
-	}
-	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-	return append(registered, importerPlugin)
+	return registered
 }
 
 // addUser stores another user and returns its id.

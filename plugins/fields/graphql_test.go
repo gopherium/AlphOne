@@ -20,8 +20,6 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/fields"
-	"github.com/gopherium/alphone/plugins/importer"
-	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -51,20 +49,17 @@ func newFieldsClient(t *testing.T) *gqlclient.Client {
 	if err := plugin.Start(t.Context()); err != nil {
 		t.Fatalf("Start() error = %v, want nil", err)
 	}
-	whatsappPlugin, err := whatsapp.Register(sdk.Deps{DatabaseURL: unreachable})
+	inert, err := graphroot.All(sdk.Deps{DatabaseURL: unreachable})
 	if err != nil {
-		t.Fatalf("whatsapp.Register() error = %v, want nil", err)
+		t.Fatalf("graphroot.All() error = %v, want nil", err)
 	}
-	t.Cleanup(func() { _ = whatsappPlugin.Stop(context.Background()) })
-	importerPlugin, err := importer.Register(sdk.Deps{DatabaseURL: unreachable})
-	if err != nil {
-		t.Fatalf("importer.Register() error = %v, want nil", err)
+	for _, registered := range inert {
+		t.Cleanup(func() { _ = registered.Stop(context.Background()) })
 	}
-	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:  "9.9.9",
 		Contacts: postgres.NewContactStore(pool),
-	}, []sdk.Plugin{whatsappPlugin, importerPlugin, plugin})
+	}, append(inert, plugin))
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}
