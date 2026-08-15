@@ -1,7 +1,10 @@
 All content residing under the "enterprise" directory of this
-repository is licensed under the license defined in 
-"enterprise/LICENSE". All other content is licensed under
-the Elastic License 2.0 reproduced below.
+repository is licensed under the license defined in
+"enterprise/LICENSE". All content under "frontend", "sdk/frontend",
+and "plugins/*/frontend" is licensed under the GNU Affero General
+Public License v3.0 or later, defined in "frontend/LICENSE". All
+other content is licensed under the Elastic License 2.0 reproduced
+below.
 
 Elastic License 2.0
 
