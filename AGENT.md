@@ -39,7 +39,9 @@ frontend/             React SPA host (Vite); plugins import UI only via @alphone
 
 ## License
 
-Split: backend under the Elastic License 2.0 ([LICENSE](LICENSE)); frontend
-packages under AGPL-3.0-or-later ([frontend/LICENSE](frontend/LICENSE)).
+Three licenses split the tree. The backend takes the Elastic License 2.0
+([LICENSE](LICENSE)). Frontend packages, tests and docs take
+AGPL-3.0-or-later ([frontend/LICENSE](frontend/LICENSE)). Anything under
+`enterprise/` takes its own license ([enterprise/LICENSE](enterprise/LICENSE)).
 Every source file must carry an `SPDX-License-Identifier` header naming its
 license.
