@@ -11,7 +11,7 @@ require (
 	github.com/gopherium/gouncer/authkit v0.4.0
 	github.com/gopherium/gouncer/authkit/postgres v0.3.0
 	github.com/gopherium/gouncer/authkit/ratelimit v0.2.0
-	github.com/gopherium/pluginkit v0.4.0
+	github.com/gopherium/pluginkit v0.5.0
 	github.com/gopherium/pluginkit/graphwire v0.3.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
