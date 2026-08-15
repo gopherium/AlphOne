@@ -24,6 +24,9 @@ var config = wire.Config{
 	License:      "Elastic-2.0",
 	TSLicense:    "AGPL-3.0-or-later",
 	Roots:        roots,
+
+	GoRegistryPath:    "internal/graphroot/registry_gen.go",
+	GoRegistryPackage: "graphroot",
 }
 
 // graphConfig parameterizes the graph resolver root generator for AlphOne.

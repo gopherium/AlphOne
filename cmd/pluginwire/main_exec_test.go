@@ -174,7 +174,7 @@ func TestMainBinaryFailsWithoutCoreSchemas(t *testing.T) {
 		"name": "Demo",
 		"backend": "github.com/gopherium/alphone/plugins/demo"
 	}`)
-	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "enterprise"} {
+	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "enterprise", "internal/graphroot"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("creating %s: %v", dir, err)
 		}

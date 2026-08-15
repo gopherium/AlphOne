@@ -34,7 +34,7 @@ func TestRepositoryWiringIsUpToDate(t *testing.T) {
 			writePluginIn(t, tmp, pluginRoot, entry.Name(), string(manifest))
 		}
 	}
-	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins"} {
+	for _, dir := range []string{"cmd/alphone", "frontend/src/plugins", "internal/graphroot"} {
 		if err := os.MkdirAll(filepath.Join(tmp, dir), 0o755); err != nil {
 			t.Fatalf("creating %s: %v", dir, err)
 		}
@@ -44,7 +44,7 @@ func TestRepositoryWiringIsUpToDate(t *testing.T) {
 		t.Fatalf("wire.Run() error = %v, want nil", err)
 	}
 
-	for _, generated := range []string{config.GoWiringPath, config.TSWiringPath} {
+	for _, generated := range []string{config.GoWiringPath, config.TSWiringPath, config.GoRegistryPath} {
 		fresh, err := os.ReadFile(filepath.Join(tmp, generated))
 		if err != nil {
 			t.Fatalf("reading fresh %s: %v", generated, err)
