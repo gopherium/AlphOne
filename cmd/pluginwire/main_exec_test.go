@@ -103,7 +103,7 @@ func TestMainBinaryWiresTheEnterpriseRoot(t *testing.T) {
 	writePluginIn(t, root, "enterprise", "tenancy", `{
 		"id": "tenancy",
 		"name": "Tenancy",
-		"backend": "github.com/gopherium/alphone-enterprise/plugins/tenancy"
+		"backend": "github.com/gopherium/alphone/enterprise/tenancy"
 	}`)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
@@ -119,7 +119,7 @@ func TestMainBinaryWiresTheEnterpriseRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the generated wiring: %v", err)
 	}
-	if !strings.Contains(string(wiring), "alphone-enterprise/plugins/tenancy") {
+	if !strings.Contains(string(wiring), "alphone/enterprise/tenancy") {
 		t.Errorf("plugins_gen.go = %q, want the enterprise plugin wired", wiring)
 	}
 }
