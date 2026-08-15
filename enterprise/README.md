@@ -4,7 +4,7 @@ This directory is a second plugin root. It works the same way as
 `plugins` for every generator, linter and build step, and it is empty
 here on purpose.
 
-Closed source plugins live in a separate private repository. A build
+Closed-source plugins live in a separate private repository. A build
 that has that repository checked out beside this one copies them in
 here, regenerates the wiring so both roots are seen, and builds from
 that throwaway tree. Nothing copied in is ever committed here.

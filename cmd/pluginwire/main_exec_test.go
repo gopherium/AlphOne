@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// writePluginIn writes a plugin manifest under the named plugin root.
 func writePluginIn(t *testing.T, root, pluginRoot, dir, manifestJSON string) {
 	t.Helper()
 	pluginDir := filepath.Join(root, pluginRoot, dir)
@@ -26,6 +27,7 @@ func writePluginIn(t *testing.T, root, pluginRoot, dir, manifestJSON string) {
 	}
 }
 
+// writeTree creates every directory the generators write into, plus the core schema.
 func writeTree(t *testing.T, root string) {
 	t.Helper()
 	dirs := []string{"cmd/alphone", "frontend/src/plugins", "internal/graphroot", "enterprise", "graph/schema"}
