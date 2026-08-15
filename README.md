@@ -24,4 +24,5 @@ AlphOne is source-available software under a split license:
   `codegen.ts`, `eslint.config.js`): the
   [GNU Affero General Public License v3.0 or later](frontend/LICENSE).
 
-Each file must carry an `SPDX-License-Identifier` header naming its license.
+Each source file must carry an `SPDX-License-Identifier` header naming its
+license.
