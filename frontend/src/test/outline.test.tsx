@@ -9,17 +9,31 @@ vi.mock('@alphone/frontend-sdk/dataviews', () => ({
 	DataForm: () => <form />,
 }))
 
-import { importID, handlers as importerHandlers } from '@alphone/plugin-importer/handlers'
-import { handlers } from '@alphone/plugin-whatsapp/handlers'
 import { createAppRouter } from '../router'
 import { renderAt } from './render'
 
 const taskID = '0198c000-0000-7000-8000-000000000301'
 const contactID = '0198c000-0000-7000-8000-000000000302'
-const conversationID = '019f4a00-0000-7000-8000-000000000001'
 
-// Every leaf route, with its parameters bound to a fixture the handlers serve.
-const paths: Record<string, string> = {
+/** PluginOutline is the leaf routes and fixtures one plugin contributes to the sweep. */
+interface PluginOutline {
+	paths: Record<string, string>
+	handlers?: Parameters<typeof server.use>
+}
+
+/** pluginOutlines holds every plugin's outline from both plugin roots. */
+const pluginOutlines = Object.values(
+	import.meta.glob(
+		[
+			'../../../plugins/*/frontend/outline.ts',
+			'../../../enterprise/*/frontend/outline.ts',
+		],
+		{ eager: true },
+	),
+) as PluginOutline[]
+
+/** corePaths is every core leaf route, its parameters bound to a served fixture. */
+const corePaths: Record<string, string> = {
 	'/': '/',
 	'/tasks': '/tasks',
 	'/tasks/new': '/tasks/new',
@@ -29,20 +43,18 @@ const paths: Record<string, string> = {
 	'/contacts/$contactId': `/contacts/${contactID}`,
 	'/users': '/users',
 	'/users/new': '/users/new',
-	// The section route holds the sidebar and renders its canvas through the
-	// index child, so both ids resolve to the same URL.
-	'/whatsapp': '/whatsapp',
-	'/whatsapp/': '/whatsapp',
-	'/whatsapp/conversations/$conversationId': `/whatsapp/conversations/${conversationID}`,
-	'/import': '/import',
-	'/import/$importId': `/import/${importID}`,
-	'/fields': '/fields',
 }
+
+/** paths is every leaf route of the composed router, core plus both plugin roots. */
+const paths: Record<string, string> = Object.assign(
+	{},
+	corePaths,
+	...pluginOutlines.map((outline) => outline.paths),
+)
 
 beforeEach(() => {
 	server.use(
-		...handlers,
-		...importerHandlers,
+		...pluginOutlines.flatMap((outline) => outline.handlers ?? []),
 		graphql.query('TaskDetail', () =>
 			HttpResponse.json({
 				data: {

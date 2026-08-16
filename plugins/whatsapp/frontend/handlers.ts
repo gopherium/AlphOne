@@ -23,10 +23,12 @@ function threadMessage(id: string, externalId: string, fields: Record<string, un
 	}
 }
 
+export const conversationID = '019f4a00-0000-7000-8000-000000000001'
+
 const conversations = [
 	{
 		__typename: 'WhatsAppConversation',
-		id: '019f4a00-0000-7000-8000-000000000001',
+		id: conversationID,
 		status: 'open',
 		lastActivityAt: '2026-07-06T10:05:00Z',
 		lastMessagePreview: 'I can pick it up after 5pm.',
