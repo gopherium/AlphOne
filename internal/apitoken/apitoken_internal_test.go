@@ -21,7 +21,7 @@ func TestMintReportsAFailingIdentifierSource(t *testing.T) {
 	uuid.SetRand(failingReader{})
 	defer uuid.SetRand(nil)
 
-	if _, err := Mint(uuid.Nil, "n8n"); !errors.Is(err, errEntropy) {
+	if _, err := Mint(uuid.Nil, "n8n", Full(), Never); !errors.Is(err, errEntropy) {
 		t.Errorf("Mint() error = %v, want %v", err, errEntropy)
 	}
 }
@@ -30,7 +30,7 @@ func TestMintReportsAFailingSecretSource(t *testing.T) {
 	randRead = failingReader{}.Read
 	defer func() { randRead = defaultRandRead }()
 
-	if _, err := Mint(uuid.Nil, "n8n"); !errors.Is(err, errEntropy) {
+	if _, err := Mint(uuid.Nil, "n8n", Full(), Never); !errors.Is(err, errEntropy) {
 		t.Errorf("Mint() error = %v, want %v", err, errEntropy)
 	}
 }

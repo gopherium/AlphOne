@@ -111,11 +111,11 @@ RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at;
 
 -- name: CreateAPIToken :exec
-INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6);
+INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: GetAPITokenByHash :one
-SELECT id, user_id, name, token_hash, created_at, last_used_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
 WHERE token_hash = $1;
 
@@ -125,7 +125,7 @@ SET last_used_at = $2
 WHERE id = $1;
 
 -- name: ListAPITokensForUser :many
-SELECT id, user_id, name, token_hash, created_at, last_used_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC;

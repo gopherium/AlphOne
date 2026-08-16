@@ -133,8 +133,8 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 }
 
 const createAPIToken = `-- name: CreateAPIToken :exec
-INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type CreateAPITokenParams struct {
@@ -144,6 +144,8 @@ type CreateAPITokenParams struct {
 	TokenHash  string
 	CreatedAt  time.Time
 	LastUsedAt pgtype.Timestamptz
+	Scopes     string
+	ExpiresAt  pgtype.Timestamptz
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error {
@@ -154,6 +156,8 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 		arg.TokenHash,
 		arg.CreatedAt,
 		arg.LastUsedAt,
+		arg.Scopes,
+		arg.ExpiresAt,
 	)
 	return err
 }
@@ -343,7 +347,7 @@ func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebho
 }
 
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
-SELECT id, user_id, name, token_hash, created_at, last_used_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
 WHERE token_hash = $1
 `
@@ -358,6 +362,8 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (Core
 		&i.TokenHash,
 		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.Scopes,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
@@ -426,7 +432,7 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 }
 
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
-SELECT id, user_id, name, token_hash, created_at, last_used_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC
@@ -448,6 +454,8 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([
 			&i.TokenHash,
 			&i.CreatedAt,
 			&i.LastUsedAt,
+			&i.Scopes,
+			&i.ExpiresAt,
 		); err != nil {
 			return nil, err
 		}

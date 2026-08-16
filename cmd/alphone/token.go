@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,12 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/postgres"
 )
+
+// defaultTokenLifetime is how long a token minted from the command line lasts.
+const defaultTokenLifetime = 90 * 24 * time.Hour
+
+// dateLayout formats the dates the token subcommands print.
+const dateLayout = "2006-01-02"
 
 // token creates, lists, and revokes the API tokens of one user.
 func token(ctx context.Context, getenv func(string) string, args []string, stdout io.Writer) error {
@@ -101,7 +108,7 @@ func createToken(
 	name string,
 	stdout io.Writer,
 ) error {
-	minted, err := apitoken.Mint(userID, name)
+	minted, err := apitoken.Mint(userID, name, apitoken.Full(), defaultTokenLifetime)
 	if err != nil {
 		return err
 	}
@@ -111,6 +118,7 @@ func createToken(
 	_, _ = fmt.Fprintf(stdout, "created token %s\n", minted.Token.ID)
 	_, _ = fmt.Fprintf(stdout, "secret: %s\n", minted.Secret)
 	_, _ = fmt.Fprintln(stdout, "store it now, it is never shown again")
+	_, _ = fmt.Fprintf(stdout, "scopes %s, expires %s\n", minted.Token.Scopes, orNever(minted.Token.ExpiresAt))
 	return nil
 }
 
@@ -121,14 +129,19 @@ func listTokens(ctx context.Context, tokens *postgres.TokenStore, userID uuid.UU
 		return err
 	}
 	for _, t := range stored {
-		lastUsed := "never"
-		if !t.LastUsedAt.IsZero() {
-			lastUsed = t.LastUsedAt.Format("2006-01-02")
-		}
-		_, _ = fmt.Fprintf(stdout, "%s  %s  created %s  last used %s\n",
-			t.ID, t.Name, t.CreatedAt.Format("2006-01-02"), lastUsed)
+		_, _ = fmt.Fprintf(stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
+			t.ID, t.Name, t.Scopes, t.CreatedAt.Format(dateLayout),
+			orNever(t.LastUsedAt), orNever(t.ExpiresAt))
 	}
 	return nil
+}
+
+// orNever returns the date, or never when the moment has not come.
+func orNever(at time.Time) string {
+	if at.IsZero() {
+		return "never"
+	}
+	return at.Format(dateLayout)
 }
 
 // revokeToken deletes one token of the user.

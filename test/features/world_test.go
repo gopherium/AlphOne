@@ -130,7 +130,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err != nil {
 		t.Fatalf("reading the owner: %v", err)
 	}
-	minted, err := apitoken.Mint(owner.ID, "mcp scenario")
+	minted, err := apitoken.Mint(owner.ID, "mcp scenario", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("minting the token: %v", err)
 	}
@@ -334,7 +334,7 @@ func (w *world) placeMember(ctx context.Context, userID uuid.UUID, tenantName st
 
 // mintSecretFor mints and stores an API token for the given user.
 func (w *world) mintSecretFor(ctx context.Context, userID uuid.UUID, name string) (string, error) {
-	minted, err := apitoken.Mint(userID, name)
+	minted, err := apitoken.Mint(userID, name, apitoken.Full(), apitoken.Never)
 	if err != nil {
 		return "", fmt.Errorf("minting the token: %w", err)
 	}

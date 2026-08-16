@@ -53,7 +53,7 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 	users := newFakeUserStore()
 	ada := addAda(t, users)
 	tokens := newFakeTokenStore()
-	minted, err := apitoken.Mint(ada.ID, "n8n production")
+	minted, err := apitoken.Mint(ada.ID, "n8n production", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
 	}
@@ -198,7 +198,7 @@ func TestBearerTokenIsRejectedWhenTheOwnerIsGone(t *testing.T) {
 	t.Parallel()
 
 	handler, tokens, _, _ := newTokenServer(t)
-	orphan, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "orphan")
+	orphan, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "orphan", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
 	}

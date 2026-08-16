@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -20,7 +21,7 @@ func TestMintBuildsATokenCarryingItsSecretOnce(t *testing.T) {
 
 	userID := uuid.Must(uuid.NewV7())
 
-	minted, err := apitoken.Mint(userID, "  n8n production  ")
+	minted, err := apitoken.Mint(userID, "  n8n production  ", apitoken.Full(), apitoken.Never)
 
 	if err != nil {
 		t.Fatalf("Mint() error = %v, want nil", err)
@@ -48,7 +49,7 @@ func TestMintBuildsATokenCarryingItsSecretOnce(t *testing.T) {
 func TestMintStoresOnlyTheHashOfTheSecret(t *testing.T) {
 	t.Parallel()
 
-	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n")
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("Mint() error = %v, want nil", err)
 	}
@@ -66,7 +67,7 @@ func TestMintDrawsADistinctSecretEveryTime(t *testing.T) {
 
 	seen := make(map[string]bool, 100)
 	for range 100 {
-		minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n")
+		minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), apitoken.Never)
 		if err != nil {
 			t.Fatalf("Mint() error = %v, want nil", err)
 		}
@@ -80,7 +81,7 @@ func TestMintDrawsADistinctSecretEveryTime(t *testing.T) {
 func TestMintDrawsAFullyRandomSecret(t *testing.T) {
 	t.Parallel()
 
-	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n")
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("Mint() error = %v, want nil", err)
 	}
@@ -97,8 +98,124 @@ func TestMintDrawsAFullyRandomSecret(t *testing.T) {
 func TestMintRejectsABlankName(t *testing.T) {
 	t.Parallel()
 
-	if _, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "   "); !errors.Is(err, apitoken.ErrEmptyName) {
+	_, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "   ", apitoken.Full(), apitoken.Never)
+
+	if !errors.Is(err, apitoken.ErrEmptyName) {
 		t.Errorf("Mint() error = %v, want %v", err, apitoken.ErrEmptyName)
+	}
+}
+
+func TestMintCarriesTheGrantedScopes(t *testing.T) {
+	t.Parallel()
+
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.ParseScopes("tasks:write"), apitoken.Never)
+
+	if err != nil {
+		t.Fatalf("Mint() error = %v, want nil", err)
+	}
+	if got, want := minted.Token.Scopes.String(), "tasks:write"; got != want {
+		t.Errorf("Scopes = %q, want %q", got, want)
+	}
+}
+
+func TestMintCanonicalisesTheScopesItIsHanded(t *testing.T) {
+	t.Parallel()
+
+	granted := apitoken.Scopes{"tasks:write", "contacts:read", "tasks:write"}
+
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", granted, apitoken.Never)
+
+	if err != nil {
+		t.Fatalf("Mint() error = %v, want nil", err)
+	}
+	if got, want := minted.Token.Scopes.String(), "contacts:read tasks:write"; got != want {
+		t.Errorf("Scopes = %q, want %q, sorted without repeats", got, want)
+	}
+	if got, want := granted.String(), "tasks:write contacts:read tasks:write"; got != want {
+		t.Errorf("the caller's scopes = %q, want %q, Mint must not reorder them", got, want)
+	}
+}
+
+func TestMintEndsTheTokenAfterItsLifetime(t *testing.T) {
+	t.Parallel()
+
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), 30*24*time.Hour)
+
+	if err != nil {
+		t.Fatalf("Mint() error = %v, want nil", err)
+	}
+	if want := minted.Token.CreatedAt.Add(30 * 24 * time.Hour); !minted.Token.ExpiresAt.Equal(want) {
+		t.Errorf("ExpiresAt = %v, want %v, the mint moment plus the lifetime", minted.Token.ExpiresAt, want)
+	}
+}
+
+func TestMintLeavesTheExpiryOpenWhenAskedForNever(t *testing.T) {
+	t.Parallel()
+
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), apitoken.Never)
+
+	if err != nil {
+		t.Fatalf("Mint() error = %v, want nil", err)
+	}
+	if !minted.Token.ExpiresAt.IsZero() {
+		t.Errorf("ExpiresAt = %v, want zero, meaning the token never expires", minted.Token.ExpiresAt)
+	}
+}
+
+func TestMintRejectsAMalformedScope(t *testing.T) {
+	t.Parallel()
+
+	_, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.ParseScopes("tasks:admin"), apitoken.Never)
+
+	if !errors.Is(err, apitoken.ErrMalformedScope) {
+		t.Errorf("Mint() error = %v, want %v", err, apitoken.ErrMalformedScope)
+	}
+}
+
+func TestMintRejectsATokenGrantedNothing(t *testing.T) {
+	t.Parallel()
+
+	_, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", nil, apitoken.Never)
+
+	if !errors.Is(err, apitoken.ErrNoScopes) {
+		t.Errorf("Mint() error = %v, want %v", err, apitoken.ErrNoScopes)
+	}
+}
+
+func TestMintRejectsALifetimeAlreadySpent(t *testing.T) {
+	t.Parallel()
+
+	_, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "n8n", apitoken.Full(), -time.Hour)
+
+	if !errors.Is(err, apitoken.ErrNegativeLifetime) {
+		t.Errorf("Mint() error = %v, want %v", err, apitoken.ErrNegativeLifetime)
+	}
+}
+
+func TestExpiredReadsTheMomentTheTokenEnds(t *testing.T) {
+	t.Parallel()
+
+	ends := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+	token := apitoken.Token{ExpiresAt: ends}
+
+	if token.Expired(ends.Add(-time.Second)) {
+		t.Error("Expired(before) = true, want false")
+	}
+	if !token.Expired(ends) {
+		t.Error("Expired(at the moment it ends) = false, want true")
+	}
+	if !token.Expired(ends.Add(time.Second)) {
+		t.Error("Expired(after) = false, want true")
+	}
+}
+
+func TestExpiredIsNeverTrueForATokenWithoutAnEnd(t *testing.T) {
+	t.Parallel()
+
+	var token apitoken.Token
+
+	if token.Expired(time.Now().AddDate(100, 0, 0)) {
+		t.Error("Expired() = true, want false, a zero expiry means never")
 	}
 }
 
