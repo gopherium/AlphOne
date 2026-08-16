@@ -118,7 +118,7 @@ func TestTokenCreateGrantsFullScopeForNinetyDaysAndSaysSo(t *testing.T) {
 	if want := stored.CreatedAt.Add(defaultTokenLifetime); !stored.ExpiresAt.Equal(want) {
 		t.Errorf("expires at %v, want %v", stored.ExpiresAt, want)
 	}
-	said := fmt.Sprintf("scopes %s, expires %s", stored.Scopes, stored.ExpiresAt.Format(dateLayout))
+	said := fmt.Sprintf("scopes %s, expires %s", stored.Scopes, stored.ExpiresAt.UTC().Format(dateLayout))
 	if !strings.Contains(stdout.String(), said) {
 		t.Errorf("output = %q, want it to carry %q", stdout.String(), said)
 	}
@@ -146,7 +146,7 @@ func TestTokenListShowsTheScopesAndTheExpiry(t *testing.T) {
 	if want := "scopes " + stored.Scopes.String(); !strings.Contains(printed, want) {
 		t.Errorf("output = %q, want it to carry %q", printed, want)
 	}
-	if want := "expires " + stored.ExpiresAt.Format(dateLayout); !strings.Contains(printed, want) {
+	if want := "expires " + stored.ExpiresAt.UTC().Format(dateLayout); !strings.Contains(printed, want) {
 		t.Errorf("output = %q, want it to carry %q", printed, want)
 	}
 }

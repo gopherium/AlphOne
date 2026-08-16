@@ -47,25 +47,27 @@ type worldKey struct{}
 
 // world holds everything one scenario needs, torn down when it ends.
 type world struct {
-	t           *testing.T
-	pool        *pgxpool.Pool
-	tasks       *postgres.TaskStore
-	contacts    *postgres.ContactStore
-	resolver    *contact.Resolver
-	lastContact uuid.UUID
-	lastImport  uuid.UUID
-	users       *authkitpg.UserStore
-	server      *httptest.Server
-	ownerID     uuid.UUID
-	secret      string
-	tokenID     uuid.UUID
-	session     *mcp.ClientSession
-	connErr     error
-	called      *mcp.CallToolResult
-	captured    []byte
-	answered    []byte
-	lastField   uuid.UUID
-	altSecret   string
+	t            *testing.T
+	pool         *pgxpool.Pool
+	tasks        *postgres.TaskStore
+	contacts     *postgres.ContactStore
+	resolver     *contact.Resolver
+	lastContact  uuid.UUID
+	lastImport   uuid.UUID
+	users        *authkitpg.UserStore
+	server       *httptest.Server
+	ownerID      uuid.UUID
+	secret       string
+	tokenID      uuid.UUID
+	session      *mcp.ClientSession
+	connErr      error
+	called       *mcp.CallToolResult
+	captured     []byte
+	answered     []byte
+	lastField    uuid.UUID
+	altSecret    string
+	scopedSecret string
+	status       int
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -334,7 +336,14 @@ func (w *world) placeMember(ctx context.Context, userID uuid.UUID, tenantName st
 
 // mintSecretFor mints and stores an API token for the given user.
 func (w *world) mintSecretFor(ctx context.Context, userID uuid.UUID, name string) (string, error) {
-	minted, err := apitoken.Mint(userID, name, apitoken.Full(), apitoken.Never)
+	return w.mintScopedSecretFor(ctx, userID, name, apitoken.Full())
+}
+
+// mintScopedSecretFor mints and stores an API token granted the given scopes.
+func (w *world) mintScopedSecretFor(
+	ctx context.Context, userID uuid.UUID, name string, scopes apitoken.Scopes,
+) (string, error) {
+	minted, err := apitoken.Mint(userID, name, scopes, apitoken.Never)
 	if err != nil {
 		return "", fmt.Errorf("minting the token: %w", err)
 	}
@@ -342,6 +351,20 @@ func (w *world) mintSecretFor(ctx context.Context, userID uuid.UUID, name string
 		return "", fmt.Errorf("storing the token: %w", err)
 	}
 	return minted.Secret, nil
+}
+
+// expireSecret ends the life of the token behind secret an hour ago.
+func (w *world) expireSecret(ctx context.Context, secret string) error {
+	tag, err := w.pool.Exec(ctx,
+		"UPDATE core.api_tokens SET expires_at = now() - interval '1 hour' WHERE token_hash = $1",
+		apitoken.HashSecret(secret))
+	if err != nil {
+		return fmt.Errorf("expiring the token: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("no token is stored under the given secret")
+	}
+	return nil
 }
 
 // seedReachableContact stores a contact owning an email identity.

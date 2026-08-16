@@ -130,18 +130,18 @@ func listTokens(ctx context.Context, tokens *postgres.TokenStore, userID uuid.UU
 	}
 	for _, t := range stored {
 		_, _ = fmt.Fprintf(stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
-			t.ID, t.Name, t.Scopes, t.CreatedAt.Format(dateLayout),
+			t.ID, t.Name, t.Scopes, t.CreatedAt.UTC().Format(dateLayout),
 			orNever(t.LastUsedAt), orNever(t.ExpiresAt))
 	}
 	return nil
 }
 
-// orNever returns the date, or never when the moment has not come.
+// orNever returns the date in UTC, or never when the moment has not come.
 func orNever(at time.Time) string {
 	if at.IsZero() {
 		return "never"
 	}
-	return at.Format(dateLayout)
+	return at.UTC().Format(dateLayout)
 }
 
 // revokeToken deletes one token of the user.
