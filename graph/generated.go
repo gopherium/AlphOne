@@ -1583,19 +1583,20 @@ enum FieldKind {
 }
 
 extend type Query {
-  fields(includeArchived: Boolean): [FieldDefinition!]!
+  fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 }
 
 extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
-  archiveField(id: UUID!): Boolean!
-  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
+    @scope(area: "fields", write: true)
+  archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
 }
 `, BuiltIn: false},
 	{Name: "../plugins/importer/graph/schema.graphqls", Input: `extend type Query {
-  imports: [ImportJob!]!
-  importJob(id: UUID!): ImportJob
-  importFields: [ImportField!]!
+  imports: [ImportJob!]! @scope(area: "imports", write: false)
+  importJob(id: UUID!): ImportJob @scope(area: "imports", write: false)
+  importFields: [ImportField!]! @scope(area: "imports", write: false)
 }
 
 type ImportJob {
@@ -1653,14 +1654,15 @@ type ImportCommitPayload {
 }
 
 extend type Mutation {
-  importUpload(file: Upload!): ImportJob!
+  importUpload(file: Upload!): ImportJob! @scope(area: "imports", write: true)
   importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
-  importCommit(id: UUID!): ImportCommitPayload!
+    @scope(area: "imports", write: true)
+  importCommit(id: UUID!): ImportCommitPayload! @scope(area: "imports", write: true)
 }
 `, BuiltIn: false},
 	{Name: "../plugins/whatsapp/graph/schema.graphqls", Input: `extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
-  whatsAppConversation(id: UUID!): WhatsAppConversation
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+  whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 
 type WhatsAppConversation {
@@ -1701,11 +1703,13 @@ extend type Contact {
 
 extend type Mutation {
   whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: true)
 }
 
 extend type Subscription {
-  whatsAppConversationEvent: UUID!
+  whatsAppConversationEvent: UUID! @scope(area: "whatsapp", write: false)
   whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: false)
 }
 `, BuiltIn: false},
 }

@@ -1,6 +1,6 @@
 extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
-  whatsAppConversation(id: UUID!): WhatsAppConversation
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+  whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 
 type WhatsAppConversation {
@@ -41,9 +41,11 @@ extend type Contact {
 
 extend type Mutation {
   whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: true)
 }
 
 extend type Subscription {
-  whatsAppConversationEvent: UUID!
+  whatsAppConversationEvent: UUID! @scope(area: "whatsapp", write: false)
   whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: false)
 }

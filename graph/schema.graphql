@@ -1,4 +1,5 @@
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
 type Contact {
 	id: UUID!
 	name: String!
@@ -116,25 +117,25 @@ type LoginPayload {
 	me: Identity!
 }
 type Mutation {
-	createContact(name: String!, identities: [ContactIdentityInput!]): Contact!
-	renameContact(id: UUID!, name: String!): Contact!
-	addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity!
-	deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean!
-	login(email: String!, password: String!): LoginPayload!
-	logout: Boolean!
-	createUser(email: String!, name: String!, password: String!): User!
-	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean!
-	createTask(input: CreateTaskInput!): CreateTaskPayload!
-	updateTask(id: UUID!, input: UpdateTaskInput!): Task!
-	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
-	deleteWebhook(id: UUID!): Boolean!
-	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
-	archiveField(id: UUID!): Boolean!
-	writeContactFields(contactId: UUID!, values: JSON!): Boolean!
-	importUpload(file: Upload!): ImportJob!
-	importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
-	importCommit(id: UUID!): ImportCommitPayload!
-	whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+	createContact(name: String!, identities: [ContactIdentityInput!]): Contact! @scope(area: "contacts", write: true)
+	renameContact(id: UUID!, name: String!): Contact! @scope(area: "contacts", write: true)
+	addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity! @scope(area: "contacts", write: true)
+	deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean! @scope(area: "contacts", write: true)
+	login(email: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
+	logout: Boolean! @scope(area: "auth", write: true)
+	createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true)
+	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true)
+	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
+	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
+	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true)
+	deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
+	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition! @scope(area: "fields", write: true)
+	archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+	writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
+	importUpload(file: Upload!): ImportJob! @scope(area: "imports", write: true)
+	importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob! @scope(area: "imports", write: true)
+	importCommit(id: UUID!): ImportCommitPayload! @scope(area: "imports", write: true)
+	whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage! @scope(area: "whatsapp", write: true)
 }
 type PageInfo {
 	hasNextPage: Boolean!
@@ -143,26 +144,26 @@ type PageInfo {
 	endCursor: String
 }
 type Query {
-	version: String!
-	tenant: Tenant!
-	me: Identity!
-	users: [User!]!
-	contacts(q: String, first: Int, after: String): ContactConnection!
-	contact(id: UUID!): Contact
-	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
-	task(id: UUID!): Task
-	webhooks: [Webhook!]!
-	fields(includeArchived: Boolean): [FieldDefinition!]!
-	imports: [ImportJob!]!
-	importJob(id: UUID!): ImportJob
-	importFields: [ImportField!]!
-	whatsAppConversations(limit: Int): [WhatsAppConversation!]!
-	whatsAppConversation(id: UUID!): WhatsAppConversation
+	version: String! @scope(area: "meta", write: false)
+	tenant: Tenant! @scope(area: "meta", write: false)
+	me: Identity! @scope(area: "auth", write: false)
+	users: [User!]! @scope(area: "users", write: false)
+	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
+	contact(id: UUID!): Contact @scope(area: "contacts", write: false)
+	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection! @scope(area: "tasks", write: false)
+	task(id: UUID!): Task @scope(area: "tasks", write: false)
+	webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
+	fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
+	imports: [ImportJob!]! @scope(area: "imports", write: false)
+	importJob(id: UUID!): ImportJob @scope(area: "imports", write: false)
+	importFields: [ImportField!]! @scope(area: "imports", write: false)
+	whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+	whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 type Subscription {
-	coreEvent: String!
-	whatsAppConversationEvent: UUID!
-	whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
+	coreEvent: String! @scope(area: "events", write: false)
+	whatsAppConversationEvent: UUID! @scope(area: "whatsapp", write: false)
+	whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage! @scope(area: "whatsapp", write: false)
 }
 type Task {
 	id: UUID!

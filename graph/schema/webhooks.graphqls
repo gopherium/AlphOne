@@ -11,10 +11,11 @@ type CreateWebhookPayload {
 }
 
 extend type Query {
-  webhooks: [Webhook!]!
+  webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
 }
 
 extend type Mutation {
   createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
-  deleteWebhook(id: UUID!): Boolean!
+    @scope(area: "webhooks", write: true)
+  deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
 }

@@ -20,11 +20,12 @@ enum FieldKind {
 }
 
 extend type Query {
-  fields(includeArchived: Boolean): [FieldDefinition!]!
+  fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 }
 
 extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
-  archiveField(id: UUID!): Boolean!
-  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
+    @scope(area: "fields", write: true)
+  archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
 }
