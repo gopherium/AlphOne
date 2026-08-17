@@ -12,7 +12,7 @@ import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
-import { NewUserRoute, UsersRoute } from './userRoutes'
+import { NewTokenRoute, NewUserRoute, TokensRoute, UsersRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -78,6 +78,18 @@ const newUserRoute = createRoute({
 	component: NewUserRoute,
 })
 
+const tokensRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/users/tokens',
+	component: TokensRoute,
+})
+
+const newTokenRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/users/tokens/new',
+	component: NewTokenRoute,
+})
+
 const routeTree = rootRoute.addChildren([
 	homeRoute,
 	tasksRoute,
@@ -88,6 +100,8 @@ const routeTree = rootRoute.addChildren([
 	contactRoute,
 	usersRoute,
 	newUserRoute,
+	tokensRoute,
+	newTokenRoute,
 	...plugins.flatMap((plugin) => plugin.routes(rootRoute)),
 ])
 

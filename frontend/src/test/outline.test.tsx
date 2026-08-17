@@ -43,6 +43,8 @@ const corePaths: Record<string, string> = {
 	'/contacts/$contactId': `/contacts/${contactID}`,
 	'/users': '/users',
 	'/users/new': '/users/new',
+	'/users/tokens': '/users/tokens',
+	'/users/tokens/new': '/users/tokens/new',
 }
 
 /** paths is every leaf route of the composed router, core plus both plugin roots. */

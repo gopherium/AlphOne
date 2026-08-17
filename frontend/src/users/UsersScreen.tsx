@@ -73,9 +73,14 @@ export function UsersScreen() {
 		<PageScreen
 			title="Users"
 			actions={
-				<Button variant="solid" render={<Link to="/users/new" />}>
-					New user
-				</Button>
+				<Stack direction="row" gap="sm">
+					<Button variant="outline" render={<Link to="/users/tokens" />}>
+						API tokens
+					</Button>
+					<Button variant="solid" render={<Link to="/users/new" />}>
+						New user
+					</Button>
+				</Stack>
 			}
 		>
 			<UserRows users={users} currentUserId={currentUserId} />
