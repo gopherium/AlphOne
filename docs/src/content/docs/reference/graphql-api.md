@@ -38,9 +38,11 @@ typed work.
 A token narrows that authority twice over. Each `-scope` grants one area
 and whether the token may write there, and an operation touching an area
 the token does not hold is refused with code `UNAUTHORIZED` naming the
-scope it needed. Without `-scope` the token holds every area. Every token
-also expires, after ninety days unless `-ttl` says otherwise, and an
-expired token is refused as `invalid token`.
+scope it needed. Without `-scope` the token holds every area. A newly
+minted token also expires, after ninety days unless `-ttl` says otherwise,
+and an expired token is refused as `invalid token`. Tokens that predate
+scopes keep full authority and no expiry until you replace them, so run
+`alphone token list` to see which ones those are.
 
 Token management is the one thing a token can never do, whatever its
 scopes. `apiTokens`, `apiTokenCreate` and `apiTokenRevoke` require a
@@ -186,6 +188,7 @@ Every error carries a `code` in its `extensions`.
 | Code | Meaning |
 | ---- | ------- |
 | `UNAUTHENTICATED` | No usable credential, or the operation is not `login` |
+| `UNAUTHORIZED` | The token does not hold the scope the field needs. `scope` names it |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
 | `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |
