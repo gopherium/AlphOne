@@ -120,8 +120,19 @@ func registerTokenSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return w.expireSecret(ctx, secret)
 	})
 
+	sc.Given(`^a token minted before scopes existed$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		secret, err := w.mintScopedSecretFor(ctx, w.ownerID, "legacy", apitoken.Full())
+		if err != nil {
+			return err
+		}
+		w.scopedSecret = secret
+		return nil
+	})
+
 	registerTokenOperations(sc)
 	registerTokenOutcomes(sc)
+	registerTokenSessionSteps(sc)
 }
 
 // registerTokenOperations binds the operations a scoped token attempts.
@@ -159,6 +170,10 @@ func registerTokenOutcomes(sc *godog.ScenarioContext) {
 	})
 
 	sc.Then(`^the task is answered$`, func(ctx context.Context) error {
+		return worldFrom(ctx).answeredWithoutRefusal()
+	})
+
+	sc.Then(`^the contact is answered$`, func(ctx context.Context) error {
 		return worldFrom(ctx).answeredWithoutRefusal()
 	})
 

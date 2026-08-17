@@ -21,7 +21,6 @@ Feature: API tokens are scoped and mortal
     When that token disables a user
     Then the operation is refused as unauthorized naming "users:write"
 
-  @wip
   Scenario: A token cannot manage tokens whatever its scope
     Given the user holds a token scoped to "*"
     When that token lists the api tokens
@@ -32,21 +31,18 @@ Feature: API tokens are scoped and mortal
     When that token asks for the version
     Then the request is refused as an invalid token
 
-  @wip
   Scenario: Revoking over the graph stops the token immediately
     Given the user holds a token scoped to "contacts:read"
     When the user's session revokes that token
     And that token lists the contacts
     Then the request is refused as an invalid token
 
-  @wip
   Scenario: Minting answers the secret once and the list shows scope and expiry
     When the user's session mints a token named "automation" scoped to "tasks:write" lasting 30 days
     Then the answer carries a secret beginning with "a1_"
     And the session's token list shows "automation" scoped to "tasks:write" expiring in 30 days
     And the list never shows a secret
 
-  @wip
   Scenario: A legacy token holds full scope and no expiry
     Given a token minted before scopes existed
     When that token creates a contact named "Maria Perez"

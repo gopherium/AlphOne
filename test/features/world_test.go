@@ -67,6 +67,8 @@ type world struct {
 	lastField    uuid.UUID
 	altSecret    string
 	scopedSecret string
+	scopedID     uuid.UUID
+	sessionValue string
 	status       int
 }
 
@@ -117,6 +119,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Tasks:        tasks,
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
+		Tokens:       tokens,
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(users),
@@ -347,6 +350,7 @@ func (w *world) mintScopedSecretFor(
 	if err != nil {
 		return "", fmt.Errorf("minting the token: %w", err)
 	}
+	w.scopedID = minted.Token.ID
 	if err := postgres.NewTokenStore(w.pool).Create(ctx, minted.Token); err != nil {
 		return "", fmt.Errorf("storing the token: %w", err)
 	}
