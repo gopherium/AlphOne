@@ -8,6 +8,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,24 +61,69 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 	return runTokenVerb(ctx, postgres.NewTokenStore(pool), owner.ID, verb, opts, stdout)
 }
 
+// neverWord is the lifetime a token is given to be permanent.
+const neverWord = "never"
+
+// scopeList collects a repeatable scope flag.
+type scopeList []string
+
+// String returns the scopes collected so far, space separated.
+func (l *scopeList) String() string {
+	return strings.Join(*l, " ")
+}
+
+// Set adds one scope to the collection.
+func (l *scopeList) Set(scope string) error {
+	*l = append(*l, scope)
+	return nil
+}
+
 // tokenFlags carries the parsed flags of a token subcommand.
 type tokenFlags struct {
-	email string
-	name  string
-	id    string
+	email  string
+	name   string
+	id     string
+	scopes scopeList
+	ttl    string
 }
 
 // parseTokenFlags parses the flags of one token subcommand.
 func parseTokenFlags(verb string, args []string, stdout io.Writer) (tokenFlags, error) {
 	flags := flag.NewFlagSet("token "+verb, flag.ContinueOnError)
 	flags.SetOutput(stdout)
-	email := flags.String("email", "", "email address of the owning user")
-	name := flags.String("name", "", "name of the token to create")
-	id := flags.String("id", "", "identifier of the token to revoke")
+	opts := tokenFlags{}
+	flags.StringVar(&opts.email, "email", "", "email address of the owning user")
+	flags.StringVar(&opts.name, "name", "", "name of the token to create")
+	flags.StringVar(&opts.id, "id", "", "identifier of the token to revoke")
+	flags.Var(&opts.scopes, "scope", "area and access the token may act in, repeatable")
+	flags.StringVar(&opts.ttl, "ttl", "", "days the token lasts, or never")
 	if err := flags.Parse(args); err != nil {
 		return tokenFlags{}, fmt.Errorf("parse flags: %w", err)
 	}
-	return tokenFlags{email: *email, name: *name, id: *id}, nil
+	return opts, nil
+}
+
+// grantedScopes returns the scopes asked for, the wildcard when none were.
+func (o tokenFlags) grantedScopes() apitoken.Scopes {
+	if len(o.scopes) == 0 {
+		return apitoken.Full()
+	}
+	return apitoken.Scopes(o.scopes)
+}
+
+// lifetime returns the lifetime asked for, the default when unasked.
+func (o tokenFlags) lifetime() (time.Duration, error) {
+	switch o.ttl {
+	case "":
+		return defaultTokenLifetime, nil
+	case neverWord:
+		return apitoken.Never, nil
+	}
+	days, err := strconv.Atoi(o.ttl)
+	if err != nil {
+		return 0, fmt.Errorf("parse ttl: %w", err)
+	}
+	return time.Duration(days) * 24 * time.Hour, nil
 }
 
 // runTokenVerb runs the named token subcommand against the store.
@@ -90,7 +137,7 @@ func runTokenVerb(
 ) error {
 	switch verb {
 	case "create":
-		return createToken(ctx, tokens, userID, opts.name, stdout)
+		return createToken(ctx, tokens, userID, opts, stdout)
 	case "list":
 		return listTokens(ctx, tokens, userID, stdout)
 	case "revoke":
@@ -105,10 +152,14 @@ func createToken(
 	ctx context.Context,
 	tokens *postgres.TokenStore,
 	userID uuid.UUID,
-	name string,
+	opts tokenFlags,
 	stdout io.Writer,
 ) error {
-	minted, err := apitoken.Mint(userID, name, apitoken.Full(), defaultTokenLifetime)
+	lifetime, err := opts.lifetime()
+	if err != nil {
+		return err
+	}
+	minted, err := apitoken.Mint(userID, opts.name, opts.grantedScopes(), lifetime)
 	if err != nil {
 		return err
 	}

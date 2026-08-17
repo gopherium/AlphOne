@@ -151,6 +151,103 @@ func TestTokenListShowsTheScopesAndTheExpiry(t *testing.T) {
 	}
 }
 
+func TestTokenCreateGrantsOnlyTheScopesAsked(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	seedTokenUser(t, getenv)
+	var stdout strings.Builder
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n",
+		"-scope", "tasks:write", "-scope", "contacts:read",
+	}, &stdout)
+
+	if err != nil {
+		t.Fatalf("token() error = %v, want nil", err)
+	}
+	stored := storedToken(t, databaseURL, secretOf(t, stdout.String()))
+	if got, want := stored.Scopes.String(), "contacts:read tasks:write"; got != want {
+		t.Errorf("scopes = %q, want %q", got, want)
+	}
+}
+
+func TestTokenCreateLastsAsLongAsAsked(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	seedTokenUser(t, getenv)
+	var stdout strings.Builder
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n", "-ttl", "7",
+	}, &stdout)
+
+	if err != nil {
+		t.Fatalf("token() error = %v, want nil", err)
+	}
+	stored := storedToken(t, databaseURL, secretOf(t, stdout.String()))
+	if want := stored.CreatedAt.Add(7 * 24 * time.Hour); !stored.ExpiresAt.Equal(want) {
+		t.Errorf("expires at %v, want %v", stored.ExpiresAt, want)
+	}
+}
+
+func TestTokenCreateLivesForeverWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	seedTokenUser(t, getenv)
+	var stdout strings.Builder
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n", "-ttl", "never",
+	}, &stdout)
+
+	if err != nil {
+		t.Fatalf("token() error = %v, want nil", err)
+	}
+	stored := storedToken(t, databaseURL, secretOf(t, stdout.String()))
+	if !stored.ExpiresAt.IsZero() {
+		t.Errorf("expires at %v, want never", stored.ExpiresAt)
+	}
+	if !strings.Contains(stdout.String(), "expires never") {
+		t.Errorf("output = %q, want it to say the token never expires", stdout.String())
+	}
+}
+
+func TestTokenCreateRejectsAnUnreadableLifetime(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+	seedTokenUser(t, getenv)
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n", "-ttl", "soon",
+	}, io.Discard)
+
+	if err == nil {
+		t.Error("token() error = nil, want a refusal of an unreadable lifetime")
+	}
+}
+
+func TestTokenCreateRejectsAMalformedScope(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+	seedTokenUser(t, getenv)
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n", "-scope", "tasks:admin",
+	}, io.Discard)
+
+	if !errors.Is(err, apitoken.ErrMalformedScope) {
+		t.Errorf("token() error = %v, want %v", err, apitoken.ErrMalformedScope)
+	}
+}
+
 func TestTokenCreateRejectsAnUnknownEmail(t *testing.T) {
 	t.Parallel()
 
@@ -378,7 +475,7 @@ func TestTokenVerbsReportStoreFailures(t *testing.T) {
 	store := closedTokenStore(t)
 	owner := uuid.Must(uuid.NewV7())
 
-	if err := createToken(t.Context(), store, owner, "n8n", io.Discard); err == nil {
+	if err := createToken(t.Context(), store, owner, tokenFlags{name: "n8n"}, io.Discard); err == nil {
 		t.Error("createToken() on a closed pool error = nil, want error")
 	}
 	if err := listTokens(t.Context(), store, owner, io.Discard); err == nil {
