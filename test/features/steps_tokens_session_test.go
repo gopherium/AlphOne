@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cucumber/godog"
 
@@ -131,12 +132,15 @@ func registerTokenSessionSteps(sc *godog.ScenarioContext) {
 // registerTokenListingSteps binds the steps reading the session's token listing.
 func registerTokenListingSteps(sc *godog.ScenarioContext) {
 	sc.Then(`^the session's token list shows "([^"]*)" scoped to "([^"]*)" expiring in (\d+) days$`,
-		func(ctx context.Context, name, scopes string, _ int) error {
+		func(ctx context.Context, name, scopes string, days int) error {
 			w := worldFrom(ctx)
 			if err := w.postGraphAsSession(ctx, `{"query":"{ apiTokens { name scopes expiresAt } }"}`); err != nil {
 				return err
 			}
-			return w.listingShows(name, scopes, true)
+			if err := w.listingShows(name, scopes, true); err != nil {
+				return err
+			}
+			return w.listingExpiresIn(name, days)
 		})
 
 	sc.Then(`^the list never shows a secret$`, func(ctx context.Context) error {
@@ -154,6 +158,29 @@ func registerTokenListingSteps(sc *godog.ScenarioContext) {
 			}
 			return w.listingShows("legacy", scopes, false)
 		})
+}
+
+// listingExpiresIn reports whether the named token in the last listing ends the given days from now.
+func (w *world) listingExpiresIn(name string, days int) error {
+	var listed tokenListing
+	if err := json.Unmarshal(w.answered, &listed); err != nil {
+		return fmt.Errorf("reading the listing: %w", err)
+	}
+	for _, token := range listed.Data.APITokens {
+		if token.Name != name || token.ExpiresAt == nil {
+			continue
+		}
+		ends, err := time.Parse(time.RFC3339, *token.ExpiresAt)
+		if err != nil {
+			return fmt.Errorf("reading the expiry %q: %w", *token.ExpiresAt, err)
+		}
+		asked := time.Duration(days) * 24 * time.Hour
+		if drift := time.Until(ends) - asked; drift > time.Hour || drift < -time.Hour {
+			return fmt.Errorf("expires in %v, want about %v", time.Until(ends), asked)
+		}
+		return nil
+	}
+	return fmt.Errorf("the listing holds no expiring token named %q: %s", name, w.answered)
 }
 
 // listingShows reports whether the last listing carries one token with the given scopes and expiry.
