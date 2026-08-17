@@ -12,6 +12,7 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/scalar"
+	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
@@ -38,6 +39,11 @@ var validationErrors = []error{
 	errExactlyOneTaskFilter,
 	errInvalidFirst,
 	authkit.ErrSelfDisable,
+	apitoken.ErrEmptyName,
+	apitoken.ErrMalformedScope,
+	apitoken.ErrNoScopes,
+	apitoken.ErrNegativeLifetime,
+	apitoken.ErrLifetimeTooLong,
 }
 
 // notFoundErrors lists the domain errors presented as NOT_FOUND.
@@ -46,6 +52,7 @@ var notFoundErrors = []error{
 	contact.ErrIdentityNotFound,
 	task.ErrNotFound,
 	webhook.ErrNotFound,
+	apitoken.ErrNotFound,
 }
 
 // PresentError maps resolver errors to client-facing GraphQL errors.

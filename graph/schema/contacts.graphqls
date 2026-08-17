@@ -24,8 +24,8 @@ type ContactConnection {
 }
 
 extend type Query {
-  contacts(q: String, first: Int, after: String): ContactConnection!
-  contact(id: UUID!): Contact
+  contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
+  contact(id: UUID!): Contact @scope(area: "contacts", write: false)
 }
 
 input ContactIdentityInput {
@@ -36,7 +36,10 @@ input ContactIdentityInput {
 
 type Mutation {
   createContact(name: String!, identities: [ContactIdentityInput!]): Contact!
-  renameContact(id: UUID!, name: String!): Contact!
+    @scope(area: "contacts", write: true)
+  renameContact(id: UUID!, name: String!): Contact! @scope(area: "contacts", write: true)
   addContactIdentity(contactId: UUID!, identity: ContactIdentityInput!): ContactIdentity!
+    @scope(area: "contacts", write: true)
   deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean!
+    @scope(area: "contacts", write: true)
 }

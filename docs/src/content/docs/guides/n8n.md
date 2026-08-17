@@ -53,8 +53,14 @@ An engine cannot hold a browser session, so it authenticates with a
 token. On the AlphOne host:
 
 ```sh
-alphone token create -email you@example.com -name "n8n"
+alphone token create -email you@example.com -name "n8n" \
+  -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read
 ```
+
+Those four cover this guide: `meta:read` for the credential test, `webhooks:write`
+for the trigger to register and remove its subscription, `tasks:write` to create
+tasks, and `contacts:read` to look contacts up. Drop any your workflow does not
+need.
 
 The secret prints once and is stored only as a hash. Copy it now,
 because it cannot be recovered, only replaced.
@@ -62,6 +68,17 @@ because it cannot be recovered, only replaced.
 A token acts as the user who created it, so create it against the
 account whose work the automation should own. Disabling that user stops
 their tokens the way it already stops their sessions.
+
+Two limits narrow it further. Each `-scope` names an area and whether
+the token may write there, and a token holds nothing it was not
+granted. Leave `-scope` out and the token gets every area, which is
+rarely what an automation needs.
+
+A token also expires. Without `-ttl` it lasts ninety days, and after
+that every request answers `invalid token`. Pass `-ttl 30` for a
+shorter life, or `-ttl never` for one that does not expire. Run
+`alphone token list` to see the scopes and the expiry date of every
+token you hold.
 
 ## 3. Create the credential
 
@@ -227,8 +244,9 @@ docker compose exec postgres psql -U postgres -d alphone -c \
 
 | Symptom | Cause |
 | ------- | ----- |
-| The credential test fails | The base URL has a trailing slash, or says `localhost` where the container cannot reach AlphOne |
-| `invalid token` | The token id was pasted instead of the secret. Only the value starting `a1_` authenticates |
+| The credential test fails | The base URL has a trailing slash, or says `localhost` where the container cannot reach AlphOne, or the token expired |
+| `invalid token` | The token expired, was revoked, or the token id was pasted instead of the secret. Run `alphone token list` to see its expiry. Only the value starting `a1_` authenticates |
+| `scope required: contacts:write` | The token was not granted that area. Mint a replacement with the `-scope` it needs, tokens cannot be widened in place |
 | Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
 | A task titled with literal `{{ }}` | The field is not in expression mode. Use its `fx` toggle |
 | The task node fails with a validation error naming the id, previews show a leading `=` | An `=` was typed into the expression editor. n8n adds it, so delete yours |

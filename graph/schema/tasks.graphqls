@@ -24,7 +24,8 @@ type TaskConnection {
 
 extend type Query {
   tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection!
-  task(id: UUID!): Task
+    @scope(area: "tasks", write: false)
+  task(id: UUID!): Task @scope(area: "tasks", write: false)
 }
 
 input CreateTaskInput {
@@ -48,6 +49,6 @@ input UpdateTaskInput {
 }
 
 extend type Mutation {
-  createTask(input: CreateTaskInput!): CreateTaskPayload!
-  updateTask(id: UUID!, input: UpdateTaskInput!): Task!
+  createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
+  updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
 }

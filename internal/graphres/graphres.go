@@ -12,6 +12,7 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/task"
@@ -62,6 +63,13 @@ type WebhookStore interface {
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
 }
 
+// TokenStore serves the caller's own API tokens.
+type TokenStore interface {
+	Create(ctx context.Context, token apitoken.Token) error
+	ListForUser(ctx context.Context, userID uuid.UUID) ([]apitoken.Token, error)
+	Revoke(ctx context.Context, userID, id uuid.UUID) error
+}
+
 // Publisher announces domain events.
 type Publisher interface {
 	Publish(ctx context.Context, frame event.Frame, data map[string]any)
@@ -91,6 +99,8 @@ type Resolver struct {
 	Webhooks WebhookStore
 	// Tenants serves the caller's own tenant.
 	Tenants TenantStore
+	// Tokens serves the caller's own API tokens.
+	Tokens TokenStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
 	// Live hands subscriptions the frames they may see. Nil serves no subscription.

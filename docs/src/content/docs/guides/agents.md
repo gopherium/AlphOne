@@ -23,10 +23,18 @@ The agent acts as the user who owns the token, so mint it against the account
 whose work you want the agent to read.
 
 ```sh
-alphone token create -email you@example.com -name "my agent"
+alphone token create -email you@example.com -name "my agent" \
+  -scope tasks:read -scope contacts:read
 ```
 
 The secret starts with `a1_` and is shown once. Store it now.
+
+The agent's tools only read, so grant only read areas. A token holds
+nothing it was not granted, and leaving `-scope` out grants every area.
+
+The token also expires after ninety days unless you pass `-ttl`. When
+it lapses the agent's tools start answering `invalid token`. Check the
+expiry with `alphone token list`.
 
 ## 2. Connect the agent
 

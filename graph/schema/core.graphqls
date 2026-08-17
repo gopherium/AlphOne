@@ -4,6 +4,8 @@ directive @goField(
   omittable: Boolean
 ) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
+directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
+
 scalar UUID
 scalar DateTime
 scalar Date
@@ -23,10 +25,10 @@ type Tenant {
 }
 
 type Query {
-  version: String!
-  tenant: Tenant!
+  version: String! @scope(area: "meta", write: false)
+  tenant: Tenant! @scope(area: "meta", write: false)
 }
 
 type Subscription {
-  coreEvent: String!
+  coreEvent: String! @scope(area: "events", write: false)
 }

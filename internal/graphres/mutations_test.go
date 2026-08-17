@@ -89,7 +89,7 @@ func newMutationHarness(t *testing.T) mutationHarness {
 func (h mutationHarness) originClient(t *testing.T, tokenName string) *gqlclient.Client {
 	t.Helper()
 	return newDecoratedGraphClient(t, h.resolver, func(ctx context.Context) context.Context {
-		return credential.WithTokenOrigin(authkitIdentity(ctx, h.assignee), tokenName)
+		return credential.WithToken(authkitIdentity(ctx, h.assignee), credential.Token{Name: tokenName})
 	})
 }
 

@@ -45,6 +45,20 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ApiToken struct {
+		CreatedAt  func(childComplexity int) int
+		ExpiresAt  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Scopes     func(childComplexity int) int
+	}
+
+	ApiTokenSecret struct {
+		Secret func(childComplexity int) int
+		Token  func(childComplexity int) int
+	}
+
 	Contact struct {
 		CreatedAt             func(childComplexity int) int
 		Field                 func(childComplexity int, name string) int
@@ -150,6 +164,8 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		APITokenCreate        func(childComplexity int, name string, scopes []string, ttlDays *int) int
+		APITokenRevoke        func(childComplexity int, id uuid.UUID) int
 		AddContactIdentity    func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
 		ArchiveField          func(childComplexity int, id uuid.UUID) int
 		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
@@ -179,6 +195,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		APITokens             func(childComplexity int) int
 		Contact               func(childComplexity int, id uuid.UUID) int
 		Contacts              func(childComplexity int, q *string, first *int, after *string) int
 		Fields                func(childComplexity int, includeArchived *bool) int
@@ -305,6 +322,8 @@ type MutationResolver interface {
 	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error)
 	CreateTask(ctx context.Context, input model.CreateTaskInput) (*model.CreateTaskPayload, error)
 	UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error)
+	APITokenCreate(ctx context.Context, name string, scopes []string, ttlDays *int) (*model.APITokenSecret, error)
+	APITokenRevoke(ctx context.Context, id uuid.UUID) (bool, error)
 	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind) (*model.FieldDefinition, error)
@@ -324,6 +343,7 @@ type QueryResolver interface {
 	Contact(ctx context.Context, id uuid.UUID) (*model.Contact, error)
 	Tasks(ctx context.Context, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) (*model.TaskConnection, error)
 	Task(ctx context.Context, id uuid.UUID) (*model.Task, error)
+	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
 	Fields(ctx context.Context, includeArchived *bool) ([]*model.FieldDefinition, error)
 	Imports(ctx context.Context) ([]*model.ImportJob, error)
@@ -362,6 +382,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ApiToken.createdAt":
+		if e.ComplexityRoot.ApiToken.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.CreatedAt(childComplexity), true
+	case "ApiToken.expiresAt":
+		if e.ComplexityRoot.ApiToken.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.ExpiresAt(childComplexity), true
+	case "ApiToken.id":
+		if e.ComplexityRoot.ApiToken.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.ID(childComplexity), true
+	case "ApiToken.lastUsedAt":
+		if e.ComplexityRoot.ApiToken.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.LastUsedAt(childComplexity), true
+	case "ApiToken.name":
+		if e.ComplexityRoot.ApiToken.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.Name(childComplexity), true
+	case "ApiToken.scopes":
+		if e.ComplexityRoot.ApiToken.Scopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiToken.Scopes(childComplexity), true
+
+	case "ApiTokenSecret.secret":
+		if e.ComplexityRoot.ApiTokenSecret.Secret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiTokenSecret.Secret(childComplexity), true
+	case "ApiTokenSecret.token":
+		if e.ComplexityRoot.ApiTokenSecret.Token == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApiTokenSecret.Token(childComplexity), true
 
 	case "Contact.createdAt":
 		if e.ComplexityRoot.Contact.CreatedAt == nil {
@@ -747,6 +817,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LoginPayload.Me(childComplexity), true
 
+	case "Mutation.apiTokenCreate":
+		if e.ComplexityRoot.Mutation.APITokenCreate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_apiTokenCreate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.APITokenCreate(childComplexity, args["name"].(string), args["scopes"].([]string), args["ttlDays"].(*int)), true
+	case "Mutation.apiTokenRevoke":
+		if e.ComplexityRoot.Mutation.APITokenRevoke == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_apiTokenRevoke_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.APITokenRevoke(childComplexity, args["id"].(uuid.UUID)), true
 	case "Mutation.addContactIdentity":
 		if e.ComplexityRoot.Mutation.AddContactIdentity == nil {
 			break
@@ -977,6 +1069,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PageInfo.StartCursor(childComplexity), true
 
+	case "Query.apiTokens":
+		if e.ComplexityRoot.Query.APITokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.APITokens(childComplexity), true
 	case "Query.contact":
 		if e.ComplexityRoot.Query.Contact == nil {
 			break
@@ -1544,7 +1642,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "schema/auth.graphqls" "schema/contacts.graphqls" "schema/core.graphqls" "schema/tasks.graphqls" "schema/webhooks.graphqls"
+//go:embed "schema/auth.graphqls" "schema/contacts.graphqls" "schema/core.graphqls" "schema/tasks.graphqls" "schema/tokens.graphqls" "schema/webhooks.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -1560,6 +1658,7 @@ var sources = []*ast.Source{
 	{Name: "schema/contacts.graphqls", Input: sourceData("schema/contacts.graphqls"), BuiltIn: false},
 	{Name: "schema/core.graphqls", Input: sourceData("schema/core.graphqls"), BuiltIn: false},
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
+	{Name: "schema/tokens.graphqls", Input: sourceData("schema/tokens.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
 	{Name: "../plugins/fields/graph/schema.graphqls", Input: `extend type Contact {
   field(name: String!): JSON @goField(forceResolver: true)
@@ -1583,19 +1682,20 @@ enum FieldKind {
 }
 
 extend type Query {
-  fields(includeArchived: Boolean): [FieldDefinition!]!
+  fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 }
 
 extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
-  archiveField(id: UUID!): Boolean!
-  writeContactFields(contactId: UUID!, values: JSON!): Boolean!
+    @scope(area: "fields", write: true)
+  archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+  writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
 }
 `, BuiltIn: false},
 	{Name: "../plugins/importer/graph/schema.graphqls", Input: `extend type Query {
-  imports: [ImportJob!]!
-  importJob(id: UUID!): ImportJob
-  importFields: [ImportField!]!
+  imports: [ImportJob!]! @scope(area: "imports", write: false)
+  importJob(id: UUID!): ImportJob @scope(area: "imports", write: false)
+  importFields: [ImportField!]! @scope(area: "imports", write: false)
 }
 
 type ImportJob {
@@ -1653,14 +1753,15 @@ type ImportCommitPayload {
 }
 
 extend type Mutation {
-  importUpload(file: Upload!): ImportJob!
+  importUpload(file: Upload!): ImportJob! @scope(area: "imports", write: true)
   importSetMapping(id: UUID!, assignments: [ImportAssignmentInput!]!): ImportJob!
-  importCommit(id: UUID!): ImportCommitPayload!
+    @scope(area: "imports", write: true)
+  importCommit(id: UUID!): ImportCommitPayload! @scope(area: "imports", write: true)
 }
 `, BuiltIn: false},
 	{Name: "../plugins/whatsapp/graph/schema.graphqls", Input: `extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
-  whatsAppConversation(id: UUID!): WhatsAppConversation
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+  whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 
 type WhatsAppConversation {
@@ -1701,11 +1802,13 @@ extend type Contact {
 
 extend type Mutation {
   whatsAppSendMessage(conversationId: UUID!, content: String!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: true)
 }
 
 extend type Subscription {
-  whatsAppConversationEvent: UUID!
+  whatsAppConversationEvent: UUID! @scope(area: "whatsapp", write: false)
   whatsAppMessageReceived(conversationId: UUID!): WhatsAppMessage!
+    @scope(area: "whatsapp", write: false)
 }
 `, BuiltIn: false},
 }
@@ -1714,6 +1817,34 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // childFields_* functions provide shared child field context lookups.
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
+
+func (ec *executionContext) childFields_ApiToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ApiToken_id(ctx, field)
+	case "name":
+		return ec.fieldContext_ApiToken_name(ctx, field)
+	case "scopes":
+		return ec.fieldContext_ApiToken_scopes(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ApiToken_createdAt(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_ApiToken_lastUsedAt(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_ApiToken_expiresAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ApiToken", field.Name)
+}
+
+func (ec *executionContext) childFields_ApiTokenSecret(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "token":
+		return ec.fieldContext_ApiTokenSecret_token(ctx, field)
+	case "secret":
+		return ec.fieldContext_ApiTokenSecret_secret(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ApiTokenSecret", field.Name)
+}
 
 func (ec *executionContext) childFields_Contact(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
@@ -2282,6 +2413,50 @@ func (ec *executionContext) field_Mutation_addContactIdentity_args(ctx context.C
 		return nil, err
 	}
 	args["identity"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_apiTokenCreate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "scopes",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["scopes"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "ttlDays",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ttlDays"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_apiTokenRevoke_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -2904,6 +3079,199 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ***************************** args.gotpl *****************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _ApiToken_id(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ApiToken_name(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ApiToken_scopes(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_scopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_scopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ApiToken_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _ApiToken_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _ApiToken_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiToken_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ApiToken_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiToken", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _ApiTokenSecret_token(ctx context.Context, field graphql.CollectedField, obj *model.APITokenSecret) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiTokenSecret_token(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Token, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.APIToken) graphql.Marshaler {
+			return ec.marshalNApiToken2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPIToken(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiTokenSecret_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ApiTokenSecret",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ApiToken(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ApiTokenSecret_secret(ctx context.Context, field graphql.CollectedField, obj *model.APITokenSecret) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApiTokenSecret_secret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Secret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ApiTokenSecret_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ApiTokenSecret", field, false, false, errors.New("field of type String does not have child fields"))
+}
 
 func (ec *executionContext) _Contact_id(ctx context.Context, field graphql.CollectedField, obj *model.Contact) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -4834,6 +5202,94 @@ func (ec *executionContext) fieldContext_Mutation_updateTask(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_apiTokenCreate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_apiTokenCreate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().APITokenCreate(ctx, fc.Args["name"].(string), fc.Args["scopes"].([]string), fc.Args["ttlDays"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.APITokenSecret) graphql.Marshaler {
+			return ec.marshalNApiTokenSecret2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenSecret(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_apiTokenCreate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ApiTokenSecret(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_apiTokenCreate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_apiTokenRevoke(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_apiTokenRevoke(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().APITokenRevoke(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_apiTokenRevoke(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_apiTokenRevoke_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5619,6 +6075,38 @@ func (ec *executionContext) fieldContext_Query_task(ctx context.Context, field g
 	if fc.Args, err = ec.field_Query_task_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_apiTokens(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_apiTokens(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().APITokens(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.APIToken) graphql.Marshaler {
+			return ec.marshalNApiToken2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_apiTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ApiToken(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -8520,6 +9008,112 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 
 // region    **************************** object.gotpl ****************************
 
+var apiTokenImplementors = []string{"ApiToken"}
+
+func (ec *executionContext) _ApiToken(ctx context.Context, sel ast.SelectionSet, obj *model.APIToken) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, apiTokenImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApiToken")
+		case "id":
+			out.Values[i] = ec._ApiToken_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ApiToken_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scopes":
+			out.Values[i] = ec._ApiToken_scopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ApiToken_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._ApiToken_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._ApiToken_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var apiTokenSecretImplementors = []string{"ApiTokenSecret"}
+
+func (ec *executionContext) _ApiTokenSecret(ctx context.Context, sel ast.SelectionSet, obj *model.APITokenSecret) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, apiTokenSecretImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApiTokenSecret")
+		case "token":
+			out.Values[i] = ec._ApiTokenSecret_token(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "secret":
+			out.Values[i] = ec._ApiTokenSecret_secret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var contactImplementors = []string{"Contact"}
 
 func (ec *executionContext) _Contact(ctx context.Context, sel ast.SelectionSet, obj *model.Contact) graphql.Marshaler {
@@ -9631,6 +10225,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "apiTokenCreate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_apiTokenCreate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "apiTokenRevoke":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_apiTokenRevoke(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createWebhook":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createWebhook(ctx, field)
@@ -9953,6 +10561,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_task(ctx, field)
 				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "apiTokens":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_apiTokens(ctx, field)
+				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -11209,6 +11839,46 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNApiToken2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.APIToken) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNApiToken2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPIToken(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNApiToken2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v *model.APIToken) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ApiToken(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNApiTokenSecret2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenSecret(ctx context.Context, sel ast.SelectionSet, v model.APITokenSecret) graphql.Marshaler {
+	return ec._ApiTokenSecret(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNApiTokenSecret2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenSecret(ctx context.Context, sel ast.SelectionSet, v *model.APITokenSecret) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ApiTokenSecret(ctx, sel, v)
+}
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)

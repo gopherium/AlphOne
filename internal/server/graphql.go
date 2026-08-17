@@ -77,13 +77,15 @@ func retryAfterSeconds(hint time.Duration) int {
 func newGraphQLHandler(
 	root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int, sources []sdk.FieldSource,
 ) http.Handler {
-	srv := handler.New(executableSchema(root, sources))
+	schema := executableSchema(root, sources)
+	srv := handler.New(schema)
 	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.MultipartForm{})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.AroundOperations(graphres.AnonymousGate)
+	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema())))
 	srv.SetErrorPresenter(graphres.PresentError)
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)

@@ -35,8 +35,10 @@ func (s *TokenStore) Create(ctx context.Context, t apitoken.Token) error {
 		UserID:     t.UserID,
 		Name:       t.Name,
 		TokenHash:  t.Hash,
+		Scopes:     t.Scopes.String(),
 		CreatedAt:  t.CreatedAt,
 		LastUsedAt: optionalTime(t.LastUsedAt),
+		ExpiresAt:  optionalTime(t.ExpiresAt),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create api token: %w", err)
@@ -102,8 +104,10 @@ func tokenFromRow(row db.CoreApiToken) apitoken.Token {
 		UserID:     row.UserID,
 		Name:       row.Name,
 		Hash:       row.TokenHash,
+		Scopes:     apitoken.ParseScopes(row.Scopes),
 		CreatedAt:  row.CreatedAt,
 		LastUsedAt: row.LastUsedAt.Time,
+		ExpiresAt:  row.ExpiresAt.Time,
 	}
 }
 

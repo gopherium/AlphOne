@@ -35,6 +35,26 @@ A token acts as the user who created it. Work it creates records
 `token:<name>` in `originSource`, so automated work stays distinguishable from
 typed work.
 
+A token narrows that authority twice over. Each `-scope` grants one area
+and whether the token may write there, and an operation touching an area
+the token does not hold is refused with code `UNAUTHORIZED` naming the
+scope it needed. Without `-scope` the token holds every area. A newly
+minted token also expires, after ninety days unless `-ttl` says otherwise,
+and an expired token is refused as `invalid token`. Tokens that predate
+scopes keep full authority and no expiry until you replace them, so run
+`alphone token list` to see which ones those are.
+
+Token management is the one thing a token can never do, whatever its
+scopes. `apiTokens`, `apiTokenCreate` and `apiTokenRevoke` require a
+session, so a leaked token cannot mint its own replacement.
+
+A scope grants an entry point and everything that entry point reaches.
+The check runs on the fields an operation starts from, not on every
+field it walks through, so `contacts:read` reads a contact's open tasks
+through `contact { tasks { ... } }` without holding `tasks:read`. Grant
+the narrowest set of entry points an integration needs, and read a
+scope as the doorway it opens rather than a fence around one table.
+
 **A session cookie**, for browsers. Call `login` and the reply sets it:
 
 ```graphql
@@ -168,6 +188,7 @@ Every error carries a `code` in its `extensions`.
 | Code | Meaning |
 | ---- | ------- |
 | `UNAUTHENTICATED` | No usable credential, or the operation is not `login` |
+| `UNAUTHORIZED` | The token does not hold the scope the field needs. `scope` names it |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
 | `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |

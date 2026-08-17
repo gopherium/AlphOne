@@ -3,21 +3,43 @@
 // Package credential carries the attribution of a request credential.
 package credential
 
-import "context"
+import (
+	"context"
+
+	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/internal/apitoken"
+)
 
 // tokenPrefix namespaces attribution stamped from an API token.
 const tokenPrefix = "token:"
 
-// originKey is the context key carrying the credential attribution.
-type originKey struct{}
+// tokenKey is the context key carrying the API token a request presented.
+type tokenKey struct{}
 
-// WithTokenOrigin returns ctx carrying the attribution of the named token.
-func WithTokenOrigin(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, originKey{}, tokenPrefix+name)
+// Token is the API token a request authenticated with.
+type Token struct {
+	ID     uuid.UUID
+	Name   string
+	Scopes apitoken.Scopes
+}
+
+// WithToken returns ctx carrying the API token the request presented.
+func WithToken(ctx context.Context, token Token) context.Context {
+	return context.WithValue(ctx, tokenKey{}, token)
+}
+
+// TokenOf returns the API token the request presented, reporting whether one was.
+func TokenOf(ctx context.Context) (Token, bool) {
+	token, ok := ctx.Value(tokenKey{}).(Token)
+	return token, ok
 }
 
 // Origin returns the attribution of the request credential, or empty.
 func Origin(ctx context.Context) string {
-	origin, _ := ctx.Value(originKey{}).(string)
-	return origin
+	token, ok := TokenOf(ctx)
+	if !ok {
+		return ""
+	}
+	return tokenPrefix + token.Name
 }

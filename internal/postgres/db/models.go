@@ -18,6 +18,8 @@ type CoreApiToken struct {
 	TokenHash  string
 	CreatedAt  time.Time
 	LastUsedAt pgtype.Timestamptz
+	Scopes     string
+	ExpiresAt  pgtype.Timestamptz
 }
 
 type CoreContact struct {

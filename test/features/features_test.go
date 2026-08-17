@@ -83,6 +83,11 @@ func initializeImportFields(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerImportFieldsSteps(sc, t) }
 }
 
+// initializeTokens registers the token scope steps.
+func initializeTokens(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerTokenSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -117,4 +122,8 @@ func TestTenants(t *testing.T) {
 
 func TestImportFields(t *testing.T) {
 	runFeature(t, "features/import-fields.feature", initializeImportFields(t))
+}
+
+func TestTokens(t *testing.T) {
+	runFeature(t, "features/tokens.feature", initializeTokens(t))
 }

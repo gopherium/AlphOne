@@ -17,13 +17,13 @@ type User {
 }
 
 extend type Query {
-  me: Identity!
-  users: [User!]!
+  me: Identity! @scope(area: "auth", write: false)
+  users: [User!]! @scope(area: "users", write: false)
 }
 
 extend type Mutation {
-  login(email: String!, password: String!): LoginPayload!
-  logout: Boolean!
-  createUser(email: String!, name: String!, password: String!): User!
-  setUserDisabled(id: UUID!, disabled: Boolean!): Boolean!
+  login(email: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
+  logout: Boolean! @scope(area: "auth", write: true)
+  createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true)
+  setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true)
 }

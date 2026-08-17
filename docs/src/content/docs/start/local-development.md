@@ -168,7 +168,7 @@ Create an **AlphOne API** credential:
 | Field | Value |
 | ----- | ----- |
 | Base URL | `http://host.docker.internal:8080` |
-| API Token | a secret from `alphone token create` |
+| API Token | a secret from `alphone token create -email you@example.com -name n8n -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read`. Without `-scope` it holds every area, and without `-ttl` it lasts ninety days |
 
 Press the test button. It asks AlphOne for its version and should report
 success. `localhost` inside the container means the container itself, so

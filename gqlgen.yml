@@ -5,6 +5,9 @@ schema:
 exec:
   filename: graph/generated.go
   package: graph
+directives:
+  scope:
+    skip_runtime: true
 model:
   filename: graph/model/models_gen.go
   package: model
