@@ -31,6 +31,9 @@ type Documents = {
     "\n\tquery TaskDetail($id: UUID!) {\n\t\ttask(id: $id) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t\tcontactId\n\t\t\tcontact {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": typeof types.TaskDetailDocument,
     "\n\tquery DayTasks($date: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(date: $date, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": typeof types.DayTasksDocument,
     "\n\tquery OverdueTasks($dueBefore: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(dueBefore: $dueBefore, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": typeof types.OverdueTasksDocument,
+    "\n\tquery ApiTokens {\n\t\tapiTokens {\n\t\t\tid\n\t\t\tname\n\t\t\tscopes\n\t\t\tcreatedAt\n\t\t\tlastUsedAt\n\t\t\texpiresAt\n\t\t}\n\t}\n": typeof types.ApiTokensDocument,
+    "\n\tmutation ApiTokenCreate($name: String!, $scopes: [String!]!, $ttlDays: Int) {\n\t\tapiTokenCreate(name: $name, scopes: $scopes, ttlDays: $ttlDays) {\n\t\t\tsecret\n\t\t\ttoken {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tscopes\n\t\t\t\tcreatedAt\n\t\t\t\tlastUsedAt\n\t\t\t\texpiresAt\n\t\t\t}\n\t\t}\n\t}\n": typeof types.ApiTokenCreateDocument,
+    "\n\tmutation ApiTokenRevoke($id: UUID!) {\n\t\tapiTokenRevoke(id: $id)\n\t}\n": typeof types.ApiTokenRevokeDocument,
     "\n\tquery Version {\n\t\tversion\n\t}\n": typeof types.VersionDocument,
 };
 const documents: Documents = {
@@ -51,6 +54,9 @@ const documents: Documents = {
     "\n\tquery TaskDetail($id: UUID!) {\n\t\ttask(id: $id) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t\tcontactId\n\t\t\tcontact {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": types.TaskDetailDocument,
     "\n\tquery DayTasks($date: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(date: $date, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": types.DayTasksDocument,
     "\n\tquery OverdueTasks($dueBefore: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(dueBefore: $dueBefore, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": types.OverdueTasksDocument,
+    "\n\tquery ApiTokens {\n\t\tapiTokens {\n\t\t\tid\n\t\t\tname\n\t\t\tscopes\n\t\t\tcreatedAt\n\t\t\tlastUsedAt\n\t\t\texpiresAt\n\t\t}\n\t}\n": types.ApiTokensDocument,
+    "\n\tmutation ApiTokenCreate($name: String!, $scopes: [String!]!, $ttlDays: Int) {\n\t\tapiTokenCreate(name: $name, scopes: $scopes, ttlDays: $ttlDays) {\n\t\t\tsecret\n\t\t\ttoken {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tscopes\n\t\t\t\tcreatedAt\n\t\t\t\tlastUsedAt\n\t\t\t\texpiresAt\n\t\t\t}\n\t\t}\n\t}\n": types.ApiTokenCreateDocument,
+    "\n\tmutation ApiTokenRevoke($id: UUID!) {\n\t\tapiTokenRevoke(id: $id)\n\t}\n": types.ApiTokenRevokeDocument,
     "\n\tquery Version {\n\t\tversion\n\t}\n": types.VersionDocument,
 };
 
@@ -136,6 +142,18 @@ export function graphql(source: "\n\tquery DayTasks($date: Date!, $status: Strin
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tquery OverdueTasks($dueBefore: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(dueBefore: $dueBefore, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery OverdueTasks($dueBefore: Date!, $status: String!, $first: Int!, $after: String) {\n\t\ttasks(dueBefore: $dueBefore, status: $status, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\ttitle\n\t\t\t\t\tstatus\n\t\t\t\t\tpriority\n\t\t\t\t\tdueOn\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery ApiTokens {\n\t\tapiTokens {\n\t\t\tid\n\t\t\tname\n\t\t\tscopes\n\t\t\tcreatedAt\n\t\t\tlastUsedAt\n\t\t\texpiresAt\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery ApiTokens {\n\t\tapiTokens {\n\t\t\tid\n\t\t\tname\n\t\t\tscopes\n\t\t\tcreatedAt\n\t\t\tlastUsedAt\n\t\t\texpiresAt\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation ApiTokenCreate($name: String!, $scopes: [String!]!, $ttlDays: Int) {\n\t\tapiTokenCreate(name: $name, scopes: $scopes, ttlDays: $ttlDays) {\n\t\t\tsecret\n\t\t\ttoken {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tscopes\n\t\t\t\tcreatedAt\n\t\t\t\tlastUsedAt\n\t\t\t\texpiresAt\n\t\t\t}\n\t\t}\n\t}\n"): (typeof documents)["\n\tmutation ApiTokenCreate($name: String!, $scopes: [String!]!, $ttlDays: Int) {\n\t\tapiTokenCreate(name: $name, scopes: $scopes, ttlDays: $ttlDays) {\n\t\t\tsecret\n\t\t\ttoken {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tscopes\n\t\t\t\tcreatedAt\n\t\t\t\tlastUsedAt\n\t\t\t\texpiresAt\n\t\t\t}\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation ApiTokenRevoke($id: UUID!) {\n\t\tapiTokenRevoke(id: $id)\n\t}\n"): (typeof documents)["\n\tmutation ApiTokenRevoke($id: UUID!) {\n\t\tapiTokenRevoke(id: $id)\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
