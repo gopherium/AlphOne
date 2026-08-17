@@ -32,11 +32,17 @@ An engine cannot log in, so give it an API token. See the
 [GraphQL API reference](/reference/graphql-api/) for the full auth rules.
 
 ```sh
-alphone token create -email you@example.com -name "n8n production"
+alphone token create -email you@example.com -name "n8n production" \
+  -scope tasks:write -scope contacts:read
 ```
 
 The secret prints once. Copy it now, because it is stored only as a hash
 and cannot be recovered, only replaced.
+
+Each `-scope` names an area the token may act in, and whether it may
+write there. Without `-scope` the token gets every area. Without `-ttl`
+it lasts ninety days, then answers `invalid token`. Pass `-ttl never`
+for a token that does not expire.
 
 ## Run n8n locally
 

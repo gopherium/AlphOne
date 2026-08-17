@@ -35,6 +35,17 @@ A token acts as the user who created it. Work it creates records
 `token:<name>` in `originSource`, so automated work stays distinguishable from
 typed work.
 
+A token narrows that authority twice over. Each `-scope` grants one area
+and whether the token may write there, and an operation touching an area
+the token does not hold is refused with code `UNAUTHORIZED` naming the
+scope it needed. Without `-scope` the token holds every area. Every token
+also expires, after ninety days unless `-ttl` says otherwise, and an
+expired token is refused as `invalid token`.
+
+Token management is the one thing a token can never do, whatever its
+scopes. `apiTokens`, `apiTokenCreate` and `apiTokenRevoke` require a
+session, so a leaked token cannot mint its own replacement.
+
 **A session cookie**, for browsers. Call `login` and the reply sets it:
 
 ```graphql
