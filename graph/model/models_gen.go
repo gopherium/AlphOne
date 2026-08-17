@@ -12,6 +12,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type APIToken struct {
+	ID         uuid.UUID  `json:"id"`
+	Name       string     `json:"name"`
+	Scopes     []string   `json:"scopes"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
+}
+
+type APITokenSecret struct {
+	Token  *APIToken `json:"token"`
+	Secret string    `json:"secret"`
+}
+
 type Contact struct {
 	ID                    uuid.UUID               `json:"id"`
 	Name                  string                  `json:"name"`

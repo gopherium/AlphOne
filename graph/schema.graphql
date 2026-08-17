@@ -1,5 +1,17 @@
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
+type ApiToken {
+	id: UUID!
+	name: String!
+	scopes: [String!]!
+	createdAt: DateTime!
+	lastUsedAt: DateTime
+	expiresAt: DateTime
+}
+type ApiTokenSecret {
+	token: ApiToken!
+	secret: String!
+}
 type Contact {
 	id: UUID!
 	name: String!
@@ -127,6 +139,8 @@ type Mutation {
 	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true)
 	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
+	apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret! @scope(area: "tokens", write: true)
+	apiTokenRevoke(id: UUID!): Boolean! @scope(area: "tokens", write: true)
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true)
 	deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
 	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition! @scope(area: "fields", write: true)
@@ -152,6 +166,7 @@ type Query {
 	contact(id: UUID!): Contact @scope(area: "contacts", write: false)
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection! @scope(area: "tasks", write: false)
 	task(id: UUID!): Task @scope(area: "tasks", write: false)
+	apiTokens: [ApiToken!]! @scope(area: "tokens", write: false)
 	webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
 	fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 	imports: [ImportJob!]! @scope(area: "imports", write: false)

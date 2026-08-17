@@ -1,0 +1,23 @@
+type ApiToken {
+  id: UUID!
+  name: String!
+  scopes: [String!]!
+  createdAt: DateTime!
+  lastUsedAt: DateTime
+  expiresAt: DateTime
+}
+
+type ApiTokenSecret {
+  token: ApiToken!
+  secret: String!
+}
+
+extend type Query {
+  apiTokens: [ApiToken!]! @scope(area: "tokens", write: false)
+}
+
+extend type Mutation {
+  apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret!
+    @scope(area: "tokens", write: true)
+  apiTokenRevoke(id: UUID!): Boolean! @scope(area: "tokens", write: true)
+}
