@@ -14,9 +14,6 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 )
 
-// hoursPerDay converts a token lifetime given in days.
-const hoursPerDay = 24 * time.Hour
-
 // toAPIToken maps a stored token onto its graph model, without the hash.
 func toAPIToken(stored apitoken.Token) *model.APIToken {
 	answered := &model.APIToken{
@@ -37,11 +34,11 @@ func toAPIToken(stored apitoken.Token) *model.APIToken {
 }
 
 // lifetimeOf returns the lifetime the given days ask for, never when unasked.
-func lifetimeOf(days *int) time.Duration {
+func lifetimeOf(days *int) (time.Duration, error) {
 	if days == nil {
-		return apitoken.Never
+		return apitoken.Never, nil
 	}
-	return time.Duration(*days) * hoursPerDay
+	return apitoken.LifetimeOfDays(*days)
 }
 
 // APITokens lists the caller's own API tokens, secrets excluded.
@@ -62,8 +59,12 @@ func (q QueryResolvers) APITokens(ctx context.Context) ([]*model.APIToken, error
 func (m MutationResolvers) APITokenCreate(
 	ctx context.Context, name string, scopes []string, ttlDays *int,
 ) (*model.APITokenSecret, error) {
+	lifetime, err := lifetimeOf(ttlDays)
+	if err != nil {
+		return nil, err
+	}
 	identity := authkit.IdentityFromContext(ctx)
-	minted, err := apitoken.Mint(identity.ID, name, apitoken.Scopes(scopes), lifetimeOf(ttlDays))
+	minted, err := apitoken.Mint(identity.ID, name, apitoken.Scopes(scopes), lifetime)
 	if err != nil {
 		return nil, err
 	}

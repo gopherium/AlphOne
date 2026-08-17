@@ -123,7 +123,7 @@ func (o tokenFlags) lifetime() (time.Duration, error) {
 	if err != nil {
 		return 0, fmt.Errorf("parse ttl: %w", err)
 	}
-	return time.Duration(days) * 24 * time.Hour, nil
+	return apitoken.LifetimeOfDays(days)
 }
 
 // runTokenVerb runs the named token subcommand against the store.

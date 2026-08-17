@@ -233,6 +233,21 @@ func TestTokenCreateRejectsAnUnreadableLifetime(t *testing.T) {
 	}
 }
 
+func TestTokenCreateRejectsALifetimeThatWouldOverflow(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+	seedTokenUser(t, getenv)
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "n8n", "-ttl", "213504",
+	}, io.Discard)
+
+	if !errors.Is(err, apitoken.ErrLifetimeTooLong) {
+		t.Errorf("token() error = %v, want %v", err, apitoken.ErrLifetimeTooLong)
+	}
+}
+
 func TestTokenCreateRejectsAMalformedScope(t *testing.T) {
 	t.Parallel()
 

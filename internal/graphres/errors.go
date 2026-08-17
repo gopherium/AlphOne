@@ -43,6 +43,7 @@ var validationErrors = []error{
 	apitoken.ErrMalformedScope,
 	apitoken.ErrNoScopes,
 	apitoken.ErrNegativeLifetime,
+	apitoken.ErrLifetimeTooLong,
 }
 
 // notFoundErrors lists the domain errors presented as NOT_FOUND.

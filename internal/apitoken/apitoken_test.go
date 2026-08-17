@@ -192,6 +192,54 @@ func TestMintRejectsALifetimeAlreadySpent(t *testing.T) {
 	}
 }
 
+func TestLifetimeOfDaysReadsTheDaysAsked(t *testing.T) {
+	t.Parallel()
+
+	got, err := apitoken.LifetimeOfDays(30)
+
+	if err != nil {
+		t.Fatalf("LifetimeOfDays() error = %v, want nil", err)
+	}
+	if want := 30 * 24 * time.Hour; got != want {
+		t.Errorf("LifetimeOfDays(30) = %v, want %v", got, want)
+	}
+}
+
+func TestLifetimeOfDaysAcceptsTheLongestLifetime(t *testing.T) {
+	t.Parallel()
+
+	got, err := apitoken.LifetimeOfDays(apitoken.MaxLifetimeDays)
+
+	if err != nil {
+		t.Fatalf("LifetimeOfDays(max) error = %v, want nil", err)
+	}
+	if got <= 0 {
+		t.Errorf("LifetimeOfDays(max) = %v, want a positive lifetime", got)
+	}
+}
+
+func TestLifetimeOfDaysRefusesALifetimeThatWouldOverflow(t *testing.T) {
+	t.Parallel()
+
+	for _, days := range []int{apitoken.MaxLifetimeDays + 1, 213504, 999999999} {
+		got, err := apitoken.LifetimeOfDays(days)
+		if !errors.Is(err, apitoken.ErrLifetimeTooLong) {
+			t.Errorf("LifetimeOfDays(%d) error = %v, want %v", days, err, apitoken.ErrLifetimeTooLong)
+		}
+		if got != 0 {
+			t.Errorf("LifetimeOfDays(%d) = %v, want no lifetime", days, got)
+		}
+	}
+}
+
+func TestLifetimeOfDaysRefusesALifetimeAlreadySpent(t *testing.T) {
+	t.Parallel()
+
+	if _, err := apitoken.LifetimeOfDays(-1); !errors.Is(err, apitoken.ErrNegativeLifetime) {
+		t.Errorf("LifetimeOfDays(-1) error = %v, want %v", err, apitoken.ErrNegativeLifetime)
+	}
+}
+
 func TestExpiredReadsTheMomentTheTokenEnds(t *testing.T) {
 	t.Parallel()
 

@@ -3,6 +3,7 @@
 package graphres_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -108,6 +109,44 @@ func TestAPITokenCreateRefusesAMalformedScope(t *testing.T) {
 	}
 	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
 		t.Errorf("code = %q, want VALIDATION", got)
+	}
+}
+
+func TestAPITokenCreateRefusesALifetimeThatWouldOverflow(t *testing.T) {
+	t.Parallel()
+
+	client, tokens, owner := newTokenResolver(t)
+
+	answered, err := client.RawPost(
+		`mutation { apiTokenCreate(name: "huge", scopes: ["tasks:read"], ttlDays: 213504) { secret } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+	stored, err := tokens.ListForUser(t.Context(), owner)
+	if err != nil {
+		t.Fatalf("ListForUser() error = %v, want nil", err)
+	}
+	if len(stored) != 0 {
+		t.Errorf("stored %d tokens, want none, an overflowing lifetime mints nothing", len(stored))
+	}
+}
+
+func TestAPITokenCreateAcceptsTheLongestLifetime(t *testing.T) {
+	t.Parallel()
+
+	client, _, _ := newTokenResolver(t)
+
+	var minted mintedToken
+	client.MustPost(fmt.Sprintf(
+		`mutation { apiTokenCreate(name: "long", scopes: ["tasks:read"], ttlDays: %d)
+			{ secret token { expiresAt } } }`, apitoken.MaxLifetimeDays), &minted)
+
+	if minted.APITokenCreate.Token.ExpiresAt == nil {
+		t.Error("expiresAt is null, want the longest lifetime honoured")
 	}
 }
 

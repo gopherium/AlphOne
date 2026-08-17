@@ -29,8 +29,25 @@ var ErrExpired = errors.New("apitoken: expired")
 // ErrNegativeLifetime reports a token asked to expire before it was minted.
 var ErrNegativeLifetime = errors.New("apitoken: negative lifetime")
 
+// ErrLifetimeTooLong reports a lifetime longer than a token may be given.
+var ErrLifetimeTooLong = errors.New("apitoken: lifetime too long")
+
 // Never is the lifetime of a token that does not expire.
 const Never = time.Duration(0)
+
+// MaxLifetimeDays is the longest lifetime a token may be given in whole days.
+const MaxLifetimeDays = 106751
+
+// LifetimeOfDays returns the lifetime the given whole days ask for.
+func LifetimeOfDays(days int) (time.Duration, error) {
+	if days < 0 {
+		return 0, ErrNegativeLifetime
+	}
+	if days > MaxLifetimeDays {
+		return 0, fmt.Errorf("%w: %d days", ErrLifetimeTooLong, days)
+	}
+	return time.Duration(days) * 24 * time.Hour, nil
+}
 
 // Prefix identifies an AlphOne API token.
 const Prefix = "a1_"
