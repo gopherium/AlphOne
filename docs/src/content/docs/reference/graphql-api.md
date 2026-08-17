@@ -46,6 +46,13 @@ Token management is the one thing a token can never do, whatever its
 scopes. `apiTokens`, `apiTokenCreate` and `apiTokenRevoke` require a
 session, so a leaked token cannot mint its own replacement.
 
+A scope grants an entry point and everything that entry point reaches.
+The check runs on the fields an operation starts from, not on every
+field it walks through, so `contacts:read` reads a contact's open tasks
+through `contact { tasks { ... } }` without holding `tasks:read`. Grant
+the narrowest set of entry points an integration needs, and read a
+scope as the doorway it opens rather than a fence around one table.
+
 **A session cookie**, for browsers. Call `login` and the reply sets it:
 
 ```graphql

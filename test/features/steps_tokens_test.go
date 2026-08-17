@@ -133,6 +133,7 @@ func registerTokenSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerTokenOperations(sc)
 	registerTokenOutcomes(sc)
 	registerTokenSessionSteps(sc)
+	registerTokenConnectorSteps(sc)
 }
 
 // registerTokenOperations binds the operations a scoped token attempts.

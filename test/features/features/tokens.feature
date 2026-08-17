@@ -49,7 +49,6 @@ Feature: API tokens are scoped and mortal
     Then the contact is answered
     And the session's token list shows it scoped to "*" never expiring
 
-  @wip
   Scenario: An MCP tool call is refused by a withheld read scope
     Given the user holds a token scoped to "contacts:read"
     And an MCP session connected with that token
