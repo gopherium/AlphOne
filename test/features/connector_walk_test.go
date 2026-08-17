@@ -13,6 +13,42 @@ import (
 // agentScopes is the grant the agents guide tells an operator to mint.
 const agentScopes = "contacts:read tasks:read"
 
+// engineScopes is the grant the n8n and automation guides tell an operator to mint.
+const engineScopes = "contacts:read meta:read tasks:write webhooks:write"
+
+func TestEngineScopesReachEveryDocumentedOperation(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping database test in short mode")
+	}
+
+	w := newWorld(t)
+	ctx := t.Context()
+	secret, err := w.mintScopedSecretFor(ctx, w.ownerID, "engine", apitoken.ParseScopes(engineScopes))
+	if err != nil {
+		t.Fatalf("minting the engine token: %v", err)
+	}
+	w.scopedSecret = secret
+
+	documented := map[string]string{
+		"the credential test": `{"query":"query NodeCredentialTest { version }"}`,
+		"listing webhooks":    `{"query":"{ webhooks { id url events } }"}`,
+		"registering one": `{"query":"mutation { createWebhook(url: \"https://example.com/hook\",` +
+			` events: [\"task.created\"]) { webhook { id } } }"}`,
+		"creating a task": `{"query":"mutation { createTask(input: {title: \"Call the supplier\",` +
+			` dueOn: \"2026-08-20\"}) { task { id } } }"}`,
+		"looking a contact up": `{"query":"{ contacts(first: 1) { edges { node { id } } } }"}`,
+	}
+	for step, document := range documented {
+		if err := w.postGraphScoped(ctx, document); err != nil {
+			t.Fatalf("posting %s: %v", step, err)
+		}
+		if err := w.answeredWithoutRefusal(); err != nil {
+			t.Errorf("%s was refused under %q: %v", step, engineScopes, err)
+		}
+	}
+}
+
 func TestAgentScopesReachEveryTool(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

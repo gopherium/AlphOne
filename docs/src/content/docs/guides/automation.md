@@ -33,8 +33,11 @@ An engine cannot log in, so give it an API token. See the
 
 ```sh
 alphone token create -email you@example.com -name "n8n production" \
-  -scope tasks:write -scope contacts:read
+  -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read
 ```
+
+An engine needs `meta:read` for its credential test and `webhooks:write` for any
+trigger that registers a subscription, beside the areas its own steps touch.
 
 The secret prints once. Copy it now, because it is stored only as a hash
 and cannot be recovered, only replaced.

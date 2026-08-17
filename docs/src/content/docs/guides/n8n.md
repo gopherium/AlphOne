@@ -53,8 +53,14 @@ An engine cannot hold a browser session, so it authenticates with a
 token. On the AlphOne host:
 
 ```sh
-alphone token create -email you@example.com -name "n8n" -scope tasks:write -scope contacts:read
+alphone token create -email you@example.com -name "n8n" \
+  -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read
 ```
+
+Those four cover this guide: `meta:read` for the credential test, `webhooks:write`
+for the trigger to register and remove its subscription, `tasks:write` to create
+tasks, and `contacts:read` to look contacts up. Drop any your workflow does not
+need.
 
 The secret prints once and is stored only as a hash. Copy it now,
 because it cannot be recovered, only replaced.
