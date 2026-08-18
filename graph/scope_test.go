@@ -154,6 +154,65 @@ extend type Mutation { two: String! @scope(area: "users", write: true, admin: fa
 	}
 }
 
+func TestOnlyUserManagementIsReservedToAdmins(t *testing.T) {
+	t.Parallel()
+
+	reserved := map[string]bool{}
+	for _, glob := range scopeGlobs(t) {
+		files, err := filepath.Glob(glob)
+		if err != nil {
+			t.Fatalf("globbing %s: %v", glob, err)
+		}
+		for _, path := range files {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading %s: %v", path, err)
+			}
+			for _, field := range adminFieldsIn(t, path, string(raw)) {
+				reserved[field] = true
+			}
+		}
+	}
+
+	want := map[string]bool{"createUser": true, "setUserDisabled": true}
+	if len(reserved) != len(want) {
+		t.Errorf("admin only fields = %v, want %v", reserved, want)
+	}
+	for field := range want {
+		if !reserved[field] {
+			t.Errorf("%s is not admin only, want user management reserved to admins", field)
+		}
+	}
+	if reserved["users"] {
+		t.Error("the users listing is admin only, want a member reading its colleagues")
+	}
+}
+
+// adminFieldsIn names the root fields of one SDL source reserved to the admin tier.
+func adminFieldsIn(t *testing.T, name, source string) []string {
+	t.Helper()
+	doc, err := parser.ParseSchema(&ast.Source{Name: name, Input: source})
+	if err != nil {
+		t.Fatalf("parsing %s: %v", name, err)
+	}
+	var reserved []string
+	for _, def := range append(doc.Definitions, doc.Extensions...) {
+		if !rootOperations[def.Name] {
+			continue
+		}
+		for _, field := range def.Fields {
+			declared := field.Directives.ForName(scopeDirective)
+			if declared == nil {
+				continue
+			}
+			if admin := declared.Arguments.ForName("admin"); admin != nil && admin.Value.Raw == "true" {
+				reserved = append(reserved, field.Name)
+			}
+		}
+	}
+	return reserved
+}
+
 func TestScopeCheckingFlagsAMalformedAdminFlag(t *testing.T) {
 	t.Parallel()
 
