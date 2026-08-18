@@ -7,7 +7,7 @@ import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { defaultUser } from '@gopherium/react-auth/testing'
-import { renderAt } from './render'
+import { memberUser, renderAt } from './render'
 
 beforeEach(() =>
 	server.use(
@@ -135,6 +135,105 @@ test('offers no disable control on the signed-in account', async () => {
 
 	await screen.findByRole('row', { name: new RegExp(defaultUser.name) })
 	expect(screen.queryByRole('button', { name: /^Disable / })).not.toBeInTheDocument()
+})
+
+test('shows the tier every account stands in', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({
+				data: { users: [{ ...userNode(colleague, false), role: 'member' }] },
+			}),
+		),
+	)
+	renderAt('/users')
+
+	const row = await screen.findByRole('row', { name: /Ada Lovelace/ })
+	expect(within(row).getByText('Member')).toBeInTheDocument()
+})
+
+test('promotes an account and shows the new tier', async () => {
+	let role = 'member'
+	let asked: unknown = null
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role }] } }),
+		),
+		graphql.mutation('SetUserRole', ({ variables }) => {
+			asked = { role: variables.role }
+			role = 'admin'
+			return HttpResponse.json({ data: { setUserRole: true } })
+		}),
+	)
+	renderAt('/users')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Promote Ada Lovelace' }))
+
+	expect(await screen.findByText('Admin')).toBeInTheDocument()
+	expect(asked).toEqual({ role: 'admin' })
+})
+
+test('demotes an account that already stands as an admin', async () => {
+	let asked: unknown = null
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'admin' }] } }),
+		),
+		graphql.mutation('SetUserRole', ({ variables }) => {
+			asked = { role: variables.role }
+			return HttpResponse.json({ data: { setUserRole: true } })
+		}),
+	)
+	renderAt('/users')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Demote Ada Lovelace' }))
+
+	await waitFor(() => expect(asked).toEqual({ role: 'member' }))
+})
+
+test('reports when a tier cannot be changed', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'admin' }] } }),
+		),
+		graphql.mutation('SetUserRole', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'the last admin cannot be unseated' }],
+			}),
+		),
+	)
+	renderAt('/users')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Demote Ada Lovelace' }))
+
+	expect(await screen.findByText('Update failed.')).toBeInTheDocument()
+})
+
+test('offers a member no user management at all', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
+		),
+	)
+	renderAt('/users', memberUser)
+
+	await screen.findByRole('row', { name: /Ada Lovelace/ })
+	expect(screen.queryByRole('link', { name: 'New user' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: /^Disable / })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: /^Promote / })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: /^Demote / })).not.toBeInTheDocument()
+})
+
+test('still lists the colleagues a member works with', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
+		),
+	)
+	renderAt('/users', memberUser)
+
+	const row = await screen.findByRole('row', { name: /Ada Lovelace/ })
+	expect(within(row).getByText('ada@example.com')).toBeInTheDocument()
 })
 
 test('navigates to the users screen from the main menu', async () => {

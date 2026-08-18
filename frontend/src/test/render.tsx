@@ -52,9 +52,19 @@ export function liveStream() {
 	}
 }
 
+/**
+ * adminUser is the signed-in account the screens render for by default.
+ */
+export const adminUser = { ...defaultUser, role: 'admin' }
+
+/**
+ * memberUser is a signed-in account holding no user management.
+ */
+export const memberUser = { ...defaultUser, role: 'member' }
+
 export function renderAt(
 	path: string,
-	user: User | null = defaultUser,
+	user: (User & { role?: string }) | null = adminUser,
 	version: string | null = '0.1.0',
 ) {
 	const client = createAuthQueryClient({
