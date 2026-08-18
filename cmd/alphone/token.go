@@ -18,6 +18,7 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/apitoken"
+	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 )
 
@@ -159,7 +160,11 @@ func createToken(
 	if err != nil {
 		return err
 	}
-	minted, err := apitoken.Mint(userID, opts.name, opts.grantedScopes(), lifetime)
+	granted := opts.grantedScopes()
+	if err := graphres.ValidateScopes(granted); err != nil {
+		return err
+	}
+	minted, err := apitoken.Mint(userID, opts.name, granted, lifetime)
 	if err != nil {
 		return err
 	}

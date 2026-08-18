@@ -173,6 +173,25 @@ func TestTokenCreateGrantsOnlyTheScopesAsked(t *testing.T) {
 	}
 }
 
+func TestTokenCreateRefusesAnAreaNoSchemaDeclares(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+	seedTokenUser(t, getenv)
+	var stdout strings.Builder
+
+	err := token(t.Context(), getenv, []string{
+		"create", "-email", "admin@example.com", "-name", "typo", "-scope", "contact:read",
+	}, &stdout)
+
+	if !errors.Is(err, apitoken.ErrUnknownArea) {
+		t.Errorf("token() error = %v, want %v", err, apitoken.ErrUnknownArea)
+	}
+	if stdout.String() != "" {
+		t.Errorf("stdout = %q, want nothing printed for a token that was never minted", stdout.String())
+	}
+}
+
 func TestTokenCreateLastsAsLongAsAsked(t *testing.T) {
 	t.Parallel()
 
