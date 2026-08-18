@@ -139,6 +139,11 @@ func (p *Plugin) Routes() http.Handler {
 	return router
 }
 
+// Area names the scope area the plugin's protected routes act in.
+func (p *Plugin) Area() string {
+	return "whatsapp"
+}
+
 // PublicPaths declares the webhook as reachable without a login session;
 // Meta authenticates it with its own signature instead.
 func (p *Plugin) PublicPaths() []string {

@@ -56,6 +56,11 @@ type Publisher interface {
 	Publish(ctx context.Context, name string, data map[string]any)
 }
 
+// AreaProvider is implemented by plugins holding their protected routes to one scope area.
+type AreaProvider interface {
+	Area() string
+}
+
 // GraphField is one runtime defined field a plugin serves over the graph.
 type GraphField struct {
 	// Entity is the GraphQL type the field hangs on, such as Contact.
