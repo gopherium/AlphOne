@@ -27,6 +27,7 @@ type graphConfig struct {
 	Tasks             graphres.TaskStore
 	Users             server.UserStore
 	Tokens            server.TokenStore
+	Roles             server.RoleStore
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
@@ -75,6 +76,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Auth:              auth,
 		GraphRoot:         root,
 		Tokens:            cfg.Tokens,
+		Roles:             cfg.Roles,
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
 		FieldSources:      cfg.FieldSources,
