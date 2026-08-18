@@ -80,6 +80,25 @@ func TestAReadScopedTokenIsRefusedAPluginWrite(t *testing.T) {
 	}
 }
 
+func TestASafeMethodReadsThePluginsArea(t *testing.T) {
+	t.Parallel()
+
+	handler, tokens, users := newAreaServer(t)
+	secret := mintScoped(t, tokens, users, "contacts:read")
+
+	for _, method := range []string{http.MethodHead, http.MethodOptions} {
+		request := httptest.NewRequest(method, "/api/plugins/echo/ping", nil)
+		request.Header.Set("Authorization", "Bearer "+secret)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusOK {
+			t.Errorf("%s status = %d, want %d, a method that changes nothing reads", method,
+				recorder.Code, http.StatusOK)
+		}
+	}
+}
+
 func TestAWildcardTokenReachesEveryPluginArea(t *testing.T) {
 	t.Parallel()
 

@@ -134,20 +134,31 @@ func inArea(area string, next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, carried := credential.TokenOf(r.Context())
-		if carried && !token.Scopes.Allows(area, r.Method != http.MethodGet) {
-			authkit.RespondError(w, http.StatusForbidden, "scope required: "+area+":"+accessOf(r.Method))
+		writes := changesState(r.Method)
+		if carried && !token.Scopes.Allows(area, writes) {
+			authkit.RespondError(w, http.StatusForbidden, "scope required: "+area+":"+accessOf(writes))
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
 
-// accessOf names the access one HTTP method asks for.
-func accessOf(method string) string {
-	if method == http.MethodGet {
-		return "read"
+// changesState reports whether one HTTP method may change what the plugin holds.
+func changesState(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	default:
+		return true
 	}
-	return "write"
+}
+
+// accessOf names the access one kind of request asks for.
+func accessOf(writes bool) string {
+	if writes {
+		return "write"
+	}
+	return "read"
 }
 
 // withActingUser passes the authenticated user to the plugin through the SDK.
