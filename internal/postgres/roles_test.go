@@ -3,13 +3,17 @@
 package postgres_test
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
+
+	"github.com/gopherium/gouncer"
 
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
@@ -38,6 +42,17 @@ func seedUser(t *testing.T, db *sql.DB, email string) uuid.UUID {
 		t.Fatalf("storing the user: %v", err)
 	}
 	return id
+}
+
+// userDisabled reports whether one user is barred from logging in.
+func userDisabled(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) bool {
+	t.Helper()
+	var disabled bool
+	if err := pool.QueryRow(t.Context(),
+		"SELECT disabled FROM auth.users WHERE id = $1", id).Scan(&disabled); err != nil {
+		t.Fatalf("reading the disabled flag: %v", err)
+	}
+	return disabled
 }
 
 // roleOf returns the tier stored for one user.
@@ -205,6 +220,127 @@ func TestRoleStoreDemotesAnAdminWhileAnotherStands(t *testing.T) {
 	}
 }
 
+func TestRoleStoreRefusesTwoAdminsDemotingEachOtherAtOnce(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	first := seedPoolUser(t, pool, "first@example.com")
+	second := seedPoolUser(t, pool, "second@example.com")
+	for _, admin := range []uuid.UUID{first, second} {
+		if err := store.Grant(t.Context(), admin, role.Admin); err != nil {
+			t.Fatalf("Grant() error = %v, want nil", err)
+		}
+	}
+
+	holding, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("beginning the holding transaction: %v", err)
+	}
+	defer func() { _ = holding.Rollback(t.Context()) }()
+	if _, err := holding.Exec(t.Context(),
+		"SELECT 1 FROM core.user_roles WHERE role = 'admin' FOR UPDATE"); err != nil {
+		t.Fatalf("holding the admins still: %v", err)
+	}
+
+	demotion := make(chan error, 1)
+	go func() { demotion <- store.Grant(context.WithoutCancel(t.Context()), second, role.Member) }()
+	select {
+	case err := <-demotion:
+		t.Fatalf("Grant(member) answered %v while the admins were held, want it waiting its turn", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	if _, err := holding.Exec(t.Context(),
+		"UPDATE core.user_roles SET role = 'member' WHERE user_id = $1", first); err != nil {
+		t.Fatalf("demoting the first admin: %v", err)
+	}
+	if err := holding.Commit(t.Context()); err != nil {
+		t.Fatalf("committing the first demotion: %v", err)
+	}
+
+	if err := <-demotion; !errors.Is(err, role.ErrLastAdmin) {
+		t.Errorf("Grant(member) error = %v, want %v, the second demotion reads the first", err, role.ErrLastAdmin)
+	}
+	if tier, _ := store.RoleOf(t.Context(), second); tier != role.Admin {
+		t.Errorf("the second user stands in %v, want %v left standing", tier, role.Admin)
+	}
+}
+
+func TestRoleStoreRefusesToDisableTheLastAdmin(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	only := seedPoolUser(t, pool, "only@example.com")
+	if err := store.Grant(t.Context(), only, role.Admin); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+
+	err := store.Disable(t.Context(), only)
+
+	if !errors.Is(err, role.ErrLastAdmin) {
+		t.Errorf("Disable() error = %v, want %v", err, role.ErrLastAdmin)
+	}
+	if disabled := userDisabled(t, pool, only); disabled {
+		t.Error("the last admin is disabled, want the deployment left with cover")
+	}
+}
+
+func TestRoleStoreDisablesAnAdminWhileAnotherStands(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	staying := seedPoolUser(t, pool, "staying@example.com")
+	leaving := seedPoolUser(t, pool, "leaving@example.com")
+	for _, admin := range []uuid.UUID{staying, leaving} {
+		if err := store.Grant(t.Context(), admin, role.Admin); err != nil {
+			t.Fatalf("Grant() error = %v, want nil", err)
+		}
+	}
+
+	if err := store.Disable(t.Context(), leaving); err != nil {
+		t.Fatalf("Disable() error = %v, want nil while another admin stands", err)
+	}
+
+	if !userDisabled(t, pool, leaving) {
+		t.Error("the admin is not disabled, want the change stored")
+	}
+}
+
+func TestRoleStoreDisablesAMemberWhateverTheAdminsAre(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	only := seedPoolUser(t, pool, "only@example.com")
+	staff := seedPoolUser(t, pool, "staff@example.com")
+	if err := store.Grant(t.Context(), only, role.Admin); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+
+	if err := store.Disable(t.Context(), staff); err != nil {
+		t.Fatalf("Disable() error = %v, want nil, a member is nobody's cover", err)
+	}
+
+	if !userDisabled(t, pool, staff) {
+		t.Error("the member is not disabled, want the change stored")
+	}
+}
+
+func TestRoleStoreReportsDisablingAUserItCannotFind(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewRoleStore(newTestPool(t))
+
+	err := store.Disable(t.Context(), uuid.Must(uuid.NewV7()))
+
+	if !errors.Is(err, gouncer.ErrUserNotFound) {
+		t.Errorf("Disable() error = %v, want %v", err, gouncer.ErrUserNotFound)
+	}
+}
+
 func TestRoleStoreReadsManyTiersAtOnce(t *testing.T) {
 	t.Parallel()
 
@@ -263,6 +399,10 @@ func TestRoleStoreReportsAConnectionFailure(t *testing.T) {
 	err := store.Grant(t.Context(), uuid.Must(uuid.NewV7()), role.Member)
 	if err == nil || errors.Is(err, postgres.ErrLastAdmin) {
 		t.Errorf("Grant(member) on a closed pool error = %v, want a connection error", err)
+	}
+	disabling := store.Disable(t.Context(), uuid.Must(uuid.NewV7()))
+	if disabling == nil || errors.Is(disabling, postgres.ErrLastAdmin) {
+		t.Errorf("Disable() on a closed pool error = %v, want a connection error", disabling)
 	}
 }
 

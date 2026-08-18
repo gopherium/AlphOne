@@ -11,12 +11,47 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/gouncer"
+
 	"github.com/gopherium/alphone/internal/postgres/db"
 	"github.com/gopherium/alphone/internal/role"
 )
 
 // ErrLastAdmin reports a change that would leave the deployment with no enabled admin.
-var ErrLastAdmin = errors.New("postgres: last admin")
+var ErrLastAdmin = role.ErrLastAdmin
+
+// holdAdmins locks every admin row in a fixed order so two unseatings cannot pass each other.
+const holdAdmins = "SELECT user_id FROM core.user_roles WHERE role = 'admin' ORDER BY user_id FOR UPDATE"
+
+// guardedDisable bars one user from logging in only while the deployment keeps an enabled admin,
+// answering whether the user is known and whether it was barred.
+const guardedDisable = `WITH barred AS (
+	UPDATE auth.users SET disabled = true
+	WHERE id = $1 AND (
+		NOT EXISTS (SELECT 1 FROM core.user_roles held WHERE held.user_id = $1 AND held.role = 'admin')
+		OR EXISTS (
+			SELECT 1 FROM core.user_roles other
+			JOIN auth.users u ON u.id = other.user_id
+			WHERE other.role = 'admin' AND other.user_id <> $1 AND NOT u.disabled
+		)
+	)
+	RETURNING id
+)
+SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = $1), EXISTS (SELECT 1 FROM barred)`
+
+// guardedDemote stands one user below admin only while another enabled admin stands,
+// answering whether the tier was stored.
+const guardedDemote = `WITH stood AS (
+	INSERT INTO core.user_roles (user_id, role) VALUES ($1, $2)
+	ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
+	WHERE EXISTS (
+		SELECT 1 FROM core.user_roles other
+		JOIN auth.users u ON u.id = other.user_id
+		WHERE other.role = 'admin' AND other.user_id <> $1 AND NOT u.disabled
+	)
+	RETURNING user_id
+)
+SELECT EXISTS (SELECT 1 FROM stood)`
 
 // RoleStore persists the tier every user stands in.
 type RoleStore struct {
@@ -69,20 +104,50 @@ func (s *RoleStore) Grant(ctx context.Context, userID uuid.UUID, tier role.Role)
 	return nil
 }
 
+// unseating runs one write that may remove admin cover behind a lock over every admin row.
+func (s *RoleStore) unseating(ctx context.Context, write func(pgx.Tx) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, holdAdmins); err != nil {
+		return err
+	}
+	if err := write(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// Disable bars one user from logging in, refusing to unseat the last enabled admin.
+func (s *RoleStore) Disable(ctx context.Context, userID uuid.UUID) error {
+	var known, barred bool
+	err := s.unseating(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, guardedDisable, userID).Scan(&known, &barred)
+	})
+	if err != nil {
+		return fmt.Errorf("postgres: disable user: %w", err)
+	}
+	if !known {
+		return gouncer.ErrUserNotFound
+	}
+	if !barred {
+		return ErrLastAdmin
+	}
+	return nil
+}
+
 // demote stores a tier below admin only while another enabled admin stands.
 func (s *RoleStore) demote(ctx context.Context, userID uuid.UUID, tier role.Role) error {
-	tag, err := s.pool.Exec(ctx,
-		`INSERT INTO core.user_roles (user_id, role) VALUES ($1, $2)
-		ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
-		WHERE EXISTS (
-			SELECT 1 FROM core.user_roles other
-			JOIN auth.users u ON u.id = other.user_id
-			WHERE other.role = 'admin' AND other.user_id <> $1 AND NOT u.disabled
-		)`, userID, tier.String())
+	var stood bool
+	err := s.unseating(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, guardedDemote, userID, tier.String()).Scan(&stood)
+	})
 	if err != nil {
 		return fmt.Errorf("postgres: demote user: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if !stood {
 		return ErrLastAdmin
 	}
 	return nil
