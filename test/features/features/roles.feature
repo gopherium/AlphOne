@@ -11,7 +11,6 @@ Feature: A role narrows what a user may do
     When the admin's session creates a user named "Grace Hopper"
     Then the user list shows "Grace Hopper" as a "member"
 
-  @wip
   Scenario: A member is refused user management
     When the member's session disables another user
     Then the operation is refused as admin only naming "users:write"
@@ -22,13 +21,11 @@ Feature: A role narrows what a user may do
     When the member's session creates a task titled "Call the supplier"
     Then the task is answered
 
-  @wip
   Scenario: A member's full scope token is held to the member's role
     Given the member holds a token scoped to "*"
     When that token disables a user
     Then the operation is refused as admin only naming "users:write"
 
-  @wip
   Scenario: An admin's narrow token stays narrow
     Given the admin holds a token scoped to "contacts:read"
     When that token creates a contact named "Maria Perez"

@@ -11,6 +11,7 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
@@ -65,6 +66,32 @@ func registerRoleSteps(sc *godog.ScenarioContext, t *testing.T) {
 		})
 
 	registerMemberSteps(sc)
+	registerRoleTokenSteps(sc)
+	registerTokenOperations(sc)
+	registerRefusalSteps(sc)
+}
+
+// registerRoleTokenSteps binds the steps holding a token to the tier of the user who minted it.
+func registerRoleTokenSteps(sc *godog.ScenarioContext) {
+	sc.Given(`^the (admin|member) holds a token scoped to "([^"]*)"$`,
+		func(ctx context.Context, tier, scopes string) error {
+			w := worldFrom(ctx)
+			holder := w.ownerID
+			if tier == role.Member.String() {
+				holder = w.memberID
+			}
+			secret, err := w.mintScopedSecretFor(ctx, holder, tier, apitoken.ParseScopes(scopes))
+			if err != nil {
+				return err
+			}
+			w.scopedSecret = secret
+			return nil
+		})
+
+	sc.Then(`^the operation is refused as admin only naming "([^"]*)"$`,
+		func(ctx context.Context, scope string) error {
+			return worldFrom(ctx).refusedAsAdminOnly(scope)
+		})
 }
 
 // registerMemberSteps binds the steps a member drives.
@@ -88,18 +115,36 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 		return worldFrom(ctx).answeredWithoutRefusal()
 	})
 
-	sc.Then(`^that user's session may disable another user$`, func(ctx context.Context) error {
+	sc.When(`^the member's session disables another user$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
-		colleague, err := w.addUser(ctx, "colleague@example.com", "Ada Lovelace")
+		colleague, err := w.anotherUser(ctx)
 		if err != nil {
 			return err
 		}
-		if err := w.postGraphAsSession(ctx, fmt.Sprintf(
-			`{"query":"mutation { setUserDisabled(id: \"%s\", disabled: true) }"}`, colleague)); err != nil {
+		return w.postGraphAsMember(ctx, disablingUser(colleague))
+	})
+
+	sc.Then(`^that user's session may disable another user$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		colleague, err := w.anotherUser(ctx)
+		if err != nil {
+			return err
+		}
+		if err := w.postGraphAsSession(ctx, disablingUser(colleague)); err != nil {
 			return err
 		}
 		return w.answeredWithoutRefusal()
 	})
+}
+
+// anotherUser seeds and returns a user neither the admin nor the member is.
+func (w *world) anotherUser(ctx context.Context) (uuid.UUID, error) {
+	return w.addUser(ctx, "colleague@example.com", "Ada Lovelace")
+}
+
+// disablingUser returns the operation disabling one user.
+func disablingUser(userID uuid.UUID) string {
+	return fmt.Sprintf(`{"query":"mutation { setUserDisabled(id: \"%s\", disabled: true) }"}`, userID)
 }
 
 // standsAsAdmin reports whether the named user holds the admin tier.

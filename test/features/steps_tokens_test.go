@@ -69,8 +69,8 @@ func (w *world) answeredWithoutRefusal() error {
 	return nil
 }
 
-// refusedNaming reports whether the last operation was refused naming the given scope.
-func (w *world) refusedNaming(scope string) error {
+// refusedWith reports whether the last operation carried one refusal reading message and naming scope.
+func (w *world) refusedWith(message, scope string) error {
 	parsed, err := w.scopeErrors()
 	if err != nil {
 		return err
@@ -78,13 +78,27 @@ func (w *world) refusedNaming(scope string) error {
 	if len(parsed.Errors) != 1 {
 		return fmt.Errorf("errors = %v, want exactly one refusal", parsed.Errors)
 	}
-	if code := parsed.Errors[0].Extensions["code"]; code != "UNAUTHORIZED" {
+	refused := parsed.Errors[0]
+	if refused.Message != message {
+		return fmt.Errorf("message = %q, want %q", refused.Message, message)
+	}
+	if code := refused.Extensions["code"]; code != "UNAUTHORIZED" {
 		return fmt.Errorf("code = %v, want UNAUTHORIZED", code)
 	}
-	if named := parsed.Errors[0].Extensions["scope"]; named != scope {
+	if named := refused.Extensions["scope"]; named != scope {
 		return fmt.Errorf("scope = %v, want %q", named, scope)
 	}
 	return nil
+}
+
+// refusedNaming reports whether the last operation was refused for the scope its token lacks.
+func (w *world) refusedNaming(scope string) error {
+	return w.refusedWith("scope required: "+scope, scope)
+}
+
+// refusedAsAdminOnly reports whether the last operation was refused for the tier its caller lacks.
+func (w *world) refusedAsAdminOnly(scope string) error {
+	return w.refusedWith("admin required", scope)
 }
 
 // registerTokenSteps binds the token scope steps and the world lifecycle.
@@ -178,10 +192,7 @@ func registerTokenOutcomes(sc *godog.ScenarioContext) {
 		return worldFrom(ctx).answeredWithoutRefusal()
 	})
 
-	sc.Then(`^the operation is refused as unauthorized naming "([^"]*)"$`,
-		func(ctx context.Context, scope string) error {
-			return worldFrom(ctx).refusedNaming(scope)
-		})
+	registerRefusalSteps(sc)
 
 	sc.Then(`^the request is refused as an invalid token$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
@@ -193,4 +204,12 @@ func registerTokenOutcomes(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+}
+
+// registerRefusalSteps binds the scope refusal both the token and the role features assert.
+func registerRefusalSteps(sc *godog.ScenarioContext) {
+	sc.Then(`^the operation is refused as unauthorized naming "([^"]*)"$`,
+		func(ctx context.Context, scope string) error {
+			return worldFrom(ctx).refusedNaming(scope)
+		})
 }
