@@ -118,6 +118,7 @@ func run(
 		Roles:             roles,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
+		PluginAreas:       pluginAreas(registered),
 		FieldSources:      fieldSources(registered),
 		TrustedProxies:    settings.trustedProxies,
 		GraphiQL:          settings.graphiql,
@@ -134,6 +135,17 @@ func run(
 		IdleTimeout:       120 * time.Second,
 	}
 	return serveUntilDone(ctx, httpServer, host, logger)
+}
+
+// pluginAreas returns the scope area every registered plugin holds its routes to.
+func pluginAreas(registered []sdk.Plugin) map[string]string {
+	areas := map[string]string{}
+	for _, plugin := range registered {
+		if named, ok := plugin.(sdk.AreaProvider); ok {
+			areas[plugin.ID()] = named.Area()
+		}
+	}
+	return areas
 }
 
 // fieldSources returns every registered plugin serving runtime defined fields.
