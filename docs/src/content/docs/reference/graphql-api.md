@@ -188,7 +188,7 @@ Every error carries a `code` in its `extensions`.
 | Code | Meaning |
 | ---- | ------- |
 | `UNAUTHENTICATED` | No usable credential, or the operation is not `login` |
-| `UNAUTHORIZED` | The token does not hold the scope the field needs. `scope` names it |
+| `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the user is not an admin |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
 | `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |
