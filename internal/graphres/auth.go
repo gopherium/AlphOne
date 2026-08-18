@@ -159,6 +159,7 @@ func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, di
 		if err := m.root.Roles.Disable(ctx, id); err != nil {
 			return false, err
 		}
+		return true, nil
 	}
 	if err := m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled); err != nil {
 		return false, err

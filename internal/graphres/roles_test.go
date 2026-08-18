@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/graphres"
@@ -97,6 +98,16 @@ func (unseatingRoleStore) Grant(context.Context, uuid.UUID, role.Role) error {
 // Disable refuses to bar the last admin.
 func (unseatingRoleStore) Disable(context.Context, uuid.UUID) error {
 	return role.ErrLastAdmin
+}
+
+// missingRoleStore knows no user at all.
+type missingRoleStore struct {
+	standingRoleStore
+}
+
+// Disable reports that no such user exists.
+func (missingRoleStore) Disable(context.Context, uuid.UUID) error {
+	return gouncer.ErrUserNotFound
 }
 
 // newRoledResolver returns an auth resolver holding one account whose tiers come from roles.
@@ -302,6 +313,42 @@ func TestSetUserDisabledRefusesToBarTheLastAdmin(t *testing.T) {
 	}
 	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
 		t.Errorf("code = %q, want VALIDATION", got)
+	}
+}
+
+func TestSetUserDisabledEnablesThroughTheAccountSeam(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	account := store.AddUser(t, "barred@example.com", "Maria Perez", testPassword)
+	resolver := newAuthResolver(store)
+	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+
+	var answered struct {
+		SetUserDisabled bool `json:"setUserDisabled"`
+	}
+	client.MustPost(
+		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: false) }`, account.ID), &answered)
+
+	if !answered.SetUserDisabled {
+		t.Error("setUserDisabled answered false, want enabling reported, it only adds cover")
+	}
+}
+
+func TestSetUserDisabledReportsAUserTheStoreCannotFind(t *testing.T) {
+	t.Parallel()
+
+	resolver := newRoledResolver(t, missingRoleStore{})
+	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+
+	answered, err := client.RawPost(
+		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: true) }`, uuid.Must(uuid.NewV7())))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "NOT_FOUND" {
+		t.Errorf("code = %q, want NOT_FOUND", got)
 	}
 }
 

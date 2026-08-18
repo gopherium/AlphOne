@@ -20,6 +20,11 @@ import (
 // ErrLastAdmin reports a change that would leave the deployment with no enabled admin.
 var ErrLastAdmin = role.ErrLastAdmin
 
+// grantKnownUser stands one user in a tier only when the deployment holds that user.
+const grantKnownUser = `INSERT INTO core.user_roles (user_id, role)
+SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM auth.users WHERE id = $1)
+ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role`
+
 // holdAdmins locks every admin row in a fixed order so two unseatings cannot pass each other.
 const holdAdmins = "SELECT user_id FROM core.user_roles WHERE role = 'admin' ORDER BY user_id FOR UPDATE"
 
@@ -97,9 +102,12 @@ func (s *RoleStore) Grant(ctx context.Context, userID uuid.UUID, tier role.Role)
 	if tier != role.Admin {
 		return s.demote(ctx, userID, tier)
 	}
-	err := s.queries.GrantUserRole(ctx, db.GrantUserRoleParams{UserID: userID, Role: tier.String()})
+	tag, err := s.pool.Exec(ctx, grantKnownUser, userID, tier.String())
 	if err != nil {
 		return fmt.Errorf("postgres: grant user role: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return gouncer.ErrUserNotFound
 	}
 	return nil
 }
@@ -120,11 +128,18 @@ func (s *RoleStore) unseating(ctx context.Context, write func(pgx.Tx) error) err
 	return tx.Commit(ctx)
 }
 
-// Disable bars one user from logging in, refusing to unseat the last enabled admin.
+// Disable bars one user from logging in and ends its sessions, refusing to unseat the last enabled admin.
 func (s *RoleStore) Disable(ctx context.Context, userID uuid.UUID) error {
 	var known, barred bool
 	err := s.unseating(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, guardedDisable, userID).Scan(&known, &barred)
+		if err := tx.QueryRow(ctx, guardedDisable, userID).Scan(&known, &barred); err != nil {
+			return err
+		}
+		if !barred {
+			return nil
+		}
+		_, err := tx.Exec(ctx, "DELETE FROM auth.sessions WHERE user_id = $1", userID)
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: disable user: %w", err)

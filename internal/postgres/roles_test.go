@@ -44,6 +44,27 @@ func seedUser(t *testing.T, db *sql.DB, email string) uuid.UUID {
 	return id
 }
 
+// seedSession stores one live session for a user.
+func seedSession(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO auth.sessions (token_hash, user_id, expires_at, created_at)
+		VALUES ($1, $2, now() + interval '1 hour', now())`, []byte(uuid.Must(uuid.NewV7()).String()), userID); err != nil {
+		t.Fatalf("storing the session: %v", err)
+	}
+}
+
+// sessionCount returns how many sessions one user holds.
+func sessionCount(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) int {
+	t.Helper()
+	var held int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM auth.sessions WHERE user_id = $1", userID).Scan(&held); err != nil {
+		t.Fatalf("counting the sessions: %v", err)
+	}
+	return held
+}
+
 // userDisabled reports whether one user is barred from logging in.
 func userDisabled(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) bool {
 	t.Helper()
@@ -149,6 +170,28 @@ func TestRoleStoreRoundTripsATier(t *testing.T) {
 	}
 	if got != role.Admin {
 		t.Errorf("RoleOf() = %v, want %v", got, role.Admin)
+	}
+}
+
+func TestRoleStoreReportsGrantingAUserItCannotFind(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	ghost := uuid.Must(uuid.NewV7())
+
+	err := store.Grant(t.Context(), ghost, role.Admin)
+
+	if !errors.Is(err, gouncer.ErrUserNotFound) {
+		t.Errorf("Grant() error = %v, want %v", err, gouncer.ErrUserNotFound)
+	}
+	var rows int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM core.user_roles WHERE user_id = $1", ghost).Scan(&rows); err != nil {
+		t.Fatalf("counting the rows: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("stored %d rows for a user nobody holds, want none", rows)
 	}
 }
 
@@ -306,6 +349,27 @@ func TestRoleStoreDisablesAnAdminWhileAnotherStands(t *testing.T) {
 
 	if !userDisabled(t, pool, leaving) {
 		t.Error("the admin is not disabled, want the change stored")
+	}
+}
+
+func TestRoleStoreSweepsTheSessionsOfTheUserItDisables(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	staying := seedPoolUser(t, pool, "staying@example.com")
+	leaving := seedPoolUser(t, pool, "leaving@example.com")
+	if err := store.Grant(t.Context(), staying, role.Admin); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+	seedSession(t, pool, leaving)
+
+	if err := store.Disable(t.Context(), leaving); err != nil {
+		t.Fatalf("Disable() error = %v, want nil", err)
+	}
+
+	if sessions := sessionCount(t, pool, leaving); sessions != 0 {
+		t.Errorf("sessions = %d, want none, a barred user is logged out at once", sessions)
 	}
 }
 

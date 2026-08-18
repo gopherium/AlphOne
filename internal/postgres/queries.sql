@@ -208,8 +208,3 @@ WHERE user_id = @user_id::uuid;
 SELECT user_id, role
 FROM core.user_roles
 WHERE user_id = ANY(@user_ids::uuid[]);
-
--- name: GrantUserRole :exec
-INSERT INTO core.user_roles (user_id, role)
-VALUES (@user_id::uuid, @role::text)
-ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;

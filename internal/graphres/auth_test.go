@@ -443,7 +443,7 @@ func TestSetUserDisabledMapsTheAdminFailures(t *testing.T) {
 		t.Errorf("self disable code = %q, want VALIDATION", got)
 	}
 
-	missing, err := client.RawPost(`mutation ($id: UUID!) { setUserDisabled(id: $id, disabled: true) }`,
+	missing, err := client.RawPost(`mutation ($id: UUID!) { setUserDisabled(id: $id, disabled: false) }`,
 		gqlclient.Var("id", uuid.Must(uuid.NewV7())))
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)

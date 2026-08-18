@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
@@ -76,6 +77,18 @@ func TestUnseatingReportsATransactionItCouldNotOpen(t *testing.T) {
 
 	if err == nil {
 		t.Error("unseating() on a closed pool error = nil, want error")
+	}
+}
+
+func TestDisableReportsAGuardItCouldNotRead(t *testing.T) {
+	t.Parallel()
+
+	store := NewRoleStore(heldPool(t))
+
+	err := store.Disable(t.Context(), uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Error("Disable() error = nil on a database holding no users, want error")
 	}
 }
 
