@@ -11,15 +11,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/sdk"
 )
+
+// serverRoles returns the role store the server reads, nil when the test wired none.
+func serverRoles(roles *fakeRoleStore) server.RoleStore {
+	if roles == nil {
+		return nil
+	}
+	return roles
+}
 
 // graphConfig carries the stores and bounds a test graph server composes.
 type graphConfig struct {
@@ -27,7 +38,7 @@ type graphConfig struct {
 	Tasks             graphres.TaskStore
 	Users             server.UserStore
 	Tokens            server.TokenStore
-	Roles             server.RoleStore
+	Roles             *fakeRoleStore
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
@@ -56,12 +67,17 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 	for _, plugin := range plugins {
 		t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
 	}
+	resolverRoles := cfg.Roles
+	if resolverRoles == nil {
+		resolverRoles = &fakeRoleStore{tiers: map[uuid.UUID]role.Role{}}
+	}
 	resolver := &graphres.Resolver{
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
 		Tasks:        cfg.Tasks,
 		Auth:         auth,
 		Admin:        admin,
+		Roles:        resolverRoles,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}
 	if hub != nil {
@@ -76,7 +92,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Auth:              auth,
 		GraphRoot:         root,
 		Tokens:            cfg.Tokens,
-		Roles:             cfg.Roles,
+		Roles:             serverRoles(cfg.Roles),
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
 		FieldSources:      cfg.FieldSources,

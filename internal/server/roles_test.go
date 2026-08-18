@@ -37,6 +37,36 @@ func (s *fakeRoleStore) RoleOf(_ context.Context, userID uuid.UUID) (role.Role, 
 	return tier, nil
 }
 
+// RolesOf returns the tier each named user stands in.
+func (s *fakeRoleStore) RolesOf(_ context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	tiers := make(map[uuid.UUID]role.Role, len(userIDs))
+	for _, id := range userIDs {
+		tier, ok := s.tiers[id]
+		if !ok {
+			tier = role.Member
+		}
+		tiers[id] = tier
+	}
+	return tiers, nil
+}
+
+// Grant stores the tier a user stands in.
+func (s *fakeRoleStore) Grant(_ context.Context, userID uuid.UUID, tier role.Role) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.tiers[userID] = tier
+	return nil
+}
+
+// Disable bars a user, reporting whatever the store was told to report.
+func (s *fakeRoleStore) Disable(context.Context, uuid.UUID) error {
+	return s.err
+}
+
 // roleHandler answers the tier the request context carries.
 func roleHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +133,27 @@ func TestBearerTokenCarriesItsOwnersRole(t *testing.T) {
 
 	if got := recorder.Body.String(); got != role.Admin.String() {
 		t.Errorf("role = %q, want %q", got, role.Admin.String())
+	}
+}
+
+func TestASessionCarriesMemberWithNoRoleStoreWired(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	handler := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(),
+		Tasks:    newFakeTaskStore(),
+		Users:    users,
+		Version:  "9.9.9",
+		Plugins:  map[string]http.Handler{"probe": roleHandler()},
+	})
+	cookie := loginCookie(t, handler)
+
+	recorder := getWithCookie(handler, "/api/plugins/probe/role", cookie)
+
+	if got := recorder.Body.String(); got != role.Member.String() {
+		t.Errorf("role = %q, want %q, an unstamped caller is a member", got, role.Member.String())
 	}
 }
 

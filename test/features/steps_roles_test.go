@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/cucumber/godog"
@@ -15,6 +16,15 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
+
+// identityAnswer is the answer the calling identity carries.
+type identityAnswer struct {
+	Data struct {
+		Me struct {
+			Role string `json:"role"`
+		} `json:"me"`
+	} `json:"data"`
+}
 
 // userListing is the answer the session's user listing carries.
 type userListing struct {
@@ -67,8 +77,78 @@ func registerRoleSteps(sc *godog.ScenarioContext, t *testing.T) {
 
 	registerMemberSteps(sc)
 	registerRoleTokenSteps(sc)
+	registerRoleWriteSteps(sc)
 	registerTokenOperations(sc)
 	registerRefusalSteps(sc)
+}
+
+// registerRoleWriteSteps binds the steps standing a user in another tier.
+func registerRoleWriteSteps(sc *godog.ScenarioContext) {
+	sc.Then(`^the member's session sees its role as "([^"]*)"$`, func(ctx context.Context, tier string) error {
+		w := worldFrom(ctx)
+		if err := w.postGraphAsMember(ctx, `{"query":"{ me { role } }"}`); err != nil {
+			return err
+		}
+		return w.roleSeen(tier)
+	})
+
+	sc.When(`^the admin's session promotes the member to "([^"]*)"$`,
+		func(ctx context.Context, tier string) error {
+			w := worldFrom(ctx)
+			if err := w.postGraphAsSession(ctx, settingUserRole(w.memberID, tier)); err != nil {
+				return err
+			}
+			return w.answeredWithoutRefusal()
+		})
+
+	sc.When(`^the admin's session demotes itself to "([^"]*)"$`, func(ctx context.Context, tier string) error {
+		w := worldFrom(ctx)
+		return w.postGraphAsSession(ctx, settingUserRole(w.ownerID, tier))
+	})
+
+	sc.Then(`^the operation is refused as the last admin$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		if err := w.refusedAsLastAdmin(); err != nil {
+			return err
+		}
+		return w.standsAsAdmin(ctx, w.ownerID)
+	})
+}
+
+// settingUserRole returns the operation standing one user in a tier.
+func settingUserRole(userID uuid.UUID, tier string) string {
+	return fmt.Sprintf(`{"query":"mutation { setUserRole(id: \"%s\", role: \"%s\") }"}`, userID, tier)
+}
+
+// roleSeen reports whether the last answer carries the caller standing in one tier.
+func (w *world) roleSeen(tier string) error {
+	var seen identityAnswer
+	if err := json.Unmarshal(w.answered, &seen); err != nil {
+		return fmt.Errorf("reading the identity: %w", err)
+	}
+	if seen.Data.Me.Role != tier {
+		return fmt.Errorf("role = %q, want %q: %s", seen.Data.Me.Role, tier, w.answered)
+	}
+	return nil
+}
+
+// refusedAsLastAdmin reports whether the last operation was refused for unseating the last admin.
+func (w *world) refusedAsLastAdmin() error {
+	parsed, err := w.scopeErrors()
+	if err != nil {
+		return err
+	}
+	if len(parsed.Errors) != 1 {
+		return fmt.Errorf("errors = %v, want exactly one refusal", parsed.Errors)
+	}
+	refused := parsed.Errors[0]
+	if code := refused.Extensions["code"]; code != "VALIDATION" {
+		return fmt.Errorf("code = %v, want VALIDATION", code)
+	}
+	if !strings.Contains(refused.Message, "last admin") {
+		return fmt.Errorf("message = %q, want it to name the last admin", refused.Message)
+	}
+	return nil
 }
 
 // registerRoleTokenSteps binds the steps holding a token to the tier of the user who minted it.
