@@ -8,6 +8,7 @@ export const meQuery = graphql(`
 			id
 			email
 			name
+			role
 		}
 	}
 `)
@@ -38,7 +39,14 @@ export const usersQuery = graphql(`
 			name
 			disabled
 			createdAt
+			role
 		}
+	}
+`)
+
+export const setUserRoleMutation = graphql(`
+	mutation SetUserRole($id: UUID!, $role: String!) {
+		setUserRole(id: $id, role: $role)
 	}
 `)
 
