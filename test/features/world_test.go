@@ -87,10 +87,7 @@ func newImportWorld(t *testing.T) *world {
 // bootWorld boots one scenario, running the importer live only when asked.
 func bootWorld(t *testing.T, liveImports bool) *world {
 	t.Helper()
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
-	if err := authkitpg.Migrate(context.Background(), cfg.URL()); err != nil {
-		t.Fatalf("migrating the auth schema: %v", err)
-	}
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	pool, err := pgxpool.New(context.Background(), sparingly(cfg.URL()))
 	if err != nil {
 		t.Fatalf("connecting the scenario pool: %v", err)

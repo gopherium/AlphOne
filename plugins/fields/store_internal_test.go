@@ -21,7 +21,7 @@ func newMigratedPlugin(t *testing.T) *Plugin {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	p, err := Register(sdk.Deps{DatabaseURL: cfg.URL()})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)

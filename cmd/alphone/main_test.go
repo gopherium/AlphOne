@@ -159,7 +159,7 @@ func testDatabaseURL(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	return cfg.URL()
 }
 

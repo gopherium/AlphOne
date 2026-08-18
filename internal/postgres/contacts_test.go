@@ -23,7 +23,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	pool, err := pgxpool.New(t.Context(), cfg.URL())
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
