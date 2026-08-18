@@ -58,6 +58,16 @@ Migrations only move forward, so if the newer version already migrated
 the schema, restore the matching backup instead of just pinning the
 older image.
 
+If you ever roll a migration back by hand, know that the roles
+migration is the one that loses data. Its down step drops the table
+holding who is an admin, so every promotion and demotion goes with it,
+and applying it again makes every user an admin. Back that table up
+first:
+
+```sh
+docker compose exec postgres pg_dump -U postgres -t core.user_roles alphone > user_roles.sql
+```
+
 ## Backup scenario
 
 A nightly `pg_dump` covers a single-server install. Save this as

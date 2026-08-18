@@ -47,7 +47,7 @@ with `403`:
 { "error": "scope required: whatsapp:read" }
 ```
 
-The check runs before the plugin sees the request, so an under scoped token
+The check runs before the plugin sees the request, so an under-scoped token
 gets that same `403` for a path the plugin does not serve at all, where a
 token holding the area would get `404`. A session is not narrowed this way,
 because only a token carries scopes.
