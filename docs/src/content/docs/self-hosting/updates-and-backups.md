@@ -61,11 +61,20 @@ older image.
 If you ever roll a migration back by hand, know that the roles
 migration is the one that loses data. Its down step drops the table
 holding who is an admin, so every promotion and demotion goes with it,
-and applying it again makes every user an admin. Back that table up
-first:
+and applying it again makes every user an admin. Save the rows first:
 
 ```sh
-docker compose exec postgres pg_dump -U postgres -t core.user_roles alphone > user_roles.sql
+docker compose exec -T postgres \
+  pg_dump -U alphone --data-only --no-owner -t core.user_roles alphone > user_roles.sql
+```
+
+Applying the migration again refills that table with one admin row per
+user, so put your own rows back over the top:
+
+```sh
+docker compose exec -T postgres psql -U alphone alphone \
+  -c 'TRUNCATE core.user_roles'
+docker compose exec -T postgres psql -U alphone alphone < user_roles.sql
 ```
 
 ## Backup scenario
