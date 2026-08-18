@@ -27,17 +27,6 @@ import { useRole } from '../auth/role'
  * @returns The table row element.
  */
 function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; manages: boolean }) {
-	const queryClient = useQueryClient()
-	const invalidate = { onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }) }
-	const toggle = useMutation({
-		mutationFn: () => setUserDisabled(user.id, !user.disabled),
-		...invalidate,
-	})
-	const restand = useMutation({
-		mutationFn: () => setUserRole(user.id, user.role === 'admin' ? 'member' : 'admin'),
-		...invalidate,
-	})
-
 	return (
 		<tr>
 			<td>{user.name}</td>
@@ -49,31 +38,52 @@ function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; ma
 			</td>
 			<td>{user.role === 'admin' ? 'Admin' : 'Member'}</td>
 			<td className="godmin-table__actions">
-				{isSelf || !manages ? null : (
-					<Stack direction="column" gap="xs">
-						<Button
-							variant="outline"
-							aria-label={`${user.disabled ? 'Enable' : 'Disable'} ${user.name}`}
-							loading={toggle.isPending}
-							onClick={() => toggle.mutate()}
-						>
-							{user.disabled ? 'Enable' : 'Disable'}
-						</Button>
-						<Button
-							variant="outline"
-							aria-label={`${user.role === 'admin' ? 'Demote' : 'Promote'} ${user.name}`}
-							loading={restand.isPending}
-							onClick={() => restand.mutate()}
-						>
-							{user.role === 'admin' ? 'Demote' : 'Promote'}
-						</Button>
-						{toggle.error || restand.error ? (
-							<Text role="alert">{(toggle.error ?? restand.error)?.message}</Text>
-						) : null}
-					</Stack>
-				)}
+				{isSelf || !manages ? null : <UserControls user={user} />}
 			</td>
 		</tr>
+	)
+}
+
+/**
+ * Renders the disable and tier controls one account offers an admin.
+ * @param user - The account the controls act on.
+ * @returns The control stack element.
+ */
+function UserControls({ user }: { user: Account }) {
+	const queryClient = useQueryClient()
+	const invalidate = { onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }) }
+	const barred = user.disabled
+	const stands = user.role === 'admin'
+	const toggle = useMutation({
+		mutationFn: () => setUserDisabled(user.id, !barred),
+		...invalidate,
+	})
+	const restand = useMutation({
+		mutationFn: () => setUserRole(user.id, stands ? 'member' : 'admin'),
+		...invalidate,
+	})
+	const refused = toggle.error ?? restand.error
+
+	return (
+		<Stack direction="column" gap="xs">
+			<Button
+				variant="outline"
+				aria-label={`${barred ? 'Enable' : 'Disable'} ${user.name}`}
+				loading={toggle.isPending}
+				onClick={() => toggle.mutate()}
+			>
+				{barred ? 'Enable' : 'Disable'}
+			</Button>
+			<Button
+				variant="outline"
+				aria-label={`${stands ? 'Demote' : 'Promote'} ${user.name}`}
+				loading={restand.isPending}
+				onClick={() => restand.mutate()}
+			>
+				{stands ? 'Demote' : 'Promote'}
+			</Button>
+			{refused ? <Text role="alert">{refused.message}</Text> : null}
+		</Stack>
 	)
 }
 
