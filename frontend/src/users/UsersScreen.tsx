@@ -22,8 +22,11 @@ import { setUserRole } from '../auth/graphTransport'
 import { useRole } from '../auth/role'
 
 /**
- * Renders one account row with its status and disable control, which the
- * signed-in account does not get.
+ * Renders one account row with its status and tier, offering the controls only
+ * to an admin looking at somebody else.
+ * @param user - The account the row shows.
+ * @param isSelf - Whether the row is the signed-in account, which gets no controls.
+ * @param manages - Whether the caller may manage users at all.
  * @returns The table row element.
  */
 function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; manages: boolean }) {
