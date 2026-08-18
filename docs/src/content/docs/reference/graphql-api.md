@@ -285,7 +285,7 @@ cannot drift. Point a client at the endpoint, or read
 | Area | Reads | Writes |
 | ---- | ----- | ------ |
 | Session | `me` | `login`, `logout` |
-| Users | `users` | `createUser`, `setUserDisabled` |
+| Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
