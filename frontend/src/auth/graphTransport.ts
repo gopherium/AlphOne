@@ -225,6 +225,9 @@ async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
  */
 export async function setUserRole(id: string, role: Role): Promise<void> {
 	const result = await execute(setUserRoleMutation, { id, role })
+	if (firstCode(result) === 'UNAUTHENTICATED') {
+		throw new UnauthorizedError('session expired')
+	}
 	if (result.errors?.length) {
 		throw new Error(firstMessage(result, 'updating the role failed'))
 	}

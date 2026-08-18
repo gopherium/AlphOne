@@ -62,6 +62,13 @@ export const adminUser = { ...defaultUser, role: 'admin' }
  */
 export const memberUser = { ...defaultUser, role: 'member' }
 
+/**
+ * Renders the app at one route with a seeded session.
+ * @param path - The route the memory history starts on.
+ * @param user - The signed-in account, or null for an anonymous caller.
+ * @param version - The version the graph answers, or null to make it fail.
+ * @returns The query client the render used.
+ */
 export function renderAt(
 	path: string,
 	user: (User & { role?: string }) | null = adminUser,

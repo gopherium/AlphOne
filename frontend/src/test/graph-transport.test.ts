@@ -6,7 +6,7 @@ import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
 import { print } from 'graphql'
 import { expect, test } from 'vitest'
 
-import { graphAuthTransport } from '../auth/graphTransport'
+import { graphAuthTransport, setUserRole } from '../auth/graphTransport'
 import { loginMutation, meQuery } from '../auth/operations'
 
 const maria = { id: 'u1', email: 'maria@example.com', name: 'Maria Perez' }
@@ -123,6 +123,23 @@ test('fetchUsers maps graph accounts onto the admin shape', async () => {
 	expect(users).toHaveLength(1)
 	expect(users[0]).toMatchObject({ id: maria.id, email: maria.email, disabled: false })
 	expect(users[0]?.created_at).toBeInstanceOf(Date)
+})
+
+test('setUserRole rejects an expired session with UnauthorizedError', async () => {
+	graphResponds('mutation SetUserRole', graphError('UNAUTHENTICATED'))
+
+	await expect(setUserRole(maria.id, 'admin')).rejects.toBeInstanceOf(UnauthorizedError)
+})
+
+test('setUserRole reports what the graph refused a role change with', async () => {
+	graphResponds('mutation SetUserRole', {
+		data: null,
+		errors: [{ message: 'the last admin cannot be unseated' }],
+	})
+
+	await expect(setUserRole(maria.id, 'member')).rejects.toThrow(
+		'the last admin cannot be unseated',
+	)
 })
 
 test('fetchUsers rejects anonymous callers with UnauthorizedError', async () => {
