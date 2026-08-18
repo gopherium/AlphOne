@@ -42,6 +42,7 @@ type graphConfig struct {
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
+	PluginAreas       map[string]string
 	FieldSources      []sdk.FieldSource
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
@@ -95,6 +96,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Roles:             serverRoles(cfg.Roles),
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
+		PluginAreas:       cfg.PluginAreas,
 		FieldSources:      cfg.FieldSources,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,

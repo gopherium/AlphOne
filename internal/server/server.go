@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/mcp"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -45,6 +46,9 @@ type Config struct {
 	// PluginPublicPaths maps a plugin id to the namespace-relative paths
 	// that stay reachable without a session, such as signed webhooks.
 	PluginPublicPaths map[string][]string
+	// PluginAreas maps a plugin id to the scope area its protected routes act in.
+	// An absent id leaves that plugin's routes open to every authenticated caller.
+	PluginAreas map[string]string
 	// Web serves the single-page app for non-API paths. Nil leaves those
 	// paths unhandled, which suits development behind the Vite dev server.
 	Web fs.FS
@@ -97,7 +101,7 @@ func NewServer(cfg Config) http.Handler {
 	}
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id
-		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id])
+		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id], cfg.PluginAreas[id])
 		router.Mount(prefix, http.StripPrefix(prefix, guarded))
 	}
 	if cfg.Web != nil {
@@ -117,10 +121,33 @@ type server struct {
 
 // protectPlugin wraps a plugin handler in the session middleware, letting
 // the plugin's declared public paths through untouched.
-func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
+func (s *server) protectPlugin(handler http.Handler, publicPaths []string, area string) http.Handler {
 	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.requireIdentity(s.boundPluginRequest(withActingUser(next)))
+		return s.requireIdentity(s.boundPluginRequest(withActingUser(inArea(area, next))))
 	})
+}
+
+// inArea serves the request only when the caller's credential reaches the area the routes act in.
+func inArea(area string, next http.Handler) http.Handler {
+	if area == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, carried := credential.TokenOf(r.Context())
+		if carried && !token.Scopes.Allows(area, r.Method != http.MethodGet) {
+			authkit.RespondError(w, http.StatusForbidden, "scope required: "+area+":"+accessOf(r.Method))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// accessOf names the access one HTTP method asks for.
+func accessOf(method string) string {
+	if method == http.MethodGet {
+		return "read"
+	}
+	return "write"
 }
 
 // withActingUser passes the authenticated user to the plugin through the SDK.
