@@ -14,16 +14,18 @@ import (
 
 // scopedSchema is the miniature schema every scope gate test runs against.
 const scopedSchema = `
-directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
+directive @scope(area: String!, write: Boolean!, admin: Boolean = false) on FIELD_DEFINITION
 type Query {
   contacts: String! @scope(area: "contacts", write: false)
   me: String! @scope(area: "auth", write: false)
   apiTokens: String! @scope(area: "tokens", write: false)
+  users: String! @scope(area: "users", write: false)
   unscoped: String!
 }
 type Mutation {
   createContact: String! @scope(area: "contacts", write: true)
   createTask: String! @scope(area: "tasks", write: true)
+  createUser: String! @scope(area: "users", write: true, admin: true)
 }
 type Subscription {
   coreEvent: String! @scope(area: "events", write: false)
@@ -45,7 +47,7 @@ func TestScopeMapReadsEveryRootOperation(t *testing.T) {
 
 	scopes := newScopeMap(t)
 
-	if got, want := len(scopes), 6; got != want {
+	if got, want := len(scopes), 8; got != want {
 		t.Errorf("scope map holds %d fields, want %d across query, mutation and subscription", got, want)
 	}
 	if !scopes.Allows(ast.Query, "contacts", apitoken.ParseScopes("contacts:read")) {
@@ -114,6 +116,28 @@ func TestScopeMapRefusesTokenManagementToEveryToken(t *testing.T) {
 	}
 	if scopes.Allows(ast.Query, "apiTokens", apitoken.ParseScopes("tokens:read")) {
 		t.Error("a tokens scoped token reaches token management, want a session required")
+	}
+}
+
+func TestScopeMapReadsTheAdminFlagAFieldDeclares(t *testing.T) {
+	t.Parallel()
+
+	scopes := newScopeMap(t)
+
+	if !scopes.AdminOnly(ast.Mutation, "createUser") {
+		t.Error("createUser is not admin only, want the declared flag read")
+	}
+	if scopes.AdminOnly(ast.Mutation, "createContact") {
+		t.Error("createContact is admin only, want an unmarked field open to every tier")
+	}
+	if scopes.AdminOnly(ast.Query, "users") {
+		t.Error("the users listing is admin only, want a member reading its colleagues")
+	}
+	if scopes.AdminOnly(ast.Query, "unscoped") {
+		t.Error("an unscoped field is admin only, want a field nobody marked open to every tier")
+	}
+	if scopes.AdminOnly(ast.Query, "neverDeclared") {
+		t.Error("an unknown field is admin only, want the role check to leave it to the token check")
 	}
 }
 

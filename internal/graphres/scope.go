@@ -31,10 +31,14 @@ type scopeKey struct {
 	field     string
 }
 
-// fieldScope is the area and access one root field needs.
+// adminArgument names the scope argument reserving a field to the admin tier.
+const adminArgument = "admin"
+
+// fieldScope is the area, access and tier one root field needs.
 type fieldScope struct {
 	area  string
 	write bool
+	admin bool
 }
 
 // ScopeMap answers what every root field of a schema needs of its caller.
@@ -70,7 +74,15 @@ func scopeOf(declared *ast.Directive) fieldScope {
 	if write := declared.Arguments.ForName("write"); write != nil {
 		scope.write = write.Value.Raw == "true"
 	}
+	if adminOnly := declared.Arguments.ForName(adminArgument); adminOnly != nil {
+		scope.admin = adminOnly.Value.Raw == "true"
+	}
 	return scope
+}
+
+// AdminOnly reports whether one root field is reserved to the admin tier.
+func (m ScopeMap) AdminOnly(operation ast.Operation, field string) bool {
+	return m[scopeKey{operation, field}].admin
 }
 
 // Allows reports whether held scopes reach one root field, refusing anything the schema does not scope.
@@ -104,31 +116,37 @@ func (m ScopeMap) Needed(operation ast.Operation, field string) string {
 	return needed.area + ":" + access
 }
 
-// ScopeGate returns the operation gate refusing every root field the caller's token does not hold.
+// ScopeGate returns the operation gate refusing every root field the caller's role and token do not reach.
 func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 	return func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		token, carried := credential.TokenOf(ctx)
-		if !carried {
-			return next(ctx)
-		}
+		tier := credential.RoleOf(ctx)
 		operation := graphql.GetOperationContext(ctx)
 		if operation.Operation == nil {
-			return refusal("the operation")
+			return scopeRefusal("the operation")
 		}
 		kind := operation.Operation.Operation
 		for _, selected := range graphql.CollectFields(operation, operation.Operation.SelectionSet, nil) {
-			if !scopes.Allows(kind, selected.Name, token.Scopes) {
-				return refusal(scopes.Needed(kind, selected.Name))
+			if carried && !scopes.Allows(kind, selected.Name, token.Scopes) {
+				return scopeRefusal(scopes.Needed(kind, selected.Name))
+			}
+			if !tier.Allows(scopes.AdminOnly(kind, selected.Name)) {
+				return refusal("admin required", scopes.Needed(kind, selected.Name))
 			}
 		}
 		return next(ctx)
 	}
 }
 
-// refusal answers one operation with the scope its caller lacks.
-func refusal(needed string) graphql.ResponseHandler {
+// scopeRefusal answers one operation with the scope its token lacks.
+func scopeRefusal(needed string) graphql.ResponseHandler {
+	return refusal("scope required: "+needed, needed)
+}
+
+// refusal answers one operation with the message and the scope the refused field wanted.
+func refusal(message, needed string) graphql.ResponseHandler {
 	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
-		Message:    "scope required: " + needed,
+		Message:    message,
 		Extensions: map[string]any{"code": "UNAUTHORIZED", "scope": needed},
 	}}})
 }
