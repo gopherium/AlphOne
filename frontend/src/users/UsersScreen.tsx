@@ -67,7 +67,9 @@ function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; ma
 						>
 							{user.role === 'admin' ? 'Demote' : 'Promote'}
 						</Button>
-						{toggle.isError || restand.isError ? <Text role="alert">Update failed.</Text> : null}
+						{toggle.error || restand.error ? (
+							<Text role="alert">{(toggle.error ?? restand.error)?.message}</Text>
+						) : null}
 					</Stack>
 				)}
 			</td>

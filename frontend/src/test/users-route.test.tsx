@@ -127,7 +127,7 @@ test('reports when an account cannot be updated', async () => {
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Disable Ada Lovelace' }))
 
-	expect(await screen.findByText('Update failed.')).toBeInTheDocument()
+	expect(await screen.findByText('internal error')).toBeInTheDocument()
 })
 
 test('offers no disable control on the signed-in account', async () => {
@@ -206,7 +206,7 @@ test('reports when a tier cannot be changed', async () => {
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Demote Ada Lovelace' }))
 
-	expect(await screen.findByText('Update failed.')).toBeInTheDocument()
+	expect(await screen.findByText('the last admin cannot be unseated')).toBeInTheDocument()
 })
 
 test('offers a member no user management at all', async () => {
