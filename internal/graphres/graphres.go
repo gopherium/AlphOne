@@ -15,6 +15,7 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -63,6 +64,39 @@ type WebhookStore interface {
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
 }
 
+// RoleStore reads the tier users stand in.
+type RoleStore interface {
+	RoleOf(ctx context.Context, userID uuid.UUID) (role.Role, error)
+	RolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error)
+}
+
+// roleOf returns the tier one user stands in, member when no store was wired.
+func (r *Resolver) roleOf(ctx context.Context, userID uuid.UUID) (role.Role, error) {
+	if r.Roles == nil {
+		return role.Member, nil
+	}
+	return r.Roles.RoleOf(ctx, userID)
+}
+
+// rolesOf returns the tier each named user stands in, member for any the store leaves out.
+func (r *Resolver) rolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error) {
+	tiers := make(map[uuid.UUID]role.Role, len(userIDs))
+	for _, id := range userIDs {
+		tiers[id] = role.Member
+	}
+	if r.Roles == nil {
+		return tiers, nil
+	}
+	stored, err := r.Roles.RolesOf(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for id, tier := range stored {
+		tiers[id] = tier
+	}
+	return tiers, nil
+}
+
 // TokenStore serves the caller's own API tokens.
 type TokenStore interface {
 	Create(ctx context.Context, token apitoken.Token) error
@@ -101,6 +135,8 @@ type Resolver struct {
 	Tenants TenantStore
 	// Tokens serves the caller's own API tokens.
 	Tokens TokenStore
+	// Roles serves the tier users stand in. Nil leaves every user a member.
+	Roles RoleStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
 	// Live hands subscriptions the frames they may see. Nil serves no subscription.

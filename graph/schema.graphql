@@ -76,6 +76,7 @@ type Identity {
 	id: UUID!
 	email: String!
 	name: String!
+	role: String!
 }
 type ImportAssignment {
 	column: Int!
@@ -219,6 +220,7 @@ type User {
 	name: String!
 	disabled: Boolean!
 	createdAt: DateTime!
+	role: String!
 }
 type Webhook {
 	id: UUID!

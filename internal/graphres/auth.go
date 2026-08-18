@@ -14,6 +14,8 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/internal/credential"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // rateLimitedError reports a login blocked by the attempt limiter.
@@ -27,24 +29,25 @@ func (e rateLimitedError) Error() string {
 }
 
 // toAuthIdentity maps an authkit identity onto its graph model.
-func toAuthIdentity(identity authkit.Identity) *model.Identity {
-	return &model.Identity{ID: identity.ID, Email: identity.Email, Name: identity.Name}
+func toAuthIdentity(identity authkit.Identity, tier role.Role) *model.Identity {
+	return &model.Identity{ID: identity.ID, Email: identity.Email, Name: identity.Name, Role: tier.String()}
 }
 
 // toUser maps an authkit account onto its graph model.
-func toUser(account authkit.Account) *model.User {
+func toUser(account authkit.Account, tier role.Role) *model.User {
 	return &model.User{
 		ID:        account.ID,
 		Email:     account.Email,
 		Name:      account.Name,
 		Disabled:  account.Disabled,
 		CreatedAt: account.CreatedAt,
+		Role:      tier.String(),
 	}
 }
 
 // Me reports the calling identity.
 func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
-	return toAuthIdentity(authkit.IdentityFromContext(ctx)), nil
+	return toAuthIdentity(authkit.IdentityFromContext(ctx), credential.RoleOf(ctx)), nil
 }
 
 // Users lists every user account.
@@ -53,9 +56,17 @@ func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]uuid.UUID, len(accounts))
+	for i, account := range accounts {
+		ids[i] = account.ID
+	}
+	tiers, err := q.root.rolesOf(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	users := make([]*model.User, len(accounts))
 	for i, account := range accounts {
-		users[i] = toUser(account)
+		users[i] = toUser(account, tiers[account.ID])
 	}
 	return users, nil
 }
@@ -104,7 +115,11 @@ func (m MutationResolvers) Login(ctx context.Context, email, password string) (*
 	if err := setResponseCookie(ctx, cookie); err != nil {
 		return nil, err
 	}
-	return &model.LoginPayload{Me: toAuthIdentity(identity)}, nil
+	tier, err := m.root.roleOf(ctx, identity.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &model.LoginPayload{Me: toAuthIdentity(identity, tier)}, nil
 }
 
 // Logout ends the calling session and clears its cookie.
@@ -131,7 +146,7 @@ func (m MutationResolvers) CreateUser(ctx context.Context, email, name, password
 	if err != nil {
 		return nil, err
 	}
-	return toUser(account), nil
+	return toUser(account, role.Member), nil
 }
 
 // SetUserDisabled updates whether the account may log in.
