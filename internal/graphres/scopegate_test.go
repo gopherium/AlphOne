@@ -15,6 +15,7 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // loadScopedSchema parses the miniature schema the gate tests run against.
@@ -40,6 +41,19 @@ func gatedAsToken(t *testing.T, query string, held apitoken.Scopes) *graphql.Res
 	}))
 }
 
+// gatedAsRole runs one operation through the scope gate as a session standing in one tier.
+func gatedAsRole(t *testing.T, query string, tier role.Role) *graphql.Response {
+	t.Helper()
+	return gatedWith(t, query, credential.WithRole(t.Context(), tier))
+}
+
+// gatedAsTokenOf runs one operation through the gate as a token whose owner stands in one tier.
+func gatedAsTokenOf(t *testing.T, query string, held apitoken.Scopes, tier role.Role) *graphql.Response {
+	t.Helper()
+	ctx := credential.WithRole(t.Context(), tier)
+	return gatedWith(t, query, credential.WithToken(ctx, credential.Token{Name: "probe", Scopes: held}))
+}
+
 // gatedWith runs one operation through the scope gate on the given context.
 func gatedWith(t *testing.T, query string, ctx context.Context) *graphql.Response {
 	t.Helper()
@@ -63,13 +77,135 @@ func refusalOf(t *testing.T, answered *graphql.Response) string {
 	return answered.Errors[0].Message
 }
 
-func TestScopeGateLetsASessionReachEverything(t *testing.T) {
+func TestScopeGateHoldsASessionToNoScopeAtAll(t *testing.T) {
 	t.Parallel()
 
 	answered := gatedWith(t, `mutation { createContact }`, t.Context())
 
 	if len(answered.Errors) != 0 {
 		t.Errorf("errors = %v, want none, a session is the authority tokens narrow", answered.Errors)
+	}
+}
+
+func TestScopeGateRefusesAnAdminFieldToAMemberSession(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createUser }`, role.Member)
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q", got, want)
+	}
+	if got := answered.Errors[0].Extensions["code"]; got != "UNAUTHORIZED" {
+		t.Errorf("code = %v, want UNAUTHORIZED", got)
+	}
+	if got, want := answered.Errors[0].Extensions["scope"], "users:write"; got != want {
+		t.Errorf("scope = %v, want %q, a caller learns what the field wanted", got, want)
+	}
+}
+
+func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
+	t.Parallel()
+
+	for _, field := range []string{"createUser", "setUserRole", "setUserDisabled"} {
+		answered := gatedAsRole(t, `mutation { `+field+` }`, role.Member)
+
+		if got, want := refusalOf(t, answered), "admin required"; got != want {
+			t.Errorf("%s refusal = %q, want %q", field, got, want)
+		}
+	}
+}
+
+func TestScopeGateLetsAnAdminSessionReachAnAdminField(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createUser }`, role.Admin)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, an admin manages users", answered.Errors)
+	}
+}
+
+func TestScopeGateReadsAnUnstampedSessionAsAMember(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedWith(t, `mutation { createUser }`, t.Context())
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q, losing the stamp demotes rather than widens", got, want)
+	}
+}
+
+func TestScopeGateLetsAMemberSessionWorkTheProduct(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createContact createTask }`, role.Member)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, a member holds no token to be narrowed by", answered.Errors)
+	}
+}
+
+func TestScopeGateLetsAMemberSessionManageItsOwnTokens(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `{ apiTokens }`, role.Member)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, token management is session only, not admin only", answered.Errors)
+	}
+}
+
+func TestScopeGateHoldsAWildcardTokenToItsOwnersRole(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t, `mutation { createUser }`, apitoken.Full(), role.Member)
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q, effective access is the role and the token together", got, want)
+	}
+}
+
+func TestScopeGateLetsAnAdminsScopedTokenReachAnAdminField(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t,
+		`mutation { createUser }`, apitoken.ParseScopes("users:write"), role.Admin)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, effective access is what the role and the token both allow",
+			answered.Errors)
+	}
+}
+
+func TestScopeGateLetsAMemberTokenListTheUsers(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t, `{ users }`, apitoken.ParseScopes("users:read"), role.Member)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, a member sees its colleagues", answered.Errors)
+	}
+}
+
+func TestScopeGateRefusesAnAdminsNarrowTokenOnItsScope(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t,
+		`mutation { createUser }`, apitoken.ParseScopes("contacts:read"), role.Admin)
+
+	if got, want := refusalOf(t, answered), "scope required: users:write"; got != want {
+		t.Errorf("refusal = %q, want %q, the token check answers first", got, want)
+	}
+}
+
+func TestScopeGateNamesTheScopeBeforeTheTierWhenBothRefuse(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t,
+		`mutation { createUser }`, apitoken.ParseScopes("contacts:read"), role.Member)
+
+	if got, want := refusalOf(t, answered), "scope required: users:write"; got != want {
+		t.Errorf("refusal = %q, want %q, the message the n8n docs quote stays put", got, want)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -39,9 +40,12 @@ var validationErrors = []error{
 	errExactlyOneTaskFilter,
 	errInvalidFirst,
 	authkit.ErrSelfDisable,
+	role.ErrLastAdmin,
+	role.ErrUnknownTier,
 	apitoken.ErrEmptyName,
 	apitoken.ErrMalformedScope,
 	apitoken.ErrNoScopes,
+	apitoken.ErrUnknownArea,
 	apitoken.ErrNegativeLifetime,
 	apitoken.ErrLifetimeTooLong,
 }

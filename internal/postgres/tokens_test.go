@@ -210,6 +210,9 @@ func TestTokenStoreReportsConnectionFailure(t *testing.T) {
 // scopedTokensVersion is the migration granting api_tokens their scopes and expiry.
 const scopedTokensVersion = 12
 
+// grantedRolesVersion is the migration granting every user a role.
+const grantedRolesVersion = 13
+
 // coreProvider returns a goose provider over the core migrations of db.
 func coreProvider(t *testing.T, db *sql.DB) *goose.Provider {
 	t.Helper()
@@ -230,7 +233,7 @@ func TestMigrationGrantsFullScopeToATokenMintedBeforeScopesExisted(t *testing.T)
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	db, err := sql.Open("pgx", cfg.URL())
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
@@ -273,7 +276,7 @@ func TestRollingTheScopesMigrationBackRevokesEveryToken(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	db, err := sql.Open("pgx", cfg.URL())
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)

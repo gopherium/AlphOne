@@ -1,5 +1,5 @@
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
-directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
+directive @scope(area: String!, write: Boolean!, admin: Boolean = false) on FIELD_DEFINITION
 type ApiToken {
 	id: UUID!
 	name: String!
@@ -76,6 +76,7 @@ type Identity {
 	id: UUID!
 	email: String!
 	name: String!
+	role: String!
 }
 type ImportAssignment {
 	column: Int!
@@ -135,8 +136,9 @@ type Mutation {
 	deleteContactIdentity(contactId: UUID!, identityId: UUID!): Boolean! @scope(area: "contacts", write: true)
 	login(email: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
 	logout: Boolean! @scope(area: "auth", write: true)
-	createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true)
-	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true)
+	createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true, admin: true)
+	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, admin: true)
+	setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, admin: true)
 	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
 	apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret! @scope(area: "tokens", write: true)
@@ -219,6 +221,7 @@ type User {
 	name: String!
 	disabled: Boolean!
 	createdAt: DateTime!
+	role: String!
 }
 type Webhook {
 	id: UUID!

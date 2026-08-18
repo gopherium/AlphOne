@@ -17,17 +17,19 @@ import (
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
 
 const testPassword = "password1234"
 
-// newAuthResolver returns a resolver whose auth seams serve store.
+// newAuthResolver returns a resolver whose auth seams serve store, every user standing as a member.
 func newAuthResolver(store *testkit.Store) *graphres.Resolver {
 	return &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
 		Admin:        authkit.NewAdmin(store),
+		Roles:        standingRoleStore{tier: role.Member},
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 	}
 }
@@ -441,7 +443,7 @@ func TestSetUserDisabledMapsTheAdminFailures(t *testing.T) {
 		t.Errorf("self disable code = %q, want VALIDATION", got)
 	}
 
-	missing, err := client.RawPost(`mutation ($id: UUID!) { setUserDisabled(id: $id, disabled: true) }`,
+	missing, err := client.RawPost(`mutation ($id: UUID!) { setUserDisabled(id: $id, disabled: false) }`,
 		gqlclient.Var("id", uuid.Must(uuid.NewV7())))
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)

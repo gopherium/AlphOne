@@ -26,7 +26,7 @@ func newTestDB(t *testing.T) *sql.DB {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.New(t, testdb.Config(), testdb.CoreMigrator())
+	return pgtestdb.New(t, testdb.Config(), testdb.Migrator())
 }
 
 func mustContact(t *testing.T, name string) contact.Contact {

@@ -12,6 +12,8 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
 
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -84,6 +86,9 @@ func TestTenantsMigrationUpgradesAnExistingDatabase(t *testing.T) {
 	}
 
 	cfg := pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{})
+	if err := authkitpg.Migrate(t.Context(), cfg.URL()); err != nil {
+		t.Fatalf("migrating the auth schema: %v", err)
+	}
 	db, err := sql.Open("pgx", cfg.URL())
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)

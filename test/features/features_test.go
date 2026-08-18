@@ -88,6 +88,11 @@ func initializeTokens(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerTokenSteps(sc, t) }
 }
 
+// initializeRoles registers the role steps.
+func initializeRoles(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerRoleSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -126,4 +131,8 @@ func TestImportFields(t *testing.T) {
 
 func TestTokens(t *testing.T) {
 	runFeature(t, "features/tokens.feature", initializeTokens(t))
+}
+
+func TestRoles(t *testing.T) {
+	runFeature(t, "features/roles.feature", initializeRoles(t))
 }

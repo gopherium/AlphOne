@@ -3,7 +3,17 @@
 import { formatCreated } from '../contacts/format'
 
 /** grantableAreas lists the areas a token may be granted, in menu order. */
-export const grantableAreas = ['contacts', 'tasks', 'users', 'webhooks'] as const
+export const grantableAreas = [
+	'contacts',
+	'events',
+	'fields',
+	'imports',
+	'meta',
+	'tasks',
+	'users',
+	'webhooks',
+	'whatsapp',
+] as const
 
 /** lifetimeChoices lists the lifetimes the mint form offers, in menu order. */
 export const lifetimeChoices = [

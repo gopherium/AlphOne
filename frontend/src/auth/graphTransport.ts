@@ -5,7 +5,14 @@ import { print } from 'graphql'
 
 import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
 import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
-import type { NewUser, User as Account } from '@gopherium/react-auth/admin'
+import type { NewUser, User as BrickAccount } from '@gopherium/react-auth/admin'
+
+import { type Role, roleOf } from './role'
+
+/**
+ * Account is one user account as the admin screens consume it, carrying its tier.
+ */
+export type Account = BrickAccount & { role: Role }
 
 import {
 	createUserMutation,
@@ -13,6 +20,7 @@ import {
 	logoutMutation,
 	meQuery,
 	setUserDisabledMutation,
+	setUserRoleMutation,
 	usersQuery,
 } from './operations'
 
@@ -83,6 +91,7 @@ function toAccount(user: {
 	name: string
 	disabled: boolean
 	createdAt: string
+	role?: string
 }): Account {
 	return {
 		id: user.id,
@@ -90,6 +99,7 @@ function toAccount(user: {
 		name: user.name,
 		disabled: user.disabled,
 		created_at: new Date(user.createdAt),
+		role: roleOf(user.role),
 	}
 }
 
@@ -205,6 +215,21 @@ async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
 	}
 	if (result.errors?.length) {
 		throw new Error(firstMessage(result, 'updating user failed'))
+	}
+}
+
+/**
+ * Stands one account in another tier through the setUserRole mutation.
+ * @param id - The identifier of the user to restand.
+ * @param role - The tier the account should stand in.
+ */
+export async function setUserRole(id: string, role: Role): Promise<void> {
+	const result = await execute(setUserRoleMutation, { id, role })
+	if (firstCode(result) === 'UNAUTHENTICATED') {
+		throw new UnauthorizedError('session expired')
+	}
+	if (result.errors?.length) {
+		throw new Error(firstMessage(result, 'updating the role failed'))
 	}
 }
 

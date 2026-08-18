@@ -26,6 +26,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/plugins/fields"
@@ -41,6 +42,9 @@ const ownerName = "Maria Perez"
 
 // ownerPassword is the password the seeded user holds.
 const ownerPassword = "correct horse battery"
+
+// memberEmail addresses the user standing outside user management.
+const memberEmail = "member@example.com"
 
 // worldKey carries the scenario world through the godog context.
 type worldKey struct{}
@@ -69,6 +73,8 @@ type world struct {
 	scopedSecret string
 	scopedID     uuid.UUID
 	sessionValue string
+	memberValue  string
+	memberID     uuid.UUID
 	status       int
 }
 
@@ -87,10 +93,7 @@ func newImportWorld(t *testing.T) *world {
 // bootWorld boots one scenario, running the importer live only when asked.
 func bootWorld(t *testing.T, liveImports bool) *world {
 	t.Helper()
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
-	if err := authkitpg.Migrate(context.Background(), cfg.URL()); err != nil {
-		t.Fatalf("migrating the auth schema: %v", err)
-	}
+	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 	pool, err := pgxpool.New(context.Background(), sparingly(cfg.URL()))
 	if err != nil {
 		t.Fatalf("connecting the scenario pool: %v", err)
@@ -101,6 +104,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
+	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	hub := event.NewHub()
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
@@ -120,6 +124,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
+		Roles:        roles,
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(users),
@@ -135,6 +140,9 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err != nil {
 		t.Fatalf("reading the owner: %v", err)
 	}
+	if err := roles.Grant(context.Background(), owner.ID, role.Admin); err != nil {
+		t.Fatalf("granting the owner its tier: %v", err)
+	}
 	minted, err := apitoken.Mint(owner.ID, "mcp scenario", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("minting the token: %v", err)
@@ -148,6 +156,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Auth:         auth,
 		GraphRoot:    root,
 		Tokens:       tokens,
+		Roles:        roles,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
 	}))

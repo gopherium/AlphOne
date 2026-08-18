@@ -18,6 +18,7 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/apitoken"
+	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 )
 
@@ -95,7 +96,8 @@ func parseTokenFlags(verb string, args []string, stdout io.Writer) (tokenFlags, 
 	flags.StringVar(&opts.email, "email", "", "email address of the owning user")
 	flags.StringVar(&opts.name, "name", "", "name of the token to create")
 	flags.StringVar(&opts.id, "id", "", "identifier of the token to revoke")
-	flags.Var(&opts.scopes, "scope", "area and access the token may act in, repeatable")
+	flags.Var(&opts.scopes, "scope",
+		"area and access the token may act in, repeatable, one of "+strings.Join(graphres.DeclaredAreas(), ", "))
 	flags.StringVar(&opts.ttl, "ttl", "", "days the token lasts, or never")
 	if err := flags.Parse(args); err != nil {
 		return tokenFlags{}, fmt.Errorf("parse flags: %w", err)
@@ -159,7 +161,11 @@ func createToken(
 	if err != nil {
 		return err
 	}
-	minted, err := apitoken.Mint(userID, opts.name, opts.grantedScopes(), lifetime)
+	granted := opts.grantedScopes()
+	if err := graphres.ValidateScopes(granted); err != nil {
+		return err
+	}
+	minted, err := apitoken.Mint(userID, opts.name, granted, lifetime)
 	if err != nil {
 		return err
 	}

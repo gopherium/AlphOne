@@ -13,6 +13,8 @@ import (
 
 var _ sdk.PublicPathProvider = (*whatsapp.Plugin)(nil)
 
+var _ sdk.AreaProvider = (*whatsapp.Plugin)(nil)
+
 func TestPublicPathsDeclareOnlyTheWebhook(t *testing.T) {
 	t.Parallel()
 
@@ -20,5 +22,15 @@ func TestPublicPathsDeclareOnlyTheWebhook(t *testing.T) {
 
 	if diff := cmp.Diff([]string{"/webhook"}, p.PublicPaths()); diff != "" {
 		t.Errorf("PublicPaths() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestAreaHoldsTheProtectedRoutesToWhatsApp(t *testing.T) {
+	t.Parallel()
+
+	p := newPlugin(t, unreachableDatabaseURL, nil, nil)
+
+	if got, want := p.Area(), "whatsapp"; got != want {
+		t.Errorf("Area() = %q, want %q, the routes act where the graph fields do", got, want)
 	}
 }

@@ -52,9 +52,26 @@ export function liveStream() {
 	}
 }
 
+/**
+ * adminUser is the signed-in account the screens render for by default.
+ */
+export const adminUser = { ...defaultUser, role: 'admin' }
+
+/**
+ * memberUser is a signed-in account holding no user management.
+ */
+export const memberUser = { ...defaultUser, role: 'member' }
+
+/**
+ * Renders the app at one route with a seeded session.
+ * @param path - The route the memory history starts on.
+ * @param user - The signed-in account, or null for an anonymous caller.
+ * @param version - The version the graph answers, or null to make it fail.
+ * @returns The query client the render used.
+ */
 export function renderAt(
 	path: string,
-	user: User | null = defaultUser,
+	user: (User & { role?: string }) | null = adminUser,
 	version: string | null = '0.1.0',
 ) {
 	const client = createAuthQueryClient({

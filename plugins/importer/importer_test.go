@@ -36,7 +36,7 @@ func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.Custom(t, testdb.Config(), testdb.CoreMigrator())
+	return pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 }
 
 func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {

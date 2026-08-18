@@ -31,9 +31,10 @@ alphone token create -email you@example.com -name "my integration"
 Authorization: Bearer a1_...
 ```
 
-A token acts as the user who created it. Work it creates records
-`token:<name>` in `originSource`, so automated work stays distinguishable from
-typed work.
+A token acts as the user who created it, and never reaches further than that
+user does. See [Roles](#roles) for what each tier may do. Work it creates
+records `token:<name>` in `originSource`, so automated work stays
+distinguishable from typed work.
 
 A token narrows that authority twice over. Each `-scope` grants one area
 and whether the token may write there, and an operation touching an area
@@ -93,6 +94,56 @@ error:
 ```
 
 Always read `errors`. A 200 does not mean it worked.
+
+## Roles
+
+Every user stands in one of two tiers. An admin manages users. A member works
+the product, which is contacts, tasks, and whatever your plugins add.
+
+A user with no tier recorded is a member. So a new account starts without user
+management, and gains it only when an admin says so.
+
+Three operations are reserved to admins: `createUser`, `setUserDisabled` and
+`setUserRole`. A member calling one is refused:
+
+```json
+{
+  "errors": [
+    {
+      "message": "admin required",
+      "extensions": { "code": "UNAUTHORIZED", "scope": "users:write" }
+    }
+  ],
+  "data": null
+}
+```
+
+The `scope` extension still names what the field wanted, so a caller always
+learns which area an operation acts in. Minting a wider token does not help
+here. A token cannot carry more authority than the user it acts as.
+
+Listing users stays open to members. A member sees who its colleagues are,
+which is what assigning a task to one of them needs.
+
+A deployment always keeps one admin. Demoting or disabling the last enabled
+admin is refused with code `VALIDATION` and the message `the last admin cannot
+be unseated`. A disabled admin does not count as cover, because its sessions
+are already gone and its tokens answer `invalid token`.
+
+### Roles and scopes together
+
+A role narrows the user. A scope narrows what a token carries of that user's
+authority. An operation runs only when both allow it.
+
+| The caller | What it holds | Reaching `createUser` |
+| ---------- | ------------- | --------------------- |
+| An admin's session | the tier, and no token to narrow it | yes |
+| An admin's token scoped `users:write` | both | yes |
+| An admin's token scoped `contacts:read` | the tier but not the scope | no, `scope required: users:write` |
+| A member's token scoped `*` | the scope but not the tier | no, `admin required` |
+
+The token is checked first. A caller holding neither is told about the scope,
+because that is the half it can fix on its own.
 
 ## Scalars
 
@@ -188,7 +239,7 @@ Every error carries a `code` in its `extensions`.
 | Code | Meaning |
 | ---- | ------- |
 | `UNAUTHENTICATED` | No usable credential, or the operation is not `login` |
-| `UNAUTHORIZED` | The token does not hold the scope the field needs. `scope` names it |
+| `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the user is not an admin |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
 | `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |
@@ -285,7 +336,7 @@ cannot drift. Point a client at the endpoint, or read
 | Area | Reads | Writes |
 | ---- | ----- | ------ |
 | Session | `me` | `login`, `logout` |
-| Users | `users` | `createUser`, `setUserDisabled` |
+| Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |

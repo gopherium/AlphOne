@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/mcp"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -36,12 +37,18 @@ type Config struct {
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
+	// Roles reads the tier every caller stands in. Nil leaves every
+	// caller a member.
+	Roles RoleStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
 	// PluginPublicPaths maps a plugin id to the namespace-relative paths
 	// that stay reachable without a session, such as signed webhooks.
 	PluginPublicPaths map[string][]string
+	// PluginAreas maps a plugin id to the scope area its protected routes act in.
+	// An absent id leaves that plugin's routes open to every authenticated caller.
+	PluginAreas map[string]string
 	// Web serves the single-page app for non-API paths. Nil leaves those
 	// paths unhandled, which suits development behind the Vite dev server.
 	Web fs.FS
@@ -75,6 +82,7 @@ func NewServer(cfg Config) http.Handler {
 		auth:              auth,
 		users:             cfg.Users,
 		tokens:            cfg.Tokens,
+		roles:             cfg.Roles,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
@@ -93,7 +101,7 @@ func NewServer(cfg Config) http.Handler {
 	}
 	for id, handler := range cfg.Plugins {
 		prefix := "/api/plugins/" + id
-		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id])
+		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id], cfg.PluginAreas[id])
 		router.Mount(prefix, http.StripPrefix(prefix, guarded))
 	}
 	if cfg.Web != nil {
@@ -106,16 +114,51 @@ type server struct {
 	auth              *authkit.Handlers
 	users             UserStore
 	tokens            TokenStore
+	roles             RoleStore
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
 }
 
 // protectPlugin wraps a plugin handler in the session middleware, letting
 // the plugin's declared public paths through untouched.
-func (s *server) protectPlugin(handler http.Handler, publicPaths []string) http.Handler {
+func (s *server) protectPlugin(handler http.Handler, publicPaths []string, area string) http.Handler {
 	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.requireIdentity(s.boundPluginRequest(withActingUser(next)))
+		return s.requireIdentity(s.boundPluginRequest(withActingUser(inArea(area, next))))
 	})
+}
+
+// inArea serves the request only when the caller's credential reaches the area the routes act in.
+func inArea(area string, next http.Handler) http.Handler {
+	if area == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, carried := credential.TokenOf(r.Context())
+		writes := changesState(r.Method)
+		if carried && !token.Scopes.Allows(area, writes) {
+			authkit.RespondError(w, http.StatusForbidden, "scope required: "+area+":"+accessOf(writes))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// changesState reports whether one HTTP method may change what the plugin holds.
+func changesState(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	default:
+		return true
+	}
+}
+
+// accessOf names the access one kind of request asks for.
+func accessOf(writes bool) string {
+	if writes {
+		return "write"
+	}
+	return "read"
 }
 
 // withActingUser passes the authenticated user to the plugin through the SDK.

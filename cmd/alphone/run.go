@@ -59,6 +59,7 @@ func run(
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
+	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
 	deliveries := webhook.NewWorker(webhooks, logger)
@@ -97,6 +98,7 @@ func run(
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
+		Roles:        roles,
 		Events:       events,
 		Live:         hub,
 		Auth:         auth,
@@ -113,8 +115,10 @@ func run(
 		Auth:              auth,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
+		Roles:             roles,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
+		PluginAreas:       pluginAreas(registered),
 		FieldSources:      fieldSources(registered),
 		TrustedProxies:    settings.trustedProxies,
 		GraphiQL:          settings.graphiql,
@@ -131,6 +135,17 @@ func run(
 		IdleTimeout:       120 * time.Second,
 	}
 	return serveUntilDone(ctx, httpServer, host, logger)
+}
+
+// pluginAreas returns the scope area every registered plugin holds its routes to.
+func pluginAreas(registered []sdk.Plugin) map[string]string {
+	areas := map[string]string{}
+	for _, plugin := range registered {
+		if named, ok := plugin.(sdk.AreaProvider); ok {
+			areas[plugin.ID()] = named.Area()
+		}
+	}
+	return areas
 }
 
 // fieldSources returns every registered plugin serving runtime defined fields.

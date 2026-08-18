@@ -19,6 +19,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/version"
 )
 
@@ -302,6 +303,9 @@ type graphAnswer struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"tenant"`
+		Me struct {
+			Role string `json:"role"`
+		} `json:"me"`
 		ImportUpload struct {
 			ID string `json:"id"`
 		} `json:"importUpload"`
@@ -501,6 +505,18 @@ func TestMainBinaryAnswersTheCallersTenant(t *testing.T) {
 	}
 	if read.Data.Tenant.ID == "" {
 		t.Error("the tenant carries no id, want the fixed default identifier")
+	}
+}
+
+func TestMainBinaryAnswersTheCallersRole(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t))
+
+	read := postGraph(t, addr, secret, `{"query":"{ me { role } }"}`)
+
+	if read.Data.Me.Role != role.Admin.String() {
+		t.Errorf("role = %q, want %q carried by the running binary", read.Data.Me.Role, role.Admin.String())
 	}
 }
 

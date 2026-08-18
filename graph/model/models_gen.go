@@ -89,6 +89,7 @@ type Identity struct {
 	ID    uuid.UUID `json:"id"`
 	Email string    `json:"email"`
 	Name  string    `json:"name"`
+	Role  string    `json:"role"`
 }
 
 type ImportAssignment struct {
@@ -207,6 +208,7 @@ type User struct {
 	Name      string    `json:"name"`
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"createdAt"`
+	Role      string    `json:"role"`
 }
 
 type Webhook struct {

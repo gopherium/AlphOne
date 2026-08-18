@@ -198,3 +198,13 @@ LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = @user_id::
 WHERE m.user_id IS NOT NULL OR t.id = @default_id::uuid
 ORDER BY m.user_id IS NOT NULL DESC
 LIMIT 1;
+
+-- name: UserRole :one
+SELECT role
+FROM core.user_roles
+WHERE user_id = @user_id::uuid;
+
+-- name: UserRoles :many
+SELECT user_id, role
+FROM core.user_roles
+WHERE user_id = ANY(@user_ids::uuid[]);

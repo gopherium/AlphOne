@@ -12,11 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 var errEntropy = errors.New("entropy source failed")
@@ -81,7 +83,7 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [7]int{7, 5, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{7, 6, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -89,6 +91,81 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 		"SELECT count(*) FROM core.contacts WHERE name = 'Ada Lovelace'").Scan(&adas)
 	if err != nil || adas != 1 {
 		t.Errorf("Ada Lovelace contacts = %d (err %v), want 1", adas, err)
+	}
+}
+
+func TestSeedStandsAMemberBesideTheAdmin(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	var stdout strings.Builder
+
+	if err := seed(t.Context(), getenv, &stdout); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	pool := testPool(t, databaseURL)
+	member, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), seedMemberEmail)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the seeded member", err)
+	}
+	tier, err := postgres.NewRoleStore(pool).RoleOf(t.Context(), member.ID)
+	if err != nil {
+		t.Fatalf("RoleOf() error = %v, want nil", err)
+	}
+	if tier != role.Member {
+		t.Errorf("the seeded colleague stands in %v, want %v", tier, role.Member)
+	}
+	if !strings.Contains(stdout.String(), seedMemberEmail) {
+		t.Errorf("output = %q, want it to name the member the demo can sign in as", stdout.String())
+	}
+}
+
+func TestSeedGivesTheMemberADayOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	pool := testPool(t, databaseURL)
+	member, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), seedMemberEmail)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the seeded member", err)
+	}
+	var held int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM core.tasks WHERE assignee_id = $1", member.ID).Scan(&held); err != nil {
+		t.Fatalf("counting the member's tasks: %v", err)
+	}
+	if held == 0 {
+		t.Error("the seeded member holds no task, want a day the demo can actually show")
+	}
+}
+
+func TestSeedNamesEveryLoginItCreates(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	pool := testPool(t, databaseURL)
+	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
+		seedAdminEmail, seedAdminName, seedAdminPassword); err != nil {
+		t.Fatalf("seeding the admin ahead of the run: %v", err)
+	}
+	var stdout strings.Builder
+
+	if err := seed(t.Context(), getenv, &stdout); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	if !strings.Contains(stdout.String(), seedMemberEmail) {
+		t.Errorf("output = %q, want the member named even though the admin already existed",
+			stdout.String())
 	}
 }
 
@@ -149,7 +226,11 @@ func TestSeedStoresADayOfTasks(t *testing.T) {
 		if err := rows.Scan(&title, &status, &priority, &dueOn, &assignee, &contactName, &origin); err != nil {
 			t.Fatalf("scanning task: %v", err)
 		}
-		if assignee != admin.ID {
+		if title == "Draft the welcome email" {
+			if assignee == admin.ID {
+				t.Errorf("task %q assignee = the admin, want the seeded colleague", title)
+			}
+		} else if assignee != admin.ID {
 			t.Errorf("task %q assignee = %v, want the seeded admin %v", title, assignee, admin.ID)
 		}
 		switch {
@@ -170,8 +251,8 @@ func TestSeedStoresADayOfTasks(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("reading tasks: %v", err)
 	}
-	if overdue != 1 || done != 1 || dueToday != 2 {
-		t.Errorf("overdue = %d, done = %d, due today = %d, want 1, 1, 2", overdue, done, dueToday)
+	if overdue != 1 || done != 1 || dueToday != 3 {
+		t.Errorf("overdue = %d, done = %d, due today = %d, want 1, 1, 3", overdue, done, dueToday)
 	}
 	if linked != 1 {
 		t.Errorf("tasks linked to Ada Lovelace = %d, want 1", linked)
@@ -238,6 +319,7 @@ func TestSeedTasksReportsLookupFailure(t *testing.T) {
 
 	users := testkit.NewStore()
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
+	users.AddUser(t, seedMemberEmail, seedMemberName, seedAdminPassword)
 	pool := testPool(t, testDatabaseURL(t))
 	store := postgres.NewTaskStore(pool)
 	pool.Close()
@@ -249,9 +331,27 @@ func TestSeedTasksReportsLookupFailure(t *testing.T) {
 	}
 }
 
+func TestSeedTasksReportsAColleagueLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	users := testkit.NewStore()
+	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
+	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
+
+	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Fatal("seedTasks() error = nil, want the missing colleague reported")
+	}
+	if !strings.Contains(err.Error(), "member") {
+		t.Errorf("error = %v, want it to name the colleague it could not find", err)
+	}
+}
+
 func TestSeedTasksReportsIDGenerationFailure(t *testing.T) {
 	users := testkit.NewStore()
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
+	users.AddUser(t, seedMemberEmail, seedMemberName, seedAdminPassword)
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
 	uuid.SetRand(failingReader{})
 	defer uuid.SetRand(nil)
@@ -278,7 +378,7 @@ func TestSeedIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [7]int{7, 5, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{7, 6, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.String(), "admin@example.com already exists") {
@@ -355,6 +455,27 @@ func TestSeedReportsBrokenContactStorage(t *testing.T) {
 	}
 }
 
+func TestSeedReportsTheColleagueItCannotStore(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	pool := testPool(t, databaseURL)
+	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
+		seedAdminEmail, seedAdminName, seedAdminPassword); err != nil {
+		t.Fatalf("seeding the admin: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (email <> '"+
+			seedMemberEmail+"')"); err != nil {
+		t.Fatalf("refusing the colleague: %v", err)
+	}
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
+		t.Fatal("seed() error = nil, want the unstored colleague reported")
+	}
+}
+
 func TestSeedReportsAdminStorageFailure(t *testing.T) {
 	t.Parallel()
 
@@ -371,6 +492,22 @@ func TestSeedReportsAdminStorageFailure(t *testing.T) {
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
 		t.Fatal("seed() error = nil, want an admin storage failure")
+	}
+}
+
+func TestSeedReportsARoleGrantFailure(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	pool := testPool(t, databaseURL)
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE core.user_roles ADD CONSTRAINT seed_sabotage CHECK (false)"); err != nil {
+		t.Fatalf("breaking the roles table: %v", err)
+	}
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
+		t.Fatal("seed() error = nil, want the unstored admin grant reported")
 	}
 }
 

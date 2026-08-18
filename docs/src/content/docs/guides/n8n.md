@@ -72,7 +72,11 @@ their tokens the way it already stops their sessions.
 Two limits narrow it further. Each `-scope` names an area and whether
 the token may write there, and a token holds nothing it was not
 granted. Leave `-scope` out and the token gets every area, which is
-rarely what an automation needs.
+rarely what an automation needs. Area names are exact, so a typo like
+`contact:read` is refused when you mint it rather than failing later.
+
+A token also never reaches further than the person who created it. Mint
+it against an account that already does the work you are automating.
 
 A token also expires. Without `-ttl` it lasts ninety days, and after
 that every request answers `invalid token`. Pass `-ttl 30` for a

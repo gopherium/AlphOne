@@ -14,22 +14,22 @@ import {
 } from '@alphone/frontend-sdk'
 import { useSession } from '@gopherium/react-auth'
 import { fetchUsers, setUserDisabled, usersQueryKey } from '@gopherium/react-auth/admin'
-import type { User } from '@gopherium/react-auth/admin'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
+import type { Account } from '../auth/graphTransport'
+import { setUserRole } from '../auth/graphTransport'
+import { useRole } from '../auth/role'
+
 /**
- * Renders one account row with its status and disable control, which the
- * signed-in account does not get.
+ * Renders one account row with its status and tier, offering the controls only
+ * to an admin looking at somebody else.
+ * @param user - The account the row shows.
+ * @param isSelf - Whether the row is the signed-in account, which gets no controls.
+ * @param manages - Whether the caller may manage users at all.
  * @returns The table row element.
  */
-function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
-	const queryClient = useQueryClient()
-	const toggle = useMutation({
-		mutationFn: () => setUserDisabled(user.id, !user.disabled),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }),
-	})
-
+function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; manages: boolean }) {
 	return (
 		<tr>
 			<td>{user.name}</td>
@@ -39,22 +39,54 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
 					{user.disabled ? 'Disabled' : 'Active'}
 				</Badge>
 			</td>
+			<td>{user.role === 'admin' ? 'Admin' : 'Member'}</td>
 			<td className="godmin-table__actions">
-				{isSelf ? null : (
-					<Stack direction="column" gap="xs">
-						<Button
-							variant="outline"
-							aria-label={`${user.disabled ? 'Enable' : 'Disable'} ${user.name}`}
-							loading={toggle.isPending}
-							onClick={() => toggle.mutate()}
-						>
-							{user.disabled ? 'Enable' : 'Disable'}
-						</Button>
-						{toggle.isError ? <Text role="alert">Update failed.</Text> : null}
-					</Stack>
-				)}
+				{isSelf || !manages ? null : <UserControls user={user} />}
 			</td>
 		</tr>
+	)
+}
+
+/**
+ * Renders the disable and tier controls one account offers an admin.
+ * @param user - The account the controls act on.
+ * @returns The control stack element.
+ */
+function UserControls({ user }: { user: Account }) {
+	const queryClient = useQueryClient()
+	const invalidate = { onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }) }
+	const barred = user.disabled
+	const stands = user.role === 'admin'
+	const toggle = useMutation({
+		mutationFn: () => setUserDisabled(user.id, !barred),
+		...invalidate,
+	})
+	const restand = useMutation({
+		mutationFn: () => setUserRole(user.id, stands ? 'member' : 'admin'),
+		...invalidate,
+	})
+	const refused = toggle.error ?? restand.error
+
+	return (
+		<Stack direction="column" gap="xs">
+			<Button
+				variant="outline"
+				aria-label={`${barred ? 'Enable' : 'Disable'} ${user.name}`}
+				loading={toggle.isPending}
+				onClick={() => toggle.mutate()}
+			>
+				{barred ? 'Enable' : 'Disable'}
+			</Button>
+			<Button
+				variant="outline"
+				aria-label={`${stands ? 'Demote' : 'Promote'} ${user.name}`}
+				loading={restand.isPending}
+				onClick={() => restand.mutate()}
+			>
+				{stands ? 'Demote' : 'Promote'}
+			</Button>
+			{refused ? <Text role="alert">{refused.message}</Text> : null}
+		</Stack>
 	)
 }
 
@@ -64,9 +96,10 @@ function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
  */
 export function UsersScreen() {
 	const currentUserId = useSession().data?.id
+	const manages = useRole() === 'admin'
 	const users = useQuery({
 		queryKey: usersQueryKey,
-		queryFn: ({ signal }) => fetchUsers(signal),
+		queryFn: ({ signal }) => fetchUsers(signal) as Promise<Account[]>,
 	})
 
 	return (
@@ -77,13 +110,15 @@ export function UsersScreen() {
 					<Button variant="outline" render={<Link to="/users/tokens" />}>
 						API tokens
 					</Button>
-					<Button variant="solid" render={<Link to="/users/new" />}>
-						New user
-					</Button>
+					{manages ? (
+						<Button variant="solid" render={<Link to="/users/new" />}>
+							New user
+						</Button>
+					) : null}
 				</Stack>
 			}
 		>
-			<UserRows users={users} currentUserId={currentUserId} />
+			<UserRows users={users} currentUserId={currentUserId} manages={manages} />
 		</PageScreen>
 	)
 }
@@ -95,9 +130,11 @@ export function UsersScreen() {
 function UserRows({
 	users,
 	currentUserId,
+	manages,
 }: {
-	users: ReturnType<typeof useQuery<User[], Error>>
+	users: ReturnType<typeof useQuery<Account[], Error>>
 	currentUserId: string | undefined
+	manages: boolean
 }) {
 	if (users.isPending) {
 		return <LoadingRows label="Loading users…" />
@@ -127,6 +164,7 @@ function UserRows({
 						<th scope="col">Name</th>
 						<th scope="col">Email</th>
 						<th scope="col">Status</th>
+						<th scope="col">Role</th>
 						<th scope="col" className="godmin-table__actions">
 							<VisuallyHidden>Actions</VisuallyHidden>
 						</th>
@@ -134,7 +172,12 @@ function UserRows({
 				</thead>
 				<tbody>
 					{users.data.map((user) => (
-						<UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
+						<UserRow
+							key={user.id}
+							user={user}
+							isSelf={user.id === currentUserId}
+							manages={manages}
+						/>
 					))}
 				</tbody>
 			</table>

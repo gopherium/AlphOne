@@ -38,8 +38,13 @@ type tokenListing struct {
 
 // signIn logs the scenario's owner in and remembers the session cookie answered.
 func (w *world) signIn(ctx context.Context) error {
+	return w.signInAs(ctx, ownerEmail, &w.sessionValue)
+}
+
+// signInAs logs the named user in and keeps the session cookie answered.
+func (w *world) signInAs(ctx context.Context, email string, keep *string) error {
 	document, err := json.Marshal(map[string]string{"query": fmt.Sprintf(
-		`mutation { login(email: %q, password: %q) { me { email } } }`, ownerEmail, ownerPassword)})
+		`mutation { login(email: %q, password: %q) { me { email } } }`, email, ownerPassword)})
 	if err != nil {
 		return fmt.Errorf("encoding the login request: %w", err)
 	}
@@ -57,11 +62,21 @@ func (w *world) signIn(ctx context.Context) error {
 	answered, _ := io.ReadAll(response.Body)
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == server.SessionCookieName {
-			w.sessionValue = cookie.Name + "=" + cookie.Value
+			*keep = cookie.Name + "=" + cookie.Value
 			return nil
 		}
 	}
 	return fmt.Errorf("the login answered no session cookie: %s", answered)
+}
+
+// postGraphAsMember posts a graph request carrying the member's own session.
+func (w *world) postGraphAsMember(ctx context.Context, body string) error {
+	if w.memberValue == "" {
+		if err := w.signInAs(ctx, memberEmail, &w.memberValue); err != nil {
+			return err
+		}
+	}
+	return w.postGraphWithCookie(ctx, w.memberValue, body)
 }
 
 // postGraphAsSession posts a graph request carrying the remembered session cookie.
@@ -71,13 +86,18 @@ func (w *world) postGraphAsSession(ctx context.Context, body string) error {
 			return err
 		}
 	}
+	return w.postGraphWithCookie(ctx, w.sessionValue, body)
+}
+
+// postGraphWithCookie posts a graph request carrying the given session cookie.
+func (w *world) postGraphWithCookie(ctx context.Context, cookie, body string) error {
 	request, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, w.server.URL+"/api/graphql", strings.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("building the graph request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Cookie", w.sessionValue)
+	request.Header.Set("Cookie", cookie)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("posting the graph request: %w", err)

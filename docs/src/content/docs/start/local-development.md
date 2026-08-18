@@ -48,9 +48,12 @@ database and fills it with a demo data set:
 make seed
 ```
 
-It creates an admin login (`admin@example.com` / `password1234`), a few
-contacts, a day of tasks, and WhatsApp conversations with text, an
-image, and delivery ticks, so every screen has something to show.
+It creates two logins on the same password `password1234`. One is an
+admin, `admin@example.com`, and one is a member, `maria@example.com`,
+so you can see both tiers without making a second account yourself.
+It also creates a few contacts, a day of tasks, and WhatsApp
+conversations with text, an image, and delivery ticks, so every screen
+has something to show.
 Running it again is safe, it repairs a half-seeded database instead of
 duplicating anything. The credentials are public knowledge: never run
 the seeder against a production database.
