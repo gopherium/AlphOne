@@ -49,6 +49,9 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err != nil {
 		return err
 	}
+	if err := grantAdmin(ctx, pool, authkitpg.NewUserStore(pool), seedAdminEmail); err != nil {
+		return err
+	}
 	resolver := contact.NewResolver(postgres.NewContactStore(pool))
 	ada, err := resolver.Resolve(ctx, "email", "ada@example.com", "Ada Lovelace")
 	if err != nil {

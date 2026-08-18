@@ -59,6 +59,7 @@ func run(
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
+	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
 	deliveries := webhook.NewWorker(webhooks, logger)
@@ -97,6 +98,7 @@ func run(
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
+		Roles:        roles,
 		Events:       events,
 		Live:         hub,
 		Auth:         auth,
@@ -113,6 +115,7 @@ func run(
 		Auth:              auth,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
+		Roles:             roles,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		FieldSources:      fieldSources(registered),

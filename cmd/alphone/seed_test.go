@@ -374,6 +374,22 @@ func TestSeedReportsAdminStorageFailure(t *testing.T) {
 	}
 }
 
+func TestSeedReportsARoleGrantFailure(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	pool := testPool(t, databaseURL)
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE core.user_roles ADD CONSTRAINT seed_sabotage CHECK (false)"); err != nil {
+		t.Fatalf("breaking the roles table: %v", err)
+	}
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
+		t.Fatal("seed() error = nil, want the unstored admin grant reported")
+	}
+}
+
 func TestSeedPluginsReportsMigrationFailure(t *testing.T) {
 	t.Parallel()
 
