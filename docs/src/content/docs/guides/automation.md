@@ -43,7 +43,8 @@ The secret prints once. Copy it now, because it is stored only as a hash
 and cannot be recovered, only replaced.
 
 Each `-scope` names an area the token may act in, and whether it may
-write there. Without `-scope` the token gets every area. Without `-ttl`
+write there. Area names are exact, so a typo is refused when you mint
+the token. Without `-scope` the token gets every area. Without `-ttl`
 it lasts ninety days, then answers `invalid token`. Pass `-ttl never`
 for a token that does not expire.
 

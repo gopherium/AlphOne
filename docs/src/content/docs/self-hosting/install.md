@@ -156,6 +156,12 @@ docker compose exec alphone /alphone createadmin \
 Type a password of at least 12 characters at the prompt, then open
 `https://your-domain` and log in.
 
+`createadmin` makes an admin, so this account can create the rest of your
+colleagues. Everyone it creates arrives as a member and works the product
+without managing users. Promote one from the Users screen when you want a
+second admin. See [Roles](/reference/graphql-api/#roles) for what each tier
+may do.
+
 ## Next steps
 
 - [Configuration](/self-hosting/configuration/) lists every environment
