@@ -9,6 +9,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // graphResponse is a GraphQL response body with raw data and typed errors.
@@ -31,15 +35,16 @@ func graphErrorCode(t *testing.T, recorder *httptest.ResponseRecorder) string {
 	return code
 }
 
-// newAuthGraphServer returns a server over the default test user.
-func newAuthGraphServer(t *testing.T) http.Handler {
+// newAuthGraphServer returns a server over the default test user standing in one tier.
+func newAuthGraphServer(t *testing.T, tier role.Role) http.Handler {
 	t.Helper()
 	users := newFakeUserStore()
-	addAda(t, users)
+	ada := addAda(t, users)
 	return newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,
+		Roles:    &fakeRoleStore{tiers: map[uuid.UUID]role.Role{ada.ID: tier}},
 		Version:  "9.9.9",
 	})
 }
@@ -78,7 +83,7 @@ func graphSessionCookie(t *testing.T, recorder *httptest.ResponseRecorder) *http
 func TestGraphLoginIssuesASessionForMe(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Member)
 
 	recorder := loginMutation(t, srv, "ada@example.com", testPassword)
 
@@ -116,7 +121,7 @@ func TestGraphLoginIssuesASessionForMe(t *testing.T) {
 func TestGraphAnonymousCallersReachOnlyLogin(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Member)
 	blockedOperations := map[string]string{
 		"me query":      `{ me { email } }`,
 		"version query": `{ version }`,
@@ -136,7 +141,7 @@ func TestGraphAnonymousCallersReachOnlyLogin(t *testing.T) {
 func TestGraphLoginRateLimitsByClientIP(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Member)
 
 	for range 10 {
 		recorder := loginMutation(t, srv, "nobody@example.com", "wrong password")
@@ -177,7 +182,7 @@ func TestGraphBearerCallersPassTheGate(t *testing.T) {
 func TestGraphLogoutClearsTheSession(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Member)
 	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
 
 	recorder := postGraphQL(t, srv, `{"query":"mutation { logout }"}`, cookie)
@@ -199,7 +204,7 @@ func TestGraphLogoutClearsTheSession(t *testing.T) {
 func TestGraphUserAdministration(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Admin)
 	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
 
 	created := postGraphQL(t, srv, graphBody(t, `mutation { createUser(`+
@@ -238,10 +243,44 @@ func TestGraphUserAdministration(t *testing.T) {
 	}
 }
 
+func TestGraphRefusesUserManagementToAMemberSession(t *testing.T) {
+	t.Parallel()
+
+	srv := newAuthGraphServer(t, role.Member)
+	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
+
+	recorder := postGraphQL(t, srv, graphBody(t, `mutation { createUser(`+
+		`email: "maria@example.com", name: "Maria Perez", password: "password1234") { id } }`), cookie)
+
+	body := decodeBody[graphResponse](t, recorder)
+	if len(body.Errors) != 1 {
+		t.Fatalf("errors = %v, want one refusal, a member does not manage users", body.Errors)
+	}
+	if got, want := body.Errors[0].Message, "admin required"; got != want {
+		t.Errorf("message = %q, want %q", got, want)
+	}
+	if got, want := body.Errors[0].Extensions["scope"], "users:write"; got != want {
+		t.Errorf("scope = %v, want %q", got, want)
+	}
+}
+
+func TestGraphLetsAMemberSessionListTheUsers(t *testing.T) {
+	t.Parallel()
+
+	srv := newAuthGraphServer(t, role.Member)
+	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
+
+	recorder := postGraphQL(t, srv, `{"query":"{ users { email } }"}`, cookie)
+
+	if !strings.Contains(recorder.Body.String(), "ada@example.com") {
+		t.Errorf("users = %s, want a member reading its colleagues", recorder.Body.String())
+	}
+}
+
 func TestGraphSelfDisableIsRejected(t *testing.T) {
 	t.Parallel()
 
-	srv := newAuthGraphServer(t)
+	srv := newAuthGraphServer(t, role.Admin)
 	login := loginMutation(t, srv, "ada@example.com", testPassword)
 	cookie := graphSessionCookie(t, login)
 	var payload struct {

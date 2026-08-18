@@ -30,6 +30,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -546,6 +547,9 @@ func TestRunServesAPI(t *testing.T) {
 	}
 	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), admin); err != nil {
 		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+	if err := postgres.NewRoleStore(pool).Grant(t.Context(), admin.ID, role.Admin); err != nil {
+		t.Fatalf("Grant() error = %v, want nil, whoever provisions the first user makes it an admin", err)
 	}
 
 	login, err := http.Post(
