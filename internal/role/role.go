@@ -3,6 +3,18 @@
 // Package role narrows what a user may do, where a scope narrows what a token carries.
 package role
 
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// ErrLastAdmin reports a change that would leave the deployment with no enabled admin.
+var ErrLastAdmin = errors.New("the last admin cannot be unseated")
+
+// ErrUnknownTier reports a tier no deployment knows.
+var ErrUnknownTier = errors.New("unknown tier")
+
 // Role is the tier a user stands in.
 type Role string
 
@@ -25,6 +37,16 @@ func Of(stored string) Role {
 // Tiers returns every tier in its stored form.
 func Tiers() []string {
 	return []string{string(Admin), string(Member)}
+}
+
+// Parse returns the tier the text names, refusing any tier no deployment knows.
+func Parse(text string) (Role, error) {
+	for _, tier := range Tiers() {
+		if text == tier {
+			return Role(tier), nil
+		}
+	}
+	return "", fmt.Errorf("%w: %q, want one of %s", ErrUnknownTier, text, strings.Join(Tiers(), " or "))
 }
 
 // String returns the stored form of the tier.

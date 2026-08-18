@@ -3,6 +3,7 @@
 package role_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gopherium/alphone/internal/role"
@@ -65,6 +66,15 @@ func TestTiersNamesEveryStorableTier(t *testing.T) {
 	t.Parallel()
 
 	tiers := role.Tiers()
+	for _, tier := range tiers {
+		parsed, err := role.Parse(tier)
+		if err != nil {
+			t.Errorf("Parse(%q) error = %v, want nil, every named tier reads back", tier, err)
+		}
+		if parsed.String() != tier {
+			t.Errorf("Parse(%q) = %q, want %q", tier, parsed, tier)
+		}
+	}
 
 	if len(tiers) != 2 {
 		t.Fatalf("Tiers() = %v, want two tiers", tiers)
@@ -73,5 +83,26 @@ func TestTiersNamesEveryStorableTier(t *testing.T) {
 		if role.Of(tier) == role.Member && tier != role.Member.String() {
 			t.Errorf("Tiers() names %q, which does not read back", tier)
 		}
+	}
+}
+
+func TestParseRefusesATierNoDeploymentKnows(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := role.Parse("root")
+
+	if !errors.Is(err, role.ErrUnknownTier) {
+		t.Errorf("Parse() error = %v, want %v", err, role.ErrUnknownTier)
+	}
+	if parsed != "" {
+		t.Errorf("Parse() = %q, want no tier, an unknown name never stands anybody up", parsed)
+	}
+}
+
+func TestParseRefusesTheEmptyTier(t *testing.T) {
+	t.Parallel()
+
+	if _, err := role.Parse(""); !errors.Is(err, role.ErrUnknownTier) {
+		t.Errorf("Parse(\"\") error = %v, want %v", err, role.ErrUnknownTier)
 	}
 }
