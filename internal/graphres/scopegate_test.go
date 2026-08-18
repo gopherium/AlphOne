@@ -103,6 +103,18 @@ func TestScopeGateRefusesAnAdminFieldToAMemberSession(t *testing.T) {
 	}
 }
 
+func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
+	t.Parallel()
+
+	for _, field := range []string{"createUser", "setUserRole"} {
+		answered := gatedAsRole(t, `mutation { `+field+` }`, role.Member)
+
+		if got, want := refusalOf(t, answered), "admin required"; got != want {
+			t.Errorf("%s refusal = %q, want %q", field, got, want)
+		}
+	}
+}
+
 func TestScopeGateLetsAnAdminSessionReachAnAdminField(t *testing.T) {
 	t.Parallel()
 
