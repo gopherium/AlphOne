@@ -28,6 +28,8 @@ const (
 	seedAdminEmail    = "admin@example.com"
 	seedAdminName     = "Admin"
 	seedAdminPassword = "password1234"
+	seedMemberEmail   = "maria@example.com"
+	seedMemberName    = "Maria Perez"
 )
 
 // seed migrates the database and stores the demo data set.
@@ -44,12 +46,8 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := migrateSchemas(ctx, databaseURL); err != nil {
 		return err
 	}
-	created, err := authkit.EnsureAdmin(
-		ctx, authkitpg.NewUserStore(pool), seedAdminEmail, seedAdminName, seedAdminPassword)
+	created, err := seedUsers(ctx, pool)
 	if err != nil {
-		return err
-	}
-	if err := grantAdmin(ctx, pool, authkitpg.NewUserStore(pool), seedAdminEmail); err != nil {
 		return err
 	}
 	resolver := contact.NewResolver(postgres.NewContactStore(pool))
@@ -66,12 +64,30 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded demo data")
 	if created {
-		_, _ = fmt.Fprintln(stdout, "login: "+seedAdminEmail+" / "+seedAdminPassword)
+		_, _ = fmt.Fprintln(stdout, "login: "+seedAdminEmail+" / "+seedAdminPassword+" (admin)")
+		_, _ = fmt.Fprintln(stdout, "login: "+seedMemberEmail+" / "+seedAdminPassword+" (member)")
 	} else {
 		_, _ = fmt.Fprintln(stdout, seedAdminEmail+" already exists, its password is unchanged")
 	}
 	_, _ = fmt.Fprintln(stdout, "development only, never seed a production database")
 	return nil
+}
+
+// seedUsers stores the demo admin beside a colleague standing as a member.
+func seedUsers(ctx context.Context, pool *pgxpool.Pool) (bool, error) {
+	users := authkitpg.NewUserStore(pool)
+	created, err := authkit.EnsureAdmin(ctx, users, seedAdminEmail, seedAdminName, seedAdminPassword)
+	if err != nil {
+		return false, err
+	}
+	if err := grantAdmin(ctx, pool, users, seedAdminEmail); err != nil {
+		return false, err
+	}
+	if _, err := authkit.EnsureAdmin(
+		ctx, users, seedMemberEmail, seedMemberName, seedAdminPassword); err != nil {
+		return false, err
+	}
+	return created, nil
 }
 
 // demoTask is one scripted task of the demo data set.

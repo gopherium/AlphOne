@@ -12,11 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 var errEntropy = errors.New("entropy source failed")
@@ -89,6 +91,34 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 		"SELECT count(*) FROM core.contacts WHERE name = 'Ada Lovelace'").Scan(&adas)
 	if err != nil || adas != 1 {
 		t.Errorf("Ada Lovelace contacts = %d (err %v), want 1", adas, err)
+	}
+}
+
+func TestSeedStandsAMemberBesideTheAdmin(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	var stdout strings.Builder
+
+	if err := seed(t.Context(), getenv, &stdout); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	pool := testPool(t, databaseURL)
+	member, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), seedMemberEmail)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the seeded member", err)
+	}
+	tier, err := postgres.NewRoleStore(pool).RoleOf(t.Context(), member.ID)
+	if err != nil {
+		t.Fatalf("RoleOf() error = %v, want nil", err)
+	}
+	if tier != role.Member {
+		t.Errorf("the seeded colleague stands in %v, want %v", tier, role.Member)
+	}
+	if !strings.Contains(stdout.String(), seedMemberEmail) {
+		t.Errorf("output = %q, want it to name the member the demo can sign in as", stdout.String())
 	}
 }
 
@@ -352,6 +382,27 @@ func TestSeedReportsBrokenContactStorage(t *testing.T) {
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
 		t.Fatal("seed() error = nil, want a contact storage failure")
+	}
+}
+
+func TestSeedReportsTheColleagueItCannotStore(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	pool := testPool(t, databaseURL)
+	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
+		seedAdminEmail, seedAdminName, seedAdminPassword); err != nil {
+		t.Fatalf("seeding the admin: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (email <> '"+
+			seedMemberEmail+"')"); err != nil {
+		t.Fatalf("refusing the colleague: %v", err)
+	}
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
+		t.Fatal("seed() error = nil, want the unstored colleague reported")
 	}
 }
 
