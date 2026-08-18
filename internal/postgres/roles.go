@@ -47,7 +47,8 @@ SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = $1), EXISTS (SELECT 1 FROM ba
 // guardedDemote stands one user below admin only while another enabled admin stands,
 // answering whether the tier was stored.
 const guardedDemote = `WITH stood AS (
-	INSERT INTO core.user_roles (user_id, role) VALUES ($1, $2)
+	INSERT INTO core.user_roles (user_id, role)
+	SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM auth.users WHERE id = $1)
 	ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
 	WHERE EXISTS (
 		SELECT 1 FROM core.user_roles other
@@ -56,7 +57,7 @@ const guardedDemote = `WITH stood AS (
 	)
 	RETURNING user_id
 )
-SELECT EXISTS (SELECT 1 FROM stood)`
+SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = $1), EXISTS (SELECT 1 FROM stood)`
 
 // RoleStore persists the tier every user stands in.
 type RoleStore struct {
@@ -155,12 +156,15 @@ func (s *RoleStore) Disable(ctx context.Context, userID uuid.UUID) error {
 
 // demote stores a tier below admin only while another enabled admin stands.
 func (s *RoleStore) demote(ctx context.Context, userID uuid.UUID, tier role.Role) error {
-	var stood bool
+	var known, stood bool
 	err := s.unseating(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, guardedDemote, userID, tier.String()).Scan(&stood)
+		return tx.QueryRow(ctx, guardedDemote, userID, tier.String()).Scan(&known, &stood)
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: demote user: %w", err)
+	}
+	if !known {
+		return gouncer.ErrUserNotFound
 	}
 	if !stood {
 		return ErrLastAdmin

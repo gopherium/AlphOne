@@ -2,7 +2,7 @@
 
 -- +goose Up
 CREATE TABLE core.user_roles (
-    user_id uuid PRIMARY KEY,
+    user_id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
     role text NOT NULL CHECK (role IN ('admin', 'member')),
     created_at timestamptz NOT NULL DEFAULT now()
 );

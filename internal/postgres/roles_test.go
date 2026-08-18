@@ -180,10 +180,10 @@ func TestRoleStoreReportsGrantingAUserItCannotFind(t *testing.T) {
 	store := postgres.NewRoleStore(pool)
 	ghost := uuid.Must(uuid.NewV7())
 
-	err := store.Grant(t.Context(), ghost, role.Admin)
-
-	if !errors.Is(err, gouncer.ErrUserNotFound) {
-		t.Errorf("Grant() error = %v, want %v", err, gouncer.ErrUserNotFound)
+	for _, tier := range []role.Role{role.Admin, role.Member} {
+		if err := store.Grant(t.Context(), ghost, tier); !errors.Is(err, gouncer.ErrUserNotFound) {
+			t.Errorf("Grant(%v) error = %v, want %v", tier, err, gouncer.ErrUserNotFound)
+		}
 	}
 	var rows int
 	if err := pool.QueryRow(t.Context(),
@@ -474,11 +474,25 @@ func TestTheRoleColumnRefusesATierItDoesNotKnow(t *testing.T) {
 	t.Parallel()
 
 	pool := newTestPool(t)
+	held := seedPoolUser(t, pool, "held@example.com")
 
 	_, err := pool.Exec(t.Context(),
-		"INSERT INTO core.user_roles (user_id, role) VALUES ($1, 'root')", uuid.Must(uuid.NewV7()))
+		"INSERT INTO core.user_roles (user_id, role) VALUES ($1, 'root')", held)
 
 	if err == nil {
 		t.Error("an unknown tier was stored, want the column to refuse it")
+	}
+}
+
+func TestTheRoleTableRefusesAUserNobodyHolds(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+
+	_, err := pool.Exec(t.Context(),
+		"INSERT INTO core.user_roles (user_id, role) VALUES ($1, 'member')", uuid.Must(uuid.NewV7()))
+
+	if err == nil {
+		t.Error("a tier was stored for a user nobody holds, want the table to refuse it")
 	}
 }
