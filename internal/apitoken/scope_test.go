@@ -50,6 +50,20 @@ func TestFullIsTheWildcardALegacyTokenHolds(t *testing.T) {
 	}
 }
 
+func TestAreaOfNamesTheAreaAScopeActsIn(t *testing.T) {
+	t.Parallel()
+
+	if got, want := apitoken.AreaOf("contacts:read"), "contacts"; got != want {
+		t.Errorf("AreaOf() = %q, want %q", got, want)
+	}
+	if got, want := apitoken.AreaOf("tasks:write"), "tasks"; got != want {
+		t.Errorf("AreaOf() = %q, want %q", got, want)
+	}
+	if got := apitoken.AreaOf(apitoken.Wildcard); got != "" {
+		t.Errorf("AreaOf(*) = %q, want no area, the wildcard names none", got)
+	}
+}
+
 func TestAllowsReadsWhenTheAreaIsGrantedForReading(t *testing.T) {
 	t.Parallel()
 

@@ -16,6 +16,9 @@ var ErrMalformedScope = errors.New("apitoken: malformed scope")
 // ErrNoScopes reports a token asked to carry no scope at all.
 var ErrNoScopes = errors.New("apitoken: no scopes")
 
+// ErrUnknownArea reports a scope naming an area no schema declares.
+var ErrUnknownArea = errors.New("apitoken: unknown area")
+
 // Wildcard is the scope granting every area for reading and writing.
 const Wildcard = "*"
 
@@ -80,6 +83,15 @@ func (s Scopes) Validate() error {
 		}
 	}
 	return nil
+}
+
+// AreaOf returns the area one scope acts in, empty for the wildcard.
+func AreaOf(entry string) string {
+	if entry == Wildcard {
+		return ""
+	}
+	area, _, _ := strings.Cut(entry, ":")
+	return area
 }
 
 // validateScope reports whether one scope reads as the wildcard or as an area and its access.

@@ -112,6 +112,65 @@ func TestAPITokenCreateRefusesAMalformedScope(t *testing.T) {
 	}
 }
 
+func TestAPITokenCreateRefusesAnAreaNoSchemaDeclares(t *testing.T) {
+	t.Parallel()
+
+	client, tokens, owner := newTokenResolver(t)
+
+	answered, err := client.RawPost(`mutation { apiTokenCreate(name: "typo", scopes: ["contact:read"])
+		{ secret } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+	if !strings.Contains(string(answered.Errors), `contact`) {
+		t.Errorf("errors = %s, want the refusal to name the area", answered.Errors)
+	}
+	held, err := tokens.ListForUser(t.Context(), owner)
+	if err != nil {
+		t.Fatalf("ListForUser() error = %v, want nil", err)
+	}
+	if len(held) != 0 {
+		t.Errorf("stored %d tokens, want none, a token that can never act is not minted", len(held))
+	}
+}
+
+func TestAPITokenCreateRefusesATokenWithNoName(t *testing.T) {
+	t.Parallel()
+
+	client, _, _ := newTokenResolver(t)
+
+	answered, err := client.RawPost(`mutation { apiTokenCreate(name: "  ", scopes: ["tasks:read"])
+		{ secret } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+}
+
+func TestAPITokenCreateMintsEveryAreaTheSchemaDeclares(t *testing.T) {
+	t.Parallel()
+
+	client, _, _ := newTokenResolver(t)
+
+	for _, granted := range []string{"*", "contacts:read", "whatsapp:read", "tokens:read", "auth:read"} {
+		answered, err := client.RawPost(
+			`mutation { apiTokenCreate(name: "wide", scopes: ["` + granted + `"]) { secret } }`)
+		if err != nil {
+			t.Fatalf("RawPost(%q) error = %v, want nil", granted, err)
+		}
+		if len(answered.Errors) != 0 {
+			t.Errorf("minting %q errors = %v, want none", granted, answered.Errors)
+		}
+	}
+}
+
 func TestAPITokenCreateRefusesALifetimeThatWouldOverflow(t *testing.T) {
 	t.Parallel()
 

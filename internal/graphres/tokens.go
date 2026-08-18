@@ -63,8 +63,12 @@ func (m MutationResolvers) APITokenCreate(
 	if err != nil {
 		return nil, err
 	}
+	granted := apitoken.Scopes(scopes)
+	if err := ValidateScopes(granted); err != nil {
+		return nil, err
+	}
 	identity := authkit.IdentityFromContext(ctx)
-	minted, err := apitoken.Mint(identity.ID, name, apitoken.Scopes(scopes), lifetime)
+	minted, err := apitoken.Mint(identity.ID, name, granted, lifetime)
 	if err != nil {
 		return nil, err
 	}
