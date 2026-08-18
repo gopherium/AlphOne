@@ -3,9 +3,11 @@
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
 import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
+import { print } from 'graphql'
 import { expect, test } from 'vitest'
 
 import { graphAuthTransport } from '../auth/graphTransport'
+import { loginMutation, meQuery } from '../auth/operations'
 
 const maria = { id: 'u1', email: 'maria@example.com', name: 'Maria Perez' }
 
@@ -63,6 +65,12 @@ test('login resolves the payload identity', async () => {
 	graphResponds('mutation Login', { data: { login: { me: maria } } })
 
 	await expect(graphAuthTransport.login(maria.email, 'password1234')).resolves.toEqual(maria)
+})
+
+test('every operation seeding the session asks for the tier', () => {
+	for (const document of [meQuery, loginMutation]) {
+		expect(print(document)).toContain('role')
+	}
 })
 
 test('login maps the auth failure codes onto the react-auth errors', async () => {

@@ -20,6 +20,7 @@ export const loginMutation = graphql(`
 				id
 				email
 				name
+				role
 			}
 		}
 	}
