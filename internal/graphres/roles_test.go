@@ -321,6 +321,9 @@ func TestSetUserDisabledEnablesThroughTheAccountSeam(t *testing.T) {
 
 	store := testkit.NewStore()
 	account := store.AddUser(t, "barred@example.com", "Maria Perez", testPassword)
+	if err := store.SetUserDisabled(t.Context(), account.ID, true); err != nil {
+		t.Fatalf("barring the account ahead of the test: %v", err)
+	}
 	resolver := newAuthResolver(store)
 	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
 
@@ -332,6 +335,13 @@ func TestSetUserDisabledEnablesThroughTheAccountSeam(t *testing.T) {
 
 	if !answered.SetUserDisabled {
 		t.Error("setUserDisabled answered false, want enabling reported, it only adds cover")
+	}
+	restored, err := store.UserByID(t.Context(), account.ID)
+	if err != nil {
+		t.Fatalf("UserByID() error = %v, want the enabled account", err)
+	}
+	if restored.Disabled {
+		t.Error("the account is still barred, want enabling to have reached the seam")
 	}
 }
 
