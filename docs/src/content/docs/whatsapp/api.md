@@ -10,7 +10,8 @@ Conversations, messages and replies are graph operations. Read them as
 Two endpoints stay outside the graph, because neither is something a GraphQL
 client asks for. They live under `/api/plugins/whatsapp/`. The media download
 takes a session cookie or a bearer token, see
-[authenticating](/reference/graphql-api/#authenticating). The webhook
+[authenticating](/reference/graphql-api/#authenticating). A bearer token needs
+the `whatsapp` area, so mint it with `-scope whatsapp:read`. The webhook
 authenticates itself with a signature instead.
 
 ## Webhook

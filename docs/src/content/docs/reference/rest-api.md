@@ -39,6 +39,19 @@ user may have 5 such requests open at once, and any one of them is closed after
 
 Paths a plugin declares public, such as the webhook pair, skip both.
 
+A plugin may also hold its routes to one scope area, and WhatsApp does. Its
+media download needs `whatsapp:read`, so a token scoped elsewhere is refused
+with `403`:
+
+```json
+{ "error": "scope required: whatsapp:read" }
+```
+
+The check runs before the plugin sees the request, so an under scoped token
+gets that same `403` for a path the plugin does not serve at all, where a
+token holding the area would get `404`. A session is not narrowed this way,
+because only a token carries scopes.
+
 ## Live events
 
 Live updates left REST at 0.7.0. The graph serves them as subscriptions over
