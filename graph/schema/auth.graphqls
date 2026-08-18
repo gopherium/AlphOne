@@ -28,4 +28,5 @@ extend type Mutation {
   logout: Boolean! @scope(area: "auth", write: true)
   createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true, admin: true)
   setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, admin: true)
+  setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, admin: true)
 }

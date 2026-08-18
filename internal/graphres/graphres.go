@@ -64,10 +64,12 @@ type WebhookStore interface {
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
 }
 
-// RoleStore reads the tier users stand in.
+// RoleStore reads and writes the tier users stand in.
 type RoleStore interface {
 	RoleOf(ctx context.Context, userID uuid.UUID) (role.Role, error)
 	RolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error)
+	Grant(ctx context.Context, userID uuid.UUID, tier role.Role) error
+	Disable(ctx context.Context, userID uuid.UUID) error
 }
 
 // roleOf returns the tier one user stands in, member when no store was wired.

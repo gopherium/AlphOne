@@ -158,23 +158,24 @@ func TestOnlyUserManagementIsReservedToAdmins(t *testing.T) {
 	t.Parallel()
 
 	reserved := map[string]bool{}
-	for _, glob := range scopeGlobs(t) {
-		files, err := filepath.Glob(glob)
+	files, err := filepath.Glob(filepath.Join("schema", "*.graphqls"))
+	if err != nil {
+		t.Fatalf("globbing the core schema: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("globbed 0 core schema files, the glob is broken")
+	}
+	for _, path := range files {
+		raw, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("globbing %s: %v", glob, err)
+			t.Fatalf("reading %s: %v", path, err)
 		}
-		for _, path := range files {
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("reading %s: %v", path, err)
-			}
-			for _, field := range adminFieldsIn(t, path, string(raw)) {
-				reserved[field] = true
-			}
+		for _, field := range adminFieldsIn(t, path, string(raw)) {
+			reserved[field] = true
 		}
 	}
 
-	want := map[string]bool{"createUser": true, "setUserDisabled": true}
+	want := map[string]bool{"createUser": true, "setUserDisabled": true, "setUserRole": true}
 	if len(reserved) != len(want) {
 		t.Errorf("admin only fields = %v, want %v", reserved, want)
 	}

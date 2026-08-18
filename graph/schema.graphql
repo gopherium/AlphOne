@@ -138,6 +138,7 @@ type Mutation {
 	logout: Boolean! @scope(area: "auth", write: true)
 	createUser(email: String!, name: String!, password: String!): User! @scope(area: "users", write: true, admin: true)
 	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, admin: true)
+	setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, admin: true)
 	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
 	apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret! @scope(area: "tokens", write: true)

@@ -149,10 +149,30 @@ func (m MutationResolvers) CreateUser(ctx context.Context, email, name, password
 	return toUser(account, role.Member), nil
 }
 
-// SetUserDisabled updates whether the account may log in.
+// SetUserDisabled updates whether the account may log in, keeping the deployment an enabled admin.
 func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error) {
 	actor := authkit.IdentityFromContext(ctx)
+	if disabled && actor.ID == id {
+		return false, authkit.ErrSelfDisable
+	}
+	if disabled {
+		if err := m.root.Roles.Disable(ctx, id); err != nil {
+			return false, err
+		}
+	}
 	if err := m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// SetUserRole stands one user in the tier it names.
+func (m MutationResolvers) SetUserRole(ctx context.Context, id uuid.UUID, tier string) (bool, error) {
+	stood, err := role.Parse(tier)
+	if err != nil {
+		return false, err
+	}
+	if err := m.root.Roles.Grant(ctx, id, stood); err != nil {
 		return false, err
 	}
 	return true, nil
