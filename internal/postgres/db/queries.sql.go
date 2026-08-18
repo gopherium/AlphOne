@@ -431,22 +431,6 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 	return i, err
 }
 
-const grantUserRole = `-- name: GrantUserRole :exec
-INSERT INTO core.user_roles (user_id, role)
-VALUES ($1::uuid, $2::text)
-ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
-`
-
-type GrantUserRoleParams struct {
-	UserID uuid.UUID
-	Role   string
-}
-
-func (q *Queries) GrantUserRole(ctx context.Context, arg GrantUserRoleParams) error {
-	_, err := q.db.Exec(ctx, grantUserRole, arg.UserID, arg.Role)
-	return err
-}
-
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
