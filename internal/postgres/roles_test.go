@@ -205,6 +205,45 @@ func TestRoleStoreDemotesAnAdminWhileAnotherStands(t *testing.T) {
 	}
 }
 
+func TestRoleStoreReadsManyTiersAtOnce(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewRoleStore(pool)
+	boss := seedPoolUser(t, pool, "boss@example.com")
+	staff := seedPoolUser(t, pool, "staff@example.com")
+	if err := store.Grant(t.Context(), boss, role.Admin); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+
+	tiers, err := store.RolesOf(t.Context(), []uuid.UUID{boss, staff})
+
+	if err != nil {
+		t.Fatalf("RolesOf() error = %v, want nil", err)
+	}
+	if tiers[boss] != role.Admin {
+		t.Errorf("boss = %v, want %v", tiers[boss], role.Admin)
+	}
+	if tiers[staff] != role.Member {
+		t.Errorf("staff = %v, want %v, a user with no row is a member", tiers[staff], role.Member)
+	}
+}
+
+func TestRoleStoreReadsNoTiersForNobody(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewRoleStore(newTestPool(t))
+
+	tiers, err := store.RolesOf(t.Context(), nil)
+
+	if err != nil {
+		t.Fatalf("RolesOf() error = %v, want nil", err)
+	}
+	if len(tiers) != 0 {
+		t.Errorf("RolesOf(nobody) = %v, want empty", tiers)
+	}
+}
+
 func TestRoleStoreReportsAConnectionFailure(t *testing.T) {
 	t.Parallel()
 
@@ -214,6 +253,9 @@ func TestRoleStoreReportsAConnectionFailure(t *testing.T) {
 
 	if _, err := store.RoleOf(t.Context(), uuid.Must(uuid.NewV7())); err == nil {
 		t.Error("RoleOf() on a closed pool error = nil, want error")
+	}
+	if _, err := store.RolesOf(t.Context(), []uuid.UUID{uuid.Must(uuid.NewV7())}); err == nil {
+		t.Error("RolesOf() on a closed pool error = nil, want error")
 	}
 	if err := store.Grant(t.Context(), uuid.Must(uuid.NewV7()), role.Admin); err == nil {
 		t.Error("Grant(admin) on a closed pool error = nil, want error")

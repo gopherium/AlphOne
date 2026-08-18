@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/alphone/internal/postgres/db"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -19,19 +20,18 @@ var ErrLastAdmin = errors.New("postgres: last admin")
 
 // RoleStore persists the tier every user stands in.
 type RoleStore struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	queries *db.Queries
 }
 
 // NewRoleStore returns a [RoleStore] backed by pool.
 func NewRoleStore(pool *pgxpool.Pool) *RoleStore {
-	return &RoleStore{pool: pool}
+	return &RoleStore{pool: pool, queries: db.New(pool)}
 }
 
 // RoleOf returns the tier a user stands in, member when it holds no row.
 func (s *RoleStore) RoleOf(ctx context.Context, userID uuid.UUID) (role.Role, error) {
-	var stored string
-	err := s.pool.QueryRow(ctx,
-		"SELECT role FROM core.user_roles WHERE user_id = $1", userID).Scan(&stored)
+	stored, err := s.queries.UserRole(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return role.Member, nil
 	}
@@ -41,14 +41,28 @@ func (s *RoleStore) RoleOf(ctx context.Context, userID uuid.UUID) (role.Role, er
 	return role.Of(stored), nil
 }
 
+// RolesOf returns the tier each named user stands in, member for those holding no row.
+func (s *RoleStore) RolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error) {
+	tiers := make(map[uuid.UUID]role.Role, len(userIDs))
+	for _, id := range userIDs {
+		tiers[id] = role.Member
+	}
+	rows, err := s.queries.UserRoles(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: read user roles: %w", err)
+	}
+	for _, row := range rows {
+		tiers[row.UserID] = role.Of(row.Role)
+	}
+	return tiers, nil
+}
+
 // Grant stores the tier a user stands in, refusing to unseat the last enabled admin.
 func (s *RoleStore) Grant(ctx context.Context, userID uuid.UUID, tier role.Role) error {
 	if tier != role.Admin {
 		return s.demote(ctx, userID, tier)
 	}
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO core.user_roles (user_id, role) VALUES ($1, $2)
-		ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role`, userID, tier.String())
+	err := s.queries.GrantUserRole(ctx, db.GrantUserRoleParams{UserID: userID, Role: tier.String()})
 	if err != nil {
 		return fmt.Errorf("postgres: grant user role: %w", err)
 	}

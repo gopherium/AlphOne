@@ -431,6 +431,22 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 	return i, err
 }
 
+const grantUserRole = `-- name: GrantUserRole :exec
+INSERT INTO core.user_roles (user_id, role)
+VALUES ($1::uuid, $2::text)
+ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
+`
+
+type GrantUserRoleParams struct {
+	UserID uuid.UUID
+	Role   string
+}
+
+func (q *Queries) GrantUserRole(ctx context.Context, arg GrantUserRoleParams) error {
+	_, err := q.db.Exec(ctx, grantUserRole, arg.UserID, arg.Role)
+	return err
+}
+
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
 FROM core.api_tokens
@@ -955,4 +971,48 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const userRole = `-- name: UserRole :one
+SELECT role
+FROM core.user_roles
+WHERE user_id = $1::uuid
+`
+
+func (q *Queries) UserRole(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, userRole, userID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
+const userRoles = `-- name: UserRoles :many
+SELECT user_id, role
+FROM core.user_roles
+WHERE user_id = ANY($1::uuid[])
+`
+
+type UserRolesRow struct {
+	UserID uuid.UUID
+	Role   string
+}
+
+func (q *Queries) UserRoles(ctx context.Context, userIds []uuid.UUID) ([]UserRolesRow, error) {
+	rows, err := q.db.Query(ctx, userRoles, userIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserRolesRow
+	for rows.Next() {
+		var i UserRolesRow
+		if err := rows.Scan(&i.UserID, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
