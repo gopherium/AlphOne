@@ -4,7 +4,7 @@ directive @goField(
   omittable: Boolean
 ) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 
-directive @scope(area: String!, write: Boolean!) on FIELD_DEFINITION
+directive @scope(area: String!, write: Boolean!, admin: Boolean = false) on FIELD_DEFINITION
 
 scalar UUID
 scalar DateTime

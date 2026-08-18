@@ -3,6 +3,7 @@
 package graph_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,44 +31,76 @@ func scopeGlobs(t *testing.T) []string {
 // scopedFieldsIn checks the scope of every root field of one SDL source and counts them.
 func scopedFieldsIn(t *testing.T, name, source string) int {
 	t.Helper()
+	counted, problems := rootFieldScopes(t, name, source)
+	for _, problem := range problems {
+		t.Errorf("%s: %s", name, problem)
+	}
+	return counted
+}
+
+// scopeProblemsIn returns every scope problem of one SDL source.
+func scopeProblemsIn(t *testing.T, name, source string) []string {
+	t.Helper()
+	_, problems := rootFieldScopes(t, name, source)
+	return problems
+}
+
+// rootFieldScopes counts the root fields of one SDL source beside their scope problems.
+func rootFieldScopes(t *testing.T, name, source string) (int, []string) {
+	t.Helper()
 	doc, err := parser.ParseSchema(&ast.Source{Name: name, Input: source})
 	if err != nil {
 		t.Fatalf("parsing %s: %v", name, err)
 	}
 	counted := 0
+	var problems []string
 	for _, def := range append(doc.Definitions, doc.Extensions...) {
 		if !rootOperations[def.Name] {
 			continue
 		}
 		for _, field := range def.Fields {
-			checkScope(t, name, def.Name, field)
+			problems = append(problems, scopeProblems(def.Name, field)...)
 			counted++
 		}
 	}
-	return counted
+	return counted, problems
 }
 
-// checkScope reports whether one root field declares an area and an access matching its operation.
-func checkScope(t *testing.T, name, operation string, field *ast.FieldDefinition) {
-	t.Helper()
+// scopeProblems reports how one root field's scope declaration falls short.
+func scopeProblems(operation string, field *ast.FieldDefinition) []string {
 	declared := field.Directives.ForName(scopeDirective)
 	if declared == nil {
-		t.Errorf("%s: %s.%s declares no @scope, every root field names the area it acts in", name, operation, field.Name)
-		return
+		return []string{fmt.Sprintf(
+			"%s.%s declares no @scope, every root field names the area it acts in", operation, field.Name)}
 	}
-	area := declared.Arguments.ForName("area")
-	if area == nil || area.Value.Raw == "" {
-		t.Errorf("%s: %s.%s declares an empty area", name, operation, field.Name)
+	var problems []string
+	if area := declared.Arguments.ForName("area"); area == nil || area.Value.Raw == "" {
+		problems = append(problems, fmt.Sprintf("%s.%s declares an empty area", operation, field.Name))
 	}
+	problems = append(problems, accessProblems(operation, field, declared)...)
+	if admin := declared.Arguments.ForName("admin"); admin != nil && !isBoolean(admin.Value) {
+		problems = append(problems, fmt.Sprintf(
+			"%s.%s declares admin %s, want true or false", operation, field.Name, admin.Value.Raw))
+	}
+	return problems
+}
+
+// accessProblems reports how one root field's write flag falls short of its operation.
+func accessProblems(operation string, field *ast.FieldDefinition, declared *ast.Directive) []string {
 	write := declared.Arguments.ForName("write")
 	if write == nil {
-		t.Errorf("%s: %s.%s declares no write access", name, operation, field.Name)
-		return
+		return []string{fmt.Sprintf("%s.%s declares no write access", operation, field.Name)}
 	}
 	if want := operation == "Mutation"; (write.Value.Raw == "true") != want {
-		t.Errorf("%s: %s.%s declares write %s, want %v for a %s field",
-			name, operation, field.Name, write.Value.Raw, want, operation)
+		return []string{fmt.Sprintf("%s.%s declares write %s, want %v for a %s field",
+			operation, field.Name, write.Value.Raw, want, operation)}
 	}
+	return nil
+}
+
+// isBoolean reports whether one directive argument value is a boolean literal.
+func isBoolean(value *ast.Value) bool {
+	return value != nil && value.Kind == ast.BooleanValue
 }
 
 func TestEveryRootFieldDeclaresTheScopeItNeeds(t *testing.T) {
@@ -105,5 +138,28 @@ type Contact { unscoped: String! }
 
 	if got := scopedFieldsIn(t, "synthetic", synthetic); got != 3 {
 		t.Errorf("counted %d root fields, want 3 across every operation, types excluded", got)
+	}
+}
+
+func TestScopeCheckingAcceptsAnAdminFlag(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `
+type Mutation { one: String! @scope(area: "users", write: true, admin: true) }
+extend type Mutation { two: String! @scope(area: "users", write: true, admin: false) }
+`
+
+	if got := scopedFieldsIn(t, "synthetic", synthetic); got != 2 {
+		t.Errorf("counted %d root fields, want 2 with the admin flag present", got)
+	}
+}
+
+func TestScopeCheckingFlagsAMalformedAdminFlag(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `type Mutation { one: String! @scope(area: "users", write: true, admin: 1) }`
+
+	if got := scopeProblemsIn(t, "synthetic", synthetic); len(got) == 0 {
+		t.Error("a malformed admin flag raised no problem, want it flagged")
 	}
 }
