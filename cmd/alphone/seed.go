@@ -63,31 +63,53 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded demo data")
-	if created {
-		_, _ = fmt.Fprintln(stdout, "login: "+seedAdminEmail+" / "+seedAdminPassword+" (admin)")
-		_, _ = fmt.Fprintln(stdout, "login: "+seedMemberEmail+" / "+seedAdminPassword+" (member)")
-	} else {
-		_, _ = fmt.Fprintln(stdout, seedAdminEmail+" already exists, its password is unchanged")
-	}
+	reportLogins(stdout, created)
 	_, _ = fmt.Fprintln(stdout, "development only, never seed a production database")
 	return nil
 }
 
-// seedUsers stores the demo admin beside a colleague standing as a member.
-func seedUsers(ctx context.Context, pool *pgxpool.Pool) (bool, error) {
+// demoLogin is one account the seeder ensures, with the tier it stands in.
+type demoLogin struct {
+	email string
+	name  string
+	tier  string
+}
+
+// demoLogins names every account the seeder ensures, in banner order.
+func demoLogins() []demoLogin {
+	return []demoLogin{
+		{email: seedAdminEmail, name: seedAdminName, tier: "admin"},
+		{email: seedMemberEmail, name: seedMemberName, tier: "member"},
+	}
+}
+
+// seedUsers stores the demo accounts and reports which of them it created.
+func seedUsers(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error) {
 	users := authkitpg.NewUserStore(pool)
-	created, err := authkit.EnsureAdmin(ctx, users, seedAdminEmail, seedAdminName, seedAdminPassword)
-	if err != nil {
-		return false, err
+	created := map[string]bool{}
+	for _, login := range demoLogins() {
+		made, err := authkit.EnsureAdmin(ctx, users, login.email, login.name, seedAdminPassword)
+		if err != nil {
+			return nil, err
+		}
+		created[login.email] = made
 	}
 	if err := grantAdmin(ctx, pool, users, seedAdminEmail); err != nil {
-		return false, err
-	}
-	if _, err := authkit.EnsureAdmin(
-		ctx, users, seedMemberEmail, seedMemberName, seedAdminPassword); err != nil {
-		return false, err
+		return nil, err
 	}
 	return created, nil
+}
+
+// reportLogins names every demo account, saying which ones this run created.
+func reportLogins(stdout io.Writer, created map[string]bool) {
+	for _, login := range demoLogins() {
+		if created[login.email] {
+			_, _ = fmt.Fprintln(stdout,
+				"login: "+login.email+" / "+seedAdminPassword+" ("+login.tier+")")
+			continue
+		}
+		_, _ = fmt.Fprintln(stdout, login.email+" already exists, its password is unchanged")
+	}
 }
 
 // demoTask is one scripted task of the demo data set.
@@ -99,6 +121,7 @@ type demoTask struct {
 	done     bool
 	linked   bool
 	origin   string
+	member   bool
 }
 
 // demoTasks returns the scripted tasks stored by [seedTasks].
@@ -113,6 +136,11 @@ func demoTasks() []demoTask {
 			title:  "Reply to the imported enquiry",
 			offset: 1,
 			origin: "seed",
+		},
+		{
+			id:     "0198d000-0000-7000-8000-000000000006",
+			title:  "Draft the welcome email",
+			member: true,
 		},
 	}
 }
@@ -132,9 +160,16 @@ func seedTasks(
 	if err != nil {
 		return fmt.Errorf("seed admin lookup: %w", err)
 	}
-	assigneeID := admin.ID
+	colleague, err := users.UserByEmail(ctx, seedMemberEmail)
+	if err != nil {
+		return fmt.Errorf("seed member lookup: %w", err)
+	}
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for _, scripted := range demoTasks() {
+		assigneeID := admin.ID
+		if scripted.member {
+			assigneeID = colleague.ID
+		}
 		id := uuid.MustParse(scripted.id)
 		if _, err := store.Get(ctx, id); err == nil {
 			continue
