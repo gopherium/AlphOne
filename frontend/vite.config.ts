@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /// <reference types="vitest/config" />
+import { fileURLToPath } from 'node:url'
+
 import { godminDedupe, godminSingleCopy, godminStylesheetFirst } from '@gopherium/godmin/vite'
 import react from '@vitejs/plugin-react'
 import dsTokenFallbacks from '@wordpress/theme/vite-plugins/vite-ds-token-fallbacks'
 import { defineConfig } from 'vite'
+
+/** Resolves a repository path to the absolute glob coverage matching needs. */
+function repoGlob(pattern: string): string {
+	return fileURLToPath(new URL(`../${pattern}`, import.meta.url))
+}
 
 export default defineConfig({
 	plugins: [react(), dsTokenFallbacks(), godminSingleCopy(), godminStylesheetFirst()],
@@ -21,24 +28,26 @@ export default defineConfig({
 		},
 	},
 	test: {
+		root: repoGlob(''),
 		environment: 'jsdom',
 		env: { TZ: 'UTC' },
-		setupFiles: ['./src/test/setup.ts'],
+		setupFiles: [repoGlob('frontend/src/test/setup.ts')],
 		include: [
-			'src/**/*.test.{ts,tsx}',
-			'../sdk/*/test/*.test.{ts,tsx}',
-			'../plugins/*/frontend/test/*.test.{ts,tsx}',
-			'../enterprise/*/frontend/test/*.test.{ts,tsx}',
+			'frontend/src/**/*.test.{ts,tsx}',
+			'sdk/*/test/*.test.{ts,tsx}',
+			'plugins/*/frontend/test/*.test.{ts,tsx}',
+			'enterprise/*/frontend/test/*.test.{ts,tsx}',
 		],
 		coverage: {
 			include: [
-				'src/**',
-				'../sdk/*/**/*.{ts,tsx}',
-				'../plugins/*/frontend/**/*.{ts,tsx}',
-				'../enterprise/*/frontend/**/*.{ts,tsx}',
+				repoGlob('frontend/src/**'),
+				repoGlob('sdk/*/**/*.{ts,tsx}'),
+				repoGlob('plugins/*/frontend/**/*.{ts,tsx}'),
+				repoGlob('enterprise/*/frontend/**/*.{ts,tsx}'),
 			],
-			exclude: ['src/main.tsx', '**/gql/**', '**/test/**', '**/node_modules/**', '**/*.d.ts'],
+			exclude: ['frontend/src/main.tsx', '**/gql/**', '**/test/**', '**/node_modules/**', '**/*.d.ts'],
 			allowExternal: true,
+			reportsDirectory: repoGlob('frontend/coverage'),
 			reporter: ['text', 'lcov'],
 			thresholds: {
 				statements: 100,
