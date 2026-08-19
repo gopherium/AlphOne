@@ -2,7 +2,10 @@
 
 import '@testing-library/jest-dom/vitest'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
-import { installTestEnvironment as installAuthTestEnvironment } from '@gopherium/react-auth/testing'
+import {
+	installTestEnvironment as installAuthTestEnvironment,
+	defaultUser,
+} from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	Link,
@@ -23,8 +26,14 @@ import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
 
-export { HttpResponse, http, server } from '@gopherium/react-auth/testing'
+export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
 export { graphql } from 'msw'
+
+/** adminSession is the canned signed-in account standing as an admin. */
+export const adminSession = { ...defaultUser, role: 'admin' }
+
+/** memberSession is the canned signed-in account standing as a member. */
+export const memberSession = { ...defaultUser, role: 'member' }
 
 /** FakeGraph drives a graph client's subscriptions from a test. */
 export interface FakeGraph {
