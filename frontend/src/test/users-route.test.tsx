@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { defaultUser } from '@gopherium/react-auth/testing'
-import { memberUser, renderAt } from './render'
+import { renderAt } from './render'
 
 beforeEach(() =>
 	server.use(
@@ -215,7 +215,7 @@ test('offers a member no user management at all', async () => {
 			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
 		),
 	)
-	renderAt('/users', memberUser)
+	renderAt('/users', memberSession)
 
 	await screen.findByRole('row', { name: /Ada Lovelace/ })
 	expect(screen.queryByRole('link', { name: 'New user' })).not.toBeInTheDocument()
@@ -230,7 +230,7 @@ test('still lists the colleagues a member works with', async () => {
 			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
 		),
 	)
-	renderAt('/users', memberUser)
+	renderAt('/users', memberSession)
 
 	const row = await screen.findByRole('row', { name: /Ada Lovelace/ })
 	expect(within(row).getByText('ada@example.com')).toBeInTheDocument()

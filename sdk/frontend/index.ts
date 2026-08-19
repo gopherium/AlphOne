@@ -64,6 +64,8 @@ export {
 } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
+export { roleOf, useSession } from './session'
+export type { Role, Session } from './session'
 export { createGraphClient, graphError, graphExtensions } from './graph'
 export type { GraphClient } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
