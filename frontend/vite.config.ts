@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url'
 import { godminDedupe, godminSingleCopy, godminStylesheetFirst } from '@gopherium/godmin/vite'
 import react from '@vitejs/plugin-react'
 import dsTokenFallbacks from '@wordpress/theme/vite-plugins/vite-ds-token-fallbacks'
-import { defineConfig } from 'vite'
+import { defineConfig, normalizePath } from 'vite'
 
 /** Resolves a repository path to the absolute glob coverage matching needs. */
 function repoGlob(pattern: string): string {
-	return fileURLToPath(new URL(`../${pattern}`, import.meta.url))
+	return normalizePath(fileURLToPath(new URL(`../${pattern}`, import.meta.url)))
 }
 
 export default defineConfig({
