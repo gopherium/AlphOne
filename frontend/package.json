@@ -7,7 +7,7 @@
 		"build": "tsc -b && vite build",
 		"cover": "vitest run --coverage",
 		"dev": "vite",
-		"lint": "oxlint",
+		"lint": "oxlint && pnpm -w exec eslint .",
 		"lint:css": "stylelint \"src/**/*.css\"",
 		"preview": "vite preview",
 		"typecheck": "tsc -b"
