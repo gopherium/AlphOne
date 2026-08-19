@@ -11,15 +11,14 @@ import {
 	Text,
 	VisuallyHidden,
 	people,
+	useSession,
 } from '@alphone/frontend-sdk'
-import { useSession } from '@gopherium/react-auth'
 import { fetchUsers, setUserDisabled, usersQueryKey } from '@gopherium/react-auth/admin'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
 import type { Account } from '../auth/graphTransport'
 import { setUserRole } from '../auth/graphTransport'
-import { useRole } from '../auth/role'
 
 /**
  * Renders one account row with its status and tier, offering the controls only
@@ -95,8 +94,8 @@ function UserControls({ user }: { user: Account }) {
  * @returns The users screen.
  */
 export function UsersScreen() {
-	const currentUserId = useSession().data?.id
-	const manages = useRole() === 'admin'
+	const session = useSession()
+	const manages = session?.role === 'admin'
 	const users = useQuery({
 		queryKey: usersQueryKey,
 		queryFn: ({ signal }) => fetchUsers(signal) as Promise<Account[]>,
@@ -118,7 +117,7 @@ export function UsersScreen() {
 				</Stack>
 			}
 		>
-			<UserRows users={users} currentUserId={currentUserId} manages={manages} />
+			<UserRows users={users} currentUserId={session?.id} manages={manages} />
 		</PageScreen>
 	)
 }

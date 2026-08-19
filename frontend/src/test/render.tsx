@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, http, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, graphql, http, server } from '@alphone/frontend-sdk/testing'
 import { configureAuthTransport, createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
 import type { User } from '@gopherium/react-auth'
-import { defaultUser, seedSession } from '@gopherium/react-auth/testing'
+import { seedSession } from '@gopherium/react-auth/testing'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
@@ -53,16 +53,6 @@ export function liveStream() {
 }
 
 /**
- * adminUser is the signed-in account the screens render for by default.
- */
-export const adminUser = { ...defaultUser, role: 'admin' }
-
-/**
- * memberUser is a signed-in account holding no user management.
- */
-export const memberUser = { ...defaultUser, role: 'member' }
-
-/**
  * Renders the app at one route with a seeded session.
  * @param path - The route the memory history starts on.
  * @param user - The signed-in account, or null for an anonymous caller.
@@ -71,7 +61,7 @@ export const memberUser = { ...defaultUser, role: 'member' }
  */
 export function renderAt(
 	path: string,
-	user: (User & { role?: string }) | null = adminUser,
+	user: (User & { role?: string }) | null = adminSession,
 	version: string | null = '0.1.0',
 ) {
 	const client = createAuthQueryClient({

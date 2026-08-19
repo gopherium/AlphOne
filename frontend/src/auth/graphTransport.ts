@@ -3,11 +3,10 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core'
 import { print } from 'graphql'
 
+import { type Role, roleOf } from '@alphone/frontend-sdk'
 import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
 import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
 import type { NewUser, User as BrickAccount } from '@gopherium/react-auth/admin'
-
-import { type Role, roleOf } from './role'
 
 /**
  * Account is one user account as the admin screens consume it, carrying its tier.

@@ -52,6 +52,31 @@ becomes a drawer behind a menu button, and below 640px the canvas meets
 the screen edges and pads tighter. Build one screen and check it at both
 sizes.
 
+## Who is signed in
+
+A screen reads the signed-in account with `useSession`. It answers the
+account's id, email, name, and role, or `null` when nobody is signed
+in.
+
+```tsx
+import { useSession } from '@alphone/frontend-sdk'
+
+export function InvoicesScreen() {
+	const session = useSession()
+	const manages = session?.role === 'admin'
+	…
+}
+```
+
+A role is either `admin` or `member`. Anything else counts as
+`member`, so a screen that gets an answer it does not recognise hides
+the control rather than offering it.
+
+Hiding a control is presentation, not protection. The backend refuses
+an operation the caller may not run whether or not your screen showed
+the button. Hide the button so the screen only offers what it can
+deliver, and let the backend do the refusing.
+
 ## The four states
 
 A screen that loads data has four states, and the template has an answer
