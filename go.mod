@@ -8,9 +8,9 @@ require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/gopherium/gouncer/authkit v0.4.0
+	github.com/gopherium/gouncer/authkit v0.5.0
 	github.com/gopherium/gouncer/authkit/postgres v0.3.0
-	github.com/gopherium/gouncer/authkit/ratelimit v0.2.0
+	github.com/gopherium/gouncer/authkit/ratelimit v0.3.0
 	github.com/gopherium/pluginkit v0.5.0
 	github.com/gopherium/pluginkit/graphwire v0.3.0
 	github.com/jackc/pgx/v5 v5.10.0
