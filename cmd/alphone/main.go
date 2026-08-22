@@ -23,6 +23,7 @@ const usage = `AlphOne, a plugin first CRM.
 Usage:
   alphone                serve the API and the web application
   alphone createadmin    create the first administrator
+  alphone grantrole      give a role to every account holding none
   alphone token          create and revoke API tokens
   alphone seed           store the demo data
   alphone help           print this text
@@ -50,6 +51,8 @@ func dispatch(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "createadmin":
 		return createAdmin(ctx, os.Getenv, args[1:], os.Stdin, os.Stdout)
+	case "grantrole":
+		return grantRole(ctx, os.Getenv, args[1:], os.Stdout)
 	case "token":
 		return token(ctx, os.Getenv, args[1:], os.Stdout)
 	case "seed":
@@ -58,7 +61,7 @@ func dispatch(ctx context.Context, args []string) error {
 		_, err := fmt.Fprintln(os.Stdout, usage)
 		return err
 	default:
-		return fmt.Errorf("%w %q, want createadmin, seed or token, or no argument to serve",
+		return fmt.Errorf("%w %q, want createadmin, grantrole, seed or token, or no argument to serve",
 			errUnknownSubcommand, args[0])
 	}
 }
