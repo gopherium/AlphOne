@@ -12,6 +12,8 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/validator/rules"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/graphres"
@@ -44,13 +46,18 @@ func gatedAsToken(t *testing.T, query string, held apitoken.Scopes) *graphql.Res
 // gatedAsRole runs one operation through the scope gate as a session standing in one tier.
 func gatedAsRole(t *testing.T, query string, tier role.Role) *graphql.Response {
 	t.Helper()
-	return gatedWith(t, query, credential.WithRole(t.Context(), tier))
+	return gatedWith(t, query, standingAs(t.Context(), tier))
+}
+
+// standingAs returns ctx carrying an identity standing in one tier.
+func standingAs(ctx context.Context, tier role.Role) context.Context {
+	return authkit.WithIdentity(ctx, authkit.Identity{Role: tier.String()})
 }
 
 // gatedAsTokenOf runs one operation through the gate as a token whose owner stands in one tier.
 func gatedAsTokenOf(t *testing.T, query string, held apitoken.Scopes, tier role.Role) *graphql.Response {
 	t.Helper()
-	ctx := credential.WithRole(t.Context(), tier)
+	ctx := standingAs(t.Context(), tier)
 	return gatedWith(t, query, credential.WithToken(ctx, credential.Token{Name: "probe", Scopes: held}))
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
@@ -64,39 +65,22 @@ type WebhookStore interface {
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
 }
 
-// RoleStore reads and writes the tier users stand in.
-type RoleStore interface {
-	RoleOf(ctx context.Context, userID uuid.UUID) (role.Role, error)
-	RolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error)
-	Grant(ctx context.Context, userID uuid.UUID, tier role.Role) error
-	Disable(ctx context.Context, userID uuid.UUID) error
-}
-
-// roleOf returns the tier one user stands in, member when no store was wired.
-func (r *Resolver) roleOf(ctx context.Context, userID uuid.UUID) (role.Role, error) {
-	if r.Roles == nil {
-		return role.Member, nil
-	}
-	return r.Roles.RoleOf(ctx, userID)
-}
-
-// rolesOf returns the tier each named user stands in, member for any the store leaves out.
-func (r *Resolver) rolesOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID]role.Role, error) {
-	tiers := make(map[uuid.UUID]role.Role, len(userIDs))
-	for _, id := range userIDs {
-		tiers[id] = role.Member
-	}
-	if r.Roles == nil {
-		return tiers, nil
-	}
-	stored, err := r.Roles.RolesOf(ctx, userIDs)
+// outranking refuses an actor writing an account whose role holds a capability the actor lacks.
+func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, target uuid.UUID) error {
+	held, err := r.Admin.ListAccounts(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	for id, tier := range stored {
-		tiers[id] = tier
+	for _, account := range held {
+		if account.ID != target {
+			continue
+		}
+		if !role.Outranks(role.Role(actor.Role), role.Role(account.Role)) {
+			return role.ErrBeyondReach
+		}
+		return nil
 	}
-	return tiers, nil
+	return gouncer.ErrUserNotFound
 }
 
 // TokenStore serves the caller's own API tokens.
@@ -137,8 +121,6 @@ type Resolver struct {
 	Tenants TenantStore
 	// Tokens serves the caller's own API tokens.
 	Tokens TokenStore
-	// Roles serves the tier users stand in. Nil leaves every user a member.
-	Roles RoleStore
 	// Events announces domain events. Nil publishes nothing.
 	Events Publisher
 	// Live hands subscriptions the frames they may see. Nil serves no subscription.

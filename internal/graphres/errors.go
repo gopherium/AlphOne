@@ -9,6 +9,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/scalar"
@@ -40,7 +41,10 @@ var validationErrors = []error{
 	errExactlyOneTaskFilter,
 	errInvalidFirst,
 	authkit.ErrSelfDisable,
+	authkit.ErrSelfRole,
+	gouncer.ErrLastPrivileged,
 	role.ErrLastAdmin,
+	role.ErrBeyondReach,
 	role.ErrUnknownTier,
 	apitoken.ErrEmptyName,
 	apitoken.ErrMalformedScope,

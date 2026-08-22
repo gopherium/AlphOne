@@ -14,7 +14,6 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
-	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -47,7 +46,8 @@ func toUser(account authkit.Account, tier role.Role) *model.User {
 
 // Me reports the calling identity.
 func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
-	return toAuthIdentity(authkit.IdentityFromContext(ctx), credential.RoleOf(ctx)), nil
+	identity := authkit.IdentityFromContext(ctx)
+	return toAuthIdentity(identity, role.Role(identity.Role)), nil
 }
 
 // Users lists every user account.
@@ -56,17 +56,9 @@ func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]uuid.UUID, len(accounts))
-	for i, account := range accounts {
-		ids[i] = account.ID
-	}
-	tiers, err := q.root.rolesOf(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
 	users := make([]*model.User, len(accounts))
 	for i, account := range accounts {
-		users[i] = toUser(account, tiers[account.ID])
+		users[i] = toUser(account, role.Role(account.Role))
 	}
 	return users, nil
 }
@@ -115,11 +107,7 @@ func (m MutationResolvers) Login(ctx context.Context, email, password string) (*
 	if err := setResponseCookie(ctx, cookie); err != nil {
 		return nil, err
 	}
-	tier, err := m.root.roleOf(ctx, identity.ID)
-	if err != nil {
-		return nil, err
-	}
-	return &model.LoginPayload{Me: toAuthIdentity(identity, tier)}, nil
+	return &model.LoginPayload{Me: toAuthIdentity(identity, role.Role(identity.Role))}, nil
 }
 
 // Logout ends the calling session and clears its cookie.
@@ -155,11 +143,8 @@ func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, di
 	if disabled && actor.ID == id {
 		return false, authkit.ErrSelfDisable
 	}
-	if disabled {
-		if err := m.root.Roles.Disable(ctx, id); err != nil {
-			return false, err
-		}
-		return true, nil
+	if err := m.root.outranking(ctx, actor, id); err != nil {
+		return false, err
 	}
 	if err := m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled); err != nil {
 		return false, err
@@ -173,7 +158,14 @@ func (m MutationResolvers) SetUserRole(ctx context.Context, id uuid.UUID, tier s
 	if err != nil {
 		return false, err
 	}
-	if err := m.root.Roles.Grant(ctx, id, stood); err != nil {
+	actor := authkit.IdentityFromContext(ctx)
+	if !role.Outranks(role.Role(actor.Role), stood) {
+		return false, role.ErrBeyondReach
+	}
+	if err := m.root.outranking(ctx, actor, id); err != nil {
+		return false, err
+	}
+	if err := m.root.Admin.SetAccountRole(ctx, actor.ID, id, stood.String()); err != nil {
 		return false, err
 	}
 	return true, nil

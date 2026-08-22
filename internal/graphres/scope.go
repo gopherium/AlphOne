@@ -9,8 +9,11 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // scopeDirectiveName names the directive a root field declares its area with.
@@ -120,7 +123,7 @@ func (m ScopeMap) Needed(operation ast.Operation, field string) string {
 func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 	return func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		token, carried := credential.TokenOf(ctx)
-		tier := credential.RoleOf(ctx)
+		tier := role.Of(authkit.IdentityFromContext(ctx).Role)
 		operation := graphql.GetOperationContext(ctx)
 		if operation.Operation == nil {
 			return scopeRefusal("the operation")
