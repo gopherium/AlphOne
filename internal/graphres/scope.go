@@ -84,7 +84,8 @@ func scopeOf(declared *ast.Directive) fieldScope {
 	if adminOnly := declared.Arguments.ForName(adminArgument); adminOnly != nil {
 		scope.admin = adminOnly.Value.Raw == "true"
 	}
-	if needed := declared.Arguments.ForName(capabilityArgument); needed != nil {
+	if needed := declared.Arguments.ForName(capabilityArgument); needed != nil &&
+		needed.Value.Kind != ast.NullValue {
 		scope.capability = role.Capability(needed.Value.Raw)
 	}
 	return scope

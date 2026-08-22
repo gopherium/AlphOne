@@ -145,6 +145,29 @@ func TestScopeMapReadsTheCapabilityAFieldDeclares(t *testing.T) {
 	}
 }
 
+func TestScopeMapReadsANullCapabilityAsNoneDeclared(t *testing.T) {
+	t.Parallel()
+
+	schema, err := gqlparser.LoadSchema(&ast.Source{Name: "null", Input: `
+directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capability: String) on FIELD_DEFINITION
+type Mutation {
+  bare: String! @scope(area: "users", write: true, capability: null)
+  flagged: String! @scope(area: "users", write: true, admin: true, capability: null)
+}
+`})
+	if err != nil {
+		t.Fatalf("loading the schema: %v", err)
+	}
+	scopes := graphres.NewScopeMap(schema)
+
+	if got := scopes.Capability(ast.Mutation, "bare"); got != "" {
+		t.Errorf("bare needs %q, want none, a null names no capability", got)
+	}
+	if got := scopes.Capability(ast.Mutation, "flagged"); got != role.ManageUsers {
+		t.Errorf("flagged needs %q, want the admin flag to still stand in", got)
+	}
+}
+
 func TestScopeMapReadsTheAdminFlagAFieldDeclares(t *testing.T) {
 	t.Parallel()
 

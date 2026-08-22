@@ -238,6 +238,16 @@ func TestScopeCheckingFlagsACapabilityTheTableDoesNotKnow(t *testing.T) {
 	}
 }
 
+func TestScopeCheckingFlagsANullCapability(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `type Mutation { one: String! @scope(area: "users", write: true, capability: null) }`
+
+	if got := scopeProblemsIn(t, "synthetic", synthetic); len(got) == 0 {
+		t.Error("a null capability raised no problem, want a field naming one the table knows")
+	}
+}
+
 func TestScopeCheckingRefusesTheBareAdminFlag(t *testing.T) {
 	t.Parallel()
 
