@@ -131,6 +131,91 @@ func TestMeAnswersTheCallersTier(t *testing.T) {
 	}
 }
 
+func TestCreateUserStartsAtTheNarrowestRoleWhenTheInputNamesNone(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	var answered struct {
+		CreateUser struct {
+			Role string `json:"role"`
+		} `json:"createUser"`
+	}
+	client.MustPost(`mutation { createUser(`+
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery"`+
+		`) { role } }`, &answered)
+
+	if answered.CreateUser.Role != role.Member.String() {
+		t.Errorf("role = %q, want %q, an account starts at the narrowest role",
+			answered.CreateUser.Role, role.Member.String())
+	}
+}
+
+func TestCreateUserStartsAtTheRoleTheInputNames(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	var answered struct {
+		CreateUser struct {
+			Role string `json:"role"`
+		} `json:"createUser"`
+	}
+	client.MustPost(`mutation { createUser(`+
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "admin"`+
+		`) { role } }`, &answered)
+
+	if answered.CreateUser.Role != role.Admin.String() {
+		t.Errorf("role = %q, want %q", answered.CreateUser.Role, role.Admin.String())
+	}
+}
+
+func TestCreateUserRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(`mutation { createUser(` +
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "root"` +
+		`) { role } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+}
+
+func TestCreateUserRefusesARoleBeyondTheCallersReach(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(`mutation { createUser(` +
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", ` +
+		`role: "` + stewardRole.String() + `") { role } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("createUser answered no error, want an admin refused a role it does not hold")
+	}
+}
+
 func TestSetUserRoleStandsAUserInTheTierItNames(t *testing.T) {
 	t.Parallel()
 

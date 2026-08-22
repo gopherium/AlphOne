@@ -10,11 +10,12 @@ import (
 
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // scopedSchema is the miniature schema every scope gate test runs against.
 const scopedSchema = `
-directive @scope(area: String!, write: Boolean!, admin: Boolean = false) on FIELD_DEFINITION
+directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capability: String) on FIELD_DEFINITION
 type Query {
   contacts: String! @scope(area: "contacts", write: false)
   me: String! @scope(area: "auth", write: false)
@@ -25,9 +26,10 @@ type Query {
 type Mutation {
   createContact: String! @scope(area: "contacts", write: true)
   createTask: String! @scope(area: "tasks", write: true)
-  createUser: String! @scope(area: "users", write: true, admin: true)
-  setUserRole: String! @scope(area: "users", write: true, admin: true)
+  createUser: String! @scope(area: "users", write: true, capability: "manage_users")
+  setUserRole: String! @scope(area: "users", write: true, capability: "manage_users")
   setUserDisabled: String! @scope(area: "users", write: true, admin: true)
+  needsReports: String! @scope(area: "users", write: true, capability: "manage_reports")
 }
 type Subscription {
   coreEvent: String! @scope(area: "events", write: false)
@@ -49,7 +51,7 @@ func TestScopeMapReadsEveryRootOperation(t *testing.T) {
 
 	scopes := newScopeMap(t)
 
-	if got, want := len(scopes), 10; got != want {
+	if got, want := len(scopes), 11; got != want {
 		t.Errorf("scope map holds %d fields, want %d across query, mutation and subscription", got, want)
 	}
 	if !scopes.Allows(ast.Query, "contacts", apitoken.ParseScopes("contacts:read")) {
@@ -121,13 +123,32 @@ func TestScopeMapRefusesTokenManagementToEveryToken(t *testing.T) {
 	}
 }
 
+func TestScopeMapReadsTheCapabilityAFieldDeclares(t *testing.T) {
+	t.Parallel()
+
+	scopes := newScopeMap(t)
+
+	if got := scopes.Capability(ast.Mutation, "createUser"); got != role.ManageUsers {
+		t.Errorf("createUser needs %q, want %q", got, role.ManageUsers)
+	}
+	if got := scopes.Capability(ast.Mutation, "setUserRole"); got != role.ManageUsers {
+		t.Errorf("setUserRole needs %q, want %q", got, role.ManageUsers)
+	}
+	if got := scopes.Capability(ast.Mutation, "createContact"); got != "" {
+		t.Errorf("createContact needs %q, want no capability of an unmarked field", got)
+	}
+	if got := scopes.Capability(ast.Query, "users"); got != "" {
+		t.Errorf("the users listing needs %q, want a member reading its colleagues", got)
+	}
+}
+
 func TestScopeMapReadsTheAdminFlagAFieldDeclares(t *testing.T) {
 	t.Parallel()
 
 	scopes := newScopeMap(t)
 
-	if !scopes.AdminOnly(ast.Mutation, "createUser") {
-		t.Error("createUser is not admin only, want the declared flag read")
+	if !scopes.AdminOnly(ast.Mutation, "setUserDisabled") {
+		t.Error("setUserDisabled is not admin only, want the declared flag read")
 	}
 	if scopes.AdminOnly(ast.Mutation, "createContact") {
 		t.Error("createContact is admin only, want an unmarked field open to every tier")

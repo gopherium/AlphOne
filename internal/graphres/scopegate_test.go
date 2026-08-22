@@ -122,6 +122,26 @@ func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
 	}
 }
 
+func TestScopeGateRefusesAFieldWhoseCapabilityTheRoleLacks(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, role.Admin)
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q, an admin holding no manage_reports is refused", got, want)
+	}
+}
+
+func TestScopeGateLetsARoleHoldingTheCapabilityThrough(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, stewardRole)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, the declared role holds manage_reports", answered.Errors)
+	}
+}
+
 func TestScopeGateLetsAnAdminSessionReachAnAdminField(t *testing.T) {
 	t.Parallel()
 
