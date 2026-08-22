@@ -34,10 +34,10 @@ func TestGrantAdminReportsAnUnknownUser(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	err = grantAdmin(t.Context(), pool, authkitpg.NewUserStore(pool), "nobody@example.com")
+	err = grantRole(t.Context(), pool, authkitpg.NewUserStore(pool), "nobody@example.com", role.Admin)
 
 	if err == nil {
-		t.Error("grantAdmin() error = nil, want a refusal for a user that does not exist")
+		t.Error("grantRole() error = nil, want a refusal for a user that does not exist")
 	}
 }
 
@@ -48,7 +48,7 @@ func TestCreateAdminProvisionsAnAdminOnABareDatabase(t *testing.T) {
 	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	err := createAdmin(t.Context(), getenv,
-		[]string{"-email", "admin@example.com", "-name", "Admin"},
+		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
 		strings.NewReader("correct horse battery\n"), &strings.Builder{})
 
 	if err != nil {

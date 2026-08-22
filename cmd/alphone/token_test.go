@@ -25,7 +25,7 @@ func seedTokenUser(t *testing.T, getenv func(string) string) {
 	err := createAdmin(
 		t.Context(),
 		getenv,
-		[]string{"-email", "admin@example.com", "-name", "Admin"},
+		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
 		strings.NewReader("correct horse battery\n"),
 		io.Discard,
 	)

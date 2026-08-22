@@ -128,7 +128,7 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	cmd := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
 	cmd.Stdin = strings.NewReader("correct horse battery\n")
@@ -423,7 +423,7 @@ func postForm(t *testing.T, addr, secret, contentType string, body io.Reader) gr
 func servedBinary(t *testing.T, databaseURL string) (string, string) {
 	t.Helper()
 	binary, env := coverBinary(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
@@ -568,7 +568,7 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
@@ -640,7 +640,7 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
