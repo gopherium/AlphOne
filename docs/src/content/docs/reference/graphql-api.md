@@ -32,7 +32,7 @@ Authorization: Bearer a1_...
 ```
 
 A token acts as the user who created it, and never reaches further than that
-user does. See [Roles](#roles) for what each tier may do. Work it creates
+user does. See [Roles](#roles) for what a role may do. Work it creates
 records `token:<name>` in `originSource`, so automated work stays
 distinguishable from typed work.
 
@@ -97,14 +97,25 @@ Always read `errors`. A 200 does not mean it worked.
 
 ## Roles
 
-Every user stands in one of two tiers. An admin manages users. A member works
-the product, which is contacts, tasks, and whatever your plugins add.
+Every account holds one role, and the role decides what the account may do. A
+stock deployment names two. An admin manages users. A member works the product,
+which is contacts, tasks, and whatever your plugins add. A plugin may declare
+roles of its own, so do not assume the list stops at two.
 
-A user with no tier recorded is a member. So a new account starts without user
-management, and gains it only when an admin says so.
+What a role may do is a set of named capabilities. `me` answers the ones the
+calling account holds, so a client asks what it may do rather than guessing from
+the role's name:
 
-Three operations are reserved to admins: `createUser`, `setUserDisabled` and
-`setUserRole`. A member calling one is refused:
+```graphql
+query { me { role capabilities grantable } }
+```
+
+`capabilities` names what the account may do. `grantable` names the roles it may
+give another account, which is every role whose capabilities it already holds
+itself. An admin cannot grant a role that reaches further than its own.
+
+Three operations need the `manage_users` capability: `createUser`,
+`setUserDisabled` and `setUserRole`. An account without it is refused:
 
 ```json
 {
@@ -125,10 +136,18 @@ here. A token cannot carry more authority than the user it acts as.
 Listing users stays open to members. A member sees who its colleagues are,
 which is what assigning a task to one of them needs.
 
-A deployment always keeps one admin. Demoting or disabling the last enabled
-admin is refused with code `VALIDATION` and the message `the last admin cannot
-be unseated`. A disabled admin does not count as cover, because its sessions
-are already gone and its tokens answer `invalid token`.
+Nobody changes its own role, and nobody disables its own account. Both are
+refused with code `VALIDATION` and the messages `you cannot change your own
+role` and `you cannot disable your own account`. Together they keep a
+deployment from losing its last admin, since an admin can only ever demote
+somebody else, and there is always itself left holding the authority.
+
+Writing a role the caller does not hold itself is refused the same way, with
+`that role is beyond your own`. So an admin can neither grant a role reaching
+further than admin nor touch an account already holding one.
+
+`createUser` takes an optional `role`. Leaving it out starts the account at the
+narrowest role the deployment names, which is `member` in a stock install.
 
 ### Roles and scopes together
 
@@ -137,10 +156,10 @@ authority. An operation runs only when both allow it.
 
 | The caller | What it holds | Reaching `createUser` |
 | ---------- | ------------- | --------------------- |
-| An admin's session | the tier, and no token to narrow it | yes |
+| An admin's session | the capability, and no token to narrow it | yes |
 | An admin's token scoped `users:write` | both | yes |
-| An admin's token scoped `contacts:read` | the tier but not the scope | no, `scope required: users:write` |
-| A member's token scoped `*` | the scope but not the tier | no, `admin required` |
+| An admin's token scoped `contacts:read` | the capability but not the scope | no, `scope required: users:write` |
+| A member's token scoped `*` | the scope but not the capability | no, `admin required` |
 
 The token is checked first. A caller holding neither is told about the scope,
 because that is the half it can fix on its own.
@@ -239,7 +258,7 @@ Every error carries a `code` in its `extensions`.
 | Code | Meaning |
 | ---- | ------- |
 | `UNAUTHENTICATED` | No usable credential, or the operation is not `login` |
-| `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the user is not an admin |
+| `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the account's role holds no capability the field needs |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
 | `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |
