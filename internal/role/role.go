@@ -21,6 +21,9 @@ var ErrUnknownTier = errors.New("unknown tier")
 // ErrEmptyRole reports a role declared with no name.
 var ErrEmptyRole = errors.New("empty role")
 
+// ErrBeyondReach reports a write touching a role holding a capability the caller lacks.
+var ErrBeyondReach = errors.New("role beyond reach")
+
 // Role is the tier a user stands in.
 type Role string
 
