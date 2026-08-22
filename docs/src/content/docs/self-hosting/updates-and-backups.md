@@ -65,18 +65,23 @@ it on the way down, and every promotion and demotion goes with it.
 Save the roles first:
 
 ```sh
-docker compose exec -T postgres psql -U alphone alphone -tAc \
-  "SELECT email || ',' || role FROM auth.users" > roles.csv
+docker compose exec -T postgres \
+  pg_dump -U alphone --data-only --no-owner --table=auth.users alphone > roles.sql
 ```
 
-Put them back once the column exists again:
+That keeps every role exactly as stored, including any a plugin declared. Put
+them back once the column exists again, by loading the dump into a scratch
+table and copying the column across:
 
 ```sh
-while IFS=, read -r email held; do
-  docker compose exec -T postgres psql -U alphone alphone \
-    -c "UPDATE auth.users SET role = '$held' WHERE email = '$email'"
-done < roles.csv
+docker compose exec -T postgres psql -U alphone alphone \
+  -c 'CREATE TEMP TABLE restored (LIKE auth.users)' \
+  -c "\\copy restored FROM PROGRAM 'cat roles.sql'" \
+  -c 'UPDATE auth.users u SET role = r.role FROM restored r WHERE r.id = u.id'
 ```
+
+Taking a full `pg_dump` before any rollback is simpler still, and it is what the
+backup section below sets up anyway.
 
 Accounts that end up holding no role can do nothing until they are
 given one. `alphone grantrole -role member` gives a role to every

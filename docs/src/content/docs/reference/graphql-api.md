@@ -122,7 +122,11 @@ Three operations need the `manage_users` capability: `createUser`,
   "errors": [
     {
       "message": "admin required",
-      "extensions": { "code": "UNAUTHORIZED", "scope": "users:write" }
+      "extensions": {
+        "code": "UNAUTHORIZED",
+        "scope": "users:write",
+        "capability": "manage_users"
+      }
     }
   ],
   "data": null
@@ -130,8 +134,11 @@ Three operations need the `manage_users` capability: `createUser`,
 ```
 
 The `scope` extension still names what the field wanted, so a caller always
-learns which area an operation acts in. Minting a wider token does not help
-here. A token cannot carry more authority than the user it acts as.
+learns which area an operation acts in, and `capability` names what the
+account's role fell short of. A refusal about a token's scopes carries no
+`capability`, so the two halves stay distinguishable. Minting a wider token
+does not help here. A token cannot carry more authority than the user it acts
+as.
 
 Listing users stays open to members. A member sees who its colleagues are,
 which is what assigning a task to one of them needs.
