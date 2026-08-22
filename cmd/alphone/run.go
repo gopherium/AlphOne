@@ -108,8 +108,9 @@ func run(
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
-		_ = host.Stop(ctx)
-		return fmt.Errorf("compose graph root: %w", err)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return errors.Join(fmt.Errorf("compose graph root: %w", err), host.Stop(stopCtx))
 	}
 
 	cfg := server.Config{
