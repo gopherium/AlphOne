@@ -60,7 +60,6 @@ func run(
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
-	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
 	deliveries := webhook.NewWorker(webhooks, logger)
@@ -93,12 +92,8 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	auth := authkit.New(authkit.Config{
-		Store:      userStore,
-		CookieName: server.SessionCookieName,
-		Privileged: role.Privileged(),
-	})
-	admin := authkit.NewAdmin(authkit.AdminConfig{Store: userStore, Privileged: role.Privileged()})
+	auth := authkit.New(authConfig(userStore))
+	admin := authkit.NewAdmin(adminConfig(userStore))
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      version.Version(),
 		Contacts:     contacts,
@@ -106,7 +101,6 @@ func run(
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
-		Roles:        roles,
 		Events:       events,
 		Live:         hub,
 		Auth:         auth,
@@ -123,7 +117,6 @@ func run(
 		Auth:              auth,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
-		Roles:             roles,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		PluginAreas:       pluginAreas(registered),
@@ -154,6 +147,20 @@ func pluginAreas(registered []sdk.Plugin) map[string]string {
 		}
 	}
 	return areas
+}
+
+// authConfig returns the login configuration the server serves sessions under.
+func authConfig(store *authkitpg.UserStore) authkit.Config {
+	return authkit.Config{
+		Store:      store,
+		CookieName: server.SessionCookieName,
+		Privileged: role.Privileged(),
+	}
+}
+
+// adminConfig returns the administration configuration guarding the privileged cover.
+func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
+	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
 }
 
 // declareRoles grants the registry every role a registered plugin declares.
