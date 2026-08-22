@@ -127,13 +127,15 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Roles:        roles,
 		Live:         hub,
 		Auth:         auth,
-		Admin:        authkit.NewAdmin(users),
+		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users}),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
 	}
-	if _, err := authkit.EnsureAdmin(context.Background(), users, ownerEmail, ownerName, ownerPassword); err != nil {
+	if _, err := authkit.EnsureAdmin(
+		context.Background(), users, ownerEmail, ownerName, ownerPassword, role.Admin.String(),
+	); err != nil {
 		t.Fatalf("seeding the owner: %v", err)
 	}
 	owner, err := users.UserByEmail(context.Background(), ownerEmail)
@@ -294,7 +296,7 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 
 // addUser stores another user and returns its id.
 func (w *world) addUser(ctx context.Context, email, name string) (uuid.UUID, error) {
-	if _, err := authkit.EnsureAdmin(ctx, w.users, email, name, ownerPassword); err != nil {
+	if _, err := authkit.EnsureAdmin(ctx, w.users, email, name, ownerPassword, role.Member.String()); err != nil {
 		return uuid.Nil, fmt.Errorf("seeding %s: %w", email, err)
 	}
 	stored, err := w.users.UserByEmail(ctx, email)

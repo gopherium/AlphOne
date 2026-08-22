@@ -60,7 +60,7 @@ func newGraphServer(t *testing.T, cfg graphConfig) http.Handler {
 func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) http.Handler {
 	t.Helper()
 	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
-	admin := authkit.NewAdmin(cfg.Users)
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users})
 	plugins, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
 		t.Fatalf("graphroot.All() error = %v, want nil", err)

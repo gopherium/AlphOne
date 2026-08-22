@@ -28,7 +28,7 @@ func newAuthResolver(store *testkit.Store) *graphres.Resolver {
 	return &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
-		Admin:        authkit.NewAdmin(store),
+		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
 		Roles:        standingRoleStore{tier: role.Member},
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 	}
