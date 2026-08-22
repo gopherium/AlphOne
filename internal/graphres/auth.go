@@ -142,7 +142,7 @@ func (m MutationResolvers) Logout(ctx context.Context) (bool, error) {
 
 // CreateUser creates a user account.
 func (m MutationResolvers) CreateUser(ctx context.Context, email, name, password string) (*model.User, error) {
-	account, err := m.root.Admin.CreateAccount(ctx, email, name, password)
+	account, err := m.root.Admin.CreateAccount(ctx, email, name, password, role.Member.String())
 	if err != nil {
 		return nil, err
 	}
