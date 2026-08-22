@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/parser"
+
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // scopeDirective names the directive every root field declares its area with.
@@ -78,11 +81,26 @@ func scopeProblems(operation string, field *ast.FieldDefinition) []string {
 		problems = append(problems, fmt.Sprintf("%s.%s declares an empty area", operation, field.Name))
 	}
 	problems = append(problems, accessProblems(operation, field, declared)...)
-	if admin := declared.Arguments.ForName("admin"); admin != nil && !isBoolean(admin.Value) {
-		problems = append(problems, fmt.Sprintf(
-			"%s.%s declares admin %s, want true or false", operation, field.Name, admin.Value.Raw))
-	}
+	problems = append(problems, capabilityProblems(operation, field, declared)...)
 	return problems
+}
+
+// capabilityProblems reports how one root field's capability declaration falls short.
+func capabilityProblems(operation string, field *ast.FieldDefinition, declared *ast.Directive) []string {
+	if admin := declared.Arguments.ForName("admin"); admin != nil && admin.Value.Raw == "true" {
+		return []string{fmt.Sprintf(
+			"%s.%s reserves itself with admin: true, want a capability the role table knows",
+			operation, field.Name)}
+	}
+	needed := declared.Arguments.ForName("capability")
+	if needed == nil {
+		return nil
+	}
+	if !slices.Contains(role.Capabilities(), role.Capability(needed.Value.Raw)) {
+		return []string{fmt.Sprintf("%s.%s needs capability %q, which the role table does not know",
+			operation, field.Name, needed.Value.Raw)}
+	}
+	return nil
 }
 
 // accessProblems reports how one root field's write flag falls short of its operation.
@@ -96,11 +114,6 @@ func accessProblems(operation string, field *ast.FieldDefinition, declared *ast.
 			operation, field.Name, write.Value.Raw, want, operation)}
 	}
 	return nil
-}
-
-// isBoolean reports whether one directive argument value is a boolean literal.
-func isBoolean(value *ast.Value) bool {
-	return value != nil && value.Kind == ast.BooleanValue
 }
 
 func TestEveryRootFieldDeclaresTheScopeItNeeds(t *testing.T) {
@@ -141,20 +154,20 @@ type Contact { unscoped: String! }
 	}
 }
 
-func TestScopeCheckingAcceptsAnAdminFlag(t *testing.T) {
+func TestScopeCheckingAcceptsACapability(t *testing.T) {
 	t.Parallel()
 
 	synthetic := `
-type Mutation { one: String! @scope(area: "users", write: true, admin: true) }
+type Mutation { one: String! @scope(area: "users", write: true, capability: "manage_users") }
 extend type Mutation { two: String! @scope(area: "users", write: true, admin: false) }
 `
 
 	if got := scopedFieldsIn(t, "synthetic", synthetic); got != 2 {
-		t.Errorf("counted %d root fields, want 2 with the admin flag present", got)
+		t.Errorf("counted %d root fields, want 2 with the capability present", got)
 	}
 }
 
-func TestOnlyUserManagementIsReservedToAdmins(t *testing.T) {
+func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 	t.Parallel()
 
 	reserved := map[string]bool{}
@@ -170,27 +183,27 @@ func TestOnlyUserManagementIsReservedToAdmins(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading %s: %v", path, err)
 		}
-		for _, field := range adminFieldsIn(t, path, string(raw)) {
+		for _, field := range gatedFieldsIn(t, path, string(raw)) {
 			reserved[field] = true
 		}
 	}
 
 	want := map[string]bool{"createUser": true, "setUserDisabled": true, "setUserRole": true}
 	if len(reserved) != len(want) {
-		t.Errorf("admin only fields = %v, want %v", reserved, want)
+		t.Errorf("fields needing manage_users = %v, want %v", reserved, want)
 	}
 	for field := range want {
 		if !reserved[field] {
-			t.Errorf("%s is not admin only, want user management reserved to admins", field)
+			t.Errorf("%s needs no capability, want user management gated on manage_users", field)
 		}
 	}
 	if reserved["users"] {
-		t.Error("the users listing is admin only, want a member reading its colleagues")
+		t.Error("the users listing needs a capability, want a member reading its colleagues")
 	}
 }
 
-// adminFieldsIn names the root fields of one SDL source reserved to the admin tier.
-func adminFieldsIn(t *testing.T, name, source string) []string {
+// gatedFieldsIn names the root fields of one SDL source needing the manage users capability.
+func gatedFieldsIn(t *testing.T, name, source string) []string {
 	t.Helper()
 	doc, err := parser.ParseSchema(&ast.Source{Name: name, Input: source})
 	if err != nil {
@@ -206,7 +219,8 @@ func adminFieldsIn(t *testing.T, name, source string) []string {
 			if declared == nil {
 				continue
 			}
-			if admin := declared.Arguments.ForName("admin"); admin != nil && admin.Value.Raw == "true" {
+			needed := declared.Arguments.ForName("capability")
+			if needed != nil && needed.Value.Raw == string(role.ManageUsers) {
 				reserved = append(reserved, field.Name)
 			}
 		}
@@ -214,12 +228,22 @@ func adminFieldsIn(t *testing.T, name, source string) []string {
 	return reserved
 }
 
-func TestScopeCheckingFlagsAMalformedAdminFlag(t *testing.T) {
+func TestScopeCheckingFlagsACapabilityTheTableDoesNotKnow(t *testing.T) {
 	t.Parallel()
 
-	synthetic := `type Mutation { one: String! @scope(area: "users", write: true, admin: 1) }`
+	synthetic := `type Mutation { one: String! @scope(area: "users", write: true, capability: "manage_moons") }`
 
 	if got := scopeProblemsIn(t, "synthetic", synthetic); len(got) == 0 {
-		t.Error("a malformed admin flag raised no problem, want it flagged")
+		t.Error("a capability no role holds raised no problem, want it flagged")
+	}
+}
+
+func TestScopeCheckingRefusesTheBareAdminFlag(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `type Mutation { one: String! @scope(area: "users", write: true, admin: true) }`
+
+	if got := scopeProblemsIn(t, "synthetic", synthetic); len(got) == 0 {
+		t.Error("a field reserved with admin: true raised no problem, want a capability required")
 	}
 }
