@@ -71,6 +71,7 @@ type RoleDeclaration struct {
 
 // RoleProvider is implemented by plugins declaring roles or widening the ones the host knows.
 type RoleProvider interface {
+	// Roles returns every role the plugin declares and every capability it adds to one.
 	Roles() []RoleDeclaration
 }
 
