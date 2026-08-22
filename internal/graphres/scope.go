@@ -153,7 +153,7 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 				return scopeRefusal(scopes.Needed(kind, selected.Name))
 			}
 			if needed := scopes.Capability(kind, selected.Name); needed != "" && !role.Can(tier, needed) {
-				return refusal("admin required", scopes.Needed(kind, selected.Name))
+				return capabilityRefusal(scopes.Needed(kind, selected.Name), needed)
 			}
 		}
 		return next(ctx)
@@ -163,6 +163,18 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 // scopeRefusal answers one operation with the scope its token lacks.
 func scopeRefusal(needed string) graphql.ResponseHandler {
 	return refusal("scope required: "+needed, needed)
+}
+
+// capabilityRefusal answers one operation naming the scope and the capability the caller's role lacked.
+func capabilityRefusal(needed string, lacked role.Capability) graphql.ResponseHandler {
+	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
+		Message: "admin required",
+		Extensions: map[string]any{
+			"code":       "UNAUTHORIZED",
+			"scope":      needed,
+			"capability": string(lacked),
+		},
+	}}})
 }
 
 // refusal answers one operation with the message and the scope the refused field wanted.

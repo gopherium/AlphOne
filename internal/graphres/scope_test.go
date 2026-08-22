@@ -134,6 +134,9 @@ func TestScopeMapReadsTheCapabilityAFieldDeclares(t *testing.T) {
 	if got := scopes.Capability(ast.Mutation, "setUserRole"); got != role.ManageUsers {
 		t.Errorf("setUserRole needs %q, want %q", got, role.ManageUsers)
 	}
+	if got := scopes.Capability(ast.Mutation, "setUserDisabled"); got != role.ManageUsers {
+		t.Errorf("setUserDisabled needs %q, want a bare admin flag read as %q", got, role.ManageUsers)
+	}
 	if got := scopes.Capability(ast.Mutation, "createContact"); got != "" {
 		t.Errorf("createContact needs %q, want no capability of an unmarked field", got)
 	}

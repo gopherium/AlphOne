@@ -108,6 +108,29 @@ func TestScopeGateRefusesAnAdminFieldToAMemberSession(t *testing.T) {
 	if got, want := answered.Errors[0].Extensions["scope"], "users:write"; got != want {
 		t.Errorf("scope = %v, want %q, a caller learns what the field wanted", got, want)
 	}
+	if got, want := answered.Errors[0].Extensions["capability"], "manage_users"; got != want {
+		t.Errorf("capability = %v, want %q, a caller learns what its role lacked", got, want)
+	}
+}
+
+func TestScopeGateNamesTheCapabilityARoleLacks(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, role.Admin)
+
+	if got, want := answered.Errors[0].Extensions["capability"], "manage_reports"; got != want {
+		t.Errorf("capability = %v, want %q", got, want)
+	}
+}
+
+func TestAScopeRefusalNamesNoCapability(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsToken(t, `mutation { createContact }`, apitoken.ParseScopes("tasks:read"))
+
+	if _, named := answered.Errors[0].Extensions["capability"]; named {
+		t.Error("a scope refusal named a capability, want the extension only where a role fell short")
+	}
 }
 
 func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
