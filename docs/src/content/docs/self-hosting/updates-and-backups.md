@@ -65,23 +65,25 @@ it on the way down, and every promotion and demotion goes with it.
 Save the roles first:
 
 ```sh
-docker compose exec -T postgres \
-  pg_dump -U alphone --data-only --no-owner --table=auth.users alphone > roles.sql
+docker compose exec -T postgres psql -U alphone alphone \
+  -c "\\copy (SELECT id, role FROM auth.users) TO STDOUT WITH (FORMAT csv)" > roles.csv
 ```
 
-That keeps every role exactly as stored, including any a plugin declared. Put
-them back once the column exists again, by loading the dump into a scratch
-table and copying the column across:
+That keeps every role exactly as stored, including any a plugin declared, and
+CSV quoting handles whatever the values contain. Put them back once the column
+exists again, reading the file on the machine you run the command from:
 
 ```sh
 docker compose exec -T postgres psql -U alphone alphone \
-  -c 'CREATE TEMP TABLE restored (LIKE auth.users)' \
-  -c "\\copy restored FROM PROGRAM 'cat roles.sql'" \
-  -c 'UPDATE auth.users u SET role = r.role FROM restored r WHERE r.id = u.id'
+  -c 'CREATE TEMP TABLE restored (id uuid PRIMARY KEY, role text NOT NULL)' \
+  -c "\\copy restored (id, role) FROM STDIN WITH (FORMAT csv)" \
+  -c 'UPDATE auth.users u SET role = r.role FROM restored r WHERE r.id = u.id' \
+  < roles.csv
 ```
 
-Taking a full `pg_dump` before any rollback is simpler still, and it is what the
-backup section below sets up anyway.
+Both commands stream through `psql`, so the file never has to exist inside the
+container. Taking a full `pg_dump` before any rollback is simpler still, and it
+is what the backup section below sets up anyway.
 
 Accounts that end up holding no role can do nothing until they are
 given one. `alphone grantrole -role member` gives a role to every
