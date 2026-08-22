@@ -12,6 +12,8 @@ import (
 
 	"github.com/gopherium/gouncer"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+
+	"github.com/gopherium/alphone/internal/role"
 )
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
@@ -26,7 +28,7 @@ func TestCreateAdminProvisionsAUser(t *testing.T) {
 	err := createAdmin(
 		t.Context(),
 		getenv,
-		[]string{"-email", " Admin@Example.com ", "-name", "Admin"},
+		[]string{"-email", " Admin@Example.com ", "-name", "Admin", "-role", "admin"},
 		strings.NewReader("correct horse battery\n"),
 		&stdout,
 	)
@@ -57,7 +59,7 @@ func TestCreateAdminRejectsDuplicateEmail(t *testing.T) {
 
 	databaseURL := testDatabaseURL(t)
 	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
-	args := []string{"-email", "admin@example.com", "-name", "Admin"}
+	args := []string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"}
 
 	if err := createAdmin(
 		t.Context(), getenv, args, strings.NewReader("correct horse battery\n"), io.Discard,
@@ -84,7 +86,7 @@ func TestCreateAdminValidatesItsInput(t *testing.T) {
 	}{
 		"missing database url": {
 			env:   nil,
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
+			args:  []string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
 			stdin: strings.NewReader("correct horse battery\n"),
 		},
 		"unknown flag": {
@@ -94,12 +96,12 @@ func TestCreateAdminValidatesItsInput(t *testing.T) {
 		},
 		"malformed database url": {
 			env:   map[string]string{"ALPHONE_DATABASE_URL": "not a url \x00"},
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
+			args:  []string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
 			stdin: strings.NewReader("correct horse battery\n"),
 		},
 		"unreachable database": {
 			env:   map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL},
-			args:  []string{"-email", "admin@example.com", "-name", "Admin"},
+			args:  []string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
 			stdin: strings.NewReader("correct horse battery\n"),
 		},
 	}
@@ -114,6 +116,36 @@ func TestCreateAdminValidatesItsInput(t *testing.T) {
 				t.Fatal("createAdmin() error = nil, want a failure")
 			}
 		})
+	}
+}
+
+func TestCreateAdminRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+
+	err := createAdmin(
+		t.Context(),
+		getenv,
+		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "superadmin"},
+		strings.NewReader("correct horse battery\n"),
+		io.Discard,
+	)
+
+	if !errors.Is(err, role.ErrUnknownTier) {
+		t.Errorf("createAdmin() error = %v, want a role no plugin declared refused", err)
+	}
+}
+
+func TestCreateAdminNamesTheMissingDatabaseBeforeTheRole(t *testing.T) {
+	t.Parallel()
+
+	err := createAdmin(
+		t.Context(), testGetenv(nil), nil, strings.NewReader(""), io.Discard,
+	)
+
+	if err == nil || errors.Is(err, role.ErrUnknownTier) {
+		t.Errorf("createAdmin() error = %v, want the database url named first", err)
 	}
 }
 
