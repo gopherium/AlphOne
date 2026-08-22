@@ -25,6 +25,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -81,6 +82,9 @@ func run(
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
+	}
+	if err := declareRoles(role.Default, registered); err != nil {
+		return fmt.Errorf("declare plugin roles: %w", err)
 	}
 	wireFieldProviders(registered)
 
@@ -146,6 +150,26 @@ func pluginAreas(registered []sdk.Plugin) map[string]string {
 		}
 	}
 	return areas
+}
+
+// declareRoles grants the registry every role a registered plugin declares.
+func declareRoles(registry *role.Registry, registered []sdk.Plugin) error {
+	for _, plugin := range registered {
+		provider, ok := plugin.(sdk.RoleProvider)
+		if !ok {
+			continue
+		}
+		for _, declared := range provider.Roles() {
+			capabilities := make([]role.Capability, 0, len(declared.Capabilities))
+			for _, capability := range declared.Capabilities {
+				capabilities = append(capabilities, role.Capability(capability))
+			}
+			if err := registry.Grant(role.Role(declared.Name), capabilities...); err != nil {
+				return fmt.Errorf("declare role %q for %s: %w", declared.Name, plugin.ID(), err)
+			}
+		}
+	}
+	return nil
 }
 
 // fieldSources returns every registered plugin serving runtime defined fields.

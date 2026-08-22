@@ -61,6 +61,19 @@ type AreaProvider interface {
 	Area() string
 }
 
+// RoleDeclaration is one role a plugin declares, or capabilities it adds to a role the host knows.
+type RoleDeclaration struct {
+	// Name is the role in its stored form.
+	Name string
+	// Capabilities names what the role holds, added to whatever it already carries.
+	Capabilities []string
+}
+
+// RoleProvider is implemented by plugins declaring roles or widening the ones the host knows.
+type RoleProvider interface {
+	Roles() []RoleDeclaration
+}
+
 // GraphField is one runtime defined field a plugin serves over the graph.
 type GraphField struct {
 	// Entity is the GraphQL type the field hangs on, such as Contact.
