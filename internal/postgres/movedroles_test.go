@@ -122,9 +122,14 @@ func TestMigrationRestoresTheRolesTableGoingDown(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 	standing := seedUser(t, db, "admin@example.com")
+	declared := seedUser(t, db, "steward@example.com")
 	if _, err := db.ExecContext(t.Context(),
 		"UPDATE auth.users SET role = $1 WHERE id = $2", role.Admin.String(), standing); err != nil {
 		t.Fatalf("standing the user in the admin tier: %v", err)
+	}
+	if _, err := db.ExecContext(t.Context(),
+		"UPDATE auth.users SET role = 'steward' WHERE id = $1", declared); err != nil {
+		t.Fatalf("standing the user in a plugin declared role: %v", err)
 	}
 
 	if _, err := coreProvider(t, db).DownTo(t.Context(), movedRolesVersion-1); err != nil {
@@ -138,5 +143,13 @@ func TestMigrationRestoresTheRolesTableGoingDown(t *testing.T) {
 	}
 	if held != role.Admin.String() {
 		t.Errorf("restored role = %q, want %q", held, role.Admin.String())
+	}
+	var kept string
+	if err := db.QueryRowContext(t.Context(),
+		"SELECT role FROM core.user_roles WHERE user_id = $1", declared).Scan(&kept); err != nil {
+		t.Fatalf("reading the restored plugin role: %v", err)
+	}
+	if kept != "steward" {
+		t.Errorf("restored role = %q, want the plugin declared role kept rather than dropped", kept)
 	}
 }

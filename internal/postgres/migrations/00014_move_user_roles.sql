@@ -12,9 +12,9 @@ DROP TABLE core.user_roles;
 -- +goose Down
 CREATE TABLE core.user_roles (
     user_id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
-    role text NOT NULL CHECK (role IN ('admin', 'member')),
+    role text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
 INSERT INTO core.user_roles (user_id, role)
-SELECT id, role FROM auth.users WHERE role IN ('admin', 'member');
+SELECT id, role FROM auth.users WHERE role <> '';
