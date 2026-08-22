@@ -58,24 +58,31 @@ Migrations only move forward, so if the newer version already migrated
 the schema, restore the matching backup instead of just pinning the
 older image.
 
-If you ever roll a migration back by hand, know that the roles
-migration is the one that loses data. Its down step drops the table
-holding who is an admin, so every promotion and demotion goes with it,
-and applying it again makes every user an admin. Save the rows first:
+If you ever roll a migration back by hand, know that the role each
+account holds is the thing most easily lost. It lives in a `role`
+column on the account row. The migration that added that column drops
+it on the way down, and every promotion and demotion goes with it.
+Save the roles first:
 
 ```sh
-docker compose exec -T postgres \
-  pg_dump -U alphone --data-only --no-owner -t core.user_roles alphone > user_roles.sql
+docker compose exec -T postgres psql -U alphone alphone -tAc \
+  "SELECT email || ',' || role FROM auth.users" > roles.csv
 ```
 
-Applying the migration again refills that table with one admin row per
-user, so put your own rows back over the top:
+Put them back once the column exists again:
 
 ```sh
-docker compose exec -T postgres psql -U alphone alphone \
-  -c 'TRUNCATE core.user_roles'
-docker compose exec -T postgres psql -U alphone alphone < user_roles.sql
+while IFS=, read -r email held; do
+  docker compose exec -T postgres psql -U alphone alphone \
+    -c "UPDATE auth.users SET role = '$held' WHERE email = '$email'"
+done < roles.csv
 ```
+
+Accounts that end up holding no role can do nothing until they are
+given one. `alphone grantrole -role member` gives a role to every
+account holding none, and says how many it changed. It leaves the
+accounts that already hold one alone, so running it twice changes
+nothing the second time.
 
 ## Backup scenario
 
