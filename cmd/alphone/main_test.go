@@ -198,7 +198,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
 	t.Parallel()
 
-	err := dispatch(t.Context(), []string{"not-a-subcommand"})
+	err := dispatch(t.Context(), []string{"not-a-subcommand"}, registerPlugins)
 
 	if !errors.Is(err, errUnknownSubcommand) {
 		t.Fatalf("dispatch() error = %v, want the unknown subcommand refused", err)
@@ -227,7 +227,7 @@ func TestDispatchAnswersHelp(t *testing.T) {
 	t.Parallel()
 
 	for _, arg := range []string{"help", "-h", "--help"} {
-		if err := dispatch(t.Context(), []string{arg}); err != nil {
+		if err := dispatch(t.Context(), []string{arg}, registerPlugins); err != nil {
 			t.Errorf("dispatch(%q) error = %v, want nil", arg, err)
 		}
 	}

@@ -108,6 +108,7 @@ func run(
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
+		_ = host.Stop(ctx)
 		return fmt.Errorf("compose graph root: %w", err)
 	}
 
@@ -161,6 +162,22 @@ func authConfig(store *authkitpg.UserStore) authkit.Config {
 // adminConfig returns the administration configuration guarding the privileged cover.
 func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
 	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
+}
+
+// declarePluginRoles registers the plugins and grants the registry every role they declare.
+func declarePluginRoles(
+	registry *role.Registry,
+	getenv func(string) string,
+	plugins func(sdk.Deps) ([]sdk.Plugin, error),
+) error {
+	registered, err := plugins(sdk.Deps{
+		DatabaseURL: getenv("ALPHONE_DATABASE_URL"),
+		Getenv:      getenv,
+	})
+	if err != nil {
+		return fmt.Errorf("register plugins: %w", err)
+	}
+	return declareRoles(registry, registered)
 }
 
 // declareRoles grants the registry every role a registered plugin declares.

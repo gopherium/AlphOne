@@ -12,6 +12,9 @@ import (
 	"syscall"
 
 	"github.com/joho/godotenv"
+
+	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // errUnknownSubcommand reports a first argument naming no subcommand.
@@ -37,21 +40,27 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	_ = godotenv.Load()
-	if err := dispatch(ctx, os.Args[1:]); err != nil {
+	if err := dispatch(ctx, os.Args[1:], registerPlugins); err != nil {
 		fmt.Fprintln(os.Stderr, "alphone:", err)
 		os.Exit(1)
 	}
 }
 
 // dispatch runs the subcommand named by the first argument, or the server.
-func dispatch(ctx context.Context, args []string) error {
+func dispatch(ctx context.Context, args []string, plugins func(sdk.Deps) ([]sdk.Plugin, error)) error {
 	if len(args) == 0 {
-		return run(ctx, os.Getenv, os.Stderr, registerPlugins)
+		return run(ctx, os.Getenv, os.Stderr, plugins)
 	}
 	switch args[0] {
 	case "createadmin":
+		if err := declarePluginRoles(role.Default, os.Getenv, plugins); err != nil {
+			return err
+		}
 		return createAdmin(ctx, os.Getenv, args[1:], os.Stdin, os.Stdout)
 	case "grantrole":
+		if err := declarePluginRoles(role.Default, os.Getenv, plugins); err != nil {
+			return err
+		}
 		return grantRole(ctx, os.Getenv, args[1:], os.Stdout)
 	case "token":
 		return token(ctx, os.Getenv, args[1:], os.Stdout)
