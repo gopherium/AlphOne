@@ -210,8 +210,8 @@ func TestTokenStoreReportsConnectionFailure(t *testing.T) {
 // scopedTokensVersion is the migration granting api_tokens their scopes and expiry.
 const scopedTokensVersion = 12
 
-// grantedRolesVersion is the migration granting every user a role.
-const grantedRolesVersion = 13
+// movedRolesVersion is the migration moving every tier onto the account.
+const movedRolesVersion = 14
 
 // coreProvider returns a goose provider over the core migrations of db.
 func coreProvider(t *testing.T, db *sql.DB) *goose.Provider {
