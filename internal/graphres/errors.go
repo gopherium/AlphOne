@@ -63,9 +63,31 @@ var notFoundErrors = []error{
 	apitoken.ErrNotFound,
 }
 
+// spokenAs names every brick refusal in the deployment's own voice.
+var spokenAs = []struct {
+	sentinel error
+	message  string
+}{
+	{authkit.ErrSelfRole, "you cannot change your own role"},
+	{authkit.ErrSelfDisable, "you cannot disable your own account"},
+	{gouncer.ErrLastPrivileged, role.ErrLastAdmin.Error()},
+	{role.ErrBeyondReach, "that role is beyond your own"},
+}
+
+// speak rewrites a brick refusal so no package name reaches a caller.
+func speak(presented *gqlerror.Error, err error) {
+	for _, held := range spokenAs {
+		if errors.Is(err, held.sentinel) {
+			presented.Message = held.message
+			return
+		}
+	}
+}
+
 // PresentError maps resolver errors to client-facing GraphQL errors.
 func PresentError(ctx context.Context, err error) *gqlerror.Error {
 	presented := graphql.DefaultErrorPresenter(ctx, err)
+	speak(presented, err)
 	if applySpecialCode(presented, err) || applyListCode(presented, err) {
 		return presented
 	}

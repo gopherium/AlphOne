@@ -12,10 +12,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/graph/scalar"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -59,6 +63,37 @@ func TestPresentErrorMapsDomainErrors(t *testing.T) {
 			}
 			if presented.Message != testCase.err.Error() {
 				t.Errorf("message = %q, want %q", presented.Message, testCase.err.Error())
+			}
+		})
+	}
+}
+
+func TestPresentErrorSpeaksTheBrickRefusalsInItsOwnVoice(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"own role", authkit.ErrSelfRole, "you cannot change your own role"},
+		{"own account", authkit.ErrSelfDisable, "you cannot disable your own account"},
+		{"last privileged", gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
+		{"beyond reach", role.ErrBeyondReach, "that role is beyond your own"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			presented := graphres.PresentError(context.Background(), testCase.err)
+			if got := code(t, presented); got != "VALIDATION" {
+				t.Errorf("code = %q, want VALIDATION", got)
+			}
+			if presented.Message != testCase.want {
+				t.Errorf("message = %q, want %q", presented.Message, testCase.want)
+			}
+			if strings.Contains(presented.Message, "authkit") ||
+				strings.Contains(presented.Message, "gouncer") {
+				t.Errorf("message = %q, want no package name reaching a caller", presented.Message)
 			}
 		})
 	}
