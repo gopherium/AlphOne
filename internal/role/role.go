@@ -102,6 +102,22 @@ func (r *Registry) Roles() []Role {
 	return held
 }
 
+// Capabilities returns every capability any role in the registry holds, in name order.
+func (r *Registry) Capabilities() []Capability {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var held []Capability
+	for _, carried := range r.carried {
+		for _, capability := range carried {
+			if !slices.Contains(held, capability) {
+				held = append(held, capability)
+			}
+		}
+	}
+	slices.Sort(held)
+	return held
+}
+
 // Parse returns the role the text names, refusing any role the registry does not hold.
 func (r *Registry) Parse(text string) (Role, error) {
 	roles := r.Roles()
@@ -170,6 +186,11 @@ func CapabilitiesOf(held Role) []string {
 // Privileged returns every role administering accounts in the default registry.
 func Privileged() []string {
 	return Default.Privileged()
+}
+
+// Capabilities returns every capability any role in the default registry holds.
+func Capabilities() []Capability {
+	return Default.Capabilities()
 }
 
 // Outranks reports whether the caller holds every capability the target holds in the default registry.

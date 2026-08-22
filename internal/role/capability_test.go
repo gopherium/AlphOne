@@ -53,6 +53,22 @@ func TestTheCoreKnowsOnlyAdminAndMember(t *testing.T) {
 	}
 }
 
+func TestCapabilitiesNamesEveryCapabilityAnyRoleHolds(t *testing.T) {
+	t.Parallel()
+
+	registry := role.NewRegistry()
+	if err := registry.Grant("steward", "manage_reports", role.ManageUsers); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+
+	if got := registry.Capabilities(); !slices.Equal(got, []role.Capability{"manage_reports", role.ManageUsers}) {
+		t.Errorf("Capabilities() = %v, want each capability once, in name order", got)
+	}
+	if got := role.Capabilities(); !slices.Equal(got, []role.Capability{role.ManageUsers}) {
+		t.Errorf("Capabilities() = %v, want the core capability alone", got)
+	}
+}
+
 func TestTheDefaultRegistryAnswersThePackageFunctions(t *testing.T) {
 	t.Parallel()
 
