@@ -93,8 +93,12 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	auth := authkit.New(authkit.Config{Store: userStore, CookieName: server.SessionCookieName})
-	admin := authkit.NewAdmin(userStore)
+	auth := authkit.New(authkit.Config{
+		Store:      userStore,
+		CookieName: server.SessionCookieName,
+		Privileged: role.Privileged(),
+	})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: userStore, Privileged: role.Privileged()})
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      version.Version(),
 		Contacts:     contacts,
