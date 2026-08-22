@@ -97,10 +97,15 @@ Always read `errors`. A 200 does not mean it worked.
 
 ## Roles
 
-Every account holds one role, and the role decides what the account may do. A
-stock deployment names two. An admin manages users. A member works the product,
-which is contacts, tasks, and whatever your plugins add. A plugin may declare
-roles of its own, so do not assume the list stops at two.
+An account holds one role, and the role decides what the account may do. A stock
+deployment names two. An admin manages users. A member works the product, which
+is contacts, tasks, and whatever your plugins add. A plugin may declare roles of
+its own, so do not assume the list stops at two.
+
+An account can also hold no role at all, which happens to accounts made before
+roles existed. Such an account holds no capability, so it can do nothing until
+somebody gives it a role. `me` answers an empty `role` and an empty
+`capabilities` for it.
 
 What a role may do is a set of named capabilities. `me` answers the ones the
 calling account holds, so a client asks what it may do rather than guessing from
