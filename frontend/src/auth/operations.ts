@@ -9,6 +9,8 @@ export const meQuery = graphql(`
 			email
 			name
 			role
+			capabilities
+			grantable
 		}
 	}
 `)
@@ -21,6 +23,8 @@ export const loginMutation = graphql(`
 				email
 				name
 				role
+				capabilities
+				grantable
 			}
 		}
 	}

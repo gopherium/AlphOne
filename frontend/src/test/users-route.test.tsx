@@ -151,32 +151,11 @@ test('shows the tier every account stands in', async () => {
 	expect(within(row).getByText('Member')).toBeInTheDocument()
 })
 
-test('promotes an account and shows the new tier', async () => {
-	let role = 'member'
+test('writes the role the reader picked for another account', async () => {
 	let asked: unknown = null
 	server.use(
 		graphql.query('Users', () =>
-			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role }] } }),
-		),
-		graphql.mutation('SetUserRole', ({ variables }) => {
-			asked = { role: variables.role }
-			role = 'admin'
-			return HttpResponse.json({ data: { setUserRole: true } })
-		}),
-	)
-	renderAt('/users')
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Promote Ada Lovelace' }))
-
-	expect(await screen.findByText('Admin')).toBeInTheDocument()
-	expect(asked).toEqual({ role: 'admin' })
-})
-
-test('demotes an account that already stands as an admin', async () => {
-	let asked: unknown = null
-	server.use(
-		graphql.query('Users', () =>
-			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'admin' }] } }),
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
 		),
 		graphql.mutation('SetUserRole', ({ variables }) => {
 			asked = { role: variables.role }
@@ -185,15 +164,30 @@ test('demotes an account that already stands as an admin', async () => {
 	)
 	renderAt('/users')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Demote Ada Lovelace' }))
+	await userEvent.click(await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
 
-	await waitFor(() => expect(asked).toEqual({ role: 'member' }))
+	await waitFor(() => expect(asked).toEqual({ role: 'admin' }))
 })
 
-test('reports when a tier cannot be changed', async () => {
+test('offers only the roles the reader may grant', async () => {
 	server.use(
 		graphql.query('Users', () =>
-			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'admin' }] } }),
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
+		),
+	)
+	renderAt('/users')
+
+	await userEvent.click(await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' }))
+
+	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
+	expect(offered).toEqual(['Admin', 'Member'])
+})
+
+test('reports when a role cannot be written', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
 		),
 		graphql.mutation('SetUserRole', () =>
 			HttpResponse.json({
@@ -204,7 +198,8 @@ test('reports when a tier cannot be changed', async () => {
 	)
 	renderAt('/users')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Demote Ada Lovelace' }))
+	await userEvent.click(await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
 
 	expect(await screen.findByText('the last admin cannot be unseated')).toBeInTheDocument()
 })
@@ -220,8 +215,7 @@ test('offers a member no user management at all', async () => {
 	await screen.findByRole('row', { name: /Ada Lovelace/ })
 	expect(screen.queryByRole('link', { name: 'New user' })).not.toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: /^Disable / })).not.toBeInTheDocument()
-	expect(screen.queryByRole('button', { name: /^Promote / })).not.toBeInTheDocument()
-	expect(screen.queryByRole('button', { name: /^Demote / })).not.toBeInTheDocument()
+	expect(screen.queryByRole('combobox', { name: /^Role of / })).not.toBeInTheDocument()
 })
 
 test('still lists the colleagues a member works with', async () => {
