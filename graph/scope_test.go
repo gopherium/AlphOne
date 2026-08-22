@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/vektah/gqlparser/v2/ast"
@@ -62,15 +63,20 @@ func rootFieldScopes(t *testing.T, name, source string) (int, []string) {
 			continue
 		}
 		for _, field := range def.Fields {
-			problems = append(problems, scopeProblems(def.Name, field)...)
+			problems = append(problems, scopeProblems(def.Name, field, ownsItsCapabilities(name))...)
 			counted++
 		}
 	}
 	return counted, problems
 }
 
+// ownsItsCapabilities reports whether the SDL belongs to a plugin declaring its own capabilities.
+func ownsItsCapabilities(name string) bool {
+	return strings.HasPrefix(name, "../plugins/") || strings.HasPrefix(name, "../enterprise/")
+}
+
 // scopeProblems reports how one root field's scope declaration falls short.
-func scopeProblems(operation string, field *ast.FieldDefinition) []string {
+func scopeProblems(operation string, field *ast.FieldDefinition, ownsCapabilities bool) []string {
 	declared := field.Directives.ForName(scopeDirective)
 	if declared == nil {
 		return []string{fmt.Sprintf(
@@ -81,12 +87,17 @@ func scopeProblems(operation string, field *ast.FieldDefinition) []string {
 		problems = append(problems, fmt.Sprintf("%s.%s declares an empty area", operation, field.Name))
 	}
 	problems = append(problems, accessProblems(operation, field, declared)...)
-	problems = append(problems, capabilityProblems(operation, field, declared)...)
+	problems = append(problems, capabilityProblems(operation, field, declared, ownsCapabilities)...)
 	return problems
 }
 
 // capabilityProblems reports how one root field's capability declaration falls short.
-func capabilityProblems(operation string, field *ast.FieldDefinition, declared *ast.Directive) []string {
+func capabilityProblems(
+	operation string,
+	field *ast.FieldDefinition,
+	declared *ast.Directive,
+	ownsCapabilities bool,
+) []string {
 	if admin := declared.Arguments.ForName("admin"); admin != nil && admin.Value.Raw == "true" {
 		return []string{fmt.Sprintf(
 			"%s.%s reserves itself with admin: true, want a capability the role table knows",
@@ -94,6 +105,12 @@ func capabilityProblems(operation string, field *ast.FieldDefinition, declared *
 	}
 	needed := declared.Arguments.ForName("capability")
 	if needed == nil {
+		return nil
+	}
+	if needed.Value.Kind == ast.NullValue || needed.Value.Raw == "" {
+		return []string{fmt.Sprintf("%s.%s declares an empty capability", operation, field.Name)}
+	}
+	if ownsCapabilities {
 		return nil
 	}
 	if !slices.Contains(role.Capabilities(), role.Capability(needed.Value.Raw)) {
@@ -235,6 +252,16 @@ func TestScopeCheckingFlagsACapabilityTheTableDoesNotKnow(t *testing.T) {
 
 	if got := scopeProblemsIn(t, "synthetic", synthetic); len(got) == 0 {
 		t.Error("a capability no role holds raised no problem, want it flagged")
+	}
+}
+
+func TestScopeCheckingAcceptsACapabilityAPluginOwns(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `type Mutation { one: String! @scope(area: "tenants", write: true, capability: "manage_tenants") }`
+
+	if got := scopeProblemsIn(t, "../enterprise/tenancy/graph/schema.graphqls", synthetic); len(got) != 0 {
+		t.Errorf("problems = %v, want a plugin free to name a capability it declares itself", got)
 	}
 }
 
