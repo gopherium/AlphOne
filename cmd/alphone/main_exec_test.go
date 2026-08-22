@@ -306,6 +306,10 @@ type graphAnswer struct {
 		Me struct {
 			Role string `json:"role"`
 		} `json:"me"`
+		Users []struct {
+			ID    string `json:"id"`
+			Email string `json:"email"`
+		} `json:"users"`
 		ImportUpload struct {
 			ID string `json:"id"`
 		} `json:"importUpload"`

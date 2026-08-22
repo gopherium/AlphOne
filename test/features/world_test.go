@@ -104,7 +104,6 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
-	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	hub := event.NewHub()
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
@@ -124,10 +123,9 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
-		Roles:        roles,
 		Live:         hub,
 		Auth:         auth,
-		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users}),
+		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
@@ -142,9 +140,6 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err != nil {
 		t.Fatalf("reading the owner: %v", err)
 	}
-	if err := roles.Grant(context.Background(), owner.ID, role.Admin); err != nil {
-		t.Fatalf("granting the owner its tier: %v", err)
-	}
 	minted, err := apitoken.Mint(owner.ID, "mcp scenario", apitoken.Full(), apitoken.Never)
 	if err != nil {
 		t.Fatalf("minting the token: %v", err)
@@ -158,7 +153,6 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Auth:         auth,
 		GraphRoot:    root,
 		Tokens:       tokens,
-		Roles:        roles,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
 	}))

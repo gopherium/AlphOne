@@ -7,10 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
-
-	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -23,22 +20,6 @@ func barePostgres(t *testing.T) string {
 		t.Skip("skipping database test in short mode")
 	}
 	return pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{}).URL()
-}
-
-func TestGrantAdminReportsAnUnknownUser(t *testing.T) {
-	t.Parallel()
-
-	pool, err := pgxpool.New(t.Context(), testDatabaseURL(t))
-	if err != nil {
-		t.Fatalf("connecting pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	err = grantRole(t.Context(), pool, authkitpg.NewUserStore(pool), "nobody@example.com", role.Admin)
-
-	if err == nil {
-		t.Error("grantRole() error = nil, want a refusal for a user that does not exist")
-	}
 }
 
 func TestCreateAdminProvisionsAnAdminOnABareDatabase(t *testing.T) {
@@ -61,8 +42,7 @@ func TestCreateAdminProvisionsAnAdminOnABareDatabase(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	var tier string
 	if err := db.QueryRowContext(t.Context(),
-		`SELECT r.role FROM core.user_roles r
-		JOIN auth.users u ON u.id = r.user_id WHERE u.email = 'admin@example.com'`).Scan(&tier); err != nil {
+		"SELECT role FROM auth.users WHERE email = 'admin@example.com'").Scan(&tier); err != nil {
 		t.Fatalf("reading the provisioned role: %v", err)
 	}
 	if tier != role.Admin.String() {

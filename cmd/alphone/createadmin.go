@@ -8,14 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
-	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -58,23 +56,5 @@ func createAdmin(
 	}
 
 	users := authkitpg.NewUserStore(pool)
-	if err := authkit.CreateAdmin(ctx, users, *email, *name, held.String(), stdin, stdout); err != nil {
-		return err
-	}
-	return grantRole(ctx, pool, users, *email, held)
-}
-
-// grantRole puts the named user in the given tier.
-func grantRole(
-	ctx context.Context,
-	pool *pgxpool.Pool,
-	users *authkitpg.UserStore,
-	email string,
-	held role.Role,
-) error {
-	owner, err := users.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
-		return err
-	}
-	return postgres.NewRoleStore(pool).Grant(ctx, owner.ID, held)
+	return authkit.CreateAdmin(ctx, users, *email, *name, held.String(), stdin, stdout)
 }

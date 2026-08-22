@@ -97,9 +97,6 @@ func seedUsers(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error)
 		}
 		created[login.email] = made
 	}
-	if err := grantRole(ctx, pool, users, seedAdminEmail, role.Admin); err != nil {
-		return nil, err
-	}
 	return created, nil
 }
 
