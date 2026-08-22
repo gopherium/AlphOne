@@ -154,7 +154,7 @@ func TestSeedNamesEveryLoginItCreates(t *testing.T) {
 	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	pool := testPool(t, databaseURL)
 	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
-		seedAdminEmail, seedAdminName, seedAdminPassword); err != nil {
+		seedAdminEmail, seedAdminName, seedAdminPassword, role.Admin.String()); err != nil {
 		t.Fatalf("seeding the admin ahead of the run: %v", err)
 	}
 	var stdout strings.Builder
@@ -462,7 +462,7 @@ func TestSeedReportsTheColleagueItCannotStore(t *testing.T) {
 	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	pool := testPool(t, databaseURL)
 	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
-		seedAdminEmail, seedAdminName, seedAdminPassword); err != nil {
+		seedAdminEmail, seedAdminName, seedAdminPassword, role.Admin.String()); err != nil {
 		t.Fatalf("seeding the admin: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(),
