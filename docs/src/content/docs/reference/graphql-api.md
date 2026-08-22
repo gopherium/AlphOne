@@ -150,13 +150,17 @@ which is what assigning a task to one of them needs.
 
 Nobody changes its own role, and nobody disables its own account. Both are
 refused with code `VALIDATION` and the messages `you cannot change your own
-role` and `you cannot disable your own account`. Together they keep a
-deployment from losing its last admin, since an admin can only ever demote
-somebody else, and there is always itself left holding the authority.
+role` and `you cannot disable your own account`.
 
 Writing a role the caller does not hold itself is refused the same way, with
-`that role is beyond your own`. So an admin can neither grant a role reaching
-further than admin nor touch an account already holding one.
+`that role is beyond your own`. A caller may only write a role whose
+capabilities it already holds, and may only touch an account whose current role
+it likewise holds. So an admin can neither grant a role reaching further than
+admin nor demote or disable an account already holding one, whether that role
+came with the product or with a plugin.
+
+A write that would leave no enabled account able to manage users is refused with
+`the last admin cannot be unseated`.
 
 `createUser` takes an optional `role`. Leaving it out starts the account at the
 narrowest role the deployment names, which is `member` in a stock install.
