@@ -65,16 +65,19 @@ it on the way down, and every promotion and demotion goes with it.
 Save the roles first:
 
 ```sh
-docker compose exec -T postgres psql -U alphone alphone \
+docker compose exec -T postgres psql -U alphone alphone -v ON_ERROR_STOP=1 \
   -c "\\copy (SELECT id, role FROM auth.users) TO STDOUT WITH (FORMAT csv)" > roles.csv
 ```
 
-That keeps every role exactly as stored, including any a plugin declared, and
-CSV quoting handles whatever the values contain. Put them back once the column
-exists again, reading the file on the machine you run the command from:
+That keeps every role exactly as stored, including any role a plugin declared,
+and CSV quoting handles whatever the values contain. `ON_ERROR_STOP=1` matters
+in both commands, because without it `psql` carries on after a failed statement
+and leaves you an incomplete file that looks like a good one. Put the roles back
+once the column exists again, reading the file on the machine you run the
+command from:
 
 ```sh
-docker compose exec -T postgres psql -U alphone alphone \
+docker compose exec -T postgres psql -U alphone alphone -v ON_ERROR_STOP=1 \
   -c 'CREATE TEMP TABLE restored (id uuid PRIMARY KEY, role text NOT NULL)' \
   -c "\\copy restored (id, role) FROM STDIN WITH (FORMAT csv)" \
   -c 'UPDATE auth.users u SET role = r.role FROM restored r WHERE r.id = u.id' \
