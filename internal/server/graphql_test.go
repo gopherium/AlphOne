@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -47,8 +48,12 @@ func newGraphServer(t *testing.T, cfg graphConfig) http.Handler {
 // newSubscribingGraphServer returns a graph server whose subscriptions read hub.
 func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) http.Handler {
 	t.Helper()
-	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
-	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users})
+	auth := authkit.New(authkit.Config{
+		Store:      cfg.Users,
+		CookieName: server.SessionCookieName,
+		Privileged: role.Privileged(),
+	})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users, Privileged: role.Privileged()})
 	plugins, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
 		t.Fatalf("graphroot.All() error = %v, want nil", err)

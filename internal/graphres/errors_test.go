@@ -99,6 +99,26 @@ func TestPresentErrorSpeaksTheBrickRefusalsInItsOwnVoice(t *testing.T) {
 	}
 }
 
+func TestEverySpokenRefusalKeepsItsMessage(t *testing.T) {
+	t.Parallel()
+
+	for _, spoken := range []error{
+		authkit.ErrSelfRole,
+		authkit.ErrSelfDisable,
+		gouncer.ErrLastPrivileged,
+		role.ErrBeyondReach,
+	} {
+		presented := graphres.PresentError(context.Background(), spoken)
+
+		if presented.Message == spoken.Error() {
+			t.Errorf("message = %q, want the deployment's own words", presented.Message)
+		}
+		if presented.Message == "internal error" {
+			t.Errorf("%v was masked, want it classified so the spoken message survives", spoken)
+		}
+	}
+}
+
 func TestPresentErrorCarriesTheConflictOwner(t *testing.T) {
 	t.Parallel()
 

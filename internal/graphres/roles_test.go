@@ -242,6 +242,28 @@ func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
 	}
 }
 
+func TestMeAnswersNothingForAMember(t *testing.T) {
+	t.Parallel()
+
+	resolver, held := newRoledResolver(t, role.Member)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
+
+	var answered struct {
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
+	}
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
+
+	if len(answered.Me.Capabilities) != 0 {
+		t.Errorf("capabilities = %v, want none for a member", answered.Me.Capabilities)
+	}
+	if !slices.Equal(answered.Me.Grantable, []string{role.Member.String()}) {
+		t.Errorf("grantable = %v, want a member able to grant only its own role", answered.Me.Grantable)
+	}
+}
+
 func TestMeAnswersNothingForAnAccountHoldingNoRole(t *testing.T) {
 	t.Parallel()
 
