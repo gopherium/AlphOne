@@ -29,7 +29,19 @@ func (e rateLimitedError) Error() string {
 
 // toAuthIdentity maps an authkit identity onto its graph model.
 func toAuthIdentity(identity authkit.Identity, tier role.Role) *model.Identity {
-	return &model.Identity{ID: identity.ID, Email: identity.Email, Name: identity.Name, Role: tier.String()}
+	grantable := role.Grantable(tier)
+	named := make([]string, 0, len(grantable))
+	for _, held := range grantable {
+		named = append(named, held.String())
+	}
+	return &model.Identity{
+		ID:           identity.ID,
+		Email:        identity.Email,
+		Name:         identity.Name,
+		Role:         tier.String(),
+		Capabilities: role.CapabilitiesOf(tier),
+		Grantable:    named,
+	}
 }
 
 // toUser maps an authkit account onto its graph model.

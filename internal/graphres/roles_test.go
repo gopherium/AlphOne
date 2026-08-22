@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	gqlclient "github.com/99designs/gqlgen/client"
@@ -213,6 +214,53 @@ func TestCreateUserRefusesARoleBeyondTheCallersReach(t *testing.T) {
 	}
 	if len(answered.Errors) == 0 {
 		t.Error("createUser answered no error, want an admin refused a role it does not hold")
+	}
+}
+
+func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
+	t.Parallel()
+
+	resolver, held := newRoledResolver(t, role.Admin)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
+
+	var answered struct {
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
+	}
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
+
+	if !slices.Equal(answered.Me.Capabilities, []string{string(role.ManageUsers)}) {
+		t.Errorf("capabilities = %v, want the admin's manage_users", answered.Me.Capabilities)
+	}
+	if !slices.Contains(answered.Me.Grantable, role.Admin.String()) {
+		t.Errorf("grantable = %v, want an admin able to grant admin", answered.Me.Grantable)
+	}
+	if slices.Contains(answered.Me.Grantable, stewardRole.String()) {
+		t.Errorf("grantable = %v, want a role holding more kept out of reach", answered.Me.Grantable)
+	}
+}
+
+func TestMeAnswersNothingForAnAccountHoldingNoRole(t *testing.T) {
+	t.Parallel()
+
+	resolver, held := newRoledResolver(t, "")
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
+
+	var answered struct {
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
+	}
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
+
+	if len(answered.Me.Capabilities) != 0 {
+		t.Errorf("capabilities = %v, want none for an account holding no role", answered.Me.Capabilities)
+	}
+	if !slices.Equal(answered.Me.Grantable, []string{role.Member.String()}) {
+		t.Errorf("grantable = %v, want only the role holding nothing", answered.Me.Grantable)
 	}
 }
 

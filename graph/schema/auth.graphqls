@@ -3,6 +3,8 @@ type Identity {
   email: String!
   name: String!
   role: String!
+  capabilities: [String!]!
+  grantable: [String!]!
 }
 
 type LoginPayload {
