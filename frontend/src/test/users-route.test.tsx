@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, delay, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -168,6 +168,30 @@ test('writes the role the reader picked for another account', async () => {
 	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
 
 	await waitFor(() => expect(asked).toEqual({ role: 'admin' }))
+})
+
+test('refuses a second role while the first write is in flight', async () => {
+	let asked = 0
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
+		),
+		graphql.mutation('SetUserRole', async () => {
+			asked += 1
+			await delay(50)
+			return HttpResponse.json({ data: { setUserRole: true } })
+		}),
+	)
+	renderAt('/users')
+
+	await userEvent.click(await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
+
+	const control = await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' })
+	expect(control).toBeDisabled()
+	await userEvent.click(control)
+	expect(screen.queryByRole('option')).toBeNull()
+	await waitFor(() => expect(asked).toBe(1))
 })
 
 test('offers only the roles the reader may grant', async () => {

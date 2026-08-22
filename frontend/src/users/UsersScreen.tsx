@@ -127,6 +127,7 @@ function UserRole({ user, grantable }: { user: Account; grantable: string[] }) {
 			<SelectControl
 				label={`Role of ${user.name}`}
 				hideLabelFromVision
+				disabled={restand.isPending}
 				items={offered}
 				value={held}
 				onValueChange={(item) => item?.value != null && restand.mutate(item.value)}

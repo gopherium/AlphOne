@@ -27,7 +27,7 @@ import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
-export { graphql } from 'msw'
+export { delay, graphql } from 'msw'
 
 /** adminSession is the canned signed-in account holding the admin role. */
 export const adminSession = {
