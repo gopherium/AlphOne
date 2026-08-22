@@ -86,10 +86,12 @@ type FieldDefinition struct {
 }
 
 type Identity struct {
-	ID    uuid.UUID `json:"id"`
-	Email string    `json:"email"`
-	Name  string    `json:"name"`
-	Role  string    `json:"role"`
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	Role         string    `json:"role"`
+	Capabilities []string  `json:"capabilities"`
+	Grantable    []string  `json:"grantable"`
 }
 
 type ImportAssignment struct {
