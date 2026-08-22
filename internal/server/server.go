@@ -37,9 +37,6 @@ type Config struct {
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
-	// Roles reads the tier every caller stands in. Nil leaves every
-	// caller a member.
-	Roles RoleStore
 	// Plugins maps a plugin id to its HTTP handler, mounted under
 	// /api/plugins/{id}/ behind the session middleware.
 	Plugins map[string]http.Handler
@@ -82,7 +79,6 @@ func NewServer(cfg Config) http.Handler {
 		auth:              auth,
 		users:             cfg.Users,
 		tokens:            cfg.Tokens,
-		roles:             cfg.Roles,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
@@ -114,7 +110,6 @@ type server struct {
 	auth              *authkit.Handlers
 	users             UserStore
 	tokens            TokenStore
-	roles             RoleStore
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
 }
