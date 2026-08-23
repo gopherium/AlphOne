@@ -144,7 +144,7 @@ The message reads `admin required` whichever capability was missing, because it
 has said that since before capabilities existed and clients match on it. Read
 `capability` rather than the message to learn what the account's role actually
 fell short of. Holding the admin role is not what the field asks for, holding
-that capability is, and a plugin declared role holding it passes just as well.
+that capability is, and a plugin-declared role holding it passes just as well.
 
 The `scope` extension still names what the field wanted, so a caller always
 learns which area an operation acts in. A refusal about a token's scopes carries
