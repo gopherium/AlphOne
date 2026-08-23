@@ -46,6 +46,6 @@ func onlyLoginFields(selections ast.SelectionSet) bool {
 func unauthenticatedError() *gqlerror.Error {
 	return &gqlerror.Error{
 		Message:    "authentication required",
-		Extensions: map[string]any{"code": "UNAUTHENTICATED"},
+		Extensions: map[string]any{"code": "UNAUTHENTICATED", "reason": "authentication_required"},
 	}
 }

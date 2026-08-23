@@ -15,6 +15,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func TestEveryRefusedSentinelNamesAReason(t *testing.T) {
@@ -59,6 +60,27 @@ func TestEverySpecialPathNamesItsReason(t *testing.T) {
 		if got := presented.Extensions["reason"]; got != tc.reason {
 			t.Errorf("%s reason = %v, want %q", tc.name, got, tc.reason)
 		}
+	}
+}
+
+func TestAPluginErrorCarriesItsOwnReason(t *testing.T) {
+	t.Parallel()
+
+	raised := sdk.GraphError{
+		Code:   "VALIDATION",
+		Reason: "field_name_malformed",
+		Meta:   map[string]any{"name": "Not CamelCase"},
+		Err:    fmt.Errorf("fields: a name is camelCase"),
+	}
+
+	presented := PresentError(context.Background(), raised)
+
+	if got := presented.Extensions["reason"]; got != "field_name_malformed" {
+		t.Errorf("reason = %v, want the plugin's own reason carried through", got)
+	}
+	meta, _ := presented.Extensions["meta"].(map[string]any)
+	if meta["name"] != "Not CamelCase" {
+		t.Errorf("meta = %v, want the plugin's data beside the reason", meta)
 	}
 }
 

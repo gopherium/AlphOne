@@ -205,6 +205,36 @@ func TestScopeGateLetsAnAccountHoldingNoRoleWorkTheProduct(t *testing.T) {
 	}
 }
 
+func TestScopeGateNamesTheReasonACapabilityIsMissing(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createUser }`, role.Member)
+
+	extensions := answered.Errors[0].Extensions
+	if got := extensions["reason"]; got != "capability_missing" {
+		t.Errorf("reason = %v, want capability_missing", got)
+	}
+	meta, _ := extensions["meta"].(map[string]any)
+	if meta["capability"] != "manage_users" {
+		t.Errorf("meta = %v, want the missing capability named as data", meta)
+	}
+}
+
+func TestScopeGateNamesTheReasonAScopeIsMissing(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsTokenOf(t, `mutation { createContact }`, apitoken.Scopes{"tasks:write"}, role.Admin)
+
+	extensions := answered.Errors[0].Extensions
+	if got := extensions["reason"]; got != "scope_missing" {
+		t.Errorf("reason = %v, want scope_missing", got)
+	}
+	meta, _ := extensions["meta"].(map[string]any)
+	if meta["scope"] != "contacts:write" {
+		t.Errorf("meta = %v, want the missing scope named as data", meta)
+	}
+}
+
 func TestScopeGateRefusesUserManagementToAnAccountHoldingNoRole(t *testing.T) {
 	t.Parallel()
 

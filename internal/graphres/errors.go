@@ -165,6 +165,7 @@ func applySpecialCode(presented *gqlerror.Error, err error) bool {
 	var coded sdk.GraphError
 	if errors.As(err, &coded) {
 		withCode(presented, coded.Code)
+		withReason(presented, coded.Reason, coded.Meta)
 		for key, value := range coded.Extensions {
 			presented.Extensions[key] = value
 		}
