@@ -43,7 +43,7 @@ func TestEngineScopesReachEveryDocumentedOperation(t *testing.T) {
 		if err := w.postGraphScoped(ctx, document); err != nil {
 			t.Fatalf("posting %s: %v", step, err)
 		}
-		if err := w.answeredWithoutRefusal(); err != nil {
+		if err := w.answeredWithoutError(); err != nil {
 			t.Errorf("%s was refused under %q: %v", step, engineScopes, err)
 		}
 	}
@@ -117,7 +117,7 @@ func TestTheGateChecksRootFieldsOnlyNotNestedTraversal(t *testing.T) {
 		t.Fatalf("posting the traversal: %v", err)
 	}
 
-	if err := w.answeredWithoutRefusal(); err != nil {
+	if err := w.answeredWithoutError(); err != nil {
 		t.Fatalf("the traversal was refused: %v", err)
 	}
 	if !strings.Contains(string(w.answered), "Call the supplier") {

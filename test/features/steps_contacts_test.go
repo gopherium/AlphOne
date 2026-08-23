@@ -179,7 +179,7 @@ func registerContactSteps(sc *godog.ScenarioContext, t *testing.T) {
 			return fmt.Errorf("the tool succeeded, want it refused")
 		}
 		if !strings.Contains(contentText(w.called), "NOT_FOUND") {
-			return fmt.Errorf("failure = %q, want the graph's not found refusal", contentText(w.called))
+			return fmt.Errorf("failure = %q, want the graph's not found error", contentText(w.called))
 		}
 		return nil
 	})

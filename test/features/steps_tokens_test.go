@@ -57,8 +57,8 @@ func (w *world) scopeErrors() (scopeAnswer, error) {
 	return parsed, nil
 }
 
-// answeredWithoutRefusal reports whether the last operation carried no error.
-func (w *world) answeredWithoutRefusal() error {
+// answeredWithoutError reports whether the last operation carried no error.
+func (w *world) answeredWithoutError() error {
 	parsed, err := w.scopeErrors()
 	if err != nil {
 		return err
@@ -69,14 +69,14 @@ func (w *world) answeredWithoutRefusal() error {
 	return nil
 }
 
-// refusedWith reports whether the last operation carried one refusal reading message and naming scope.
+// refusedWith reports whether the last operation carried one error reading message and naming scope.
 func (w *world) refusedWith(message, scope string) error {
 	parsed, err := w.scopeErrors()
 	if err != nil {
 		return err
 	}
 	if len(parsed.Errors) != 1 {
-		return fmt.Errorf("errors = %v, want exactly one refusal", parsed.Errors)
+		return fmt.Errorf("errors = %v, want exactly one error", parsed.Errors)
 	}
 	refused := parsed.Errors[0]
 	if refused.Message != message {
@@ -181,18 +181,18 @@ func registerTokenOperations(sc *godog.ScenarioContext) {
 // registerTokenOutcomes binds the outcomes a scoped operation answers with.
 func registerTokenOutcomes(sc *godog.ScenarioContext) {
 	sc.Then(`^the list is answered$`, func(ctx context.Context) error {
-		return worldFrom(ctx).answeredWithoutRefusal()
+		return worldFrom(ctx).answeredWithoutError()
 	})
 
 	sc.Then(`^the task is answered$`, func(ctx context.Context) error {
-		return worldFrom(ctx).answeredWithoutRefusal()
+		return worldFrom(ctx).answeredWithoutError()
 	})
 
 	sc.Then(`^the contact is answered$`, func(ctx context.Context) error {
-		return worldFrom(ctx).answeredWithoutRefusal()
+		return worldFrom(ctx).answeredWithoutError()
 	})
 
-	registerRefusalSteps(sc)
+	registerErrorSteps(sc)
 
 	sc.Then(`^the request is refused as an invalid token$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
@@ -206,8 +206,8 @@ func registerTokenOutcomes(sc *godog.ScenarioContext) {
 	})
 }
 
-// registerRefusalSteps binds the scope refusal both the token and the role features assert.
-func registerRefusalSteps(sc *godog.ScenarioContext) {
+// registerErrorSteps binds the scope error both the token and the role features assert.
+func registerErrorSteps(sc *godog.ScenarioContext) {
 	sc.Then(`^the operation is refused as unauthorized naming "([^"]*)"$`,
 		func(ctx context.Context, scope string) error {
 			return worldFrom(ctx).refusedNaming(scope)

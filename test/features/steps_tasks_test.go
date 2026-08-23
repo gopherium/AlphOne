@@ -172,7 +172,7 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 			return fmt.Errorf("the tool succeeded, want it refused")
 		}
 		if !strings.Contains(contentText(w.called), "VALIDATION") {
-			return fmt.Errorf("failure = %q, want a validation refusal", contentText(w.called))
+			return fmt.Errorf("failure = %q, want it refused as invalid", contentText(w.called))
 		}
 		return nil
 	})
