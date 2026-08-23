@@ -362,7 +362,7 @@ func TestCommitRefusesAnImportThatIsAlreadyCommitted(t *testing.T) {
 
 	_, err := commitImport(t, p, id)
 
-	if code := refusalCode(t, err); code != "CONFLICT" {
+	if code := errorCode(t, err); code != "CONFLICT" {
 		t.Fatalf("replay code = %q, want CONFLICT", code)
 	}
 	if len(events.names) != 1 {
@@ -378,7 +378,7 @@ func TestCommitRefusesAnImportWithoutAMapping(t *testing.T) {
 
 	_, err := commitImport(t, p, id)
 
-	if code := refusalCode(t, err); code != "VALIDATION" {
+	if code := errorCode(t, err); code != "VALIDATION" {
 		t.Fatalf("code = %q, want VALIDATION", code)
 	}
 }

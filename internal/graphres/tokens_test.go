@@ -127,7 +127,7 @@ func TestAPITokenCreateRefusesAnAreaNoSchemaDeclares(t *testing.T) {
 		t.Errorf("code = %q, want VALIDATION", got)
 	}
 	if !strings.Contains(string(answered.Errors), `contact`) {
-		t.Errorf("errors = %s, want the refusal to name the area", answered.Errors)
+		t.Errorf("errors = %s, want the error to name the area", answered.Errors)
 	}
 	held, err := tokens.ListForUser(t.Context(), owner)
 	if err != nil {
@@ -340,6 +340,6 @@ func TestAPITokenRevokeRefusesSomeoneElsesToken(t *testing.T) {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
 	if len(answered.Errors) == 0 {
-		t.Error("errors = none, want a refusal for a token the caller does not own")
+		t.Error("errors = none, want an error for a token the caller does not own")
 	}
 }

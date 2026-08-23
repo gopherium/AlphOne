@@ -76,15 +76,15 @@ func TestWriteContactFieldsReportsAStoreFailure(t *testing.T) {
 	}
 }
 
-func TestRefusalForReportsAClosedPool(t *testing.T) {
+func TestErrorForReportsAClosedPool(t *testing.T) {
 	t.Parallel()
 
 	p := newClosedPlugin(t)
 
-	err := p.store.refusalFor(t.Context(), defined(t, "birthDate", "DATE"))
+	err := p.store.errorFor(t.Context(), defined(t, "birthDate", "DATE"))
 
 	if err == nil {
-		t.Error("refusalFor() error = nil, want the closed pool reported")
+		t.Error("errorFor() error = nil, want the closed pool reported")
 	}
 }
 

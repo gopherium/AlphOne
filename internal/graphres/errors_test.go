@@ -68,7 +68,7 @@ func TestPresentErrorMapsDomainErrors(t *testing.T) {
 	}
 }
 
-func TestPresentErrorSpeaksTheBrickRefusalsInItsOwnVoice(t *testing.T) {
+func TestPresentErrorSpeaksTheBrickErrorsInItsOwnVoice(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -99,7 +99,7 @@ func TestPresentErrorSpeaksTheBrickRefusalsInItsOwnVoice(t *testing.T) {
 	}
 }
 
-func TestEverySpokenRefusalKeepsItsMessage(t *testing.T) {
+func TestEverySpokenErrorKeepsItsMessage(t *testing.T) {
 	t.Parallel()
 
 	for _, spoken := range []error{

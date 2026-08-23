@@ -54,7 +54,7 @@ func mapNameAndEmail(t *testing.T, p *importer.Plugin, id uuid.UUID) {
 	}
 }
 
-// commitImport commits one import, returning its counts or the refusal.
+// commitImport commits one import, returning its counts or the error.
 func commitImport(
 	t *testing.T, p *importer.Plugin, id uuid.UUID,
 ) (*model.ImportCommitPayload, error) {
@@ -62,7 +62,7 @@ func commitImport(
 	return p.MutationResolvers().ImportCommit(t.Context(), id)
 }
 
-// mustCommit commits one import, failing the test on any refusal.
+// mustCommit commits one import, failing the test on any error.
 func mustCommit(t *testing.T, p *importer.Plugin, id uuid.UUID) *model.ImportCommitPayload {
 	t.Helper()
 	committed, err := commitImport(t, p, id)
@@ -72,8 +72,8 @@ func mustCommit(t *testing.T, p *importer.Plugin, id uuid.UUID) *model.ImportCom
 	return committed
 }
 
-// refusalCode returns the graph code an error carries.
-func refusalCode(t *testing.T, err error) string {
+// errorCode returns the graph code an error carries.
+func errorCode(t *testing.T, err error) string {
 	t.Helper()
 	var refused sdk.GraphError
 	if !errors.As(err, &refused) {

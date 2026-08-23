@@ -293,7 +293,7 @@ func TestSetMappingRefusesAFieldNoProviderServes(t *testing.T) {
 
 	err := mapNameEmailAndField(t, p, id, "neverDefined")
 
-	if got := refusalCode(t, err); got != "VALIDATION" {
+	if got := errorCode(t, err); got != "VALIDATION" {
 		t.Errorf("code = %q, want VALIDATION", got)
 	}
 }
@@ -422,7 +422,7 @@ func TestCommitRefusesAMappingNamingAVanishedField(t *testing.T) {
 
 	_, err := commitImport(t, p, id)
 
-	if got := refusalCode(t, err); got != "VALIDATION" {
+	if got := errorCode(t, err); got != "VALIDATION" {
 		t.Fatalf("code = %q, want VALIDATION", got)
 	}
 	if !strings.Contains(err.Error(), "birthDate") {

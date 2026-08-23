@@ -70,7 +70,7 @@ func TestRunReportsTheFirstGraphError(t *testing.T) {
 	err := run.execute(t.Context(), "{ task }", nil, &struct{}{})
 
 	if err == nil {
-		t.Fatal("execute() error = nil, want the graph refusal")
+		t.Fatal("execute() error = nil, want the graph error")
 	}
 	if !strings.Contains(err.Error(), "task: not found") {
 		t.Errorf("error = %v, want the message", err)
@@ -83,11 +83,11 @@ func TestRunReportsTheFirstGraphError(t *testing.T) {
 func TestRunReportsAGraphErrorWithoutACode(t *testing.T) {
 	t.Parallel()
 
-	run := &tools{graph: answering(`{"errors":[{"message":"plain refusal"}]}`)}
+	run := &tools{graph: answering(`{"errors":[{"message":"plain error"}]}`)}
 
 	err := run.execute(t.Context(), "{ task }", nil, &struct{}{})
 
-	if err == nil || err.Error() != "plain refusal" {
+	if err == nil || err.Error() != "plain error" {
 		t.Errorf("error = %v, want the bare message", err)
 	}
 }

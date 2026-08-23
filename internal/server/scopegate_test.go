@@ -63,7 +63,7 @@ func TestReadScopedTokenIsRefusedAContactWrite(t *testing.T) {
 
 	answered := decodeBody[gateAnswer](t, recorder)
 	if len(answered.Errors) != 1 {
-		t.Fatalf("errors = %v, want exactly one refusal", answered.Errors)
+		t.Fatalf("errors = %v, want exactly one error", answered.Errors)
 	}
 	if got := answered.Errors[0].Extensions["scope"]; got != "contacts:write" {
 		t.Errorf("scope = %v, want contacts:write named by the real schema", got)
@@ -83,7 +83,7 @@ func TestScopedTokenStaysInsideItsGrantedAreas(t *testing.T) {
 
 	answered := decodeBody[gateAnswer](t, recorder)
 	if len(answered.Errors) != 1 {
-		t.Fatalf("errors = %v, want exactly one refusal", answered.Errors)
+		t.Fatalf("errors = %v, want exactly one error", answered.Errors)
 	}
 	if got := answered.Errors[0].Extensions["scope"]; got != "webhooks:read" {
 		t.Errorf("scope = %v, want webhooks:read", got)

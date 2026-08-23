@@ -319,7 +319,7 @@ func TestMigrationRefusesToGrantFullScopeToATokenMintedAfterwards(t *testing.T) 
 		uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()))
 
 	if err == nil {
-		t.Error("insert without scopes error = nil, want a refusal, the grandfather default is spent")
+		t.Error("insert without scopes error = nil, want an error, the grandfather default is spent")
 	}
 }
 
