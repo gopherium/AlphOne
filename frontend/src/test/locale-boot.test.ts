@@ -6,7 +6,7 @@ import { resetLocale } from '@gopherium/gottext/testing'
 import { afterEach, expect, test } from 'vitest'
 
 import { fetchLocale } from '../i18n/api'
-import { DOMAIN, startAppLocale } from '../i18n/start'
+import { DOMAIN, declaredEntries, localeEntries, startAppLocale } from '../i18n/start'
 
 afterEach(() => {
 	resetLocale()
@@ -57,4 +57,22 @@ test('settles on the default when the graph cannot say', async () => {
 
 test('names the domain AlphOne strings answer under', () => {
 	expect(DOMAIN).toBe('alphone')
+})
+
+test('loads one entry per domain beside the react-auth pair', () => {
+	const domains = localeEntries().map((entry) => entry.domain)
+
+	expect(domains).toEqual([
+		'alphone',
+		'alphone-fields',
+		'alphone-importer',
+		'alphone-whatsapp',
+		'gopherium-react-auth',
+	])
+})
+
+test('skips a plugin declaring no domain of its own', () => {
+	const declared = declaredEntries([{ id: 'bare', routes: () => [], nav: [] }])
+
+	expect(declared).toEqual([])
 })
