@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import type { Catalog } from '@gopherium/gottext'
 import type { AnyRoute } from '@tanstack/react-router'
 import type { ComponentProps, ComponentType, ReactElement } from 'react'
 
@@ -20,11 +21,17 @@ export interface ContactPanel {
 	Panel: ComponentType<{ contactId: string }>
 }
 
+export interface PluginLocale {
+	domain: string
+	load: (locale: string) => Promise<Catalog | undefined>
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
+	locale?: PluginLocale
 }
 
 export {
@@ -80,4 +87,5 @@ export type { CombinedError as GraphFailure } from 'urql'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useGraphEvents, useGraphStream } from './stream'
 export { __, _n, _nx, _x, sprintf } from '@wordpress/i18n'
-export { displayLocale, formatDate } from '@gopherium/gottext'
+export { displayLocale, formatDate, globCatalogs } from '@gopherium/gottext'
+export type { Catalog } from '@gopherium/gottext'
