@@ -9,7 +9,9 @@ import {
 	Stack,
 	Text,
 	VisuallyHidden,
+	__,
 	people,
+	sprintf,
 	useGraphMutation,
 	useGraphQuery,
 } from '@alphone/frontend-sdk'
@@ -53,13 +55,13 @@ function TokenRow({ token, onRevoked }: { token: ApiTokenRow; onRevoked: () => v
 				<Stack direction="column" gap="xs">
 					<Button
 						variant="outline"
-						aria-label={`Revoke ${token.name}`}
+						aria-label={sprintf(__('Revoke %(name)s', 'alphone'), { name: token.name })}
 						loading={revoke.fetching}
 						onClick={() => void submit()}
 					>
-						Revoke
+						{__('Revoke', 'alphone')}
 					</Button>
-					{revoke.error ? <Text role="alert">Revoke failed.</Text> : null}
+					{revoke.error ? <Text role="alert">{__('Revoke failed.', 'alphone')}</Text> : null}
 				</Stack>
 			</td>
 		</tr>
@@ -78,10 +80,10 @@ export function TokensScreen() {
 
 	return (
 		<PageScreen
-			title="API tokens"
+			title={__('API tokens', 'alphone')}
 			actions={
 				<Button variant="solid" render={<Link to="/users/tokens/new" />}>
-					New token
+					{__('New token', 'alphone')}
 				</Button>
 			}
 		>
@@ -108,17 +110,17 @@ function TokenRows({
 	onRevoked: () => void
 }) {
 	if (failed) {
-		return <ErrorNotice>Tokens could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('Tokens could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	if (tokens === undefined) {
-		return <LoadingRows label="Loading tokens…" />
+		return <LoadingRows label={__('Loading tokens…', 'alphone')} />
 	}
 	if (tokens.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={people} />
-				<EmptyState.Title>No API tokens yet.</EmptyState.Title>
-				<EmptyState.Description>Add one with New token.</EmptyState.Description>
+				<EmptyState.Title>{__('No API tokens yet.', 'alphone')}</EmptyState.Title>
+				<EmptyState.Description>{__('Add one with New token.', 'alphone')}</EmptyState.Description>
 			</EmptyState.Root>
 		)
 	}
@@ -126,19 +128,19 @@ function TokenRows({
 		<div
 			className="godmin-table-scroll godmin-arrival"
 			role="region"
-			aria-label="API tokens"
+			aria-label={__('API tokens', 'alphone')}
 			tabIndex={0}
 		>
 			<table className="godmin-table">
 				<thead>
 					<tr>
-						<th scope="col">Name</th>
-						<th scope="col">Scopes</th>
-						<th scope="col">Created</th>
-						<th scope="col">Last used</th>
-						<th scope="col">Expires</th>
+						<th scope="col">{__('Name', 'alphone')}</th>
+						<th scope="col">{__('Scopes', 'alphone')}</th>
+						<th scope="col">{__('Created', 'alphone')}</th>
+						<th scope="col">{__('Last used', 'alphone')}</th>
+						<th scope="col">{__('Expires', 'alphone')}</th>
 						<th scope="col" className="godmin-table__actions">
-							<VisuallyHidden>Actions</VisuallyHidden>
+							<VisuallyHidden>{__('Actions', 'alphone')}</VisuallyHidden>
 						</th>
 					</tr>
 				</thead>

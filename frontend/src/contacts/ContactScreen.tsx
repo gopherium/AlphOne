@@ -9,7 +9,9 @@ import {
 	SelectControl,
 	Text,
 	ValidationError,
+	__,
 	graphError,
+	sprintf,
 	graphExtensions,
 	useConnection,
 	useGraph,
@@ -61,26 +63,26 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 
 	if (detail.isPending) {
 		return (
-			<PageScreen title="Contact">
-				<LoadingScreen label="Loading contact…" />
+			<PageScreen title={__('Contact', 'alphone')}>
+				<LoadingScreen label={__('Loading contact…', 'alphone')} />
 			</PageScreen>
 		)
 	}
 	if (detail.isError || !contact) {
-		return <ErrorNotice>The contact could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('The contact could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	return (
 		<PageScreen title={contact.name}>
 			<RenameForm key={contact.name} contact={contact} />
 			<Text variant="heading-sm" render={<h2 />}>
-				Identities
+				{__('Identities', 'alphone')}
 			</Text>
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
 			<ContactPanels contactId={contact.id} panels={contactPanels} />
 			<Text className="alphone-contacts__created">
-				{`Created ${formatCreated(new Date(contact.createdAt))}`}
+				{sprintf(__('Created %(date)s', 'alphone'), { date: formatCreated(new Date(contact.createdAt)) })}
 			</Text>
 		</PageScreen>
 	)
@@ -94,7 +96,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 function identityError(error: Parameters<typeof graphError>[0]): Error | undefined {
 	const owner = graphExtensions(error).ownerName
 	if (typeof owner === 'string') {
-		return new ValidationError(`Already on contact ${owner}.`)
+		return new ValidationError(sprintf(__('Already on contact %(name)s.', 'alphone'), { name: owner }))
 	}
 	return graphError(error)
 }
@@ -125,7 +127,7 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 	}
 
 	if (contact.identities.length === 0) {
-		return <Text role="status">No identities yet.</Text>
+		return <Text role="status">{__('No identities yet.', 'alphone')}</Text>
 	}
 	return (
 		<>
@@ -140,17 +142,17 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 						<Button
 							variant="minimal"
 							size="small"
-							aria-label={`Remove ${identity.identifier}`}
+							aria-label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
 							loading={remove.fetching}
 							onClick={() => void removeIdentity(identity.id)}
 						>
-							Remove
+							{__('Remove', 'alphone')}
 						</Button>
 					</li>
 				))}
 			</ul>
 			{remove.error ? (
-				<ErrorNotice>The identity could not be removed.</ErrorNotice>
+				<ErrorNotice>{__('The identity could not be removed.', 'alphone')}</ErrorNotice>
 			) : null}
 		</>
 	)
@@ -162,7 +164,7 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
  */
 function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
-	const [channel, setChannel] = useState(channelItems[0])
+	const [channel, setChannel] = useState(() => channelItems()[0])
 	const [identifier, setIdentifier] = useState('')
 	const [label, setLabel] = useState('')
 	const [add, runAdd] = useGraphMutation(addContactIdentityMutation)
@@ -187,18 +189,18 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 			}}
 		>
 			<SelectControl
-				label="Channel"
-				items={channelItems}
+				label={__('Channel', 'alphone')}
+				items={channelItems()}
 				value={channel}
 				onValueChange={(item) => setChannel(channelItemOf(item))}
 			/>
 			<InputControl
-				label="Value"
+				label={__('Value', 'alphone')}
 				value={identifier}
 				onChange={(event) => setIdentifier(event.target.value)}
 			/>
 			<InputControl
-				label="Label"
+				label={__('Label', 'alphone')}
 				value={label}
 				onChange={(event) => setLabel(event.target.value)}
 			/>
@@ -207,11 +209,11 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 				disabled={identifier.trim() === '' || add.fetching}
 				loading={add.fetching}
 			>
-				Add identity
+				{__('Add identity', 'alphone')}
 			</Button>
 			{add.error ? (
 				<ErrorNotice>
-					{validationMessage(identityError(add.error), 'The identity could not be added.')}
+					{validationMessage(identityError(add.error), __('The identity could not be added.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 		</form>
@@ -242,7 +244,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 			}}
 		>
 			<InputControl
-				label="Name"
+				label={__('Name', 'alphone')}
 				value={name}
 				onChange={(event) => setName(event.target.value)}
 			/>
@@ -251,11 +253,11 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 				disabled={name.trim() === '' || rename.fetching}
 				loading={rename.fetching}
 			>
-				Save
+				{__('Save', 'alphone')}
 			</Button>
 			{rename.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(rename.error), 'The contact could not be renamed.')}
+					{validationMessage(graphError(rename.error), __('The contact could not be renamed.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 		</form>

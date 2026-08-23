@@ -5,6 +5,7 @@ import {
 	ErrorNotice,
 	InputControl,
 	PageScreen,
+	__,
 	graphError,
 	useGraphMutation,
 	validationMessage,
@@ -38,7 +39,7 @@ export function NewContactScreen({
 	}
 
 	return (
-		<PageScreen title="New contact">
+		<PageScreen title={__('New contact', 'alphone')}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {
@@ -47,7 +48,7 @@ export function NewContactScreen({
 				}}
 			>
 				<InputControl
-					label="Name"
+					label={__('Name', 'alphone')}
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
@@ -56,11 +57,11 @@ export function NewContactScreen({
 					disabled={name.trim() === '' || create.fetching}
 					loading={create.fetching}
 				>
-					Create contact
+					{__('Create contact', 'alphone')}
 				</Button>
 				{create.error ? (
 					<ErrorNotice>
-						{validationMessage(graphError(create.error), 'The contact could not be created.')}
+						{validationMessage(graphError(create.error), __('The contact could not be created.', 'alphone'))}
 					</ErrorNotice>
 				) : null}
 			</form>

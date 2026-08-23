@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Stack, Text } from '@alphone/frontend-sdk'
+import {
+	__, Stack, Text } from '@alphone/frontend-sdk'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, useRouterState } from '@tanstack/react-router'
 
@@ -23,9 +24,9 @@ export function RailContent() {
 		<>
 			<Stack direction="column" gap="lg">
 				<Link to="/" className="alphone-rail__brand">
-					<Text variant="heading-lg">AlphOne</Text>
+					<Text variant="heading-lg">{'AlphOne'}</Text>
 				</Link>
-				<nav aria-label="Navigation">
+				<nav aria-label={__('Navigation', 'alphone')}>
 					{Sidebar ? <Sidebar /> : <MainMenu />}
 				</nav>
 			</Stack>

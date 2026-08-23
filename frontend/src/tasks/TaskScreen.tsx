@@ -7,6 +7,7 @@ import {
 	LoadingScreen,
 	PageScreen,
 	Text,
+	__,
 	graphError,
 	useGraph,
 	useGraphMutation,
@@ -46,13 +47,13 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 
 	if (result.fetching && task === undefined) {
 		return (
-			<PageScreen title="Task">
-				<LoadingScreen label="Loading task…" />
+			<PageScreen title={__('Task', 'alphone')}>
+				<LoadingScreen label={__('Loading task…', 'alphone')} />
 			</PageScreen>
 		)
 	}
 	if (result.error || !task) {
-		return <ErrorNotice>The task could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('The task could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	return (
 		<PageScreen title={task.title}>
@@ -105,9 +106,9 @@ function TaskForm({ task }: { task: DetailedTask }) {
 				void runUpdate(runSave, { title, dueOn, priority })
 			}}
 		>
-			<InputControl label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
+			<InputControl label={__('Title', 'alphone')} value={title} onChange={(event) => setTitle(event.target.value)} />
 			<InputControl
-				label="Due date"
+				label={__('Due date', 'alphone')}
 				type="date"
 				value={dueOn}
 				onChange={(event) => setDueOn(event.target.value)}
@@ -119,7 +120,7 @@ function TaskForm({ task }: { task: DetailedTask }) {
 					disabled={title.trim() === '' || save.fetching}
 					loading={save.fetching}
 				>
-					Save
+					{__('Save', 'alphone')}
 				</Button>
 				<Button
 					variant="outline"
@@ -128,15 +129,15 @@ function TaskForm({ task }: { task: DetailedTask }) {
 						void runUpdate(runToggle, { status: task.status === 'done' ? 'open' : 'done' })
 					}
 				>
-					{task.status === 'done' ? 'Reopen' : 'Complete'}
+					{task.status === 'done' ? __('Reopen', 'alphone') : __('Complete', 'alphone')}
 				</Button>
 			</div>
 			{save.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(save.error), 'The task could not be saved.')}
+					{validationMessage(graphError(save.error), __('The task could not be saved.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
-			{toggle.error ? <ErrorNotice>The task could not be saved.</ErrorNotice> : null}
+			{toggle.error ? <ErrorNotice>{__('The task could not be saved.', 'alphone')}</ErrorNotice> : null}
 		</form>
 	)
 }
