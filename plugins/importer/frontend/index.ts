@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { globCatalogs } from '@alphone/frontend-sdk'
+import { _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
 import { importerIcon } from './icon'
@@ -15,6 +15,12 @@ const catalogs = import.meta.glob<{ default: Catalog }>('./languages/*.json')
 export const plugin: FrontendPlugin = {
 	id: 'importer',
 	routes,
-	nav: [{ label: 'Import', to: '/import', icon: importerIcon }],
+	nav: [{
+		get label() {
+			return _x('Import', 'admin section', 'alphone-importer')
+		},
+		to: '/import',
+		icon: importerIcon,
+	}],
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 }

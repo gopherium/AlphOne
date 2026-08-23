@@ -5,6 +5,8 @@ import {
 	ErrorNotice,
 	LoadingRows,
 	PageScreen,
+	__,
+	_x,
 	graphError,
 	useGraph,
 	useGraphMutation,
@@ -38,11 +40,11 @@ export function ImportsScreen() {
 	const [upload, startUpload] = useGraphMutation(importUploadMutation)
 
 	return (
-		<PageScreen title="Import">
+		<PageScreen title={__('Import', 'alphone-importer')}>
 			<input
 				type="file"
 				accept=".csv,.xlsx"
-				aria-label="Contacts file"
+				aria-label={__('Contacts file', 'alphone-importer')}
 				disabled={upload.fetching}
 				onChange={(event) =>
 					uploadChosen(event.target.files, (file) => {
@@ -52,7 +54,7 @@ export function ImportsScreen() {
 			/>
 			{upload.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(upload.error), 'The file could not be imported.')}
+					{validationMessage(graphError(upload.error), __('The file could not be imported.', 'alphone-importer'))}
 				</ErrorNotice>
 			) : null}
 			<ImportRows error={imports.error !== undefined} rows={imports.data?.imports} />
@@ -72,32 +74,34 @@ function ImportRows({
 	rows: readonly ImportRow[] | undefined
 }) {
 	if (error) {
-		return <ErrorNotice>Imports could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('Imports could not be loaded.', 'alphone-importer')}</ErrorNotice>
 	}
 	if (!rows) {
-		return <LoadingRows label="Loading imports…" />
+		return <LoadingRows label={__('Loading imports…', 'alphone-importer')} />
 	}
 	if (rows.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={importerIcon} />
-				<EmptyState.Title>No imports yet.</EmptyState.Title>
-				<EmptyState.Description>Choose a CSV or Excel file to start one.</EmptyState.Description>
+				<EmptyState.Title>{__('No imports yet.', 'alphone-importer')}</EmptyState.Title>
+				<EmptyState.Description>
+					{__('Choose a CSV or Excel file to start one.', 'alphone-importer')}
+				</EmptyState.Description>
 			</EmptyState.Root>
 		)
 	}
 	return (
-		<div className="godmin-table-scroll" role="region" aria-label="Imports" tabIndex={0}>
+		<div className="godmin-table-scroll" role="region" aria-label={__('Imports', 'alphone-importer')} tabIndex={0}>
 			<table className="godmin-table">
 				<thead>
 					<tr>
-						<th scope="col">File</th>
-						<th scope="col">State</th>
-						<th scope="col">Rows</th>
-						<th scope="col">Imported</th>
-						<th scope="col">Skipped</th>
-						<th scope="col">Failed</th>
-						<th scope="col">Started</th>
+						<th scope="col">{__('File', 'alphone-importer')}</th>
+						<th scope="col">{__('State', 'alphone-importer')}</th>
+						<th scope="col">{__('Rows', 'alphone-importer')}</th>
+						<th scope="col">{_x('Imported', 'import count', 'alphone-importer')}</th>
+						<th scope="col">{_x('Skipped', 'import count', 'alphone-importer')}</th>
+						<th scope="col">{_x('Failed', 'import count', 'alphone-importer')}</th>
+						<th scope="col">{__('Started', 'alphone-importer')}</th>
 					</tr>
 				</thead>
 				<tbody>

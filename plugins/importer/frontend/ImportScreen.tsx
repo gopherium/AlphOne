@@ -8,7 +8,9 @@ import {
 	PageScreen,
 	SelectControl,
 	Text,
+	__,
 	graphError,
+	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
@@ -43,26 +45,26 @@ export function ImportScreen({ importId }: { importId: string }) {
 	const [detail] = useGraphQuery({ query: importDetailQuery, variables: { id: importId } })
 
 	if (detail.error) {
-		return <ErrorNotice>The import could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
 	}
 	if (!detail.data) {
 		return (
-			<PageScreen title="Import">
-				<LoadingScreen label="Loading import…" />
+			<PageScreen title={__('Import', 'alphone-importer')}>
+				<LoadingScreen label={__('Loading import…', 'alphone-importer')} />
 			</PageScreen>
 		)
 	}
 	const { importJob: stored, importFields } = detail.data
 	if (!stored) {
-		return <ErrorNotice>The import could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
 	}
 	return (
 		<PageScreen title={stored.filename}>
 			<MappingForm stored={stored} fields={importFields} />
 			<Text variant="heading-sm" render={<h2 />}>
-				Rows
+				{__('Rows', 'alphone-importer')}
 			</Text>
-			<Suspense fallback={<LoadingRows label="Loading the preview…" rows={3} />}>
+			<Suspense fallback={<LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />}>
 				<RowsTable stored={stored} rows={stored.rows} />
 			</Suspense>
 		</PageScreen>
@@ -109,7 +111,7 @@ function MappingForm({
 				disabled={save.fetching || stored.state !== 'ready'}
 				loading={save.fetching}
 			>
-				Save mapping
+				{__('Save mapping', 'alphone-importer')}
 			</Button>
 			<Button
 				variant="solid"
@@ -119,7 +121,7 @@ function MappingForm({
 					void startCommit({ id: stored.id }).then(refresh)
 				}}
 			>
-				Commit
+				{__('Commit', 'alphone-importer')}
 			</Button>
 			<MappingNotice save={save} commit={commit} />
 		</form>
@@ -140,14 +142,14 @@ function MappingNotice({
 	if (save.error) {
 		return (
 			<ErrorNotice>
-				{validationMessage(graphError(save.error), 'The mapping could not be saved.')}
+				{validationMessage(graphError(save.error), __('The mapping could not be saved.', 'alphone-importer'))}
 			</ErrorNotice>
 		)
 	}
 	if (commit.error) {
 		return (
 			<ErrorNotice>
-				{validationMessage(graphError(commit.error), 'The import could not be committed.')}
+				{validationMessage(graphError(commit.error), __('The import could not be committed.', 'alphone-importer'))}
 			</ErrorNotice>
 		)
 	}
@@ -172,12 +174,12 @@ function ColumnSelect({
 	onChoose: (field: string) => void
 }) {
 	const items = [
-		{ value: unmapped, label: 'Not imported' },
+		{ value: unmapped, label: __('Not imported', 'alphone-importer') },
 		...fields.map((field) => ({ value: field.name, label: field.label })),
 	]
 	return (
 		<SelectControl
-			label={column === '' ? `Column ${index + 1}` : column}
+			label={column === '' ? sprintf(__('Column %(number)d', 'alphone-importer'), { number: index + 1 }) : column}
 			items={items}
 			value={chosenItem(items, chosen)}
 			onValueChange={(item) => onChoose(chosenValue(item))}

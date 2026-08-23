@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { __, sprintf } from '@alphone/frontend-sdk'
 import { DataViews, type Field, type View } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
@@ -39,14 +40,14 @@ function previewRows(rows: readonly ImportRow[]): previewRow[] {
 function previewFields(columns: readonly string[]): Field<previewRow>[] {
 	const cells: Field<previewRow>[] = columns.map((column, index) => ({
 		id: `cell-${index}`,
-		label: column === '' ? `Column ${index + 1}` : column,
+		label: column === '' ? sprintf(__('Column %(number)d', 'alphone-importer'), { number: index + 1 }) : column,
 		getValue: ({ item }: { item: previewRow }) => item.cells[index] ?? '',
 	}))
 	return [
-		{ id: 'position', label: 'Row', getValue: ({ item }) => String(item.position) },
+		{ id: 'position', label: __('Row', 'alphone-importer'), getValue: ({ item }) => String(item.position) },
 		...cells,
-		{ id: 'outcome', label: 'Outcome', getValue: ({ item }) => item.outcome },
-		{ id: 'reason', label: 'Reason', getValue: ({ item }) => item.reason },
+		{ id: 'outcome', label: __('Outcome', 'alphone-importer'), getValue: ({ item }) => item.outcome },
+		{ id: 'reason', label: __('Reason', 'alphone-importer'), getValue: ({ item }) => item.reason },
 	]
 }
 
@@ -74,7 +75,7 @@ export default function RowsTable({
 		<div
 			className="godmin-table-scroll"
 			role="region"
-			aria-label="Rows"
+			aria-label={__('Rows', 'alphone-importer')}
 			tabIndex={0}
 			style={{ minWidth: 0, maxWidth: '100%' }}
 		>
