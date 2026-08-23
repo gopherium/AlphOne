@@ -66,13 +66,18 @@ Save the roles first:
 
 ```sh
 docker compose exec -T postgres psql -U alphone alphone -v ON_ERROR_STOP=1 \
-  -c "\\copy (SELECT id, role FROM auth.users) TO STDOUT WITH (FORMAT csv)" > roles.csv
+  -c "\\copy (SELECT id, role FROM auth.users) TO STDOUT WITH (FORMAT csv)" \
+  > roles.csv.part && mv roles.csv.part roles.csv
 ```
 
 That keeps every role exactly as stored, including any role a plugin declared,
 and CSV quoting handles whatever the values contain. `ON_ERROR_STOP=1` matters
 in both commands, because without it `psql` carries on after a failed statement
-and leaves you an incomplete file that looks like a good one. Put the roles back
+and leaves you an incomplete file that looks like a good one. The export writes
+`roles.csv.part` and renames it only once the command succeeds, because your
+shell creates the file it redirects into before `psql` even starts, so a failure
+halfway through would otherwise hand you a truncated `roles.csv` in place of the
+one you were counting on. Put the roles back
 once the column exists again, reading the file on the machine you run the
 command from:
 
@@ -88,11 +93,14 @@ Both commands stream through `psql`, so the file never has to exist inside the
 container. Taking a full `pg_dump` before any rollback is simpler still, and it
 is what the backup section below sets up anyway.
 
-Accounts that end up holding no role can do nothing until they are
-given one. `alphone grantrole -role member` gives a role to every
-account holding none, and says how many it changed. It leaves the
-accounts that already hold one alone, so running it twice changes
-nothing the second time.
+An account that ends up holding no role still works contacts and tasks,
+because no field of the product asks for a capability. What it loses is
+user management, so a rollback that strips every role can leave nobody
+able to promote anyone back. `alphone grantrole -role member` gives a
+role to every account holding none, and says how many it changed. It
+leaves the accounts that already hold one alone, so running it twice
+changes nothing the second time. Choose the role with care, because it
+goes to every account holding none rather than to one you pick.
 
 ## Backup scenario
 
