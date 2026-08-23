@@ -17,7 +17,7 @@ func spaHandler(webFS fs.FS) http.HandlerFunc {
 	fileServer := http.FileServerFS(webFS)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			authkit.RespondError(w, http.StatusNotFound, "not found")
+			authkit.RespondError(w, http.StatusNotFound, authkit.ErrorResponse{Message: "not found"})
 			return
 		}
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
