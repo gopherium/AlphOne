@@ -132,7 +132,9 @@ Three operations need the `manage_users` capability: `createUser`,
       "extensions": {
         "code": "UNAUTHORIZED",
         "scope": "users:write",
-        "capability": "manage_users"
+        "capability": "manage_users",
+        "reason": "capability_missing",
+        "meta": { "scope": "users:write", "capability": "manage_users" }
       }
     }
   ],
@@ -297,7 +299,7 @@ A refused input looks like this:
     {
       "message": "contact: empty name",
       "path": ["createContact"],
-      "extensions": { "code": "VALIDATION" }
+      "extensions": { "code": "VALIDATION", "reason": "contact_name_required" }
     }
   ],
   "data": null
@@ -306,6 +308,106 @@ A refused input looks like this:
 
 `path` names the field that failed, which matters when one operation asks for
 several.
+
+### Reasons
+
+Beside the coarse `code`, a refused operation names a `reason`, a short fixed
+name for the exact condition, and `meta`, the values its message mentions. A
+client should match on `reason` and read `meta`, never parse the message. The
+message can be reworded, a reason never is. An `INTERNAL` error names no
+reason, its message and shape are deliberately bare.
+
+```json
+{
+  "errors": [
+    {
+      "message": "graph: first must be between 1 and 200",
+      "extensions": {
+        "code": "VALIDATION",
+        "reason": "first_out_of_range",
+        "meta": { "min": 1, "max": 200 }
+      }
+    }
+  ],
+  "data": null
+}
+```
+
+The reasons the core answers with:
+
+| Reason | Meta | When |
+| ------ | ---- | ---- |
+| `authentication_required` | | no usable credential |
+| `credentials_invalid` | | a login that did not match |
+| `rate_limited` | `retryAfter` | too many attempts |
+| `scope_missing` | `scope` | the token lacks the area |
+| `capability_missing` | `scope`, `capability` | the role lacks the capability |
+| `contact_name_required` | | a contact needs a name |
+| `identity_channel_required` | | an identity needs a channel |
+| `identity_identifier_required` | | an identity needs an identifier |
+| `identity_taken` | `ownerContactId` | the identity belongs to another contact |
+| `channel_not_writable` | | the channel accepts no writes |
+| `identity_not_found` | | the id names no identity |
+| `contact_not_found` | | the id names no contact |
+| `task_title_required` | | a task needs a title |
+| `task_priority_unknown` | | the priority is not one AlphOne knows |
+| `task_status_unknown` | | the status is not one AlphOne knows |
+| `task_filter_choice_required` | | tasks take exactly one filter |
+| `task_not_found` | | the id names no task |
+| `origin_source_required` | | an origin event needs a source |
+| `event_unknown` | | the event name is not one AlphOne knows |
+| `webhook_url_invalid` | | the webhook URL does not parse |
+| `webhook_events_required` | | a webhook needs at least one event |
+| `webhook_not_found` | | the id names no webhook |
+| `first_out_of_range` | `min`, `max` | the page size is outside the range |
+| `cursor_malformed` | | the cursor is not one a field issued |
+| `value_malformed` | | a scalar did not parse |
+| `token_name_required` | | a token needs a name |
+| `token_not_found` | | the id names no token |
+| `scope_malformed` | | a scope is area colon access |
+| `scopes_required` | | a scoped token needs at least one |
+| `area_unknown` | | the area is not one the schema declares |
+| `lifetime_negative` | | a lifetime is zero or more days |
+| `lifetime_too_long` | `maxDays` | the lifetime is past the cap |
+| `email_invalid` | | the address does not parse |
+| `email_taken` | | the address belongs to another account |
+| `name_required` | | an account needs a name |
+| `name_too_long` | `max` | the name is past the cap |
+| `password_too_short` | `min` | the password is under the floor |
+| `password_too_long` | `max` | the password is past the cap |
+| `user_not_found` | | the id names no account |
+| `self_disable_refused` | | nobody disables its own account |
+| `self_role_refused` | | nobody changes its own role |
+| `last_privileged_refused` | | the last account able to manage users stays |
+| `role_beyond_reach` | | the role holds more than the caller does |
+| `role_unknown` | | the role is not one the deployment names |
+
+The stock plugins add their own:
+
+| Reason | Meta | When |
+| ------ | ---- | ---- |
+| `field_name_malformed` | | a field name is camelCase |
+| `field_label_required` | | a field needs a label |
+| `field_kind_unknown` | | the kind is not one the plugin knows |
+| `field_name_reserved` | | the name is already a column of the type |
+| `field_name_taken` | | another definition holds the name |
+| `field_kind_locked` | | an archived definition pins the kind |
+| `field_not_found` | | the id names no live definition |
+| `field_unknown` | | no live definition holds the name |
+| `value_kind_mismatch` | | the value does not match the declared kind |
+| `values_not_an_object` | | values arrive as an object of names |
+| `message_content_required` | | a message needs text |
+| `conversation_not_found` | | the id names no conversation |
+| `upstream_failed` | | the messaging platform did not accept |
+| `import_not_found` | | the id names no import |
+| `file_too_large` | `maxBytes` | the upload is past the cap |
+| `file_unreadable` | | the file is not a CSV or spreadsheet AlphOne reads |
+| `mapping_invalid` | | the mapping does not fit the columns |
+| `mapping_required` | | committing needs a mapping first |
+| `mapping_locked` | | the import no longer accepts a mapping |
+| `already_committed` | | the import was committed before |
+
+A plugin you install may add more, each documented by the plugin.
 
 ## Limits
 
