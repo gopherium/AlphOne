@@ -58,6 +58,21 @@ func TestUserSettingAnswersEmptyWhenUnset(t *testing.T) {
 	}
 }
 
+func TestUserSettingReportsAClosedPool(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewUserSettingStore(pool)
+	pool.Close()
+
+	if _, err := store.UserSetting(t.Context(), uuid.Must(uuid.NewV7()), "locale.default"); err == nil {
+		t.Error("UserSetting() error = nil, want the closed pool reported")
+	}
+	if err := store.SetUserSetting(t.Context(), uuid.Must(uuid.NewV7()), "locale.default", "es-ES"); err == nil {
+		t.Error("SetUserSetting() error = nil, want the closed pool reported")
+	}
+}
+
 func TestUserSettingKeepsOnlyTheLastWrite(t *testing.T) {
 	t.Parallel()
 

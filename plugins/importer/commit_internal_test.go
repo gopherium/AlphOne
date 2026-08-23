@@ -9,6 +9,20 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+func TestCellAtAnswersNothingOutsideTheRow(t *testing.T) {
+	t.Parallel()
+
+	if got := cellAt([]string{"a", "b"}, "5"); got != "" {
+		t.Errorf("cellAt(5) = %q, want nothing past the row", got)
+	}
+	if got := cellAt([]string{"a", "b"}, "not a number"); got != "" {
+		t.Errorf("cellAt(text) = %q, want nothing for an unreadable index", got)
+	}
+	if got := cellAt([]string{"a", "b"}, "1"); got != "b" {
+		t.Errorf("cellAt(1) = %q, want the named cell", got)
+	}
+}
+
 func TestClassifyClaimErrorNamesTheReason(t *testing.T) {
 	t.Parallel()
 

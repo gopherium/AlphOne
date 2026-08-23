@@ -25,6 +25,14 @@ func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 	}
 }
 
+func TestFieldReasonAnswersNothingForAnUnlistedError(t *testing.T) {
+	t.Parallel()
+
+	if got := fieldReason(errCatalogue); got != "" {
+		t.Errorf("fieldReason() = %q, want nothing for an error outside the table", got)
+	}
+}
+
 // errCatalogue is the failure a wedged catalogue reload reports.
 var errCatalogue = errors.New("catalogue unavailable")
 

@@ -84,6 +84,16 @@ func TestAPluginErrorCarriesItsOwnReason(t *testing.T) {
 	}
 }
 
+func TestReasonOfAnswersNothingForAnUnlistedError(t *testing.T) {
+	t.Parallel()
+
+	named, meta := reasonOf(fmt.Errorf("nothing the tables know"))
+
+	if named != "" || meta != nil {
+		t.Errorf("reasonOf() = %q, %v, want nothing for an error outside every table", named, meta)
+	}
+}
+
 func TestABrickSentinelSpeaksItsOwnReason(t *testing.T) {
 	t.Parallel()
 
