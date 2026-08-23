@@ -195,6 +195,26 @@ func TestScopeGateLetsAMemberSessionWorkTheProduct(t *testing.T) {
 	}
 }
 
+func TestScopeGateLetsAnAccountHoldingNoRoleWorkTheProduct(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createContact createTask }`, "")
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, no field of the product declares a capability", answered.Errors)
+	}
+}
+
+func TestScopeGateRefusesUserManagementToAnAccountHoldingNoRole(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createUser }`, "")
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q", got, want)
+	}
+}
+
 func TestScopeGateLetsAMemberSessionManageItsOwnTokens(t *testing.T) {
 	t.Parallel()
 
