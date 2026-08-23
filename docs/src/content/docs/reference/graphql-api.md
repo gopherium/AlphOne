@@ -200,6 +200,9 @@ can ask before anyone signs in.
 query { locale }
 ```
 
+`supportedLocales` lists every locale AlphOne serves, the default first, so a
+screen can offer the choice without hardcoding the list.
+
 `setLocale` stores the calling account's choice and answers it back. It takes
 a locale from the supported list and refuses anything else with the reason
 `locale_unknown`, naming the list in `meta.supported`.
@@ -500,7 +503,7 @@ cannot drift. Point a client at the endpoint, or read
 | Area | Reads | Writes |
 | ---- | ----- | ------ |
 | Session | `me` | `login`, `logout` |
-| Locale | `locale` | `setLocale` |
+| Locale | `locale`, `supportedLocales` | `setLocale` |
 | Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
