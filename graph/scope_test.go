@@ -72,7 +72,8 @@ func rootFieldScopes(t *testing.T, name, source string) (int, []string) {
 
 // ownsItsCapabilities reports whether the SDL belongs to a plugin declaring its own capabilities.
 func ownsItsCapabilities(name string) bool {
-	return strings.HasPrefix(name, "../plugins/") || strings.HasPrefix(name, "../enterprise/")
+	slashed := strings.ReplaceAll(name, "\\", "/")
+	return strings.HasPrefix(slashed, "../plugins/") || strings.HasPrefix(slashed, "../enterprise/")
 }
 
 // scopeProblems reports how one root field's scope declaration falls short.
@@ -262,6 +263,16 @@ func TestScopeCheckingAcceptsACapabilityAPluginOwns(t *testing.T) {
 
 	if got := scopeProblemsIn(t, "../enterprise/tenancy/graph/schema.graphqls", synthetic); len(got) != 0 {
 		t.Errorf("problems = %v, want a plugin free to name a capability it declares itself", got)
+	}
+}
+
+func TestScopeCheckingAcceptsAPluginPathSeparatedByBackslashes(t *testing.T) {
+	t.Parallel()
+
+	synthetic := `type Mutation { one: String! @scope(area: "tenants", write: true, capability: "manage_tenants") }`
+
+	if got := scopeProblemsIn(t, `..\enterprise\tenancy\graph\schema.graphqls`, synthetic); len(got) != 0 {
+		t.Errorf("problems = %v, want a plugin recognised whichever separator the host globs with", got)
 	}
 }
 
