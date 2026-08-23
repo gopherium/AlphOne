@@ -116,6 +116,34 @@ func TestAnonymousOperationsBeyondLoginAreRejected(t *testing.T) {
 	}
 }
 
+func TestAnAnonymousCallerMayAskItsLocale(t *testing.T) {
+	t.Parallel()
+
+	client := newAnonymousGraphClient(t, newAuthResolver(testkit.NewStore()))
+
+	var answered struct{ Locale string }
+	if err := client.Post(`{ locale }`, &answered); err != nil {
+		t.Fatalf("Post() error = %v, want the locale answered before login", err)
+	}
+	if answered.Locale != "en-US" {
+		t.Errorf("locale = %q, want the default with nothing to go on", answered.Locale)
+	}
+}
+
+func TestAnAnonymousCallerMayNotSetALocale(t *testing.T) {
+	t.Parallel()
+
+	client := newAnonymousGraphClient(t, newAuthResolver(testkit.NewStore()))
+
+	response, err := client.RawPost(`mutation { setLocale(locale: "es-ES") }`)
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, response.Errors); got != "UNAUTHENTICATED" {
+		t.Errorf("code = %q, want UNAUTHENTICATED, storing a choice needs an account", got)
+	}
+}
+
 func TestLoginIssuesTheSessionForValidCredentials(t *testing.T) {
 	t.Parallel()
 

@@ -141,6 +141,7 @@ type Mutation {
 	createUser(email: String!, name: String!, password: String!, role: String): User! @scope(area: "users", write: true, capability: "manage_users")
 	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
 	setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
+	setLocale(locale: String!): String! @scope(area: "meta", write: true)
 	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
 	apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret! @scope(area: "tokens", write: true)
@@ -164,6 +165,7 @@ type PageInfo {
 type Query {
 	version: String! @scope(area: "meta", write: false)
 	tenant: Tenant! @scope(area: "meta", write: false)
+	locale: String! @scope(area: "meta", write: false)
 	me: Identity! @scope(area: "auth", write: false)
 	users: [User!]! @scope(area: "users", write: false)
 	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)

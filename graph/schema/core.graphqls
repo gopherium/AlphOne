@@ -27,6 +27,11 @@ type Tenant {
 type Query {
   version: String! @scope(area: "meta", write: false)
   tenant: Tenant! @scope(area: "meta", write: false)
+  locale: String! @scope(area: "meta", write: false)
+}
+
+extend type Mutation {
+  setLocale(locale: String!): String! @scope(area: "meta", write: true)
 }
 
 type Subscription {

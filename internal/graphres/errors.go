@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/locale"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -36,6 +37,7 @@ var validationErrors = []error{
 	webhook.ErrInvalidURL,
 	webhook.ErrNoEvents,
 	event.ErrUnknownName,
+	locale.ErrUnknown,
 	scalar.ErrInvalid,
 	cursor.ErrMalformed,
 	errExactlyOneTaskFilter,
@@ -80,6 +82,7 @@ var reasonsFor = []struct {
 	{webhook.ErrInvalidURL, "webhook_url_invalid", nil},
 	{webhook.ErrNoEvents, "webhook_events_required", nil},
 	{event.ErrUnknownName, "event_unknown", nil},
+	{locale.ErrUnknown, "locale_unknown", map[string]any{"supported": locale.Supported()}},
 	{scalar.ErrInvalid, "value_malformed", nil},
 	{cursor.ErrMalformed, "cursor_malformed", nil},
 	{errExactlyOneTaskFilter, "task_filter_choice_required", nil},
