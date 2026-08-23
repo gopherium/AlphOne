@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { rememberLocale } from '@alphone/frontend-sdk'
 import { expect, test } from 'vitest'
 
 import { formatDay, formatDayLabel, formatFileSize, formatListTime, formatTime } from '../format'
@@ -43,4 +44,18 @@ test('formatDayLabel names today and yesterday', () => {
 	expect(formatDayLabel(new Date('2026-07-01T09:00:00Z'), now)).toBe(
 		'Jul 1, 2026',
 	)
+})
+
+test('labels an older day in the locale the interface stands in', () => {
+	const at = new Date(2026, 6, 1, 12, 0, 0)
+	const now = new Date(2026, 6, 8, 12, 0, 0)
+
+	rememberLocale('en-US')
+	const english = formatDayLabel(at, now)
+	rememberLocale('es-ES')
+
+	expect(formatDayLabel(at, now)).not.toBe(english)
+	expect(english).toBe('Jul 1, 2026')
+
+	rememberLocale('en-US')
 })

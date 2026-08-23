@@ -6,6 +6,7 @@ import {
 	LoadingRows,
 	PageScreen,
 	__,
+	formatDate,
 	_x,
 	graphError,
 	useGraph,
@@ -144,7 +145,7 @@ export function uploadChosen(files: FileList | null, upload: (file: File) => voi
  * @returns The formatted day.
  */
 export function formatStarted(started: Date): string {
-	return started.toLocaleDateString('en-GB', {
+	return formatDate(started, {
 		day: 'numeric',
 		month: 'short',
 		year: 'numeric',

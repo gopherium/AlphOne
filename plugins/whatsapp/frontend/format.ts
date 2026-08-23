@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { __, formatDate, sprintf } from '@alphone/frontend-sdk'
+
 /**
  * Formats a moment as its local calendar date.
  * @param at - The moment to format.
@@ -23,12 +25,6 @@ export function formatTime(at: Date): string {
 	return `${hours}:${minutes}`
 }
 
-const dayLabelFormat = new Intl.DateTimeFormat('en-US', {
-	month: 'short',
-	day: 'numeric',
-	year: 'numeric',
-})
-
 /**
  * Labels a moment's calendar day for display, relative to the current moment.
  * @param at - The moment to label.
@@ -37,13 +33,13 @@ const dayLabelFormat = new Intl.DateTimeFormat('en-US', {
  */
 export function formatDayLabel(at: Date, now: Date): string {
 	if (formatDay(at) === formatDay(now)) {
-		return 'Today'
+		return __('Today', 'alphone-whatsapp')
 	}
 	const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
 	if (formatDay(at) === formatDay(yesterday)) {
-		return 'Yesterday'
+		return __('Yesterday', 'alphone-whatsapp')
 	}
-	return dayLabelFormat.format(at)
+	return formatDate(at, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /**
@@ -53,12 +49,12 @@ export function formatDayLabel(at: Date, now: Date): string {
  */
 export function formatFileSize(bytes: number): string {
 	if (bytes < 1024) {
-		return `${bytes} B`
+		return sprintf(__('%(size)d B', 'alphone-whatsapp'), { size: bytes })
 	}
 	if (bytes < 1024 * 1024) {
-		return `${Math.round(bytes / 1024)} KB`
+		return sprintf(__('%(size)d KB', 'alphone-whatsapp'), { size: Math.round(bytes / 1024) })
 	}
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+	return sprintf(__('%(size)s MB', 'alphone-whatsapp'), { size: (bytes / (1024 * 1024)).toFixed(1) })
 }
 
 /**
