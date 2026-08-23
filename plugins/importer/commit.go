@@ -101,11 +101,11 @@ func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlemen
 
 // refusedText returns the settlement of a row carrying a value no field accepts.
 func refusedText(err error) settlement {
-	return settlement{outcome: outcomeFailed, reason: refusalDetail(err)}
+	return settlement{outcome: outcomeFailed, reason: errorDetail(err)}
 }
 
-// refusalDetail returns the half of a refusal naming what the row got wrong.
-func refusalDetail(err error) string {
+// errorDetail returns the half of an error naming what the row got wrong.
+func errorDetail(err error) string {
 	var wrapped interface{ Unwrap() []error }
 	if errors.As(err, &wrapped) {
 		for _, held := range wrapped.Unwrap() {
