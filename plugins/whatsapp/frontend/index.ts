@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { globCatalogs } from '@alphone/frontend-sdk'
+import { _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
 import { whatsappIcon } from './icon'
@@ -15,6 +15,12 @@ const catalogs = import.meta.glob<{ default: Catalog }>('./languages/*.json')
 export const plugin: FrontendPlugin = {
 	id: 'whatsapp',
 	routes,
-	nav: [{ label: 'WhatsApp', to: '/whatsapp', icon: whatsappIcon }],
+	nav: [{
+		get label() {
+			return _x('WhatsApp', 'admin section', 'alphone-whatsapp')
+		},
+		to: '/whatsapp',
+		icon: whatsappIcon,
+	}],
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 }

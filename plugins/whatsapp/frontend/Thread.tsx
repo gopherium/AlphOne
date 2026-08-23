@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
+	__,
 	Button,
 	InputControl,
 	LoadingRows,
@@ -33,12 +34,18 @@ type Message = ThreadMessageFragment
 /** MessageMedia is one message's attachment as the graph selects it. */
 type MessageMedia = NonNullable<Message['media']>
 
-const tickGlyphs: Record<string, { glyph: string; label: string; modifier?: string }> = {
-	sent: { glyph: '✓', label: 'Message sent' },
-	delivered: { glyph: '✓✓', label: 'Message delivered' },
-	read: { glyph: '✓✓', label: 'Message read', modifier: 'read' },
-	played: { glyph: '✓✓', label: 'Message played', modifier: 'read' },
-	failed: { glyph: '!', label: 'Message not delivered', modifier: 'failed' },
+/**
+ * Returns the tick glyphs by status, read fresh so the loaded catalogue answers.
+ * @returns The glyphs, keyed by delivery status.
+ */
+function tickGlyphs(): Record<string, { glyph: string; label: string; modifier?: string }> {
+	return {
+		sent: { glyph: '✓', label: __('Message sent', 'alphone-whatsapp') },
+		delivered: { glyph: '✓✓', label: __('Message delivered', 'alphone-whatsapp') },
+		read: { glyph: '✓✓', label: __('Message read', 'alphone-whatsapp'), modifier: 'read' },
+		played: { glyph: '✓✓', label: __('Message played', 'alphone-whatsapp'), modifier: 'read' },
+		failed: { glyph: '!', label: __('Message not delivered', 'alphone-whatsapp'), modifier: 'failed' },
+	}
 }
 
 const mediaContentTypes = new Set([
@@ -133,7 +140,7 @@ function DeliveryStatus({ message }: { message: Message }) {
 	if (message.direction !== 'outbound' || !message.status) {
 		return null
 	}
-	const tick = tickGlyphs[message.status]
+	const tick = tickGlyphs()[message.status]
 	if (!tick) {
 		return null
 	}
@@ -196,7 +203,7 @@ function UnavailableAttachment({
 	if (media && message.contentType === 'document') {
 		return <DocumentChip media={media} caption={message.content} />
 	}
-	return <Text className="alphone-message__content">Attachment unavailable.</Text>
+	return <Text className="alphone-message__content">{__('Attachment unavailable.', 'alphone-whatsapp')}</Text>
 }
 
 /**
@@ -236,7 +243,7 @@ function AudioAttachment({
 	media: MessageMedia
 	source: string
 }) {
-	const label = media.voice ? 'Voice message' : 'Audio message'
+	const label = media.voice ? __('Voice message', 'alphone-whatsapp') : __('Audio message', 'alphone-whatsapp')
 	return (
 		<div className="alphone-message__media">
 			{media.voice ? (
@@ -260,7 +267,7 @@ function VideoAttachment({
 }) {
 	return (
 		<div className="alphone-message__media">
-			<video controls preload="metadata" src={source} aria-label="Video message" />
+			<video controls preload="metadata" src={source} aria-label={__('Video message', 'alphone-whatsapp')} />
 			{message.content ? (
 				<Text className="alphone-message__caption">{message.content}</Text>
 			) : null}
@@ -277,7 +284,7 @@ function MediaGhost({ sticker = false }: { sticker?: boolean }) {
 	const shape = sticker ? ' alphone-message__ghost--sticker' : ''
 	return (
 		<div className={`alphone-message__ghost${shape}`}>
-			<VisuallyHidden role="status">Downloading…</VisuallyHidden>
+			<VisuallyHidden role="status">{__('Downloading…', 'alphone-whatsapp')}</VisuallyHidden>
 			<Skeleton className="alphone-message__ghost-block" />
 		</div>
 	)
@@ -300,7 +307,7 @@ function MediaImage({
 		return <MediaGhost sticker={message.contentType === 'sticker'} />
 	}
 	if (blob.isError) {
-		return <Text className="alphone-message__content">Attachment unavailable.</Text>
+		return <Text className="alphone-message__content">{__('Attachment unavailable.', 'alphone-whatsapp')}</Text>
 	}
 	const sticker = message.contentType === 'sticker'
 	return (
@@ -456,16 +463,16 @@ function ThreadBody({
 	}, [messages])
 
 	if (error) {
-		return <Text role="alert">Messages could not be loaded.</Text>
+		return <Text role="alert">{__('Messages could not be loaded.', 'alphone-whatsapp')}</Text>
 	}
 	if (!loaded) {
-		return <LoadingRows label="Loading messages…" />
+		return <LoadingRows label={__('Loading messages…', 'alphone-whatsapp')} />
 	}
 	return (
 		<>
 			<div
 				role="log"
-				aria-label="Messages"
+				aria-label={__('Messages', 'alphone-whatsapp')}
 				className="alphone-thread__log godmin-arrival"
 				tabIndex={0}
 				ref={logRef}
@@ -519,7 +526,7 @@ function ThreadComposer({
 			<Stack direction="column" gap="sm">
 				<Stack direction="row" gap="sm" align="center">
 					<InputControl
-						label="Reply"
+						label={__('Reply', 'alphone-whatsapp')}
 						hideLabelFromVision
 						className="alphone-composer__input"
 						value={draft}
@@ -530,7 +537,7 @@ function ThreadComposer({
 						disabled={draft.trim() === '' || reply.fetching}
 						loading={reply.fetching}
 					>
-						Send
+						{__('Send', 'alphone-whatsapp')}
 					</Button>
 				</Stack>
 				{reply.error ? (
