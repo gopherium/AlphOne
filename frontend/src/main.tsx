@@ -19,7 +19,10 @@ import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
 import { graphAuthTransport } from './auth/graphTransport'
 import { BootLoading } from './boot'
+import { startAppLocale } from './i18n/start'
 import { createAppRouter } from './router'
+
+await startAppLocale()
 
 configureAuthTransport(graphAuthTransport)
 const queryClient = createAuthQueryClient()
