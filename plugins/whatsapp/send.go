@@ -126,11 +126,13 @@ var (
 func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, content string) (messageRow, error) {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
-		return messageRow{}, sdk.GraphError{Code: "VALIDATION", Err: errEmptyMessageContent}
+		return messageRow{}, sdk.GraphError{
+			Code: "VALIDATION", Reason: "message_content_required", Err: errEmptyMessageContent,
+		}
 	}
 	to, err := p.store.conversationExternalID(ctx, conversationID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return messageRow{}, sdk.GraphError{Code: "NOT_FOUND", Err: errConversationNotFound}
+		return messageRow{}, sdk.GraphError{Code: "NOT_FOUND", Reason: "conversation_not_found", Err: errConversationNotFound}
 	}
 	if err != nil {
 		return messageRow{}, err
@@ -154,7 +156,7 @@ func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, cont
 
 // upstreamError classifies a Cloud API send failure, carrying any rejection code.
 func upstreamError(err error) error {
-	coded := sdk.GraphError{Code: "UPSTREAM", Err: err}
+	coded := sdk.GraphError{Code: "UPSTREAM", Reason: "upstream_failed", Err: err}
 	var rejection graphError
 	if errors.As(err, &rejection) {
 		coded.Extensions = map[string]any{"metaCode": rejection.Code}

@@ -27,7 +27,8 @@ func graphListLimit(limit *int) (int, error) {
 		return defaultListLimit, nil
 	}
 	if *limit < 1 || *limit > maxListLimit {
-		return 0, sdk.GraphError{Code: "VALIDATION", Err: errInvalidListLimit}
+		return 0, sdk.GraphError{Code: "VALIDATION", Reason: "first_out_of_range",
+			Meta: map[string]any{"min": 1, "max": maxListLimit}, Err: errInvalidListLimit}
 	}
 	return *limit, nil
 }

@@ -32,7 +32,8 @@ func graphRowLimit(limit *int) (int, error) {
 		return maxRows, nil
 	}
 	if *limit < 1 || *limit > maxRows {
-		return 0, sdk.GraphError{Code: "VALIDATION", Err: errInvalidRowLimit}
+		return 0, sdk.GraphError{Code: "VALIDATION", Reason: "first_out_of_range",
+			Meta: map[string]any{"min": 1, "max": maxRows}, Err: errInvalidRowLimit}
 	}
 	return *limit, nil
 }
@@ -84,7 +85,7 @@ func toGraphRow(staged stagedRow) *model.ImportRow {
 func (p *Plugin) loadImportJob(ctx context.Context, id uuid.UUID) (importRow, error) {
 	stored, err := p.store.importByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return importRow{}, sdk.GraphError{Code: "NOT_FOUND", Err: errImportNotFound}
+		return importRow{}, sdk.GraphError{Code: "NOT_FOUND", Reason: "import_not_found", Err: errImportNotFound}
 	}
 	if err != nil {
 		return importRow{}, err
@@ -201,18 +202,19 @@ func (m MutationResolvers) ImportUpload(
 ) (*model.ImportJob, error) {
 	uploader, ok := sdk.UserFromContext(ctx)
 	if !ok {
-		return nil, sdk.GraphError{Code: "UNAUTHENTICATED", Err: errNoUploader}
+		return nil, sdk.GraphError{Code: "UNAUTHENTICATED", Reason: "authentication_required", Err: errNoUploader}
 	}
 	data, err := io.ReadAll(io.LimitReader(file.File, maxUploadBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("importer: read upload: %w", err)
 	}
 	if len(data) > maxUploadBytes {
-		return nil, sdk.GraphError{Code: "VALIDATION", Err: errTooLarge}
+		return nil, sdk.GraphError{Code: "VALIDATION", Reason: "file_too_large",
+			Meta: map[string]any{"maxBytes": maxUploadBytes}, Err: errTooLarge}
 	}
 	parsed, err := Parse(data)
 	if err != nil {
-		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
+		return nil, sdk.GraphError{Code: "VALIDATION", Reason: "file_unreadable", Err: err}
 	}
 	stored, err := m.plugin.store.insertImport(ctx, uploader, filepath.Base(file.Filename), parsed)
 	if err != nil {
@@ -230,7 +232,7 @@ func (m MutationResolvers) ImportSetMapping(
 		return nil, err
 	}
 	if stored.State != stateReady {
-		return nil, sdk.GraphError{Code: "CONFLICT", Err: errMappingLocked}
+		return nil, sdk.GraphError{Code: "CONFLICT", Reason: "mapping_locked", Err: errMappingLocked}
 	}
 	known, err := m.plugin.registry(ctx)
 	if err != nil {
@@ -238,7 +240,7 @@ func (m MutationResolvers) ImportSetMapping(
 	}
 	assigned, err := buildMapping(toAssignments(assignments), len(stored.Columns), known)
 	if err != nil {
-		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
+		return nil, sdk.GraphError{Code: "VALIDATION", Reason: "mapping_invalid", Err: err}
 	}
 	if err := m.plugin.store.updateMapping(ctx, stored.ID, assigned); err != nil {
 		return nil, err
@@ -269,7 +271,7 @@ func (m MutationResolvers) ImportCommit(
 		return nil, err
 	}
 	if err := checkEntry(stored, known); err != nil {
-		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
+		return nil, sdk.GraphError{Code: "VALIDATION", Reason: "mapping_invalid", Err: err}
 	}
 	claimed, err := m.plugin.store.claimForCommit(ctx, stored.ID)
 	if err != nil {
@@ -295,9 +297,9 @@ func (m MutationResolvers) ImportCommit(
 func classifyClaimError(err error) error {
 	switch {
 	case errors.Is(err, errAlreadyCommitted):
-		return sdk.GraphError{Code: "CONFLICT", Err: err}
+		return sdk.GraphError{Code: "CONFLICT", Reason: "already_committed", Err: err}
 	case errors.Is(err, errNoMapping), errors.Is(err, pgx.ErrNoRows):
-		return sdk.GraphError{Code: "VALIDATION", Err: errNoMapping}
+		return sdk.GraphError{Code: "VALIDATION", Reason: "mapping_required", Err: errNoMapping}
 	}
 	return err
 }

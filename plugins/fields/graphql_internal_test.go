@@ -9,7 +9,21 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/sdk"
 )
+
+func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
+	t.Parallel()
+
+	p := newClosedPlugin(t)
+
+	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "Not Camel", "Label", model.FieldKindDate)
+
+	var raised sdk.GraphError
+	if !errors.As(err, &raised) || raised.Reason != "field_name_malformed" {
+		t.Errorf("error = %v, want the malformed name named as a reason", err)
+	}
+}
 
 // errCatalogue is the failure a wedged catalogue reload reports.
 var errCatalogue = errors.New("catalogue unavailable")
