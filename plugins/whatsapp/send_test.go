@@ -98,7 +98,7 @@ func mustSend(
 	return sent
 }
 
-// sendErrorCode returns the graph code a refused send carries.
+// sendErrorCode returns the graph code a failed send carries.
 func sendErrorCode(t *testing.T, err error) string {
 	t.Helper()
 	var refused sdk.GraphError
