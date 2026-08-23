@@ -34,6 +34,9 @@ importers:
       knip:
         specifier: ^6.29.0
         version: 6.29.0
+      oxlint:
+        specifier: ^1.75.0
+        version: 1.76.0
       typescript-eslint:
         specifier: ^8.65.0
         version: 8.65.0(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3)
@@ -116,9 +119,6 @@ importers:
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1
-      oxlint:
-        specifier: ^1.75.0
-        version: 1.76.0
       stylelint:
         specifier: ^17.14.1
         version: 17.14.1(typescript@6.0.3)

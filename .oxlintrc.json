@@ -8,7 +8,7 @@
   },
   "overrides": [
     {
-      "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx", "sdk/frontend/testing.tsx"],
       "rules": { "react/jsx-no-literals": "off" }
     }
   ]
