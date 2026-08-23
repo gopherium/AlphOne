@@ -27,6 +27,8 @@ type Documents = {
     "\n\tmutation DeleteContactIdentity($contactId: UUID!, $identityId: UUID!) {\n\t\tdeleteContactIdentity(contactId: $contactId, identityId: $identityId)\n\t}\n": typeof types.DeleteContactIdentityDocument,
     "\n\tquery ContactDetail($id: UUID!, $first: Int, $after: String) {\n\t\tcontact(id: $id) {\n\t\t\tid\n\t\t\tname\n\t\t\tcreatedAt\n\t\t\tidentities {\n\t\t\t\tid\n\t\t\t\tchannel\n\t\t\t\tidentifier\n\t\t\t\tdisplayName\n\t\t\t}\n\t\t\ttasks(status: \"open\", first: $first, after: $after) {\n\t\t\t\tedges {\n\t\t\t\t\tnode {\n\t\t\t\t\t\tid\n\t\t\t\t\t\ttitle\n\t\t\t\t\t\tstatus\n\t\t\t\t\t\tpriority\n\t\t\t\t\t\tdueOn\n\t\t\t\t\t}\n\t\t\t\t\tcursor\n\t\t\t\t}\n\t\t\t\tpageInfo {\n\t\t\t\t\thasNextPage\n\t\t\t\t\tendCursor\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n": typeof types.ContactDetailDocument,
     "\n\tquery Contacts($q: String, $first: Int, $after: String) {\n\t\tcontacts(q: $q, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\tname\n\t\t\t\t\tcreatedAt\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": typeof types.ContactsDocument,
+    "\n\tquery SupportedLocales {\n\t\tsupportedLocales\n\t}\n": typeof types.SupportedLocalesDocument,
+    "\n\tmutation SetLocale($locale: String!) {\n\t\tsetLocale(locale: $locale)\n\t}\n": typeof types.SetLocaleDocument,
     "\n\tmutation CreateTask($input: CreateTaskInput!) {\n\t\tcreateTask(input: $input) {\n\t\t\ttask {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\tstatus\n\t\t\t\tpriority\n\t\t\t\tdueOn\n\t\t\t}\n\t\t\treplay\n\t\t}\n\t}\n": typeof types.CreateTaskDocument,
     "\n\tmutation UpdateTask($id: UUID!, $input: UpdateTaskInput!) {\n\t\tupdateTask(id: $id, input: $input) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t}\n\t}\n": typeof types.UpdateTaskDocument,
     "\n\tquery TaskDetail($id: UUID!) {\n\t\ttask(id: $id) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t\tcontactId\n\t\t\tcontact {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": typeof types.TaskDetailDocument,
@@ -51,6 +53,8 @@ const documents: Documents = {
     "\n\tmutation DeleteContactIdentity($contactId: UUID!, $identityId: UUID!) {\n\t\tdeleteContactIdentity(contactId: $contactId, identityId: $identityId)\n\t}\n": types.DeleteContactIdentityDocument,
     "\n\tquery ContactDetail($id: UUID!, $first: Int, $after: String) {\n\t\tcontact(id: $id) {\n\t\t\tid\n\t\t\tname\n\t\t\tcreatedAt\n\t\t\tidentities {\n\t\t\t\tid\n\t\t\t\tchannel\n\t\t\t\tidentifier\n\t\t\t\tdisplayName\n\t\t\t}\n\t\t\ttasks(status: \"open\", first: $first, after: $after) {\n\t\t\t\tedges {\n\t\t\t\t\tnode {\n\t\t\t\t\t\tid\n\t\t\t\t\t\ttitle\n\t\t\t\t\t\tstatus\n\t\t\t\t\t\tpriority\n\t\t\t\t\t\tdueOn\n\t\t\t\t\t}\n\t\t\t\t\tcursor\n\t\t\t\t}\n\t\t\t\tpageInfo {\n\t\t\t\t\thasNextPage\n\t\t\t\t\tendCursor\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n": types.ContactDetailDocument,
     "\n\tquery Contacts($q: String, $first: Int, $after: String) {\n\t\tcontacts(q: $q, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\tname\n\t\t\t\t\tcreatedAt\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n": types.ContactsDocument,
+    "\n\tquery SupportedLocales {\n\t\tsupportedLocales\n\t}\n": types.SupportedLocalesDocument,
+    "\n\tmutation SetLocale($locale: String!) {\n\t\tsetLocale(locale: $locale)\n\t}\n": types.SetLocaleDocument,
     "\n\tmutation CreateTask($input: CreateTaskInput!) {\n\t\tcreateTask(input: $input) {\n\t\t\ttask {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\tstatus\n\t\t\t\tpriority\n\t\t\t\tdueOn\n\t\t\t}\n\t\t\treplay\n\t\t}\n\t}\n": types.CreateTaskDocument,
     "\n\tmutation UpdateTask($id: UUID!, $input: UpdateTaskInput!) {\n\t\tupdateTask(id: $id, input: $input) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t}\n\t}\n": types.UpdateTaskDocument,
     "\n\tquery TaskDetail($id: UUID!) {\n\t\ttask(id: $id) {\n\t\t\tid\n\t\t\ttitle\n\t\t\tstatus\n\t\t\tpriority\n\t\t\tdueOn\n\t\t\tcontactId\n\t\t\tcontact {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": types.TaskDetailDocument,
@@ -128,6 +132,14 @@ export function graphql(source: "\n\tquery ContactDetail($id: UUID!, $first: Int
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tquery Contacts($q: String, $first: Int, $after: String) {\n\t\tcontacts(q: $q, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\tname\n\t\t\t\t\tcreatedAt\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Contacts($q: String, $first: Int, $after: String) {\n\t\tcontacts(q: $q, first: $first, after: $after) {\n\t\t\tedges {\n\t\t\t\tnode {\n\t\t\t\t\tid\n\t\t\t\t\tname\n\t\t\t\t\tcreatedAt\n\t\t\t\t}\n\t\t\t\tcursor\n\t\t\t}\n\t\t\tpageInfo {\n\t\t\t\thasNextPage\n\t\t\t\tendCursor\n\t\t\t}\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery SupportedLocales {\n\t\tsupportedLocales\n\t}\n"): (typeof documents)["\n\tquery SupportedLocales {\n\t\tsupportedLocales\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation SetLocale($locale: String!) {\n\t\tsetLocale(locale: $locale)\n\t}\n"): (typeof documents)["\n\tmutation SetLocale($locale: String!) {\n\t\tsetLocale(locale: $locale)\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
