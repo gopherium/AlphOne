@@ -58,24 +58,49 @@ Migrations only move forward, so if the newer version already migrated
 the schema, restore the matching backup instead of just pinning the
 older image.
 
-If you ever roll a migration back by hand, know that the roles
-migration is the one that loses data. Its down step drops the table
-holding who is an admin, so every promotion and demotion goes with it,
-and applying it again makes every user an admin. Save the rows first:
+If you ever roll a migration back by hand, know that the role each
+account holds is the thing most easily lost. It lives in a `role`
+column on the account row. The migration that added that column drops
+it on the way down, and every promotion and demotion goes with it.
+Save the roles first:
 
 ```sh
-docker compose exec -T postgres \
-  pg_dump -U alphone --data-only --no-owner -t core.user_roles alphone > user_roles.sql
+docker compose exec -T postgres psql -U alphone alphone -v ON_ERROR_STOP=1 \
+  -c "\\copy (SELECT id, role FROM auth.users) TO STDOUT WITH (FORMAT csv)" \
+  > roles.csv.part && mv roles.csv.part roles.csv
 ```
 
-Applying the migration again refills that table with one admin row per
-user, so put your own rows back over the top:
+That keeps every role exactly as stored, including any role a plugin declared,
+and CSV quoting handles whatever the values contain. `ON_ERROR_STOP=1` matters
+in both commands, because without it `psql` carries on after a failed statement
+and leaves you an incomplete file that looks like a good one. The export writes
+`roles.csv.part` and renames it only once the command succeeds, because your
+shell creates the file it redirects into before `psql` even starts, so a failure
+halfway through would otherwise hand you a truncated `roles.csv` in place of the
+one you were counting on. Put the roles back
+once the column exists again, reading the file on the machine you run the
+command from:
 
 ```sh
-docker compose exec -T postgres psql -U alphone alphone \
-  -c 'TRUNCATE core.user_roles'
-docker compose exec -T postgres psql -U alphone alphone < user_roles.sql
+docker compose exec -T postgres psql -U alphone alphone -v ON_ERROR_STOP=1 \
+  -c 'CREATE TEMP TABLE restored (id uuid PRIMARY KEY, role text NOT NULL)' \
+  -c "\\copy restored (id, role) FROM STDIN WITH (FORMAT csv)" \
+  -c 'UPDATE auth.users u SET role = r.role FROM restored r WHERE r.id = u.id' \
+  < roles.csv
 ```
+
+Both commands stream through `psql`, so the file never has to exist inside the
+container. Taking a full `pg_dump` before any rollback is simpler still, and it
+is what the backup section below sets up anyway.
+
+An account that ends up holding no role still works contacts and tasks,
+because no field of the product asks for a capability. What it loses is
+user management, so a rollback that strips every role can leave nobody
+able to promote anyone back. `alphone grantrole -role member` gives a
+role to every account holding none, and says how many it changed. It
+leaves the accounts that already hold one alone, so running it twice
+changes nothing the second time. Choose the role with care, because it
+goes to every account holding none rather than to one you pick.
 
 ## Backup scenario
 

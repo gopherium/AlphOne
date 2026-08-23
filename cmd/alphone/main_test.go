@@ -198,7 +198,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
 	t.Parallel()
 
-	err := dispatch(t.Context(), []string{"not-a-subcommand"})
+	err := dispatch(t.Context(), []string{"not-a-subcommand"}, registerPlugins)
 
 	if !errors.Is(err, errUnknownSubcommand) {
 		t.Fatalf("dispatch() error = %v, want the unknown subcommand refused", err)
@@ -206,7 +206,7 @@ func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
 	if !strings.Contains(err.Error(), "not-a-subcommand") {
 		t.Errorf("error = %v, want the offending argument named", err)
 	}
-	for _, name := range []string{"createadmin", "seed", "token"} {
+	for _, name := range []string{"createadmin", "grantrole", "seed", "token"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("error = %v, want %q offered", err, name)
 		}
@@ -216,7 +216,7 @@ func TestDispatchRefusesAnUnknownSubcommand(t *testing.T) {
 func TestUsageNamesEverySubcommand(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"createadmin", "seed", "token"} {
+	for _, name := range []string{"createadmin", "grantrole", "seed", "token"} {
 		if !strings.Contains(usage, name) {
 			t.Errorf("usage = %q, want %q named", usage, name)
 		}
@@ -227,7 +227,7 @@ func TestDispatchAnswersHelp(t *testing.T) {
 	t.Parallel()
 
 	for _, arg := range []string{"help", "-h", "--help"} {
-		if err := dispatch(t.Context(), []string{arg}); err != nil {
+		if err := dispatch(t.Context(), []string{arg}, registerPlugins); err != nil {
 			t.Errorf("dispatch(%q) error = %v, want nil", arg, err)
 		}
 	}
@@ -545,11 +545,9 @@ func TestRunServesAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gouncer.NewUser() error = %v, want nil", err)
 	}
+	admin.Role = role.Admin.String()
 	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), admin); err != nil {
 		t.Fatalf("CreateUser() error = %v, want nil", err)
-	}
-	if err := postgres.NewRoleStore(pool).Grant(t.Context(), admin.ID, role.Admin); err != nil {
-		t.Fatalf("Grant() error = %v, want nil, whoever provisions the first user makes it an admin", err)
 	}
 
 	login, err := http.Post(

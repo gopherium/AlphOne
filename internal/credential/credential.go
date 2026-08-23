@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/apitoken"
-	"github.com/gopherium/alphone/internal/role"
 )
 
 // tokenPrefix namespaces attribution stamped from an API token.
@@ -17,23 +16,6 @@ const tokenPrefix = "token:"
 
 // tokenKey is the context key carrying the API token a request presented.
 type tokenKey struct{}
-
-// roleKey is the context key carrying the tier the caller stands in.
-type roleKey struct{}
-
-// WithRole returns ctx carrying the tier its caller stands in.
-func WithRole(ctx context.Context, tier role.Role) context.Context {
-	return context.WithValue(ctx, roleKey{}, tier)
-}
-
-// RoleOf returns the tier the caller stands in, member when nothing stamped one.
-func RoleOf(ctx context.Context) role.Role {
-	tier, ok := ctx.Value(roleKey{}).(role.Role)
-	if !ok {
-		return role.Member
-	}
-	return tier
-}
 
 // Token is the API token a request authenticated with.
 type Token struct {

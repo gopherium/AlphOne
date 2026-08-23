@@ -8,14 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
-	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -32,6 +30,7 @@ func createAdmin(
 	flags.SetOutput(stdout)
 	email := flags.String("email", "", "email address of the new user")
 	name := flags.String("name", "", "display name of the new user")
+	named := flags.String("role", "", "role the new user starts under")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -43,6 +42,10 @@ func createAdmin(
 	if databaseURL == "" {
 		return errors.New("ALPHONE_DATABASE_URL is required")
 	}
+	held, err := role.Parse(*named)
+	if err != nil {
+		return err
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return fmt.Errorf("parse database url: %w", err)
@@ -53,17 +56,5 @@ func createAdmin(
 	}
 
 	users := authkitpg.NewUserStore(pool)
-	if err := authkit.CreateAdmin(ctx, users, *email, *name, stdin, stdout); err != nil {
-		return err
-	}
-	return grantAdmin(ctx, pool, users, *email)
-}
-
-// grantAdmin puts the named user in the admin tier.
-func grantAdmin(ctx context.Context, pool *pgxpool.Pool, users *authkitpg.UserStore, email string) error {
-	owner, err := users.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
-		return err
-	}
-	return postgres.NewRoleStore(pool).Grant(ctx, owner.ID, role.Admin)
+	return authkit.CreateAdmin(ctx, users, *email, *name, held.String(), stdin, stdout)
 }

@@ -27,13 +27,23 @@ import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
-export { graphql } from 'msw'
+export { delay, graphql } from 'msw'
 
-/** adminSession is the canned signed-in account standing as an admin. */
-export const adminSession = { ...defaultUser, role: 'admin' }
+/** adminSession is the canned signed-in account holding the admin role. */
+export const adminSession = {
+	...defaultUser,
+	role: 'admin',
+	capabilities: ['manage_users'],
+	grantable: ['admin', 'member'],
+}
 
-/** memberSession is the canned signed-in account standing as a member. */
-export const memberSession = { ...defaultUser, role: 'member' }
+/** memberSession is the canned signed-in account holding the member role. */
+export const memberSession = {
+	...defaultUser,
+	role: 'member',
+	capabilities: [] as string[],
+	grantable: ['member'],
+}
 
 /** FakeGraph drives a graph client's subscriptions from a test. */
 export interface FakeGraph {

@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
@@ -24,21 +22,12 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// serverRoles returns the role store the server reads, nil when the test wired none.
-func serverRoles(roles *fakeRoleStore) server.RoleStore {
-	if roles == nil {
-		return nil
-	}
-	return roles
-}
-
 // graphConfig carries the stores and bounds a test graph server composes.
 type graphConfig struct {
 	Contacts          graphres.ContactStore
 	Tasks             graphres.TaskStore
 	Users             server.UserStore
 	Tokens            server.TokenStore
-	Roles             *fakeRoleStore
 	Version           string
 	Plugins           map[string]http.Handler
 	PluginPublicPaths map[string][]string
@@ -59,8 +48,12 @@ func newGraphServer(t *testing.T, cfg graphConfig) http.Handler {
 // newSubscribingGraphServer returns a graph server whose subscriptions read hub.
 func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) http.Handler {
 	t.Helper()
-	auth := authkit.New(authkit.Config{Store: cfg.Users, CookieName: server.SessionCookieName})
-	admin := authkit.NewAdmin(cfg.Users)
+	auth := authkit.New(authkit.Config{
+		Store:      cfg.Users,
+		CookieName: server.SessionCookieName,
+		Privileged: role.Privileged(),
+	})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users, Privileged: role.Privileged()})
 	plugins, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
 		t.Fatalf("graphroot.All() error = %v, want nil", err)
@@ -68,17 +61,12 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 	for _, plugin := range plugins {
 		t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
 	}
-	resolverRoles := cfg.Roles
-	if resolverRoles == nil {
-		resolverRoles = &fakeRoleStore{tiers: map[uuid.UUID]role.Role{}}
-	}
 	resolver := &graphres.Resolver{
 		Version:      cfg.Version,
 		Contacts:     cfg.Contacts,
 		Tasks:        cfg.Tasks,
 		Auth:         auth,
 		Admin:        admin,
-		Roles:        resolverRoles,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}
 	if hub != nil {
@@ -93,7 +81,6 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Auth:              auth,
 		GraphRoot:         root,
 		Tokens:            cfg.Tokens,
-		Roles:             serverRoles(cfg.Roles),
 		Plugins:           cfg.Plugins,
 		PluginPublicPaths: cfg.PluginPublicPaths,
 		PluginAreas:       cfg.PluginAreas,

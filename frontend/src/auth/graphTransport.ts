@@ -3,15 +3,14 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core'
 import { print } from 'graphql'
 
-import { type Role, roleOf } from '@alphone/frontend-sdk'
 import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
 import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
 import type { NewUser, User as BrickAccount } from '@gopherium/react-auth/admin'
 
 /**
- * Account is one user account as the admin screens consume it, carrying its tier.
+ * Account is one user account as the admin screens consume it.
  */
-export type Account = BrickAccount & { role: Role }
+export type Account = BrickAccount
 
 import {
 	createUserMutation,
@@ -98,7 +97,7 @@ function toAccount(user: {
 		name: user.name,
 		disabled: user.disabled,
 		created_at: new Date(user.createdAt),
-		role: roleOf(user.role),
+		role: user.role ?? '',
 	}
 }
 
@@ -218,11 +217,11 @@ async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
 }
 
 /**
- * Stands one account in another tier through the setUserRole mutation.
- * @param id - The identifier of the user to restand.
- * @param role - The tier the account should stand in.
+ * Writes the role an account holds through the setUserRole mutation.
+ * @param id - The identifier of the account to update.
+ * @param role - The role the account is to hold.
  */
-export async function setUserRole(id: string, role: Role): Promise<void> {
+export async function setUserRole(id: string, role: string): Promise<void> {
 	const result = await execute(setUserRoleMutation, { id, role })
 	if (firstCode(result) === 'UNAUTHENTICATED') {
 		throw new UnauthorizedError('session expired')

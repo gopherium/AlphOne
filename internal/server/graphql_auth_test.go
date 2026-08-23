@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -40,11 +38,12 @@ func newAuthGraphServer(t *testing.T, tier role.Role) http.Handler {
 	t.Helper()
 	users := newFakeUserStore()
 	ada := addAda(t, users)
+	ada.Role = tier.String()
+	users.Users[ada.ID] = ada
 	return newGraphServer(t, graphConfig{
 		Contacts: newFakeContactStore(),
 		Tasks:    newFakeTaskStore(),
 		Users:    users,
-		Roles:    &fakeRoleStore{tiers: map[uuid.UUID]role.Role{ada.ID: tier}},
 		Version:  "9.9.9",
 	})
 }

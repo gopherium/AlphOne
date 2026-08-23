@@ -9,7 +9,6 @@ import (
 
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
-	"github.com/gopherium/alphone/internal/role"
 )
 
 func TestOriginNamesTheTokenTheRequestCarries(t *testing.T) {
@@ -41,24 +40,6 @@ func TestTokenOfReturnsThePrincipalTheRequestCarries(t *testing.T) {
 	}
 	if got, want := carried.Scopes.String(), "tasks:write"; got != want {
 		t.Errorf("Scopes = %q, want %q", got, want)
-	}
-}
-
-func TestRoleOfReturnsTheTierTheRequestCarries(t *testing.T) {
-	t.Parallel()
-
-	ctx := credential.WithRole(t.Context(), role.Admin)
-
-	if got := credential.RoleOf(ctx); got != role.Admin {
-		t.Errorf("RoleOf() = %v, want %v", got, role.Admin)
-	}
-}
-
-func TestRoleOfDemotesAnUnstampedRequest(t *testing.T) {
-	t.Parallel()
-
-	if got := credential.RoleOf(t.Context()); got != role.Member {
-		t.Errorf("RoleOf(bare context) = %v, want %v, an unstamped caller is a member", got, role.Member)
 	}
 }
 

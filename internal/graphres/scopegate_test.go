@@ -12,6 +12,8 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/validator/rules"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/graphres"
@@ -44,13 +46,18 @@ func gatedAsToken(t *testing.T, query string, held apitoken.Scopes) *graphql.Res
 // gatedAsRole runs one operation through the scope gate as a session standing in one tier.
 func gatedAsRole(t *testing.T, query string, tier role.Role) *graphql.Response {
 	t.Helper()
-	return gatedWith(t, query, credential.WithRole(t.Context(), tier))
+	return gatedWith(t, query, standingAs(t.Context(), tier))
+}
+
+// standingAs returns ctx carrying an identity standing in one tier.
+func standingAs(ctx context.Context, tier role.Role) context.Context {
+	return authkit.WithIdentity(ctx, authkit.Identity{Role: tier.String()})
 }
 
 // gatedAsTokenOf runs one operation through the gate as a token whose owner stands in one tier.
 func gatedAsTokenOf(t *testing.T, query string, held apitoken.Scopes, tier role.Role) *graphql.Response {
 	t.Helper()
-	ctx := credential.WithRole(t.Context(), tier)
+	ctx := standingAs(t.Context(), tier)
 	return gatedWith(t, query, credential.WithToken(ctx, credential.Token{Name: "probe", Scopes: held}))
 }
 
@@ -101,6 +108,29 @@ func TestScopeGateRefusesAnAdminFieldToAMemberSession(t *testing.T) {
 	if got, want := answered.Errors[0].Extensions["scope"], "users:write"; got != want {
 		t.Errorf("scope = %v, want %q, a caller learns what the field wanted", got, want)
 	}
+	if got, want := answered.Errors[0].Extensions["capability"], "manage_users"; got != want {
+		t.Errorf("capability = %v, want %q, a caller learns what its role lacked", got, want)
+	}
+}
+
+func TestScopeGateNamesTheCapabilityARoleLacks(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, role.Admin)
+
+	if got, want := answered.Errors[0].Extensions["capability"], "manage_reports"; got != want {
+		t.Errorf("capability = %v, want %q", got, want)
+	}
+}
+
+func TestAScopeRefusalNamesNoCapability(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsToken(t, `mutation { createContact }`, apitoken.ParseScopes("tasks:read"))
+
+	if _, named := answered.Errors[0].Extensions["capability"]; named {
+		t.Error("a scope refusal named a capability, want the extension only where a role fell short")
+	}
 }
 
 func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
@@ -112,6 +142,26 @@ func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
 		if got, want := refusalOf(t, answered), "admin required"; got != want {
 			t.Errorf("%s refusal = %q, want %q", field, got, want)
 		}
+	}
+}
+
+func TestScopeGateRefusesAFieldWhoseCapabilityTheRoleLacks(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, role.Admin)
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q, an admin holding no manage_reports is refused", got, want)
+	}
+}
+
+func TestScopeGateLetsARoleHoldingTheCapabilityThrough(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { needsReports }`, stewardRole)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, the declared role holds manage_reports", answered.Errors)
 	}
 }
 
@@ -142,6 +192,26 @@ func TestScopeGateLetsAMemberSessionWorkTheProduct(t *testing.T) {
 
 	if len(answered.Errors) != 0 {
 		t.Errorf("errors = %v, want none, a member holds no token to be narrowed by", answered.Errors)
+	}
+}
+
+func TestScopeGateLetsAnAccountHoldingNoRoleWorkTheProduct(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createContact createTask }`, "")
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want none, no field of the product declares a capability", answered.Errors)
+	}
+}
+
+func TestScopeGateRefusesUserManagementToAnAccountHoldingNoRole(t *testing.T) {
+	t.Parallel()
+
+	answered := gatedAsRole(t, `mutation { createUser }`, "")
+
+	if got, want := refusalOf(t, answered), "admin required"; got != want {
+		t.Errorf("refusal = %q, want %q", got, want)
 	}
 }
 

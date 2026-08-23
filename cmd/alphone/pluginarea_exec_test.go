@@ -48,7 +48,7 @@ func TestMainBinaryHoldsAPluginRouteToItsDeclaredArea(t *testing.T) {
 
 	databaseURL := testDatabaseURL(t)
 	binary, env := coverBinary(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin")
+	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")

@@ -25,6 +25,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/version"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -59,7 +60,6 @@ func run(
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
-	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
 	deliveries := webhook.NewWorker(webhooks, logger)
@@ -82,6 +82,9 @@ func run(
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
 	}
+	if err := declareRoles(role.Default, registered); err != nil {
+		return fmt.Errorf("declare plugin roles: %w", err)
+	}
 	wireFieldProviders(registered)
 
 	host := pluginkit.NewHost(registered...)
@@ -89,8 +92,8 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	auth := authkit.New(authkit.Config{Store: userStore, CookieName: server.SessionCookieName})
-	admin := authkit.NewAdmin(userStore)
+	auth := authkit.New(authConfig(userStore))
+	admin := authkit.NewAdmin(adminConfig(userStore))
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      version.Version(),
 		Contacts:     contacts,
@@ -98,7 +101,6 @@ func run(
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
-		Roles:        roles,
 		Events:       events,
 		Live:         hub,
 		Auth:         auth,
@@ -106,7 +108,9 @@ func run(
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
-		return fmt.Errorf("compose graph root: %w", err)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return errors.Join(fmt.Errorf("compose graph root: %w", err), host.Stop(stopCtx))
 	}
 
 	cfg := server.Config{
@@ -115,7 +119,6 @@ func run(
 		Auth:              auth,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
-		Roles:             roles,
 		Plugins:           host.Routes(),
 		PluginPublicPaths: host.PublicPaths(),
 		PluginAreas:       pluginAreas(registered),
@@ -146,6 +149,56 @@ func pluginAreas(registered []sdk.Plugin) map[string]string {
 		}
 	}
 	return areas
+}
+
+// authConfig returns the login configuration the server serves sessions under.
+func authConfig(store *authkitpg.UserStore) authkit.Config {
+	return authkit.Config{
+		Store:      store,
+		CookieName: server.SessionCookieName,
+		Privileged: role.Privileged(),
+	}
+}
+
+// adminConfig returns the administration configuration guarding the privileged cover.
+func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
+	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
+}
+
+// declarePluginRoles registers the plugins and grants the registry every role they declare.
+func declarePluginRoles(
+	registry *role.Registry,
+	getenv func(string) string,
+	plugins func(sdk.Deps) ([]sdk.Plugin, error),
+) error {
+	registered, err := plugins(sdk.Deps{
+		DatabaseURL: getenv("ALPHONE_DATABASE_URL"),
+		Getenv:      getenv,
+	})
+	if err != nil {
+		return fmt.Errorf("register plugins: %w", err)
+	}
+	return declareRoles(registry, registered)
+}
+
+// declareRoles grants the registry every role a registered plugin declares.
+func declareRoles(registry *role.Registry, registered []sdk.Plugin) error {
+	for _, plugin := range registered {
+		provider, ok := plugin.(sdk.RoleProvider)
+		if !ok {
+			continue
+		}
+		for _, declared := range provider.Roles() {
+			capabilities := make([]role.Capability, 0, len(declared.Capabilities))
+			for _, capability := range declared.Capabilities {
+				capabilities = append(capabilities, role.Capability(capability))
+			}
+			if err := registry.Grant(role.Role(declared.Name), capabilities...); err != nil {
+				return fmt.Errorf("declare role %q for %s: %w", declared.Name, plugin.ID(), err)
+			}
+		}
+	}
+	return nil
 }
 
 // fieldSources returns every registered plugin serving runtime defined fields.

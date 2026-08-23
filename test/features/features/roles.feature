@@ -40,6 +40,6 @@ Feature: A role narrows what a user may do
     When the admin's session promotes the member to "admin"
     Then the member's session sees its role as "admin"
 
-  Scenario: The last admin cannot be demoted
+  Scenario: An admin cannot change its own role
     When the admin's session demotes itself to "member"
-    Then the operation is refused as the last admin
+    Then the operation is refused as a change to its own role

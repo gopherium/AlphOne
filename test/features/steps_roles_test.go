@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/apitoken"
-	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -106,9 +105,9 @@ func registerRoleWriteSteps(sc *godog.ScenarioContext) {
 		return w.postGraphAsSession(ctx, settingUserRole(w.ownerID, tier))
 	})
 
-	sc.Then(`^the operation is refused as the last admin$`, func(ctx context.Context) error {
+	sc.Then(`^the operation is refused as a change to its own role$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
-		if err := w.refusedAsLastAdmin(); err != nil {
+		if err := w.refusedAsOwnRole(); err != nil {
 			return err
 		}
 		return w.standsAsAdmin(ctx, w.ownerID)
@@ -132,8 +131,8 @@ func (w *world) roleSeen(tier string) error {
 	return nil
 }
 
-// refusedAsLastAdmin reports whether the last operation was refused for unseating the last admin.
-func (w *world) refusedAsLastAdmin() error {
+// refusedAsOwnRole reports whether the last operation was refused as a change to the caller's own role.
+func (w *world) refusedAsOwnRole() error {
 	parsed, err := w.scopeErrors()
 	if err != nil {
 		return err
@@ -145,8 +144,8 @@ func (w *world) refusedAsLastAdmin() error {
 	if code := refused.Extensions["code"]; code != "VALIDATION" {
 		return fmt.Errorf("code = %v, want VALIDATION", code)
 	}
-	if !strings.Contains(refused.Message, "last admin") {
-		return fmt.Errorf("message = %q, want it to name the last admin", refused.Message)
+	if !strings.Contains(refused.Message, "your own role") {
+		return fmt.Errorf("message = %q, want it to name the caller's own role", refused.Message)
 	}
 	return nil
 }
@@ -229,10 +228,11 @@ func disablingUser(userID uuid.UUID) string {
 
 // standsAsAdmin reports whether the named user holds the admin tier.
 func (w *world) standsAsAdmin(ctx context.Context, userID uuid.UUID) error {
-	tier, err := postgres.NewRoleStore(w.pool).RoleOf(ctx, userID)
+	held, err := w.users.UserByID(ctx, userID)
 	if err != nil {
 		return err
 	}
+	tier := role.Of(held.Role)
 	if tier != role.Admin {
 		return fmt.Errorf("the user stands in %v, want %v", tier, role.Admin)
 	}

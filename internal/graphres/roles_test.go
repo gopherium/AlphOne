@@ -6,141 +6,76 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
+	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/role"
 )
 
-// errRoleBackend reports a role store that cannot answer.
-var errRoleBackend = errors.New("role backend unavailable")
+// stewardRole is the plugin declared role standing above admin in these tests.
+const stewardRole role.Role = "steward"
 
-// failingRoleStore refuses every read.
-type failingRoleStore struct{}
+// errListing reports a store that cannot list the accounts.
+var errListing = errors.New("accounts unavailable")
 
-// RoleOf refuses to answer one tier.
-func (failingRoleStore) RoleOf(context.Context, uuid.UUID) (role.Role, error) {
-	return role.Member, errRoleBackend
-}
+// errWriting reports a store that cannot store a role.
+var errWriting = errors.New("role unwritable")
 
-// RolesOf refuses to answer many tiers.
-func (failingRoleStore) RolesOf(context.Context, []uuid.UUID) (map[uuid.UUID]role.Role, error) {
-	return nil, errRoleBackend
-}
-
-// Grant refuses to store a tier.
-func (failingRoleStore) Grant(context.Context, uuid.UUID, role.Role) error {
-	return errRoleBackend
-}
-
-// Disable refuses to bar a user.
-func (failingRoleStore) Disable(context.Context, uuid.UUID) error {
-	return errRoleBackend
-}
-
-// standingRoleStore answers one fixed tier for everybody.
-type standingRoleStore struct {
-	tier role.Role
-}
-
-// RoleOf answers the fixed tier.
-func (s standingRoleStore) RoleOf(context.Context, uuid.UUID) (role.Role, error) {
-	return s.tier, nil
-}
-
-// RolesOf answers the fixed tier for each named user.
-func (s standingRoleStore) RolesOf(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]role.Role, error) {
-	tiers := make(map[uuid.UUID]role.Role, len(ids))
-	for _, id := range ids {
-		tiers[id] = s.tier
+// init declares the plugin role once, since the registry a resolver reads is the deployment's.
+func init() {
+	if err := role.Grant(stewardRole, role.ManageUsers, "manage_reports"); err != nil {
+		panic(err)
 	}
-	return tiers, nil
 }
 
-// Grant stores nothing and reports success.
-func (standingRoleStore) Grant(context.Context, uuid.UUID, role.Role) error {
-	return nil
-}
-
-// Disable bars nobody and reports success.
-func (standingRoleStore) Disable(context.Context, uuid.UUID) error {
-	return nil
-}
-
-// grantingRoleStore remembers the last tier it was asked to store.
-type grantingRoleStore struct {
-	standingRoleStore
-	granted role.Role
-	to      uuid.UUID
-}
-
-// Grant remembers the tier asked for.
-func (s *grantingRoleStore) Grant(_ context.Context, userID uuid.UUID, tier role.Role) error {
-	s.granted, s.to = tier, userID
-	return nil
-}
-
-// unseatingRoleStore refuses to unseat the last admin.
-type unseatingRoleStore struct {
-	standingRoleStore
-}
-
-// Grant refuses every write as the last admin refusal.
-func (unseatingRoleStore) Grant(context.Context, uuid.UUID, role.Role) error {
-	return role.ErrLastAdmin
-}
-
-// Disable refuses to bar the last admin.
-func (unseatingRoleStore) Disable(context.Context, uuid.UUID) error {
-	return role.ErrLastAdmin
-}
-
-// missingRoleStore knows no user at all.
-type missingRoleStore struct {
-	standingRoleStore
-}
-
-// Disable reports that no such user exists.
-func (missingRoleStore) Disable(context.Context, uuid.UUID) error {
-	return gouncer.ErrUserNotFound
-}
-
-// newRoledResolver returns an auth resolver holding one account whose tiers come from roles.
-func newRoledResolver(t *testing.T, roles graphres.RoleStore) *graphres.Resolver {
+// roledStore returns a store holding one account under the given tier.
+func roledStore(t *testing.T, tier role.Role) (*testkit.Store, gouncer.User) {
 	t.Helper()
 	store := testkit.NewStore()
-	store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
-	resolver := newAuthResolver(store)
-	resolver.Roles = roles
-	return resolver
+	held := store.AddUser(t, "grace@example.com", "Grace Hopper", testPassword)
+	held.Role = tier.String()
+	store.Users[held.ID] = held
+	return store, held
 }
 
-func TestUsersReportsAFailingRoleStore(t *testing.T) {
-	t.Parallel()
+// newRoledResolver returns a resolver over a store holding one account under the tier.
+func newRoledResolver(t *testing.T, tier role.Role) (*graphres.Resolver, gouncer.User) {
+	t.Helper()
+	store, held := roledStore(t, tier)
+	return newAuthResolver(store), held
+}
 
-	resolver := newRoledResolver(t, failingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+// newActingClient returns a graph client acting as the given identity.
+func newActingClient(t *testing.T, resolver *graphres.Resolver, actor authkit.Identity) *gqlclient.Client {
+	t.Helper()
+	return newDecoratedGraphClient(t, resolver, func(ctx context.Context) context.Context {
+		return authkit.WithIdentity(ctx, actor)
+	})
+}
 
-	answered, err := client.RawPost(`{ users { id role } }`)
+// settingRole returns the mutation standing a user in a tier.
+func settingRole(userID uuid.UUID, tier string) string {
+	return fmt.Sprintf(`mutation { setUserRole(id: %q, role: %q) }`, userID, tier)
+}
 
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if len(answered.Errors) == 0 {
-		t.Error("users answered no error while the role store refuses, want one")
-	}
+// settingDisabled returns the mutation barring or admitting a user.
+func settingDisabled(userID uuid.UUID, disabled bool) string {
+	return fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: %t) }`, userID, disabled)
 }
 
 func TestUsersCarriesEachAccountsTier(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, standingRoleStore{tier: role.Admin})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	resolver, held := newRoledResolver(t, role.Admin)
+	client := newGraphClient(t, resolver, held.ID)
 
 	var listed struct {
 		Users []struct {
@@ -157,11 +92,11 @@ func TestUsersCarriesEachAccountsTier(t *testing.T) {
 	}
 }
 
-func TestUsersLeavesEverybodyAMemberWithNoStoreWired(t *testing.T) {
+func TestUsersReportsAnAccountHoldingNoRoleAsHoldingNone(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, nil)
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	resolver, held := newRoledResolver(t, "")
+	client := newGraphClient(t, resolver, held.ID)
 
 	var listed struct {
 		Users []struct {
@@ -173,217 +108,433 @@ func TestUsersLeavesEverybodyAMemberWithNoStoreWired(t *testing.T) {
 	if len(listed.Users) == 0 {
 		t.Fatal("users answered nothing, want the seeded account")
 	}
-	if listed.Users[0].Role != role.Member.String() {
-		t.Errorf("role = %q, want %q with no store wired", listed.Users[0].Role, role.Member.String())
+	if listed.Users[0].Role != "" {
+		t.Errorf("role = %q, want it empty rather than a role the account does not hold",
+			listed.Users[0].Role)
 	}
 }
 
-func TestLoginReportsAFailingRoleStore(t *testing.T) {
+func TestMeAnswersTheCallersTier(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, failingRoleStore{})
-	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+	resolver, held := newRoledResolver(t, role.Admin)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
 
-	answered, err := client.RawPost(
-		`mutation { login(email: "grace@example.com", password: "` + testPassword + `") { me { role } } }`)
+	var answered struct {
+		Me struct {
+			Role string `json:"role"`
+		} `json:"me"`
+	}
+	client.MustPost(`{ me { role } }`, &answered)
+
+	if answered.Me.Role != role.Admin.String() {
+		t.Errorf("role = %q, want %q", answered.Me.Role, role.Admin.String())
+	}
+}
+
+func TestCreateUserStartsAtTheNarrowestRoleWhenTheInputNamesNone(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	var answered struct {
+		CreateUser struct {
+			Role string `json:"role"`
+		} `json:"createUser"`
+	}
+	client.MustPost(`mutation { createUser(`+
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery"`+
+		`) { role } }`, &answered)
+
+	if answered.CreateUser.Role != role.Member.String() {
+		t.Errorf("role = %q, want %q, an account starts at the narrowest role",
+			answered.CreateUser.Role, role.Member.String())
+	}
+}
+
+func TestCreateUserStartsAtTheRoleTheInputNames(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	var answered struct {
+		CreateUser struct {
+			Role string `json:"role"`
+		} `json:"createUser"`
+	}
+	client.MustPost(`mutation { createUser(`+
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "admin"`+
+		`) { role } }`, &answered)
+
+	if answered.CreateUser.Role != role.Admin.String() {
+		t.Errorf("role = %q, want %q", answered.CreateUser.Role, role.Admin.String())
+	}
+}
+
+func TestCreateUserRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(`mutation { createUser(` +
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "root"` +
+		`) { role } }`)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+}
+
+func TestCreateUserRefusesARoleBeyondTheCallersReach(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(`mutation { createUser(` +
+		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", ` +
+		`role: "` + stewardRole.String() + `") { role } }`)
 
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
 	if len(answered.Errors) == 0 {
-		t.Error("login answered no error while the role store refuses, want one")
+		t.Error("createUser answered no error, want an admin refused a role it does not hold")
 	}
 }
 
-func TestLoginLeavesTheCallerAMemberWithNoStoreWired(t *testing.T) {
+func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, nil)
-	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+	resolver, held := newRoledResolver(t, role.Admin)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
 
 	var answered struct {
-		Login struct {
-			Me struct {
-				Role string `json:"role"`
-			} `json:"me"`
-		} `json:"login"`
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
 	}
-	client.MustPost(
-		`mutation { login(email: "grace@example.com", password: "`+testPassword+`") { me { role } } }`, &answered)
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
 
-	if answered.Login.Me.Role != role.Member.String() {
-		t.Errorf("role = %q, want %q with no store wired", answered.Login.Me.Role, role.Member.String())
+	if !slices.Equal(answered.Me.Capabilities, []string{string(role.ManageUsers)}) {
+		t.Errorf("capabilities = %v, want the admin's manage_users", answered.Me.Capabilities)
+	}
+	if !slices.Contains(answered.Me.Grantable, role.Admin.String()) {
+		t.Errorf("grantable = %v, want an admin able to grant admin", answered.Me.Grantable)
+	}
+	if slices.Contains(answered.Me.Grantable, stewardRole.String()) {
+		t.Errorf("grantable = %v, want a role holding more kept out of reach", answered.Me.Grantable)
 	}
 }
 
-func TestLoginAnswersTheCallersTier(t *testing.T) {
+func TestMeAnswersNothingForAMember(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, standingRoleStore{tier: role.Admin})
-	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+	resolver, held := newRoledResolver(t, role.Member)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
 
 	var answered struct {
-		Login struct {
-			Me struct {
-				Role string `json:"role"`
-			} `json:"me"`
-		} `json:"login"`
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
 	}
-	client.MustPost(
-		`mutation { login(email: "grace@example.com", password: "`+testPassword+`") { me { role } } }`, &answered)
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
 
-	if answered.Login.Me.Role != role.Admin.String() {
-		t.Errorf("role = %q, want %q", answered.Login.Me.Role, role.Admin.String())
+	if len(answered.Me.Capabilities) != 0 {
+		t.Errorf("capabilities = %v, want none for a member", answered.Me.Capabilities)
+	}
+	if !slices.Equal(answered.Me.Grantable, []string{role.Member.String()}) {
+		t.Errorf("grantable = %v, want a member able to grant only its own role", answered.Me.Grantable)
 	}
 }
 
-// settingRole returns the operation standing one user in a tier.
-func settingRole(userID uuid.UUID, tier string) string {
-	return fmt.Sprintf(`mutation { setUserRole(id: %q, role: %q) }`, userID, tier)
+func TestMeAnswersNothingForAnAccountHoldingNoRole(t *testing.T) {
+	t.Parallel()
+
+	resolver, held := newRoledResolver(t, "")
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
+
+	var answered struct {
+		Me struct {
+			Capabilities []string `json:"capabilities"`
+			Grantable    []string `json:"grantable"`
+		} `json:"me"`
+	}
+	client.MustPost(`{ me { capabilities grantable } }`, &answered)
+
+	if len(answered.Me.Capabilities) != 0 {
+		t.Errorf("capabilities = %v, want none for an account holding no role", answered.Me.Capabilities)
+	}
+	if !slices.Equal(answered.Me.Grantable, []string{role.Member.String()}) {
+		t.Errorf("grantable = %v, want only the role holding nothing", answered.Me.Grantable)
+	}
 }
 
 func TestSetUserRoleStandsAUserInTheTierItNames(t *testing.T) {
 	t.Parallel()
 
-	roles := &grantingRoleStore{}
-	resolver := newRoledResolver(t, roles)
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
-	promoted := uuid.Must(uuid.NewV7())
+	store, held := roledStore(t, role.Member)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
 
 	var answered struct {
 		SetUserRole bool `json:"setUserRole"`
 	}
-	client.MustPost(settingRole(promoted, role.Admin.String()), &answered)
+	client.MustPost(settingRole(held.ID, role.Admin.String()), &answered)
 
 	if !answered.SetUserRole {
 		t.Error("setUserRole answered false, want the change reported")
 	}
-	if roles.granted != role.Admin || roles.to != promoted {
-		t.Errorf("granted %v to %v, want %v to %v", roles.granted, roles.to, role.Admin, promoted)
+	if got := store.Users[held.ID].Role; got != role.Admin.String() {
+		t.Errorf("stored role = %q, want %q", got, role.Admin.String())
 	}
 }
 
 func TestSetUserRoleRefusesATierNoDeploymentKnows(t *testing.T) {
 	t.Parallel()
 
-	roles := &grantingRoleStore{}
-	resolver := newRoledResolver(t, roles)
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
-
-	answered, err := client.RawPost(settingRole(uuid.Must(uuid.NewV7()), "root"))
-
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
-		t.Errorf("code = %q, want VALIDATION", got)
-	}
-	if roles.granted != "" {
-		t.Errorf("granted %v, want nothing stored for a tier nobody knows", roles.granted)
-	}
-}
-
-func TestSetUserRoleRefusesToUnseatTheLastAdmin(t *testing.T) {
-	t.Parallel()
-
-	resolver := newRoledResolver(t, unseatingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
-
-	answered, err := client.RawPost(settingRole(uuid.Must(uuid.NewV7()), role.Member.String()))
-
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
-		t.Errorf("code = %q, want VALIDATION", got)
-	}
-}
-
-func TestSetUserDisabledRefusesToBarTheLastAdmin(t *testing.T) {
-	t.Parallel()
-
-	resolver := newRoledResolver(t, unseatingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
-
-	answered, err := client.RawPost(
-		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: true) }`, uuid.Must(uuid.NewV7())))
-
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
-		t.Errorf("code = %q, want VALIDATION", got)
-	}
-}
-
-func TestSetUserDisabledEnablesThroughTheAccountSeam(t *testing.T) {
-	t.Parallel()
-
-	store := testkit.NewStore()
-	account := store.AddUser(t, "barred@example.com", "Maria Perez", testPassword)
-	if err := store.SetUserDisabled(t.Context(), account.ID, true); err != nil {
-		t.Fatalf("barring the account ahead of the test: %v", err)
-	}
+	store, held := roledStore(t, role.Member)
 	resolver := newAuthResolver(store)
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingRole(held.ID, "root"))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+	if got := store.Users[held.ID].Role; got != role.Member.String() {
+		t.Errorf("stored role = %q, want the refused write to store nothing", got)
+	}
+}
+
+func TestSetUserRoleRefusesGrantingBeyondTheCallersReach(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Member)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingRole(held.ID, "steward"))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserRole answered no error, want an admin refused a role it does not hold")
+	}
+	if got := store.Users[held.ID].Role; got != role.Member.String() {
+		t.Errorf("stored role = %q, want the refused write to store nothing", got)
+	}
+}
+
+func TestSetUserRoleRefusesTouchingAnAccountBeyondTheCallersReach(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, "steward")
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingRole(held.ID, role.Member.String()))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserRole answered no error, want an admin refused an account holding more")
+	}
+	if got := store.Users[held.ID].Role; got != "steward" {
+		t.Errorf("stored role = %q, want the refused write to leave it", got)
+	}
+}
+
+func TestSetUserDisabledRefusesBarringItself(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Admin)
+	resolver := newAuthResolver(store)
+	client := newActingClient(t, resolver, authkit.Identity{ID: held.ID, Role: held.Role})
+
+	answered, err := client.RawPost(settingDisabled(held.ID, true))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserDisabled answered no error, want an account refused barring itself")
+	}
+}
+
+func TestSetUserDisabledBarsThroughTheAccountSeam(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Member)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
 
 	var answered struct {
 		SetUserDisabled bool `json:"setUserDisabled"`
 	}
-	client.MustPost(
-		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: false) }`, account.ID), &answered)
+	client.MustPost(settingDisabled(held.ID, true), &answered)
 
 	if !answered.SetUserDisabled {
-		t.Error("setUserDisabled answered false, want enabling reported, it only adds cover")
+		t.Error("setUserDisabled answered false, want the change reported")
 	}
-	restored, err := store.UserByID(t.Context(), account.ID)
-	if err != nil {
-		t.Fatalf("UserByID() error = %v, want the enabled account", err)
-	}
-	if restored.Disabled {
-		t.Error("the account is still barred, want enabling to have reached the seam")
+	if !store.Users[held.ID].Disabled {
+		t.Error("the account is enabled, want the guarded write to bar it")
 	}
 }
 
-func TestSetUserDisabledReportsAUserTheStoreCannotFind(t *testing.T) {
+func TestSetUserDisabledRefusesAnAccountBeyondTheCallersReach(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, missingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	store, held := roledStore(t, "steward")
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
 
-	answered, err := client.RawPost(
-		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: true) }`, uuid.Must(uuid.NewV7())))
+	answered, err := client.RawPost(settingDisabled(held.ID, true))
 
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if got := firstErrorCode(t, answered.Errors); got != "NOT_FOUND" {
-		t.Errorf("code = %q, want NOT_FOUND", got)
+	if len(answered.Errors) == 0 {
+		t.Error("setUserDisabled answered no error, want an admin refused an account holding more")
+	}
+	if store.Users[held.ID].Disabled {
+		t.Error("the account is barred, want the refused write to leave it")
 	}
 }
 
-func TestSetUserDisabledLeavesEnablingUnguarded(t *testing.T) {
+func TestSetUserRoleReportsAStoreThatCannotList(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, unseatingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	store, held := roledStore(t, role.Member)
+	store.ListUsersErr = errListing
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
 
-	answered, err := client.RawPost(
-		fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: false) }`, uuid.Must(uuid.NewV7())))
+	answered, err := client.RawPost(settingRole(held.ID, role.Admin.String()))
 
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if got := firstErrorCode(t, answered.Errors); got == "VALIDATION" {
-		t.Errorf("code = %q, want the guard skipped, enabling a user only adds cover", got)
+	if len(answered.Errors) == 0 {
+		t.Error("setUserRole answered no error while the store refuses to list, want one")
 	}
 }
 
-func TestSetUserRoleReportsAFailingRoleStore(t *testing.T) {
+func TestSetUserRoleReportsAStoreThatCannotWrite(t *testing.T) {
 	t.Parallel()
 
-	resolver := newRoledResolver(t, failingRoleStore{})
-	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+	store, held := roledStore(t, role.Member)
+	store.SetRoleErr = errWriting
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingRole(held.ID, role.Admin.String()))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserRole answered no error while the store refuses the write, want one")
+	}
+}
+
+func TestSetUserDisabledReportsAStoreThatCannotList(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Member)
+	store.ListUsersErr = errListing
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingDisabled(held.ID, true))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserDisabled answered no error while the store refuses to list, want one")
+	}
+}
+
+func TestSetUserDisabledAdmitsAnAccountItBarred(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Member)
+	held.Disabled = true
+	store.Users[held.ID] = held
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	var answered struct {
+		SetUserDisabled bool `json:"setUserDisabled"`
+	}
+	client.MustPost(settingDisabled(held.ID, false), &answered)
+
+	if !answered.SetUserDisabled {
+		t.Error("setUserDisabled answered false, want the change reported")
+	}
+	if store.Users[held.ID].Disabled {
+		t.Error("the account is still barred, want it admitted")
+	}
+}
+
+func TestSetUserDisabledReportsAStoreThatCannotWrite(t *testing.T) {
+	t.Parallel()
+
+	store, held := roledStore(t, role.Member)
+	store.SetDisabledErr = errWriting
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
+
+	answered, err := client.RawPost(settingDisabled(held.ID, true))
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if len(answered.Errors) == 0 {
+		t.Error("setUserDisabled answered no error while the store refuses the write, want one")
+	}
+}
+
+func TestSetUserRoleReportsAnAccountNobodyHolds(t *testing.T) {
+	t.Parallel()
+
+	store, _ := roledStore(t, role.Member)
+	resolver := newAuthResolver(store)
+	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+	client := newActingClient(t, resolver, actor)
 
 	answered, err := client.RawPost(settingRole(uuid.Must(uuid.NewV7()), role.Admin.String()))
 
@@ -391,6 +542,6 @@ func TestSetUserRoleReportsAFailingRoleStore(t *testing.T) {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
 	if len(answered.Errors) == 0 {
-		t.Error("setUserRole answered no error while the role store refuses, want one")
+		t.Error("setUserRole answered no error, want an account nobody holds refused")
 	}
 }

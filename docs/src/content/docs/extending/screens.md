@@ -55,22 +55,27 @@ sizes.
 ## Who is signed in
 
 A screen reads the signed-in account with `useSession`. It answers the
-account's id, email, name, and role, or `null` when nobody is signed
-in.
+account's id, email, name, and role, what that role may do, and the
+roles it may give another account, or `null` when nobody is signed in.
+
+Ask what the account may do, never which role it holds:
 
 ```tsx
-import { useSession } from '@alphone/frontend-sdk'
+import { MANAGE_USERS, can, useSession } from '@alphone/frontend-sdk'
 
 export function InvoicesScreen() {
 	const session = useSession()
-	const manages = session?.role === 'admin'
+	const manages = can(session, MANAGE_USERS)
 	…
 }
 ```
 
-A role is either `admin` or `member`. Anything else counts as
-`member`, so a screen that gets an answer it does not recognise hides
-the control rather than offering it.
+A deployment names its own roles, and a plugin may add more, so a
+screen comparing `session.role` to `'admin'` breaks the moment somebody
+installs a plugin that declares a role of its own. Asking `can` keeps
+working, because the server answers what the role holds rather than
+what it is called. A session with no answer holds nothing, so a screen
+that cannot tell hides the control rather than offering it.
 
 Hiding a control is presentation, not protection. The backend refuses
 an operation the caller may not run whether or not your screen showed

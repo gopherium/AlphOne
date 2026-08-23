@@ -104,7 +104,6 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	contacts := postgres.NewContactStore(pool)
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
-	roles := postgres.NewRoleStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	hub := event.NewHub()
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
@@ -124,24 +123,22 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
-		Roles:        roles,
 		Live:         hub,
 		Auth:         auth,
-		Admin:        authkit.NewAdmin(users),
+		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
 	}
-	if _, err := authkit.EnsureAdmin(context.Background(), users, ownerEmail, ownerName, ownerPassword); err != nil {
+	if _, err := authkit.EnsureAdmin(
+		context.Background(), users, ownerEmail, ownerName, ownerPassword, role.Admin.String(),
+	); err != nil {
 		t.Fatalf("seeding the owner: %v", err)
 	}
 	owner, err := users.UserByEmail(context.Background(), ownerEmail)
 	if err != nil {
 		t.Fatalf("reading the owner: %v", err)
-	}
-	if err := roles.Grant(context.Background(), owner.ID, role.Admin); err != nil {
-		t.Fatalf("granting the owner its tier: %v", err)
 	}
 	minted, err := apitoken.Mint(owner.ID, "mcp scenario", apitoken.Full(), apitoken.Never)
 	if err != nil {
@@ -156,7 +153,6 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Auth:         auth,
 		GraphRoot:    root,
 		Tokens:       tokens,
-		Roles:        roles,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
 	}))
@@ -294,7 +290,7 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 
 // addUser stores another user and returns its id.
 func (w *world) addUser(ctx context.Context, email, name string) (uuid.UUID, error) {
-	if _, err := authkit.EnsureAdmin(ctx, w.users, email, name, ownerPassword); err != nil {
+	if _, err := authkit.EnsureAdmin(ctx, w.users, email, name, ownerPassword, role.Member.String()); err != nil {
 		return uuid.Nil, fmt.Errorf("seeding %s: %w", email, err)
 	}
 	stored, err := w.users.UserByEmail(ctx, email)

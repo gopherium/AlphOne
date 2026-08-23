@@ -105,10 +105,12 @@ type ComplexityRoot struct {
 	}
 
 	Identity struct {
-		Email func(childComplexity int) int
-		ID    func(childComplexity int) int
-		Name  func(childComplexity int) int
-		Role  func(childComplexity int) int
+		Capabilities func(childComplexity int) int
+		Email        func(childComplexity int) int
+		Grantable    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Role         func(childComplexity int) int
 	}
 
 	ImportAssignment struct {
@@ -171,7 +173,7 @@ type ComplexityRoot struct {
 		ArchiveField          func(childComplexity int, id uuid.UUID) int
 		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
 		CreateTask            func(childComplexity int, input model.CreateTaskInput) int
-		CreateUser            func(childComplexity int, email string, name string, password string) int
+		CreateUser            func(childComplexity int, email string, name string, password string, role *string) int
 		CreateWebhook         func(childComplexity int, url string, events []string) int
 		DefineField           func(childComplexity int, name string, label string, kind model.FieldKind) int
 		DeleteContactIdentity func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
@@ -321,7 +323,7 @@ type MutationResolver interface {
 	DeleteContactIdentity(ctx context.Context, contactID uuid.UUID, identityID uuid.UUID) (bool, error)
 	Login(ctx context.Context, email string, password string) (*model.LoginPayload, error)
 	Logout(ctx context.Context) (bool, error)
-	CreateUser(ctx context.Context, email string, name string, password string) (*model.User, error)
+	CreateUser(ctx context.Context, email string, name string, password string, role *string) (*model.User, error)
 	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error)
 	SetUserRole(ctx context.Context, id uuid.UUID, role string) (bool, error)
 	CreateTask(ctx context.Context, input model.CreateTaskInput) (*model.CreateTaskPayload, error)
@@ -598,12 +600,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.FieldDefinition.Name(childComplexity), true
 
+	case "Identity.capabilities":
+		if e.ComplexityRoot.Identity.Capabilities == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Identity.Capabilities(childComplexity), true
 	case "Identity.email":
 		if e.ComplexityRoot.Identity.Email == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Identity.Email(childComplexity), true
+	case "Identity.grantable":
+		if e.ComplexityRoot.Identity.Grantable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Identity.Grantable(childComplexity), true
 	case "Identity.id":
 		if e.ComplexityRoot.Identity.ID == nil {
 			break
@@ -903,7 +917,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateUser(childComplexity, args["email"].(string), args["name"].(string), args["password"].(string)), true
+		return e.ComplexityRoot.Mutation.CreateUser(childComplexity, args["email"].(string), args["name"].(string), args["password"].(string), args["role"].(*string)), true
 	case "Mutation.createWebhook":
 		if e.ComplexityRoot.Mutation.CreateWebhook == nil {
 			break
@@ -1973,6 +1987,10 @@ func (ec *executionContext) childFields_Identity(ctx context.Context, field grap
 		return ec.fieldContext_Identity_name(ctx, field)
 	case "role":
 		return ec.fieldContext_Identity_role(ctx, field)
+	case "capabilities":
+		return ec.fieldContext_Identity_capabilities(ctx, field)
+	case "grantable":
+		return ec.fieldContext_Identity_grantable(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Identity", field.Name)
 }
@@ -2568,6 +2586,14 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 		return nil, err
 	}
 	args["password"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "role",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["role"] = arg3
 	return args, nil
 }
 
@@ -4075,6 +4101,52 @@ func (ec *executionContext) fieldContext_Identity_role(_ context.Context, field 
 	return graphql.NewScalarFieldContext("Identity", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Identity_capabilities(ctx context.Context, field graphql.CollectedField, obj *model.Identity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Identity_capabilities(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Capabilities, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Identity_capabilities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Identity", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Identity_grantable(ctx context.Context, field graphql.CollectedField, obj *model.Identity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Identity_grantable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Grantable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Identity_grantable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Identity", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _ImportAssignment_column(ctx context.Context, field graphql.CollectedField, obj *model.ImportAssignment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5112,7 +5184,7 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateUser(ctx, fc.Args["email"].(string), fc.Args["name"].(string), fc.Args["password"].(string))
+			return ec.Resolvers.Mutation().CreateUser(ctx, fc.Args["email"].(string), fc.Args["name"].(string), fc.Args["password"].(string), fc.Args["role"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.User) graphql.Marshaler {
@@ -9802,6 +9874,16 @@ func (ec *executionContext) _Identity(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "role":
 			out.Values[i] = ec._Identity_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "capabilities":
+			out.Values[i] = ec._Identity_capabilities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "grantable":
+			out.Values[i] = ec._Identity_grantable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

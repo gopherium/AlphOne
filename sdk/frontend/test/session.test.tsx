@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
-import { roleOf, useSession } from '../session'
+import { useSession } from '../session'
 import { adminSession, memberSession } from '../testing'
 
 /** Prints the session a plugin screen would read, or that none is active. */
@@ -49,21 +49,14 @@ test('carries the canned member standing as a member', () => {
 	expect(screen.getByText(new RegExp(memberSession.email))).toHaveTextContent('member')
 })
 
-test('demotes a tier it cannot read to member', () => {
-	renderWithSession({ ...adminSession, role: 'root' })
-
-	expect(screen.getByText(new RegExp(adminSession.email))).toHaveTextContent('member')
-})
-
 test('answers null without a session', () => {
 	renderWithSession(null)
 
 	expect(screen.getByText('signed out')).toBeInTheDocument()
 })
 
-test('roleOf reads only the tiers a deployment knows', () => {
-	expect(roleOf('admin')).toBe('admin')
-	expect(roleOf('member')).toBe('member')
-	expect(roleOf('root')).toBe('member')
-	expect(roleOf(undefined)).toBe('member')
+test('a session carries the role the server stored, whatever a plugin named it', () => {
+	renderWithSession({ ...adminSession, role: 'steward' })
+
+	expect(screen.getByText(/steward/)).toBeInTheDocument()
 })

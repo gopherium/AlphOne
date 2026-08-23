@@ -6,10 +6,13 @@ import {
 	EmptyState,
 	ErrorNotice,
 	LoadingRows,
+	MANAGE_USERS,
 	PageScreen,
+	SelectControl,
 	Stack,
 	Text,
 	VisuallyHidden,
+	can,
 	people,
 	useSession,
 } from '@alphone/frontend-sdk'
@@ -21,14 +24,37 @@ import type { Account } from '../auth/graphTransport'
 import { setUserRole } from '../auth/graphTransport'
 
 /**
+ * Returns the label a role reads as, falling back to what the server stored.
+ * @param role - The role the account holds.
+ * @returns The label.
+ */
+function roleLabel(role: string): string {
+	if (role === '') {
+		return 'No role'
+	}
+	return role.charAt(0).toUpperCase() + role.slice(1)
+}
+
+/**
  * Renders one account row with its status and tier, offering the controls only
  * to an admin looking at somebody else.
  * @param user - The account the row shows.
  * @param isSelf - Whether the row is the signed-in account, which gets no controls.
  * @param manages - Whether the caller may manage users at all.
+ * @param grantable - The roles the caller may give another account.
  * @returns The table row element.
  */
-function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; manages: boolean }) {
+function UserRow({
+	user,
+	isSelf,
+	manages,
+	grantable,
+}: {
+	user: Account
+	isSelf: boolean
+	manages: boolean
+	grantable: string[]
+}) {
 	return (
 		<tr>
 			<td>{user.name}</td>
@@ -38,7 +64,13 @@ function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; ma
 					{user.disabled ? 'Disabled' : 'Active'}
 				</Badge>
 			</td>
-			<td>{user.role === 'admin' ? 'Admin' : 'Member'}</td>
+			<td>
+				{isSelf || !manages ? (
+					roleLabel(user.role)
+				) : (
+					<UserRole user={user} grantable={grantable} />
+				)}
+			</td>
 			<td className="godmin-table__actions">
 				{isSelf || !manages ? null : <UserControls user={user} />}
 			</td>
@@ -53,18 +85,11 @@ function UserRow({ user, isSelf, manages }: { user: Account; isSelf: boolean; ma
  */
 function UserControls({ user }: { user: Account }) {
 	const queryClient = useQueryClient()
-	const invalidate = { onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }) }
 	const barred = user.disabled
-	const stands = user.role === 'admin'
 	const toggle = useMutation({
 		mutationFn: () => setUserDisabled(user.id, !barred),
-		...invalidate,
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }),
 	})
-	const restand = useMutation({
-		mutationFn: () => setUserRole(user.id, stands ? 'member' : 'admin'),
-		...invalidate,
-	})
-	const refused = toggle.error ?? restand.error
 
 	return (
 		<Stack direction="column" gap="xs">
@@ -76,15 +101,38 @@ function UserControls({ user }: { user: Account }) {
 			>
 				{barred ? 'Enable' : 'Disable'}
 			</Button>
-			<Button
-				variant="outline"
-				aria-label={`${stands ? 'Demote' : 'Promote'} ${user.name}`}
-				loading={restand.isPending}
-				onClick={() => restand.mutate()}
-			>
-				{stands ? 'Demote' : 'Promote'}
-			</Button>
-			{refused ? <Text role="alert">{refused.message}</Text> : null}
+			{toggle.error ? <Text role="alert">{toggle.error.message}</Text> : null}
+		</Stack>
+	)
+}
+
+/**
+ * Renders the control writing the role an account holds.
+ * @param user - The account the control acts on.
+ * @param grantable - The roles the reader may give another account.
+ * @returns The role control element.
+ */
+function UserRole({ user, grantable }: { user: Account; grantable: string[] }) {
+	const queryClient = useQueryClient()
+	const restand = useMutation({
+		mutationFn: (role: string) => setUserRole(user.id, role),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: usersQueryKey }),
+	})
+	const offered = grantable.map((role) => ({ value: role, label: roleLabel(role) }))
+	const held = offered.find((option) => option.value === user.role)
+
+	return (
+		<Stack direction="column" gap="xs">
+			{held ? null : <Text>{roleLabel(user.role)}</Text>}
+			<SelectControl
+				label={`Role of ${user.name}`}
+				hideLabelFromVision
+				disabled={restand.isPending}
+				items={offered}
+				value={held}
+				onValueChange={(item) => item?.value != null && restand.mutate(item.value)}
+			/>
+			{restand.error ? <Text role="alert">{restand.error.message}</Text> : null}
 		</Stack>
 	)
 }
@@ -95,7 +143,7 @@ function UserControls({ user }: { user: Account }) {
  */
 export function UsersScreen() {
 	const session = useSession()
-	const manages = session?.role === 'admin'
+	const manages = can(session, MANAGE_USERS)
 	const users = useQuery({
 		queryKey: usersQueryKey,
 		queryFn: ({ signal }) => fetchUsers(signal) as Promise<Account[]>,
@@ -117,7 +165,12 @@ export function UsersScreen() {
 				</Stack>
 			}
 		>
-			<UserRows users={users} currentUserId={session?.id} manages={manages} />
+			<UserRows
+				users={users}
+				currentUserId={session?.id}
+				manages={manages}
+				grantable={session?.grantable ?? []}
+			/>
 		</PageScreen>
 	)
 }
@@ -130,10 +183,12 @@ function UserRows({
 	users,
 	currentUserId,
 	manages,
+	grantable,
 }: {
 	users: ReturnType<typeof useQuery<Account[], Error>>
 	currentUserId: string | undefined
 	manages: boolean
+	grantable: string[]
 }) {
 	if (users.isPending) {
 		return <LoadingRows label="Loading users…" />
@@ -176,6 +231,7 @@ function UserRows({
 							user={user}
 							isSelf={user.id === currentUserId}
 							manages={manages}
+							grantable={grantable}
 						/>
 					))}
 				</tbody>

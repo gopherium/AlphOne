@@ -18,7 +18,7 @@ test('a member reads the account list without managing it', async ({ page, brows
 	await page.getByRole('button', { name: 'Create user' }).click()
 
 	const created = page.getByRole('row').filter({ hasText: email })
-	await expect(created.getByRole('cell', { name: 'Member', exact: true })).toBeVisible()
+	await expect(created.getByRole('combobox', { name: `Role of ${name}` })).toBeVisible()
 
 	const member = await browser.newContext({
 		baseURL,
@@ -33,10 +33,12 @@ test('a member reads the account list without managing it', async ({ page, brows
 
 	await memberPage.goto('/users')
 
-	await expect(memberPage.getByRole('row').filter({ hasText: email })).toBeVisible()
+	const listed = memberPage.getByRole('row').filter({ hasText: email })
+	await expect(listed).toBeVisible()
+	await expect(listed.getByRole('cell', { name: 'Member', exact: true })).toBeVisible()
 	await expect(memberPage.getByRole('link', { name: 'New user' })).toBeHidden()
 	await expect(memberPage.getByRole('button', { name: /^Disable / })).toBeHidden()
-	await expect(memberPage.getByRole('button', { name: /^Promote / })).toBeHidden()
+	await expect(memberPage.getByRole('combobox', { name: /^Role of / })).toBeHidden()
 
 	await member.close()
 })

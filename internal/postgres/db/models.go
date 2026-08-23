@@ -62,12 +62,6 @@ type CoreTenantMember struct {
 	CreatedAt time.Time
 }
 
-type CoreUserRole struct {
-	UserID    uuid.UUID
-	Role      string
-	CreatedAt time.Time
-}
-
 type CoreWebhookDelivery struct {
 	ID             uuid.UUID
 	SubscriptionID uuid.UUID

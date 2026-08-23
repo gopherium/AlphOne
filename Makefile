@@ -144,7 +144,7 @@ e2e-db-reset: db-up
 e2e-seed: db-up e2e-build
 	printf '%s\n' "$(E2E_PASSWORD)" | \
 		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone createadmin \
-		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)"
+		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)" -role admin
 
 e2e-reset: e2e-db-reset e2e-seed
 

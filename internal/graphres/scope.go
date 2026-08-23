@@ -9,8 +9,11 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // scopeDirectiveName names the directive a root field declares its area with.
@@ -34,11 +37,15 @@ type scopeKey struct {
 // adminArgument names the scope argument reserving a field to the admin tier.
 const adminArgument = "admin"
 
-// fieldScope is the area, access and tier one root field needs.
+// capabilityArgument names the scope argument naming the capability a field needs.
+const capabilityArgument = "capability"
+
+// fieldScope is the area, access and capability one root field needs.
 type fieldScope struct {
-	area  string
-	write bool
-	admin bool
+	area       string
+	write      bool
+	admin      bool
+	capability role.Capability
 }
 
 // ScopeMap answers what every root field of a schema needs of its caller.
@@ -77,12 +84,28 @@ func scopeOf(declared *ast.Directive) fieldScope {
 	if adminOnly := declared.Arguments.ForName(adminArgument); adminOnly != nil {
 		scope.admin = adminOnly.Value.Raw == "true"
 	}
+	if needed := declared.Arguments.ForName(capabilityArgument); needed != nil &&
+		needed.Value.Kind != ast.NullValue {
+		scope.capability = role.Capability(needed.Value.Raw)
+	}
 	return scope
 }
 
 // AdminOnly reports whether one root field is reserved to the admin tier.
 func (m ScopeMap) AdminOnly(operation ast.Operation, field string) bool {
 	return m[scopeKey{operation, field}].admin
+}
+
+// Capability returns the capability one root field needs, none when it declares no gate.
+func (m ScopeMap) Capability(operation ast.Operation, field string) role.Capability {
+	held := m[scopeKey{operation, field}]
+	if held.capability != "" {
+		return held.capability
+	}
+	if held.admin {
+		return role.ManageUsers
+	}
+	return ""
 }
 
 // Allows reports whether held scopes reach one root field, refusing anything the schema does not scope.
@@ -120,7 +143,7 @@ func (m ScopeMap) Needed(operation ast.Operation, field string) string {
 func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 	return func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		token, carried := credential.TokenOf(ctx)
-		tier := credential.RoleOf(ctx)
+		tier := role.Role(authkit.IdentityFromContext(ctx).Role)
 		operation := graphql.GetOperationContext(ctx)
 		if operation.Operation == nil {
 			return scopeRefusal("the operation")
@@ -130,8 +153,8 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 			if carried && !scopes.Allows(kind, selected.Name, token.Scopes) {
 				return scopeRefusal(scopes.Needed(kind, selected.Name))
 			}
-			if !tier.Allows(scopes.AdminOnly(kind, selected.Name)) {
-				return refusal("admin required", scopes.Needed(kind, selected.Name))
+			if needed := scopes.Capability(kind, selected.Name); needed != "" && !role.Can(tier, needed) {
+				return capabilityRefusal(scopes.Needed(kind, selected.Name), needed)
 			}
 		}
 		return next(ctx)
@@ -141,6 +164,18 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 // scopeRefusal answers one operation with the scope its token lacks.
 func scopeRefusal(needed string) graphql.ResponseHandler {
 	return refusal("scope required: "+needed, needed)
+}
+
+// capabilityRefusal answers one operation naming the scope and the capability the caller's role lacked.
+func capabilityRefusal(needed string, lacked role.Capability) graphql.ResponseHandler {
+	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
+		Message: "admin required",
+		Extensions: map[string]any{
+			"code":       "UNAUTHORIZED",
+			"scope":      needed,
+			"capability": string(lacked),
+		},
+	}}})
 }
 
 // refusal answers one operation with the message and the scope the refused field wanted.

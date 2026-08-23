@@ -19,6 +19,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -72,14 +73,14 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 type demoLogin struct {
 	email string
 	name  string
-	tier  string
+	tier  role.Role
 }
 
 // demoLogins names every account the seeder ensures, in banner order.
 func demoLogins() []demoLogin {
 	return []demoLogin{
-		{email: seedAdminEmail, name: seedAdminName, tier: "admin"},
-		{email: seedMemberEmail, name: seedMemberName, tier: "member"},
+		{email: seedAdminEmail, name: seedAdminName, tier: role.Admin},
+		{email: seedMemberEmail, name: seedMemberName, tier: role.Member},
 	}
 }
 
@@ -88,14 +89,13 @@ func seedUsers(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error)
 	users := authkitpg.NewUserStore(pool)
 	created := map[string]bool{}
 	for _, login := range demoLogins() {
-		made, err := authkit.EnsureAdmin(ctx, users, login.email, login.name, seedAdminPassword)
+		made, err := authkit.EnsureAdmin(
+			ctx, users, login.email, login.name, seedAdminPassword, login.tier.String(),
+		)
 		if err != nil {
 			return nil, err
 		}
 		created[login.email] = made
-	}
-	if err := grantAdmin(ctx, pool, users, seedAdminEmail); err != nil {
-		return nil, err
 	}
 	return created, nil
 }
@@ -105,7 +105,7 @@ func reportLogins(stdout io.Writer, created map[string]bool) {
 	for _, login := range demoLogins() {
 		if created[login.email] {
 			_, _ = fmt.Fprintln(stdout,
-				"login: "+login.email+" / "+seedAdminPassword+" ("+login.tier+")")
+				"login: "+login.email+" / "+seedAdminPassword+" ("+login.tier.String()+")")
 			continue
 		}
 		_, _ = fmt.Fprintln(stdout, login.email+" already exists, its password is unchanged")

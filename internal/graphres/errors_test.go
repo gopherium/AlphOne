@@ -12,10 +12,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/gouncer"
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/graph/scalar"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -61,6 +65,57 @@ func TestPresentErrorMapsDomainErrors(t *testing.T) {
 				t.Errorf("message = %q, want %q", presented.Message, testCase.err.Error())
 			}
 		})
+	}
+}
+
+func TestPresentErrorSpeaksTheBrickRefusalsInItsOwnVoice(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"own role", authkit.ErrSelfRole, "you cannot change your own role"},
+		{"own account", authkit.ErrSelfDisable, "you cannot disable your own account"},
+		{"last privileged", gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
+		{"beyond reach", role.ErrBeyondReach, "that role is beyond your own"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			presented := graphres.PresentError(context.Background(), testCase.err)
+			if got := code(t, presented); got != "VALIDATION" {
+				t.Errorf("code = %q, want VALIDATION", got)
+			}
+			if presented.Message != testCase.want {
+				t.Errorf("message = %q, want %q", presented.Message, testCase.want)
+			}
+			if strings.Contains(presented.Message, "authkit") ||
+				strings.Contains(presented.Message, "gouncer") {
+				t.Errorf("message = %q, want no package name reaching a caller", presented.Message)
+			}
+		})
+	}
+}
+
+func TestEverySpokenRefusalKeepsItsMessage(t *testing.T) {
+	t.Parallel()
+
+	for _, spoken := range []error{
+		authkit.ErrSelfRole,
+		authkit.ErrSelfDisable,
+		gouncer.ErrLastPrivileged,
+		role.ErrBeyondReach,
+	} {
+		presented := graphres.PresentError(context.Background(), spoken)
+
+		if presented.Message == spoken.Error() {
+			t.Errorf("message = %q, want the deployment's own words", presented.Message)
+		}
+		if presented.Message == "internal error" {
+			t.Errorf("%v was masked, want it classified so the spoken message survives", spoken)
+		}
 	}
 }
 
