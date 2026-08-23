@@ -835,6 +835,23 @@ func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) 
 	return result.RowsAffected(), nil
 }
 
+const setUserSetting = `-- name: SetUserSetting :exec
+INSERT INTO core.user_settings (user_id, key, value)
+VALUES ($1::uuid, $2::text, $3::text)
+ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value
+`
+
+type SetUserSettingParams struct {
+	UserID uuid.UUID
+	Key    string
+	Value  string
+}
+
+func (q *Queries) SetUserSetting(ctx context.Context, arg SetUserSettingParams) error {
+	_, err := q.db.Exec(ctx, setUserSetting, arg.UserID, arg.Key, arg.Value)
+	return err
+}
+
 const settleWebhookDelivery = `-- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries
 SET status = $2, deliver_after = $3, last_error = $4
@@ -955,4 +972,35 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const userSetting = `-- name: UserSetting :many
+SELECT value
+FROM core.user_settings
+WHERE user_id = $1::uuid AND key = $2::text
+`
+
+type UserSettingParams struct {
+	UserID uuid.UUID
+	Key    string
+}
+
+func (q *Queries) UserSetting(ctx context.Context, arg UserSettingParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, userSetting, arg.UserID, arg.Key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		items = append(items, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
