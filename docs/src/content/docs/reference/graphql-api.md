@@ -103,9 +103,11 @@ is contacts, tasks, and whatever your plugins add. A plugin may declare roles of
 its own, so do not assume the list stops at two.
 
 An account can also hold no role at all, which happens to accounts made before
-roles existed. Such an account holds no capability, so it can do nothing until
-somebody gives it a role. `me` answers an empty `role` and an empty
-`capabilities` for it.
+roles existed. `me` answers an empty `role` and an empty `capabilities` for it.
+Such an account still signs in, still reads `me` and `logout`, and still works
+every field that names no capability, which today is the whole product. What it
+cannot reach is the fields a capability guards, which is user management. Give
+it a role and it gains whatever that role holds.
 
 What a role may do is a set of named capabilities. `me` answers the ones the
 calling account holds, so a client asks what it may do rather than guessing from
@@ -138,10 +140,15 @@ Three operations need the `manage_users` capability: `createUser`,
 }
 ```
 
+The message reads `admin required` whichever capability was missing, because it
+has said that since before capabilities existed and clients match on it. Read
+`capability` rather than the message to learn what the account's role actually
+fell short of. Holding the admin role is not what the field asks for, holding
+that capability is, and a plugin declared role holding it passes just as well.
+
 The `scope` extension still names what the field wanted, so a caller always
-learns which area an operation acts in, and `capability` names what the
-account's role fell short of. A refusal about a token's scopes carries no
-`capability`, so the two halves stay distinguishable. Minting a wider token
+learns which area an operation acts in. A refusal about a token's scopes carries
+no `capability`, so the two halves stay distinguishable. Minting a wider token
 does not help here. A token cannot carry more authority than the user it acts
 as.
 
