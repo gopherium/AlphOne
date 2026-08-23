@@ -80,9 +80,9 @@ mutation {
 }
 ```
 
-`login` is the only operation an anonymous caller may run. Anything else
-answers `UNAUTHENTICATED` with HTTP 200, because a GraphQL error is not an HTTP
-error:
+`login` and the `locale` query are the only operations an anonymous caller may
+run. Anything else answers `UNAUTHENTICATED` with HTTP 200, because a GraphQL
+error is not an HTTP error:
 
 ```json
 {
@@ -188,6 +188,25 @@ authority. An operation runs only when both allow it.
 
 The token is checked first. A caller holding neither is told about the scope,
 because that is the half it can fix on its own.
+
+## Locale
+
+AlphOne answers each reader in one locale. `locale` resolves it: the signed-in
+account's stored choice wins, else the closest match to the `Accept-Language`
+header, else `en-US`. The query is open to anonymous callers, so a login screen
+can ask before anyone signs in.
+
+```graphql
+query { locale }
+```
+
+`setLocale` stores the calling account's choice and answers it back. It takes
+a locale from the supported list and refuses anything else with the reason
+`locale_unknown`, naming the list in `meta.supported`.
+
+```graphql
+mutation { setLocale(locale: "es-ES") }
+```
 
 ## Scalars
 
@@ -360,6 +379,7 @@ The reasons the core answers with:
 | `webhook_events_required` | | a webhook needs at least one event |
 | `webhook_not_found` | | the id names no webhook |
 | `first_out_of_range` | `min`, `max` | the page size is outside the range |
+| `locale_unknown` | `supported` | the locale is not one AlphOne serves |
 | `cursor_malformed` | | the cursor is not one a field issued |
 | `value_malformed` | | a scalar did not parse |
 | `token_name_required` | | a token needs a name |
@@ -480,6 +500,7 @@ cannot drift. Point a client at the endpoint, or read
 | Area | Reads | Writes |
 | ---- | ----- | ------ |
 | Session | `me` | `login`, `logout` |
+| Locale | `locale` | `setLocale` |
 | Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
