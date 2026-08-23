@@ -123,6 +123,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Webhooks:     webhooks,
 		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
+		Settings:     postgres.NewUserSettingStore(pool),
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
