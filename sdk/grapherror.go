@@ -6,6 +6,10 @@ package sdk
 type GraphError struct {
 	// Code is the extensions code the presenter reports.
 	Code string
+	// Reason is the stable snake_case name a client translates the error by.
+	Reason string
+	// Meta carries the named values the reason's message interpolates.
+	Meta map[string]any
 	// Extensions carries extra extension fields beside the code.
 	Extensions map[string]any
 	// Err is the underlying error whose message the client reads.
