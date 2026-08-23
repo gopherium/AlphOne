@@ -253,7 +253,7 @@ func TestGraphRefusesUserManagementToAMemberSession(t *testing.T) {
 
 	body := decodeBody[graphResponse](t, recorder)
 	if len(body.Errors) != 1 {
-		t.Fatalf("errors = %v, want one refusal, a member does not manage users", body.Errors)
+		t.Fatalf("errors = %v, want one error, a member does not manage users", body.Errors)
 	}
 	if got, want := body.Errors[0].Message, "admin required"; got != want {
 		t.Errorf("message = %q, want %q", got, want)

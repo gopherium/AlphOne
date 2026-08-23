@@ -248,7 +248,7 @@ func TestTokenCreateRejectsAnUnreadableLifetime(t *testing.T) {
 	}, io.Discard)
 
 	if err == nil {
-		t.Error("token() error = nil, want a refusal of an unreadable lifetime")
+		t.Error("token() error = nil, want an unreadable lifetime refused")
 	}
 }
 

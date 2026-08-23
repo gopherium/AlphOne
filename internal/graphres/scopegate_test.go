@@ -75,11 +75,11 @@ func gatedWith(t *testing.T, query string, ctx context.Context) *graphql.Respons
 	return graphres.ScopeGate(graphres.NewScopeMap(schema))(ctx, passed)(ctx)
 }
 
-// refusalOf returns the single error message of a refused answer.
-func refusalOf(t *testing.T, answered *graphql.Response) string {
+// errorOf returns the single error message of a refused answer.
+func errorOf(t *testing.T, answered *graphql.Response) string {
 	t.Helper()
 	if len(answered.Errors) != 1 {
-		t.Fatalf("errors = %v, want exactly one refusal", answered.Errors)
+		t.Fatalf("errors = %v, want exactly one error", answered.Errors)
 	}
 	return answered.Errors[0].Message
 }
@@ -99,8 +99,8 @@ func TestScopeGateRefusesAnAdminFieldToAMemberSession(t *testing.T) {
 
 	answered := gatedAsRole(t, `mutation { createUser }`, role.Member)
 
-	if got, want := refusalOf(t, answered), "admin required"; got != want {
-		t.Errorf("refusal = %q, want %q", got, want)
+	if got, want := errorOf(t, answered), "admin required"; got != want {
+		t.Errorf("error = %q, want %q", got, want)
 	}
 	if got := answered.Errors[0].Extensions["code"]; got != "UNAUTHORIZED" {
 		t.Errorf("code = %v, want UNAUTHORIZED", got)
@@ -123,13 +123,13 @@ func TestScopeGateNamesTheCapabilityARoleLacks(t *testing.T) {
 	}
 }
 
-func TestAScopeRefusalNamesNoCapability(t *testing.T) {
+func TestAScopeErrorNamesNoCapability(t *testing.T) {
 	t.Parallel()
 
 	answered := gatedAsToken(t, `mutation { createContact }`, apitoken.ParseScopes("tasks:read"))
 
 	if _, named := answered.Errors[0].Extensions["capability"]; named {
-		t.Error("a scope refusal named a capability, want the extension only where a role fell short")
+		t.Error("a scope error named a capability, want the extension only where a role fell short")
 	}
 }
 
@@ -139,8 +139,8 @@ func TestScopeGateRefusesEveryUserManagementFieldToAMember(t *testing.T) {
 	for _, field := range []string{"createUser", "setUserRole", "setUserDisabled"} {
 		answered := gatedAsRole(t, `mutation { `+field+` }`, role.Member)
 
-		if got, want := refusalOf(t, answered), "admin required"; got != want {
-			t.Errorf("%s refusal = %q, want %q", field, got, want)
+		if got, want := errorOf(t, answered), "admin required"; got != want {
+			t.Errorf("%s error = %q, want %q", field, got, want)
 		}
 	}
 }
@@ -150,8 +150,8 @@ func TestScopeGateRefusesAFieldWhoseCapabilityTheRoleLacks(t *testing.T) {
 
 	answered := gatedAsRole(t, `mutation { needsReports }`, role.Admin)
 
-	if got, want := refusalOf(t, answered), "admin required"; got != want {
-		t.Errorf("refusal = %q, want %q, an admin holding no manage_reports is refused", got, want)
+	if got, want := errorOf(t, answered), "admin required"; got != want {
+		t.Errorf("error = %q, want %q, an admin holding no manage_reports is refused", got, want)
 	}
 }
 
@@ -180,8 +180,8 @@ func TestScopeGateReadsAnUnstampedSessionAsAMember(t *testing.T) {
 
 	answered := gatedWith(t, `mutation { createUser }`, t.Context())
 
-	if got, want := refusalOf(t, answered), "admin required"; got != want {
-		t.Errorf("refusal = %q, want %q, losing the stamp demotes rather than widens", got, want)
+	if got, want := errorOf(t, answered), "admin required"; got != want {
+		t.Errorf("error = %q, want %q, losing the stamp demotes rather than widens", got, want)
 	}
 }
 
@@ -210,8 +210,8 @@ func TestScopeGateRefusesUserManagementToAnAccountHoldingNoRole(t *testing.T) {
 
 	answered := gatedAsRole(t, `mutation { createUser }`, "")
 
-	if got, want := refusalOf(t, answered), "admin required"; got != want {
-		t.Errorf("refusal = %q, want %q", got, want)
+	if got, want := errorOf(t, answered), "admin required"; got != want {
+		t.Errorf("error = %q, want %q", got, want)
 	}
 }
 
@@ -230,8 +230,8 @@ func TestScopeGateHoldsAWildcardTokenToItsOwnersRole(t *testing.T) {
 
 	answered := gatedAsTokenOf(t, `mutation { createUser }`, apitoken.Full(), role.Member)
 
-	if got, want := refusalOf(t, answered), "admin required"; got != want {
-		t.Errorf("refusal = %q, want %q, effective access is the role and the token together", got, want)
+	if got, want := errorOf(t, answered), "admin required"; got != want {
+		t.Errorf("error = %q, want %q, effective access is the role and the token together", got, want)
 	}
 }
 
@@ -263,8 +263,8 @@ func TestScopeGateRefusesAnAdminsNarrowTokenOnItsScope(t *testing.T) {
 	answered := gatedAsTokenOf(t,
 		`mutation { createUser }`, apitoken.ParseScopes("contacts:read"), role.Admin)
 
-	if got, want := refusalOf(t, answered), "scope required: users:write"; got != want {
-		t.Errorf("refusal = %q, want %q, the token check answers first", got, want)
+	if got, want := errorOf(t, answered), "scope required: users:write"; got != want {
+		t.Errorf("error = %q, want %q, the token check answers first", got, want)
 	}
 }
 
@@ -274,8 +274,8 @@ func TestScopeGateNamesTheScopeBeforeTheTierWhenBothRefuse(t *testing.T) {
 	answered := gatedAsTokenOf(t,
 		`mutation { createUser }`, apitoken.ParseScopes("contacts:read"), role.Member)
 
-	if got, want := refusalOf(t, answered), "scope required: users:write"; got != want {
-		t.Errorf("refusal = %q, want %q, the message the n8n docs quote stays put", got, want)
+	if got, want := errorOf(t, answered), "scope required: users:write"; got != want {
+		t.Errorf("error = %q, want %q, the message the n8n docs quote stays put", got, want)
 	}
 }
 
@@ -294,8 +294,8 @@ func TestScopeGateRefusesAWriteToAReadToken(t *testing.T) {
 
 	answered := gatedAsToken(t, `mutation { createContact }`, apitoken.ParseScopes("contacts:read"))
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "contacts:write") {
-		t.Errorf("refusal = %q, want it to name contacts:write", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "contacts:write") {
+		t.Errorf("error = %q, want it to name contacts:write", got)
 	}
 	if got := answered.Errors[0].Extensions["code"]; got != "UNAUTHORIZED" {
 		t.Errorf("code = %v, want UNAUTHORIZED", got)
@@ -309,8 +309,8 @@ func TestScopeGateSeesThroughATopLevelFragmentSpread(t *testing.T) {
 		`mutation { ...writes } fragment writes on Mutation { createContact }`,
 		apitoken.ParseScopes("contacts:read"))
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "contacts:write") {
-		t.Errorf("refusal = %q, want a fragment wrapped field checked like any other", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "contacts:write") {
+		t.Errorf("error = %q, want a fragment wrapped field checked like any other", got)
 	}
 }
 
@@ -319,8 +319,8 @@ func TestScopeGateSeesThroughAnInlineFragment(t *testing.T) {
 
 	answered := gatedAsToken(t, `{ ... on Query { contacts } }`, apitoken.ParseScopes("tasks:read"))
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "contacts:read") {
-		t.Errorf("refusal = %q, want an inline fragment checked like any other", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "contacts:read") {
+		t.Errorf("error = %q, want an inline fragment checked like any other", got)
 	}
 }
 
@@ -331,8 +331,8 @@ func TestScopeGateSeesThroughANestedFragmentSpread(t *testing.T) {
 		`{ ...outer } fragment outer on Query { ...inner } fragment inner on Query { contacts }`,
 		apitoken.ParseScopes("tasks:read"))
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "contacts:read") {
-		t.Errorf("refusal = %q, want nesting to be no escape", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "contacts:read") {
+		t.Errorf("error = %q, want nesting to be no escape", got)
 	}
 }
 
@@ -341,8 +341,8 @@ func TestScopeGateRefusesEveryFieldOfAMixedOperation(t *testing.T) {
 
 	answered := gatedAsToken(t, `{ contacts me }`, apitoken.ParseScopes("tasks:read"))
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "contacts:read") {
-		t.Errorf("refusal = %q, want the unheld field to refuse the whole operation", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "contacts:read") {
+		t.Errorf("error = %q, want the unheld field to refuse the whole operation", got)
 	}
 }
 
@@ -371,8 +371,8 @@ func TestScopeGateRefusesTokenManagementToAWildcardToken(t *testing.T) {
 
 	answered := gatedAsToken(t, `{ apiTokens }`, apitoken.Full())
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "tokens:read") {
-		t.Errorf("refusal = %q, want token management to need a session", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "tokens:read") {
+		t.Errorf("error = %q, want token management to need a session", got)
 	}
 }
 
@@ -381,8 +381,8 @@ func TestScopeGateRefusesAFieldTheSchemaDoesNotScope(t *testing.T) {
 
 	answered := gatedAsToken(t, `{ unscoped }`, apitoken.Full())
 
-	if got := refusalOf(t, answered); !strings.Contains(got, "unscoped") {
-		t.Errorf("refusal = %q, want an unscoped field refused, the gate fails closed", got)
+	if got := errorOf(t, answered); !strings.Contains(got, "unscoped") {
+		t.Errorf("error = %q, want an unscoped field refused, the gate fails closed", got)
 	}
 }
 
@@ -395,6 +395,6 @@ func TestScopeGateRefusesAnOperationItCannotRead(t *testing.T) {
 	answered := graphres.ScopeGate(graphres.NewScopeMap(loadScopedSchema(t)))(ctx, passed)(ctx)
 
 	if len(answered.Errors) != 1 {
-		t.Errorf("errors = %v, want a refusal when there is no operation to read", answered.Errors)
+		t.Errorf("errors = %v, want an error when there is no operation to read", answered.Errors)
 	}
 }

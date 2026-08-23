@@ -201,7 +201,7 @@ test('a failed archive is reported', async () => {
 	)
 })
 
-test('a validation refusal is reported word for word', async () => {
+test('a validation error is reported word for word', async () => {
 	serveFields([])
 	server.use(
 		graphql.mutation('DefineField', () =>

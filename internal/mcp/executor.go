@@ -14,13 +14,13 @@ import (
 // graphPath is where every tool posts its operation.
 const graphPath = "/api/graphql"
 
-// graphError is one refusal the graph answered with.
+// graphError is one error the graph answered with.
 type graphError struct {
 	Message    string         `json:"message"`
 	Extensions map[string]any `json:"extensions"`
 }
 
-// Error names the refusal beside its code.
+// Error names the error beside its code.
 func (e graphError) Error() string {
 	if code, ok := e.Extensions["code"].(string); ok && code != "" {
 		return fmt.Sprintf("%s (%s)", e.Message, code)

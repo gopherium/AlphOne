@@ -37,13 +37,13 @@ func (s *store) define(ctx context.Context, definition Definition) error {
 		return fmt.Errorf("fields: define definition: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.refusalFor(ctx, definition)
+		return s.errorFor(ctx, definition)
 	}
 	return nil
 }
 
-// refusalFor reports why a definition the store refused could not be written.
-func (s *store) refusalFor(ctx context.Context, definition Definition) error {
+// errorFor reports why a definition the store refused could not be written.
+func (s *store) errorFor(ctx context.Context, definition Definition) error {
 	const query = `SELECT archived_at IS NULL FROM plugin_fields.definitions WHERE name = $1`
 	var live bool
 	if err := s.pool.QueryRow(ctx, query, definition.Name).Scan(&live); err != nil {

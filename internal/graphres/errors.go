@@ -63,7 +63,7 @@ var notFoundErrors = []error{
 	apitoken.ErrNotFound,
 }
 
-// spokenAs names every brick refusal in the deployment's own voice.
+// spokenAs names every brick error in the deployment's own voice.
 var spokenAs = []struct {
 	sentinel error
 	message  string
@@ -74,7 +74,7 @@ var spokenAs = []struct {
 	{role.ErrBeyondReach, "that role is beyond your own"},
 }
 
-// speak rewrites a brick refusal so no package name reaches a caller.
+// speak rewrites a brick error so no package name reaches a caller.
 func speak(presented *gqlerror.Error, err error) {
 	for _, held := range spokenAs {
 		if errors.Is(err, held.sentinel) {

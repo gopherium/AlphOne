@@ -86,7 +86,7 @@ func sendMessage(
 	return p.MutationResolvers().WhatsAppSendMessage(t.Context(), conversationID, content)
 }
 
-// mustSend sends one reply, failing the test on any refusal.
+// mustSend sends one reply, failing the test on any error.
 func mustSend(
 	t *testing.T, p *whatsapp.Plugin, conversationID uuid.UUID, content string,
 ) *model.WhatsAppMessage {
@@ -98,8 +98,8 @@ func mustSend(
 	return sent
 }
 
-// sendRefusalCode returns the graph code a refused send carries.
-func sendRefusalCode(t *testing.T, err error) string {
+// sendErrorCode returns the graph code a failed send carries.
+func sendErrorCode(t *testing.T, err error) string {
 	t.Helper()
 	var refused sdk.GraphError
 	if !errors.As(err, &refused) {
@@ -200,7 +200,7 @@ func TestSendMessageReportsUpstreamFailure(t *testing.T) {
 
 			_, err := sendMessage(t, p, conversationID, "hey")
 
-			if code := sendRefusalCode(t, err); code != "UPSTREAM" {
+			if code := sendErrorCode(t, err); code != "UPSTREAM" {
 				t.Fatalf("code = %q, want UPSTREAM", code)
 			}
 			messages := listMessages(t, p, conversationID)
@@ -245,7 +245,7 @@ func TestSendMessageRejectsMisconfiguredGraphURL(t *testing.T) {
 
 	_, err := sendMessage(t, p, conversationID, "hey")
 
-	if code := sendRefusalCode(t, err); code != "UPSTREAM" {
+	if code := sendErrorCode(t, err); code != "UPSTREAM" {
 		t.Fatalf("code = %q, want UPSTREAM", code)
 	}
 }

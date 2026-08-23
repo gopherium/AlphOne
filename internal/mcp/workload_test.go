@@ -61,7 +61,7 @@ func TestWorkloadCountsTheAnswer(t *testing.T) {
 	}
 }
 
-func TestWorkloadReportsAGraphRefusal(t *testing.T) {
+func TestWorkloadReportsAGraphError(t *testing.T) {
 	t.Parallel()
 
 	run := &tools{graph: answering(`{"errors":[{"message":"refused"}]}`)}
@@ -69,7 +69,7 @@ func TestWorkloadReportsAGraphRefusal(t *testing.T) {
 	_, _, err := run.workload(t.Context(), WorkloadInput{})
 
 	if err == nil || !strings.Contains(err.Error(), "refused") {
-		t.Errorf("error = %v, want the refusal", err)
+		t.Errorf("error = %v, want the error", err)
 	}
 }
 

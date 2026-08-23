@@ -119,9 +119,9 @@ func registerSessionSteps(sc *godog.ScenarioContext, t *testing.T) {
 		if w.connErr == nil {
 			return fmt.Errorf("the connection succeeded, want it refused")
 		}
-		refusal := w.connErr.Error()
-		if !strings.Contains(refusal, "401") && !strings.Contains(refusal, "Unauthorized") {
-			return fmt.Errorf("error = %v, want an unauthorized refusal", w.connErr)
+		message := w.connErr.Error()
+		if !strings.Contains(message, "401") && !strings.Contains(message, "Unauthorized") {
+			return fmt.Errorf("error = %v, want it refused as unauthorized", w.connErr)
 		}
 		return nil
 	})

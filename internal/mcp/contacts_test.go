@@ -189,7 +189,7 @@ func TestContactRefusesAnIdNoContactHolds(t *testing.T) {
 	}
 }
 
-func TestContactReportsAGraphRefusal(t *testing.T) {
+func TestContactReportsAGraphError(t *testing.T) {
 	t.Parallel()
 
 	run := &tools{graph: answering(`{"errors":[{"message":"scalar: invalid value"}]}`)}
@@ -197,11 +197,11 @@ func TestContactReportsAGraphRefusal(t *testing.T) {
 	_, _, err := run.contact(t.Context(), ContactInput{ContactID: "not-a-uuid"})
 
 	if err == nil || !strings.Contains(err.Error(), "invalid value") {
-		t.Errorf("error = %v, want the refusal", err)
+		t.Errorf("error = %v, want the error", err)
 	}
 }
 
-func TestContactsReportsAGraphRefusal(t *testing.T) {
+func TestContactsReportsAGraphError(t *testing.T) {
 	t.Parallel()
 
 	run := &tools{graph: answering(`{"errors":[{"message":"refused","extensions":{"code":"VALIDATION"}}]}`)}
@@ -209,6 +209,6 @@ func TestContactsReportsAGraphRefusal(t *testing.T) {
 	_, _, err := run.contacts(t.Context(), ContactsInput{})
 
 	if err == nil || !strings.Contains(err.Error(), "refused") {
-		t.Errorf("error = %v, want the refusal", err)
+		t.Errorf("error = %v, want the error", err)
 	}
 }

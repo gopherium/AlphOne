@@ -78,7 +78,7 @@ func registerRoleSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerRoleTokenSteps(sc)
 	registerRoleWriteSteps(sc)
 	registerTokenOperations(sc)
-	registerRefusalSteps(sc)
+	registerErrorSteps(sc)
 }
 
 // registerRoleWriteSteps binds the steps standing a user in another tier.
@@ -97,7 +97,7 @@ func registerRoleWriteSteps(sc *godog.ScenarioContext) {
 			if err := w.postGraphAsSession(ctx, settingUserRole(w.memberID, tier)); err != nil {
 				return err
 			}
-			return w.answeredWithoutRefusal()
+			return w.answeredWithoutError()
 		})
 
 	sc.When(`^the admin's session demotes itself to "([^"]*)"$`, func(ctx context.Context, tier string) error {
@@ -138,7 +138,7 @@ func (w *world) refusedAsOwnRole() error {
 		return err
 	}
 	if len(parsed.Errors) != 1 {
-		return fmt.Errorf("errors = %v, want exactly one refusal", parsed.Errors)
+		return fmt.Errorf("errors = %v, want exactly one error", parsed.Errors)
 	}
 	refused := parsed.Errors[0]
 	if code := refused.Extensions["code"]; code != "VALIDATION" {
@@ -187,11 +187,11 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 	})
 
 	sc.Then(`^the contact is answered$`, func(ctx context.Context) error {
-		return worldFrom(ctx).answeredWithoutRefusal()
+		return worldFrom(ctx).answeredWithoutError()
 	})
 
 	sc.Then(`^the task is answered$`, func(ctx context.Context) error {
-		return worldFrom(ctx).answeredWithoutRefusal()
+		return worldFrom(ctx).answeredWithoutError()
 	})
 
 	sc.When(`^the member's session disables another user$`, func(ctx context.Context) error {
@@ -212,7 +212,7 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 		if err := w.postGraphAsSession(ctx, disablingUser(colleague)); err != nil {
 			return err
 		}
-		return w.answeredWithoutRefusal()
+		return w.answeredWithoutError()
 	})
 }
 

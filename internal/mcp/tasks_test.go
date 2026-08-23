@@ -139,7 +139,7 @@ func TestTasksSendsOnlyTheNamedFilter(t *testing.T) {
 	}
 }
 
-func TestTasksReportsAGraphRefusal(t *testing.T) {
+func TestTasksReportsAGraphError(t *testing.T) {
 	t.Parallel()
 
 	run := &tools{graph: answering(
@@ -148,7 +148,7 @@ func TestTasksReportsAGraphRefusal(t *testing.T) {
 	_, _, err := run.tasks(t.Context(), TasksInput{Date: "2026-08-11", DueBefore: "2026-08-11"})
 
 	if err == nil {
-		t.Fatal("tasks() error = nil, want the refusal")
+		t.Fatal("tasks() error = nil, want the error")
 	}
 	if !strings.Contains(err.Error(), "VALIDATION") {
 		t.Errorf("error = %v, want the validation code", err)

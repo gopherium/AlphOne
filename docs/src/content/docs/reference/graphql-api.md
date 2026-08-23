@@ -147,8 +147,8 @@ fell short of. Holding the admin role is not what the field asks for, holding
 that capability is, and a plugin-declared role holding it passes just as well.
 
 The `scope` extension still names what the field wanted, so a caller always
-learns which area an operation acts in. A refusal about a token's scopes carries
-no `capability`, so the two halves stay distinguishable. Minting a wider token
+learns which area an operation acts in. An operation refused over a token's
+scopes carries no `capability`, so the two halves stay distinguishable. Minting a wider token
 does not help here. A token cannot carry more authority than the user it acts
 as.
 

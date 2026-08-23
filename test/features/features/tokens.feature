@@ -53,4 +53,4 @@ Feature: API tokens are scoped and mortal
     Given the user holds a token scoped to "contacts:read"
     And an MCP session connected with that token
     When the agent calls the tool listing today's tasks
-    Then the tool answers the refusal naming "tasks:read"
+    Then the tool answers the error naming "tasks:read"

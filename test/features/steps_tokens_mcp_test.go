@@ -27,7 +27,7 @@ func registerTokenConnectorSteps(sc *godog.ScenarioContext) {
 		return worldFrom(ctx).callTool(ctx, "list_my_tasks", map[string]any{})
 	})
 
-	sc.Then(`^the tool answers the refusal naming "([^"]*)"$`, func(ctx context.Context, scope string) error {
+	sc.Then(`^the tool answers the error naming "([^"]*)"$`, func(ctx context.Context, scope string) error {
 		w := worldFrom(ctx)
 		if w.called == nil {
 			return fmt.Errorf("the agent called no tool")

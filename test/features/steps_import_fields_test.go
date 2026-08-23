@@ -246,7 +246,7 @@ func registerImportFieldsSteps(sc *godog.ScenarioContext, t *testing.T) {
 			return err
 		}
 		if !strings.Contains(string(w.answered), name) {
-			return fmt.Errorf("the refusal does not name %q, answered %s", name, w.answered)
+			return fmt.Errorf("the error does not name %q, answered %s", name, w.answered)
 		}
 		return nil
 	})

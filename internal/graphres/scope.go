@@ -146,28 +146,28 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 		tier := role.Role(authkit.IdentityFromContext(ctx).Role)
 		operation := graphql.GetOperationContext(ctx)
 		if operation.Operation == nil {
-			return scopeRefusal("the operation")
+			return scopeError("the operation")
 		}
 		kind := operation.Operation.Operation
 		for _, selected := range graphql.CollectFields(operation, operation.Operation.SelectionSet, nil) {
 			if carried && !scopes.Allows(kind, selected.Name, token.Scopes) {
-				return scopeRefusal(scopes.Needed(kind, selected.Name))
+				return scopeError(scopes.Needed(kind, selected.Name))
 			}
 			if needed := scopes.Capability(kind, selected.Name); needed != "" && !role.Can(tier, needed) {
-				return capabilityRefusal(scopes.Needed(kind, selected.Name), needed)
+				return capabilityError(scopes.Needed(kind, selected.Name), needed)
 			}
 		}
 		return next(ctx)
 	}
 }
 
-// scopeRefusal answers one operation with the scope its token lacks.
-func scopeRefusal(needed string) graphql.ResponseHandler {
-	return refusal("scope required: "+needed, needed)
+// scopeError answers one operation with the scope its token lacks.
+func scopeError(needed string) graphql.ResponseHandler {
+	return refusedWith("scope required: "+needed, needed)
 }
 
-// capabilityRefusal answers one operation naming the scope and the capability the caller's role lacked.
-func capabilityRefusal(needed string, lacked role.Capability) graphql.ResponseHandler {
+// capabilityError answers one operation naming the scope and the capability the caller's role lacked.
+func capabilityError(needed string, lacked role.Capability) graphql.ResponseHandler {
 	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
 		Message: "admin required",
 		Extensions: map[string]any{
@@ -178,8 +178,8 @@ func capabilityRefusal(needed string, lacked role.Capability) graphql.ResponseHa
 	}}})
 }
 
-// refusal answers one operation with the message and the scope the refused field wanted.
-func refusal(message, needed string) graphql.ResponseHandler {
+// refusedWith answers one operation with the message and the scope the refused field wanted.
+func refusedWith(message, needed string) graphql.ResponseHandler {
 	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
 		Message:    message,
 		Extensions: map[string]any{"code": "UNAUTHORIZED", "scope": needed},
