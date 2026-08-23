@@ -28,6 +28,26 @@ func seedLocaleUser(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return id
 }
 
+func TestSupportedLocalesListsTheDefaultFirst(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	caller := seedLocaleUser(t, pool)
+	resolver := &graphres.Resolver{Settings: postgres.NewUserSettingStore(pool)}
+	client := newGraphClient(t, resolver, caller)
+
+	var asked struct{ SupportedLocales []string }
+	if err := client.Post(`{ supportedLocales }`, &asked); err != nil {
+		t.Fatalf("supportedLocales error = %v, want nil", err)
+	}
+	if len(asked.SupportedLocales) == 0 || asked.SupportedLocales[0] != "en-US" {
+		t.Errorf("supportedLocales = %v, want the default first", asked.SupportedLocales)
+	}
+	if asked.SupportedLocales[len(asked.SupportedLocales)-1] != "es-ES" {
+		t.Errorf("supportedLocales = %v, want the proof locale offered", asked.SupportedLocales)
+	}
+}
+
 func TestSetLocaleRoundTripsForASignedInCaller(t *testing.T) {
 	t.Parallel()
 

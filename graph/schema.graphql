@@ -166,6 +166,7 @@ type Query {
 	version: String! @scope(area: "meta", write: false)
 	tenant: Tenant! @scope(area: "meta", write: false)
 	locale: String! @scope(area: "meta", write: false)
+	supportedLocales: [String!]! @scope(area: "meta", write: false)
 	me: Identity! @scope(area: "auth", write: false)
 	users: [User!]! @scope(area: "users", write: false)
 	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)

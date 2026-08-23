@@ -209,6 +209,7 @@ type ComplexityRoot struct {
 		Imports               func(childComplexity int) int
 		Locale                func(childComplexity int) int
 		Me                    func(childComplexity int) int
+		SupportedLocales      func(childComplexity int) int
 		Task                  func(childComplexity int, id uuid.UUID) int
 		Tasks                 func(childComplexity int, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) int
 		Tenant                func(childComplexity int) int
@@ -347,6 +348,7 @@ type QueryResolver interface {
 	Version(ctx context.Context) (string, error)
 	Tenant(ctx context.Context) (*model.Tenant, error)
 	Locale(ctx context.Context) (string, error)
+	SupportedLocales(ctx context.Context) ([]string, error)
 	Me(ctx context.Context) (*model.Identity, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Contacts(ctx context.Context, q *string, first *int, after *string) (*model.ContactConnection, error)
@@ -1194,6 +1196,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Me(childComplexity), true
+	case "Query.supportedLocales":
+		if e.ComplexityRoot.Query.SupportedLocales == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SupportedLocales(childComplexity), true
 	case "Query.task":
 		if e.ComplexityRoot.Query.Task == nil {
 			break
@@ -6133,6 +6141,29 @@ func (ec *executionContext) fieldContext_Query_locale(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Query_supportedLocales(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_supportedLocales(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SupportedLocales(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_supportedLocales(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10796,6 +10827,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_locale(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "supportedLocales":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_supportedLocales(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

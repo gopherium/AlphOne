@@ -38,6 +38,11 @@ func (q QueryResolvers) Locale(ctx context.Context) (string, error) {
 	return locale.Resolve(stored, header), nil
 }
 
+// SupportedLocales answers every locale AlphOne serves, the default first.
+func (q QueryResolvers) SupportedLocales(context.Context) ([]string, error) {
+	return locale.Supported(), nil
+}
+
 // SetLocale stores the caller's language choice and answers it back.
 func (m MutationResolvers) SetLocale(ctx context.Context, chosen string) (string, error) {
 	if err := locale.Validate(chosen); err != nil {
