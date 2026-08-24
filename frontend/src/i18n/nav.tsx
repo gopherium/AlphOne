@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { _x } from '@alphone/frontend-sdk'
 import type { NavItem } from '@alphone/frontend-sdk'
 
 const globePath =
@@ -15,7 +16,9 @@ const languageIcon = (
 )
 
 export const languageNavItem: NavItem = {
-	label: 'Language',
+	get label() {
+		return _x('Language', 'admin section', 'alphone')
+	},
 	to: '/language',
 	icon: languageIcon,
 }

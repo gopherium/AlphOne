@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, Button, Checkbox, Link, Stack, Text } from '@alphone/frontend-sdk'
+import { Badge, Button, Checkbox, Link, Stack, Text, __, _x } from '@alphone/frontend-sdk'
 import { Link as RouterLink } from '@tanstack/react-router'
 
 import { formatDue } from './format'
@@ -78,7 +78,7 @@ function TaskRow({
 			render={<li />}
 		>
 			<Checkbox
-				aria-label={done ? 'Reopen' : 'Complete'}
+				aria-label={done ? __('Reopen', 'alphone') : __('Complete', 'alphone')}
 				checked={done}
 				disabled={controls.pendingID === task.id}
 				className="alphone-tasks__check"
@@ -95,7 +95,7 @@ function TaskRow({
 					{task.title}
 				</Link>
 			</Text>
-			{task.priority > 0 ? <Badge intent="high">High</Badge> : null}
+			{task.priority > 0 ? <Badge intent="high">{_x('High', 'task priority', 'alphone')}</Badge> : null}
 			{showDueDate ? (
 				<Text variant="body-sm" className="alphone-tasks__due">
 					{formatDue(task.dueOn)}
@@ -109,7 +109,7 @@ function TaskRow({
 					className="alphone-tasks__push"
 					onClick={() => controls.onPush(task)}
 				>
-					Push to tomorrow
+					{__('Push to tomorrow', 'alphone')}
 				</Button>
 			)}
 		</Stack>

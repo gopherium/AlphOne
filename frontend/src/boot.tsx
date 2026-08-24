@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { __ } from '@alphone/frontend-sdk'
 import { LoadingScreen } from '@gopherium/godmin'
 
 /**
@@ -7,5 +8,5 @@ import { LoadingScreen } from '@gopherium/godmin'
  * @returns The boot loading element.
  */
 export function BootLoading() {
-	return <LoadingScreen label="Loading…" />
+	return <LoadingScreen label={__('Loading…', 'alphone')} />
 }

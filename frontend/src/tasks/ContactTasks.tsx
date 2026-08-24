@@ -97,7 +97,7 @@ export function ContactTasks({
 				</ErrorNotice>
 			) : null}
 			{change.error || push.error ? (
-				<ErrorNotice>The task could not be updated.</ErrorNotice>
+				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
 			) : null}
 			<ContactTaskList
 				tasks={tasks}

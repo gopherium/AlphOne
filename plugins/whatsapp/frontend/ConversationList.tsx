@@ -53,7 +53,9 @@ export function ConversationList() {
 							<span className="alphone-conversation__preview">
 								{conversation.lastMessagePreview ?? ''}
 							</span>
-							<VisuallyHidden render={<span />}>status</VisuallyHidden>
+							<VisuallyHidden render={<span />}>
+								{__('status', 'alphone-whatsapp')}
+							</VisuallyHidden>
 							<Badge>{conversation.status}</Badge>
 						</span>
 					</Link>

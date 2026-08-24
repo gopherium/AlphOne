@@ -11,6 +11,7 @@ import {
 	Text,
 	VisuallyHidden,
 	graphExtensions,
+	sprintf,
 	useGraphMutation,
 	useGraphQuery,
 	useGraphSubscription,
@@ -58,8 +59,8 @@ const mediaContentTypes = new Set([
 
 const decoratedContent: Record<string, (message: Message) => string> = {
 	location: (message) => `📍 ${message.content}`,
-	contacts: (message) => `👤 ${message.content || 'Contact card'}`,
-	reaction: (message) => message.content || 'Reaction removed',
+	contacts: (message) => `👤 ${message.content || __('Contact card', 'alphone-whatsapp')}`,
+	reaction: (message) => message.content || __('Reaction removed', 'alphone-whatsapp'),
 }
 
 const followThresholdPx = 100
@@ -100,7 +101,9 @@ function MessageBubble({ message }: { message: Message }) {
 		<li className={`alphone-message alphone-message--${message.direction}`}>
 			<div className="alphone-message__bubble">
 				<VisuallyHidden>
-					{message.direction === 'inbound' ? 'Received' : 'Sent'}
+					{message.direction === 'inbound'
+						? __('Received', 'alphone-whatsapp')
+						: __('Sent', 'alphone-whatsapp')}
 				</VisuallyHidden>
 				<MessageBody message={message} />
 				<time className="alphone-message__time" dateTime={message.sentAt}>
@@ -126,9 +129,9 @@ function MessageBubble({ message }: { message: Message }) {
 function replyErrorCopy(error: GraphFailure): string {
 	const metaCode = graphExtensions(error).metaCode
 	if (typeof metaCode === 'number') {
-		return copyForFailureCode(metaCode) ?? 'The reply could not be sent.'
+		return copyForFailureCode(metaCode) ?? __('The reply could not be sent.', 'alphone-whatsapp')
 	}
-	return 'The reply could not be sent.'
+	return __('The reply could not be sent.', 'alphone-whatsapp')
 }
 
 /**
@@ -168,7 +171,7 @@ function MessageBody({ message }: { message: Message }) {
 	const decorate = decoratedContent[message.contentType]
 	return (
 		<Text className="alphone-message__content">
-			{decorate ? decorate(message) : 'Unsupported message.'}
+			{decorate ? decorate(message) : __('Unsupported message.', 'alphone-whatsapp')}
 		</Text>
 	)
 }
@@ -247,7 +250,7 @@ function AudioAttachment({
 	return (
 		<div className="alphone-message__media">
 			{media.voice ? (
-				<Text className="alphone-message__media-label">Voice message</Text>
+				<Text className="alphone-message__media-label">{label}</Text>
 			) : null}
 			<audio controls preload="metadata" src={source} aria-label={label} />
 		</div>
@@ -319,7 +322,7 @@ function MediaImage({
 						: 'alphone-message__image'
 				}
 				src={blob.data}
-				alt={sticker ? 'Sticker' : 'Photo'}
+				alt={sticker ? __('Sticker', 'alphone-whatsapp') : __('Photo', 'alphone-whatsapp')}
 			/>
 			{message.content ? (
 				<Text className="alphone-message__caption">{message.content}</Text>
@@ -342,7 +345,7 @@ function DocumentChip({
 	caption: string
 	href?: string
 }) {
-	const name = media.filename ?? 'Document'
+	const name = media.filename ?? __('Document', 'alphone-whatsapp')
 	const label =
 		media.fileSize === null ? name : `${name} (${formatFileSize(media.fileSize)})`
 	return (
@@ -356,7 +359,9 @@ function DocumentChip({
 					{`📄 ${label}`}
 				</a>
 			) : (
-				<Text className="alphone-message__content">{`📄 ${label} (unavailable)`}</Text>
+				<Text className="alphone-message__content">
+					{`📄 ${sprintf(__('%(name)s (unavailable)', 'alphone-whatsapp'), { name: label })}`}
+				</Text>
 			)}
 			{caption ? (
 				<Text className="alphone-message__caption">{caption}</Text>
@@ -421,7 +426,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 		<div className="alphone-thread">
 			<header className="alphone-thread__header">
 				<PageTitle variant="heading-md">
-					{conversation?.contact.name ?? 'Conversation'}
+					{conversation?.contact.name ?? __('Conversation', 'alphone-whatsapp')}
 				</PageTitle>
 			</header>
 			<ThreadBody
@@ -484,7 +489,7 @@ function ThreadBody({
 				}}
 			>
 				{messages.length === 0 ? (
-					<Text role="status">No messages yet.</Text>
+					<Text role="status">{__('No messages yet.', 'alphone-whatsapp')}</Text>
 				) : (
 					<ul className="alphone-messages">{threadItems(messages, new Date())}</ul>
 				)}
