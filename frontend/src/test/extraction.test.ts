@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import { mismatched, orphaned, pot } from '@gopherium/gottext/build'
 import { expect, test } from 'vitest'
 
-import { domains, potConfig, repositoryRoot } from '../../scripts/config.ts'
+import { domains, potConfig, projectVariable, repositoryRoot } from '../../scripts/config.ts'
+import { supportedLocales } from '../../scripts/locales.ts'
 
 const ROOT = repositoryRoot()
 
@@ -116,3 +117,16 @@ function walk(directory: string, found: string[]): void {
 		}
 	}
 }
+
+test('reads the languages the server declares, the default first', () => {
+	expect(supportedLocales(ROOT)).toEqual(['en-US', 'es-ES'])
+})
+
+test('names one platform project per domain', () => {
+	expect(domains().map((domain) => projectVariable(domain.name))).toEqual([
+		'POEDITOR_PROJECT_ALPHONE',
+		'POEDITOR_PROJECT_ALPHONE_FIELDS',
+		'POEDITOR_PROJECT_ALPHONE_IMPORTER',
+		'POEDITOR_PROJECT_ALPHONE_WHATSAPP',
+	])
+})
