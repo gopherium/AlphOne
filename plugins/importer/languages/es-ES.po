@@ -151,3 +151,23 @@ msgstr "Importadas"
 msgctxt "import count"
 msgid "Skipped"
 msgstr "Omitidas"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Failed"
+msgstr "Fallida"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Imported"
+msgstr "Importada"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Pending"
+msgstr "Pendiente"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Skipped"
+msgstr "Omitida"

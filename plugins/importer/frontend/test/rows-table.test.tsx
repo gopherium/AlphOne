@@ -37,7 +37,7 @@ test('the preview shows every cell beside its outcome and reason', async () => {
 
 	expect(await screen.findByText('Maria Perez')).toBeInTheDocument()
 	expect(screen.getByText('maria@example.com')).toBeInTheDocument()
-	expect(screen.getByText('imported')).toBeInTheDocument()
+	expect(screen.getByText('Imported')).toBeInTheDocument()
 	expect(screen.getByText('the contact detail already belongs to Ana Lopez')).toBeInTheDocument()
 })
 
@@ -60,5 +60,12 @@ test('a row shorter than the header leaves its missing cells empty', async () =>
 	render(<RowsTable stored={stored} rows={rows} />)
 
 	expect(await screen.findByText('Ana Lopez')).toBeInTheDocument()
-	expect(screen.getByText('skipped')).toBeInTheDocument()
+	expect(screen.getByText('Skipped')).toBeInTheDocument()
+})
+
+test('an outcome the interface does not know reads as the server named it', async () => {
+	const unknown: StoredImport['rows'] = [{ ...rows[0], outcome: 'quarantined' }]
+	render(<RowsTable stored={stored} rows={unknown} />)
+
+	expect(await screen.findByText('quarantined')).toBeInTheDocument()
 })

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, sprintf } from '@alphone/frontend-sdk'
+import { __, _x, sprintf } from '@alphone/frontend-sdk'
 import { DataViews, type Field, type View } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
@@ -33,6 +33,19 @@ function previewRows(rows: readonly ImportRow[]): previewRow[] {
 }
 
 /**
+ * Returns the label each row outcome carries, read fresh so the loaded catalogue answers.
+ * @returns The labels, keyed by the outcome the server names.
+ */
+function outcomeLabels(): Record<string, string> {
+	return {
+		pending: _x('Pending', 'row outcome', 'alphone-importer'),
+		imported: _x('Imported', 'row outcome', 'alphone-importer'),
+		skipped: _x('Skipped', 'row outcome', 'alphone-importer'),
+		failed: _x('Failed', 'row outcome', 'alphone-importer'),
+	}
+}
+
+/**
  * Builds one field per column of the import beside its outcome fields.
  * @param columns - The column list of the import.
  * @returns The fields the table renders.
@@ -46,7 +59,11 @@ function previewFields(columns: readonly string[]): Field<previewRow>[] {
 	return [
 		{ id: 'position', label: __('Row', 'alphone-importer'), getValue: ({ item }) => String(item.position) },
 		...cells,
-		{ id: 'outcome', label: __('Outcome', 'alphone-importer'), getValue: ({ item }) => item.outcome },
+		{
+			id: 'outcome',
+			label: __('Outcome', 'alphone-importer'),
+			getValue: ({ item }) => outcomeLabels()[item.outcome] ?? item.outcome,
+		},
 		{ id: 'reason', label: __('Reason', 'alphone-importer'), getValue: ({ item }) => item.reason },
 	]
 }

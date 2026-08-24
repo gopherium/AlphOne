@@ -115,3 +115,19 @@ msgstr ""
 msgctxt "import count"
 msgid "Skipped"
 msgstr ""
+
+msgctxt "row outcome"
+msgid "Failed"
+msgstr ""
+
+msgctxt "row outcome"
+msgid "Imported"
+msgstr ""
+
+msgctxt "row outcome"
+msgid "Pending"
+msgstr ""
+
+msgctxt "row outcome"
+msgid "Skipped"
+msgstr ""
