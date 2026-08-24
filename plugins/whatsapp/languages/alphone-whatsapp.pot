@@ -7,6 +7,9 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-whatsapp\n"
 
+msgid "%(name)s (unavailable)"
+msgstr ""
+
 msgid "%(size)d B"
 msgstr ""
 
@@ -22,10 +25,19 @@ msgstr ""
 msgid "Audio message"
 msgstr ""
 
+msgid "Contact card"
+msgstr ""
+
+msgid "Conversation"
+msgstr ""
+
 msgid "Conversations"
 msgstr ""
 
 msgid "Conversations could not be loaded."
+msgstr ""
+
+msgid "Document"
 msgstr ""
 
 msgid "Downloading…"
@@ -64,13 +76,25 @@ msgstr ""
 msgid "No conversations yet."
 msgstr ""
 
+msgid "No messages yet."
+msgstr ""
+
 msgid "Not delivered."
 msgstr ""
 
 msgid "Outside the 24-hour window. The customer must message first."
 msgstr ""
 
+msgid "Photo"
+msgstr ""
+
 msgid "Pick one from the list to read its messages."
+msgstr ""
+
+msgid "Reaction removed"
+msgstr ""
+
+msgid "Received"
 msgstr ""
 
 msgid "Reply"
@@ -79,10 +103,22 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
+msgid "Sent"
+msgstr ""
+
+msgid "Sticker"
+msgstr ""
+
 msgid "That conversation no longer exists."
 msgstr ""
 
+msgid "The reply could not be sent."
+msgstr ""
+
 msgid "Today"
+msgstr ""
+
+msgid "Unsupported message."
 msgstr ""
 
 msgid "Video message"
@@ -98,6 +134,9 @@ msgid "Write something to send."
 msgstr ""
 
 msgid "Yesterday"
+msgstr ""
+
+msgid "status"
 msgstr ""
 
 msgctxt "admin section"

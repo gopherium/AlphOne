@@ -229,6 +229,9 @@ msgstr ""
 msgid "Loading users…"
 msgstr ""
 
+msgid "Loading…"
+msgstr ""
+
 msgid "Name"
 msgstr ""
 
@@ -302,6 +305,9 @@ msgid "Previous day"
 msgstr ""
 
 msgid "Priority"
+msgstr ""
+
+msgid "Push to tomorrow"
 msgstr ""
 
 msgid "Read %(area)s"
@@ -524,6 +530,10 @@ msgstr ""
 
 msgctxt "admin section"
 msgid "Contacts"
+msgstr ""
+
+msgctxt "admin section"
+msgid "Language"
 msgstr ""
 
 msgctxt "admin section"

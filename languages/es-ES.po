@@ -662,6 +662,11 @@ msgid "Contacts"
 msgstr "Contactos"
 
 #, fuzzy
+#, fuzzy
+msgctxt "admin section"
+msgid "Language"
+msgstr "Idioma"
+
 msgctxt "admin section"
 msgid "Tasks"
 msgstr "Tareas"
@@ -694,3 +699,11 @@ msgstr "Caducado"
 msgctxt "token lifetime"
 msgid "Never"
 msgstr "Nunca"
+
+#, fuzzy
+msgid "Loading…"
+msgstr "Cargando…"
+
+#, fuzzy
+msgid "Push to tomorrow"
+msgstr "Pasar a mañana"

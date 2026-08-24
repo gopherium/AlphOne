@@ -136,3 +136,55 @@ msgstr "Ayer"
 msgctxt "admin section"
 msgid "WhatsApp"
 msgstr "WhatsApp"
+
+#, fuzzy
+msgid "%(name)s (unavailable)"
+msgstr "%(name)s (no disponible)"
+
+#, fuzzy
+msgid "Contact card"
+msgstr "Tarjeta de contacto"
+
+#, fuzzy
+msgid "Conversation"
+msgstr "Conversación"
+
+#, fuzzy
+msgid "Document"
+msgstr "Documento"
+
+#, fuzzy
+msgid "No messages yet."
+msgstr "Todavía no hay mensajes."
+
+#, fuzzy
+msgid "Photo"
+msgstr "Foto"
+
+#, fuzzy
+msgid "Reaction removed"
+msgstr "Reacción eliminada"
+
+#, fuzzy
+msgid "Received"
+msgstr "Recibido"
+
+#, fuzzy
+msgid "Sent"
+msgstr "Enviado"
+
+#, fuzzy
+msgid "Sticker"
+msgstr "Sticker"
+
+#, fuzzy
+msgid "The reply could not be sent."
+msgstr "No se ha podido enviar la respuesta."
+
+#, fuzzy
+msgid "Unsupported message."
+msgstr "Mensaje no compatible."
+
+#, fuzzy
+msgid "status"
+msgstr "estado"
