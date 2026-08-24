@@ -9,6 +9,14 @@ A plugin-first CRM. Go backend exposing a JSON API, React SPA frontend.
 Setup, self-hosting, and reference guides live at
 [docs.alph.one](https://docs.alph.one/).
 
+## Translating
+
+The interface speaks whatever language its catalogues carry. Translation
+happens on [POEditor](https://poeditor.com/join/project/1skIO0ryto), no Git
+needed, and a weekly job carries the finished work back in one batch.
+[Translate AlphOne](https://docs.alph.one/contributing/translate-alphone/)
+walks it, and names the separate project each plugin keeps.
+
 ## License
 
 Copyright (C) 2026 Manuel 'SirLouen' Camargo

@@ -31,10 +31,23 @@ box for your language on the other. You fill in the boxes. Each of the
 four lists is its own project there, and the same account reaches all
 of them.
 
-To join, open an issue on the AlphOne repository saying which language
-you want to translate. A maintainer invites you to the projects and
-switches the language on, since the server keeps its own list of the
-languages a reader can pick.
+Join whichever projects you want to work on. The first one holds most of
+the words, and the other three are short.
+
+- [AlphOne](https://poeditor.com/join/project/1skIO0ryto), the
+  interface itself
+- [Fields](https://poeditor.com/join/project/PcKGmTZXQO), the plugin
+  for custom contact fields
+- [Importer](https://poeditor.com/join/project/jdlnVb9xvL), the plugin
+  that reads contacts from a file
+- [WhatsApp](https://poeditor.com/join/project/KAvWfAmLEv), the plugin
+  for WhatsApp conversations
+
+Ask a maintainer to add your language if it is not listed yet. Any
+language can be added, and a language with a single contributor is
+welcome. A new language also needs a small change in AlphOne itself,
+because the server keeps its own list of the languages a reader may
+pick.
 
 ## Things worth knowing before you start
 
