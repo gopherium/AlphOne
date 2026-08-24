@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { mismatched, orphaned, pot } from '@gopherium/gottext/build'
+import { sprintf } from '@wordpress/i18n'
 import { expect, test } from 'vitest'
 
 import { domains, potConfig, projectVariable, repositoryRoot } from '../../scripts/config.ts'
@@ -130,3 +131,36 @@ test('names one platform project per domain', () => {
 		'POEDITOR_PROJECT_ALPHONE_WHATSAPP',
 	])
 })
+
+test('renders every translation the platform returned', () => {
+	for (const domain of domains()) {
+		for (const source of Object.values(translations(domain))) {
+			for (const rendered of renderable(source)) {
+				expect(() => sprintf(rendered, sampleFor(rendered) as never)).not.toThrow()
+			}
+		}
+	}
+})
+
+/** RENDER_PAIRS matches one translated entry beside the message it stands for. */
+const RENDER_PAIRS = /msgid "((?:[^"\\]|\\.)*)"\nmsgstr "((?:[^"\\]|\\.)*)"/g
+
+/** renderable returns every translation a catalogue actually carries. */
+function renderable(source: string): string[] {
+	const found: string[] = []
+	for (const match of source.matchAll(RENDER_PAIRS)) {
+		if (match[1] !== '' && match[2] !== '') {
+			found.push(match[2])
+		}
+	}
+	return found
+}
+
+/** sampleFor returns a stand-in value for every placeholder a message names. */
+function sampleFor(message: string): Record<string, unknown> {
+	const values: Record<string, unknown> = {}
+	for (const match of message.matchAll(/%\(([$_a-zA-Z][$_a-zA-Z0-9]*)\)[ +0#-]*\d*(?:\.\d+)?([a-z])/g)) {
+		values[match[1]] = match[2] === 'd' || match[2] === 'f' ? 1 : 'x'
+	}
+	return values
+}
