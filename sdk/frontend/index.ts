@@ -32,6 +32,7 @@ export interface FrontendPlugin {
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
 	locale?: PluginLocale
+	errorTemplates?: () => Record<string, string>
 }
 
 export {
@@ -73,7 +74,8 @@ export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'
 export type { Capability, Role, Session } from './session'
-export { createGraphClient, graphError, graphExtensions } from './graph'
+export { configureErrorText, createGraphClient, graphError, graphExtensions } from './graph'
+export type { ErrorCopy } from './graph'
 export type { GraphClient } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'

@@ -2,11 +2,11 @@
 
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { gql } from 'urql'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { pipe, subscribe } from 'wonka'
 
 import { ValidationError } from '../errors'
-import { createGraphClient, graphError, graphExtensions } from '../graph'
+import { configureErrorText, createGraphClient, graphError, graphExtensions } from '../graph'
 import { HttpResponse, graphql, http, server } from '../testing'
 
 const versionQuery = gql`
@@ -53,6 +53,10 @@ function newClient() {
 	const onSessionExpired = vi.fn()
 	return { graph: createGraphClient({ onSessionExpired }), onSessionExpired }
 }
+
+afterEach(() => {
+	configureErrorText({ templates: () => ({}), fallback: () => '' })
+})
 
 /** Answers one operation name with a graph errors envelope. */
 function respondWithError(operation: string, code: string, message: string) {
@@ -581,4 +585,62 @@ test('reconnects after the event stream drops', async () => {
 	await vi.waitFor(() => expect(requests.length).toBeGreaterThan(1), { timeout: 4_000 })
 
 	subscription.unsubscribe()
+})
+
+test('renders a refused answer from the template its reason names', async () => {
+	configureErrorText({
+		templates: () => ({ contact_name_required: 'Escribe un nombre.' }),
+		fallback: () => 'Algo salio mal.',
+	})
+	server.use(
+		graphql.query('Version', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: empty name',
+					extensions: { code: 'VALIDATION', reason: 'contact_name_required' },
+				}],
+			})),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('Escribe un nombre.')
+})
+
+test('fills a template from the data the answer carries', async () => {
+	configureErrorText({
+		templates: () => ({ first_out_of_range: 'Pide entre %(min)d y %(max)d cada vez.' }),
+		fallback: () => 'Algo salio mal.',
+	})
+	server.use(
+		graphql.query('Version', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'graph: first must be between 1 and 200',
+					extensions: {
+						code: 'VALIDATION',
+						reason: 'first_out_of_range',
+						meta: { min: 1, max: 200 },
+					},
+				}],
+			})),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('Pide entre 1 y 200 cada vez.')
+})
+
+test('speaks the server message for a reason no template holds', async () => {
+	configureErrorText({ templates: () => ({}), fallback: () => 'Algo salio mal.' })
+	respondWithError('Version', 'VALIDATION', 'a message from the future')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('a message from the future')
 })
