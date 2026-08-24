@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, PageScreen } from '@alphone/frontend-sdk'
+import { Button, ErrorNotice, InputControl, PageScreen, __ } from '@alphone/frontend-sdk'
 import {
 	EmailTakenError,
 	ValidationError,
@@ -17,12 +17,12 @@ import { useState } from 'react'
  */
 function createErrorText(error: unknown): string {
 	if (error instanceof EmailTakenError) {
-		return 'That email is already in use.'
+		return __('That email is already in use.', 'alphone')
 	}
 	if (error instanceof ValidationError) {
 		return error.message
 	}
-	return 'The user could not be created.'
+	return __('The user could not be created.', 'alphone')
 }
 
 /**
@@ -43,7 +43,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 	})
 
 	return (
-		<PageScreen title="New user">
+		<PageScreen title={__('New user', 'alphone')}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {
@@ -52,20 +52,20 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 				}}
 			>
 				<InputControl
-					label="Email"
+					label={__('Email', 'alphone')}
 					type="email"
 					autoComplete="off"
 					value={email}
 					onChange={(event) => setEmail(event.target.value)}
 				/>
 				<InputControl
-					label="Name"
+					label={__('Name', 'alphone')}
 					autoComplete="off"
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
 				<InputControl
-					label="Password"
+					label={__('Password', 'alphone')}
 					type="password"
 					autoComplete="new-password"
 					value={password}
@@ -77,7 +77,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 						email.trim() === '' || name.trim() === '' || password === '' || create.isPending
 					}
 				>
-					Create user
+					{__('Create user', 'alphone')}
 				</Button>
 				{create.isError ? <ErrorNotice>{createErrorText(create.error)}</ErrorNotice> : null}
 			</form>

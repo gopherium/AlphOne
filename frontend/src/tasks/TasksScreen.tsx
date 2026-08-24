@@ -12,9 +12,11 @@ import {
 	PageScreen,
 	Stack,
 	Text,
+	__,
 	chevronLeft,
 	chevronRight,
 	inbox,
+	sprintf,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { graphError, useConnection, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
@@ -95,13 +97,13 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 
 	return (
 		<PageScreen
-			title="Tasks"
+			title={__('Tasks', 'alphone')}
 			subtitle={formatDay(date)}
 			actions={
 				<>
 					<DayNavigation date={date} today={today} />
 					<Button variant="solid" render={<Link to="/tasks/new" search={{ date }} />}>
-						New task
+						{__('New task', 'alphone')}
 					</Button>
 				</>
 			}
@@ -115,9 +117,9 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 				}}
 			>
 				<InputControl
-					label="New task"
+					label={__('New task', 'alphone')}
 					hideLabelFromVision
-					placeholder="Add a task"
+					placeholder={__('Add a task', 'alphone')}
 					value={title}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
@@ -126,16 +128,16 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 					disabled={title.trim() === '' || add.fetching}
 					loading={add.fetching}
 				>
-					Add task
+					{__('Add task', 'alphone')}
 				</Button>
 			</form>
 			{add.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(add.error), 'The task could not be added.')}
+					{validationMessage(graphError(add.error), __('The task could not be added.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 			{change.error || push.error ? (
-				<ErrorNotice>The task could not be updated.</ErrorNotice>
+				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
 			) : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</PageScreen>
@@ -151,7 +153,7 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 		<Stack direction="row" gap="xs" align="center">
 			<IconButton
 				icon={chevronLeft}
-				label="Previous day"
+				label={__('Previous day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
 				nativeButton={false}
@@ -165,12 +167,12 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 					nativeButton={false}
 					render={<Link to="/tasks" search={{ date: today }} />}
 				>
-					Today
+					{__('Today', 'alphone')}
 				</Button>
 			)}
 			<IconButton
 				icon={chevronRight}
-				label="Next day"
+				label={__('Next day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
 				nativeButton={false}
@@ -193,7 +195,7 @@ function OverdueSection({
 }) {
 	if (tasks.isError) {
 		return (
-			<ErrorNotice>Overdue tasks could not be loaded.</ErrorNotice>
+			<ErrorNotice>{__('Overdue tasks could not be loaded.', 'alphone')}</ErrorNotice>
 		)
 	}
 	const rows = tasks.rows
@@ -203,10 +205,10 @@ function OverdueSection({
 	return (
 		<Stack direction="column" gap="sm" className="alphone-tasks__overdue">
 			<Text variant="heading-sm" render={<h2 />}>
-				Overdue
+				{__('Overdue', 'alphone')}
 			</Text>
-			<TaskList label="Overdue tasks" tasks={rows} controls={controls} showDueDate />
-			<LoadMore query={tasks}>Load more overdue</LoadMore>
+			<TaskList label={__('Overdue tasks', 'alphone')} tasks={rows} controls={controls} showDueDate />
+			<LoadMore query={tasks}>{__('Load more overdue', 'alphone')}</LoadMore>
 		</Stack>
 	)
 }
@@ -225,11 +227,11 @@ function TaskSections({
 	controls: RowControls
 }) {
 	if (tasks.isPending) {
-		return <LoadingRows label="Loading tasks…" />
+		return <LoadingRows label={__('Loading tasks…', 'alphone')} />
 	}
 	if (tasks.isError) {
 		return (
-			<ErrorNotice>Tasks could not be loaded.</ErrorNotice>
+			<ErrorNotice>{__('Tasks could not be loaded.', 'alphone')}</ErrorNotice>
 		)
 	}
 	const open = tasks.rows
@@ -238,15 +240,15 @@ function TaskSections({
 			{open.length === 0 ? (
 				<EmptyState.Root className="godmin-empty">
 					<EmptyState.Icon icon={inbox} />
-					<EmptyState.Title>Nothing due today.</EmptyState.Title>
+					<EmptyState.Title>{__('Nothing due today.', 'alphone')}</EmptyState.Title>
 					<EmptyState.Description>
-						Add a task above, or open a contact and create one from their page.
+						{__('Add a task above, or open a contact and create one from their page.', 'alphone')}
 					</EmptyState.Description>
 				</EmptyState.Root>
 			) : (
-				<TaskList label="Open tasks" tasks={open} controls={controls} />
+				<TaskList label={__('Open tasks', 'alphone')} tasks={open} controls={controls} />
 			)}
-			<LoadMore query={tasks}>Load more</LoadMore>
+			<LoadMore query={tasks}>{__('Load more', 'alphone')}</LoadMore>
 			<DoneGroup tasks={done} controls={controls} />
 		</Stack>
 	)
@@ -275,14 +277,16 @@ function DoneGroup({
 			<Collapsible.Trigger
 				render={
 					<Button variant="minimal" tone="neutral" size="compact">
-						{`Done (${rows.length}${tasks.hasNextPage ? '+' : ''})`}
+						{sprintf(__('Done (%(count)s)', 'alphone'), {
+							count: `${rows.length}${tasks.hasNextPage ? '+' : ''}`,
+						})}
 					</Button>
 				}
 			/>
 			<Collapsible.Panel>
 				<Stack direction="column" gap="sm">
-					<TaskList label="Done tasks" tasks={rows} controls={controls} />
-					<LoadMore query={tasks}>Load more done</LoadMore>
+					<TaskList label={__('Done tasks', 'alphone')} tasks={rows} controls={controls} />
+					<LoadMore query={tasks}>{__('Load more done', 'alphone')}</LoadMore>
 				</Stack>
 			</Collapsible.Panel>
 		</Collapsible.Root>

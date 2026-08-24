@@ -86,6 +86,19 @@ func sendMessage(
 	return p.MutationResolvers().WhatsAppSendMessage(t.Context(), conversationID, content)
 }
 
+func TestSendMessageNamesTheReasonForEmptyContent(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newSendingPlugin(t, nil)
+
+	_, err := sendMessage(t, p, uuid.Must(uuid.NewV7()), "")
+
+	var raised sdk.GraphError
+	if !errors.As(err, &raised) || raised.Reason != "message_content_required" {
+		t.Errorf("error = %v, want the empty content named as a reason", err)
+	}
+}
+
 // mustSend sends one reply, failing the test on any error.
 func mustSend(
 	t *testing.T, p *whatsapp.Plugin, conversationID uuid.UUID, content string,

@@ -72,11 +72,11 @@ func (m MutationResolvers) DefineField(
 ) (*model.FieldDefinition, error) {
 	definition, err := newDefinition(name, label, string(declared), reservedNames)
 	if err != nil {
-		return nil, sdk.GraphError{Code: "VALIDATION", Err: err}
+		return nil, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
 	if err := m.plugin.store.define(ctx, definition); err != nil {
 		if errors.Is(err, errNameTaken) || errors.Is(err, errKindLocked) {
-			return nil, sdk.GraphError{Code: "CONFLICT", Err: err}
+			return nil, sdk.GraphError{Code: "CONFLICT", Reason: fieldReason(err), Err: err}
 		}
 		return nil, err
 	}
@@ -111,11 +111,11 @@ func (m MutationResolvers) WriteContactFields(
 ) (bool, error) {
 	given, ok := values.(map[string]any)
 	if !ok {
-		return false, sdk.GraphError{Code: "VALIDATION", Err: errValuesNotAnObject}
+		return false, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(errValuesNotAnObject), Err: errValuesNotAnObject}
 	}
 	checked, err := checkValues(m.plugin.catalog.liveKinds(), given)
 	if err != nil {
-		return false, sdk.GraphError{Code: "VALIDATION", Err: err}
+		return false, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
 	if err := m.plugin.store.writeValues(ctx, contactID, checked); err != nil {
 		return false, err
@@ -127,7 +127,7 @@ func (m MutationResolvers) WriteContactFields(
 func (m MutationResolvers) ArchiveField(ctx context.Context, id uuid.UUID) (bool, error) {
 	if err := m.plugin.store.archive(ctx, id); err != nil {
 		if errors.Is(err, errNoDefinition) {
-			return false, sdk.GraphError{Code: "NOT_FOUND", Err: err}
+			return false, sdk.GraphError{Code: "NOT_FOUND", Reason: fieldReason(err), Err: err}
 		}
 		return false, err
 	}
@@ -135,4 +135,31 @@ func (m MutationResolvers) ArchiveField(ctx context.Context, id uuid.UUID) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+// fieldReasons names the stable reason each fields sentinel answers with.
+var fieldReasons = []struct {
+	sentinel error
+	reason   string
+}{
+	{errMalformedName, "field_name_malformed"},
+	{errUnknownKind, "field_kind_unknown"},
+	{errBlankLabel, "field_label_required"},
+	{errReservedName, "field_name_reserved"},
+	{errNameTaken, "field_name_taken"},
+	{errKindLocked, "field_kind_locked"},
+	{errNoDefinition, "field_not_found"},
+	{errWrongKind, "value_kind_mismatch"},
+	{errNoField, "field_unknown"},
+	{errValuesNotAnObject, "values_not_an_object"},
+}
+
+// fieldReason returns the stable reason a fields error answers with.
+func fieldReason(err error) string {
+	for _, held := range fieldReasons {
+		if errors.Is(err, held.sentinel) {
+			return held.reason
+		}
+	}
+	return ""
 }

@@ -129,6 +129,8 @@ type Resolver struct {
 	Auth *authkit.Handlers
 	// Admin serves user administration through the authkit seams.
 	Admin *authkit.AdminHandlers
+	// Settings reads and writes the caller's stored preferences.
+	Settings SettingStore
 	// LoginLimiter counts failed logins per client IP.
 	LoginLimiter AttemptLimiter
 	// BatchWait bounds the loader batching window. Zero means one millisecond.

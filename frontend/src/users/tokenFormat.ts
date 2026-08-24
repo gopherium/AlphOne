@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { _x, __ } from '@alphone/frontend-sdk'
+
 import { formatCreated } from '../contacts/format'
 
 /** grantableAreas lists the areas a token may be granted, in menu order. */
@@ -15,13 +17,18 @@ export const grantableAreas = [
 	'whatsapp',
 ] as const
 
-/** lifetimeChoices lists the lifetimes the mint form offers, in menu order. */
-export const lifetimeChoices = [
-	{ value: '30', label: '30 days' },
-	{ value: '90', label: '90 days' },
-	{ value: '365', label: 'A year' },
-	{ value: 'never', label: 'Never' },
-]
+/**
+ * Returns the lifetimes the mint form offers, read fresh so the loaded catalogue answers.
+ * @returns The choices, in menu order.
+ */
+export function lifetimeChoices(): { value: string; label: string }[] {
+	return [
+		{ value: '30', label: __('30 days', 'alphone') },
+		{ value: '90', label: __('90 days', 'alphone') },
+		{ value: '365', label: __('A year', 'alphone') },
+		{ value: 'never', label: _x('Never', 'token lifetime', 'alphone') },
+	]
+}
 
 /** defaultLifetime is the lifetime the mint form starts on. */
 export const defaultLifetime = '90'
@@ -32,7 +39,7 @@ export const defaultLifetime = '90'
  * @returns The date, or a plain statement that it never acted.
  */
 export function formatLastUsed(at: string | null | undefined): string {
-	return at === null || at === undefined ? 'Never used' : formatCreated(new Date(at))
+	return at === null || at === undefined ? __('Never used', 'alphone') : formatCreated(new Date(at))
 }
 
 /**
@@ -43,10 +50,10 @@ export function formatLastUsed(at: string | null | undefined): string {
  */
 export function formatExpiry(at: string | null | undefined, now: Date): string {
 	if (at === null || at === undefined) {
-		return 'Never expires'
+		return __('Never expires', 'alphone')
 	}
 	const ends = new Date(at)
-	return ends.getTime() <= now.getTime() ? 'Expired' : formatCreated(ends)
+	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatCreated(ends)
 }
 
 /**

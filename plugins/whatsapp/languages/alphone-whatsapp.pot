@@ -1,0 +1,144 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: alphone-whatsapp\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: alphone-whatsapp\n"
+
+msgid "%(name)s (unavailable)"
+msgstr ""
+
+msgid "%(size)d B"
+msgstr ""
+
+msgid "%(size)d KB"
+msgstr ""
+
+msgid "%(size)s MB"
+msgstr ""
+
+msgid "Attachment unavailable."
+msgstr ""
+
+msgid "Audio message"
+msgstr ""
+
+msgid "Contact card"
+msgstr ""
+
+msgid "Conversation"
+msgstr ""
+
+msgid "Conversations"
+msgstr ""
+
+msgid "Conversations could not be loaded."
+msgstr ""
+
+msgid "Document"
+msgstr ""
+
+msgid "Downloading…"
+msgstr ""
+
+msgid "Loading conversations…"
+msgstr ""
+
+msgid "Loading messages…"
+msgstr ""
+
+msgid "Message delivered"
+msgstr ""
+
+msgid "Message not delivered"
+msgstr ""
+
+msgid "Message played"
+msgstr ""
+
+msgid "Message read"
+msgstr ""
+
+msgid "Message sent"
+msgstr ""
+
+msgid "Messages"
+msgstr ""
+
+msgid "Messages could not be loaded."
+msgstr ""
+
+msgid "No conversation selected."
+msgstr ""
+
+msgid "No conversations yet."
+msgstr ""
+
+msgid "No messages yet."
+msgstr ""
+
+msgid "Not delivered."
+msgstr ""
+
+msgid "Outside the 24-hour window. The customer must message first."
+msgstr ""
+
+msgid "Photo"
+msgstr ""
+
+msgid "Pick one from the list to read its messages."
+msgstr ""
+
+msgid "Reaction removed"
+msgstr ""
+
+msgid "Received"
+msgstr ""
+
+msgid "Reply"
+msgstr ""
+
+msgid "Send"
+msgstr ""
+
+msgid "Sent"
+msgstr ""
+
+msgid "Sticker"
+msgstr ""
+
+msgid "That conversation no longer exists."
+msgstr ""
+
+msgid "The reply could not be sent."
+msgstr ""
+
+msgid "Today"
+msgstr ""
+
+msgid "Unsupported message."
+msgstr ""
+
+msgid "Video message"
+msgstr ""
+
+msgid "Voice message"
+msgstr ""
+
+msgid "WhatsApp did not accept the message."
+msgstr ""
+
+msgid "Write something to send."
+msgstr ""
+
+msgid "Yesterday"
+msgstr ""
+
+msgid "status"
+msgstr ""
+
+msgctxt "admin section"
+msgid "WhatsApp"
+msgstr ""

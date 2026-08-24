@@ -168,7 +168,7 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy) htt
 		user := authkit.IdentityFromContext(r.Context())
 		if !policy.limiter.acquire(user.ID) {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
-			authkit.RespondError(w, http.StatusTooManyRequests, policy.overflow)
+			authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
 			return
 		}
 		defer policy.limiter.release(user.ID)

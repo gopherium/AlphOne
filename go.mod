@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/gopherium/gouncer/authkit v0.9.0
+	github.com/gopherium/gouncer/authkit v0.10.0
 	github.com/gopherium/gouncer/authkit/postgres v0.7.0
 	github.com/gopherium/gouncer/authkit/ratelimit v0.3.0
 	github.com/gopherium/pluginkit v0.5.0
@@ -119,7 +119,7 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.40.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/grpc v1.82.1 // indirect

@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
+import { configureAppErrorText } from '../i18n/errors'
 import { renderAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
@@ -371,6 +372,23 @@ test('adds a phone identity through the channel select', async () => {
 	expect(posted).toMatchObject({ channel: 'phone', identifier: '+184 467 235' })
 })
 
+test('marks the channel the reader chose as the selected option', async () => {
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({ data: { contact: detailFor(String(variables.id), 'Ana García', []) } }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByLabelText('Channel'))
+
+	expect(await screen.findByRole('option', { name: 'Email' })).toHaveAttribute(
+		'aria-selected',
+		'true',
+	)
+})
+
 test('names the owner when the identity belongs to someone else', async () => {
 	server.use(
 		graphql.mutation('AddContactIdentity', () =>
@@ -673,3 +691,24 @@ test('drops the session when the contact detail is unauthorized', async () => {
 })
 
 
+
+test('shows the reader the sentence the reason names, not the server prose', async () => {
+	configureAppErrorText()
+	server.use(
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: empty name',
+					extensions: { code: 'VALIDATION', reason: 'contact_name_required' },
+				}],
+			})),
+	)
+	renderAt('/contacts/new')
+
+	await userEvent.type(await screen.findByLabelText('Name'), 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
+
+	expect(await screen.findByText('A contact needs a name.')).toBeInTheDocument()
+	expect(screen.queryByText('contact: empty name')).not.toBeInTheDocument()
+})

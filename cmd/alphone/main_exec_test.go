@@ -222,6 +222,33 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	}
 }
 
+func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	var stderr bytes.Buffer
+	seedCmd := exec.Command(binary, "seed")
+	seedCmd.Dir = t.TempDir()
+	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	seedCmd.Stderr = &stderr
+	if err := seedCmd.Run(); err != nil {
+		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
+	}
+	addr, secret := servedSeededBinary(t, databaseURL)
+
+	set := postGraph(t, addr, secret, `{"query":"mutation { setLocale(locale: \"es-ES\") }"}`)
+	if len(set.Errors) > 0 || set.Data.SetLocale != "es-ES" {
+		t.Fatalf("setLocale = %q with errors %v, want the choice stored through the real wiring",
+			set.Data.SetLocale, set.Errors)
+	}
+
+	asked := postGraph(t, addr, secret, `{"query":"{ locale }"}`)
+	if asked.Data.Locale != "es-ES" {
+		t.Errorf("locale = %q, want the stored choice back from the real binary", asked.Data.Locale)
+	}
+}
+
 func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	t.Parallel()
 
@@ -325,6 +352,8 @@ type graphAnswer struct {
 				Node map[string]any `json:"node"`
 			} `json:"edges"`
 		} `json:"contacts"`
+		SetLocale string `json:"setLocale"`
+		Locale    string `json:"locale"`
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`

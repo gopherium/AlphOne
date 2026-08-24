@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { errorText } from '@gopherium/gottext'
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { cacheExchange } from '@urql/exchange-graphcache'
 import { relayPagination } from '@urql/exchange-graphcache/extras'
@@ -47,6 +48,46 @@ export function graphExtensions(error: CombinedError | undefined): Record<string
 	return (error?.graphQLErrors[0]?.extensions ?? {}) as Record<string, unknown>
 }
 
+/** ErrorCopy names the translated templates a refused answer is rendered from. */
+export interface ErrorCopy {
+	/** templates answers the message each reason stands for, keyed by reason. */
+	templates: () => Record<string, string>
+	/** fallback answers the words shown when the server said nothing readable. */
+	fallback: () => string
+}
+
+/** copy holds the templates the screens render a refused answer from. */
+let copy: ErrorCopy = { templates: () => ({}), fallback: () => '' }
+
+/**
+ * Stores the translated copy every refused answer is rendered from.
+ * @param chosen - The templates and the words to fall back on.
+ */
+export function configureErrorText(chosen: ErrorCopy): void {
+	copy = chosen
+}
+
+/**
+ * Returns what a reader is shown for a refused answer, in their own language.
+ * @param error - The failure a graph operation answered with.
+ * @returns The message to show.
+ */
+function spokenMessage(error: CombinedError): string {
+	const answered = error.graphQLErrors[0]
+	const extensions = (answered?.extensions ?? {}) as Record<string, unknown>
+	const reason = extensions.reason
+	const meta = extensions.meta
+	return errorText(
+		{
+			message: answered?.message ?? error.message,
+			code: typeof reason === 'string' ? reason : undefined,
+			meta: typeof meta === 'object' && meta !== null ? (meta as Record<string, unknown>) : undefined,
+		},
+		copy.templates(),
+		copy.fallback(),
+	)
+}
+
 /**
  * Maps a graph failure onto the error class the screens branch on.
  * @param error - The failure a graph operation answered with.
@@ -56,7 +97,7 @@ export function graphError(error: CombinedError | undefined): Error | undefined 
 	if (!error) {
 		return undefined
 	}
-	const message = error.graphQLErrors[0]?.message ?? error.message
+	const message = spokenMessage(error)
 	switch (errorCode(error)) {
 		case 'UNAUTHENTICATED':
 			return new UnauthorizedError(message)

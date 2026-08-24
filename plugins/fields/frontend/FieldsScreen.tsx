@@ -11,7 +11,9 @@ import {
 	SelectControl,
 	Stack,
 	Text,
+	__,
 	graphError,
+	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
@@ -20,6 +22,7 @@ import {
 import { useState } from 'react'
 
 import { fieldsIcon } from './icon'
+import type { FieldKind } from './gql/graphql'
 import { kindItems, kindOf } from './kind'
 import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
 
@@ -43,26 +46,26 @@ export function FieldsScreen() {
 
 	if (catalogue.fetching && !catalogue.data) {
 		return (
-			<PageScreen title="Fields">
-				<LoadingRows label="Loading fields…" rows={3} />
+			<PageScreen title={__('Fields', 'alphone-fields')}>
+				<LoadingRows label={__('Loading fields…', 'alphone-fields')} rows={3} />
 			</PageScreen>
 		)
 	}
 	if (catalogue.error) {
 		return (
-			<PageScreen title="Fields">
-				<ErrorNotice>The fields could not be loaded.</ErrorNotice>
+			<PageScreen title={__('Fields', 'alphone-fields')}>
+				<ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 			</PageScreen>
 		)
 	}
 	const fields = (catalogue.data?.fields ?? []) as FieldRow[]
 	return (
-		<PageScreen title="Fields">
+		<PageScreen title={__('Fields', 'alphone-fields')}>
 			<Stack direction="column" gap="lg">
 				<FieldList fields={fields} onChanged={reload} />
 				<Stack direction="column" gap="sm">
 					<Text variant="heading-sm" render={<h2 />}>
-						Add a field
+						{__('Add a field', 'alphone-fields')}
 					</Text>
 					<AddFieldForm onAdded={reload} />
 				</Stack>
@@ -94,9 +97,9 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={fieldsIcon} />
-				<EmptyState.Title>No fields yet.</EmptyState.Title>
+				<EmptyState.Title>{__('No fields yet.', 'alphone-fields')}</EmptyState.Title>
 				<EmptyState.Description>
-					Add a field to store more about every contact.
+					{__('Add a field to store more about every contact.', 'alphone-fields')}
 				</EmptyState.Description>
 			</EmptyState.Root>
 		)
@@ -105,21 +108,21 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 		<Stack direction="column" gap="sm">
 			{archived.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(archived.error), 'The field could not be archived.')}
+					{validationMessage(graphError(archived.error), __('The field could not be archived.', 'alphone-fields'))}
 				</ErrorNotice>
 			) : null}
 			<div
 				className="godmin-table-scroll godmin-arrival"
 				role="region"
-				aria-label="Fields"
+				aria-label={__('Fields', 'alphone-fields')}
 				tabIndex={0}
 			>
 				<table className="godmin-table">
 					<thead>
 						<tr>
-							<th scope="col">Label</th>
-							<th scope="col">Name</th>
-							<th scope="col">Kind</th>
+							<th scope="col">{__('Label', 'alphone-fields')}</th>
+							<th scope="col">{__('Name', 'alphone-fields')}</th>
+							<th scope="col">{__('Kind', 'alphone-fields')}</th>
 							<th scope="col" className="godmin-table__actions" />
 						</tr>
 					</thead>
@@ -136,13 +139,13 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 								<td className="godmin-table__actions">
 									<Button
 										variant="outline"
-										aria-label={`Archive ${field.label}`}
+										aria-label={sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label })}
 										loading={archived.fetching}
 										onClick={() => {
 											void archive({ id: field.id }).then(onChanged)
 										}}
 									>
-										Archive
+										{__('Archive', 'alphone-fields')}
 									</Button>
 								</td>
 							</tr>
@@ -171,7 +174,8 @@ function kindLabel(kind: string) {
 function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 	const [label, setLabel] = useState('')
 	const [name, setName] = useState('')
-	const [kind, setKind] = useState(kindItems[0])
+	const [kind, setKind] = useState<FieldKind>('TEXT')
+	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
 
 	return (
@@ -179,7 +183,7 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void define({ name, label, kind: kind.value }).then((result) => {
+				void define({ name, label, kind }).then((result) => {
 					if (!result.error) {
 						setLabel('')
 						setName('')
@@ -190,29 +194,29 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 		>
 			{defined.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(defined.error), 'The field could not be defined.')}
+					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
 			) : null}
 			<InputControl
-				label="Label"
+				label={__('Label', 'alphone-fields')}
 				autoComplete="off"
 				value={label}
 				onChange={(event) => setLabel(event.target.value)}
 			/>
 			<InputControl
-				label="Name"
+				label={__('Name', 'alphone-fields')}
 				autoComplete="off"
 				value={name}
 				onChange={(event) => setName(event.target.value)}
 			/>
 			<SelectControl
-				label="Kind"
-				items={kindItems}
-				value={kind}
-				onValueChange={(item) => setKind(kindOf(item))}
+				label={__('Kind', 'alphone-fields')}
+				items={kinds}
+				value={kinds.find((option) => option.value === kind)}
+				onValueChange={(item) => setKind(kindOf(item).value)}
 			/>
 			<Button type="submit" loading={defined.fetching}>
-				Add field
+				{__('Add field', 'alphone-fields')}
 			</Button>
 		</form>
 	)

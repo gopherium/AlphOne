@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { __, _x, sprintf } from '@alphone/frontend-sdk'
 import { DataViews, type Field, type View } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
@@ -32,6 +33,19 @@ function previewRows(rows: readonly ImportRow[]): previewRow[] {
 }
 
 /**
+ * Returns the label each row outcome carries, read fresh so the loaded catalogue answers.
+ * @returns The labels, keyed by the outcome the server names.
+ */
+function outcomeLabels(): Record<string, string> {
+	return {
+		pending: _x('Pending', 'row outcome', 'alphone-importer'),
+		imported: _x('Imported', 'row outcome', 'alphone-importer'),
+		skipped: _x('Skipped', 'row outcome', 'alphone-importer'),
+		failed: _x('Failed', 'row outcome', 'alphone-importer'),
+	}
+}
+
+/**
  * Builds one field per column of the import beside its outcome fields.
  * @param columns - The column list of the import.
  * @returns The fields the table renders.
@@ -39,14 +53,18 @@ function previewRows(rows: readonly ImportRow[]): previewRow[] {
 function previewFields(columns: readonly string[]): Field<previewRow>[] {
 	const cells: Field<previewRow>[] = columns.map((column, index) => ({
 		id: `cell-${index}`,
-		label: column === '' ? `Column ${index + 1}` : column,
+		label: column === '' ? sprintf(__('Column %(number)d', 'alphone-importer'), { number: index + 1 }) : column,
 		getValue: ({ item }: { item: previewRow }) => item.cells[index] ?? '',
 	}))
 	return [
-		{ id: 'position', label: 'Row', getValue: ({ item }) => String(item.position) },
+		{ id: 'position', label: __('Row', 'alphone-importer'), getValue: ({ item }) => String(item.position) },
 		...cells,
-		{ id: 'outcome', label: 'Outcome', getValue: ({ item }) => item.outcome },
-		{ id: 'reason', label: 'Reason', getValue: ({ item }) => item.reason },
+		{
+			id: 'outcome',
+			label: __('Outcome', 'alphone-importer'),
+			getValue: ({ item }) => outcomeLabels()[item.outcome] ?? item.outcome,
+		},
+		{ id: 'reason', label: __('Reason', 'alphone-importer'), getValue: ({ item }) => item.reason },
 	]
 }
 
@@ -74,7 +92,7 @@ export default function RowsTable({
 		<div
 			className="godmin-table-scroll"
 			role="region"
-			aria-label="Rows"
+			aria-label={__('Rows', 'alphone-importer')}
 			tabIndex={0}
 			style={{ minWidth: 0, maxWidth: '100%' }}
 		>

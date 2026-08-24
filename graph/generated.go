@@ -184,6 +184,7 @@ type ComplexityRoot struct {
 		Login                 func(childComplexity int, email string, password string) int
 		Logout                func(childComplexity int) int
 		RenameContact         func(childComplexity int, id uuid.UUID, name string) int
+		SetLocale             func(childComplexity int, locale string) int
 		SetUserDisabled       func(childComplexity int, id uuid.UUID, disabled bool) int
 		SetUserRole           func(childComplexity int, id uuid.UUID, role string) int
 		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
@@ -206,7 +207,9 @@ type ComplexityRoot struct {
 		ImportFields          func(childComplexity int) int
 		ImportJob             func(childComplexity int, id uuid.UUID) int
 		Imports               func(childComplexity int) int
+		Locale                func(childComplexity int) int
 		Me                    func(childComplexity int) int
+		SupportedLocales      func(childComplexity int) int
 		Task                  func(childComplexity int, id uuid.UUID) int
 		Tasks                 func(childComplexity int, date *time.Time, dueBefore *time.Time, contactID *uuid.UUID, status *string, first *int, after *string) int
 		Tenant                func(childComplexity int) int
@@ -326,6 +329,7 @@ type MutationResolver interface {
 	CreateUser(ctx context.Context, email string, name string, password string, role *string) (*model.User, error)
 	SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error)
 	SetUserRole(ctx context.Context, id uuid.UUID, role string) (bool, error)
+	SetLocale(ctx context.Context, locale string) (string, error)
 	CreateTask(ctx context.Context, input model.CreateTaskInput) (*model.CreateTaskPayload, error)
 	UpdateTask(ctx context.Context, id uuid.UUID, input model.UpdateTaskInput) (*model.Task, error)
 	APITokenCreate(ctx context.Context, name string, scopes []string, ttlDays *int) (*model.APITokenSecret, error)
@@ -343,6 +347,8 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Version(ctx context.Context) (string, error)
 	Tenant(ctx context.Context) (*model.Tenant, error)
+	Locale(ctx context.Context) (string, error)
+	SupportedLocales(ctx context.Context) ([]string, error)
 	Me(ctx context.Context) (*model.Identity, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Contacts(ctx context.Context, q *string, first *int, after *string) (*model.ContactConnection, error)
@@ -1023,6 +1029,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RenameContact(childComplexity, args["id"].(uuid.UUID), args["name"].(string)), true
+	case "Mutation.setLocale":
+		if e.ComplexityRoot.Mutation.SetLocale == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setLocale_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetLocale(childComplexity, args["locale"].(string)), true
 	case "Mutation.setUserDisabled":
 		if e.ComplexityRoot.Mutation.SetUserDisabled == nil {
 			break
@@ -1167,12 +1184,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Imports(childComplexity), true
 
+	case "Query.locale":
+		if e.ComplexityRoot.Query.Locale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Locale(childComplexity), true
 	case "Query.me":
 		if e.ComplexityRoot.Query.Me == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Query.Me(childComplexity), true
+	case "Query.supportedLocales":
+		if e.ComplexityRoot.Query.SupportedLocales == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SupportedLocales(childComplexity), true
 	case "Query.task":
 		if e.ComplexityRoot.Query.Task == nil {
 			break
@@ -2776,6 +2805,20 @@ func (ec *executionContext) field_Mutation_renameContact_args(ctx context.Contex
 		return nil, err
 	}
 	args["name"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setLocale_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "locale",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["locale"] = arg0
 	return args, nil
 }
 
@@ -5306,6 +5349,50 @@ func (ec *executionContext) fieldContext_Mutation_setUserRole(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setLocale(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setLocale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetLocale(ctx, fc.Args["locale"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setLocale(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setLocale_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6029,6 +6116,52 @@ func (ec *executionContext) fieldContext_Query_tenant(_ context.Context, field g
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_locale(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_locale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Locale(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_locale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Query_supportedLocales(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_supportedLocales(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SupportedLocales(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_supportedLocales(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -10448,6 +10581,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setLocale":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setLocale(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createTask":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createTask(ctx, field)
@@ -10665,6 +10805,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_tenant(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "locale":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_locale(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "supportedLocales":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_supportedLocales(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

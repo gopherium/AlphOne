@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { _x } from '@alphone/frontend-sdk'
 import type { NavItem } from '@alphone/frontend-sdk'
 
 const tasksIcon = (
@@ -12,7 +13,9 @@ const tasksIcon = (
 )
 
 export const tasksNavItem: NavItem = {
-	label: 'Tasks',
+	get label() {
+		return _x('Tasks', 'admin section', 'alphone')
+	},
 	to: '/tasks',
 	icon: tasksIcon,
 }

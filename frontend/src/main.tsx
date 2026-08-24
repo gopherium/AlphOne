@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, Text, createGraphClient } from '@alphone/frontend-sdk'
+import { GraphProvider, Text, __, createGraphClient } from '@alphone/frontend-sdk'
 import { AdminRoot } from '@gopherium/godmin'
 import {
 	AuthGate,
@@ -19,7 +19,12 @@ import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
 import { graphAuthTransport } from './auth/graphTransport'
 import { BootLoading } from './boot'
+import { configureAppErrorText } from './i18n/errors'
+import { startAppLocale } from './i18n/start'
 import { createAppRouter } from './router'
+
+await startAppLocale()
+configureAppErrorText()
 
 configureAuthTransport(graphAuthTransport)
 const queryClient = createAuthQueryClient()
@@ -38,7 +43,7 @@ createRoot(document.getElementById('root')!).render(
 							<LoginScreen brand="AlphOne" onLogin={onLogin} />
 						)}
 						loading={<BootLoading />}
-						error={<Text role="alert">Something went wrong.</Text>}
+						error={<Text role="alert">{__('Something went wrong.', 'alphone')}</Text>}
 					>
 						<RouterProvider router={router} />
 					</AuthGate>

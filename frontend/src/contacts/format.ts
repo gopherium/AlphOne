@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-const createdFormat = new Intl.DateTimeFormat('en-US', {
-	month: 'short',
-	day: 'numeric',
-	year: 'numeric',
-})
+import { formatDate } from '@alphone/frontend-sdk'
 
 /**
  * Formats a contact's creation moment for display.
@@ -12,5 +8,5 @@ const createdFormat = new Intl.DateTimeFormat('en-US', {
  * @returns A date such as Jul 6, 2026.
  */
 export function formatCreated(at: Date): string {
-	return createdFormat.format(at)
+	return formatDate(at, { month: 'short', day: 'numeric', year: 'numeric' })
 }

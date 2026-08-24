@@ -13,7 +13,7 @@ import { ImportScreen } from '../ImportScreen'
 const pending = new Promise<void>(() => {})
 
 vi.mock('../RowsTable', () => ({
-	default: () => {
+	default: function SuspendingRows() {
 		use(pending)
 		return null
 	},

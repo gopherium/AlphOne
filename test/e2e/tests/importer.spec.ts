@@ -66,9 +66,9 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 
 	await page.getByRole('button', { name: 'Commit' }).click()
 	const rows = page.getByRole('region', { name: 'Rows' })
-	await expect(rows.getByText('imported', { exact: true }).first()).toBeVisible()
-	await expect(rows.getByText('skipped', { exact: true }).first()).toBeVisible()
-	await expect(rows.getByText('failed', { exact: true }).first()).toBeVisible()
+	await expect(rows.getByText('Imported', { exact: true }).first()).toBeVisible()
+	await expect(rows.getByText('Skipped', { exact: true }).first()).toBeVisible()
+	await expect(rows.getByText('Failed', { exact: true }).first()).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
@@ -109,7 +109,7 @@ test('maps a spreadsheet column onto a field an operator defined', async ({ page
 	await page.getByRole('button', { name: 'Save mapping' }).click()
 	await page.getByRole('button', { name: 'Commit' }).click()
 	await expect(
-		page.getByRole('region', { name: 'Rows' }).getByText('imported', { exact: true }).first(),
+		page.getByRole('region', { name: 'Rows' }).getByText('Imported', { exact: true }).first(),
 	).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()

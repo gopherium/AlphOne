@@ -12,6 +12,7 @@ packages:
 minimumReleaseAgeExclude:
   - '@gopherium/godmin'
   - '@gopherium/react-auth@0.6.0'
+  - '@gopherium/gottext@0.2.0'
 
 overrides:
   react: ^19.2.8

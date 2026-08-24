@@ -173,7 +173,7 @@ test('refreshes from the network when the list is mounted again', async () => {
 	function Wrapper({ children }: { children: ReactNode }) {
 		return <GraphProvider graph={graph}>{children}</GraphProvider>
 	}
-	const probe = () =>
+	const useProbe = () =>
 		useConnection({
 			query: contactsQuery,
 			variables: { first: 50 },
@@ -181,11 +181,11 @@ test('refreshes from the network when the list is mounted again', async () => {
 				data.contacts as { edges: { node: ContactNode }[]; pageInfo: never },
 		})
 
-	const first = renderHook(probe, { wrapper: Wrapper })
+	const first = renderHook(useProbe, { wrapper: Wrapper })
 	await waitFor(() => expect(first.result.current.rows).toHaveLength(1))
 	first.unmount()
 	name = 'Ada Lovelace Ltd'
-	const second = renderHook(probe, { wrapper: Wrapper })
+	const second = renderHook(useProbe, { wrapper: Wrapper })
 
 	await waitFor(() => expect(second.result.current.rows[0]?.name).toBe('Ada Lovelace Ltd'))
 })

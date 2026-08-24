@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
+	__,
 	Button,
 	Checkbox,
 	ErrorNotice,
@@ -61,7 +62,7 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 	return (
 		<Stack direction="column" gap="sm">
 			<Text variant="heading-sm" render={<h2 />}>
-				Fields
+				{__('Fields', 'alphone-fields')}
 			</Text>
 			<form
 				className="godmin-form"
@@ -77,7 +78,7 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 			>
 				{written.error ? (
 					<ErrorNotice>
-						{validationMessage(graphError(written.error), 'The fields could not be saved.')}
+						{validationMessage(graphError(written.error), __('The fields could not be saved.', 'alphone-fields'))}
 					</ErrorNotice>
 				) : null}
 				{fields.map((field) => (
@@ -89,7 +90,7 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 					/>
 				))}
 				<Button type="submit" loading={written.fetching}>
-					Save fields
+					{__('Save fields', 'alphone-fields')}
 				</Button>
 			</form>
 		</Stack>

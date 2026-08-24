@@ -8,6 +8,7 @@ import {
 	LoadingRows,
 	LoadMore,
 	PageScreen,
+	__,
 	people,
 } from '@alphone/frontend-sdk'
 import { useConnection } from '@alphone/frontend-sdk'
@@ -43,15 +44,15 @@ export function ContactsScreen() {
 
 	return (
 		<PageScreen
-			title="Contacts"
+			title={__('Contacts', 'alphone')}
 			actions={
 				<Button variant="solid" render={<Link to="/contacts/new" />}>
-					New contact
+					{__('New contact', 'alphone')}
 				</Button>
 			}
 		>
 			<InputControl
-				label="Search contacts"
+				label={__('Search contacts', 'alphone')}
 				hideLabelFromVision
 				className="alphone-contacts__search"
 				value={search}
@@ -69,19 +70,19 @@ export function ContactsScreen() {
  */
 function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 	if (contacts.isPending) {
-		return <LoadingRows label="Loading contacts…" />
+		return <LoadingRows label={__('Loading contacts…', 'alphone')} />
 	}
 	if (contacts.isError) {
-		return <ErrorNotice>Contacts could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('Contacts could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	const rows = contacts.rows
 	if (rows.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={people} />
-				<EmptyState.Title>No contacts found.</EmptyState.Title>
+				<EmptyState.Title>{__('No contacts found.', 'alphone')}</EmptyState.Title>
 				<EmptyState.Description>
-					Try a different search, or add one with New contact.
+					{__('Try a different search, or add one with New contact.', 'alphone')}
 				</EmptyState.Description>
 			</EmptyState.Root>
 		)
@@ -91,14 +92,14 @@ function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 			<div
 				className="godmin-table-scroll godmin-arrival"
 				role="region"
-				aria-label="Contacts"
+				aria-label={__('Contacts', 'alphone')}
 				tabIndex={0}
 			>
 				<table className="godmin-table">
 					<thead>
 						<tr>
-							<th>Name</th>
-							<th>Created</th>
+							<th>{__('Name', 'alphone')}</th>
+							<th>{__('Created', 'alphone')}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -115,7 +116,7 @@ function ContactRows({ contacts }: { contacts: ConnectionResult<ContactRow> }) {
 					</tbody>
 				</table>
 			</div>
-			<LoadMore query={contacts}>Load more</LoadMore>
+			<LoadMore query={contacts}>{__('Load more', 'alphone')}</LoadMore>
 		</>
 	)
 }

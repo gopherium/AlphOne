@@ -9,10 +9,10 @@ test('a chosen item resolves to its kind', () => {
 })
 
 test('a cleared selection falls back to text', () => {
-	expect(kindOf(null)).toBe(kindItems[0])
-	expect(kindOf({ value: null })).toBe(kindItems[0])
+	expect(kindOf(null)).toEqual(kindItems()[0])
+	expect(kindOf({ value: null })).toEqual(kindItems()[0])
 })
 
 test('a kind the catalogue does not offer falls back to text', () => {
-	expect(kindOf({ value: 'TIMESTAMP' })).toBe(kindItems[0])
+	expect(kindOf({ value: 'TIMESTAMP' })).toEqual(kindItems()[0])
 })

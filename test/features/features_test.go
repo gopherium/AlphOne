@@ -78,6 +78,11 @@ func initializeTenants(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerTenantSteps(sc, t) }
 }
 
+// initializeLocale registers the locale resolution steps.
+func initializeLocale(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerLocaleSteps(sc, t) }
+}
+
 // initializeImportFields registers the import mapping steps.
 func initializeImportFields(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerImportFieldsSteps(sc, t) }
@@ -123,6 +128,10 @@ func TestFieldsGraph(t *testing.T) {
 
 func TestTenants(t *testing.T) {
 	runFeature(t, "features/tenants.feature", initializeTenants(t))
+}
+
+func TestLocaleResolution(t *testing.T) {
+	runFeature(t, "features/locale.feature", initializeLocale(t))
 }
 
 func TestImportFields(t *testing.T) {

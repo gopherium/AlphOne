@@ -5,6 +5,7 @@ import {
 	ErrorNotice,
 	InputControl,
 	Text,
+	__,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { graphError, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
@@ -66,7 +67,7 @@ export function ContactTasks({
 	return (
 		<div className="alphone-tasks__contact-block">
 			<Text variant="heading-sm" render={<h2 />}>
-				Tasks
+				{__('Tasks', 'alphone')}
 			</Text>
 			<form
 				className="alphone-tasks__add"
@@ -76,9 +77,9 @@ export function ContactTasks({
 				}}
 			>
 				<InputControl
-					label="New task for this contact"
+					label={__('New task for this contact', 'alphone')}
 					hideLabelFromVision
-					placeholder="Add a task for this contact"
+					placeholder={__('Add a task for this contact', 'alphone')}
 					value={title}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
@@ -87,16 +88,16 @@ export function ContactTasks({
 					disabled={title.trim() === '' || add.fetching}
 					loading={add.fetching}
 				>
-					Add task
+					{__('Add task', 'alphone')}
 				</Button>
 			</form>
 			{add.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(add.error), 'The task could not be added.')}
+					{validationMessage(graphError(add.error), __('The task could not be added.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 			{change.error || push.error ? (
-				<ErrorNotice>The task could not be updated.</ErrorNotice>
+				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
 			) : null}
 			<ContactTaskList
 				tasks={tasks}
@@ -123,14 +124,14 @@ function ContactTaskList({
 }) {
 	const rows = tasks.rows
 	if (rows.length === 0) {
-		return <Text role="status">No open tasks.</Text>
+		return <Text role="status">{__('No open tasks.', 'alphone')}</Text>
 	}
 	return (
 		<>
-			<TaskList label="Contact tasks" tasks={rows} controls={controls} showDueDate />
+			<TaskList label={__('Contact tasks', 'alphone')} tasks={rows} controls={controls} showDueDate />
 			{tasks.hasNextPage ? (
 				<Button onClick={() => void tasks.fetchNextPage()} disabled={tasks.isFetchingNextPage}>
-					Load more tasks
+					{__('Load more tasks', 'alphone')}
 				</Button>
 			) : null}
 		</>

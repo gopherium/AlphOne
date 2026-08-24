@@ -34,6 +34,9 @@ importers:
       knip:
         specifier: ^6.29.0
         version: 6.29.0
+      oxlint:
+        specifier: ^1.75.0
+        version: 1.76.0
       typescript-eslint:
         specifier: ^8.65.0
         version: 8.65.0(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3)
@@ -55,6 +58,9 @@ importers:
       '@gopherium/godmin':
         specifier: 0.7.0
         version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
+      '@gopherium/gottext':
+        specifier: 0.2.0
+        version: 0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.6.0
         version: 0.6.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
@@ -64,6 +70,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.23
         version: 1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@wordpress/i18n':
+        specifier: 6.26.0
+        version: 6.26.0
       '@wordpress/theme':
         specifier: 1.1.0
         version: 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -104,12 +113,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.10
         version: 4.1.10(vitest@4.1.10)
+      gettext-extractor:
+        specifier: 4.0.6
+        version: 4.0.6
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1
-      oxlint:
-        specifier: ^1.75.0
-        version: 1.76.0
       stylelint:
         specifier: ^17.14.1
         version: 17.14.1(typescript@6.0.3)
@@ -239,6 +248,9 @@ importers:
       '@gopherium/godmin':
         specifier: 0.7.0
         version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
+      '@gopherium/gottext':
+        specifier: 0.2.0
+        version: 0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.6.0
         version: 0.6.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
@@ -257,6 +269,9 @@ importers:
       '@wordpress/dataviews':
         specifier: 17.3.0
         version: 17.3.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/i18n':
+        specifier: 6.26.0
+        version: 6.26.0
       '@wordpress/icons':
         specifier: 15.3.0
         version: 15.3.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -908,6 +923,16 @@ packages:
       stylelint:
         optional: true
       vitest:
+        optional: true
+
+  '@gopherium/gottext@0.2.0':
+    resolution: {integrity: sha512-Pr6whkn01B+b/lXe6ry2kIXtO18G3SJPyMW4NFYWdXnZOBAtqNafmwyv9lTTdn634li+RMSGL0Ej7wqngUDm/A==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@wordpress/i18n': 6.26.0
+      gettext-extractor: '>=4.0.6 <5.0.0'
+    peerDependenciesMeta:
+      gettext-extractor:
         optional: true
 
   '@gopherium/react-auth@0.6.0':
@@ -1581,6 +1606,10 @@ packages:
       '@types/node':
         optional: true
 
+  '@isaacs/cliui@9.0.0':
+    resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
+    engines: {node: '>=18'}
+
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
@@ -2235,6 +2264,9 @@ packages:
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
 
+  '@types/parse5@5.0.3':
+    resolution: {integrity: sha512-kUNnecmtkunAoQ3CnjmMkzNU/gtxG8guhi+Fk2U/kOpIKjIMKnXGp4IJCgQJrXSgMsWYimYG4TGjz/UzbGEBTw==}
+
   '@types/react-dom@19.2.4':
     resolution: {integrity: sha512-Bsc+QHgp+P/F02XDzNCY9jnZNCUuLki36KT7VKrTXXLdHf+vHMNZnW1rVu5DNW/rCK+fya3DATySbLM4yhtKUw==}
     peerDependencies:
@@ -2874,6 +2906,10 @@ packages:
   constant-case@3.0.4:
     resolution: {integrity: sha512-I2hSBi7Vvs7BEuJDr5dDHfzb/Ruj3FyvFyh7KLilAjNQw3Be+xgqUBA2W6scVEcL0hL1dwPRtIqEPVUCKkSsyQ==}
 
+  content-type@1.0.5:
+    resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
+    engines: {node: '>= 0.6'}
+
   convert-source-map@1.9.0:
     resolution: {integrity: sha512-ASFBup0Mz1uyiIjANan1jzLQami9z1PoYSZCiiYW2FczPbenXc45FZdBZLzOT+r6+iciuEModtmCti+hjaAk0A==}
 
@@ -2920,6 +2956,9 @@ packages:
   css-functions-list@3.3.3:
     resolution: {integrity: sha512-8HFEBPKhOpJPEPu70wJJetjKta86Gw9+CCyCnB3sui2qQfOvRyqBy4IKLKKAwdMpWb2lHXWk9Wb4Z6AmaUT1Pg==}
     engines: {node: '>=12'}
+
+  css-selector-parser@1.4.1:
+    resolution: {integrity: sha512-HYPSb7y/Z7BNDCOrakL4raGO2zltZkbeXyAd6Tg9obzix6QhzxCotdBl6VT0Dv4vZfJGVz3WL/xaEI9Ly3ul0g==}
 
   css-tree@3.2.1:
     resolution: {integrity: sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==}
@@ -3219,6 +3258,10 @@ packages:
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
+  foreground-child@3.3.1:
+    resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
+    engines: {node: '>=14'}
+
   formatly@0.3.0:
     resolution: {integrity: sha512-9XNj/o4wrRFyhSMJOvsuyMwy8aUfBaZ1VrqHVfohyXf0Sw0e+yfKG+xZaY3arGCOMdwFsqObtzVOc1gU9KiT9w==}
     engines: {node: '>=18.3.0'}
@@ -3273,8 +3316,16 @@ packages:
   get-tsconfig@4.14.0:
     resolution: {integrity: sha512-yTb+8DXzDREzgvYmh6s9vHsSVCHeC0G3PI5bEXNBHtmshPnO+S5O7qgLEOn0I5QvMy6kpZN8K1NKGyilLb93wA==}
 
+  gettext-extractor@4.0.6:
+    resolution: {integrity: sha512-V06SFy/KuWLRL+szfr+rleAnLdzUet/wfLlCo4d2qJ8yF0essGdxX5jBqpCx69TB5U6E3jIC9lZtpvnMkNSCTw==}
+    engines: {node: '>=20'}
+
   gettext-parser@1.4.0:
     resolution: {integrity: sha512-sedZYLHlHeBop/gZ1jdg59hlUEcpcZJofLq2JFwJT1zTqAU3l2wFv6IsuwFHGqbiT9DWzMUW4/em2+hspnmMMA==}
+
+  gettext-parser@9.1.1:
+    resolution: {integrity: sha512-ZLeqWPz9OMNrTgMuww0C22kkcNqis+e4059R94t7L7ERlZ2rUNpiDbaAUus+esBC6uBAQWbS9N+R5vJIJg//lw==}
+    engines: {node: '>=20'}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -3283,6 +3334,12 @@ packages:
   glob-parent@6.0.2:
     resolution: {integrity: sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==}
     engines: {node: '>=10.13.0'}
+
+  glob@11.1.0:
+    resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
+    engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    hasBin: true
 
   global-modules@2.0.0:
     resolution: {integrity: sha512-NGbfmJBp9x8IxyJSd1P+otYK8vonoJactOogrVfFRIAEY1ukil8RSKDz2Yo7wh1oihl51l/r6W4epkeKJHqL8A==}
@@ -3567,6 +3624,10 @@ packages:
     resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
     engines: {node: '>=8'}
 
+  jackspeak@4.2.3:
+    resolution: {integrity: sha512-ykkVRwrYvFm1nb2AJfKKYPr0emF6IiXDYUaFx4Zn9ZuIH7MrzEZ3sD5RlqGXNRpHtvUHJyOnCEFxOlNDtGo7wg==}
+    engines: {node: 20 || >=22}
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -3832,6 +3893,10 @@ packages:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
     engines: {node: 18 || 20 || >=22}
 
+  minipass@7.1.3:
+    resolution: {integrity: sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A==}
+    engines: {node: '>=16 || 14 >=14.17'}
+
   moment-timezone@0.5.48:
     resolution: {integrity: sha512-f22b8LV1gbTO2ms2j2z13MuPogNoh5UzxL3nzNAYKGraILnbGc9NEE6dyiiiLv46DGRb8A4kg8UKWLjPthxBHw==}
 
@@ -3959,6 +4024,9 @@ packages:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
 
+  package-json-from-dist@1.0.1:
+    resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
+
   param-case@3.0.4:
     resolution: {integrity: sha512-RXlj7zCYokReqWpOPH9oYivUzLYZ5vAPIfEmCTNViosC78F8F0H9y7T7gG2M39ymgutxF5gcFEsyZQSph9Bp3A==}
 
@@ -3979,6 +4047,9 @@ packages:
 
   parse-statements@1.0.11:
     resolution: {integrity: sha512-HlsyYdMBnbPQ9Jr/VgJ1YF4scnldvJpJxCVx6KgqPL4dxppsWrJHCIIxQXMJrqGnsRkNPATbeMJ8Yxu7JMsYcA==}
+
+  parse5@6.0.1:
+    resolution: {integrity: sha512-Ofn/CTFzRGTTxwpNEs9PP93gXShHcTq255nzRYSKe8AkVpZY7e1fpmTfOyoIvjP5HG7Z2ZM7VS9PPhQGW2pOpw==}
 
   parse5@8.0.1:
     resolution: {integrity: sha512-z1e/HMG90obSGeidlli3hj7cbocou0/wa5HacvI3ASx34PecNjNQeaHNo5WIZpWofN9kgkqV1q5YvXe3F0FoPw==}
@@ -4007,6 +4078,10 @@ packages:
   path-root@0.1.1:
     resolution: {integrity: sha512-QLcPegTHF11axjfojBIoDygmS2E3Lf+8+jI6wOVmNVenrKSo3mFdSGiIgdSHenczw3wPtlVMQaFVwGmM7BJdtg==}
     engines: {node: '>=0.10.0'}
+
+  path-scurry@2.0.2:
+    resolution: {integrity: sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg==}
+    engines: {node: 18 || 20 || >=22}
 
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
@@ -4038,6 +4113,9 @@ packages:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
     hasBin: true
+
+  pofile@1.0.11:
+    resolution: {integrity: sha512-Vy9eH1dRD9wHjYt/QqXcTz+RnX/zg53xK+KljFSX30PvdDMb2z+c6uDUeblUGqqJgz3QFsdlA0IJvHziPmWtQg==}
 
   postcss-safe-parser@7.0.1:
     resolution: {integrity: sha512-0AioNCJZ2DPYz5ABT6bddIqlhgwhpHZ/l65YAYo0BCIn0xiDpsnTHz0gnoTGk0OXZW0JRs+cDwL8u/teRdz+8A==}
@@ -4485,6 +4563,11 @@ packages:
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
@@ -5374,6 +5457,13 @@ snapshots:
       '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       stylelint: 17.14.1(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  '@gopherium/gottext@0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)':
+    dependencies:
+      '@wordpress/i18n': 6.26.0
+      gettext-parser: 9.1.1
+    optionalDependencies:
+      gettext-extractor: 4.0.6
 
   '@gopherium/react-auth@0.6.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)':
     dependencies:
@@ -6368,6 +6458,8 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.1.2
 
+  '@isaacs/cliui@9.0.0': {}
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -6803,6 +6895,8 @@ snapshots:
       undici-types: 8.3.0
 
   '@types/parse-json@4.0.2': {}
+
+  '@types/parse5@5.0.3': {}
 
   '@types/react-dom@19.2.4(@types/react@19.2.18)':
     dependencies:
@@ -7632,6 +7726,8 @@ snapshots:
       tslib: 2.8.1
       upper-case: 2.0.2
 
+  content-type@1.0.5: {}
+
   convert-source-map@1.9.0: {}
 
   convert-source-map@2.0.0: {}
@@ -7677,6 +7773,8 @@ snapshots:
       which: 2.0.2
 
   css-functions-list@3.3.3: {}
+
+  css-selector-parser@1.4.1: {}
 
   css-tree@3.2.1:
     dependencies:
@@ -8011,6 +8109,11 @@ snapshots:
 
   flatted@3.4.2: {}
 
+  foreground-child@3.3.1:
+    dependencies:
+      cross-spawn: 7.0.6
+      signal-exit: 4.1.0
+
   formatly@0.3.0:
     dependencies:
       fd-package-json: 2.0.0
@@ -8049,10 +8152,24 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
+  gettext-extractor@4.0.6:
+    dependencies:
+      '@types/parse5': 5.0.3
+      css-selector-parser: 1.4.1
+      glob: 11.1.0
+      parse5: 6.0.1
+      pofile: 1.0.11
+      typescript: 5.9.3
+
   gettext-parser@1.4.0:
     dependencies:
       encoding: 0.1.13
       safe-buffer: 5.2.1
+
+  gettext-parser@9.1.1:
+    dependencies:
+      content-type: 1.0.5
+      encoding: 0.1.13
 
   glob-parent@5.1.2:
     dependencies:
@@ -8061,6 +8178,15 @@ snapshots:
   glob-parent@6.0.2:
     dependencies:
       is-glob: 4.0.3
+
+  glob@11.1.0:
+    dependencies:
+      foreground-child: 3.3.1
+      jackspeak: 4.2.3
+      minimatch: 10.2.5
+      minipass: 7.1.3
+      package-json-from-dist: 1.0.1
+      path-scurry: 2.0.2
 
   global-modules@2.0.0:
     dependencies:
@@ -8313,6 +8439,10 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
+  jackspeak@4.2.3:
+    dependencies:
+      '@isaacs/cliui': 9.0.0
+
   jiti@2.7.0: {}
 
   jju@1.4.0: {}
@@ -8553,6 +8683,8 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.7
 
+  minipass@7.1.3: {}
+
   moment-timezone@0.5.48:
     dependencies:
       moment: 2.30.1
@@ -8731,6 +8863,8 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
+  package-json-from-dist@1.0.1: {}
+
   param-case@3.0.4:
     dependencies:
       dot-case: 3.0.4
@@ -8759,6 +8893,8 @@ snapshots:
 
   parse-statements@1.0.11: {}
 
+  parse5@6.0.1: {}
+
   parse5@8.0.1:
     dependencies:
       entities: 8.0.0
@@ -8785,6 +8921,11 @@ snapshots:
     dependencies:
       path-root-regex: 0.1.2
 
+  path-scurry@2.0.2:
+    dependencies:
+      lru-cache: 11.5.1
+      minipass: 7.1.3
+
   path-to-regexp@6.3.0: {}
 
   path-type@4.0.0: {}
@@ -8804,6 +8945,8 @@ snapshots:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  pofile@1.0.11: {}
 
   postcss-safe-parser@7.0.1(postcss@8.5.26):
     dependencies:
@@ -9240,6 +9383,8 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 

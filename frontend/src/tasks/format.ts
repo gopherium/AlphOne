@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-const dayFormat = new Intl.DateTimeFormat('en-US', {
-	weekday: 'long',
-	month: 'short',
-	day: 'numeric',
-})
-
-const dueFormat = new Intl.DateTimeFormat('en-US', {
-	month: 'short',
-	day: 'numeric',
-})
+import { __, formatDate, sprintf } from '@alphone/frontend-sdk'
 
 /**
  * Formats a date as the YYYY-MM-DD the task API expects, in local time.
@@ -29,7 +20,7 @@ export function isoDate(at: Date): string {
  * @returns A heading such as Thursday, Jul 30.
  */
 export function formatDay(date: string): string {
-	return dayFormat.format(parseDate(date))
+	return formatDate(parseDate(date), { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
 /**
@@ -38,7 +29,9 @@ export function formatDay(date: string): string {
  * @returns A label such as Due Jul 30.
  */
 export function formatDue(date: string): string {
-	return `Due ${dueFormat.format(parseDate(date))}`
+	return sprintf(__('Due %(date)s', 'alphone'), {
+		date: formatDate(parseDate(date), { month: 'short', day: 'numeric' }),
+	})
 }
 
 /**

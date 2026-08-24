@@ -62,6 +62,13 @@ export default defineConfig({
 					items: [{ slug: 'extending/screens' }, { slug: 'extending/graph' }],
 				},
 				{
+					label: 'Contributing',
+					items: [
+						{ slug: 'contributing/add-a-translatable-string' },
+						{ slug: 'contributing/translate-alphone' },
+					],
+				},
+				{
 					label: 'Reference',
 					items: [
 						{ slug: 'reference/graphql-api' },

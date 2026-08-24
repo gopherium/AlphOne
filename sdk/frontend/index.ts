@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import type { Catalog } from '@gopherium/gottext'
 import type { AnyRoute } from '@tanstack/react-router'
 import type { ComponentProps, ComponentType, ReactElement } from 'react'
 
@@ -20,11 +21,18 @@ export interface ContactPanel {
 	Panel: ComponentType<{ contactId: string }>
 }
 
+export interface PluginLocale {
+	domain: string
+	load: (locale: string) => Promise<Catalog | undefined>
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
+	locale?: PluginLocale
+	errorTemplates?: () => Record<string, string>
 }
 
 export {
@@ -66,7 +74,8 @@ export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'
 export type { Capability, Role, Session } from './session'
-export { createGraphClient, graphError, graphExtensions } from './graph'
+export { configureErrorText, createGraphClient, graphError, graphExtensions } from './graph'
+export type { ErrorCopy } from './graph'
 export type { GraphClient } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'
@@ -79,3 +88,6 @@ export {
 export type { CombinedError as GraphFailure } from 'urql'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useGraphEvents, useGraphStream } from './stream'
+export { __, _n, _nx, _x, sprintf } from '@wordpress/i18n'
+export { displayLocale, formatDate, globCatalogs, rememberLocale } from '@gopherium/gottext'
+export type { Catalog } from '@gopherium/gottext'

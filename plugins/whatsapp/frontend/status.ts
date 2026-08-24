@@ -1,10 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-const failureCopy: Record<number, string> = {
-	131047: 'Outside the 24-hour window. The customer must message first.',
+import { __ } from '@alphone/frontend-sdk'
+
+/**
+ * Returns the copy for the known failure codes, read fresh so the loaded catalogue answers.
+ * @returns The copy, keyed by Graph error code.
+ */
+function failureCopy(): Record<number, string> {
+	return {
+		131047: __('Outside the 24-hour window. The customer must message first.', 'alphone-whatsapp'),
+	}
 }
 
-const genericFailureCopy = 'Not delivered.'
+/**
+ * Returns the copy for a failure no code explains.
+ * @returns The generic failure copy.
+ */
+function genericFailureCopy(): string {
+	return __('Not delivered.', 'alphone-whatsapp')
+}
 
 /**
  * Maps a Graph failure code to operator-facing copy.
@@ -12,7 +26,7 @@ const genericFailureCopy = 'Not delivered.'
  * @returns The mapped copy, or null when the code is unknown.
  */
 export function copyForFailureCode(code: number): string | null {
-	return failureCopy[code] ?? null
+	return failureCopy()[code] ?? null
 }
 
 /**
@@ -23,11 +37,11 @@ export function copyForFailureCode(code: number): string | null {
  */
 export function copyForFailureDetail(detail: string | null | undefined): string {
 	if (!detail) {
-		return genericFailureCopy
+		return genericFailureCopy()
 	}
 	const code = Number.parseInt(detail, 10)
 	if (Number.isNaN(code)) {
-		return genericFailureCopy
+		return genericFailureCopy()
 	}
-	return copyForFailureCode(code) ?? genericFailureCopy
+	return copyForFailureCode(code) ?? genericFailureCopy()
 }

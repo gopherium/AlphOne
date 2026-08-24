@@ -18,8 +18,10 @@ export default defineConfig({
 	resolve: {
 		dedupe: [
 			...godminDedupe,
+			'@gopherium/gottext',
 			'@tanstack/react-query',
 			'@tanstack/react-router',
+			'@wordpress/i18n',
 		],
 	},
 	server: {
@@ -31,6 +33,9 @@ export default defineConfig({
 		root: repoGlob(''),
 		environment: 'jsdom',
 		env: { TZ: 'UTC' },
+		server: {
+			deps: { inline: ['@wordpress/i18n', '@gopherium/gottext', '@gopherium/react-auth'] },
+		},
 		setupFiles: [repoGlob('frontend/src/test/setup.ts')],
 		include: [
 			'frontend/src/**/*.test.{ts,tsx}',

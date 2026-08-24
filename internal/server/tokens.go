@@ -63,11 +63,11 @@ func (s *server) identifyIdentity(next http.Handler) http.Handler {
 func (s *server) identifyBearer(w http.ResponseWriter, r *http.Request, next http.Handler, secret string) {
 	ctx, err := s.identityForToken(r.Context(), secret)
 	if isUnusableToken(err) {
-		authkit.RespondError(w, http.StatusUnauthorized, "invalid token")
+		authkit.RespondError(w, http.StatusUnauthorized, authkit.ErrorResponse{Message: "invalid token"})
 		return
 	}
 	if err != nil {
-		authkit.RespondError(w, http.StatusInternalServerError, "internal error")
+		authkit.RespondError(w, http.StatusInternalServerError, authkit.ErrorResponse{Message: "internal error"})
 		return
 	}
 	next.ServeHTTP(w, r.WithContext(ctx))

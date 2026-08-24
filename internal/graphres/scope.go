@@ -174,6 +174,8 @@ func capabilityError(needed string, lacked role.Capability) graphql.ResponseHand
 			"code":       "UNAUTHORIZED",
 			"scope":      needed,
 			"capability": string(lacked),
+			"reason":     "capability_missing",
+			"meta":       map[string]any{"scope": needed, "capability": string(lacked)},
 		},
 	}}})
 }
@@ -181,8 +183,13 @@ func capabilityError(needed string, lacked role.Capability) graphql.ResponseHand
 // refusedWith answers one operation with the message and the scope the refused field wanted.
 func refusedWith(message, needed string) graphql.ResponseHandler {
 	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
-		Message:    message,
-		Extensions: map[string]any{"code": "UNAUTHORIZED", "scope": needed},
+		Message: message,
+		Extensions: map[string]any{
+			"code":   "UNAUTHORIZED",
+			"scope":  needed,
+			"reason": "scope_missing",
+			"meta":   map[string]any{"scope": needed},
+		},
 	}}})
 }
 

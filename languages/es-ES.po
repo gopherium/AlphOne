@@ -1,0 +1,709 @@
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: POEditor.com\n"
+"X-Domain: alphone\n"
+"Project-Id-Version: AlphOne\n"
+"Language: es\n"
+
+msgid "30 days"
+msgstr "30 días"
+
+msgid "90 days"
+msgstr "90 días"
+
+msgid "A contact needs a name."
+msgstr "Un contacto necesita un nombre."
+
+msgid "A lifetime is zero days or more."
+msgstr "Una duración es de cero días o más."
+
+msgid "A lifetime runs to %(maxDays)d days at most."
+msgstr "Una duración llega como mucho a %(maxDays)d días."
+
+msgid "A name runs to %(max)d characters at most."
+msgstr "Un nombre tiene como mucho %(max)d caracteres."
+
+msgid "A password runs to %(max)d characters at most."
+msgstr "Una contraseña tiene como mucho %(max)d caracteres."
+
+msgid "A password runs to %(min)d characters at least."
+msgstr "Una contraseña tiene al menos %(min)d caracteres."
+
+msgid "A task needs a title."
+msgstr "Una tarea necesita un título."
+
+msgid "A token needs a name."
+msgstr "Un token necesita un nombre."
+
+msgid "A year"
+msgstr "Un año"
+
+msgid "API tokens"
+msgstr "Tokens de API"
+
+msgid "Actions"
+msgstr "Acciones"
+
+msgid "Add a task"
+msgstr "Añadir una tarea"
+
+msgid "Add a task above, or open a contact and create one from their page."
+msgstr "Añade una tarea arriba, o abre un contacto y crea una desde su página."
+
+msgid "Add a task for this contact"
+msgstr "Añadir una tarea para este contacto"
+
+msgid "Add identity"
+msgstr "Añadir identidad"
+
+msgid "Add one with New token."
+msgstr "Añade uno con Token nuevo."
+
+msgid "Add one with New user."
+msgstr "Añade uno con Usuario nuevo."
+
+msgid "Add task"
+msgstr "Añadir tarea"
+
+#, fuzzy
+msgid "AlphOne cannot write to that channel."
+msgstr "AlphOne no puede escribir en ese canal."
+
+#, fuzzy
+msgid "AlphOne does not speak that language yet."
+msgstr "AlphOne todavía no habla ese idioma."
+
+#, fuzzy
+msgid "Already on contact %(name)s."
+msgstr "Ya está en el contacto %(name)s."
+
+#, fuzzy
+msgid "An account needs a name."
+msgstr "Una cuenta necesita un nombre."
+
+#, fuzzy
+msgid "An event needs the source it came from."
+msgstr "Un evento necesita la fuente de la que viene."
+
+#, fuzzy
+msgid "Another account already holds that address."
+msgstr "Ya hay otra cuenta que tiene esa dirección."
+
+#, fuzzy
+msgid "Another contact already holds that address."
+msgstr "Ya hay otro contacto que tiene esa dirección."
+
+#, fuzzy
+msgid "Areas"
+msgstr "Áreas"
+
+#, fuzzy
+msgid "Ask for between %(min)d and %(max)d at a time."
+msgstr "Pide entre %(min)d y %(max)d a la vez."
+
+#, fuzzy
+msgid "Ask for tasks by one filter at a time."
+msgstr "Pide las tareas con un solo filtro a la vez."
+
+#, fuzzy
+msgid "Channel"
+msgstr "Canal"
+
+#, fuzzy
+msgid "Choose at least one area the token reaches."
+msgstr "Elige al menos un área a la que llegue el token."
+
+#, fuzzy
+msgid "Choose at least one event to send."
+msgstr "Elige al menos un evento que enviar."
+
+#, fuzzy
+msgid "Choose the channel this address belongs to."
+msgstr "Elige el canal al que pertenece esta dirección."
+
+#, fuzzy
+msgid "Complete"
+msgstr "Completar"
+
+#, fuzzy
+msgid "Contact"
+msgstr "Contacto"
+
+#, fuzzy
+msgid "Contact tasks"
+msgstr "Tareas del contacto"
+
+#, fuzzy
+msgid "Contacts"
+msgstr "Contactos"
+
+#, fuzzy
+msgid "Contacts could not be loaded."
+msgstr "No se han podido cargar los contactos."
+
+#, fuzzy
+msgid "Copied."
+msgstr "Copiado."
+
+#, fuzzy
+msgid "Copy it by hand."
+msgstr "Cópialo a mano."
+
+#, fuzzy
+msgid "Copy secret"
+msgstr "Copiar el secreto"
+
+#, fuzzy
+msgid "Copy the secret now, it is never shown again."
+msgstr "Copia el secreto ahora, no se vuelve a mostrar nunca."
+
+#, fuzzy
+msgid "Create contact"
+msgstr "Crear contacto"
+
+#, fuzzy
+msgid "Create task"
+msgstr "Crear tarea"
+
+#, fuzzy
+msgid "Create token"
+msgstr "Crear token"
+
+msgid "Create user"
+msgstr "Crear usuario"
+
+#, fuzzy
+msgid "Created"
+msgstr "Creado"
+
+#, fuzzy
+msgid "Created %(date)s"
+msgstr "Creado el %(date)s"
+
+msgid "Disable"
+msgstr "Desactivar"
+
+msgid "Disable %(name)s"
+msgstr "Desactivar a %(name)s"
+
+#, fuzzy
+msgid "Done (%(count)s)"
+msgstr "Hechas (%(count)s)"
+
+#, fuzzy
+msgid "Done tasks"
+msgstr "Tareas hechas"
+
+#, fuzzy
+msgid "Due %(date)s"
+msgstr "Vence el %(date)s"
+
+#, fuzzy
+msgid "Due date"
+msgstr "Fecha de vencimiento"
+
+msgid "Email"
+msgstr "Correo electrónico"
+
+msgid "Enable"
+msgstr "Activar"
+
+msgid "Enable %(name)s"
+msgstr "Activar a %(name)s"
+
+#, fuzzy
+msgid "Expires"
+msgstr "Caduca"
+
+#, fuzzy
+msgid "Identities"
+msgstr "Identidades"
+
+#, fuzzy
+msgid "Label"
+msgstr "Etiqueta"
+
+msgid "Language"
+msgstr "Idioma"
+
+#, fuzzy
+msgid "Last used"
+msgstr "Último uso"
+
+#, fuzzy
+msgid "Link a contact"
+msgstr "Vincular un contacto"
+
+#, fuzzy
+msgid "Load more"
+msgstr "Cargar más"
+
+#, fuzzy
+msgid "Load more done"
+msgstr "Cargar más hechas"
+
+#, fuzzy
+msgid "Load more overdue"
+msgstr "Cargar más vencidas"
+
+#, fuzzy
+msgid "Load more tasks"
+msgstr "Cargar más tareas"
+
+#, fuzzy
+msgid "Loading contacts…"
+msgstr "Cargando los contactos…"
+
+#, fuzzy
+msgid "Loading contact…"
+msgstr "Cargando el contacto…"
+
+#, fuzzy
+msgid "Loading tasks…"
+msgstr "Cargando las tareas…"
+
+#, fuzzy
+msgid "Loading task…"
+msgstr "Cargando la tarea…"
+
+#, fuzzy
+msgid "Loading tokens…"
+msgstr "Cargando los tokens…"
+
+#, fuzzy
+msgid "Loading users…"
+msgstr "Cargando los usuarios…"
+
+#, fuzzy
+msgid "Name"
+msgstr "Nombre"
+
+msgid "Navigation"
+msgstr "Navegación"
+
+#, fuzzy
+msgid "Never expires"
+msgstr "No caduca nunca"
+
+#, fuzzy
+msgid "Never used"
+msgstr "Sin usar"
+
+#, fuzzy
+msgid "New API token"
+msgstr "Token de API nuevo"
+
+#, fuzzy
+msgid "New contact"
+msgstr "Contacto nuevo"
+
+#, fuzzy
+msgid "New task"
+msgstr "Tarea nueva"
+
+#, fuzzy
+msgid "New task for this contact"
+msgstr "Tarea nueva para este contacto"
+
+#, fuzzy
+msgid "New token"
+msgstr "Token nuevo"
+
+msgid "New user"
+msgstr "Usuario nuevo"
+
+#, fuzzy
+msgid "Next day"
+msgstr "Día siguiente"
+
+#, fuzzy
+msgid "No API tokens yet."
+msgstr "Todavía no hay tokens de API."
+
+#, fuzzy
+msgid "No contacts found."
+msgstr "No se ha encontrado ningún contacto."
+
+#, fuzzy
+msgid "No identities yet."
+msgstr "Todavía no hay identidades."
+
+#, fuzzy
+msgid "No open tasks."
+msgstr "No hay tareas abiertas."
+
+#, fuzzy
+msgid "No role"
+msgstr "Sin rol"
+
+#, fuzzy
+msgid "No users yet."
+msgstr "Todavía no hay usuarios."
+
+#, fuzzy
+msgid "Nothing due today."
+msgstr "No hay nada que venza hoy."
+
+#, fuzzy
+msgid "Open tasks"
+msgstr "Tareas abiertas"
+
+#, fuzzy
+msgid "Overdue"
+msgstr "Vencidas"
+
+#, fuzzy
+msgid "Overdue tasks"
+msgstr "Tareas vencidas"
+
+#, fuzzy
+msgid "Overdue tasks could not be loaded."
+msgstr "No se han podido cargar las tareas vencidas."
+
+msgid "Password"
+msgstr "Contraseña"
+
+#, fuzzy
+msgid "Previous day"
+msgstr "Día anterior"
+
+#, fuzzy
+msgid "Priority"
+msgstr "Prioridad"
+
+#, fuzzy
+msgid "Read %(area)s"
+msgstr "Leer %(area)s"
+
+#, fuzzy
+msgid "Reading the languages"
+msgstr "Leyendo los idiomas"
+
+#, fuzzy
+msgid "Remove"
+msgstr "Quitar"
+
+#, fuzzy
+msgid "Remove %(identifier)s"
+msgstr "Quitar %(identifier)s"
+
+#, fuzzy
+msgid "Remove %(name)s"
+msgstr "Quitar a %(name)s"
+
+#, fuzzy
+msgid "Reopen"
+msgstr "Reabrir"
+
+#, fuzzy
+msgid "Revoke"
+msgstr "Revocar"
+
+#, fuzzy
+msgid "Revoke %(name)s"
+msgstr "Revocar %(name)s"
+
+#, fuzzy
+msgid "Revoke failed."
+msgstr "No se ha podido revocar."
+
+#, fuzzy
+msgid "Role"
+msgstr "Rol"
+
+#, fuzzy
+msgid "Role of %(name)s"
+msgstr "Rol de %(name)s"
+
+msgid "Save"
+msgstr "Guardar"
+
+#, fuzzy
+msgid "Scopes"
+msgstr "Ámbitos"
+
+#, fuzzy
+msgid "Search contacts"
+msgstr "Buscar contactos"
+
+#, fuzzy
+msgid "Sign in to go on."
+msgstr "Inicia sesión para continuar."
+
+#, fuzzy
+msgid "Somebody must be able to manage users."
+msgstr "Alguien tiene que poder gestionar los usuarios."
+
+msgid "Something went wrong."
+msgstr "Algo ha ido mal."
+
+msgid "Something went wrong. Try again."
+msgstr "Algo ha ido mal. Inténtalo de nuevo."
+
+#, fuzzy
+msgid "Status"
+msgstr "Estado"
+
+#, fuzzy
+msgid "Task"
+msgstr "Tarea"
+
+#, fuzzy
+msgid "Tasks"
+msgstr "Tareas"
+
+#, fuzzy
+msgid "Tasks could not be loaded."
+msgstr "No se han podido cargar las tareas."
+
+#, fuzzy
+msgid "That account no longer exists."
+msgstr "Esa cuenta ya no existe."
+
+#, fuzzy
+msgid "That address is no longer on this contact."
+msgstr "Esa dirección ya no está en este contacto."
+
+#, fuzzy
+msgid "That area is not one AlphOne offers."
+msgstr "Esa área no es una de las que AlphOne ofrece."
+
+#, fuzzy
+msgid "That contact no longer exists."
+msgstr "Ese contacto ya no existe."
+
+#, fuzzy
+msgid "That email and password do not match an account."
+msgstr "Ese correo y esa contraseña no coinciden con ninguna cuenta."
+
+msgid "That email is already in use."
+msgstr "Ese correo electrónico ya está en uso."
+
+#, fuzzy
+msgid "That event name is not one AlphOne knows."
+msgstr "Ese nombre de evento no es uno de los que AlphOne conoce."
+
+#, fuzzy
+msgid "That page marker is not one AlphOne issued."
+msgstr "Ese marcador de página no es uno de los que AlphOne ha emitido."
+
+#, fuzzy
+msgid "That priority is not one AlphOne offers."
+msgstr "Esa prioridad no es una de las que AlphOne ofrece."
+
+#, fuzzy
+msgid "That role holds more than your own."
+msgstr "Ese rol abarca más que el tuyo."
+
+#, fuzzy
+msgid "That role is not one this deployment names."
+msgstr "Ese rol no es uno de los que este despliegue nombra."
+
+#, fuzzy
+msgid "That status is not one AlphOne offers."
+msgstr "Ese estado no es uno de los que AlphOne ofrece."
+
+#, fuzzy
+msgid "That task no longer exists."
+msgstr "Esa tarea ya no existe."
+
+#, fuzzy
+msgid "That token no longer exists."
+msgstr "Ese token ya no existe."
+
+#, fuzzy
+msgid "That value is not in the form AlphOne expects."
+msgstr "Ese valor no tiene la forma que AlphOne espera."
+
+#, fuzzy
+msgid "That webhook no longer exists."
+msgstr "Ese webhook ya no existe."
+
+#, fuzzy
+msgid "The choice could not be saved."
+msgstr "No se ha podido guardar la elección."
+
+#, fuzzy
+msgid "The contact could not be created."
+msgstr "No se ha podido crear el contacto."
+
+#, fuzzy
+msgid "The contact could not be loaded."
+msgstr "No se ha podido cargar el contacto."
+
+#, fuzzy
+msgid "The contact could not be renamed."
+msgstr "No se ha podido renombrar el contacto."
+
+#, fuzzy
+msgid "The identity could not be added."
+msgstr "No se ha podido añadir la identidad."
+
+#, fuzzy
+msgid "The identity could not be removed."
+msgstr "No se ha podido quitar la identidad."
+
+#, fuzzy
+msgid "The language changes when the page next loads."
+msgstr "El idioma cambia la próxima vez que se cargue la página."
+
+#, fuzzy
+msgid "The languages could not be read."
+msgstr "No se han podido leer los idiomas."
+
+#, fuzzy
+msgid "The task could not be added."
+msgstr "No se ha podido añadir la tarea."
+
+#, fuzzy
+msgid "The task could not be created."
+msgstr "No se ha podido crear la tarea."
+
+#, fuzzy
+msgid "The task could not be loaded."
+msgstr "No se ha podido cargar la tarea."
+
+#, fuzzy
+msgid "The task could not be saved."
+msgstr "No se ha podido guardar la tarea."
+
+#, fuzzy
+msgid "The task could not be updated."
+msgstr "No se ha podido actualizar la tarea."
+
+#, fuzzy
+msgid "The token could not be created."
+msgstr "No se ha podido crear el token."
+
+msgid "The user could not be created."
+msgstr "No se ha podido crear el usuario."
+
+#, fuzzy
+msgid "This token does not reach %(scope)s."
+msgstr "Este token no alcanza %(scope)s."
+
+msgid "Title"
+msgstr "Título"
+
+#, fuzzy
+msgid "Today"
+msgstr "Hoy"
+
+#, fuzzy
+msgid "Tokens could not be loaded."
+msgstr "No se han podido cargar los tokens."
+
+#, fuzzy
+msgid "Too many attempts. Wait %(retryAfter)d seconds and try again."
+msgstr "Demasiados intentos. Espera %(retryAfter)d segundos e inténtalo de nuevo."
+
+#, fuzzy
+msgid "Try a different search, or add one with New contact."
+msgstr "Prueba otra búsqueda, o añade uno con Contacto nuevo."
+
+msgid "Users"
+msgstr "Usuarios"
+
+msgid "Users could not be loaded."
+msgstr "No se han podido cargar los usuarios."
+
+#, fuzzy
+msgid "Value"
+msgstr "Valor"
+
+#, fuzzy
+msgid "Write %(area)s"
+msgstr "Escribir %(area)s"
+
+#, fuzzy
+msgid "Write a scope as an area, a colon, then read or write."
+msgstr "Escribe un ámbito como un área, dos puntos y luego read o write."
+
+#, fuzzy
+msgid "Write the address as a full URL."
+msgstr "Escribe la dirección como una URL completa."
+
+#, fuzzy
+msgid "Write the address as a full email address."
+msgstr "Escribe la dirección como una dirección de correo electrónico completa."
+
+#, fuzzy
+msgid "Write the address itself."
+msgstr "Escribe la dirección."
+
+#, fuzzy
+msgid "You cannot change your own role."
+msgstr "No puedes cambiar tu propio rol."
+
+#, fuzzy
+msgid "You cannot disable your own account."
+msgstr "No puedes desactivar tu propia cuenta."
+
+#, fuzzy
+msgid "Your role does not allow %(capability)s."
+msgstr "Tu rol no permite %(capability)s."
+
+#, fuzzy
+msgctxt "account status"
+msgid "Active"
+msgstr "Activa"
+
+#, fuzzy
+msgctxt "account status"
+msgid "Disabled"
+msgstr "Desactivada"
+
+#, fuzzy
+msgctxt "admin section"
+msgid "Contacts"
+msgstr "Contactos"
+
+#, fuzzy
+#, fuzzy
+msgctxt "admin section"
+msgid "Language"
+msgstr "Idioma"
+
+msgctxt "admin section"
+msgid "Tasks"
+msgstr "Tareas"
+
+#, fuzzy
+msgctxt "contact channel"
+msgid "Email"
+msgstr "Correo electrónico"
+
+#, fuzzy
+msgctxt "contact channel"
+msgid "Phone"
+msgstr "Teléfono"
+
+#, fuzzy
+msgctxt "task priority"
+msgid "High"
+msgstr "Alta"
+
+#, fuzzy
+msgctxt "task priority"
+msgid "Normal"
+msgstr "Normal"
+
+#, fuzzy
+msgctxt "token expiry"
+msgid "Expired"
+msgstr "Caducado"
+
+msgctxt "token lifetime"
+msgid "Never"
+msgstr "Nunca"
+
+#, fuzzy
+msgid "Loading…"
+msgstr "Cargando…"
+
+#, fuzzy
+msgid "Push to tomorrow"
+msgstr "Pasar a mañana"

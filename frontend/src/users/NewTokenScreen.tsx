@@ -7,7 +7,9 @@ import {
 	PageScreen,
 	Stack,
 	Text,
+	__,
 	graphError,
+	sprintf,
 	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
@@ -50,7 +52,10 @@ function GrantBox({
 	grants: Grants
 	onGrant: (grants: Grants) => void
 }) {
-	const label = `${access === 'read' ? 'Read' : 'Write'} ${area}`
+	const label = sprintf(
+		access === 'read' ? __('Read %(area)s', 'alphone') : __('Write %(area)s', 'alphone'),
+		{ area },
+	)
 	return (
 		<label>
 			<input
@@ -83,13 +88,13 @@ function MintedSecret({ secret }: { secret: string }) {
 
 	return (
 		<Stack direction="column" gap="sm">
-			<Text>Copy the secret now, it is never shown again.</Text>
+			<Text>{__('Copy the secret now, it is never shown again.', 'alphone')}</Text>
 			<code>{secret}</code>
-			<Button variant="outline" aria-label="Copy secret" onClick={() => void copy()}>
-				Copy secret
+			<Button variant="outline" aria-label={__('Copy secret', 'alphone')} onClick={() => void copy()}>
+				{__('Copy secret', 'alphone')}
 			</Button>
-			{copied === true ? <Text role="status">Copied.</Text> : null}
-			{copied === false ? <Text role="alert">Copy it by hand.</Text> : null}
+			{copied === true ? <Text role="status">{__('Copied.', 'alphone')}</Text> : null}
+			{copied === false ? <Text role="alert">{__('Copy it by hand.', 'alphone')}</Text> : null}
 		</Stack>
 	)
 }
@@ -114,13 +119,13 @@ export function NewTokenScreen() {
 
 	if (secret !== null) {
 		return (
-			<PageScreen title="New API token">
+			<PageScreen title={__('New API token', 'alphone')}>
 				<MintedSecret secret={secret} />
 			</PageScreen>
 		)
 	}
 	return (
-		<PageScreen title="New API token">
+		<PageScreen title={__('New API token', 'alphone')}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {
@@ -129,12 +134,12 @@ export function NewTokenScreen() {
 				}}
 			>
 				<InputControl
-					label="Name"
+					label={__('Name', 'alphone')}
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
 				<fieldset>
-					<legend>Areas</legend>
+					<legend>{__('Areas', 'alphone')}</legend>
 					{grantableAreas.map((area) => (
 						<Stack key={area} direction="row" gap="sm">
 							<GrantBox area={area} access="read" grants={grants} onGrant={setGrants} />
@@ -143,9 +148,9 @@ export function NewTokenScreen() {
 					))}
 				</fieldset>
 				<label>
-					Expires
+					{__('Expires', 'alphone')}
 					<select value={lifetime} onChange={(event) => setLifetime(event.target.value)}>
-						{lifetimeChoices.map((choice) => (
+						{lifetimeChoices().map((choice) => (
 							<option key={choice.value} value={choice.value}>
 								{choice.label}
 							</option>
@@ -157,11 +162,11 @@ export function NewTokenScreen() {
 					disabled={name.trim() === '' || scopes.length === 0 || mint.fetching}
 					loading={mint.fetching}
 				>
-					Create token
+					{__('Create token', 'alphone')}
 				</Button>
 				{mint.error ? (
 					<ErrorNotice>
-						{validationMessage(graphError(mint.error), 'The token could not be created.')}
+						{validationMessage(graphError(mint.error), __('The token could not be created.', 'alphone'))}
 					</ErrorNotice>
 				) : null}
 			</form>

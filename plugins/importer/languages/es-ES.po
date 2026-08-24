@@ -1,0 +1,173 @@
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: POEditor.com\n"
+"X-Domain: alphone-importer\n"
+"Project-Id-Version: AlphOne Importer Plugin\n"
+"Language: es\n"
+
+#, fuzzy
+msgid "AlphOne could not read that file as a CSV or a spreadsheet."
+msgstr "AlphOne no ha podido leer ese archivo como CSV ni como hoja de cálculo."
+
+#, fuzzy
+msgid "Choose a CSV or Excel file to start one."
+msgstr "Elige un archivo CSV o Excel para empezar una."
+
+#, fuzzy
+msgid "Choose what each column holds before committing."
+msgstr "Elige qué contiene cada columna antes de confirmar."
+
+#, fuzzy
+msgid "Column %(number)d"
+msgstr "Columna %(number)d"
+
+#, fuzzy
+msgid "Commit"
+msgstr "Confirmar"
+
+#, fuzzy
+msgid "Contacts file"
+msgstr "Archivo de contactos"
+
+#, fuzzy
+msgid "File"
+msgstr "Archivo"
+
+#, fuzzy
+msgid "Import"
+msgstr "Importar"
+
+#, fuzzy
+msgid "Imports"
+msgstr "Importaciones"
+
+#, fuzzy
+msgid "Imports could not be loaded."
+msgstr "No se han podido cargar las importaciones."
+
+#, fuzzy
+msgid "Loading imports…"
+msgstr "Cargando las importaciones…"
+
+#, fuzzy
+msgid "Loading import…"
+msgstr "Cargando la importación…"
+
+#, fuzzy
+msgid "Loading the preview…"
+msgstr "Cargando la vista previa…"
+
+#, fuzzy
+msgid "No imports yet."
+msgstr "Todavía no hay ninguna importación."
+
+#, fuzzy
+msgid "Not imported"
+msgstr "No importada"
+
+#, fuzzy
+msgid "Outcome"
+msgstr "Resultado"
+
+#, fuzzy
+msgid "Reason"
+msgstr "Motivo"
+
+#, fuzzy
+msgid "Row"
+msgstr "Fila"
+
+#, fuzzy
+msgid "Rows"
+msgstr "Filas"
+
+#, fuzzy
+msgid "Save mapping"
+msgstr "Guardar la asignación"
+
+#, fuzzy
+msgid "Started"
+msgstr "Iniciada"
+
+#, fuzzy
+msgid "State"
+msgstr "Estado"
+
+#, fuzzy
+msgid "That import no longer exists."
+msgstr "Esa importación ya no existe."
+
+#, fuzzy
+msgid "The file could not be imported."
+msgstr "No se ha podido importar el archivo."
+
+#, fuzzy
+msgid "The file runs past %(maxBytes)d bytes."
+msgstr "El archivo pasa de %(maxBytes)d bytes."
+
+#, fuzzy
+msgid "The import could not be committed."
+msgstr "No se ha podido confirmar la importación."
+
+#, fuzzy
+msgid "The import could not be loaded."
+msgstr "No se ha podido cargar la importación."
+
+#, fuzzy
+msgid "The mapping could not be saved."
+msgstr "No se ha podido guardar la asignación."
+
+#, fuzzy
+msgid "The mapping does not fit the columns the file holds."
+msgstr "La asignación no encaja con las columnas que tiene el archivo."
+
+#, fuzzy
+msgid "This import no longer accepts a mapping."
+msgstr "Esta importación ya no admite una asignación."
+
+#, fuzzy
+msgid "This import was committed already."
+msgstr "Esta importación ya se ha confirmado."
+
+#, fuzzy
+msgctxt "admin section"
+msgid "Import"
+msgstr "Importación"
+
+#, fuzzy
+msgctxt "import count"
+msgid "Failed"
+msgstr "Fallidas"
+
+#, fuzzy
+msgctxt "import count"
+msgid "Imported"
+msgstr "Importadas"
+
+#, fuzzy
+msgctxt "import count"
+msgid "Skipped"
+msgstr "Omitidas"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Failed"
+msgstr "Fallida"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Imported"
+msgstr "Importada"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Pending"
+msgstr "Pendiente"
+
+#, fuzzy
+msgctxt "row outcome"
+msgid "Skipped"
+msgstr "Omitida"

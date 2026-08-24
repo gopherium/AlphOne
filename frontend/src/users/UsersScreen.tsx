@@ -12,7 +12,10 @@ import {
 	Stack,
 	Text,
 	VisuallyHidden,
+	__,
+	_x,
 	can,
+	sprintf,
 	people,
 	useSession,
 } from '@alphone/frontend-sdk'
@@ -30,7 +33,7 @@ import { setUserRole } from '../auth/graphTransport'
  */
 function roleLabel(role: string): string {
 	if (role === '') {
-		return 'No role'
+		return __('No role', 'alphone')
 	}
 	return role.charAt(0).toUpperCase() + role.slice(1)
 }
@@ -61,7 +64,7 @@ function UserRow({
 			<td>{user.email}</td>
 			<td>
 				<Badge intent={user.disabled ? 'draft' : 'stable'}>
-					{user.disabled ? 'Disabled' : 'Active'}
+					{user.disabled ? _x('Disabled', 'account status', 'alphone') : _x('Active', 'account status', 'alphone')}
 				</Badge>
 			</td>
 			<td>
@@ -95,11 +98,14 @@ function UserControls({ user }: { user: Account }) {
 		<Stack direction="column" gap="xs">
 			<Button
 				variant="outline"
-				aria-label={`${barred ? 'Enable' : 'Disable'} ${user.name}`}
+				aria-label={sprintf(
+					barred ? __('Enable %(name)s', 'alphone') : __('Disable %(name)s', 'alphone'),
+					{ name: user.name },
+				)}
 				loading={toggle.isPending}
 				onClick={() => toggle.mutate()}
 			>
-				{barred ? 'Enable' : 'Disable'}
+				{barred ? __('Enable', 'alphone') : __('Disable', 'alphone')}
 			</Button>
 			{toggle.error ? <Text role="alert">{toggle.error.message}</Text> : null}
 		</Stack>
@@ -125,7 +131,7 @@ function UserRole({ user, grantable }: { user: Account; grantable: string[] }) {
 		<Stack direction="column" gap="xs">
 			{held ? null : <Text>{roleLabel(user.role)}</Text>}
 			<SelectControl
-				label={`Role of ${user.name}`}
+				label={sprintf(__('Role of %(name)s', 'alphone'), { name: user.name })}
 				hideLabelFromVision
 				disabled={restand.isPending}
 				items={offered}
@@ -151,15 +157,15 @@ export function UsersScreen() {
 
 	return (
 		<PageScreen
-			title="Users"
+			title={__('Users', 'alphone')}
 			actions={
 				<Stack direction="row" gap="sm">
 					<Button variant="outline" render={<Link to="/users/tokens" />}>
-						API tokens
+						{__('API tokens', 'alphone')}
 					</Button>
 					{manages ? (
 						<Button variant="solid" render={<Link to="/users/new" />}>
-							New user
+							{__('New user', 'alphone')}
 						</Button>
 					) : null}
 				</Stack>
@@ -191,17 +197,17 @@ function UserRows({
 	grantable: string[]
 }) {
 	if (users.isPending) {
-		return <LoadingRows label="Loading users…" />
+		return <LoadingRows label={__('Loading users…', 'alphone')} />
 	}
 	if (users.isError) {
-		return <ErrorNotice>Users could not be loaded.</ErrorNotice>
+		return <ErrorNotice>{__('Users could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	if (users.data.length === 0) {
 		return (
 			<EmptyState.Root className="godmin-empty">
 				<EmptyState.Icon icon={people} />
-				<EmptyState.Title>No users yet.</EmptyState.Title>
-				<EmptyState.Description>Add one with New user.</EmptyState.Description>
+				<EmptyState.Title>{__('No users yet.', 'alphone')}</EmptyState.Title>
+				<EmptyState.Description>{__('Add one with New user.', 'alphone')}</EmptyState.Description>
 			</EmptyState.Root>
 		)
 	}
@@ -209,18 +215,18 @@ function UserRows({
 		<div
 			className="godmin-table-scroll godmin-arrival"
 			role="region"
-			aria-label="Users"
+			aria-label={__('Users', 'alphone')}
 			tabIndex={0}
 		>
 			<table className="godmin-table">
 				<thead>
 					<tr>
-						<th scope="col">Name</th>
-						<th scope="col">Email</th>
-						<th scope="col">Status</th>
-						<th scope="col">Role</th>
+						<th scope="col">{__('Name', 'alphone')}</th>
+						<th scope="col">{__('Email', 'alphone')}</th>
+						<th scope="col">{__('Status', 'alphone')}</th>
+						<th scope="col">{__('Role', 'alphone')}</th>
 						<th scope="col" className="godmin-table__actions">
-							<VisuallyHidden>Actions</VisuallyHidden>
+							<VisuallyHidden>{__('Actions', 'alphone')}</VisuallyHidden>
 						</th>
 					</tr>
 				</thead>

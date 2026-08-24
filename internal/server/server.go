@@ -131,7 +131,8 @@ func inArea(area string, next http.Handler) http.Handler {
 		token, carried := credential.TokenOf(r.Context())
 		writes := changesState(r.Method)
 		if carried && !token.Scopes.Allows(area, writes) {
-			authkit.RespondError(w, http.StatusForbidden, "scope required: "+area+":"+accessOf(writes))
+			authkit.RespondError(w, http.StatusForbidden,
+				authkit.ErrorResponse{Message: "scope required: " + area + ":" + accessOf(writes)})
 			return
 		}
 		next.ServeHTTP(w, r)

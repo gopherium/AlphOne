@@ -1,0 +1,565 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: alphone\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: alphone\n"
+
+msgid "30 days"
+msgstr ""
+
+msgid "90 days"
+msgstr ""
+
+msgid "A contact needs a name."
+msgstr ""
+
+msgid "A lifetime is zero days or more."
+msgstr ""
+
+msgid "A lifetime runs to %(maxDays)d days at most."
+msgstr ""
+
+msgid "A name runs to %(max)d characters at most."
+msgstr ""
+
+msgid "A password runs to %(max)d characters at most."
+msgstr ""
+
+msgid "A password runs to %(min)d characters at least."
+msgstr ""
+
+msgid "A task needs a title."
+msgstr ""
+
+msgid "A token needs a name."
+msgstr ""
+
+msgid "A year"
+msgstr ""
+
+msgid "API tokens"
+msgstr ""
+
+msgid "Actions"
+msgstr ""
+
+msgid "Add a task"
+msgstr ""
+
+msgid "Add a task above, or open a contact and create one from their page."
+msgstr ""
+
+msgid "Add a task for this contact"
+msgstr ""
+
+msgid "Add identity"
+msgstr ""
+
+msgid "Add one with New token."
+msgstr ""
+
+msgid "Add one with New user."
+msgstr ""
+
+msgid "Add task"
+msgstr ""
+
+msgid "AlphOne cannot write to that channel."
+msgstr ""
+
+msgid "AlphOne does not speak that language yet."
+msgstr ""
+
+msgid "Already on contact %(name)s."
+msgstr ""
+
+msgid "An account needs a name."
+msgstr ""
+
+msgid "An event needs the source it came from."
+msgstr ""
+
+msgid "Another account already holds that address."
+msgstr ""
+
+msgid "Another contact already holds that address."
+msgstr ""
+
+msgid "Areas"
+msgstr ""
+
+msgid "Ask for between %(min)d and %(max)d at a time."
+msgstr ""
+
+msgid "Ask for tasks by one filter at a time."
+msgstr ""
+
+msgid "Channel"
+msgstr ""
+
+msgid "Choose at least one area the token reaches."
+msgstr ""
+
+msgid "Choose at least one event to send."
+msgstr ""
+
+msgid "Choose the channel this address belongs to."
+msgstr ""
+
+msgid "Complete"
+msgstr ""
+
+msgid "Contact"
+msgstr ""
+
+msgid "Contact tasks"
+msgstr ""
+
+msgid "Contacts"
+msgstr ""
+
+msgid "Contacts could not be loaded."
+msgstr ""
+
+msgid "Copied."
+msgstr ""
+
+msgid "Copy it by hand."
+msgstr ""
+
+msgid "Copy secret"
+msgstr ""
+
+msgid "Copy the secret now, it is never shown again."
+msgstr ""
+
+msgid "Create contact"
+msgstr ""
+
+msgid "Create task"
+msgstr ""
+
+msgid "Create token"
+msgstr ""
+
+msgid "Create user"
+msgstr ""
+
+msgid "Created"
+msgstr ""
+
+msgid "Created %(date)s"
+msgstr ""
+
+msgid "Disable"
+msgstr ""
+
+msgid "Disable %(name)s"
+msgstr ""
+
+msgid "Done (%(count)s)"
+msgstr ""
+
+msgid "Done tasks"
+msgstr ""
+
+msgid "Due %(date)s"
+msgstr ""
+
+msgid "Due date"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Enable %(name)s"
+msgstr ""
+
+msgid "Expires"
+msgstr ""
+
+msgid "Identities"
+msgstr ""
+
+msgid "Label"
+msgstr ""
+
+msgid "Language"
+msgstr ""
+
+msgid "Last used"
+msgstr ""
+
+msgid "Link a contact"
+msgstr ""
+
+msgid "Load more"
+msgstr ""
+
+msgid "Load more done"
+msgstr ""
+
+msgid "Load more overdue"
+msgstr ""
+
+msgid "Load more tasks"
+msgstr ""
+
+msgid "Loading contacts…"
+msgstr ""
+
+msgid "Loading contact…"
+msgstr ""
+
+msgid "Loading tasks…"
+msgstr ""
+
+msgid "Loading task…"
+msgstr ""
+
+msgid "Loading tokens…"
+msgstr ""
+
+msgid "Loading users…"
+msgstr ""
+
+msgid "Loading…"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Navigation"
+msgstr ""
+
+msgid "Never expires"
+msgstr ""
+
+msgid "Never used"
+msgstr ""
+
+msgid "New API token"
+msgstr ""
+
+msgid "New contact"
+msgstr ""
+
+msgid "New task"
+msgstr ""
+
+msgid "New task for this contact"
+msgstr ""
+
+msgid "New token"
+msgstr ""
+
+msgid "New user"
+msgstr ""
+
+msgid "Next day"
+msgstr ""
+
+msgid "No API tokens yet."
+msgstr ""
+
+msgid "No contacts found."
+msgstr ""
+
+msgid "No identities yet."
+msgstr ""
+
+msgid "No open tasks."
+msgstr ""
+
+msgid "No role"
+msgstr ""
+
+msgid "No users yet."
+msgstr ""
+
+msgid "Nothing due today."
+msgstr ""
+
+msgid "Open tasks"
+msgstr ""
+
+msgid "Overdue"
+msgstr ""
+
+msgid "Overdue tasks"
+msgstr ""
+
+msgid "Overdue tasks could not be loaded."
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Previous day"
+msgstr ""
+
+msgid "Priority"
+msgstr ""
+
+msgid "Push to tomorrow"
+msgstr ""
+
+msgid "Read %(area)s"
+msgstr ""
+
+msgid "Reading the languages"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Remove %(identifier)s"
+msgstr ""
+
+msgid "Remove %(name)s"
+msgstr ""
+
+msgid "Reopen"
+msgstr ""
+
+msgid "Revoke"
+msgstr ""
+
+msgid "Revoke %(name)s"
+msgstr ""
+
+msgid "Revoke failed."
+msgstr ""
+
+msgid "Role"
+msgstr ""
+
+msgid "Role of %(name)s"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Scopes"
+msgstr ""
+
+msgid "Search contacts"
+msgstr ""
+
+msgid "Sign in to go on."
+msgstr ""
+
+msgid "Somebody must be able to manage users."
+msgstr ""
+
+msgid "Something went wrong."
+msgstr ""
+
+msgid "Something went wrong. Try again."
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Task"
+msgstr ""
+
+msgid "Tasks"
+msgstr ""
+
+msgid "Tasks could not be loaded."
+msgstr ""
+
+msgid "That account no longer exists."
+msgstr ""
+
+msgid "That address is no longer on this contact."
+msgstr ""
+
+msgid "That area is not one AlphOne offers."
+msgstr ""
+
+msgid "That contact no longer exists."
+msgstr ""
+
+msgid "That email and password do not match an account."
+msgstr ""
+
+msgid "That email is already in use."
+msgstr ""
+
+msgid "That event name is not one AlphOne knows."
+msgstr ""
+
+msgid "That page marker is not one AlphOne issued."
+msgstr ""
+
+msgid "That priority is not one AlphOne offers."
+msgstr ""
+
+msgid "That role holds more than your own."
+msgstr ""
+
+msgid "That role is not one this deployment names."
+msgstr ""
+
+msgid "That status is not one AlphOne offers."
+msgstr ""
+
+msgid "That task no longer exists."
+msgstr ""
+
+msgid "That token no longer exists."
+msgstr ""
+
+msgid "That value is not in the form AlphOne expects."
+msgstr ""
+
+msgid "That webhook no longer exists."
+msgstr ""
+
+msgid "The choice could not be saved."
+msgstr ""
+
+msgid "The contact could not be created."
+msgstr ""
+
+msgid "The contact could not be loaded."
+msgstr ""
+
+msgid "The contact could not be renamed."
+msgstr ""
+
+msgid "The identity could not be added."
+msgstr ""
+
+msgid "The identity could not be removed."
+msgstr ""
+
+msgid "The language changes when the page next loads."
+msgstr ""
+
+msgid "The languages could not be read."
+msgstr ""
+
+msgid "The task could not be added."
+msgstr ""
+
+msgid "The task could not be created."
+msgstr ""
+
+msgid "The task could not be loaded."
+msgstr ""
+
+msgid "The task could not be saved."
+msgstr ""
+
+msgid "The task could not be updated."
+msgstr ""
+
+msgid "The token could not be created."
+msgstr ""
+
+msgid "The user could not be created."
+msgstr ""
+
+msgid "This token does not reach %(scope)s."
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Today"
+msgstr ""
+
+msgid "Tokens could not be loaded."
+msgstr ""
+
+msgid "Too many attempts. Wait %(retryAfter)d seconds and try again."
+msgstr ""
+
+msgid "Try a different search, or add one with New contact."
+msgstr ""
+
+msgid "Users"
+msgstr ""
+
+msgid "Users could not be loaded."
+msgstr ""
+
+msgid "Value"
+msgstr ""
+
+msgid "Write %(area)s"
+msgstr ""
+
+msgid "Write a scope as an area, a colon, then read or write."
+msgstr ""
+
+msgid "Write the address as a full URL."
+msgstr ""
+
+msgid "Write the address as a full email address."
+msgstr ""
+
+msgid "Write the address itself."
+msgstr ""
+
+msgid "You cannot change your own role."
+msgstr ""
+
+msgid "You cannot disable your own account."
+msgstr ""
+
+msgid "Your role does not allow %(capability)s."
+msgstr ""
+
+msgctxt "account status"
+msgid "Active"
+msgstr ""
+
+msgctxt "account status"
+msgid "Disabled"
+msgstr ""
+
+msgctxt "admin section"
+msgid "Contacts"
+msgstr ""
+
+msgctxt "admin section"
+msgid "Language"
+msgstr ""
+
+msgctxt "admin section"
+msgid "Tasks"
+msgstr ""
+
+msgctxt "contact channel"
+msgid "Email"
+msgstr ""
+
+msgctxt "contact channel"
+msgid "Phone"
+msgstr ""
+
+msgctxt "task priority"
+msgid "High"
+msgstr ""
+
+msgctxt "task priority"
+msgid "Normal"
+msgstr ""
+
+msgctxt "token expiry"
+msgid "Expired"
+msgstr ""
+
+msgctxt "token lifetime"
+msgid "Never"
+msgstr ""

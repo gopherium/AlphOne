@@ -76,7 +76,8 @@ func (s *server) boundPluginRequest(next http.Handler) http.Handler {
 		user := authkit.IdentityFromContext(r.Context())
 		if !s.streams.acquire(user.ID) {
 			w.Header().Set("Retry-After", strconv.Itoa(int(s.maxStreamLifetime.Seconds())))
-			authkit.RespondError(w, http.StatusTooManyRequests, "too many concurrent requests")
+			authkit.RespondError(w, http.StatusTooManyRequests,
+				authkit.ErrorResponse{Message: "too many concurrent requests"})
 			return
 		}
 		defer s.streams.release(user.ID)

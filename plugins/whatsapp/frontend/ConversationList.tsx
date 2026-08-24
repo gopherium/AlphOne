@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, LoadingRows, Text, VisuallyHidden, useGraphQuery } from '@alphone/frontend-sdk'
+import { Badge, LoadingRows, Text, VisuallyHidden, __, useGraphQuery } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 
 import { formatListTime } from './format'
@@ -21,13 +21,13 @@ export function ConversationList() {
 	const rows = conversations.data?.whatsAppConversations
 
 	if (conversations.error) {
-		return <Text role="alert">Conversations could not be loaded.</Text>
+		return <Text role="alert">{__('Conversations could not be loaded.', 'alphone-whatsapp')}</Text>
 	}
 	if (!rows) {
-		return <LoadingRows label="Loading conversations…" />
+		return <LoadingRows label={__('Loading conversations…', 'alphone-whatsapp')} />
 	}
 	if (rows.length === 0) {
-		return <Text role="status">No conversations yet.</Text>
+		return <Text role="status">{__('No conversations yet.', 'alphone-whatsapp')}</Text>
 	}
 	return (
 		<ul className="alphone-conversations">
@@ -53,7 +53,9 @@ export function ConversationList() {
 							<span className="alphone-conversation__preview">
 								{conversation.lastMessagePreview ?? ''}
 							</span>
-							<VisuallyHidden render={<span />}>status</VisuallyHidden>
+							<VisuallyHidden render={<span />}>
+								{__('status', 'alphone-whatsapp')}
+							</VisuallyHidden>
 							<Badge>{conversation.status}</Badge>
 						</span>
 					</Link>

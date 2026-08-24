@@ -6,7 +6,9 @@ import {
 	InputControl,
 	PageScreen,
 	Text,
+	__,
 	graphError,
+	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
@@ -60,7 +62,7 @@ export function NewTaskScreen({
 	}
 
 	return (
-		<PageScreen title="New task">
+		<PageScreen title={__('New task', 'alphone')}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {
@@ -69,12 +71,12 @@ export function NewTaskScreen({
 				}}
 			>
 				<InputControl
-					label="Title"
+					label={__('Title', 'alphone')}
 					value={title}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
 				<InputControl
-					label="Due date"
+					label={__('Due date', 'alphone')}
 					type="date"
 					value={dueOn}
 					onChange={(event) => setDueOn(event.target.value)}
@@ -86,10 +88,12 @@ export function NewTaskScreen({
 					disabled={title.trim() === '' || create.fetching}
 					loading={create.fetching}
 				>
-					Create task
+					{__('Create task', 'alphone')}
 				</Button>
 				{create.error ? (
-					<ErrorNotice>{validationMessage(graphError(create.error), 'The task could not be created.')}</ErrorNotice>
+					<ErrorNotice>
+						{validationMessage(graphError(create.error), __('The task could not be created.', 'alphone'))}
+					</ErrorNotice>
 				) : null}
 			</form>
 		</PageScreen>
@@ -120,7 +124,7 @@ function ContactPicker({
 			<div className="alphone-tasks__picked">
 				<Text>{contact.name}</Text>
 				<Button variant="minimal" onClick={() => onPick(null)}>
-					{`Remove ${contact.name}`}
+					{sprintf(__('Remove %(name)s', 'alphone'), { name: contact.name })}
 				</Button>
 			</div>
 		)
@@ -128,7 +132,7 @@ function ContactPicker({
 	return (
 		<div className="alphone-tasks__picker">
 			<InputControl
-				label="Link a contact"
+				label={__('Link a contact', 'alphone')}
 				value={search}
 				onChange={(event) => setSearch(event.target.value)}
 			/>
@@ -158,7 +162,7 @@ function ContactResults({
 		return null
 	}
 	if (contacts.length === 0) {
-		return <Text role="status">No contacts found.</Text>
+		return <Text role="status">{__('No contacts found.', 'alphone')}</Text>
 	}
 	return (
 		<ul className="alphone-tasks__results">

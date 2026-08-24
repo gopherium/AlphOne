@@ -105,6 +105,7 @@ func run(
 		Live:         hub,
 		Auth:         auth,
 		Admin:        admin,
+		Settings:     postgres.NewUserSettingStore(pool),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {

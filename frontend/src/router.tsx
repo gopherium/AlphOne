@@ -9,6 +9,7 @@ import {
 import type { RouterHistory } from '@tanstack/react-router'
 
 import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
+import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
@@ -90,8 +91,15 @@ const newTokenRoute = createRoute({
 	component: NewTokenRoute,
 })
 
+const languageRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: '/language',
+	component: LanguageScreen,
+})
+
 const routeTree = rootRoute.addChildren([
 	homeRoute,
+	languageRoute,
 	tasksRoute,
 	newTaskRoute,
 	taskRoute,

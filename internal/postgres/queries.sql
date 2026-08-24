@@ -198,3 +198,13 @@ LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = @user_id::
 WHERE m.user_id IS NOT NULL OR t.id = @default_id::uuid
 ORDER BY m.user_id IS NOT NULL DESC
 LIMIT 1;
+
+-- name: UserSetting :many
+SELECT value
+FROM core.user_settings
+WHERE user_id = @user_id::uuid AND key = @key::text;
+
+-- name: SetUserSetting :exec
+INSERT INTO core.user_settings (user_id, key, value)
+VALUES (@user_id::uuid, @key::text, @value::text)
+ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value;
