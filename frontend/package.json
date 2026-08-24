@@ -5,10 +5,12 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsc -b && vite build",
+		"catalogs": "node scripts/write-catalogs.ts",
 		"cover": "vitest run --coverage",
 		"dev": "vite",
 		"lint": "pnpm -w exec oxlint frontend sdk plugins && pnpm -w exec eslint .",
 		"lint:css": "stylelint \"src/**/*.css\"",
+		"pot": "node scripts/write-pot.ts",
 		"preview": "vite preview",
 		"typecheck": "tsc -b"
 	},

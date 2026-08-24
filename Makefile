@@ -30,6 +30,12 @@ generate:
 	go run ./cmd/schemagen
 	pnpm exec graphql-codegen --config codegen.ts
 
+pot:
+	pnpm --filter @alphone/frontend exec node scripts/write-pot.ts
+
+catalogs:
+	pnpm --filter @alphone/frontend exec node scripts/write-catalogs.ts
+
 outdated:
 	@echo "=== direct Go modules with updates ==="
 	@go list -m -u -f '{{if and (not .Indirect) .Update}}  {{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' all 2>/dev/null | grep . || echo "  (all current)"
