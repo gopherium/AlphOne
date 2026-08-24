@@ -3,6 +3,7 @@
 import { _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
+import { errorTemplates } from './errorTemplates'
 import { whatsappIcon } from './icon'
 import { routes } from './routes'
 
@@ -23,4 +24,5 @@ export const plugin: FrontendPlugin = {
 		icon: whatsappIcon,
 	}],
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
+	errorTemplates,
 }

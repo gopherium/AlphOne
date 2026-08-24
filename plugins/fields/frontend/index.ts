@@ -4,6 +4,7 @@ import { _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
 import { ContactFieldsPanel } from './ContactFieldsPanel'
+import { errorTemplates } from './errorTemplates'
 import { fieldsIcon } from './icon'
 import { routes } from './routes'
 
@@ -25,4 +26,5 @@ export const plugin: FrontendPlugin = {
 	}],
 	contactPanels: [{ id: 'fields', Panel: ContactFieldsPanel }],
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
+	errorTemplates,
 }
