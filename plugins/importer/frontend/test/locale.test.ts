@@ -8,6 +8,10 @@ test('declares its own text domain', () => {
 	expect(plugin.locale?.domain).toBe('alphone-importer')
 })
 
+test('answers the catalogue for the locale it ships', async () => {
+	expect(await plugin.locale?.load('es-ES')).toBeDefined()
+})
+
 test('answers no catalogue for a locale shipping none', async () => {
 	expect(await plugin.locale?.load('xx-XX')).toBeUndefined()
 })

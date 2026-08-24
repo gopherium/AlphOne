@@ -11,7 +11,7 @@ import { domains, repositoryRoot } from '../../scripts/config.ts'
 const ROOT = repositoryRoot()
 
 /** SPOKEN lists the attributes whose value a reader reads or hears. */
-const SPOKEN = new Set(['aria-label', 'aria-description', 'alt', 'placeholder', 'title'])
+const SPOKEN = new Set(['aria-label', 'aria-description', 'alt', 'label', 'placeholder', 'title'])
 
 /** WORDED matches a run carrying a word rather than punctuation or a glyph. */
 const WORDED = /[A-Za-z]{2,}/
