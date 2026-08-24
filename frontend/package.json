@@ -12,6 +12,8 @@
 		"lint:css": "stylelint \"src/**/*.css\"",
 		"pot": "node scripts/write-pot.ts",
 		"preview": "vite preview",
+		"translations": "node --env-file-if-exists=../.env scripts/sync-translations.ts",
+		"translations:retire": "node --env-file-if-exists=../.env scripts/retire-translations.ts",
 		"typecheck": "tsc -b"
 	},
 	"dependencies": {

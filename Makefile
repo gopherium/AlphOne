@@ -36,6 +36,12 @@ pot:
 catalogs:
 	pnpm --filter @alphone/frontend exec node scripts/write-catalogs.ts
 
+translations:
+	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/sync-translations.ts
+
+translations-retire:
+	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/retire-translations.ts
+
 outdated:
 	@echo "=== direct Go modules with updates ==="
 	@go list -m -u -f '{{if and (not .Indirect) .Update}}  {{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' all 2>/dev/null | grep . || echo "  (all current)"
