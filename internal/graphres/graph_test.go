@@ -159,6 +159,20 @@ func firstErrorCode(t *testing.T, raw json.RawMessage) string {
 	return parsed[0].Extensions.Code
 }
 
+// firstErrorReason extracts the first error extension reason of a raw response.
+func firstErrorReason(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var parsed []struct {
+		Extensions struct {
+			Reason string `json:"reason"`
+		} `json:"extensions"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil || len(parsed) == 0 {
+		t.Fatalf("no errors in response: %s (%v)", raw, err)
+	}
+	return parsed[0].Extensions.Reason
+}
+
 type connectionResult struct {
 	Edges []struct {
 		Node struct {

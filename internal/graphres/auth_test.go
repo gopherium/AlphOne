@@ -116,6 +116,20 @@ func TestAnonymousOperationsBeyondLoginAreRejected(t *testing.T) {
 	}
 }
 
+func TestTheAnonymousGateNamesTheReasonItRefuses(t *testing.T) {
+	t.Parallel()
+
+	client := newAnonymousGraphClient(t, newAuthResolver(testkit.NewStore()))
+
+	response, err := client.RawPost(`mutation { setLocale(locale: "es-ES") }`)
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorReason(t, response.Errors); got != "authentication_required" {
+		t.Errorf("reason = %q, want authentication_required", got)
+	}
+}
+
 func TestAnAnonymousCallerMayAskItsLocale(t *testing.T) {
 	t.Parallel()
 
