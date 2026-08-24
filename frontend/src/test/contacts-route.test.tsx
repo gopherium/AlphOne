@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
+import { configureAppErrorText } from '../i18n/errors'
 import { renderAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
@@ -673,3 +674,24 @@ test('drops the session when the contact detail is unauthorized', async () => {
 })
 
 
+
+test('shows the reader the sentence the reason names, not the server prose', async () => {
+	configureAppErrorText()
+	server.use(
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: empty name',
+					extensions: { code: 'VALIDATION', reason: 'contact_name_required' },
+				}],
+			})),
+	)
+	renderAt('/contacts/new')
+
+	await userEvent.type(await screen.findByLabelText('Name'), 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
+
+	expect(await screen.findByText('A contact needs a name.')).toBeInTheDocument()
+	expect(screen.queryByText('contact: empty name')).not.toBeInTheDocument()
+})

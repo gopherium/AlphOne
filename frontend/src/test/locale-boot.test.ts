@@ -7,6 +7,7 @@ import { afterEach, expect, test } from 'vitest'
 
 import { fetchLocale } from '../i18n/api'
 import { DOMAIN, declaredEntries, localeEntries, startAppLocale } from '../i18n/start'
+import { appErrorTemplates, declaredTemplates } from '../i18n/errors'
 
 afterEach(() => {
 	resetLocale()
@@ -75,4 +76,26 @@ test('skips a plugin declaring no domain of its own', () => {
 	const declared = declaredEntries([{ id: 'bare', routes: () => [], nav: [] }])
 
 	expect(declared).toEqual([])
+})
+
+test('renders core and plugin reasons from one merged map', () => {
+	const merged = appErrorTemplates()
+
+	expect(merged.contact_name_required).toBe('A contact needs a name.')
+	expect(merged.field_name_taken).toBe('Another field already holds that name.')
+	expect(merged.import_not_found).toBe('That import no longer exists.')
+	expect(merged.message_content_required).toBe('Write something to send.')
+})
+
+test('skips a plugin declaring no templates of its own', () => {
+	expect(declaredTemplates([{ id: 'bare', routes: () => [], nav: [] }])).toEqual({})
+})
+
+test('points the graph seam at the merged templates', async () => {
+	const { configureAppErrorText } = await import('../i18n/errors')
+	const { errorFallback } = await import('../i18n/errorTemplates')
+
+	configureAppErrorText()
+
+	expect(errorFallback()).toBe('Something went wrong. Try again.')
 })
