@@ -1,0 +1,114 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: alphone-fields\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: alphone-fields\n"
+
+msgid "A field name starts lowercase and runs together, like birthDate."
+msgstr ""
+
+msgid "A field needs a label."
+msgstr ""
+
+msgid "Add a field"
+msgstr ""
+
+msgid "Add a field to store more about every contact."
+msgstr ""
+
+msgid "Add field"
+msgstr ""
+
+msgid "An archived field of that name holds another kind."
+msgstr ""
+
+msgid "Another field already holds that name."
+msgstr ""
+
+msgid "Archive"
+msgstr ""
+
+msgid "Archive %(label)s"
+msgstr ""
+
+msgid "Fields"
+msgstr ""
+
+msgid "Kind"
+msgstr ""
+
+msgid "Label"
+msgstr ""
+
+msgid "Loading fields…"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "No fields yet."
+msgstr ""
+
+msgid "Save fields"
+msgstr ""
+
+msgid "Send the values as field names to values."
+msgstr ""
+
+msgid "That field is not one this contact holds."
+msgstr ""
+
+msgid "That field no longer exists."
+msgstr ""
+
+msgid "That kind is not one AlphOne offers."
+msgstr ""
+
+msgid "That value does not match the kind the field declares."
+msgstr ""
+
+msgid "The contact already holds a detail by that name."
+msgstr ""
+
+msgid "The field could not be archived."
+msgstr ""
+
+msgid "The field could not be defined."
+msgstr ""
+
+msgid "The fields could not be loaded."
+msgstr ""
+
+msgid "The fields could not be saved."
+msgstr ""
+
+msgctxt "admin section"
+msgid "Fields"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Choice"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Date"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Long text"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Number"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Text"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Yes or no"
+msgstr ""

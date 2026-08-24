@@ -1,0 +1,117 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: alphone-importer\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: alphone-importer\n"
+
+msgid "AlphOne could not read that file as a CSV or a spreadsheet."
+msgstr ""
+
+msgid "Choose a CSV or Excel file to start one."
+msgstr ""
+
+msgid "Choose what each column holds before committing."
+msgstr ""
+
+msgid "Column %(number)d"
+msgstr ""
+
+msgid "Commit"
+msgstr ""
+
+msgid "Contacts file"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Import"
+msgstr ""
+
+msgid "Imports"
+msgstr ""
+
+msgid "Imports could not be loaded."
+msgstr ""
+
+msgid "Loading imports…"
+msgstr ""
+
+msgid "Loading import…"
+msgstr ""
+
+msgid "Loading the preview…"
+msgstr ""
+
+msgid "No imports yet."
+msgstr ""
+
+msgid "Not imported"
+msgstr ""
+
+msgid "Outcome"
+msgstr ""
+
+msgid "Reason"
+msgstr ""
+
+msgid "Row"
+msgstr ""
+
+msgid "Rows"
+msgstr ""
+
+msgid "Save mapping"
+msgstr ""
+
+msgid "Started"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "That import no longer exists."
+msgstr ""
+
+msgid "The file could not be imported."
+msgstr ""
+
+msgid "The file runs past %(maxBytes)d bytes."
+msgstr ""
+
+msgid "The import could not be committed."
+msgstr ""
+
+msgid "The import could not be loaded."
+msgstr ""
+
+msgid "The mapping could not be saved."
+msgstr ""
+
+msgid "The mapping does not fit the columns the file holds."
+msgstr ""
+
+msgid "This import no longer accepts a mapping."
+msgstr ""
+
+msgid "This import was committed already."
+msgstr ""
+
+msgctxt "admin section"
+msgid "Import"
+msgstr ""
+
+msgctxt "import count"
+msgid "Failed"
+msgstr ""
+
+msgctxt "import count"
+msgid "Imported"
+msgstr ""
+
+msgctxt "import count"
+msgid "Skipped"
+msgstr ""
