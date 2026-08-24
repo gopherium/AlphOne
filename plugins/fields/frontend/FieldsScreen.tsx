@@ -22,6 +22,7 @@ import {
 import { useState } from 'react'
 
 import { fieldsIcon } from './icon'
+import type { FieldKind } from './gql/graphql'
 import { kindItems, kindOf } from './kind'
 import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
 
@@ -173,7 +174,8 @@ function kindLabel(kind: string) {
 function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 	const [label, setLabel] = useState('')
 	const [name, setName] = useState('')
-	const [kind, setKind] = useState(() => kindItems()[0])
+	const [kind, setKind] = useState<FieldKind>('TEXT')
+	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
 
 	return (
@@ -181,7 +183,7 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void define({ name, label, kind: kind.value }).then((result) => {
+				void define({ name, label, kind }).then((result) => {
 					if (!result.error) {
 						setLabel('')
 						setName('')
@@ -209,9 +211,9 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 			/>
 			<SelectControl
 				label={__('Kind', 'alphone-fields')}
-				items={kindItems()}
-				value={kind}
-				onValueChange={(item) => setKind(kindOf(item))}
+				items={kinds}
+				value={kinds.find((option) => option.value === kind)}
+				onValueChange={(item) => setKind(kindOf(item).value)}
 			/>
 			<Button type="submit" loading={defined.fetching}>
 				{__('Add field', 'alphone-fields')}

@@ -372,6 +372,23 @@ test('adds a phone identity through the channel select', async () => {
 	expect(posted).toMatchObject({ channel: 'phone', identifier: '+184 467 235' })
 })
 
+test('marks the channel the reader chose as the selected option', async () => {
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({ data: { contact: detailFor(String(variables.id), 'Ana García', []) } }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByLabelText('Channel'))
+
+	expect(await screen.findByRole('option', { name: 'Email' })).toHaveAttribute(
+		'aria-selected',
+		'true',
+	)
+})
+
 test('names the owner when the identity belongs to someone else', async () => {
 	server.use(
 		graphql.mutation('AddContactIdentity', () =>

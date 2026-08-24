@@ -164,14 +164,15 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
  */
 function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
-	const [channel, setChannel] = useState(() => channelItems()[0])
+	const [channel, setChannel] = useState('email')
 	const [identifier, setIdentifier] = useState('')
 	const [label, setLabel] = useState('')
 	const [add, runAdd] = useGraphMutation(addContactIdentityMutation)
+	const channels = channelItems()
 	const submitIdentity = async () => {
 		const result = await runAdd({
 			contactId: contact.id,
-			identity: { channel: channel.value, identifier, displayName: label },
+			identity: { channel, identifier, displayName: label },
 		})
 		if (result.data) {
 			setIdentifier('')
@@ -190,9 +191,9 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 		>
 			<SelectControl
 				label={__('Channel', 'alphone')}
-				items={channelItems()}
-				value={channel}
-				onValueChange={(item) => setChannel(channelItemOf(item))}
+				items={channels}
+				value={channels.find((option) => option.value === channel)}
+				onValueChange={(item) => setChannel(channelItemOf(item).value)}
 			/>
 			<InputControl
 				label={__('Value', 'alphone')}

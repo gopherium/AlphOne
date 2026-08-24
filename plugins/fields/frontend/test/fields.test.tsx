@@ -156,6 +156,19 @@ test('the chosen kind is sent with the definition', async () => {
 	)
 })
 
+test('marks the kind the reader chose as the selected option', async () => {
+	serveFields([])
+	renderScreen()
+	await screen.findByText(/No fields yet/i)
+
+	await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }))
+
+	expect(await screen.findByRole('option', { name: 'Text' })).toHaveAttribute(
+		'aria-selected',
+		'true',
+	)
+})
+
 test('a defined field appears in the catalogue without a reload', async () => {
 	let served: unknown[] = []
 	server.use(
