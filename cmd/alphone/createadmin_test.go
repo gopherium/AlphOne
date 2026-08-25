@@ -127,7 +127,7 @@ func TestCreateAdminRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 	err := createAdmin(
 		t.Context(),
 		getenv,
-		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "superadmin"},
+		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "undeclared"},
 		strings.NewReader("correct horse battery\n"),
 		io.Discard,
 	)
