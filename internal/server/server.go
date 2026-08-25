@@ -5,12 +5,14 @@
 package server
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -28,6 +30,9 @@ const SessionCookieName = "__Host-alphone_session"
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
 	Users UserStore
+	// Tenants resolves the tenant each authenticated caller stands in. Nil
+	// leaves requests without a tenant, which suits a single tenant install.
+	Tenants TenantStore
 	// Auth validates the login sessions plugin requests present. Nil builds
 	// a default over Users with the product cookie.
 	Auth *authkit.Handlers
@@ -78,13 +83,14 @@ func NewServer(cfg Config) http.Handler {
 	s := &server{
 		auth:              auth,
 		users:             cfg.Users,
+		tenants:           cfg.Tenants,
 		tokens:            cfg.Tokens,
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
 	router := chi.NewRouter()
 	if cfg.GraphRoot != nil {
-		graph := newGraphQLHandler(cfg.GraphRoot, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources)
+		graph := newGraphQLHandler(cfg.GraphRoot, cfg.Tenants, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)
@@ -109,6 +115,7 @@ func NewServer(cfg Config) http.Handler {
 type server struct {
 	auth              *authkit.Handlers
 	users             UserStore
+	tenants           TenantStore
 	tokens            TokenStore
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
@@ -118,7 +125,7 @@ type server struct {
 // the plugin's declared public paths through untouched.
 func (s *server) protectPlugin(handler http.Handler, publicPaths []string, area string) http.Handler {
 	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.requireIdentity(s.boundPluginRequest(withActingUser(inArea(area, next))))
+		return s.requireIdentity(s.boundPluginRequest(s.withActingUser(inArea(area, next))))
 	})
 }
 
@@ -157,10 +164,30 @@ func accessOf(writes bool) string {
 	return "read"
 }
 
-// withActingUser passes the authenticated user to the plugin through the SDK.
-func withActingUser(next http.Handler) http.Handler {
+// withActingUser passes the caller, its tenant and a request scope to the plugin through the SDK.
+func (s *server) withActingUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := sdk.WithUser(r.Context(), authkit.IdentityFromContext(r.Context()).ID)
+		acting := authkit.IdentityFromContext(r.Context()).ID
+		ctx := sdk.WithRequestScope(r.Context(), sdk.NewRequestScope())
+		ctx, err := withStandingTenant(sdk.WithUser(ctx, acting), s.tenants, acting)
+		if err != nil {
+			http.Error(w, "no tenant resolved", http.StatusInternalServerError)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// withStandingTenant returns ctx carrying the user's tenant, untouched without a store.
+func withStandingTenant(
+	ctx context.Context, tenants TenantStore, userID uuid.UUID,
+) (context.Context, error) {
+	if tenants == nil {
+		return ctx, nil
+	}
+	standing, err := tenants.TenantForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return sdk.WithTenant(ctx, standing.ID), nil
 }

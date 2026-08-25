@@ -16,6 +16,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/credential"
+	"github.com/gopherium/alphone/internal/tenant"
 )
 
 // bearerScheme prefixes the credential in an Authorization header.
@@ -31,6 +32,11 @@ type TokenStore interface {
 type UserStore interface {
 	authkit.AdminStore
 	UserByID(ctx context.Context, id uuid.UUID) (gouncer.User, error)
+}
+
+// TenantStore resolves the tenant a caller stands in.
+type TenantStore interface {
+	TenantForUser(ctx context.Context, userID uuid.UUID) (tenant.Tenant, error)
 }
 
 // requireIdentity admits requests carrying either a usable API token or a

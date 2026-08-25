@@ -27,6 +27,7 @@ type graphConfig struct {
 	Contacts          graphres.ContactStore
 	Tasks             graphres.TaskStore
 	Users             server.UserStore
+	Tenants           server.TenantStore
 	Tokens            server.TokenStore
 	Version           string
 	Plugins           map[string]http.Handler
@@ -78,6 +79,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 	}
 	return server.NewServer(server.Config{
 		Users:             cfg.Users,
+		Tenants:           cfg.Tenants,
 		Auth:              auth,
 		GraphRoot:         root,
 		Tokens:            cfg.Tokens,

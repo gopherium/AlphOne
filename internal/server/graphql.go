@@ -75,7 +75,11 @@ func retryAfterSeconds(hint time.Duration) int {
 
 // newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
 func newGraphQLHandler(
-	root graph.ResolverRoot, streamLifetime time.Duration, maxStreams int, sources []sdk.FieldSource,
+	root graph.ResolverRoot,
+	tenants TenantStore,
+	streamLifetime time.Duration,
+	maxStreams int,
+	sources []sdk.FieldSource,
 ) http.Handler {
 	schema := executableSchema(root, sources)
 	srv := handler.New(schema)
@@ -92,7 +96,12 @@ func newGraphQLHandler(
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
 		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
 		if user := authkit.IdentityFromContext(r.Context()); user.ID != uuid.Nil {
-			ctx = sdk.WithUser(ctx, user.ID)
+			standing, err := withStandingTenant(sdk.WithUser(ctx, user.ID), tenants, user.ID)
+			if err != nil {
+				http.Error(w, "no tenant resolved", http.StatusInternalServerError)
+				return
+			}
+			ctx = standing
 		}
 		srv.ServeHTTP(w, r.WithContext(ctx))
 	})
