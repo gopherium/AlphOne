@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // Media download tuning: sweep cadence and bounds, batch size, how long a
@@ -140,7 +142,7 @@ func (f *mediaFetcher) sweepOnce(ctx context.Context) {
 		return
 	}
 	for _, row := range pending {
-		f.fetchOne(sweepCtx, row)
+		f.fetchOne(sdk.WithTenant(sweepCtx, row.TenantID), row)
 	}
 }
 

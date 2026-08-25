@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 type store struct {
@@ -65,7 +67,7 @@ const conversationSelect = `
 			ELSE '[unsupported]'
 		END AS preview
 		FROM plugin_whatsapp.messages m
-		WHERE m.conversation_id = conv.id
+		WHERE m.conversation_id = conv.id AND m.tenant_id = conv.tenant_id
 		ORDER BY m.sent_at DESC, m.id DESC
 		LIMIT 1
 	) last_message ON TRUE`
@@ -73,7 +75,7 @@ const conversationSelect = `
 // getConversation returns the conversation with the given id.
 func (s *store) getConversation(ctx context.Context, id uuid.UUID) (conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, conversationSelect+`
-	WHERE conv.id = $1`, id)
+	WHERE conv.id = $1 AND conv.tenant_id = $2`, id, sdk.TenantOrDefault(ctx))
 	conversation, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[conversationRow])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return conversationRow{}, nil
@@ -88,9 +90,10 @@ func (s *store) getConversation(ctx context.Context, id uuid.UUID) (conversation
 // newest message, most recently active first.
 func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, conversationSelect+`
+	WHERE conv.tenant_id = $2
 	ORDER BY conv.last_activity_at DESC
 	LIMIT $1`,
-		limit,
+		limit, sdk.TenantOrDefault(ctx),
 	)
 	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
 	if err != nil {
@@ -125,11 +128,12 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 			med.status AS media_status, med.mime_type AS media_mime_type, med.filename AS media_filename,
 			med.file_size AS media_file_size, med.voice AS media_voice, med.animated AS media_animated
 		FROM plugin_whatsapp.messages m
-		LEFT JOIN plugin_whatsapp.media med ON med.message_id = m.id
-		WHERE m.conversation_id = $1
+		LEFT JOIN plugin_whatsapp.media med
+			ON med.message_id = m.id AND med.tenant_id = m.tenant_id
+		WHERE m.conversation_id = $1 AND m.tenant_id = $3
 		ORDER BY m.sent_at ASC, m.id ASC
 		LIMIT $2`,
-		conversationID, limit,
+		conversationID, limit, sdk.TenantOrDefault(ctx),
 	)
 	messages, err := pgx.CollectRows(rows, pgx.RowToStructByName[messageRow])
 	if err != nil {
@@ -152,12 +156,13 @@ func upsertConversation(
 	}
 	var conversationID uuid.UUID
 	err = exec.QueryRow(ctx, `
-		INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status, last_activity_at, created_at)
-		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5)
+		INSERT INTO plugin_whatsapp.conversations
+			(id, contact_id, channel, external_id, status, last_activity_at, created_at, tenant_id)
+		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5, $6)
 		ON CONFLICT (tenant_id, external_id) DO UPDATE
 		SET last_activity_at = GREATEST(plugin_whatsapp.conversations.last_activity_at, EXCLUDED.last_activity_at)
 		RETURNING id`,
-		id, contactID, externalID, activityAt, time.Now().UTC(),
+		id, contactID, externalID, activityAt, time.Now().UTC(), sdk.TenantOrDefault(ctx),
 	).Scan(&conversationID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: upsert conversation: %w", err)
@@ -209,8 +214,9 @@ type outboundMessage struct {
 func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.UUID) (string, error) {
 	var externalID string
 	err := s.pool.QueryRow(ctx,
-		`SELECT external_id FROM plugin_whatsapp.conversations WHERE id = $1`,
-		conversationID,
+		`SELECT external_id FROM plugin_whatsapp.conversations
+		WHERE id = $1 AND tenant_id = $2`,
+		conversationID, sdk.TenantOrDefault(ctx),
 	).Scan(&externalID)
 	if err != nil {
 		return "", fmt.Errorf("whatsapp: load conversation: %w", err)
@@ -232,13 +238,14 @@ func (s *store) appendOutboundMessage(
 	_, err = s.pool.Exec(ctx, `
 		WITH inserted AS (
 			INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
-				content_type, sent_at, raw, created_at)
-			VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, $6, $7)
+				content_type, sent_at, raw, created_at, tenant_id)
+			VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, $6, $7, $8)
 		)
 		UPDATE plugin_whatsapp.conversations
 		SET last_activity_at = GREATEST(last_activity_at, $5)
-		WHERE id = $2`,
+		WHERE id = $2 AND tenant_id = $8`,
 		id, conversationID, m.externalID, m.content, m.sentAt, m.raw, time.Now().UTC(),
+		sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return messageRow{}, fmt.Errorf("whatsapp: store outbound message: %w", err)
@@ -276,6 +283,7 @@ func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UU
 		UPDATE plugin_whatsapp.messages
 		SET status = $2, status_detail = NULLIF($3, '')
 		WHERE external_id = $1
+			AND tenant_id = $5
 			AND direction = 'outbound'
 			AND (status IS NULL OR $4 > CASE status
 				WHEN 'accepted' THEN 1
@@ -286,7 +294,7 @@ func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UU
 				WHEN 'failed' THEN 6
 				ELSE 0 END)
 		RETURNING conversation_id`,
-		u.wamid, u.status, u.detail, rank,
+		u.wamid, u.status, u.detail, rank, sdk.TenantOrDefault(ctx),
 	).Scan(&conversationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, nil
@@ -312,11 +320,12 @@ func insertMessage(
 	var inserted messageRow
 	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
-			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8)
+			content_type, sent_at, raw, created_at, tenant_id)
+		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (tenant_id, external_id) DO NOTHING
 		RETURNING id, external_id, direction, content, content_type, sent_at`,
 		id, conversationID, m.externalID, m.content, m.contentType, m.sentAt, m.raw, time.Now().UTC(),
+		sdk.TenantOrDefault(ctx),
 	).Scan(
 		&inserted.ID, &inserted.ExternalID, &inserted.Direction,
 		&inserted.Content, &inserted.ContentType, &inserted.SentAt,

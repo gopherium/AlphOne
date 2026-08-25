@@ -29,6 +29,16 @@ var pluginStores = []struct {
 		schema: "plugin_importer",
 		tables: []string{"imports", "import_rows"},
 	},
+	{
+		source: filepath.Join("..", "..", "plugins", "whatsapp", "store.go"),
+		schema: "plugin_whatsapp",
+		tables: []string{"conversations", "messages", "media"},
+	},
+	{
+		source: filepath.Join("..", "..", "plugins", "whatsapp", "media.go"),
+		schema: "plugin_whatsapp",
+		tables: []string{"conversations", "messages", "media"},
+	},
 }
 
 // sqlLiterals returns every string a source builds, joining concatenated parts.
