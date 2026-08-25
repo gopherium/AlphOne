@@ -154,7 +154,7 @@ func upsertConversation(
 	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status, last_activity_at, created_at)
 		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5)
-		ON CONFLICT (external_id) DO UPDATE
+		ON CONFLICT (tenant_id, external_id) DO UPDATE
 		SET last_activity_at = GREATEST(plugin_whatsapp.conversations.last_activity_at, EXCLUDED.last_activity_at)
 		RETURNING id`,
 		id, contactID, externalID, activityAt, time.Now().UTC(),
@@ -314,7 +314,7 @@ func insertMessage(
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
 		VALUES ($1, $2, $3, 'inbound', $4, $5, $6, $7, $8)
-		ON CONFLICT (external_id) DO NOTHING
+		ON CONFLICT (tenant_id, external_id) DO NOTHING
 		RETURNING id, external_id, direction, content, content_type, sent_at`,
 		id, conversationID, m.externalID, m.content, m.contentType, m.sentAt, m.raw, time.Now().UTC(),
 	).Scan(

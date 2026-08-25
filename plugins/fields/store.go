@@ -28,7 +28,7 @@ type store struct {
 func (s *store) define(ctx context.Context, definition Definition) error {
 	const statement = `INSERT INTO plugin_fields.definitions (id, name, label, kind, created_at)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
+		ON CONFLICT (tenant_id, name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
 		WHERE plugin_fields.definitions.archived_at IS NOT NULL
 			AND plugin_fields.definitions.kind = EXCLUDED.kind`
 	tag, err := s.pool.Exec(ctx, statement,

@@ -41,7 +41,7 @@ WHERE channel = $1 AND identifier = $2;
 WITH inserted AS (
     INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
     VALUES (@id, @contact_id, @channel, @identifier, @display_name, @created_at)
-    ON CONFLICT (channel, identifier) DO NOTHING
+    ON CONFLICT (tenant_id, channel, identifier) DO NOTHING
     RETURNING contact_id
 )
 SELECT contact_id AS owner_id, TRUE AS created FROM inserted
@@ -67,13 +67,13 @@ RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
 
 -- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks
 WHERE id = $1;
 
 -- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.assignee_id = @assignee_id::uuid
     AND t.due_on = @due_on::date
@@ -84,7 +84,7 @@ LIMIT @row_limit;
 
 -- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.assignee_id = @assignee_id::uuid
     AND t.due_on < @due_before::date
@@ -95,7 +95,7 @@ LIMIT @row_limit;
 
 -- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.contact_id = @contact_id::uuid
     AND (@status::text = 'all' OR t.status = @status::text)
@@ -108,14 +108,14 @@ UPDATE core.tasks
 SET title = $2, status = $3, priority = $4, due_on = $5
 WHERE id = $1
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at;
+    origin_source, origin_event_id, created_at, tenant_id;
 
 -- name: CreateAPIToken :exec
 INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: GetAPITokenByHash :one
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
 WHERE token_hash = $1;
 
@@ -125,7 +125,7 @@ SET last_used_at = $2
 WHERE id = $1;
 
 -- name: ListAPITokensForUser :many
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC;
@@ -139,13 +139,13 @@ INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, create
 VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: ListWebhookSubscriptionsForUser :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC;
 
 -- name: ListWebhookSubscriptionsForEvent :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
 WHERE $1::text = ANY (events)
 ORDER BY id;

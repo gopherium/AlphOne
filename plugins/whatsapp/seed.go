@@ -201,7 +201,7 @@ func insertSeedOutbound(
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
 			content_type, sent_at, raw, created_at)
 		VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, '{}', $6)
-		ON CONFLICT (external_id) DO NOTHING`,
+		ON CONFLICT (tenant_id, external_id) DO NOTHING`,
 		id, conversationID, m.wamid, m.content, sentAt, time.Now().UTC(),
 	)
 	if err != nil {

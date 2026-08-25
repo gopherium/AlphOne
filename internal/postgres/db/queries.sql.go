@@ -17,7 +17,7 @@ const addIdentity = `-- name: AddIdentity :one
 WITH inserted AS (
     INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
     VALUES ($1, $2, $3, $4, $5, $6)
-    ON CONFLICT (channel, identifier) DO NOTHING
+    ON CONFLICT (tenant_id, channel, identifier) DO NOTHING
     RETURNING contact_id
 )
 SELECT contact_id AS owner_id, TRUE AS created FROM inserted
@@ -347,7 +347,7 @@ func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebho
 }
 
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
 WHERE token_hash = $1
 `
@@ -364,6 +364,7 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (Core
 		&i.LastUsedAt,
 		&i.Scopes,
 		&i.ExpiresAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -374,9 +375,15 @@ FROM core.contacts
 WHERE id = $1
 `
 
-func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (CoreContact, error) {
+type GetContactRow struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error) {
 	row := q.db.QueryRow(ctx, getContact, id)
-	var i CoreContact
+	var i GetContactRow
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
 	return i, err
 }
@@ -392,9 +399,18 @@ type GetIdentityParams struct {
 	Identifier string
 }
 
-func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreContactIdentity, error) {
+type GetIdentityRow struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetIdentityRow, error) {
 	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier)
-	var i CoreContactIdentity
+	var i GetIdentityRow
 	err := row.Scan(
 		&i.ID,
 		&i.ContactID,
@@ -408,7 +424,7 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 
 const getTask = `-- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks
 WHERE id = $1
 `
@@ -427,12 +443,13 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 		&i.OriginSource,
 		&i.OriginEventID,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC
@@ -456,6 +473,7 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([
 			&i.LastUsedAt,
 			&i.Scopes,
 			&i.ExpiresAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -474,15 +492,24 @@ WHERE contact_id = $1
 ORDER BY channel, identifier
 `
 
-func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]CoreContactIdentity, error) {
+type ListContactIdentitiesRow struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]ListContactIdentitiesRow, error) {
 	rows, err := q.db.Query(ctx, listContactIdentities, contactID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreContactIdentity
+	var items []ListContactIdentitiesRow
 	for rows.Next() {
-		var i CoreContactIdentity
+		var i ListContactIdentitiesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ContactID,
@@ -523,7 +550,13 @@ type ListContactsParams struct {
 	RowLimit  int32
 }
 
-func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]CoreContact, error) {
+type ListContactsRow struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]ListContactsRow, error) {
 	rows, err := q.db.Query(ctx, listContacts,
 		arg.AfterName,
 		arg.AfterID,
@@ -535,9 +568,9 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreContact
+	var items []ListContactsRow
 	for rows.Next() {
-		var i CoreContact
+		var i ListContactsRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -555,15 +588,21 @@ FROM core.contacts
 WHERE id = ANY($1::uuid[])
 `
 
-func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]CoreContact, error) {
+type ListContactsByIDsRow struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]ListContactsByIDsRow, error) {
 	rows, err := q.db.Query(ctx, listContactsByIDs, ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreContact
+	var items []ListContactsByIDsRow
 	for rows.Next() {
-		var i CoreContact
+		var i ListContactsByIDsRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -577,7 +616,7 @@ func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]Cor
 
 const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.assignee_id = $1::uuid
     AND t.due_on < $2::date
@@ -623,6 +662,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -636,7 +676,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 
 const listTasksForContact = `-- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.contact_id = $1::uuid
     AND ($2::text = 'all' OR t.status = $2::text)
@@ -679,6 +719,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -692,7 +733,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 
 const listTasksForDay = `-- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
 WHERE t.assignee_id = $1::uuid
     AND t.due_on = $2::date
@@ -738,6 +779,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -750,7 +792,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 }
 
 const listWebhookSubscriptionsForEvent = `-- name: ListWebhookSubscriptionsForEvent :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
 WHERE $1::text = ANY (events)
 ORDER BY id
@@ -772,6 +814,7 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1
 			&i.Events,
 			&i.Secret,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -784,7 +827,7 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1
 }
 
 const listWebhookSubscriptionsForUser = `-- name: ListWebhookSubscriptionsForUser :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
 WHERE user_id = $1
 ORDER BY created_at DESC, id DESC
@@ -806,6 +849,7 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uu
 			&i.Events,
 			&i.Secret,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -958,9 +1002,15 @@ type UpdateContactNameParams struct {
 	Name string
 }
 
-func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (CoreContact, error) {
+type UpdateContactNameRow struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (UpdateContactNameRow, error) {
 	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name)
-	var i CoreContact
+	var i UpdateContactNameRow
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
 	return i, err
 }
@@ -970,7 +1020,7 @@ UPDATE core.tasks
 SET title = $2, status = $3, priority = $4, due_on = $5
 WHERE id = $1
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 `
 
 type UpdateTaskParams struct {
@@ -1001,6 +1051,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		&i.OriginSource,
 		&i.OriginEventID,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
