@@ -80,7 +80,7 @@ func TestGrantRoleRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 
 	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
 
-	err := grantRole(t.Context(), getenv, []string{"-role", "superadmin"}, &strings.Builder{})
+	err := grantRole(t.Context(), getenv, []string{"-role", "undeclared"}, &strings.Builder{})
 
 	if !errors.Is(err, role.ErrUnknownTier) {
 		t.Errorf("grantRole() error = %v, want a role no plugin declared refused", err)
