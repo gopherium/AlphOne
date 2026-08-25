@@ -15,6 +15,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/postgres/db"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // TokenStore persists API tokens in the core schema.
@@ -39,6 +40,7 @@ func (s *TokenStore) Create(ctx context.Context, t apitoken.Token) error {
 		CreatedAt:  t.CreatedAt,
 		LastUsedAt: optionalTime(t.LastUsedAt),
 		ExpiresAt:  optionalTime(t.ExpiresAt),
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create api token: %w", err)
@@ -73,7 +75,9 @@ func (s *TokenStore) TouchLastUsed(ctx context.Context, id uuid.UUID, at time.Ti
 
 // ListForUser returns the tokens of one user, newest first.
 func (s *TokenStore) ListForUser(ctx context.Context, userID uuid.UUID) ([]apitoken.Token, error) {
-	rows, err := s.queries.ListAPITokensForUser(ctx, userID)
+	rows, err := s.queries.ListAPITokensForUser(ctx, db.ListAPITokensForUserParams{
+		UserID: userID, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list api tokens: %w", err)
 	}
@@ -87,7 +91,9 @@ func (s *TokenStore) ListForUser(ctx context.Context, userID uuid.UUID) ([]apito
 // Revoke deletes one token of userID, or reports [apitoken.ErrNotFound] when
 // the user owns no such token.
 func (s *TokenStore) Revoke(ctx context.Context, userID, id uuid.UUID) error {
-	deleted, err := s.queries.RevokeAPIToken(ctx, db.RevokeAPITokenParams{ID: id, UserID: userID})
+	deleted, err := s.queries.RevokeAPIToken(ctx, db.RevokeAPITokenParams{
+		ID: id, UserID: userID, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return fmt.Errorf("postgres: revoke api token: %w", err)
 	}

@@ -59,9 +59,9 @@ WHERE id = $1 AND contact_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at)
+    origin_source, origin_event_id, created_at, tenant_id)
 VALUES (@id, @assignee_id, @contact_id, @title, @status, @priority, @due_on,
-    @origin_source, @origin_event_id, @created_at)
+    @origin_source, @origin_event_id, @created_at, @tenant_id)
 ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
@@ -71,13 +71,14 @@ RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks
-WHERE id = $1;
+WHERE id = $1 AND tenant_id = @tenant_id;
 
 -- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = @assignee_id::uuid
+WHERE t.tenant_id = @tenant_id
+    AND t.assignee_id = @assignee_id::uuid
     AND t.due_on = @due_on::date
     AND (@status::text = 'all' OR t.status = @status::text)
     AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
@@ -88,7 +89,8 @@ LIMIT @row_limit;
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = @assignee_id::uuid
+WHERE t.tenant_id = @tenant_id
+    AND t.assignee_id = @assignee_id::uuid
     AND t.due_on < @due_before::date
     AND (@status::text = 'all' OR t.status = @status::text)
     AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
@@ -99,7 +101,8 @@ LIMIT @row_limit;
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.contact_id = @contact_id::uuid
+WHERE t.tenant_id = @tenant_id
+    AND t.contact_id = @contact_id::uuid
     AND (@status::text = 'all' OR t.status = @status::text)
     AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
 ORDER BY t.due_on, t.id
@@ -108,13 +111,14 @@ LIMIT @row_limit;
 -- name: UpdateTask :one
 UPDATE core.tasks
 SET title = $2, status = $3, priority = $4, due_on = $5
-WHERE id = $1
+WHERE id = $1 AND tenant_id = @tenant_id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id;
 
 -- name: CreateAPIToken :exec
-INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+INSERT INTO core.api_tokens
+    (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, @tenant_id);
 
 -- name: GetAPITokenByHash :one
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
@@ -129,12 +133,12 @@ WHERE id = $1;
 -- name: ListAPITokensForUser :many
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = @tenant_id
 ORDER BY created_at DESC, id DESC;
 
 -- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
-WHERE id = $1 AND user_id = $2;
+WHERE id = $1 AND user_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateWebhookSubscription :exec
 INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
@@ -209,9 +213,9 @@ WHERE user_id = ANY(@ids::uuid[]);
 -- name: UserSetting :many
 SELECT value
 FROM core.user_settings
-WHERE user_id = @user_id::uuid AND key = @key::text;
+WHERE user_id = @user_id::uuid AND key = @key::text AND tenant_id = @tenant_id;
 
 -- name: SetUserSetting :exec
-INSERT INTO core.user_settings (user_id, key, value)
-VALUES (@user_id::uuid, @key::text, @value::text)
+INSERT INTO core.user_settings (user_id, key, value, tenant_id)
+VALUES (@user_id::uuid, @key::text, @value::text, @tenant_id)
 ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value;

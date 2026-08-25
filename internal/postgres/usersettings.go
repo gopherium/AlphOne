@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/internal/postgres/db"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // UserSettingStore reads and writes the per-user settings.
@@ -24,7 +25,9 @@ func NewUserSettingStore(pool *pgxpool.Pool) *UserSettingStore {
 
 // UserSetting returns the stored value under key, empty when the user set none.
 func (s *UserSettingStore) UserSetting(ctx context.Context, userID uuid.UUID, key string) (string, error) {
-	values, err := s.queries.UserSetting(ctx, db.UserSettingParams{UserID: userID, Key: key})
+	values, err := s.queries.UserSetting(ctx, db.UserSettingParams{
+		UserID: userID, Key: key, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return "", fmt.Errorf("read setting %s: %w", key, err)
 	}
@@ -36,7 +39,9 @@ func (s *UserSettingStore) UserSetting(ctx context.Context, userID uuid.UUID, ke
 
 // SetUserSetting stores value under key for the user, replacing any earlier value.
 func (s *UserSettingStore) SetUserSetting(ctx context.Context, userID uuid.UUID, key, value string) error {
-	err := s.queries.SetUserSetting(ctx, db.SetUserSettingParams{UserID: userID, Key: key, Value: value})
+	err := s.queries.SetUserSetting(ctx, db.SetUserSettingParams{
+		UserID: userID, Key: key, Value: value, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return fmt.Errorf("store setting %s: %w", key, err)
 	}

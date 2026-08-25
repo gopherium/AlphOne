@@ -10,7 +10,19 @@ import (
 )
 
 // tenantGuardedTables lists the tables every named query must filter by tenant.
-var tenantGuardedTables = []string{"contacts", "contact_identities"}
+var tenantGuardedTables = []string{
+	"contacts",
+	"contact_identities",
+	"tasks",
+	"api_tokens",
+	"user_settings",
+}
+
+// authenticatingQueries names the queries resolving a credential before any tenant is known.
+var authenticatingQueries = map[string]bool{
+	"GetAPITokenByHash": true,
+	"TouchAPIToken":     true,
+}
 
 // namedQueries splits a sqlc source into its named query blocks.
 func namedQueries(source string) map[string]string {
@@ -95,8 +107,27 @@ func TestEveryNamedQueryFiltersTheGuardedTablesByTenant(t *testing.T) {
 	}
 
 	for name, query := range queries {
+		if authenticatingQueries[name] {
+			continue
+		}
 		for _, table := range unguarded(query, tenantGuardedTables) {
 			t.Errorf("%s touches %s without filtering by tenant_id", name, table)
+		}
+	}
+}
+
+func TestEveryExemptedQueryStillExists(t *testing.T) {
+	t.Parallel()
+
+	source, err := os.ReadFile("queries.sql")
+	if err != nil {
+		t.Fatalf("reading queries.sql: %v", err)
+	}
+	queries := namedQueries(string(source))
+
+	for name := range authenticatingQueries {
+		if _, held := queries[name]; !held {
+			t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
 		}
 	}
 }

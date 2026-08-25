@@ -136,8 +136,9 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 }
 
 const createAPIToken = `-- name: CreateAPIToken :exec
-INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO core.api_tokens
+    (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type CreateAPITokenParams struct {
@@ -149,6 +150,7 @@ type CreateAPITokenParams struct {
 	LastUsedAt pgtype.Timestamptz
 	Scopes     string
 	ExpiresAt  pgtype.Timestamptz
+	TenantID   uuid.UUID
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error {
@@ -161,6 +163,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 		arg.LastUsedAt,
 		arg.Scopes,
 		arg.ExpiresAt,
+		arg.TenantID,
 	)
 	return err
 }
@@ -191,9 +194,9 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) er
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at)
+    origin_source, origin_event_id, created_at, tenant_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-    $8, $9, $10)
+    $8, $9, $10, $11)
 ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
@@ -211,6 +214,7 @@ type CreateTaskParams struct {
 	OriginSource  pgtype.Text
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
+	TenantID      uuid.UUID
 }
 
 type CreateTaskRow struct {
@@ -239,6 +243,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 		arg.OriginSource,
 		arg.OriginEventID,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	var i CreateTaskRow
 	err := row.Scan(
@@ -433,11 +438,16 @@ const getTask = `-- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+type GetTaskParams struct {
+	ID       uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, getTask, arg.ID, arg.TenantID)
 	var i CoreTask
 	err := row.Scan(
 		&i.ID,
@@ -458,12 +468,17 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([]CoreApiToken, error) {
-	rows, err := q.db.Query(ctx, listAPITokensForUser, userID)
+type ListAPITokensForUserParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListAPITokensForUser(ctx context.Context, arg ListAPITokensForUserParams) ([]CoreApiToken, error) {
+	rows, err := q.db.Query(ctx, listAPITokensForUser, arg.UserID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -628,15 +643,17 @@ const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = $1::uuid
-    AND t.due_on < $2::date
-    AND ($3::text = 'all' OR t.status = $3::text)
-    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+WHERE t.tenant_id = $1
+    AND t.assignee_id = $2::uuid
+    AND t.due_on < $3::date
+    AND ($4::text = 'all' OR t.status = $4::text)
+    AND (t.due_on, t.id) > ($5::date, $6::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $6
+LIMIT $7
 `
 
 type ListTasksDueBeforeParams struct {
+	TenantID   uuid.UUID
 	AssigneeID uuid.UUID
 	DueBefore  time.Time
 	Status     string
@@ -647,6 +664,7 @@ type ListTasksDueBeforeParams struct {
 
 func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBeforeParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksDueBefore,
+		arg.TenantID,
 		arg.AssigneeID,
 		arg.DueBefore,
 		arg.Status,
@@ -688,14 +706,16 @@ const listTasksForContact = `-- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.contact_id = $1::uuid
-    AND ($2::text = 'all' OR t.status = $2::text)
-    AND (t.due_on, t.id) > ($3::date, $4::uuid)
+WHERE t.tenant_id = $1
+    AND t.contact_id = $2::uuid
+    AND ($3::text = 'all' OR t.status = $3::text)
+    AND (t.due_on, t.id) > ($4::date, $5::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $5
+LIMIT $6
 `
 
 type ListTasksForContactParams struct {
+	TenantID   uuid.UUID
 	ContactID  uuid.UUID
 	Status     string
 	AfterDueOn time.Time
@@ -705,6 +725,7 @@ type ListTasksForContactParams struct {
 
 func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForContactParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksForContact,
+		arg.TenantID,
 		arg.ContactID,
 		arg.Status,
 		arg.AfterDueOn,
@@ -745,15 +766,17 @@ const listTasksForDay = `-- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = $1::uuid
-    AND t.due_on = $2::date
-    AND ($3::text = 'all' OR t.status = $3::text)
-    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+WHERE t.tenant_id = $1
+    AND t.assignee_id = $2::uuid
+    AND t.due_on = $3::date
+    AND ($4::text = 'all' OR t.status = $4::text)
+    AND (t.due_on, t.id) > ($5::date, $6::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $6
+LIMIT $7
 `
 
 type ListTasksForDayParams struct {
+	TenantID   uuid.UUID
 	AssigneeID uuid.UUID
 	DueOn      time.Time
 	Status     string
@@ -764,6 +787,7 @@ type ListTasksForDayParams struct {
 
 func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksForDay,
+		arg.TenantID,
 		arg.AssigneeID,
 		arg.DueOn,
 		arg.Status,
@@ -873,16 +897,17 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uu
 
 const revokeAPIToken = `-- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3
 `
 
 type RevokeAPITokenParams struct {
-	ID     uuid.UUID
-	UserID uuid.UUID
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	TenantID uuid.UUID
 }
 
 func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID)
+	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -890,19 +915,25 @@ func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) 
 }
 
 const setUserSetting = `-- name: SetUserSetting :exec
-INSERT INTO core.user_settings (user_id, key, value)
-VALUES ($1::uuid, $2::text, $3::text)
+INSERT INTO core.user_settings (user_id, key, value, tenant_id)
+VALUES ($1::uuid, $2::text, $3::text, $4)
 ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value
 `
 
 type SetUserSettingParams struct {
-	UserID uuid.UUID
-	Key    string
-	Value  string
+	UserID   uuid.UUID
+	Key      string
+	Value    string
+	TenantID uuid.UUID
 }
 
 func (q *Queries) SetUserSetting(ctx context.Context, arg SetUserSettingParams) error {
-	_, err := q.db.Exec(ctx, setUserSetting, arg.UserID, arg.Key, arg.Value)
+	_, err := q.db.Exec(ctx, setUserSetting,
+		arg.UserID,
+		arg.Key,
+		arg.Value,
+		arg.TenantID,
+	)
 	return err
 }
 
@@ -1028,7 +1059,7 @@ func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNamePa
 const updateTask = `-- name: UpdateTask :one
 UPDATE core.tasks
 SET title = $2, status = $3, priority = $4, due_on = $5
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $6
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
 `
@@ -1039,6 +1070,7 @@ type UpdateTaskParams struct {
 	Status   string
 	Priority int16
 	DueOn    time.Time
+	TenantID uuid.UUID
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTask, error) {
@@ -1048,6 +1080,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		arg.Status,
 		arg.Priority,
 		arg.DueOn,
+		arg.TenantID,
 	)
 	var i CoreTask
 	err := row.Scan(
@@ -1069,16 +1102,17 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 const userSetting = `-- name: UserSetting :many
 SELECT value
 FROM core.user_settings
-WHERE user_id = $1::uuid AND key = $2::text
+WHERE user_id = $1::uuid AND key = $2::text AND tenant_id = $3
 `
 
 type UserSettingParams struct {
-	UserID uuid.UUID
-	Key    string
+	UserID   uuid.UUID
+	Key      string
+	TenantID uuid.UUID
 }
 
 func (q *Queries) UserSetting(ctx context.Context, arg UserSettingParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, userSetting, arg.UserID, arg.Key)
+	rows, err := q.db.Query(ctx, userSetting, arg.UserID, arg.Key, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
