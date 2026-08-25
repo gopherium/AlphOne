@@ -188,7 +188,7 @@ func TestStoreReportsRowsItCannotRead(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 
-	_, err := p.store.query(t.Context(), "SELECT 1")
+	_, err := p.store.query(t.Context(), "SELECT 1 WHERE $1::uuid IS NOT NULL")
 
 	if err == nil {
 		t.Fatal("query() error = nil, want the unreadable row reported")
