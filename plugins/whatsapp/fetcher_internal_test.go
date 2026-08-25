@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // waitFor blocks until cond holds, failing the test after two seconds.
@@ -173,7 +175,7 @@ func TestFetcherStoresPendingMedia(t *testing.T) {
 	stub := newGraphStub(t, binary)
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	messageID := seedPendingImage(t, p, "wamid.happy", shaOf(binary))
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())
@@ -279,7 +281,7 @@ func TestFetcherReschedulesOnGraphErrors(t *testing.T) {
 			stub := newGraphStub(t, binary)
 			f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 			messageID := seedPendingImage(t, p, "wamid.retry", shaOf(binary))
-			subscription := p.events.subscribe()
+			subscription := p.events.subscribe(sdk.DefaultTenantID)
 			defer p.events.unsubscribe(subscription)
 			tc.configure(t, stub, f)
 
@@ -336,7 +338,7 @@ func TestFetcherFailsOversizedMediaWithoutDownloading(t *testing.T) {
 	stub.fileSize = 9
 	f := newTestFetcher(t, p, stub.server.URL, 8)
 	messageID := seedPendingImage(t, p, "wamid.big", shaOf(binary))
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())
@@ -389,7 +391,7 @@ func TestFetcherExpiresRowsPastTheRetryWindow(t *testing.T) {
 	); err != nil {
 		t.Fatalf("backdating media row: %v", err)
 	}
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())

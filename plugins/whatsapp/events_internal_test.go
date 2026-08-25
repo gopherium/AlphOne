@@ -77,7 +77,7 @@ func TestIngestSkipsTheBroadcastWhenTheInsertFails(t *testing.T) {
 	t.Parallel()
 
 	p := newIngestReadyPlugin(t)
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	err := p.ingest(t.Context(), inboundMessage{
@@ -115,7 +115,7 @@ func TestIngestStoresMediaMessagesWithPendingDownload(t *testing.T) {
 
 	p := newIngestReadyPlugin(t)
 	ctx := t.Context()
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	if err := p.ingest(ctx, imageMessage("wamid.m1")); err != nil {
@@ -193,7 +193,7 @@ func TestIngestSkipsMediaOnRedelivery(t *testing.T) {
 	if err := p.ingest(ctx, imageMessage("wamid.dup")); err != nil {
 		t.Fatalf("first ingest() error = %v, want nil", err)
 	}
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	if err := p.ingest(ctx, imageMessage("wamid.dup")); err != nil {
@@ -241,7 +241,7 @@ func TestIngestRollsBackTheMessageWhenMediaCannotBeStored(t *testing.T) {
 	); err != nil {
 		t.Fatalf("adding rejection constraint: %v", err)
 	}
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	err := p.ingest(ctx, imageMessage("wamid.atomic"))

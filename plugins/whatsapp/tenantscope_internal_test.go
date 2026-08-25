@@ -101,6 +101,24 @@ func TestMessagesStayInsideTheirTenant(t *testing.T) {
 	}
 }
 
+func TestABroadcastStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	events := newBroadcaster()
+	acme, globex := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	near := events.subscribe(acme)
+	far := events.subscribe(globex)
+
+	events.broadcast(event{Conversation: uuid.Must(uuid.NewV7()), Tenant: acme})
+
+	if len(near) != 1 {
+		t.Errorf("the tenant's subscriber buffered %d events, want the broadcast", len(near))
+	}
+	if len(far) != 0 {
+		t.Errorf("another tenant's subscriber buffered %d events, want none", len(far))
+	}
+}
+
 func TestTwoTenantsKeepSeparateThreadsForOneNumber(t *testing.T) {
 	t.Parallel()
 

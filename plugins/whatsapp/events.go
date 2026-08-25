@@ -235,7 +235,9 @@ func (p *Plugin) applyStatus(ctx context.Context, u statusUpdate) error {
 		return err
 	}
 	if applied {
-		p.events.broadcast(event{Conversation: conversationID})
+		p.events.broadcast(event{
+			Conversation: conversationID, Tenant: sdk.TenantOrDefault(ctx),
+		})
 	}
 	return nil
 }
@@ -354,7 +356,9 @@ func (p *Plugin) ingest(ctx context.Context, m inboundMessage) error {
 		return err
 	}
 	if arrival != nil {
-		p.events.broadcast(event{Conversation: conversationID, Message: arrival})
+		p.events.broadcast(event{
+			Conversation: conversationID, Message: arrival, Tenant: sdk.TenantOrDefault(ctx),
+		})
 		p.publish(ctx, owner, conversationID, m)
 		if m.media != nil {
 			p.fetcher.poke()

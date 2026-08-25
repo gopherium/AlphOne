@@ -6,6 +6,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // pumpPatience bounds how long a pump test waits on the goroutine to return.
@@ -55,7 +57,7 @@ func TestPumpEventsStopsWhenEmitStops(t *testing.T) {
 	}()
 	waitForSubscription(t, events)
 
-	events.broadcast(event{})
+	events.broadcast(event{Tenant: sdk.DefaultTenantID})
 
 	select {
 	case <-handled:

@@ -177,7 +177,7 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 	if err := f.store.markMediaStored(ctx, row.MessageID, data, metadata.MimeType, int64(len(data))); err != nil {
 		return
 	}
-	f.events.broadcast(event{Conversation: row.ConversationID})
+	f.events.broadcast(event{Conversation: row.ConversationID, Tenant: row.TenantID})
 }
 
 // settle retires the row with a terminal reason and announces the change.
@@ -185,7 +185,7 @@ func (f *mediaFetcher) settle(ctx context.Context, row pendingMediaRow, reason s
 	if err := f.store.markMediaFailed(ctx, row.MessageID, reason); err != nil {
 		return
 	}
-	f.events.broadcast(event{Conversation: row.ConversationID})
+	f.events.broadcast(event{Conversation: row.ConversationID, Tenant: row.TenantID})
 }
 
 // reschedule defers the row's next download attempt with backoff.

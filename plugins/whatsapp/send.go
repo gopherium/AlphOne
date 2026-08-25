@@ -150,7 +150,7 @@ func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, cont
 	if err != nil {
 		return messageRow{}, err
 	}
-	p.events.broadcast(event{Conversation: conversationID})
+	p.events.broadcast(event{Conversation: conversationID, Tenant: sdk.TenantOrDefault(ctx)})
 	return row, nil
 }
 
