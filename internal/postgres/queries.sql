@@ -1,46 +1,48 @@
 -- SPDX-License-Identifier: Elastic-2.0
 
 -- name: CreateContact :exec
-INSERT INTO core.contacts (id, name, created_at)
-VALUES ($1, $2, $3);
+INSERT INTO core.contacts (id, name, created_at, tenant_id)
+VALUES ($1, $2, $3, @tenant_id);
 
 -- name: ListContacts :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts c
-WHERE (c.name, c.id) > (@after_name::text, @after_id::uuid)
+WHERE c.tenant_id = @tenant_id
+    AND (c.name, c.id) > (@after_name::text, @after_id::uuid)
     AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
-            WHERE i.contact_id = c.id
+            WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
                 AND (i.display_name ILIKE '%' || @query || '%'
                     OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
 ORDER BY c.name, c.id
 LIMIT @row_limit;
 
 -- name: GetContact :one
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = $1;
+WHERE id = $1 AND tenant_id = @tenant_id;
 
 -- name: UpdateContactName :one
-UPDATE core.contacts SET name = $2 WHERE id = $1
-RETURNING id, name, created_at;
+UPDATE core.contacts SET name = $2 WHERE id = $1 AND tenant_id = @tenant_id
+RETURNING id, name, created_at, tenant_id;
 
 -- name: ListContactIdentities :many
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1
+WHERE contact_id = $1 AND tenant_id = @tenant_id
 ORDER BY channel, identifier;
 
 -- name: GetIdentity :one
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE channel = $1 AND identifier = $2;
+WHERE channel = $1 AND identifier = $2 AND tenant_id = @tenant_id;
 
 -- name: AddIdentity :one
 WITH inserted AS (
-    INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
-    VALUES (@id, @contact_id, @channel, @identifier, @display_name, @created_at)
+    INSERT INTO core.contact_identities
+        (id, contact_id, channel, identifier, display_name, created_at, tenant_id)
+    VALUES (@id, @contact_id, @channel, @identifier, @display_name, @created_at, @tenant_id)
     ON CONFLICT (tenant_id, channel, identifier) DO NOTHING
     RETURNING contact_id
 )
@@ -48,12 +50,12 @@ SELECT contact_id AS owner_id, TRUE AS created FROM inserted
 UNION ALL
 SELECT contact_id, FALSE
 FROM core.contact_identities
-WHERE channel = @channel AND identifier = @identifier
+WHERE channel = @channel AND identifier = @identifier AND tenant_id = @tenant_id
     AND NOT EXISTS (SELECT 1 FROM inserted);
 
 -- name: DeleteIdentity :execrows
 DELETE FROM core.contact_identities
-WHERE id = $1 AND contact_id = $2;
+WHERE id = $1 AND contact_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
@@ -187,9 +189,9 @@ SET status = $2, deliver_after = $3, last_error = $4
 WHERE id = $1;
 
 -- name: ListContactsByIDs :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = ANY(@ids::uuid[]);
+WHERE id = ANY(@ids::uuid[]) AND tenant_id = @tenant_id;
 
 -- name: TenantForUser :one
 SELECT t.id, t.name

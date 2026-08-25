@@ -13,6 +13,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres/db"
+	"github.com/gopherium/alphone/sdk"
 )
 
 var _ contact.Store = (*ContactStore)(nil)
@@ -34,6 +35,7 @@ func (s *ContactStore) Create(ctx context.Context, c contact.Contact) error {
 		ID:        c.ID,
 		Name:      c.Name,
 		CreatedAt: c.CreatedAt,
+		TenantID:  sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create contact: %w", err)
@@ -46,7 +48,9 @@ func (s *ContactStore) Create(ctx context.Context, c contact.Contact) error {
 func (s *ContactStore) RenameContact(
 	ctx context.Context, id uuid.UUID, name string,
 ) (contact.Contact, error) {
-	row, err := s.queries.UpdateContactName(ctx, db.UpdateContactNameParams{ID: id, Name: name})
+	row, err := s.queries.UpdateContactName(ctx, db.UpdateContactNameParams{
+		ID: id, Name: name, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return contact.Contact{}, contact.ErrNotFound
 	}
@@ -67,6 +71,7 @@ func (s *ContactStore) ListContacts(
 		Query:     query,
 		Digits:    digits,
 		RowLimit:  int32(limit),
+		TenantID:  sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list contacts: %w", err)
@@ -80,7 +85,9 @@ func (s *ContactStore) ListContacts(
 
 // ListByIDs returns the contacts with the given ids in no promised order.
 func (s *ContactStore) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
-	rows, err := s.queries.ListContactsByIDs(ctx, ids)
+	rows, err := s.queries.ListContactsByIDs(ctx, db.ListContactsByIDsParams{
+		Ids: ids, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list contacts by ids: %w", err)
 	}
@@ -94,7 +101,9 @@ func (s *ContactStore) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contac
 // Get returns the contact with the given id, or [contact.ErrNotFound] if
 // none exists.
 func (s *ContactStore) Get(ctx context.Context, id uuid.UUID) (contact.Contact, error) {
-	row, err := s.queries.GetContact(ctx, id)
+	row, err := s.queries.GetContact(ctx, db.GetContactParams{
+		ID: id, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return contact.Contact{}, contact.ErrNotFound
 	}

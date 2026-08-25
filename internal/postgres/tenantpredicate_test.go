@@ -10,7 +10,7 @@ import (
 )
 
 // tenantGuardedTables lists the tables every named query must filter by tenant.
-var tenantGuardedTables = []string{}
+var tenantGuardedTables = []string{"contacts", "contact_identities"}
 
 // namedQueries splits a sqlc source into its named query blocks.
 func namedQueries(source string) map[string]string {

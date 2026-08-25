@@ -13,6 +13,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres/db"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // foreignKeyViolation is the PostgreSQL error code for a broken reference.
@@ -29,7 +30,9 @@ func isMissingContact(err error) bool {
 func (s *ContactStore) ListContactIdentities(
 	ctx context.Context, contactID uuid.UUID,
 ) ([]contact.Identity, error) {
-	rows, err := s.queries.ListContactIdentities(ctx, contactID)
+	rows, err := s.queries.ListContactIdentities(ctx, db.ListContactIdentitiesParams{
+		ContactID: contactID, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list contact identities: %w", err)
 	}
@@ -57,6 +60,7 @@ func (s *ContactStore) LookupIdentity(
 	row, err := s.queries.GetIdentity(ctx, db.GetIdentityParams{
 		Channel:    string(channel),
 		Identifier: identifier,
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return contact.Identity{}, contact.ErrIdentityNotFound
@@ -84,6 +88,7 @@ func (s *ContactStore) AddIdentity(ctx context.Context, identity contact.Identit
 		Identifier:  identity.Identifier,
 		DisplayName: identity.DisplayName,
 		CreatedAt:   identity.CreatedAt,
+		TenantID:    sdk.TenantOrDefault(ctx),
 	})
 	if isMissingContact(err) {
 		return contact.ErrNotFound
@@ -103,6 +108,7 @@ func (s *ContactStore) DeleteIdentity(ctx context.Context, contactID, identityID
 	rows, err := s.queries.DeleteIdentity(ctx, db.DeleteIdentityParams{
 		ID:        identityID,
 		ContactID: contactID,
+		TenantID:  sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: delete identity: %w", err)
@@ -157,6 +163,7 @@ func (s *ContactStore) createContactWithIdentities(
 		ID:        c.ID,
 		Name:      c.Name,
 		CreatedAt: c.CreatedAt,
+		TenantID:  sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return err
@@ -178,6 +185,7 @@ func attachIdentities(ctx context.Context, qtx *db.Queries, identities []contact
 			Identifier:  identity.Identifier,
 			DisplayName: identity.DisplayName,
 			CreatedAt:   identity.CreatedAt,
+			TenantID:    sdk.TenantOrDefault(ctx),
 		})
 		if err != nil {
 			return err

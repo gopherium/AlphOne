@@ -15,8 +15,9 @@ import (
 
 const addIdentity = `-- name: AddIdentity :one
 WITH inserted AS (
-    INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO core.contact_identities
+        (id, contact_id, channel, identifier, display_name, created_at, tenant_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (tenant_id, channel, identifier) DO NOTHING
     RETURNING contact_id
 )
@@ -24,7 +25,7 @@ SELECT contact_id AS owner_id, TRUE AS created FROM inserted
 UNION ALL
 SELECT contact_id, FALSE
 FROM core.contact_identities
-WHERE channel = $3 AND identifier = $4
+WHERE channel = $3 AND identifier = $4 AND tenant_id = $7
     AND NOT EXISTS (SELECT 1 FROM inserted)
 `
 
@@ -35,6 +36,7 @@ type AddIdentityParams struct {
 	Identifier  string
 	DisplayName string
 	CreatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type AddIdentityRow struct {
@@ -50,6 +52,7 @@ func (q *Queries) AddIdentity(ctx context.Context, arg AddIdentityParams) (AddId
 		arg.Identifier,
 		arg.DisplayName,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	var i AddIdentityRow
 	err := row.Scan(&i.OwnerID, &i.Created)
@@ -164,19 +167,25 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 
 const createContact = `-- name: CreateContact :exec
 
-INSERT INTO core.contacts (id, name, created_at)
-VALUES ($1, $2, $3)
+INSERT INTO core.contacts (id, name, created_at, tenant_id)
+VALUES ($1, $2, $3, $4)
 `
 
 type CreateContactParams struct {
 	ID        uuid.UUID
 	Name      string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 // SPDX-License-Identifier: Elastic-2.0
 func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) error {
-	_, err := q.db.Exec(ctx, createContact, arg.ID, arg.Name, arg.CreatedAt)
+	_, err := q.db.Exec(ctx, createContact,
+		arg.ID,
+		arg.Name,
+		arg.CreatedAt,
+		arg.TenantID,
+	)
 	return err
 }
 
@@ -312,16 +321,17 @@ func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebho
 
 const deleteIdentity = `-- name: DeleteIdentity :execrows
 DELETE FROM core.contact_identities
-WHERE id = $1 AND contact_id = $2
+WHERE id = $1 AND contact_id = $2 AND tenant_id = $3
 `
 
 type DeleteIdentityParams struct {
 	ID        uuid.UUID
 	ContactID uuid.UUID
+	TenantID  uuid.UUID
 }
 
 func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.ContactID)
+	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.ContactID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -370,47 +380,43 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (Core
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2
 `
 
-type GetContactRow struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
+type GetContactParams struct {
+	ID       uuid.UUID
+	TenantID uuid.UUID
 }
 
-func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (GetContactRow, error) {
-	row := q.db.QueryRow(ctx, getContact, id)
-	var i GetContactRow
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+func (q *Queries) GetContact(ctx context.Context, arg GetContactParams) (CoreContact, error) {
+	row := q.db.QueryRow(ctx, getContact, arg.ID, arg.TenantID)
+	var i CoreContact
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.TenantID,
+	)
 	return i, err
 }
 
 const getIdentity = `-- name: GetIdentity :one
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE channel = $1 AND identifier = $2
+WHERE channel = $1 AND identifier = $2 AND tenant_id = $3
 `
 
 type GetIdentityParams struct {
 	Channel    string
 	Identifier string
+	TenantID   uuid.UUID
 }
 
-type GetIdentityRow struct {
-	ID          uuid.UUID
-	ContactID   uuid.UUID
-	Channel     string
-	Identifier  string
-	DisplayName string
-	CreatedAt   time.Time
-}
-
-func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetIdentityRow, error) {
-	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier)
-	var i GetIdentityRow
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreContactIdentity, error) {
+	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier, arg.TenantID)
+	var i CoreContactIdentity
 	err := row.Scan(
 		&i.ID,
 		&i.ContactID,
@@ -418,6 +424,7 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetId
 		&i.Identifier,
 		&i.DisplayName,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -486,30 +493,26 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([
 }
 
 const listContactIdentities = `-- name: ListContactIdentities :many
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1
+WHERE contact_id = $1 AND tenant_id = $2
 ORDER BY channel, identifier
 `
 
-type ListContactIdentitiesRow struct {
-	ID          uuid.UUID
-	ContactID   uuid.UUID
-	Channel     string
-	Identifier  string
-	DisplayName string
-	CreatedAt   time.Time
+type ListContactIdentitiesParams struct {
+	ContactID uuid.UUID
+	TenantID  uuid.UUID
 }
 
-func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]ListContactIdentitiesRow, error) {
-	rows, err := q.db.Query(ctx, listContactIdentities, contactID)
+func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]CoreContactIdentity, error) {
+	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListContactIdentitiesRow
+	var items []CoreContactIdentity
 	for rows.Next() {
-		var i ListContactIdentitiesRow
+		var i CoreContactIdentity
 		if err := rows.Scan(
 			&i.ID,
 			&i.ContactID,
@@ -517,6 +520,7 @@ func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID
 			&i.Identifier,
 			&i.DisplayName,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -529,20 +533,22 @@ func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID
 }
 
 const listContacts = `-- name: ListContacts :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts c
-WHERE (c.name, c.id) > ($1::text, $2::uuid)
-    AND ($3::text = '' OR c.name ILIKE '%' || $3 || '%'
+WHERE c.tenant_id = $1
+    AND (c.name, c.id) > ($2::text, $3::uuid)
+    AND ($4::text = '' OR c.name ILIKE '%' || $4 || '%'
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
-            WHERE i.contact_id = c.id
-                AND (i.display_name ILIKE '%' || $3 || '%'
-                    OR ($4::text <> '' AND i.identifier LIKE '%' || $4 || '%'))))
+            WHERE i.contact_id = c.id AND i.tenant_id = $1
+                AND (i.display_name ILIKE '%' || $4 || '%'
+                    OR ($5::text <> '' AND i.identifier LIKE '%' || $5 || '%'))))
 ORDER BY c.name, c.id
-LIMIT $5
+LIMIT $6
 `
 
 type ListContactsParams struct {
+	TenantID  uuid.UUID
 	AfterName string
 	AfterID   uuid.UUID
 	Query     string
@@ -550,14 +556,9 @@ type ListContactsParams struct {
 	RowLimit  int32
 }
 
-type ListContactsRow struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-}
-
-func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]ListContactsRow, error) {
+func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]CoreContact, error) {
 	rows, err := q.db.Query(ctx, listContacts,
+		arg.TenantID,
 		arg.AfterName,
 		arg.AfterID,
 		arg.Query,
@@ -568,10 +569,15 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]L
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListContactsRow
+	var items []CoreContact
 	for rows.Next() {
-		var i ListContactsRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		var i CoreContact
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.TenantID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -583,27 +589,31 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]L
 }
 
 const listContactsByIDs = `-- name: ListContactsByIDs :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = ANY($1::uuid[])
+WHERE id = ANY($1::uuid[]) AND tenant_id = $2
 `
 
-type ListContactsByIDsRow struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
+type ListContactsByIDsParams struct {
+	Ids      []uuid.UUID
+	TenantID uuid.UUID
 }
 
-func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]ListContactsByIDsRow, error) {
-	rows, err := q.db.Query(ctx, listContactsByIDs, ids)
+func (q *Queries) ListContactsByIDs(ctx context.Context, arg ListContactsByIDsParams) ([]CoreContact, error) {
+	rows, err := q.db.Query(ctx, listContactsByIDs, arg.Ids, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListContactsByIDsRow
+	var items []CoreContact
 	for rows.Next() {
-		var i ListContactsByIDsRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		var i CoreContact
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.TenantID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -993,25 +1003,25 @@ func (q *Queries) TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) er
 }
 
 const updateContactName = `-- name: UpdateContactName :one
-UPDATE core.contacts SET name = $2 WHERE id = $1
-RETURNING id, name, created_at
+UPDATE core.contacts SET name = $2 WHERE id = $1 AND tenant_id = $3
+RETURNING id, name, created_at, tenant_id
 `
 
 type UpdateContactNameParams struct {
-	ID   uuid.UUID
-	Name string
+	ID       uuid.UUID
+	Name     string
+	TenantID uuid.UUID
 }
 
-type UpdateContactNameRow struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-}
-
-func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (UpdateContactNameRow, error) {
-	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name)
-	var i UpdateContactNameRow
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (CoreContact, error) {
+	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name, arg.TenantID)
+	var i CoreContact
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.TenantID,
+	)
 	return i, err
 }
 
