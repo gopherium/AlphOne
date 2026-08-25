@@ -901,6 +901,37 @@ func (q *Queries) TenantForUser(ctx context.Context, arg TenantForUserParams) (T
 	return i, err
 }
 
+const tenantsOfUsers = `-- name: TenantsOfUsers :many
+SELECT user_id, tenant_id
+FROM core.tenant_members
+WHERE user_id = ANY($1::uuid[])
+`
+
+type TenantsOfUsersRow struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) TenantsOfUsers(ctx context.Context, ids []uuid.UUID) ([]TenantsOfUsersRow, error) {
+	rows, err := q.db.Query(ctx, tenantsOfUsers, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TenantsOfUsersRow
+	for rows.Next() {
+		var i TenantsOfUsersRow
+		if err := rows.Scan(&i.UserID, &i.TenantID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const touchAPIToken = `-- name: TouchAPIToken :exec
 UPDATE core.api_tokens
 SET last_used_at = $2

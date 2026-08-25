@@ -23,6 +23,21 @@ func NewTenantStore(pool *pgxpool.Pool) *TenantStore {
 	return &TenantStore{queries: db.New(pool)}
 }
 
+// TenantsOf returns the tenant of every named user a row places, the rest absent.
+func (s *TenantStore) TenantsOf(
+	ctx context.Context, ids []uuid.UUID,
+) (map[uuid.UUID]uuid.UUID, error) {
+	rows, err := s.queries.TenantsOfUsers(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("read tenants: %w", err)
+	}
+	placed := make(map[uuid.UUID]uuid.UUID, len(rows))
+	for _, row := range rows {
+		placed[row.UserID] = row.TenantID
+	}
+	return placed, nil
+}
+
 // TenantForUser returns the user's tenant, the default when no row places them.
 func (s *TenantStore) TenantForUser(ctx context.Context, userID uuid.UUID) (tenant.Tenant, error) {
 	row, err := s.queries.TenantForUser(ctx, db.TenantForUserParams{
