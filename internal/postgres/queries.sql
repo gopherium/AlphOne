@@ -199,6 +199,11 @@ WHERE m.user_id IS NOT NULL OR t.id = @default_id::uuid
 ORDER BY m.user_id IS NOT NULL DESC
 LIMIT 1;
 
+-- name: TenantsOfUsers :many
+SELECT user_id, tenant_id
+FROM core.tenant_members
+WHERE user_id = ANY(@ids::uuid[]);
+
 -- name: UserSetting :many
 SELECT value
 FROM core.user_settings

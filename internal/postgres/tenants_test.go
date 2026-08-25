@@ -63,6 +63,48 @@ func TestTenantForUserAnswersThePlacedTenant(t *testing.T) {
 	}
 }
 
+func TestTenantsOfAnswersOnlyTheUsersARowPlaces(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	acme := uuid.Must(uuid.NewV7())
+	member := uuid.Must(uuid.NewV7())
+	unplaced := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name) VALUES ($1, $2)", acme, "Acme"); err != nil {
+		t.Fatalf("seeding the tenant: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", member, acme); err != nil {
+		t.Fatalf("placing the member: %v", err)
+	}
+
+	placed, err := store.TenantsOf(t.Context(), []uuid.UUID{member, unplaced})
+
+	if err != nil {
+		t.Fatalf("TenantsOf() error = %v, want nil", err)
+	}
+	if placed[member] != acme {
+		t.Errorf("placed[member] = %v, want %v", placed[member], acme)
+	}
+	if _, held := placed[unplaced]; held {
+		t.Error("placed carried the unplaced account, want absence answering the default")
+	}
+}
+
+func TestTenantsOfReportsAStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	pool.Close()
+
+	if _, err := store.TenantsOf(t.Context(), []uuid.UUID{uuid.Must(uuid.NewV7())}); err == nil {
+		t.Error("TenantsOf() error = nil, want the closed pool reported")
+	}
+}
+
 func TestMigrationSeedsTheDefaultTenantExactlyOnce(t *testing.T) {
 	t.Parallel()
 
