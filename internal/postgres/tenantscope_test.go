@@ -11,7 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -21,12 +23,12 @@ func standingIn(t *testing.T, standing uuid.UUID) context.Context {
 	return sdk.WithTenant(t.Context(), standing)
 }
 
-// seededTenant stores one tenant under the given name.
-func seededTenant(t *testing.T, pool *pgxpool.Pool, name string) uuid.UUID {
+// seededTenant stores one tenant named Acme.
+func seededTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(t.Context(),
-		"INSERT INTO core.tenants (id, name) VALUES ($1, $2)", id, name); err != nil {
+		"INSERT INTO core.tenants (id, name) VALUES ($1, 'Acme')", id); err != nil {
 		t.Fatalf("seeding the tenant: %v", err)
 	}
 	return id
@@ -47,7 +49,7 @@ func TestAContactStaysInsideItsTenant(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewContactStore(pool)
-	acme := seededTenant(t, pool, "Acme")
+	acme := seededTenant(t, pool)
 	mine := standingIn(t, acme)
 	held := storedContact(t, store, mine, "Maria Perez")
 
@@ -64,7 +66,7 @@ func TestAContactListingStaysInsideItsTenant(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewContactStore(pool)
-	acme := seededTenant(t, pool, "Acme")
+	acme := seededTenant(t, pool)
 	storedContact(t, store, standingIn(t, acme), "Maria Perez")
 	storedContact(t, store, t.Context(), "Ada Lovelace")
 
@@ -83,7 +85,7 @@ func TestAnIdentityResolvesInsideItsTenantAlone(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewContactStore(pool)
-	acme := seededTenant(t, pool, "Acme")
+	acme := seededTenant(t, pool)
 	mine := storedContact(t, store, standingIn(t, acme), "Maria Perez")
 	theirs := storedContact(t, store, t.Context(), "Ada Lovelace")
 	held := contact.Identity{
@@ -105,5 +107,38 @@ func TestAnIdentityResolvesInsideItsTenantAlone(t *testing.T) {
 	theirs2.ContactID = theirs
 	if err := store.AddIdentity(t.Context(), theirs2); err != nil {
 		t.Errorf("AddIdentity() of the same identifier elsewhere error = %v, want it admitted", err)
+	}
+}
+
+func TestAWebhookSubscriptionFiresForItsTenantAlone(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	acme := seededTenant(t, pool)
+	mine := standingIn(t, acme)
+	sub, err := webhook.NewSubscription(
+		uuid.Must(uuid.NewV7()), "https://example.com/hook", []event.Name{event.TaskCreated},
+	)
+	if err != nil {
+		t.Fatalf("webhook.NewSubscription() error = %v, want nil", err)
+	}
+	if err := store.CreateSubscription(mine, sub); err != nil {
+		t.Fatalf("CreateSubscription() in Acme error = %v, want nil", err)
+	}
+
+	inside, err := store.ListSubscriptionsForEvent(mine, event.TaskCreated)
+	if err != nil {
+		t.Fatalf("ListSubscriptionsForEvent() inside the tenant error = %v, want nil", err)
+	}
+	if len(inside) != 1 {
+		t.Errorf("got %d subscriptions inside the tenant, want 1", len(inside))
+	}
+	outside, err := store.ListSubscriptionsForEvent(t.Context(), event.TaskCreated)
+	if err != nil {
+		t.Fatalf("ListSubscriptionsForEvent() from another tenant error = %v, want nil", err)
+	}
+	if len(outside) != 0 {
+		t.Error("ListSubscriptionsForEvent() from another tenant answered the subscription, want it withheld")
 	}
 }

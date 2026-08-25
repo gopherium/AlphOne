@@ -16,12 +16,19 @@ var tenantGuardedTables = []string{
 	"tasks",
 	"api_tokens",
 	"user_settings",
+	"webhook_subscriptions",
+	"webhook_deliveries",
 }
 
 // authenticatingQueries names the queries resolving a credential before any tenant is known.
 var authenticatingQueries = map[string]bool{
 	"GetAPITokenByHash": true,
 	"TouchAPIToken":     true,
+}
+
+// workerQueries names the queries settling a row a worker's claim already named.
+var workerQueries = map[string]bool{
+	"SettleWebhookDelivery": true,
 }
 
 // namedQueries splits a sqlc source into its named query blocks.
@@ -107,7 +114,7 @@ func TestEveryNamedQueryFiltersTheGuardedTablesByTenant(t *testing.T) {
 	}
 
 	for name, query := range queries {
-		if authenticatingQueries[name] {
+		if authenticatingQueries[name] || workerQueries[name] {
 			continue
 		}
 		for _, table := range unguarded(query, tenantGuardedTables) {
@@ -126,6 +133,11 @@ func TestEveryExemptedQueryStillExists(t *testing.T) {
 	queries := namedQueries(string(source))
 
 	for name := range authenticatingQueries {
+		if _, held := queries[name]; !held {
+			t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
+		}
+	}
+	for name := range workerQueries {
 		if _, held := queries[name]; !held {
 			t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
 		}

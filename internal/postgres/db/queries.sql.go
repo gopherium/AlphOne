@@ -72,13 +72,14 @@ WITH claimed AS (
         FOR UPDATE SKIP LOCKED
     )
     RETURNING id, subscription_id, event_id, event_name, payload,
-        attempts, deliver_after, status, last_error, created_at
+        attempts, deliver_after, status, last_error, created_at, tenant_id
 )
 SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
     c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
     s.url, s.secret
 FROM claimed c
-JOIN core.webhook_subscriptions s ON s.id = c.subscription_id
+JOIN core.webhook_subscriptions s
+    ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id
 `
 
 type ClaimWebhookDeliveriesParams struct {
@@ -265,8 +266,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 const createWebhookDelivery = `-- name: CreateWebhookDelivery :exec
 INSERT INTO core.webhook_deliveries (
     id, subscription_id, event_id, event_name, payload,
-    attempts, deliver_after, status, last_error, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    attempts, deliver_after, status, last_error, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type CreateWebhookDeliveryParams struct {
@@ -280,6 +281,7 @@ type CreateWebhookDeliveryParams struct {
 	Status         string
 	LastError      pgtype.Text
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) error {
@@ -294,13 +296,14 @@ func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDe
 		arg.Status,
 		arg.LastError,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	return err
 }
 
 const createWebhookSubscription = `-- name: CreateWebhookSubscription :exec
-INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateWebhookSubscriptionParams struct {
@@ -310,6 +313,7 @@ type CreateWebhookSubscriptionParams struct {
 	Events    []string
 	Secret    string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebhookSubscriptionParams) error {
@@ -320,6 +324,7 @@ func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebho
 		arg.Events,
 		arg.Secret,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	return err
 }
@@ -345,16 +350,17 @@ func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) 
 
 const deleteWebhookSubscription = `-- name: DeleteWebhookSubscription :execrows
 DELETE FROM core.webhook_subscriptions
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3
 `
 
 type DeleteWebhookSubscriptionParams struct {
-	ID     uuid.UUID
-	UserID uuid.UUID
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	TenantID uuid.UUID
 }
 
 func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebhookSubscriptionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteWebhookSubscription, arg.ID, arg.UserID)
+	result, err := q.db.Exec(ctx, deleteWebhookSubscription, arg.ID, arg.UserID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -828,12 +834,17 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 const listWebhookSubscriptionsForEvent = `-- name: ListWebhookSubscriptionsForEvent :many
 SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE $1::text = ANY (events)
+WHERE $1::text = ANY (events) AND tenant_id = $2
 ORDER BY id
 `
 
-func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1 string) ([]CoreWebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForEvent, dollar_1)
+type ListWebhookSubscriptionsForEventParams struct {
+	Column1  string
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, arg ListWebhookSubscriptionsForEventParams) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForEvent, arg.Column1, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -863,12 +874,17 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1
 const listWebhookSubscriptionsForUser = `-- name: ListWebhookSubscriptionsForUser :many
 SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]CoreWebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, userID)
+type ListWebhookSubscriptionsForUserParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListWebhookSubscriptionsForUserParams) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, arg.UserID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}

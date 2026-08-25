@@ -141,30 +141,30 @@ DELETE FROM core.api_tokens
 WHERE id = $1 AND user_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateWebhookSubscription :exec
-INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
-VALUES ($1, $2, $3, $4, $5, $6);
+INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, @tenant_id);
 
 -- name: ListWebhookSubscriptionsForUser :many
 SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = @tenant_id
 ORDER BY created_at DESC, id DESC;
 
 -- name: ListWebhookSubscriptionsForEvent :many
 SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE $1::text = ANY (events)
+WHERE $1::text = ANY (events) AND tenant_id = @tenant_id
 ORDER BY id;
 
 -- name: DeleteWebhookSubscription :execrows
 DELETE FROM core.webhook_subscriptions
-WHERE id = $1 AND user_id = $2;
+WHERE id = $1 AND user_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateWebhookDelivery :exec
 INSERT INTO core.webhook_deliveries (
     id, subscription_id, event_id, event_name, payload,
-    attempts, deliver_after, status, last_error, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+    attempts, deliver_after, status, last_error, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, @tenant_id);
 
 -- name: ClaimWebhookDeliveries :many
 WITH claimed AS (
@@ -179,13 +179,14 @@ WITH claimed AS (
         FOR UPDATE SKIP LOCKED
     )
     RETURNING id, subscription_id, event_id, event_name, payload,
-        attempts, deliver_after, status, last_error, created_at
+        attempts, deliver_after, status, last_error, created_at, tenant_id
 )
 SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
     c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
     s.url, s.secret
 FROM claimed c
-JOIN core.webhook_subscriptions s ON s.id = c.subscription_id;
+JOIN core.webhook_subscriptions s
+    ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id;
 
 -- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries
