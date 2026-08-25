@@ -56,6 +56,7 @@ type TaskStore interface {
 // TenantStore reads the tenant a caller stands in.
 type TenantStore interface {
 	TenantForUser(ctx context.Context, userID uuid.UUID) (tenant.Tenant, error)
+	TenantsOf(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error)
 }
 
 // WebhookStore provides the webhook subscriptions the graph manages.
@@ -65,7 +66,7 @@ type WebhookStore interface {
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
 }
 
-// outranking refuses an actor writing an account whose role holds a capability the actor lacks.
+// outranking refuses an actor writing an account of another tenant or holding a capability it lacks.
 func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, target uuid.UUID) error {
 	held, err := r.Admin.ListAccounts(ctx)
 	if err != nil {
@@ -75,12 +76,37 @@ func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, targe
 		if account.ID != target {
 			continue
 		}
+		placed, err := r.tenantsOf(ctx, []uuid.UUID{actor.ID, account.ID})
+		if err != nil {
+			return err
+		}
+		if placedIn(placed, actor.ID) != placedIn(placed, account.ID) {
+			return gouncer.ErrUserNotFound
+		}
 		if !role.Outranks(role.Role(actor.Role), role.Role(account.Role)) {
 			return role.ErrBeyondReach
 		}
 		return nil
 	}
 	return gouncer.ErrUserNotFound
+}
+
+// tenantsOf returns the tenant each named account a row places stands in, the rest absent.
+func (r *Resolver) tenantsOf(
+	ctx context.Context, ids []uuid.UUID,
+) (map[uuid.UUID]uuid.UUID, error) {
+	if r.Tenants == nil {
+		return nil, nil
+	}
+	return r.Tenants.TenantsOf(ctx, ids)
+}
+
+// placedIn returns the tenant a placement holds for one account, the default when none does.
+func placedIn(placed map[uuid.UUID]uuid.UUID, id uuid.UUID) uuid.UUID {
+	if standing, ok := placed[id]; ok {
+		return standing
+	}
+	return tenant.DefaultID
 }
 
 // TokenStore serves the caller's own API tokens.

@@ -62,15 +62,29 @@ func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
 	return toAuthIdentity(identity, role.Role(identity.Role)), nil
 }
 
-// Users lists every user account.
+// Users lists the accounts standing in the caller's tenant.
 func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	accounts, err := q.root.Admin.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	users := make([]*model.User, len(accounts))
-	for i, account := range accounts {
-		users[i] = toUser(account, role.Role(account.Role))
+	caller := authkit.IdentityFromContext(ctx).ID
+	ids := make([]uuid.UUID, 0, len(accounts)+1)
+	ids = append(ids, caller)
+	for _, account := range accounts {
+		ids = append(ids, account.ID)
+	}
+	placed, err := q.root.tenantsOf(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	standing := placedIn(placed, caller)
+	users := make([]*model.User, 0, len(accounts))
+	for _, account := range accounts {
+		if placedIn(placed, account.ID) != standing {
+			continue
+		}
+		users = append(users, toUser(account, role.Role(account.Role)))
 	}
 	return users, nil
 }

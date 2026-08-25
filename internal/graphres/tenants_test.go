@@ -24,6 +24,13 @@ func (failingTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tena
 	return tenant.Tenant{}, errTenantStore
 }
 
+// TenantsOf reports the store failure.
+func (failingTenantStore) TenantsOf(
+	context.Context, []uuid.UUID,
+) (map[uuid.UUID]uuid.UUID, error) {
+	return nil, errTenantStore
+}
+
 // tenantRead is the answer shape of the tenant query.
 type tenantRead struct {
 	Tenant struct {
