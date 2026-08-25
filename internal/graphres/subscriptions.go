@@ -42,7 +42,7 @@ func (s SubscriptionResolvers) CoreEvent(ctx context.Context) (<-chan string, er
 
 // pumpNames forwards the user's frames onto names until the context ends.
 func (s SubscriptionResolvers) pumpNames(ctx context.Context, user uuid.UUID, names chan<- string) {
-	frames := s.root.Live.Subscribe(user)
+	frames := s.root.Live.Subscribe(user, sdk.TenantOrDefault(ctx))
 	go func() {
 		<-ctx.Done()
 		s.root.Live.Unsubscribe(frames)
