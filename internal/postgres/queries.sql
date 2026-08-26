@@ -62,7 +62,7 @@ INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, du
     origin_source, origin_event_id, created_at, tenant_id)
 VALUES (@id, @assignee_id, @contact_id, @title, @status, @priority, @due_on,
     @origin_source, @origin_event_id, @created_at, @tenant_id)
-ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
+ON CONFLICT (tenant_id, assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, (xmax = 0) AS created;
@@ -219,4 +219,4 @@ WHERE user_id = @user_id::uuid AND key = @key::text AND tenant_id = @tenant_id;
 -- name: SetUserSetting :exec
 INSERT INTO core.user_settings (user_id, key, value, tenant_id)
 VALUES (@user_id::uuid, @key::text, @value::text, @tenant_id)
-ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (tenant_id, user_id, key) DO UPDATE SET value = EXCLUDED.value;

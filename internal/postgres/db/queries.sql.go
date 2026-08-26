@@ -198,7 +198,7 @@ INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, du
     origin_source, origin_event_id, created_at, tenant_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
     $8, $9, $10, $11)
-ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
+ON CONFLICT (tenant_id, assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, (xmax = 0) AS created
@@ -933,7 +933,7 @@ func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) 
 const setUserSetting = `-- name: SetUserSetting :exec
 INSERT INTO core.user_settings (user_id, key, value, tenant_id)
 VALUES ($1::uuid, $2::text, $3::text, $4)
-ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value
+ON CONFLICT (tenant_id, user_id, key) DO UPDATE SET value = EXCLUDED.value
 `
 
 type SetUserSettingParams struct {

@@ -13,6 +13,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -107,6 +108,69 @@ func TestAnIdentityResolvesInsideItsTenantAlone(t *testing.T) {
 	theirs2.ContactID = theirs
 	if err := store.AddIdentity(t.Context(), theirs2); err != nil {
 		t.Errorf("AddIdentity() of the same identifier elsewhere error = %v, want it admitted", err)
+	}
+}
+
+func TestASettingStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewUserSettingStore(pool)
+	acme := seededTenant(t, pool)
+	holder := seedSettingsUser(t, pool)
+	if err := store.SetUserSetting(standingIn(t, acme), holder, "locale.default", "es-ES"); err != nil {
+		t.Fatalf("SetUserSetting() in Acme error = %v, want nil", err)
+	}
+
+	if err := store.SetUserSetting(t.Context(), holder, "locale.default", "en-GB"); err != nil {
+		t.Fatalf("SetUserSetting() elsewhere error = %v, want the setting admitted", err)
+	}
+
+	held, err := store.UserSetting(standingIn(t, acme), holder, "locale.default")
+	if err != nil {
+		t.Fatalf("UserSetting() in Acme error = %v, want nil", err)
+	}
+	if held != "es-ES" {
+		t.Errorf("the Acme setting = %q, want it untouched by the other tenant", held)
+	}
+	elsewhere, err := store.UserSetting(t.Context(), holder, "locale.default")
+	if err != nil {
+		t.Fatalf("UserSetting() elsewhere error = %v, want nil", err)
+	}
+	if elsewhere != "en-GB" {
+		t.Errorf("the other tenant's setting = %q, want its own value stored", elsewhere)
+	}
+}
+
+func TestATaskOriginReplaysInsideItsTenantAlone(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTaskStore(pool)
+	acme := seededTenant(t, pool)
+	assignee := uuid.Must(uuid.NewV7())
+	origin := task.Origin{Source: "n8n", EventID: uuid.Must(uuid.NewV7())}
+	held := task.Task{
+		ID: uuid.Must(uuid.NewV7()), AssigneeID: assignee, Title: "In Acme",
+		Status: "open", Priority: 2, Origin: origin, CreatedAt: time.Now(),
+	}
+	if _, _, err := store.Create(standingIn(t, acme), held); err != nil {
+		t.Fatalf("Create() in Acme error = %v, want nil", err)
+	}
+
+	elsewhere := held
+	elsewhere.ID = uuid.Must(uuid.NewV7())
+	elsewhere.Title = "Elsewhere"
+	got, created, err := store.Create(t.Context(), elsewhere)
+
+	if err != nil {
+		t.Fatalf("Create() elsewhere error = %v, want the same origin admitted", err)
+	}
+	if !created {
+		t.Error("the replay guard fired across tenants, want the other tenant to get its own task")
+	}
+	if got.Title == "In Acme" {
+		t.Error("Create() elsewhere answered the Acme task, want the other tenant's own")
 	}
 }
 
