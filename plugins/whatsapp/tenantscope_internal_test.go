@@ -101,6 +101,29 @@ func TestMessagesStayInsideTheirTenant(t *testing.T) {
 	}
 }
 
+func TestAContactsConversationsStayInsideTheirTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := seededTenant(t, p, "Acme")
+	conversationID := seededConversation(t, p, "wamid.acme", acme)
+	var contactID uuid.UUID
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT contact_id FROM plugin_whatsapp.conversations WHERE id = $1", conversationID,
+	).Scan(&contactID); err != nil {
+		t.Fatalf("loading the contact id: %v", err)
+	}
+
+	held, err := p.store.listConversationsByContactIDs(t.Context(), []uuid.UUID{contactID})
+
+	if err != nil {
+		t.Fatalf("listConversationsByContactIDs() error = %v, want nil", err)
+	}
+	if len(held) != 0 {
+		t.Errorf("listConversationsByContactIDs() = %+v from another tenant, want them withheld", held)
+	}
+}
+
 func TestABroadcastStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 

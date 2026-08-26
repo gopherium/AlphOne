@@ -108,9 +108,9 @@ func (s *store) listConversationsByContactIDs(
 	ctx context.Context, contactIDs []uuid.UUID,
 ) ([]conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, conversationSelect+`
-	WHERE conv.contact_id = ANY($1)
+	WHERE conv.contact_id = ANY($1) AND conv.tenant_id = $2
 	ORDER BY conv.last_activity_at DESC`,
-		contactIDs,
+		contactIDs, sdk.TenantOrDefault(ctx),
 	)
 	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
 	if err != nil {
