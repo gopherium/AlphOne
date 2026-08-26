@@ -57,10 +57,10 @@ func TestADeactivatedTenantRefusesMachineTrafficAfterTheGraceWindow(t *testing.T
 func TestTheGraceWindowEndsExactlyAtItsLength(t *testing.T) {
 	t.Parallel()
 
-	closed := time.Now().Add(-fortnight)
-	held := tenant.Tenant{Name: "Acme", Deactivated: true, DeactivatedAt: closed}
+	now := time.Now()
+	held := tenant.Tenant{Name: "Acme", Deactivated: true, DeactivatedAt: now.Add(-fortnight)}
 
-	if held.AcceptsMachineTraffic(time.Now(), fortnight) {
+	if held.AcceptsMachineTraffic(now, fortnight) {
 		t.Error("AcceptsMachineTraffic() = true at the boundary, want the window closed")
 	}
 }
@@ -68,9 +68,10 @@ func TestTheGraceWindowEndsExactlyAtItsLength(t *testing.T) {
 func TestAZeroGraceWindowStopsADeactivatedTenantAtOnce(t *testing.T) {
 	t.Parallel()
 
-	held := tenant.Tenant{Name: "Acme", Deactivated: true, DeactivatedAt: time.Now()}
+	now := time.Now()
+	held := tenant.Tenant{Name: "Acme", Deactivated: true, DeactivatedAt: now}
 
-	if held.AcceptsMachineTraffic(time.Now(), 0) {
+	if held.AcceptsMachineTraffic(now, 0) {
 		t.Error("AcceptsMachineTraffic() = true under a zero window, want it stopped at once")
 	}
 }

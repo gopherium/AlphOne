@@ -63,15 +63,24 @@ func (p *gateTakingPlugin) UseTenantGate(gate sdk.TenantGate) {
 	p.received = gate
 }
 
+// sentinelGate is a tenant gate a wiring test recognises by identity.
+type sentinelGate struct{ mark int }
+
+// AcceptsMachineTraffic accepts every tenant.
+func (sentinelGate) AcceptsMachineTraffic(context.Context, uuid.UUID) (bool, error) {
+	return true, nil
+}
+
 func TestWiringHandsTheTenantGateToEveryConsumer(t *testing.T) {
 	t.Parallel()
 
 	taking := &gateTakingPlugin{inertPlugin: inertPlugin{id: "whatsapp"}}
+	gate := sentinelGate{mark: 7}
 
-	wireTenantGate([]sdk.Plugin{taking, inertPlugin{id: "bystander"}}, tenantGateBridge{})
+	wireTenantGate([]sdk.Plugin{taking, inertPlugin{id: "bystander"}}, gate)
 
-	if taking.received == nil {
-		t.Error("the plugin received no tenant gate, want the host's gate")
+	if taking.received != sdk.TenantGate(gate) {
+		t.Errorf("the plugin received %#v, want the very gate the host handed it", taking.received)
 	}
 }
 

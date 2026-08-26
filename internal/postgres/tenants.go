@@ -60,7 +60,7 @@ func (s *TenantStore) TenantByID(ctx context.Context, id uuid.UUID) (tenant.Tena
 	return tenantFrom(row.ID, row.Name, row.DeactivatedAt), nil
 }
 
-// tenantFrom builds a tenant from its stored row, reading the deactivation from its timestamp.
+// tenantFrom returns the tenant one stored row describes.
 func tenantFrom(id uuid.UUID, name string, deactivatedAt pgtype.Timestamptz) tenant.Tenant {
 	return tenant.Tenant{
 		ID:            id,
