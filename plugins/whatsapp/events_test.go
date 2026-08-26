@@ -327,6 +327,7 @@ func TestWebhookEventsReportIngestFailure(t *testing.T) {
 	}
 }
 
+// routingEnv returns the plugin environment for a routing test, overridden by extra.
 func routingEnv(extra map[string]string) map[string]string {
 	env := map[string]string{
 		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
@@ -338,6 +339,7 @@ func routingEnv(extra map[string]string) map[string]string {
 	return env
 }
 
+// newRoutingPlugin returns a migrated plugin holding a sealing key, beside its pool.
 func newRoutingPlugin(t *testing.T, extra map[string]string) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
 	cfg := newTestDatabase(t)
@@ -350,6 +352,7 @@ func newRoutingPlugin(t *testing.T, extra map[string]string) (*whatsapp.Plugin, 
 	return p, pool
 }
 
+// seedTenant stores one tenant named Acme and returns its id.
 func seedTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
@@ -360,6 +363,7 @@ func seedTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return id
 }
 
+// numberedEventBody returns an inbound message payload naming the number it arrived on.
 func numberedEventBody(phoneNumberID, wamid string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
@@ -373,6 +377,7 @@ func numberedEventBody(phoneNumberID, wamid string) []byte {
 	}`, phoneNumberID, wamid)
 }
 
+// numberedStatusBody returns a delivery status payload naming the number it arrived on.
 func numberedStatusBody(phoneNumberID, wamid, status string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
@@ -385,6 +390,7 @@ func numberedStatusBody(phoneNumberID, wamid, status string) []byte {
 	}`, phoneNumberID, wamid, status)
 }
 
+// conversationTenant returns the tenant of the single stored conversation.
 func conversationTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	var tenantID uuid.UUID
@@ -458,6 +464,7 @@ func TestWebhookEventsForTheEnvNumberLandInTheDefaultTenant(t *testing.T) {
 	}
 }
 
+// unnumberedEventBody returns an inbound message payload naming no number at all.
 func unnumberedEventBody(wamid string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
