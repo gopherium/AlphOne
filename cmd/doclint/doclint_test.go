@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// write creates the named file under the directory with the given body.
 func write(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {

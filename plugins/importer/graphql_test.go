@@ -530,8 +530,10 @@ func TestGraphImportMutationsRejectAnUnknownImport(t *testing.T) {
 // brokenReader fails every read with a stream error.
 type brokenReader struct{}
 
+// Read returns a stream error instead of any bytes.
 func (brokenReader) Read([]byte) (int, error) { return 0, errors.New("stream interrupted") }
 
+// Seek reports offset zero without moving anything.
 func (brokenReader) Seek(int64, int) (int64, error) { return 0, nil }
 
 func TestGraphImportUploadReadFailuresPropagate(t *testing.T) {

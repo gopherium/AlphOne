@@ -18,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/testdb"
 )
 
+// newTestPool returns a connection pool over a fresh migrated test database, skipping in short mode.
 func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	if testing.Short() {

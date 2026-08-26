@@ -16,6 +16,7 @@ import (
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
+// mustSubscription returns a subscription for the owner, url and event names, failing the test on error.
 func mustSubscription(t *testing.T, owner uuid.UUID, url string, events ...event.Name) webhook.Subscription {
 	t.Helper()
 	sub, err := webhook.NewSubscription(owner, url, events)
@@ -25,6 +26,7 @@ func mustSubscription(t *testing.T, owner uuid.UUID, url string, events ...event
 	return sub
 }
 
+// mustDelivery returns a delivery of a fresh task created event for the subscription, failing the test on error.
 func mustDelivery(t *testing.T, sub webhook.Subscription) webhook.Delivery {
 	t.Helper()
 	occurred, err := event.New(event.TaskCreated, map[string]any{"id": uuid.Must(uuid.NewV7()).String()})

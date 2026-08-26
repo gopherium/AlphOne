@@ -15,6 +15,7 @@ import (
 	"github.com/gopherium/alphone/graph/model"
 )
 
+// seedStoredMedia seeds one message with pending media and marks that media stored.
 func seedStoredMedia(
 	t *testing.T, p *Plugin, externalID string, data []byte, mimeType, filename, sha string,
 ) (uuid.UUID, uuid.UUID) {
@@ -29,6 +30,7 @@ func seedStoredMedia(
 	return conversationID, messageID
 }
 
+// getMedia requests one message's media through the plugin routes with the given headers.
 func getMedia(
 	t *testing.T, p *Plugin, conversationID, messageID string, header http.Header,
 ) *httptest.ResponseRecorder {

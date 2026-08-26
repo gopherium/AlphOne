@@ -18,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// newMigratedPlugin returns a plugin wired to a fresh test database with its migrations applied.
 func newMigratedPlugin(t *testing.T) *Plugin {
 	t.Helper()
 	if testing.Short() {
@@ -37,6 +38,7 @@ func newMigratedPlugin(t *testing.T) *Plugin {
 	return p
 }
 
+// newIngestReadyPlugin returns a migrated plugin holding a seeded contact and a resolver that always answers it.
 func newIngestReadyPlugin(t *testing.T) *Plugin {
 	t.Helper()
 	p := newMigratedPlugin(t)
@@ -51,6 +53,7 @@ func newIngestReadyPlugin(t *testing.T) *Plugin {
 	return p
 }
 
+// imageMessage returns one inbound image message carrying the given external id.
 func imageMessage(wamid string) inboundMessage {
 	return inboundMessage{
 		externalID:  wamid,
@@ -64,6 +67,7 @@ func imageMessage(wamid string) inboundMessage {
 	}
 }
 
+// tableCount returns how many rows the named table holds.
 func tableCount(t *testing.T, p *Plugin, table string) int {
 	t.Helper()
 	var count int

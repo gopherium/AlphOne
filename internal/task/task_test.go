@@ -17,6 +17,7 @@ var errEntropy = errors.New("entropy source failed")
 
 type failingReader struct{}
 
+// Read reports the entropy failure and reads nothing.
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errEntropy
 }

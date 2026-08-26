@@ -14,6 +14,7 @@ import (
 
 const streamLogin = "ada@example.com"
 
+// blockingPlugin returns a handler that announces each request on the channel and holds until the request is done.
 func blockingPlugin(entered chan<- struct{}) http.Handler {
 	return http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		entered <- struct{}{}
@@ -21,6 +22,7 @@ func blockingPlugin(entered chan<- struct{}) http.Handler {
 	})
 }
 
+// newStreamServer returns a host serving one blocking stub plugin under the given stream lifetime and per user cap.
 func newStreamServer(
 	t *testing.T, users *testkit.Store, entered chan struct{}, lifetime time.Duration, perUser int,
 ) http.Handler {
@@ -35,6 +37,7 @@ func newStreamServer(
 	})
 }
 
+// openPluginRequest starts a request to the path in the background and returns its cancel and its answer channel.
 func openPluginRequest(
 	handler http.Handler,
 	path string,

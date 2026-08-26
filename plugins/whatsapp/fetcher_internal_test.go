@@ -49,6 +49,7 @@ type graphStub struct {
 	binaryHits   int
 }
 
+// newGraphStub starts a stub graph server answering media metadata and the binary, closed at cleanup.
 func newGraphStub(t *testing.T, binary []byte) *graphStub {
 	t.Helper()
 	s := &graphStub{
@@ -63,6 +64,7 @@ func newGraphStub(t *testing.T, binary []byte) *graphStub {
 	return s
 }
 
+// handle records the request authorization and answers either the media metadata or the binary.
 func (s *graphStub) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -98,23 +100,27 @@ func (s *graphStub) handle(w http.ResponseWriter, r *http.Request) {
 		downloadURL, s.mimeType, s.fileSize)
 }
 
+// hits returns how many metadata and binary requests the stub answered.
 func (s *graphStub) hits() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.metadataHits, s.binaryHits
 }
 
+// headers returns a copy of the Authorization headers the stub received.
 func (s *graphStub) headers() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.authHeaders...)
 }
 
+// shaOf returns the base64 encoded sha256 sum of the given bytes.
 func shaOf(data []byte) string {
 	sum := sha256.Sum256(data)
 	return base64.StdEncoding.EncodeToString(sum[:])
 }
 
+// newTestFetcher gives the plugin environment credentials and returns a fetcher over its store and events.
 func newTestFetcher(t *testing.T, p *Plugin, baseURL string, maxBytes int64) *mediaFetcher {
 	t.Helper()
 	p.envCredentials = credentials{phoneNumberID: "PN1", accessToken: "test-token"}
@@ -127,6 +133,7 @@ func newTestFetcher(t *testing.T, p *Plugin, baseURL string, maxBytes int64) *me
 	})
 }
 
+// seedPendingImage stores one message with a pending media row and returns the message id.
 func seedPendingImage(t *testing.T, p *Plugin, externalID, sha string) uuid.UUID {
 	t.Helper()
 	_, messageID := seedMessage(t, p, externalID)
@@ -145,6 +152,7 @@ type mediaRowState struct {
 	fileSize  *int64
 }
 
+// mediaState reads the media row the message names, failing the test when it cannot be read.
 func mediaState(t *testing.T, p *Plugin, messageID uuid.UUID) mediaRowState {
 	t.Helper()
 	var s mediaRowState
@@ -159,6 +167,7 @@ func mediaState(t *testing.T, p *Plugin, messageID uuid.UUID) mediaRowState {
 	return s
 }
 
+// mediaStatus returns the status of the media row the message names, empty when there is none.
 func mediaStatus(p *Plugin, messageID uuid.UUID) string {
 	var status string
 	_ = p.pool.QueryRow(context.Background(),

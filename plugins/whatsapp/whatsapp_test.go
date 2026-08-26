@@ -32,6 +32,7 @@ type resolverBridge struct {
 	resolver *contact.Resolver
 }
 
+// Resolve resolves the identifier through the core resolver and returns it as an sdk contact.
 func (b resolverBridge) Resolve(
 	ctx context.Context,
 	channel sdk.Channel,
@@ -48,6 +49,7 @@ const uniqueViolation = "23505"
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
 
+// newTestDatabase returns a config for a core migrated database, skipping the test in short mode.
 func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	t.Helper()
 	if testing.Short() {
@@ -56,6 +58,7 @@ func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	return pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 }
 
+// newAssertionPool opens a pool on the given url and closes it at cleanup.
 func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(t.Context(), url)
@@ -66,6 +69,7 @@ func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {
 	return pool
 }
 
+// newPlugin registers the whatsapp plugin with the given database, resolver and environment, stopped at cleanup.
 func newPlugin(t *testing.T, databaseURL string, resolver sdk.ContactResolver, env map[string]string) *whatsapp.Plugin {
 	t.Helper()
 	p, err := whatsapp.Register(sdk.Deps{

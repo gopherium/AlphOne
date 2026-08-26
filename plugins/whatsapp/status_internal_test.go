@@ -12,6 +12,7 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// seedOutboundMessage stores a contact, a conversation and one outbound message, and returns the conversation id.
 func seedOutboundMessage(t *testing.T, p *Plugin, externalID string) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -43,6 +44,7 @@ func seedOutboundMessage(t *testing.T, p *Plugin, externalID string) uuid.UUID {
 	return conversationID
 }
 
+// messageStatusOf returns the stored status and status detail of the message the wamid names.
 func messageStatusOf(t *testing.T, p *Plugin, wamid string) (*string, *string) {
 	t.Helper()
 	var status, detail *string
@@ -55,6 +57,7 @@ func messageStatusOf(t *testing.T, p *Plugin, wamid string) (*string, *string) {
 	return status, detail
 }
 
+// drainEvents takes every event already waiting on the subscription.
 func drainEvents(subscription chan event) {
 	for {
 		select {
@@ -65,6 +68,7 @@ func drainEvents(subscription chan event) {
 	}
 }
 
+// applyStatusOK applies one status update, failing the test on any error.
 func applyStatusOK(t *testing.T, p *Plugin, u statusUpdate) {
 	t.Helper()
 	if err := p.applyStatus(t.Context(), u); err != nil {
@@ -72,6 +76,7 @@ func applyStatusOK(t *testing.T, p *Plugin, u statusUpdate) {
 	}
 }
 
+// assertStatus fails the test unless the message the wamid names carries the wanted status.
 func assertStatus(t *testing.T, p *Plugin, wamid, want string) {
 	t.Helper()
 	status, _ := messageStatusOf(t, p, wamid)

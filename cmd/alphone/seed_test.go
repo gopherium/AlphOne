@@ -25,10 +25,12 @@ var errEntropy = errors.New("entropy source failed")
 
 type failingReader struct{}
 
+// Read returns the entropy failure instead of any bytes.
 func (failingReader) Read([]byte) (int, error) {
 	return 0, errEntropy
 }
 
+// testPool returns a pool on the given database URL, closed when the test ends.
 func testPool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(t.Context(), databaseURL)
@@ -39,6 +41,7 @@ func testPool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	return pool
 }
 
+// countRows returns the number of rows in the named table.
 func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	t.Helper()
 	var count int
@@ -48,6 +51,7 @@ func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	return count
 }
 
+// demoCounts returns the row counts of the seven tables the demo data fills.
 func demoCounts(t *testing.T, pool *pgxpool.Pool) [7]int {
 	t.Helper()
 	return [7]int{

@@ -232,10 +232,12 @@ type stubLimiter struct {
 	recordErr error
 }
 
+// Check allows the attempt and returns the configured check error.
 func (s stubLimiter) Check(string) (bool, time.Duration, error) {
 	return true, 0, s.checkErr
 }
 
+// RecordFailure returns the configured record error.
 func (s stubLimiter) RecordFailure(string) error {
 	return s.recordErr
 }

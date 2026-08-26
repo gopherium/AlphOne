@@ -26,10 +26,12 @@ type fakeDispatchStore struct {
 	enqueueAt map[uuid.UUID]error
 }
 
+// newFakeDispatchStore returns a store holding the given subscriptions and no queued deliveries.
 func newFakeDispatchStore(subs ...webhook.Subscription) *fakeDispatchStore {
 	return &fakeDispatchStore{subs: subs, enqueueAt: map[uuid.UUID]error{}}
 }
 
+// ListSubscriptionsForEvent returns the held subscriptions that want the named event.
 func (s *fakeDispatchStore) ListSubscriptionsForEvent(
 	_ context.Context,
 	name event.Name,
@@ -46,6 +48,7 @@ func (s *fakeDispatchStore) ListSubscriptionsForEvent(
 	return matching, nil
 }
 
+// EnqueueDelivery keeps the delivery, or returns the failure set for its subscription.
 func (s *fakeDispatchStore) EnqueueDelivery(_ context.Context, d webhook.Delivery) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -63,6 +66,7 @@ func newDispatcher(store *fakeDispatchStore) (*webhook.Dispatcher, *strings.Buil
 	return webhook.NewDispatcher(store, logger), &logged
 }
 
+// mustSub returns a subscription for the given URL and events, refusing any failure.
 func mustSub(t *testing.T, url string, events ...event.Name) webhook.Subscription {
 	t.Helper()
 	sub, err := webhook.NewSubscription(uuid.Must(uuid.NewV7()), url, events)

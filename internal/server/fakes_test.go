@@ -28,6 +28,7 @@ type fakeContactStore struct {
 	identities map[uuid.UUID][]contact.Identity
 }
 
+// newFakeContactStore returns an empty in memory contact store.
 func newFakeContactStore() *fakeContactStore {
 	return &fakeContactStore{
 		contacts:   map[uuid.UUID]contact.Contact{},
@@ -35,12 +36,14 @@ func newFakeContactStore() *fakeContactStore {
 	}
 }
 
+// ListContactIdentities returns the identities stored under the named contact.
 func (f *fakeContactStore) ListContactIdentities(
 	_ context.Context, contactID uuid.UUID,
 ) ([]contact.Identity, error) {
 	return f.identities[contactID], nil
 }
 
+// ListByIDs returns the stored contacts the given identifiers name.
 func (f *fakeContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
 	var found []contact.Contact
 	for _, id := range ids {
@@ -51,6 +54,7 @@ func (f *fakeContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]cont
 	return found, nil
 }
 
+// identityOwner returns the contact holding the given channel identity and whether one holds it.
 func (f *fakeContactStore) identityOwner(channel contact.Channel, identifier string) (uuid.UUID, bool) {
 	for ownerID, identities := range f.identities {
 		for _, identity := range identities {
@@ -62,6 +66,7 @@ func (f *fakeContactStore) identityOwner(channel contact.Channel, identifier str
 	return uuid.Nil, false
 }
 
+// AddIdentity stores one identity under an existing contact and refuses an identity another contact holds.
 func (f *fakeContactStore) AddIdentity(_ context.Context, identity contact.Identity) error {
 	if _, ok := f.contacts[identity.ContactID]; !ok {
 		return contact.ErrNotFound
@@ -73,6 +78,7 @@ func (f *fakeContactStore) AddIdentity(_ context.Context, identity contact.Ident
 	return nil
 }
 
+// DeleteIdentity removes the named identity from the named contact.
 func (f *fakeContactStore) DeleteIdentity(_ context.Context, contactID, identityID uuid.UUID) error {
 	for i, identity := range f.identities[contactID] {
 		if identity.ID == identityID {
@@ -85,6 +91,7 @@ func (f *fakeContactStore) DeleteIdentity(_ context.Context, contactID, identity
 	return contact.ErrIdentityNotFound
 }
 
+// CreateContactWithIdentities stores one contact with its identities and refuses an identity already held.
 func (f *fakeContactStore) CreateContactWithIdentities(
 	_ context.Context, c contact.Contact, identities []contact.Identity,
 ) error {
@@ -98,6 +105,7 @@ func (f *fakeContactStore) CreateContactWithIdentities(
 	return nil
 }
 
+// RenameContact gives the named contact a new name and returns it.
 func (f *fakeContactStore) RenameContact(
 	_ context.Context, id uuid.UUID, name string,
 ) (contact.Contact, error) {
@@ -110,11 +118,13 @@ func (f *fakeContactStore) RenameContact(
 	return c, nil
 }
 
+// Create stores one contact.
 func (f *fakeContactStore) Create(_ context.Context, c contact.Contact) error {
 	f.contacts[c.ID] = c
 	return nil
 }
 
+// Get returns the stored contact the identifier names.
 func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error) {
 	c, ok := f.contacts[id]
 	if !ok {
@@ -123,6 +133,7 @@ func (f *fakeContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 	return c, nil
 }
 
+// ListContacts returns one page of stored contacts ordered by name then identifier.
 func (f *fakeContactStore) ListContacts(
 	_ context.Context, _, _ string, afterName string, afterID uuid.UUID, limit int,
 ) ([]contact.Contact, error) {
@@ -153,28 +164,33 @@ type fakeTaskStore struct {
 	tasks map[uuid.UUID]task.Task
 }
 
+// newFakeTaskStore returns an empty in memory task store.
 func newFakeTaskStore() *fakeTaskStore {
 	return &fakeTaskStore{tasks: map[uuid.UUID]task.Task{}}
 }
 
+// ListForDay returns no tasks.
 func (f *fakeTaskStore) ListForDay(
 	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return nil, nil
 }
 
+// ListDueBefore returns no tasks.
 func (f *fakeTaskStore) ListDueBefore(
 	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return nil, nil
 }
 
+// ListForContact returns no tasks.
 func (f *fakeTaskStore) ListForContact(
 	_ context.Context, _ uuid.UUID, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return nil, nil
 }
 
+// Create stores one task and reports whether it is new, returning the task already stored under the same origin.
 func (f *fakeTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
 	if stored, ok := f.byOrigin(t); ok {
 		return stored, false, nil
@@ -196,6 +212,7 @@ func (f *fakeTaskStore) byOrigin(t task.Task) (task.Task, bool) {
 	return task.Task{}, false
 }
 
+// Update replaces the stored task with the given one.
 func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
 	if _, ok := f.tasks[t.ID]; !ok {
 		return task.Task{}, task.ErrNotFound
@@ -204,6 +221,7 @@ func (f *fakeTaskStore) Update(_ context.Context, t task.Task) (task.Task, error
 	return t, nil
 }
 
+// Get returns the stored task the identifier names.
 func (f *fakeTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) {
 	stored, ok := f.tasks[id]
 	if !ok {

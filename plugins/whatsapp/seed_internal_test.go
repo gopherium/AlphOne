@@ -21,6 +21,7 @@ type seedResolver struct {
 	resolver *contact.Resolver
 }
 
+// Resolve returns the core contact for the identifier as an sdk contact.
 func (r seedResolver) Resolve(
 	ctx context.Context,
 	channel sdk.Channel,
@@ -37,10 +38,12 @@ type erroringResolver struct {
 	err error
 }
 
+// Resolve returns the stored failure for every call.
 func (r erroringResolver) Resolve(context.Context, sdk.Channel, string, string) (sdk.Contact, error) {
 	return sdk.Contact{}, r.err
 }
 
+// newSeedReadyPlugin returns a migrated plugin whose resolver stores contacts in the core tables.
 func newSeedReadyPlugin(t *testing.T) *Plugin {
 	t.Helper()
 	p := newMigratedPlugin(t)
@@ -48,6 +51,7 @@ func newSeedReadyPlugin(t *testing.T) *Plugin {
 	return p
 }
 
+// seedCounts returns the row counts of the conversations, messages, media and contacts tables.
 func seedCounts(t *testing.T, p *Plugin) [4]int {
 	t.Helper()
 	return [4]int{
@@ -58,6 +62,7 @@ func seedCounts(t *testing.T, p *Plugin) [4]int {
 	}
 }
 
+// collectStrings returns the single string column the query answers, in row order.
 func collectStrings(t *testing.T, p *Plugin, query string) []string {
 	t.Helper()
 	rows, err := p.pool.Query(t.Context(), query)
@@ -79,6 +84,7 @@ func collectStrings(t *testing.T, p *Plugin, query string) []string {
 	return values
 }
 
+// conversationActivity returns the last activity time of every conversation by external id.
 func conversationActivity(t *testing.T, p *Plugin) map[string]time.Time {
 	t.Helper()
 	rows, err := p.pool.Query(t.Context(),
@@ -102,6 +108,7 @@ func conversationActivity(t *testing.T, p *Plugin) map[string]time.Time {
 	return activity
 }
 
+// assertSeededDataSet fails the test unless the seeded counts, statuses, media and orders all match.
 func assertSeededDataSet(t *testing.T, p *Plugin) {
 	t.Helper()
 	if got, want := seedCounts(t, p), [4]int{3, 8, 1, 3}; got != want {

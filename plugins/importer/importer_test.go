@@ -31,6 +31,7 @@ const checkViolation = "23514"
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
 
+// newTestDatabase returns a config for a core migrated database, skipping the test in short mode.
 func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	t.Helper()
 	if testing.Short() {
@@ -39,6 +40,7 @@ func newTestDatabase(t *testing.T) *pgtestdb.Config {
 	return pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
 }
 
+// newAssertionPool opens a pool on the given url and closes it at cleanup.
 func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(t.Context(), url)
@@ -49,6 +51,7 @@ func newAssertionPool(t *testing.T, url string) *pgxpool.Pool {
 	return pool
 }
 
+// newPlugin registers the importer plugin against the given database, stopped at cleanup.
 func newPlugin(t *testing.T, databaseURL string) *importer.Plugin {
 	t.Helper()
 	p, err := importer.Register(sdk.Deps{DatabaseURL: databaseURL})

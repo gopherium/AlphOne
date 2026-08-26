@@ -30,6 +30,7 @@ type graphStub struct {
 	server   *httptest.Server
 }
 
+// newGraphStub starts a stub graph server that records each call and answers a canned response.
 func newGraphStub(t *testing.T) *graphStub {
 	t.Helper()
 	stub := &graphStub{status: http.StatusOK, body: `{"messages":[{"id":"wamid.out.1"}]}`}
@@ -48,6 +49,7 @@ func newGraphStub(t *testing.T) *graphStub {
 	return stub
 }
 
+// newSendingHarness returns a migrated plugin wired to a stub graph server, together with that stub and the pool.
 func newSendingHarness(
 	t *testing.T, envOverrides map[string]string,
 ) (*whatsapp.Plugin, *graphStub, *pgxpool.Pool) {
@@ -72,6 +74,7 @@ func newSendingHarness(
 	return p, stub, pool
 }
 
+// newSendingPlugin returns the migrated plugin and stub graph server of a sending harness.
 func newSendingPlugin(t *testing.T, envOverrides map[string]string) (*whatsapp.Plugin, *graphStub) {
 	t.Helper()
 	p, stub, _ := newSendingHarness(t, envOverrides)
@@ -315,6 +318,7 @@ func TestSendMessageRejectsMisconfiguredGraphURL(t *testing.T) {
 
 type failingEntropy struct{}
 
+// Read returns an entropy failure instead of random bytes.
 func (failingEntropy) Read([]byte) (int, error) {
 	return 0, errors.New("entropy exhausted")
 }

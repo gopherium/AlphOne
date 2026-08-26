@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// coverBinary returns the path of the schemagen cover binary and the environment to run it with.
 func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")

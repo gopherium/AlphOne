@@ -36,6 +36,7 @@ type fakeWorkerQueue struct {
 	claims   int
 }
 
+// ClaimDueDeliveries returns the pending deliveries and empties them, or the claim failure.
 func (q *fakeWorkerQueue) ClaimDueDeliveries(
 	_ context.Context,
 	_, _ time.Time,
@@ -52,6 +53,7 @@ func (q *fakeWorkerQueue) ClaimDueDeliveries(
 	return claimed, nil
 }
 
+// SettleDelivery records the settlement of one delivery.
 func (q *fakeWorkerQueue) SettleDelivery(
 	_ context.Context,
 	id uuid.UUID,
@@ -65,6 +67,7 @@ func (q *fakeWorkerQueue) SettleDelivery(
 	return nil
 }
 
+// settlements returns a copy of the settlements recorded so far.
 func (q *fakeWorkerQueue) settlements() []settlement {
 	q.mu.Lock()
 	defer q.mu.Unlock()

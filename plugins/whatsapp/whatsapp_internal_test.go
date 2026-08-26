@@ -21,6 +21,7 @@ var errEntropy = errors.New("entropy source failed")
 
 type failingEntropy struct{}
 
+// Read always fails with the entropy error.
 func (failingEntropy) Read([]byte) (int, error) {
 	return 0, errEntropy
 }
@@ -29,10 +30,12 @@ type staticResolver struct {
 	owner sdk.Contact
 }
 
+// Resolve returns the same owner contact for every lookup.
 func (s staticResolver) Resolve(_ context.Context, _ sdk.Channel, _, _ string) (sdk.Contact, error) {
 	return s.owner, nil
 }
 
+// newUnreachablePool returns a connection pool pointed at a database that refuses every connection.
 func newUnreachablePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(t.Context(), "postgres://postgres:x@localhost:9/postgres?sslmode=disable&connect_timeout=1")

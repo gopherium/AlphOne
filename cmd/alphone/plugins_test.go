@@ -18,18 +18,22 @@ var errStore = errors.New("the contact store is unreachable")
 // failingStore answers every contact read and write with errStore.
 type failingStore struct{}
 
+// Get returns an empty contact and errStore.
 func (failingStore) Get(context.Context, uuid.UUID) (contact.Contact, error) {
 	return contact.Contact{}, errStore
 }
 
+// LookupIdentity returns an empty identity and errStore.
 func (failingStore) LookupIdentity(context.Context, contact.Channel, string) (contact.Identity, error) {
 	return contact.Identity{}, errStore
 }
 
+// CreateContactWithIdentity returns errStore.
 func (failingStore) CreateContactWithIdentity(context.Context, contact.Contact, contact.Identity) error {
 	return errStore
 }
 
+// CreateContactWithIdentities returns errStore.
 func (failingStore) CreateContactWithIdentities(context.Context, contact.Contact, []contact.Identity) error {
 	return errStore
 }

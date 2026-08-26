@@ -446,6 +446,7 @@ type stubContactStore struct {
 	addIdentityErr error
 }
 
+// Get returns the fixed contact the id names, or a not found error.
 func (s *stubContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error) {
 	c, ok := s.contacts[id]
 	if !ok {
@@ -454,6 +455,7 @@ func (s *stubContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 	return c, nil
 }
 
+// ListContacts returns the configured list error, or no contacts at all.
 func (s *stubContactStore) ListContacts(
 	_ context.Context, _, _, _ string, _ uuid.UUID, _ int,
 ) ([]contact.Contact, error) {
@@ -463,6 +465,7 @@ func (s *stubContactStore) ListContacts(
 	return nil, nil
 }
 
+// ListContactIdentities returns the configured identities error, or no identities at all.
 func (s *stubContactStore) ListContactIdentities(_ context.Context, _ uuid.UUID) ([]contact.Identity, error) {
 	if s.identitiesErr != nil {
 		return nil, s.identitiesErr
@@ -470,6 +473,7 @@ func (s *stubContactStore) ListContactIdentities(_ context.Context, _ uuid.UUID)
 	return nil, nil
 }
 
+// ListByIDs records the batch and returns the known contacts among the ids.
 func (s *stubContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
 	if s.listByIDsErr != nil {
 		return nil, s.listByIDsErr
@@ -484,24 +488,29 @@ func (s *stubContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]cont
 	return found, nil
 }
 
+// Create accepts the contact and stores nothing.
 func (s *stubContactStore) Create(_ context.Context, _ contact.Contact) error {
 	return nil
 }
 
+// CreateContactWithIdentities accepts the contact and its identities and stores nothing.
 func (s *stubContactStore) CreateContactWithIdentities(
 	_ context.Context, _ contact.Contact, _ []contact.Identity,
 ) error {
 	return nil
 }
 
+// RenameContact always reports the contact as not found.
 func (s *stubContactStore) RenameContact(_ context.Context, _ uuid.UUID, _ string) (contact.Contact, error) {
 	return contact.Contact{}, contact.ErrNotFound
 }
 
+// AddIdentity returns the configured add identity error.
 func (s *stubContactStore) AddIdentity(_ context.Context, _ contact.Identity) error {
 	return s.addIdentityErr
 }
 
+// DeleteIdentity accepts the deletion and changes nothing.
 func (s *stubContactStore) DeleteIdentity(_ context.Context, _, _ uuid.UUID) error {
 	return nil
 }
@@ -514,6 +523,7 @@ type stubTaskStore struct {
 	listForContactErr error
 }
 
+// Get returns the fixed task the id names, or a not found error.
 func (s *stubTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) {
 	for _, stored := range s.tasks {
 		if stored.ID == id {
@@ -523,18 +533,21 @@ func (s *stubTaskStore) Get(_ context.Context, id uuid.UUID) (task.Task, error) 
 	return task.Task{}, task.ErrNotFound
 }
 
+// ListForDay returns the whole fixed task list for any day.
 func (s *stubTaskStore) ListForDay(
 	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return s.tasks, nil
 }
 
+// ListDueBefore returns no tasks at all.
 func (s *stubTaskStore) ListDueBefore(
 	_ context.Context, _ uuid.UUID, _ time.Time, _ string, _ task.Page,
 ) ([]task.Task, error) {
 	return nil, nil
 }
 
+// ListForContact returns the configured contact listing error, or no tasks at all.
 func (s *stubTaskStore) ListForContact(
 	_ context.Context, _ uuid.UUID, _ string, _ task.Page,
 ) ([]task.Task, error) {
@@ -544,6 +557,7 @@ func (s *stubTaskStore) ListForContact(
 	return nil, nil
 }
 
+// Create returns the configured create error, or the given task marked new.
 func (s *stubTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool, error) {
 	if s.createErr != nil {
 		return task.Task{}, false, s.createErr
@@ -551,6 +565,7 @@ func (s *stubTaskStore) Create(_ context.Context, t task.Task) (task.Task, bool,
 	return t, true, nil
 }
 
+// Update returns the configured update error, or the given task unchanged.
 func (s *stubTaskStore) Update(_ context.Context, t task.Task) (task.Task, error) {
 	if s.updateErr != nil {
 		return task.Task{}, s.updateErr
