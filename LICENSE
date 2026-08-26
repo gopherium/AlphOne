@@ -1,11 +1,19 @@
-All content residing under the "enterprise" directory of this
-repository is licensed under the license defined in
-"enterprise/LICENSE". All content under "frontend", "sdk/frontend",
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+All content under "frontend", "sdk/frontend",
 "sdk/ui-primitives", "plugins/*/frontend", "test/e2e", "docs", and
 the files "codegen.ts" and "eslint.config.js" is licensed under the
 GNU Affero General Public License v3.0 or later, defined in
 "frontend/LICENSE". All other content is licensed under the Elastic
 License 2.0 reproduced below.
+
+// SPDX-License-Identifier: LicenseRef-AlphOne-Terms
+
+All content residing under the "enterprise" directory of this
+repository is licensed under the license defined in
+"enterprise/LICENSE". 
+
+// SPDX-License-Identifier: Elastic-2.0
 
 Elastic License 2.0
 
