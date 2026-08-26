@@ -156,7 +156,7 @@ func (p *Plugin) SetCredentials(ctx context.Context, phoneNumberID, accessToken 
 // routeByNumber answers the context serving the number's tenant and whether any tenant owns it.
 func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
 	if phoneNumberID == "" {
-		return ctx, true, nil
+		return ctx, p.envCredentials.phoneNumberID != "", nil
 	}
 	tenantID, err := p.store.tenantForPhoneNumber(ctx, phoneNumberID)
 	if err == nil {

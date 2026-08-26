@@ -56,7 +56,8 @@ func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	pool := newAssertionPool(t, cfg.URL())
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
 	p := newPlugin(t, cfg.URL(), resolver, map[string]string{
-		"ALPHONE_WHATSAPP_APP_SECRET": "app-secret",
+		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
+		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "555000111",
 	})
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
@@ -446,6 +447,53 @@ func TestWebhookEventsForTheEnvNumberLandInTheDefaultTenant(t *testing.T) {
 
 	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
 	body := numberedEventBody("5550009", "wamid.env")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if held := conversationTenant(t, pool); held != sdk.DefaultTenantID {
+		t.Errorf("conversation tenant = %s, want the default tenant", held)
+	}
+}
+
+func unnumberedEventBody(wamid string) []byte {
+	return fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"contacts": [{"wa_id": "184467235", "profile": {"name": "Maria Perez"}}],
+			"messages": [{"from": "184467235", "id": %q, "timestamp": "1751791000", "type": "text",
+				"text": {"body": "hello"}}]
+		}}]}]
+	}`, wamid)
+}
+
+func TestWebhookEventsDropAnUnnumberedArrivalWhenNoNumberIsConfigured(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, nil)
+	body := unnumberedEventBody("wamid.unattributable")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d so Meta stops retrying", recorder.Code, http.StatusOK)
+	}
+	if got := countRows(t, pool, "plugin_whatsapp.conversations"); got != 0 {
+		t.Errorf("conversations = %d, want 0 when no number can own the arrival", got)
+	}
+	if got := countRows(t, pool, "core.contacts"); got != 0 {
+		t.Errorf("contacts = %d, want 0 when no number can own the arrival", got)
+	}
+}
+
+func TestWebhookEventsKeepAnUnnumberedArrivalForTheConfiguredNumber(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
+	body := unnumberedEventBody("wamid.configured")
 
 	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
 
