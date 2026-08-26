@@ -45,6 +45,11 @@ var pluginStores = []struct {
 		schema: "plugin_whatsapp",
 		tables: []string{"conversations", "messages", "media", "credentials"},
 	},
+	{
+		source: filepath.Join("..", "..", "plugins", "whatsapp", "seed.go"),
+		schema: "plugin_whatsapp",
+		tables: []string{"conversations", "messages", "media", "credentials"},
+	},
 }
 
 // crossTenantStatements names the plugin statements that answer before any tenant is known.
