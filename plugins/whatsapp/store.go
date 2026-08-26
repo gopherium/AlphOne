@@ -52,7 +52,7 @@ const conversationSelect = `
 	SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
 		conv.last_activity_at, last_message.preview AS last_message_preview
 	FROM plugin_whatsapp.conversations conv
-	JOIN core.contacts c ON c.id = conv.contact_id
+	JOIN core.contacts c ON c.id = conv.contact_id AND c.tenant_id = conv.tenant_id
 	LEFT JOIN LATERAL (
 		SELECT CASE
 			WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)

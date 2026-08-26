@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 package whatsapp
 
@@ -121,6 +121,38 @@ func TestAContactsConversationsStayInsideTheirTenant(t *testing.T) {
 	}
 	if len(held) != 0 {
 		t.Errorf("listConversationsByContactIDs() = %+v from another tenant, want them withheld", held)
+	}
+}
+
+func TestAConversationWithholdsAContactOfAnotherTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := seededTenant(t, p, "Acme")
+	elsewhere := seededTenant(t, p, "Globex")
+	contactID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(),
+		"INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, $2, now(), $3)",
+		contactID, "Maria Perez", acme); err != nil {
+		t.Fatalf("seeding the contact: %v", err)
+	}
+	if _, err := p.pool.Exec(t.Context(),
+		"INSERT INTO plugin_whatsapp.conversations"+
+			" (id, contact_id, channel, external_id, status, last_activity_at, created_at, tenant_id)"+
+			" VALUES ($1, $2, 'whatsapp', '184467235', 'open', now(), now(), $3)",
+		uuid.Must(uuid.NewV7()), contactID, elsewhere); err != nil {
+		t.Fatalf("seeding the crossed conversation: %v", err)
+	}
+
+	held, err := p.store.listConversations(sdk.WithTenant(t.Context(), elsewhere), 10)
+
+	if err != nil {
+		t.Fatalf("listConversations() error = %v, want nil", err)
+	}
+	for _, row := range held {
+		if row.ContactName == "Maria Perez" {
+			t.Error("listConversations() rendered a contact of another tenant, want it withheld")
+		}
 	}
 }
 

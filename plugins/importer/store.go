@@ -118,7 +118,7 @@ func (s *store) listImportContacts(ctx context.Context, importID uuid.UUID) ([]i
 	rows, _ := s.pool.Query(ctx,
 		`SELECT c.id AS contact_id, c.name, r.id AS row_id
 		FROM plugin_importer.import_rows r
-		JOIN core.contacts c ON c.id = r.contact_id
+		JOIN core.contacts c ON c.id = r.contact_id AND c.tenant_id = r.tenant_id
 		WHERE r.import_id = $1 AND r.outcome = $2 AND r.tenant_id = $3
 		ORDER BY r.position`, importID, outcomeImported, sdk.TenantOrDefault(ctx))
 	linked, err := pgx.CollectRows(rows, pgx.RowToStructByName[importContactRow])
