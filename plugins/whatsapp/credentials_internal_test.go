@@ -267,6 +267,41 @@ func TestTheDefaultTenantAnswersTheEnvSeed(t *testing.T) {
 	}
 }
 
+func TestAnUnconfiguredDefaultTenantHasNoCredentials(t *testing.T) {
+	t.Parallel()
+
+	p := newSealingPlugin(t)
+
+	_, err := p.credentialsFor(t.Context())
+
+	if !errors.Is(err, errNoCredentials) {
+		t.Errorf("credentialsFor() with an empty environment error = %v, want errNoCredentials", err)
+	}
+}
+
+func TestAHalfConfiguredDefaultTenantHasNoCredentials(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]credentials{
+		"a number without a token": {phoneNumberID: "5550009"},
+		"a token without a number": {accessToken: "EAAG-env-token"},
+	}
+	for testName, seed := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p := newSealingPlugin(t)
+			p.envCredentials = seed
+
+			_, err := p.credentialsFor(t.Context())
+
+			if !errors.Is(err, errNoCredentials) {
+				t.Errorf("credentialsFor() error = %v, want errNoCredentials", err)
+			}
+		})
+	}
+}
+
 func TestASecondSetReplacesTheCredentials(t *testing.T) {
 	t.Parallel()
 

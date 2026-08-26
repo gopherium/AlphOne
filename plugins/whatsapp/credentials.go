@@ -23,6 +23,11 @@ type credentials struct {
 	accessToken   string
 }
 
+// complete reports whether the credentials carry both halves of the identity.
+func (c credentials) complete() bool {
+	return c.phoneNumberID != "" && c.accessToken != ""
+}
+
 // Credential errors.
 var (
 	errNoCredentialsKey = errors.New("whatsapp: ALPHONE_WHATSAPP_CREDENTIALS_KEY is not set")
@@ -175,7 +180,7 @@ func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (conte
 func (p *Plugin) credentialsFor(ctx context.Context) (credentials, error) {
 	phoneNumberID, sealed, err := p.store.sealedCredentials(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if sdk.TenantOrDefault(ctx) == sdk.DefaultTenantID {
+		if sdk.TenantOrDefault(ctx) == sdk.DefaultTenantID && p.envCredentials.complete() {
 			return p.envCredentials, nil
 		}
 		return credentials{}, errNoCredentials
