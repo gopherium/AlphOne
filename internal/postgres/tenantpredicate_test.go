@@ -26,9 +26,10 @@ var authenticatingQueries = map[string]bool{
 	"TouchAPIToken":     true,
 }
 
-// workerQueries names the queries settling a row a worker's claim already named.
+// workerQueries names the queries a background worker runs across every tenant.
 var workerQueries = map[string]bool{
-	"SettleWebhookDelivery": true,
+	"ClaimWebhookDeliveries": true,
+	"SettleWebhookDelivery":  true,
 }
 
 // namedQueries splits a sqlc source into its named query blocks.
@@ -54,9 +55,33 @@ func namedQueries(source string) map[string]string {
 	return blocks
 }
 
-// unguarded returns the guarded tables a query touches without naming tenant_id.
+// tenantParameter matches a tenant_id held against a value the caller supplies.
+var tenantParameter = regexp.MustCompile(`tenant_id\s*=\s*(\$\d+|@\w+)`)
+
+// conflictArbiter captures the columns an ON CONFLICT clause arbitrates on.
+var conflictArbiter = regexp.MustCompile(`(?is)ON\s+CONFLICT\s*\(([^)]*)\)`)
+
+// insertedColumns captures the columns an INSERT names for its table.
+var insertedColumns = regexp.MustCompile(`(?is)INSERT\s+INTO\s+\w+\.\w+\s*\(([^)]*)\)`)
+
+// tenantSafe reports whether a statement holds its rows to the caller's tenant.
+func tenantSafe(statement string) bool {
+	if arbiter := conflictArbiter.FindStringSubmatch(statement); arbiter != nil &&
+		!strings.Contains(arbiter[1], "tenant_id") {
+		return false
+	}
+	if tenantParameter.MatchString(statement) {
+		return true
+	}
+	if columns := insertedColumns.FindStringSubmatch(statement); columns != nil {
+		return strings.Contains(columns[1], "tenant_id")
+	}
+	return false
+}
+
+// unguarded returns the guarded tables a query touches without holding them to the caller's tenant.
 func unguarded(query string, guarded []string) []string {
-	if strings.Contains(query, "tenant_id") {
+	if tenantSafe(query) {
 		return nil
 	}
 	var touched []string
@@ -67,6 +92,53 @@ func unguarded(query string, guarded []string) []string {
 		}
 	}
 	return touched
+}
+
+func TestTheGateRefusesATenantIdThatHoldsNothingToTheCaller(t *testing.T) {
+	t.Parallel()
+
+	joining := `SELECT conv.id FROM plugin_whatsapp.conversations conv
+		LEFT JOIN LATERAL (SELECT 1 FROM plugin_whatsapp.messages m
+			WHERE m.conversation_id = conv.id AND m.tenant_id = conv.tenant_id) x ON TRUE
+		WHERE conv.contact_id = ANY($1)`
+
+	if tenantSafe(joining) {
+		t.Error("tenantSafe() admitted a column to column tenant join, want the caller's tenant demanded")
+	}
+}
+
+func TestTheGateRefusesAConflictArbiterSpanningTenants(t *testing.T) {
+	t.Parallel()
+
+	spanning := `INSERT INTO core.user_settings (user_id, key, value, tenant_id)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value`
+
+	if tenantSafe(spanning) {
+		t.Error("tenantSafe() admitted an arbiter spanning tenants, want tenant_id demanded in it")
+	}
+}
+
+func TestTheGateAdmitsAConflictArbiterCarryingTheTenant(t *testing.T) {
+	t.Parallel()
+
+	held := `INSERT INTO core.contact_identities (id, contact_id, channel, identifier, tenant_id)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (tenant_id, channel, identifier) DO NOTHING`
+
+	if !tenantSafe(held) {
+		t.Error("tenantSafe() refused a tenant composite arbiter, want it admitted")
+	}
+}
+
+func TestTheGateAdmitsAnInsertStampingItsTenant(t *testing.T) {
+	t.Parallel()
+
+	stamping := `INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, $2, $3, $4)`
+
+	if !tenantSafe(stamping) {
+		t.Error("tenantSafe() refused an insert stamping its tenant, want it admitted")
+	}
 }
 
 func TestTheGateNamesAQueryTouchingAGuardedTableWithoutItsTenant(t *testing.T) {
