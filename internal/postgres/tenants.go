@@ -47,5 +47,5 @@ func (s *TenantStore) TenantForUser(ctx context.Context, userID uuid.UUID) (tena
 	if err != nil {
 		return tenant.Tenant{}, fmt.Errorf("read tenant: %w", err)
 	}
-	return tenant.Tenant{ID: row.ID, Name: row.Name}, nil
+	return tenant.Tenant{ID: row.ID, Name: row.Name, Deactivated: row.Deactivated}, nil
 }

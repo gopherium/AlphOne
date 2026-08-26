@@ -14,6 +14,7 @@ var DefaultID = sdk.DefaultTenantID
 
 // Tenant is one organization served by the install.
 type Tenant struct {
-	ID   uuid.UUID
-	Name string
+	ID          uuid.UUID
+	Name        string
+	Deactivated bool
 }

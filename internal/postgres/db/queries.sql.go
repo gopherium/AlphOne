@@ -977,7 +977,7 @@ func (q *Queries) SettleWebhookDelivery(ctx context.Context, arg SettleWebhookDe
 }
 
 const tenantForUser = `-- name: TenantForUser :one
-SELECT t.id, t.name
+SELECT t.id, t.name, (t.deactivated_at IS NOT NULL)::boolean AS deactivated
 FROM core.tenants t
 LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = $1::uuid
 WHERE m.user_id IS NOT NULL OR t.id = $2::uuid
@@ -991,14 +991,15 @@ type TenantForUserParams struct {
 }
 
 type TenantForUserRow struct {
-	ID   uuid.UUID
-	Name string
+	ID          uuid.UUID
+	Name        string
+	Deactivated bool
 }
 
 func (q *Queries) TenantForUser(ctx context.Context, arg TenantForUserParams) (TenantForUserRow, error) {
 	row := q.db.QueryRow(ctx, tenantForUser, arg.UserID, arg.DefaultID)
 	var i TenantForUserRow
-	err := row.Scan(&i.ID, &i.Name)
+	err := row.Scan(&i.ID, &i.Name, &i.Deactivated)
 	return i, err
 }
 

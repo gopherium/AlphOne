@@ -63,6 +63,47 @@ func TestTenantForUserAnswersThePlacedTenant(t *testing.T) {
 	}
 }
 
+func TestTenantForUserReportsADeactivatedTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	acme := uuid.Must(uuid.NewV7())
+	member := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name, deactivated_at) VALUES ($1, $2, now())", acme, "Acme"); err != nil {
+		t.Fatalf("seeding the deactivated tenant: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", member, acme); err != nil {
+		t.Fatalf("placing the member: %v", err)
+	}
+
+	got, err := store.TenantForUser(t.Context(), member)
+
+	if err != nil {
+		t.Fatalf("TenantForUser() error = %v, want nil", err)
+	}
+	if !got.Deactivated {
+		t.Error("Deactivated = false, want the deactivation reported")
+	}
+}
+
+func TestTenantForUserReportsALiveTenantAsActive(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTenantStore(newTestPool(t))
+
+	got, err := store.TenantForUser(t.Context(), uuid.Must(uuid.NewV7()))
+
+	if err != nil {
+		t.Fatalf("TenantForUser() error = %v, want nil", err)
+	}
+	if got.Deactivated {
+		t.Error("Deactivated = true for the default tenant, want it active")
+	}
+}
+
 func TestTenantsOfAnswersOnlyTheUsersARowPlaces(t *testing.T) {
 	t.Parallel()
 
