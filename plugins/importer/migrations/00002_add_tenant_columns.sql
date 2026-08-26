@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-or-later
+-- SPDX-License-Identifier: Elastic-2.0
 
 -- +goose Up
 ALTER TABLE plugin_importer.imports ADD COLUMN tenant_id uuid NOT NULL

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: Elastic-2.0
 
 package whatsapp
 
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gopherium/alphone/internal/tenant"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // whatsappScopedTables lists every plugin table that carries the tenant boundary.
@@ -71,7 +71,7 @@ func TestTwoTenantsMayHoldTheSameConversation(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	acme := seededTenant(t, p, "Acme")
-	seededConversation(t, p, "184467235", tenant.DefaultID)
+	seededConversation(t, p, "184467235", sdk.DefaultTenantID)
 
 	seededConversation(t, p, "184467235", acme)
 }
@@ -80,7 +80,7 @@ func TestOneTenantRefusesADuplicateConversation(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	first := seededConversation(t, p, "184467235", tenant.DefaultID)
+	first := seededConversation(t, p, "184467235", sdk.DefaultTenantID)
 	contactID := uuid.Must(uuid.NewV7())
 	if _, err := p.pool.Exec(t.Context(),
 		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, now())",
@@ -105,14 +105,14 @@ func TestTwoTenantsMayHoldTheSameMessageID(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	acme := seededTenant(t, p, "Acme")
-	mine := seededConversation(t, p, "184467235", tenant.DefaultID)
+	mine := seededConversation(t, p, "184467235", sdk.DefaultTenantID)
 	theirs := seededConversation(t, p, "184467236", acme)
 	insert := "INSERT INTO plugin_whatsapp.messages" +
 		" (id, conversation_id, external_id, direction, content, content_type," +
 		" sent_at, raw, created_at, tenant_id)" +
 		" VALUES ($1, $2, 'wamid.SAME', 'inbound', 'hello', 'text', now(), '{}', now(), $3)"
 	if _, err := p.pool.Exec(t.Context(), insert,
-		uuid.Must(uuid.NewV7()), mine, tenant.DefaultID); err != nil {
+		uuid.Must(uuid.NewV7()), mine, sdk.DefaultTenantID); err != nil {
 		t.Fatalf("the default tenant message: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func TestOneTenantRefusesADuplicateMessageID(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	mine := seededConversation(t, p, "184467235", tenant.DefaultID)
+	mine := seededConversation(t, p, "184467235", sdk.DefaultTenantID)
 	insert := "INSERT INTO plugin_whatsapp.messages" +
 		" (id, conversation_id, external_id, direction, content, content_type," +
 		" sent_at, raw, created_at)" +
