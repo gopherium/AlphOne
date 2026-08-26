@@ -12,6 +12,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 type emptyQueue struct{}
@@ -42,8 +43,8 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	hub := event.NewHub()
 	assignee := uuid.Must(uuid.NewV7())
-	addressed := hub.Subscribe(assignee)
-	unaddressed := hub.Subscribe(uuid.Must(uuid.NewV7()))
+	addressed := hub.Subscribe(assignee, uuid.Nil)
+	unaddressed := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Nil)
 	publisher := nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
 		worker:     webhook.NewWorker(emptyQueue{}, logger),
@@ -69,12 +70,42 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	}
 }
 
-func TestPluginPublishReachesEverySubscriber(t *testing.T) {
+func TestAPluginEventStaysInsideTheCallersTenant(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.New(slog.DiscardHandler)
 	hub := event.NewHub()
-	elsewhere := hub.Subscribe(uuid.Must(uuid.NewV7()))
+	acme := uuid.Must(uuid.NewV7())
+	near := hub.Subscribe(uuid.Must(uuid.NewV7()), acme)
+	far := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()))
+	publisher := pluginPublisher{publisher: nudgingPublisher{
+		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
+		worker:     webhook.NewWorker(emptyQueue{}, logger),
+		hub:        hub,
+	}}
+
+	publisher.Publish(sdk.WithTenant(t.Context(), acme),
+		string(event.WhatsAppMessageReceived), map[string]any{"id": "abc"})
+
+	select {
+	case got := <-near:
+		if got != event.WhatsAppMessageReceived {
+			t.Errorf("hub delivered %q, want %q", got, event.WhatsAppMessageReceived)
+		}
+	default:
+		t.Error("hub delivered nothing to the caller's tenant, want the published name")
+	}
+	if len(far) != 0 {
+		t.Errorf("another tenant's subscriber buffered %d frames, want none", len(far))
+	}
+}
+
+func TestAHeadlessPluginPublishLandsInTheDefaultTenant(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.DiscardHandler)
+	hub := event.NewHub()
+	elsewhere := hub.Subscribe(uuid.Must(uuid.NewV7()), sdk.DefaultTenantID)
 	publisher := pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
 		worker:     webhook.NewWorker(emptyQueue{}, logger),

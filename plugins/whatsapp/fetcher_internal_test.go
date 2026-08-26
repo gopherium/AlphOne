@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // waitFor blocks until cond holds, failing the test after two seconds.
@@ -115,13 +117,13 @@ func shaOf(data []byte) string {
 
 func newTestFetcher(t *testing.T, p *Plugin, baseURL string, maxBytes int64) *mediaFetcher {
 	t.Helper()
+	p.envCredentials = credentials{phoneNumberID: "PN1", accessToken: "test-token"}
 	return newMediaFetcher(p.store, p.events, mediaFetcherConfig{
-		baseURL:       baseURL,
-		accessToken:   "test-token",
-		phoneNumberID: "PN1",
-		maxBytes:      maxBytes,
-		interval:      time.Hour,
-		timeout:       time.Minute,
+		baseURL:     baseURL,
+		credentials: p.credentialsFor,
+		maxBytes:    maxBytes,
+		interval:    time.Hour,
+		timeout:     time.Minute,
 	})
 }
 
@@ -173,7 +175,7 @@ func TestFetcherStoresPendingMedia(t *testing.T) {
 	stub := newGraphStub(t, binary)
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	messageID := seedPendingImage(t, p, "wamid.happy", shaOf(binary))
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())
@@ -200,6 +202,96 @@ func TestFetcherStoresPendingMedia(t *testing.T) {
 		if header != "Bearer test-token" {
 			t.Errorf("Authorization = %q, want %q", header, "Bearer test-token")
 		}
+	}
+}
+
+// seededAcmeImage stores a pending image under a fresh tenant with its own credentials.
+func seededAcmeImage(t *testing.T, p *Plugin) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+	p.key = testCredentialsKey(t)
+	acme := seededTenant(t, p, "Acme")
+	mine := sdk.WithTenant(t.Context(), acme)
+	if err := p.SetCredentials(mine, "555000444", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	}
+	conversationID := seededConversation(t, p, "wamid.acme", acme)
+	messageID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+			content_type, sent_at, raw, created_at, tenant_id)
+		VALUES ($1, $2, 'wamid.acme', 'inbound', '', 'image', now(), '{}', now(), $3)`,
+		messageID, conversationID, acme,
+	); err != nil {
+		t.Fatalf("inserting message: %v", err)
+	}
+	if err := insertMediaPending(mine, p.pool, messageID, mediaDescriptor{
+		mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: shaOf([]byte("media-bytes")),
+	}); err != nil {
+		t.Fatalf("insertMediaPending() error = %v, want nil", err)
+	}
+	return acme, messageID
+}
+
+func TestFetcherUsesTheRowTenantsCredentials(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	binary := []byte("media-bytes")
+	stub := newGraphStub(t, binary)
+	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
+	_, messageID := seededAcmeImage(t, p)
+
+	f.sweepOnce(t.Context())
+
+	if state := mediaState(t, p, messageID); state.status != "stored" {
+		t.Fatalf("status = %q, want %q", state.status, "stored")
+	}
+	headers := stub.headers()
+	if len(headers) == 0 {
+		t.Fatal("no graph requests recorded, want the download performed")
+	}
+	for _, header := range headers {
+		if header != "Bearer EAAG-acme-token" {
+			t.Errorf("Authorization = %q, want the row tenant's token", header)
+		}
+	}
+}
+
+func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	p.key = testCredentialsKey(t)
+	stub := newGraphStub(t, []byte("media-bytes"))
+	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
+	bare := seededTenant(t, p, "Globex")
+	conversationID := seededConversation(t, p, "wamid.bare", bare)
+	messageID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+			content_type, sent_at, raw, created_at, tenant_id)
+		VALUES ($1, $2, 'wamid.bare', 'inbound', '', 'image', now(), '{}', now(), $3)`,
+		messageID, conversationID, bare,
+	); err != nil {
+		t.Fatalf("inserting message: %v", err)
+	}
+	if err := insertMediaPending(sdk.WithTenant(t.Context(), bare), p.pool, messageID, mediaDescriptor{
+		mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: shaOf([]byte("media-bytes")),
+	}); err != nil {
+		t.Fatalf("insertMediaPending() error = %v, want nil", err)
+	}
+
+	f.sweepOnce(t.Context())
+
+	state := mediaState(t, p, messageID)
+	if state.status != "pending" || state.attempts != 1 {
+		t.Fatalf("row = (%q, %d), want still pending after one attempt", state.status, state.attempts)
+	}
+	if state.lastError == nil || !strings.Contains(*state.lastError, "credentials") {
+		t.Errorf("last_error = %v, want the missing credentials named", state.lastError)
+	}
+	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
+		t.Errorf("graph hits = (%d, %d), want none without credentials", metadataHits, binaryHits)
 	}
 }
 
@@ -279,7 +371,7 @@ func TestFetcherReschedulesOnGraphErrors(t *testing.T) {
 			stub := newGraphStub(t, binary)
 			f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 			messageID := seedPendingImage(t, p, "wamid.retry", shaOf(binary))
-			subscription := p.events.subscribe()
+			subscription := p.events.subscribe(sdk.DefaultTenantID)
 			defer p.events.unsubscribe(subscription)
 			tc.configure(t, stub, f)
 
@@ -336,7 +428,7 @@ func TestFetcherFailsOversizedMediaWithoutDownloading(t *testing.T) {
 	stub.fileSize = 9
 	f := newTestFetcher(t, p, stub.server.URL, 8)
 	messageID := seedPendingImage(t, p, "wamid.big", shaOf(binary))
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())
@@ -389,7 +481,7 @@ func TestFetcherExpiresRowsPastTheRetryWindow(t *testing.T) {
 	); err != nil {
 		t.Fatalf("backdating media row: %v", err)
 	}
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	f.sweepOnce(t.Context())
@@ -406,6 +498,11 @@ func TestFetcherExpiresRowsPastTheRetryWindow(t *testing.T) {
 	default:
 		t.Error("no event broadcast after the row expired")
 	}
+}
+
+// staticCredentials answers the same credentials for every caller.
+func staticCredentials(creds credentials) func(context.Context) (credentials, error) {
+	return func(context.Context) (credentials, error) { return creds, nil }
 }
 
 func TestFetcherToleratesStoreFailures(t *testing.T) {
@@ -434,7 +531,8 @@ func TestFetcherToleratesStoreFailures(t *testing.T) {
 		stub := newGraphStub(t, binary)
 		stub.metadataCode = http.StatusInternalServerError
 		f := newMediaFetcher(&store{pool: newUnreachablePool(t)}, newBroadcaster(), mediaFetcherConfig{
-			baseURL: stub.server.URL,
+			baseURL:     stub.server.URL,
+			credentials: staticCredentials(credentials{phoneNumberID: "PN1", accessToken: "test-token"}),
 		})
 
 		f.fetchOne(t.Context(), row)
@@ -444,7 +542,8 @@ func TestFetcherToleratesStoreFailures(t *testing.T) {
 		t.Parallel()
 		stub := newGraphStub(t, binary)
 		f := newMediaFetcher(&store{pool: newUnreachablePool(t)}, newBroadcaster(), mediaFetcherConfig{
-			baseURL: stub.server.URL,
+			baseURL:     stub.server.URL,
+			credentials: staticCredentials(credentials{phoneNumberID: "PN1", accessToken: "test-token"}),
 		})
 
 		f.fetchOne(t.Context(), row)
@@ -532,13 +631,13 @@ func TestFetcherTickerSweeps(t *testing.T) {
 	p := newMigratedPlugin(t)
 	binary := []byte("media-bytes")
 	stub := newGraphStub(t, binary)
+	p.envCredentials = credentials{phoneNumberID: "PN1", accessToken: "test-token"}
 	f := newMediaFetcher(p.store, p.events, mediaFetcherConfig{
-		baseURL:       stub.server.URL,
-		accessToken:   "test-token",
-		phoneNumberID: "PN1",
-		maxBytes:      1 << 20,
-		interval:      25 * time.Millisecond,
-		timeout:       time.Minute,
+		baseURL:     stub.server.URL,
+		credentials: p.credentialsFor,
+		maxBytes:    1 << 20,
+		interval:    25 * time.Millisecond,
+		timeout:     time.Minute,
 	})
 	f.Start()
 	defer f.Stop()

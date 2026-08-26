@@ -16,12 +16,52 @@ var (
 	bystander = uuid.MustParse("0198c000-0000-7000-8000-000000000002")
 )
 
+// standing and elsewhere stand in for two tenants.
+var (
+	standing  = uuid.MustParse("0198d000-0000-7000-8000-000000000001")
+	elsewhere = uuid.MustParse("0198d000-0000-7000-8000-000000000002")
+)
+
+func TestHubKeepsAFrameInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	hub := event.NewHub()
+	near := hub.Subscribe(addressee, standing)
+	far := hub.Subscribe(bystander, elsewhere)
+
+	hub.Broadcast(event.Frame{Name: event.ContactCreated, Tenant: standing})
+
+	if got := <-near; got != event.ContactCreated {
+		t.Errorf("the tenant's subscriber got %q, want %q", got, event.ContactCreated)
+	}
+	if len(far) != 0 {
+		t.Errorf("another tenant's subscriber buffered %d frames, want none", len(far))
+	}
+}
+
+func TestHubDeliversAFrameWithoutATenantToEveryTenant(t *testing.T) {
+	t.Parallel()
+
+	hub := event.NewHub()
+	near := hub.Subscribe(addressee, standing)
+	far := hub.Subscribe(bystander, elsewhere)
+
+	hub.Broadcast(event.Frame{Name: event.ContactCreated})
+
+	if got := <-near; got != event.ContactCreated {
+		t.Errorf("the first subscriber got %q, want %q", got, event.ContactCreated)
+	}
+	if got := <-far; got != event.ContactCreated {
+		t.Errorf("the second subscriber got %q, want %q", got, event.ContactCreated)
+	}
+}
+
 func TestHubDeliversSharedFramesToAllSubscribers(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	first := hub.Subscribe(addressee)
-	second := hub.Subscribe(bystander)
+	first := hub.Subscribe(addressee, standing)
+	second := hub.Subscribe(bystander, standing)
 
 	hub.Broadcast(event.Frame{Name: event.ContactCreated})
 
@@ -37,8 +77,8 @@ func TestHubDeliversATargetedFrameOnlyToItsAudience(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	addressed := hub.Subscribe(addressee)
-	unaddressed := hub.Subscribe(bystander)
+	addressed := hub.Subscribe(addressee, standing)
+	unaddressed := hub.Subscribe(bystander, standing)
 
 	hub.Broadcast(event.Frame{Name: event.TaskCreated, Audience: addressee})
 
@@ -54,7 +94,7 @@ func TestHubCountsItsSubscribers(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	subscription := hub.Subscribe(addressee)
+	subscription := hub.Subscribe(addressee, standing)
 
 	if got := hub.Subscribers(); got != 1 {
 		t.Errorf("Subscribers() = %d, want 1", got)
@@ -69,7 +109,7 @@ func TestHubStopsDeliveringAfterUnsubscribe(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	subscription := hub.Subscribe(addressee)
+	subscription := hub.Subscribe(addressee, standing)
 	hub.Unsubscribe(subscription)
 
 	hub.Broadcast(event.Frame{Name: event.ContactCreated})
@@ -83,8 +123,8 @@ func TestHubBroadcastDoesNotBlockOnAFullSubscriber(t *testing.T) {
 	t.Parallel()
 
 	hub := event.NewHub()
-	stalled := hub.Subscribe(addressee)
-	listening := hub.Subscribe(bystander)
+	stalled := hub.Subscribe(addressee, standing)
+	listening := hub.Subscribe(bystander, standing)
 
 	for range 32 {
 		hub.Broadcast(event.Frame{Name: event.ContactCreated})

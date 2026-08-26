@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // mediaDescriptor identifies a WhatsApp media asset announced by a webhook message.
@@ -36,6 +38,7 @@ type pendingMediaRow struct {
 	SHA256         string    `db:"sha256"`
 	Attempts       int       `db:"attempts"`
 	CreatedAt      time.Time `db:"created_at"`
+	TenantID       uuid.UUID `db:"tenant_id"`
 }
 
 // storedMediaRow carries a stored blob and its serving metadata.
@@ -55,8 +58,9 @@ func (s *store) storedMedia(ctx context.Context, conversationID, messageID uuid.
 		SELECT med.data, med.mime_type, med.filename, med.sha256, med.stored_at
 		FROM plugin_whatsapp.media med
 		JOIN plugin_whatsapp.messages msg ON msg.id = med.message_id
-		WHERE med.message_id = $1 AND msg.conversation_id = $2 AND med.status = 'stored'`,
-		messageID, conversationID,
+		WHERE med.message_id = $1 AND msg.conversation_id = $2 AND med.status = 'stored'
+			AND med.tenant_id = $3 AND msg.tenant_id = $3`,
+		messageID, conversationID, sdk.TenantOrDefault(ctx),
 	).Scan(&media.Data, &media.MimeType, &media.Filename, &media.SHA256, &media.StoredAt)
 	if err != nil {
 		return storedMediaRow{}, fmt.Errorf("whatsapp: load stored media: %w", err)
@@ -69,9 +73,10 @@ func insertMediaPending(ctx context.Context, exec pgxExecutor, messageID uuid.UU
 	now := time.Now().UTC()
 	_, err := exec.Exec(ctx, `
 		INSERT INTO plugin_whatsapp.media (message_id, media_id, status, mime_type, sha256, filename,
-			voice, animated, next_attempt_at, created_at)
-		VALUES ($1, $2, 'pending', $3, $4, NULLIF($5, ''), $6, $7, $8, $8)`,
+			voice, animated, next_attempt_at, created_at, tenant_id)
+		VALUES ($1, $2, 'pending', $3, $4, NULLIF($5, ''), $6, $7, $8, $8, $9)`,
 		messageID, d.mediaID, d.mimeType, d.sha256, d.filename, d.voice, d.animated, now,
+		sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: insert pending media: %w", err)
@@ -82,9 +87,11 @@ func insertMediaPending(ctx context.Context, exec pgxExecutor, messageID uuid.UU
 // claimDueMedia returns up to limit pending media rows due for a download attempt, oldest first.
 func (s *store) claimDueMedia(ctx context.Context, now time.Time, limit int) ([]pendingMediaRow, error) {
 	rows, _ := s.pool.Query(ctx, `
-		SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts, med.created_at
+		SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts,
+			med.created_at, med.tenant_id
 		FROM plugin_whatsapp.media med
-		JOIN plugin_whatsapp.messages msg ON msg.id = med.message_id
+		JOIN plugin_whatsapp.messages msg
+			ON msg.id = med.message_id AND msg.tenant_id = med.tenant_id
 		WHERE med.status = 'pending' AND med.next_attempt_at <= $1
 		ORDER BY med.created_at, med.message_id
 		LIMIT $2`,
@@ -104,8 +111,8 @@ func (s *store) markMediaStored(
 	_, err := s.pool.Exec(ctx, `
 		UPDATE plugin_whatsapp.media
 		SET status = 'stored', data = $2, mime_type = $3, file_size = $4, last_error = NULL, stored_at = $5
-		WHERE message_id = $1 AND status = 'pending'`,
-		messageID, data, mimeType, fileSize, time.Now().UTC(),
+		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $6`,
+		messageID, data, mimeType, fileSize, time.Now().UTC(), sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: mark media stored: %w", err)
@@ -118,8 +125,8 @@ func (s *store) markMediaFailed(ctx context.Context, messageID uuid.UUID, reason
 	_, err := s.pool.Exec(ctx, `
 		UPDATE plugin_whatsapp.media
 		SET status = 'failed', last_error = $2
-		WHERE message_id = $1 AND status = 'pending'`,
-		messageID, reason,
+		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $3`,
+		messageID, reason, sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: mark media failed: %w", err)
@@ -134,8 +141,8 @@ func (s *store) rescheduleMedia(
 	_, err := s.pool.Exec(ctx, `
 		UPDATE plugin_whatsapp.media
 		SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3
-		WHERE message_id = $1 AND status = 'pending'`,
-		messageID, reason, nextAttemptAt,
+		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $4`,
+		messageID, reason, nextAttemptAt, sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: reschedule media: %w", err)

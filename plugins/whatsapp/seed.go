@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // seedPNG is the one pixel image stored as the demo media attachment.
@@ -117,7 +119,8 @@ func (p *Plugin) seedConversationID(
 ) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := p.pool.QueryRow(ctx,
-		"SELECT id FROM plugin_whatsapp.conversations WHERE external_id = $1", externalID).Scan(&id)
+		"SELECT id FROM plugin_whatsapp.conversations WHERE external_id = $1 AND tenant_id = $2",
+		externalID, sdk.TenantOrDefault(ctx)).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return upsertConversation(ctx, p.pool, contactID, externalID, activityAt)
 	}
@@ -158,9 +161,12 @@ func (p *Plugin) seedMedia(ctx context.Context, m demoMessage) error {
 	var messageID uuid.UUID
 	var hasMedia bool
 	err := p.pool.QueryRow(ctx, `
-		SELECT msg.id, EXISTS (SELECT 1 FROM plugin_whatsapp.media med WHERE med.message_id = msg.id)
+		SELECT msg.id, EXISTS (
+			SELECT 1 FROM plugin_whatsapp.media med
+			WHERE med.message_id = msg.id AND med.tenant_id = msg.tenant_id)
 		FROM plugin_whatsapp.messages msg
-		WHERE msg.external_id = $1`, m.wamid).Scan(&messageID, &hasMedia)
+		WHERE msg.external_id = $1 AND msg.tenant_id = $2`,
+		m.wamid, sdk.TenantOrDefault(ctx)).Scan(&messageID, &hasMedia)
 	if err != nil {
 		return fmt.Errorf("whatsapp: find seeded media: %w", err)
 	}
@@ -199,10 +205,10 @@ func insertSeedOutbound(
 	}
 	_, err = exec.Exec(ctx, `
 		INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
-			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, '{}', $6)
-		ON CONFLICT (external_id) DO NOTHING`,
-		id, conversationID, m.wamid, m.content, sentAt, time.Now().UTC(),
+			content_type, sent_at, raw, created_at, tenant_id)
+		VALUES ($1, $2, $3, 'outbound', $4, 'text', $5, '{}', $6, $7)
+		ON CONFLICT (tenant_id, external_id) DO NOTHING`,
+		id, conversationID, m.wamid, m.content, sentAt, time.Now().UTC(), sdk.TenantOrDefault(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("whatsapp: insert seed outbound: %w", err)

@@ -20,6 +20,7 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // ContactStore provides the contact reads and writes the graph resolves from.
@@ -123,7 +124,7 @@ type Publisher interface {
 
 // Broadcaster hands out the event names a user may see.
 type Broadcaster interface {
-	Subscribe(user uuid.UUID) chan event.Name
+	Subscribe(user, tenant uuid.UUID) chan event.Name
 	Unsubscribe(names chan event.Name)
 }
 
@@ -163,11 +164,12 @@ type Resolver struct {
 	BatchWait time.Duration
 }
 
-// publish announces an event unless the resolver was built without a publisher.
+// publish announces an event in the caller's tenant unless no publisher is wired.
 func (r *Resolver) publish(ctx context.Context, frame event.Frame, data map[string]any) {
 	if r.Events == nil {
 		return
 	}
+	frame.Tenant = sdk.TenantOrDefault(ctx)
 	r.Events.Publish(ctx, frame, data)
 }
 

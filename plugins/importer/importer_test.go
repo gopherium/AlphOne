@@ -295,8 +295,8 @@ func TestMigrateOwnsItsGooseVersionTable(t *testing.T) {
 	).Scan(&latestVersion); err != nil {
 		t.Fatalf("reading the version table: %v", err)
 	}
-	if latestVersion != 1 {
-		t.Errorf("latest version = %d, want 1 for the single migration", latestVersion)
+	if latestVersion != 2 {
+		t.Errorf("latest version = %d, want the plugin's own migration count", latestVersion)
 	}
 }
 

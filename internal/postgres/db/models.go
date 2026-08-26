@@ -20,12 +20,14 @@ type CoreApiToken struct {
 	LastUsedAt pgtype.Timestamptz
 	Scopes     string
 	ExpiresAt  pgtype.Timestamptz
+	TenantID   uuid.UUID
 }
 
 type CoreContact struct {
 	ID        uuid.UUID
 	Name      string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type CoreContactIdentity struct {
@@ -35,6 +37,7 @@ type CoreContactIdentity struct {
 	Identifier  string
 	DisplayName string
 	CreatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type CoreTask struct {
@@ -48,6 +51,7 @@ type CoreTask struct {
 	OriginSource  pgtype.Text
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
+	TenantID      uuid.UUID
 }
 
 type CoreTenant struct {
@@ -67,6 +71,7 @@ type CoreUserSetting struct {
 	Key       string
 	Value     string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 type CoreWebhookDelivery struct {
@@ -80,6 +85,7 @@ type CoreWebhookDelivery struct {
 	Status         string
 	LastError      pgtype.Text
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 type CoreWebhookSubscription struct {
@@ -89,4 +95,5 @@ type CoreWebhookSubscription struct {
 	Events    []string
 	Secret    string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }

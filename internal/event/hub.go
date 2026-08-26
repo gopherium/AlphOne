@@ -11,18 +11,21 @@ import (
 // subscriberBuffer is how many names a subscriber can lag behind.
 const subscriberBuffer = 8
 
-// Frame is one announced event beside the user it concerns.
+// Frame is one announced event beside the user and tenant it concerns.
 type Frame struct {
 	// Name is the announced event.
 	Name Name
 	// Audience is the only user the frame reaches. Nil reaches everyone.
 	Audience uuid.UUID
+	// Tenant is the only tenant the frame reaches. Nil reaches every tenant.
+	Tenant uuid.UUID
 }
 
-// listener is one subscription beside the user listening on it.
+// listener is one subscription beside the user and tenant listening on it.
 type listener struct {
-	names chan Name
-	user  uuid.UUID
+	names  chan Name
+	user   uuid.UUID
+	tenant uuid.UUID
 }
 
 // Hub fans out published frames to every subscriber they concern.
@@ -36,11 +39,11 @@ func NewHub() *Hub {
 	return &Hub{subs: make(map[chan Name]listener)}
 }
 
-// Subscribe registers user as a subscriber and returns its buffered channel.
-func (h *Hub) Subscribe(user uuid.UUID) chan Name {
+// Subscribe registers user as a subscriber in its tenant and returns its buffered channel.
+func (h *Hub) Subscribe(user, tenant uuid.UUID) chan Name {
 	ch := make(chan Name, subscriberBuffer)
 	h.mu.Lock()
-	h.subs[ch] = listener{names: ch, user: user}
+	h.subs[ch] = listener{names: ch, user: user, tenant: tenant}
 	h.mu.Unlock()
 	return ch
 }
@@ -67,6 +70,9 @@ func (h *Hub) Broadcast(frame Frame) {
 	defer h.mu.Unlock()
 	for _, sub := range h.subs {
 		if frame.Audience != uuid.Nil && frame.Audience != sub.user {
+			continue
+		}
+		if frame.Tenant != uuid.Nil && frame.Tenant != sub.tenant {
 			continue
 		}
 		select {

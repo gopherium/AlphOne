@@ -7,6 +7,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // nudgingPublisher queues an event, wakes the delivery worker, and announces
@@ -30,7 +31,10 @@ type pluginPublisher struct {
 	publisher nudgingPublisher
 }
 
-// Publish announces a plugin's event under its core name.
+// Publish announces a plugin's event under its core name in the caller's tenant.
 func (p pluginPublisher) Publish(ctx context.Context, name string, data map[string]any) {
-	p.publisher.Publish(ctx, event.Frame{Name: event.Name(name)}, data)
+	p.publisher.Publish(ctx, event.Frame{
+		Name:   event.Name(name),
+		Tenant: sdk.TenantOrDefault(ctx),
+	}, data)
 }

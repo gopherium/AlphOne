@@ -31,15 +31,17 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
-	pool        *pgxpool.Pool
-	resolver    sdk.ContactResolver
-	verifyToken string
-	appSecret   string
-	store       *store
-	sender      *sender
-	events      *broadcaster
-	fetcher     *mediaFetcher
-	publisher   sdk.Publisher
+	pool           *pgxpool.Pool
+	resolver       sdk.ContactResolver
+	verifyToken    string
+	appSecret      string
+	key            []byte
+	envCredentials credentials
+	store          *store
+	sender         *sender
+	events         *broadcaster
+	fetcher        *mediaFetcher
+	publisher      sdk.Publisher
 }
 
 // transportTemplate is the pool settings every outbound client is cloned from.
@@ -51,14 +53,18 @@ func newOutboundClient(timeout time.Duration) *http.Client {
 }
 
 // Register builds the WhatsApp [Plugin] from the host-provided deps,
-// reading its Meta credentials from ALPHONE_WHATSAPP_VERIFY_TOKEN and
-// ALPHONE_WHATSAPP_APP_SECRET.
+// reading its Meta application credentials and the tenant sealing key
+// from the ALPHONE_WHATSAPP environment variables.
 func Register(deps sdk.Deps) (*Plugin, error) {
 	getenv := deps.Getenv
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
 	maxBytes, err := mediaCap(getenv("ALPHONE_WHATSAPP_MEDIA_MAX_BYTES"))
+	if err != nil {
+		return nil, err
+	}
+	key, err := credentialsKey(getenv("ALPHONE_WHATSAPP_CREDENTIALS_KEY"))
 	if err != nil {
 		return nil, err
 	}
@@ -76,20 +82,22 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		publisher:   deps.Events,
 		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
 		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
-		store:       &store{pool: pool},
-		sender: &sender{
-			client:        newOutboundClient(10 * time.Second),
-			baseURL:       graphURL,
-			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+		key:         key,
+		envCredentials: credentials{
 			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
+			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+		},
+		store: &store{pool: pool},
+		sender: &sender{
+			client:  newOutboundClient(10 * time.Second),
+			baseURL: graphURL,
 		},
 		events: newBroadcaster(),
 	}
 	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
-		baseURL:       graphURL,
-		accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
-		phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
-		maxBytes:      maxBytes,
+		baseURL:     graphURL,
+		credentials: p.credentialsFor,
+		maxBytes:    maxBytes,
 	})
 	return p, nil
 }

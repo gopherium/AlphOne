@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // Media download tuning: sweep cadence and bounds, batch size, how long a
@@ -28,29 +30,27 @@ const (
 
 // mediaFetcherConfig parameterizes a mediaFetcher.
 type mediaFetcherConfig struct {
-	baseURL       string
-	accessToken   string
-	phoneNumberID string
-	maxBytes      int64
-	interval      time.Duration
-	timeout       time.Duration
+	baseURL     string
+	credentials func(ctx context.Context) (credentials, error)
+	maxBytes    int64
+	interval    time.Duration
+	timeout     time.Duration
 }
 
 // mediaFetcher downloads pending media blobs from the Graph API until stopped.
 type mediaFetcher struct {
-	store         *store
-	events        *broadcaster
-	client        *http.Client
-	baseURL       string
-	accessToken   string
-	phoneNumberID string
-	maxBytes      int64
-	interval      time.Duration
-	timeout       time.Duration
-	nudge         chan struct{}
-	sweeps        atomic.Int64
-	cancel        context.CancelFunc
-	done          chan struct{}
+	store       *store
+	events      *broadcaster
+	client      *http.Client
+	baseURL     string
+	credentials func(ctx context.Context) (credentials, error)
+	maxBytes    int64
+	interval    time.Duration
+	timeout     time.Duration
+	nudge       chan struct{}
+	sweeps      atomic.Int64
+	cancel      context.CancelFunc
+	done        chan struct{}
 }
 
 // newMediaFetcher returns a mediaFetcher over cfg, applying defaults for its
@@ -69,16 +69,15 @@ func newMediaFetcher(s *store, events *broadcaster, cfg mediaFetcherConfig) *med
 		maxBytes = defaultMediaMaxBytes
 	}
 	return &mediaFetcher{
-		store:         s,
-		events:        events,
-		client:        newOutboundClient(mediaDownloadTimeout),
-		baseURL:       cfg.baseURL,
-		accessToken:   cfg.accessToken,
-		phoneNumberID: cfg.phoneNumberID,
-		maxBytes:      maxBytes,
-		interval:      interval,
-		timeout:       timeout,
-		nudge:         make(chan struct{}, 1),
+		store:       s,
+		events:      events,
+		client:      newOutboundClient(mediaDownloadTimeout),
+		baseURL:     cfg.baseURL,
+		credentials: cfg.credentials,
+		maxBytes:    maxBytes,
+		interval:    interval,
+		timeout:     timeout,
+		nudge:       make(chan struct{}, 1),
 	}
 }
 
@@ -140,7 +139,7 @@ func (f *mediaFetcher) sweepOnce(ctx context.Context) {
 		return
 	}
 	for _, row := range pending {
-		f.fetchOne(sweepCtx, row)
+		f.fetchOne(sdk.WithTenant(sweepCtx, row.TenantID), row)
 	}
 }
 
@@ -150,7 +149,12 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 		f.settle(ctx, row, "expired")
 		return
 	}
-	metadata, err := f.fetchMetadata(ctx, row.MediaID)
+	creds, err := f.credentials(ctx)
+	if err != nil {
+		f.reschedule(ctx, row, err.Error())
+		return
+	}
+	metadata, err := f.fetchMetadata(ctx, creds, row.MediaID)
 	if err != nil {
 		f.reschedule(ctx, row, err.Error())
 		return
@@ -159,7 +163,7 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 		f.settle(ctx, row, "too_large")
 		return
 	}
-	data, err := f.download(ctx, metadata.URL)
+	data, err := f.download(ctx, creds, metadata.URL)
 	if err != nil {
 		f.reschedule(ctx, row, err.Error())
 		return
@@ -175,7 +179,7 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 	if err := f.store.markMediaStored(ctx, row.MessageID, data, metadata.MimeType, int64(len(data))); err != nil {
 		return
 	}
-	f.events.broadcast(event{Conversation: row.ConversationID})
+	f.events.broadcast(event{Conversation: row.ConversationID, Tenant: row.TenantID})
 }
 
 // settle retires the row with a terminal reason and announces the change.
@@ -183,7 +187,7 @@ func (f *mediaFetcher) settle(ctx context.Context, row pendingMediaRow, reason s
 	if err := f.store.markMediaFailed(ctx, row.MessageID, reason); err != nil {
 		return
 	}
-	f.events.broadcast(event{Conversation: row.ConversationID})
+	f.events.broadcast(event{Conversation: row.ConversationID, Tenant: row.TenantID})
 }
 
 // reschedule defers the row's next download attempt with backoff.
@@ -206,14 +210,14 @@ type mediaMetadata struct {
 	FileSize int64  `json:"file_size"`
 }
 
-// fetchMetadata asks the Graph API where a media asset can be downloaded.
-func (f *mediaFetcher) fetchMetadata(ctx context.Context, mediaID string) (mediaMetadata, error) {
+// fetchMetadata asks the Graph API as creds where a media asset can be downloaded.
+func (f *mediaFetcher) fetchMetadata(ctx context.Context, creds credentials, mediaID string) (mediaMetadata, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		f.baseURL+"/"+mediaID+"?phone_number_id="+f.phoneNumberID, nil)
+		f.baseURL+"/"+mediaID+"?phone_number_id="+creds.phoneNumberID, nil)
 	if err != nil {
 		return mediaMetadata{}, fmt.Errorf("whatsapp: build metadata request: %w", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+f.accessToken)
+	request.Header.Set("Authorization", "Bearer "+creds.accessToken)
 	response, err := f.client.Do(request)
 	if err != nil {
 		return mediaMetadata{}, fmt.Errorf("whatsapp: fetch media metadata: %w", err)
@@ -229,14 +233,14 @@ func (f *mediaFetcher) fetchMetadata(ctx context.Context, mediaID string) (media
 	return metadata, nil
 }
 
-// download fetches the media bytes from url, reading at most one byte over
-// the fetcher's cap.
-func (f *mediaFetcher) download(ctx context.Context, url string) ([]byte, error) {
+// download fetches the media bytes from url as creds, reading at most one byte
+// over the fetcher's cap.
+func (f *mediaFetcher) download(ctx context.Context, creds credentials, url string) ([]byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: build download request: %w", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+f.accessToken)
+	request.Header.Set("Authorization", "Bearer "+creds.accessToken)
 	response, err := f.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: download media: %w", err)

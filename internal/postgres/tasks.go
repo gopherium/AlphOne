@@ -15,6 +15,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/postgres/db"
 	"github.com/gopherium/alphone/internal/task"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // TaskStore persists tasks in the core schema.
@@ -42,6 +43,7 @@ func (s *TaskStore) Create(ctx context.Context, t task.Task) (task.Task, bool, e
 		OriginSource:  optionalText(t.Origin.Source),
 		OriginEventID: optionalUUID(t.Origin.EventID),
 		CreatedAt:     t.CreatedAt,
+		TenantID:      sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return task.Task{}, false, fmt.Errorf("postgres: create task: %w", err)
@@ -68,7 +70,9 @@ func createdRow(row db.CreateTaskRow) db.CoreTask {
 // Get returns the task with the given id, or [task.ErrNotFound] if none
 // exists.
 func (s *TaskStore) Get(ctx context.Context, id uuid.UUID) (task.Task, error) {
-	row, err := s.queries.GetTask(ctx, id)
+	row, err := s.queries.GetTask(ctx, db.GetTaskParams{
+		ID: id, TenantID: sdk.TenantOrDefault(ctx),
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return task.Task{}, task.ErrNotFound
 	}
@@ -87,6 +91,7 @@ func (s *TaskStore) Update(ctx context.Context, t task.Task) (task.Task, error) 
 		Status:   t.Status,
 		Priority: int16(t.Priority),
 		DueOn:    t.DueOn,
+		TenantID: sdk.TenantOrDefault(ctx),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return task.Task{}, task.ErrNotFound
@@ -109,6 +114,7 @@ func (s *TaskStore) ListForDay(
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list tasks for day: %w", err)
@@ -128,6 +134,7 @@ func (s *TaskStore) ListDueBefore(
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list tasks due before: %w", err)
@@ -146,6 +153,7 @@ func (s *TaskStore) ListForContact(
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list tasks for contact: %w", err)

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // SubscriptionResolvers serves the plugin's Subscription root fields.
@@ -43,9 +44,9 @@ func (s SubscriptionResolvers) WhatsAppMessageReceived(
 	return messages, nil
 }
 
-// pumpEvents hands every broadcast event to emit until it stops or the context ends.
+// pumpEvents hands the caller's tenant's events to emit until it stops or the context ends.
 func pumpEvents[T any](ctx context.Context, events *broadcaster, out chan T, emit func(event) bool) {
-	subscription := events.subscribe()
+	subscription := events.subscribe(sdk.TenantOrDefault(ctx))
 	go func() {
 		<-ctx.Done()
 		events.unsubscribe(subscription)

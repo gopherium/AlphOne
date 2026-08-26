@@ -13,6 +13,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/postgres/db"
 	"github.com/gopherium/alphone/internal/webhook"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // WebhookStore persists webhook subscriptions and their delivery queue.
@@ -35,6 +36,7 @@ func (s *WebhookStore) CreateSubscription(ctx context.Context, sub webhook.Subsc
 		Events:    eventNamesToText(sub.Events),
 		Secret:    sub.Secret,
 		CreatedAt: sub.CreatedAt,
+		TenantID:  sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create webhook subscription: %w", err)
@@ -48,7 +50,10 @@ func (s *WebhookStore) ListSubscriptionsForUser(
 	ctx context.Context,
 	userID uuid.UUID,
 ) ([]webhook.Subscription, error) {
-	rows, err := s.queries.ListWebhookSubscriptionsForUser(ctx, userID)
+	rows, err := s.queries.ListWebhookSubscriptionsForUser(ctx,
+		db.ListWebhookSubscriptionsForUserParams{
+			UserID: userID, TenantID: sdk.TenantOrDefault(ctx),
+		})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list webhook subscriptions: %w", err)
 	}
@@ -61,7 +66,10 @@ func (s *WebhookStore) ListSubscriptionsForEvent(
 	ctx context.Context,
 	name event.Name,
 ) ([]webhook.Subscription, error) {
-	rows, err := s.queries.ListWebhookSubscriptionsForEvent(ctx, string(name))
+	rows, err := s.queries.ListWebhookSubscriptionsForEvent(ctx,
+		db.ListWebhookSubscriptionsForEventParams{
+			Column1: string(name), TenantID: sdk.TenantOrDefault(ctx),
+		})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list webhook subscriptions for event: %w", err)
 	}
@@ -72,8 +80,9 @@ func (s *WebhookStore) ListSubscriptionsForEvent(
 // [webhook.ErrNotFound] when the user owns no such subscription.
 func (s *WebhookStore) DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error {
 	deleted, err := s.queries.DeleteWebhookSubscription(ctx, db.DeleteWebhookSubscriptionParams{
-		ID:     id,
-		UserID: userID,
+		ID:       id,
+		UserID:   userID,
+		TenantID: sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: delete webhook subscription: %w", err)
@@ -97,6 +106,7 @@ func (s *WebhookStore) EnqueueDelivery(ctx context.Context, d webhook.Delivery) 
 		Status:         d.Status,
 		LastError:      optionalText(d.LastError),
 		CreatedAt:      d.CreatedAt,
+		TenantID:       sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create webhook delivery: %w", err)

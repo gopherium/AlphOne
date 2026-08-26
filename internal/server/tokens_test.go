@@ -65,7 +65,7 @@ func newTokenServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store
 		Tokens:   tokens,
 		Version:  "9.9.9",
 		Plugins: map[string]http.Handler{
-			"echo": echoHandler(http.StatusOK, "plugin says hi"),
+			"echo": echoHandler(),
 		},
 	})
 	return handler, tokens, users, minted.Secret

@@ -25,6 +25,9 @@ msgstr ""
 msgid "Audio message"
 msgstr ""
 
+msgid "Connect a WhatsApp number before sending."
+msgstr ""
+
 msgid "Contact card"
 msgstr ""
 

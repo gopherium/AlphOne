@@ -15,16 +15,17 @@ import (
 
 const addIdentity = `-- name: AddIdentity :one
 WITH inserted AS (
-    INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    ON CONFLICT (channel, identifier) DO NOTHING
+    INSERT INTO core.contact_identities
+        (id, contact_id, channel, identifier, display_name, created_at, tenant_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (tenant_id, channel, identifier) DO NOTHING
     RETURNING contact_id
 )
 SELECT contact_id AS owner_id, TRUE AS created FROM inserted
 UNION ALL
 SELECT contact_id, FALSE
 FROM core.contact_identities
-WHERE channel = $3 AND identifier = $4
+WHERE channel = $3 AND identifier = $4 AND tenant_id = $7
     AND NOT EXISTS (SELECT 1 FROM inserted)
 `
 
@@ -35,6 +36,7 @@ type AddIdentityParams struct {
 	Identifier  string
 	DisplayName string
 	CreatedAt   time.Time
+	TenantID    uuid.UUID
 }
 
 type AddIdentityRow struct {
@@ -50,6 +52,7 @@ func (q *Queries) AddIdentity(ctx context.Context, arg AddIdentityParams) (AddId
 		arg.Identifier,
 		arg.DisplayName,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	var i AddIdentityRow
 	err := row.Scan(&i.OwnerID, &i.Created)
@@ -69,13 +72,14 @@ WITH claimed AS (
         FOR UPDATE SKIP LOCKED
     )
     RETURNING id, subscription_id, event_id, event_name, payload,
-        attempts, deliver_after, status, last_error, created_at
+        attempts, deliver_after, status, last_error, created_at, tenant_id
 )
 SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
     c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
     s.url, s.secret
 FROM claimed c
-JOIN core.webhook_subscriptions s ON s.id = c.subscription_id
+JOIN core.webhook_subscriptions s
+    ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id
 `
 
 type ClaimWebhookDeliveriesParams struct {
@@ -133,8 +137,9 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 }
 
 const createAPIToken = `-- name: CreateAPIToken :exec
-INSERT INTO core.api_tokens (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO core.api_tokens
+    (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type CreateAPITokenParams struct {
@@ -146,6 +151,7 @@ type CreateAPITokenParams struct {
 	LastUsedAt pgtype.Timestamptz
 	Scopes     string
 	ExpiresAt  pgtype.Timestamptz
+	TenantID   uuid.UUID
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error {
@@ -158,34 +164,41 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 		arg.LastUsedAt,
 		arg.Scopes,
 		arg.ExpiresAt,
+		arg.TenantID,
 	)
 	return err
 }
 
 const createContact = `-- name: CreateContact :exec
 
-INSERT INTO core.contacts (id, name, created_at)
-VALUES ($1, $2, $3)
+INSERT INTO core.contacts (id, name, created_at, tenant_id)
+VALUES ($1, $2, $3, $4)
 `
 
 type CreateContactParams struct {
 	ID        uuid.UUID
 	Name      string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 // SPDX-License-Identifier: Elastic-2.0
 func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) error {
-	_, err := q.db.Exec(ctx, createContact, arg.ID, arg.Name, arg.CreatedAt)
+	_, err := q.db.Exec(ctx, createContact,
+		arg.ID,
+		arg.Name,
+		arg.CreatedAt,
+		arg.TenantID,
+	)
 	return err
 }
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at)
+    origin_source, origin_event_id, created_at, tenant_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-    $8, $9, $10)
-ON CONFLICT (assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
+    $8, $9, $10, $11)
+ON CONFLICT (tenant_id, assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, (xmax = 0) AS created
@@ -202,6 +215,7 @@ type CreateTaskParams struct {
 	OriginSource  pgtype.Text
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
+	TenantID      uuid.UUID
 }
 
 type CreateTaskRow struct {
@@ -230,6 +244,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 		arg.OriginSource,
 		arg.OriginEventID,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	var i CreateTaskRow
 	err := row.Scan(
@@ -251,8 +266,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 const createWebhookDelivery = `-- name: CreateWebhookDelivery :exec
 INSERT INTO core.webhook_deliveries (
     id, subscription_id, event_id, event_name, payload,
-    attempts, deliver_after, status, last_error, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    attempts, deliver_after, status, last_error, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type CreateWebhookDeliveryParams struct {
@@ -266,6 +281,7 @@ type CreateWebhookDeliveryParams struct {
 	Status         string
 	LastError      pgtype.Text
 	CreatedAt      time.Time
+	TenantID       uuid.UUID
 }
 
 func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) error {
@@ -280,13 +296,14 @@ func (q *Queries) CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDe
 		arg.Status,
 		arg.LastError,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	return err
 }
 
 const createWebhookSubscription = `-- name: CreateWebhookSubscription :exec
-INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateWebhookSubscriptionParams struct {
@@ -296,6 +313,7 @@ type CreateWebhookSubscriptionParams struct {
 	Events    []string
 	Secret    string
 	CreatedAt time.Time
+	TenantID  uuid.UUID
 }
 
 func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebhookSubscriptionParams) error {
@@ -306,22 +324,24 @@ func (q *Queries) CreateWebhookSubscription(ctx context.Context, arg CreateWebho
 		arg.Events,
 		arg.Secret,
 		arg.CreatedAt,
+		arg.TenantID,
 	)
 	return err
 }
 
 const deleteIdentity = `-- name: DeleteIdentity :execrows
 DELETE FROM core.contact_identities
-WHERE id = $1 AND contact_id = $2
+WHERE id = $1 AND contact_id = $2 AND tenant_id = $3
 `
 
 type DeleteIdentityParams struct {
 	ID        uuid.UUID
 	ContactID uuid.UUID
+	TenantID  uuid.UUID
 }
 
 func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.ContactID)
+	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.ContactID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -330,16 +350,17 @@ func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) 
 
 const deleteWebhookSubscription = `-- name: DeleteWebhookSubscription :execrows
 DELETE FROM core.webhook_subscriptions
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3
 `
 
 type DeleteWebhookSubscriptionParams struct {
-	ID     uuid.UUID
-	UserID uuid.UUID
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	TenantID uuid.UUID
 }
 
 func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebhookSubscriptionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteWebhookSubscription, arg.ID, arg.UserID)
+	result, err := q.db.Exec(ctx, deleteWebhookSubscription, arg.ID, arg.UserID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -347,7 +368,7 @@ func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebho
 }
 
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
 WHERE token_hash = $1
 `
@@ -364,36 +385,48 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (Core
 		&i.LastUsedAt,
 		&i.Scopes,
 		&i.ExpiresAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetContact(ctx context.Context, id uuid.UUID) (CoreContact, error) {
-	row := q.db.QueryRow(ctx, getContact, id)
+type GetContactParams struct {
+	ID       uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) GetContact(ctx context.Context, arg GetContactParams) (CoreContact, error) {
+	row := q.db.QueryRow(ctx, getContact, arg.ID, arg.TenantID)
 	var i CoreContact
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.TenantID,
+	)
 	return i, err
 }
 
 const getIdentity = `-- name: GetIdentity :one
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE channel = $1 AND identifier = $2
+WHERE channel = $1 AND identifier = $2 AND tenant_id = $3
 `
 
 type GetIdentityParams struct {
 	Channel    string
 	Identifier string
+	TenantID   uuid.UUID
 }
 
 func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreContactIdentity, error) {
-	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier)
+	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier, arg.TenantID)
 	var i CoreContactIdentity
 	err := row.Scan(
 		&i.ID,
@@ -402,19 +435,25 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 		&i.Identifier,
 		&i.DisplayName,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const getTask = `-- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+type GetTaskParams struct {
+	ID       uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, getTask, arg.ID, arg.TenantID)
 	var i CoreTask
 	err := row.Scan(
 		&i.ID,
@@ -427,19 +466,25 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (CoreTask, error) {
 		&i.OriginSource,
 		&i.OriginEventID,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
 
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
-SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([]CoreApiToken, error) {
-	rows, err := q.db.Query(ctx, listAPITokensForUser, userID)
+type ListAPITokensForUserParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListAPITokensForUser(ctx context.Context, arg ListAPITokensForUserParams) ([]CoreApiToken, error) {
+	rows, err := q.db.Query(ctx, listAPITokensForUser, arg.UserID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -456,6 +501,7 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([
 			&i.LastUsedAt,
 			&i.Scopes,
 			&i.ExpiresAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -468,14 +514,19 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, userID uuid.UUID) ([
 }
 
 const listContactIdentities = `-- name: ListContactIdentities :many
-SELECT id, contact_id, channel, identifier, display_name, created_at
+SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1
+WHERE contact_id = $1 AND tenant_id = $2
 ORDER BY channel, identifier
 `
 
-func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]CoreContactIdentity, error) {
-	rows, err := q.db.Query(ctx, listContactIdentities, contactID)
+type ListContactIdentitiesParams struct {
+	ContactID uuid.UUID
+	TenantID  uuid.UUID
+}
+
+func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]CoreContactIdentity, error) {
+	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -490,6 +541,7 @@ func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID
 			&i.Identifier,
 			&i.DisplayName,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -502,20 +554,22 @@ func (q *Queries) ListContactIdentities(ctx context.Context, contactID uuid.UUID
 }
 
 const listContacts = `-- name: ListContacts :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts c
-WHERE (c.name, c.id) > ($1::text, $2::uuid)
-    AND ($3::text = '' OR c.name ILIKE '%' || $3 || '%'
+WHERE c.tenant_id = $1
+    AND (c.name, c.id) > ($2::text, $3::uuid)
+    AND ($4::text = '' OR c.name ILIKE '%' || $4 || '%'
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
-            WHERE i.contact_id = c.id
-                AND (i.display_name ILIKE '%' || $3 || '%'
-                    OR ($4::text <> '' AND i.identifier LIKE '%' || $4 || '%'))))
+            WHERE i.contact_id = c.id AND i.tenant_id = $1
+                AND (i.display_name ILIKE '%' || $4 || '%'
+                    OR ($5::text <> '' AND i.identifier LIKE '%' || $5 || '%'))))
 ORDER BY c.name, c.id
-LIMIT $5
+LIMIT $6
 `
 
 type ListContactsParams struct {
+	TenantID  uuid.UUID
 	AfterName string
 	AfterID   uuid.UUID
 	Query     string
@@ -525,6 +579,7 @@ type ListContactsParams struct {
 
 func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]CoreContact, error) {
 	rows, err := q.db.Query(ctx, listContacts,
+		arg.TenantID,
 		arg.AfterName,
 		arg.AfterID,
 		arg.Query,
@@ -538,7 +593,12 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 	var items []CoreContact
 	for rows.Next() {
 		var i CoreContact
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.TenantID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -550,13 +610,18 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 }
 
 const listContactsByIDs = `-- name: ListContactsByIDs :many
-SELECT id, name, created_at
+SELECT id, name, created_at, tenant_id
 FROM core.contacts
-WHERE id = ANY($1::uuid[])
+WHERE id = ANY($1::uuid[]) AND tenant_id = $2
 `
 
-func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]CoreContact, error) {
-	rows, err := q.db.Query(ctx, listContactsByIDs, ids)
+type ListContactsByIDsParams struct {
+	Ids      []uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListContactsByIDs(ctx context.Context, arg ListContactsByIDsParams) ([]CoreContact, error) {
+	rows, err := q.db.Query(ctx, listContactsByIDs, arg.Ids, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +629,12 @@ func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]Cor
 	var items []CoreContact
 	for rows.Next() {
 		var i CoreContact
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.TenantID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -577,17 +647,19 @@ func (q *Queries) ListContactsByIDs(ctx context.Context, ids []uuid.UUID) ([]Cor
 
 const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = $1::uuid
-    AND t.due_on < $2::date
-    AND ($3::text = 'all' OR t.status = $3::text)
-    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+WHERE t.tenant_id = $1
+    AND t.assignee_id = $2::uuid
+    AND t.due_on < $3::date
+    AND ($4::text = 'all' OR t.status = $4::text)
+    AND (t.due_on, t.id) > ($5::date, $6::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $6
+LIMIT $7
 `
 
 type ListTasksDueBeforeParams struct {
+	TenantID   uuid.UUID
 	AssigneeID uuid.UUID
 	DueBefore  time.Time
 	Status     string
@@ -598,6 +670,7 @@ type ListTasksDueBeforeParams struct {
 
 func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBeforeParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksDueBefore,
+		arg.TenantID,
 		arg.AssigneeID,
 		arg.DueBefore,
 		arg.Status,
@@ -623,6 +696,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -636,16 +710,18 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 
 const listTasksForContact = `-- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.contact_id = $1::uuid
-    AND ($2::text = 'all' OR t.status = $2::text)
-    AND (t.due_on, t.id) > ($3::date, $4::uuid)
+WHERE t.tenant_id = $1
+    AND t.contact_id = $2::uuid
+    AND ($3::text = 'all' OR t.status = $3::text)
+    AND (t.due_on, t.id) > ($4::date, $5::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $5
+LIMIT $6
 `
 
 type ListTasksForContactParams struct {
+	TenantID   uuid.UUID
 	ContactID  uuid.UUID
 	Status     string
 	AfterDueOn time.Time
@@ -655,6 +731,7 @@ type ListTasksForContactParams struct {
 
 func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForContactParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksForContact,
+		arg.TenantID,
 		arg.ContactID,
 		arg.Status,
 		arg.AfterDueOn,
@@ -679,6 +756,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -692,17 +770,19 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 
 const listTasksForDay = `-- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 FROM core.tasks t
-WHERE t.assignee_id = $1::uuid
-    AND t.due_on = $2::date
-    AND ($3::text = 'all' OR t.status = $3::text)
-    AND (t.due_on, t.id) > ($4::date, $5::uuid)
+WHERE t.tenant_id = $1
+    AND t.assignee_id = $2::uuid
+    AND t.due_on = $3::date
+    AND ($4::text = 'all' OR t.status = $4::text)
+    AND (t.due_on, t.id) > ($5::date, $6::uuid)
 ORDER BY t.due_on, t.id
-LIMIT $6
+LIMIT $7
 `
 
 type ListTasksForDayParams struct {
+	TenantID   uuid.UUID
 	AssigneeID uuid.UUID
 	DueOn      time.Time
 	Status     string
@@ -713,6 +793,7 @@ type ListTasksForDayParams struct {
 
 func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams) ([]CoreTask, error) {
 	rows, err := q.db.Query(ctx, listTasksForDay,
+		arg.TenantID,
 		arg.AssigneeID,
 		arg.DueOn,
 		arg.Status,
@@ -738,6 +819,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 			&i.OriginSource,
 			&i.OriginEventID,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -750,14 +832,19 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 }
 
 const listWebhookSubscriptionsForEvent = `-- name: ListWebhookSubscriptionsForEvent :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE $1::text = ANY (events)
+WHERE $1::text = ANY (events) AND tenant_id = $2
 ORDER BY id
 `
 
-func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1 string) ([]CoreWebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForEvent, dollar_1)
+type ListWebhookSubscriptionsForEventParams struct {
+	Column1  string
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, arg ListWebhookSubscriptionsForEventParams) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForEvent, arg.Column1, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -772,6 +859,7 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1
 			&i.Events,
 			&i.Secret,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -784,14 +872,19 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, dollar_1
 }
 
 const listWebhookSubscriptionsForUser = `-- name: ListWebhookSubscriptionsForUser :many
-SELECT id, user_id, url, events, secret, created_at
+SELECT id, user_id, url, events, secret, created_at, tenant_id
 FROM core.webhook_subscriptions
-WHERE user_id = $1
+WHERE user_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]CoreWebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, userID)
+type ListWebhookSubscriptionsForUserParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListWebhookSubscriptionsForUserParams) ([]CoreWebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, arg.UserID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -806,6 +899,7 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uu
 			&i.Events,
 			&i.Secret,
 			&i.CreatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -819,16 +913,17 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, userID uu
 
 const revokeAPIToken = `-- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
-WHERE id = $1 AND user_id = $2
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3
 `
 
 type RevokeAPITokenParams struct {
-	ID     uuid.UUID
-	UserID uuid.UUID
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	TenantID uuid.UUID
 }
 
 func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID)
+	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
@@ -836,19 +931,25 @@ func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) 
 }
 
 const setUserSetting = `-- name: SetUserSetting :exec
-INSERT INTO core.user_settings (user_id, key, value)
-VALUES ($1::uuid, $2::text, $3::text)
-ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value
+INSERT INTO core.user_settings (user_id, key, value, tenant_id)
+VALUES ($1::uuid, $2::text, $3::text, $4)
+ON CONFLICT (tenant_id, user_id, key) DO UPDATE SET value = EXCLUDED.value
 `
 
 type SetUserSettingParams struct {
-	UserID uuid.UUID
-	Key    string
-	Value  string
+	UserID   uuid.UUID
+	Key      string
+	Value    string
+	TenantID uuid.UUID
 }
 
 func (q *Queries) SetUserSetting(ctx context.Context, arg SetUserSettingParams) error {
-	_, err := q.db.Exec(ctx, setUserSetting, arg.UserID, arg.Key, arg.Value)
+	_, err := q.db.Exec(ctx, setUserSetting,
+		arg.UserID,
+		arg.Key,
+		arg.Value,
+		arg.TenantID,
+	)
 	return err
 }
 
@@ -949,28 +1050,34 @@ func (q *Queries) TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) er
 }
 
 const updateContactName = `-- name: UpdateContactName :one
-UPDATE core.contacts SET name = $2 WHERE id = $1
-RETURNING id, name, created_at
+UPDATE core.contacts SET name = $2 WHERE id = $1 AND tenant_id = $3
+RETURNING id, name, created_at, tenant_id
 `
 
 type UpdateContactNameParams struct {
-	ID   uuid.UUID
-	Name string
+	ID       uuid.UUID
+	Name     string
+	TenantID uuid.UUID
 }
 
 func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNameParams) (CoreContact, error) {
-	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name)
+	row := q.db.QueryRow(ctx, updateContactName, arg.ID, arg.Name, arg.TenantID)
 	var i CoreContact
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.TenantID,
+	)
 	return i, err
 }
 
 const updateTask = `-- name: UpdateTask :one
 UPDATE core.tasks
 SET title = $2, status = $3, priority = $4, due_on = $5
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $6
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at
+    origin_source, origin_event_id, created_at, tenant_id
 `
 
 type UpdateTaskParams struct {
@@ -979,6 +1086,7 @@ type UpdateTaskParams struct {
 	Status   string
 	Priority int16
 	DueOn    time.Time
+	TenantID uuid.UUID
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTask, error) {
@@ -988,6 +1096,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		arg.Status,
 		arg.Priority,
 		arg.DueOn,
+		arg.TenantID,
 	)
 	var i CoreTask
 	err := row.Scan(
@@ -1001,6 +1110,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		&i.OriginSource,
 		&i.OriginEventID,
 		&i.CreatedAt,
+		&i.TenantID,
 	)
 	return i, err
 }
@@ -1008,16 +1118,17 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 const userSetting = `-- name: UserSetting :many
 SELECT value
 FROM core.user_settings
-WHERE user_id = $1::uuid AND key = $2::text
+WHERE user_id = $1::uuid AND key = $2::text AND tenant_id = $3
 `
 
 type UserSettingParams struct {
-	UserID uuid.UUID
-	Key    string
+	UserID   uuid.UUID
+	Key      string
+	TenantID uuid.UUID
 }
 
 func (q *Queries) UserSetting(ctx context.Context, arg UserSettingParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, userSetting, arg.UserID, arg.Key)
+	rows, err := q.db.Query(ctx, userSetting, arg.UserID, arg.Key, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}

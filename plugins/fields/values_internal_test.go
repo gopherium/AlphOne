@@ -93,7 +93,8 @@ func TestValuesForReportsRowsItCannotRead(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 
-	_, err := p.store.collectValues(t.Context(), "SELECT 1 WHERE $1::uuid[] IS NOT NULL",
+	_, err := p.store.collectValues(t.Context(),
+		"SELECT 1 WHERE $1::uuid[] IS NOT NULL AND $2::uuid IS NOT NULL",
 		[]uuid.UUID{uuid.Must(uuid.NewV7())})
 
 	if err == nil {

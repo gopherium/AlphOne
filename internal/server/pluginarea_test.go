@@ -24,7 +24,7 @@ func newAreaServer(t *testing.T) (http.Handler, *fakeTokenStore, *testkit.Store)
 		Users:             users,
 		Tokens:            tokens,
 		Version:           "9.9.9",
-		Plugins:           map[string]http.Handler{"echo": echoHandler(http.StatusOK, "plugin says hi")},
+		Plugins:           map[string]http.Handler{"echo": echoHandler()},
 		PluginAreas:       map[string]string{"echo": "contacts"},
 		PluginPublicPaths: map[string][]string{"echo": {"/webhook"}},
 	})

@@ -19,6 +19,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/plugins/whatsapp"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func sign(secret string, body []byte) string {
@@ -55,7 +56,8 @@ func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	pool := newAssertionPool(t, cfg.URL())
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
 	p := newPlugin(t, cfg.URL(), resolver, map[string]string{
-		"ALPHONE_WHATSAPP_APP_SECRET": "app-secret",
+		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
+		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "555000111",
 	})
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
@@ -219,30 +221,30 @@ func statusEventBody(wamid, status string) []byte {
 	}`, wamid, status)
 }
 
-func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string) {
+func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string, standing uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 	contactID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO core.contacts (id, name, created_at) VALUES ($1, 'María Pérez', now())`,
-		contactID,
+		`INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, 'María Pérez', now(), $2)`,
+		contactID, standing,
 	); err != nil {
 		t.Fatalf("inserting contact: %v", err)
 	}
 	conversationID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status,
-			last_activity_at, created_at)
-		VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now())`,
-		conversationID, contactID, wamid,
+			last_activity_at, created_at, tenant_id)
+		VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now(), $4)`,
+		conversationID, contactID, wamid, standing,
 	); err != nil {
 		t.Fatalf("inserting conversation: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
-			content_type, sent_at, raw, created_at)
-		VALUES ($1, $2, $3, 'outbound', 'hello', 'text', now(), '{}', now())`,
-		uuid.Must(uuid.NewV7()), conversationID, wamid,
+			content_type, sent_at, raw, created_at, tenant_id)
+		VALUES ($1, $2, $3, 'outbound', 'hello', 'text', now(), '{}', now(), $4)`,
+		uuid.Must(uuid.NewV7()), conversationID, wamid, standing,
 	); err != nil {
 		t.Fatalf("inserting outbound message: %v", err)
 	}
@@ -280,7 +282,7 @@ func TestWebhookEventsApplyDeliveryStatuses(t *testing.T) {
 	t.Parallel()
 
 	p, pool := newIngestingPlugin(t)
-	seedOutboundRow(t, pool, "wamid.out.e2e")
+	seedOutboundRow(t, pool, "wamid.out.e2e", sdk.DefaultTenantID)
 	body := statusEventBody("wamid.out.e2e", "delivered")
 
 	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
@@ -298,7 +300,7 @@ func TestWebhookEventsReportStatusFailure(t *testing.T) {
 	t.Parallel()
 
 	p, pool := newIngestingPlugin(t)
-	seedOutboundRow(t, pool, "wamid.out.down")
+	seedOutboundRow(t, pool, "wamid.out.down", sdk.DefaultTenantID)
 	if err := p.Stop(t.Context()); err != nil {
 		t.Fatalf("Stop() error = %v, want nil", err)
 	}
@@ -322,5 +324,245 @@ func TestWebhookEventsReportIngestFailure(t *testing.T) {
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d so Meta retries", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+// routingEnv returns the plugin environment for a routing test, overridden by extra.
+func routingEnv(extra map[string]string) map[string]string {
+	env := map[string]string{
+		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
+		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
+	}
+	for key, value := range extra {
+		env[key] = value
+	}
+	return env
+}
+
+// newRoutingPlugin returns a migrated plugin holding a sealing key, beside its pool.
+func newRoutingPlugin(t *testing.T, extra map[string]string) (*whatsapp.Plugin, *pgxpool.Pool) {
+	t.Helper()
+	cfg := newTestDatabase(t)
+	pool := newAssertionPool(t, cfg.URL())
+	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
+	p := newPlugin(t, cfg.URL(), resolver, routingEnv(extra))
+	if err := p.Migrate(t.Context()); err != nil {
+		t.Fatalf("Migrate() error = %v, want nil", err)
+	}
+	return p, pool
+}
+
+// seedTenant stores one tenant named Acme and returns its id.
+func seedTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO core.tenants (id, name) VALUES ($1, 'Acme')`, id); err != nil {
+		t.Fatalf("seeding the tenant: %v", err)
+	}
+	return id
+}
+
+// numberedEventBody returns an inbound message payload naming the number it arrived on.
+func numberedEventBody(phoneNumberID, wamid string) []byte {
+	return fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"metadata": {"display_phone_number": "5550000", "phone_number_id": %q},
+			"contacts": [{"wa_id": "184467235", "profile": {"name": "Maria Perez"}}],
+			"messages": [{"from": "184467235", "id": %q, "timestamp": "1751791000", "type": "text",
+				"text": {"body": "hello"}}]
+		}}]}]
+	}`, phoneNumberID, wamid)
+}
+
+// numberedStatusBody returns a delivery status payload naming the number it arrived on.
+func numberedStatusBody(phoneNumberID, wamid, status string) []byte {
+	return fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"metadata": {"display_phone_number": "5550000", "phone_number_id": %q},
+			"statuses": [{"id": %q, "status": %q, "timestamp": "1751791000",
+				"recipient_id": "184467235"}]
+		}}]}]
+	}`, phoneNumberID, wamid, status)
+}
+
+// conversationTenant returns the tenant of the single stored conversation.
+func conversationTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+	var tenantID uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		`SELECT tenant_id FROM plugin_whatsapp.conversations`).Scan(&tenantID); err != nil {
+		t.Fatalf("loading the conversation tenant: %v", err)
+	}
+	return tenantID
+}
+
+func TestWebhookEventsLandInTheNumbersTenant(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, nil)
+	acme := seedTenant(t, pool)
+	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	}
+	body := numberedEventBody("5550001", "wamid.routed")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if held := conversationTenant(t, pool); held != acme {
+		t.Errorf("conversation tenant = %s, want the number's tenant", held)
+	}
+	var contactTenant uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		`SELECT tenant_id FROM core.contacts`).Scan(&contactTenant); err != nil {
+		t.Fatalf("loading the contact tenant: %v", err)
+	}
+	if contactTenant != acme {
+		t.Errorf("contact tenant = %s, want the number's tenant", contactTenant)
+	}
+}
+
+func TestWebhookEventsDropAnUnknownNumber(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, nil)
+	body := numberedEventBody("5559999", "wamid.stray")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d so Meta stops retrying", recorder.Code, http.StatusOK)
+	}
+	if got := countRows(t, pool, "plugin_whatsapp.conversations"); got != 0 {
+		t.Errorf("conversations = %d, want 0 for an unknown number", got)
+	}
+	if got := countRows(t, pool, "core.contacts"); got != 0 {
+		t.Errorf("contacts = %d, want 0 for an unknown number", got)
+	}
+}
+
+func TestWebhookEventsForTheEnvNumberLandInTheDefaultTenant(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
+	body := numberedEventBody("5550009", "wamid.env")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if held := conversationTenant(t, pool); held != sdk.DefaultTenantID {
+		t.Errorf("conversation tenant = %s, want the default tenant", held)
+	}
+}
+
+// unnumberedEventBody returns an inbound message payload naming no number at all.
+func unnumberedEventBody(wamid string) []byte {
+	return fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"contacts": [{"wa_id": "184467235", "profile": {"name": "Maria Perez"}}],
+			"messages": [{"from": "184467235", "id": %q, "timestamp": "1751791000", "type": "text",
+				"text": {"body": "hello"}}]
+		}}]}]
+	}`, wamid)
+}
+
+func TestWebhookEventsDropAnUnnumberedArrivalWhenNoNumberIsConfigured(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, nil)
+	body := unnumberedEventBody("wamid.unattributable")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d so Meta stops retrying", recorder.Code, http.StatusOK)
+	}
+	if got := countRows(t, pool, "plugin_whatsapp.conversations"); got != 0 {
+		t.Errorf("conversations = %d, want 0 when no number can own the arrival", got)
+	}
+	if got := countRows(t, pool, "core.contacts"); got != 0 {
+		t.Errorf("contacts = %d, want 0 when no number can own the arrival", got)
+	}
+}
+
+func TestWebhookEventsKeepAnUnnumberedArrivalForTheConfiguredNumber(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
+	body := unnumberedEventBody("wamid.configured")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if held := conversationTenant(t, pool); held != sdk.DefaultTenantID {
+		t.Errorf("conversation tenant = %s, want the default tenant", held)
+	}
+}
+
+func TestWebhookEventsReportRoutingFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		body []byte
+	}{
+		"a message": {body: numberedEventBody("5550001", "wamid.down")},
+		"a status":  {body: numberedStatusBody("5550001", "wamid.down", "delivered")},
+	}
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p, _ := newRoutingPlugin(t, nil)
+			if err := p.Stop(t.Context()); err != nil {
+				t.Fatalf("Stop() error = %v, want nil", err)
+			}
+
+			recorder := postEvent(t, p.Routes(), sign("app-secret", tc.body), tc.body)
+
+			if recorder.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want %d so Meta retries", recorder.Code, http.StatusInternalServerError)
+			}
+		})
+	}
+}
+
+func TestWebhookStatusesRouteByTheirNumber(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, nil)
+	acme := seedTenant(t, pool)
+	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	}
+	seedOutboundRow(t, pool, "wamid.out.routed", acme)
+
+	stray := numberedStatusBody("5559999", "wamid.out.routed", "delivered")
+	if recorder := postEvent(t, p.Routes(), sign("app-secret", stray), stray); recorder.Code != http.StatusOK {
+		t.Fatalf("stray status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if status := messageStatus(t, pool, "wamid.out.routed"); status != nil {
+		t.Fatalf("message status after a stray number = %v, want untouched", *status)
+	}
+
+	routed := numberedStatusBody("5550001", "wamid.out.routed", "delivered")
+	if recorder := postEvent(t, p.Routes(), sign("app-secret", routed), routed); recorder.Code != http.StatusOK {
+		t.Fatalf("routed status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	status := messageStatus(t, pool, "wamid.out.routed")
+	if status == nil || *status != "delivered" {
+		t.Fatalf("message status = %v, want delivered inside the tenant", status)
 	}
 }

@@ -164,8 +164,15 @@ func TestRegisterConfiguresTheMediaFetcher(t *testing.T) {
 	if f == nil {
 		t.Fatal("fetcher = nil, want it wired by Register")
 	}
-	if f.baseURL != "http://localhost:1" || f.accessToken != "tok" || f.phoneNumberID != "PN9" {
-		t.Errorf("graph wiring = (%q, %q, %q), want the configured values", f.baseURL, f.accessToken, f.phoneNumberID)
+	if f.baseURL != "http://localhost:1" {
+		t.Errorf("baseURL = %q, want the configured value", f.baseURL)
+	}
+	seed := credentials{phoneNumberID: "PN9", accessToken: "tok"}
+	if p.envCredentials != seed {
+		t.Errorf("env credentials = %+v, want the configured seed", p.envCredentials)
+	}
+	if f.credentials == nil {
+		t.Fatal("credentials lookup = nil, want it wired by Register")
 	}
 	if f.maxBytes != 1024 {
 		t.Errorf("maxBytes = %d, want 1024", f.maxBytes)

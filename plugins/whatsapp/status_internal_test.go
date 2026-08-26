@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func seedOutboundMessage(t *testing.T, p *Plugin, externalID string) uuid.UUID {
@@ -84,7 +85,7 @@ func TestApplyStatusAdvancesThroughTheRanks(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	conversationID := seedOutboundMessage(t, p, "wamid.out.ranks")
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	for _, status := range []string{"sent", "delivered", "read"} {
@@ -107,7 +108,7 @@ func TestApplyStatusKeepsHigherRanks(t *testing.T) {
 	p := newMigratedPlugin(t)
 	seedOutboundMessage(t, p, "wamid.out.keep")
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.keep", status: "read"})
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.keep", status: "delivered"})
@@ -126,7 +127,7 @@ func TestApplyStatusIgnoresDuplicates(t *testing.T) {
 	p := newMigratedPlugin(t)
 	seedOutboundMessage(t, p, "wamid.out.dup")
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.dup", status: "delivered"})
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.dup", status: "delivered"})
@@ -157,7 +158,7 @@ func TestApplyStatusFailedOverridesWithDetail(t *testing.T) {
 	p := newMigratedPlugin(t)
 	seedOutboundMessage(t, p, "wamid.out.fail")
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.fail", status: "read"})
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	applyStatusOK(t, p, statusUpdate{
@@ -187,7 +188,7 @@ func TestApplyStatusIgnoresUnknownStatuses(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	seedOutboundMessage(t, p, "wamid.out.warn")
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.out.warn", status: "warning"})
@@ -207,7 +208,7 @@ func TestApplyStatusIgnoresUnknownWamids(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	subscription := p.events.subscribe()
+	subscription := p.events.subscribe(sdk.DefaultTenantID)
 	defer p.events.unsubscribe(subscription)
 
 	applyStatusOK(t, p, statusUpdate{wamid: "wamid.ghost", status: "delivered"})

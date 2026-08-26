@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // The states an import moves through.
@@ -74,7 +76,8 @@ func (s *store) listImports(ctx context.Context) ([]importRow, error) {
 	rows, _ := s.pool.Query(ctx,
 		`SELECT `+summaryColumns+`, columns, mapping
 		FROM plugin_importer.imports
-		ORDER BY created_at DESC, id DESC`)
+		WHERE tenant_id = $1
+		ORDER BY created_at DESC, id DESC`, sdk.TenantOrDefault(ctx))
 	imports, err := pgx.CollectRows(rows, pgx.RowToStructByName[importRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list imports: %w", err)
@@ -86,7 +89,8 @@ func (s *store) listImports(ctx context.Context) ([]importRow, error) {
 func (s *store) importByID(ctx context.Context, id uuid.UUID) (importRow, error) {
 	rows, _ := s.pool.Query(ctx,
 		`SELECT `+summaryColumns+`, columns, mapping
-		FROM plugin_importer.imports WHERE id = $1`, id)
+		FROM plugin_importer.imports WHERE id = $1 AND tenant_id = $2`,
+		id, sdk.TenantOrDefault(ctx))
 	stored, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[importRow])
 	if err != nil {
 		return importRow{}, err
@@ -99,9 +103,9 @@ func (s *store) listRows(ctx context.Context, importID uuid.UUID, limit int) ([]
 	rows, _ := s.pool.Query(ctx,
 		`SELECT id, position, cells, outcome, reason, contact_id
 		FROM plugin_importer.import_rows
-		WHERE import_id = $1
+		WHERE import_id = $1 AND tenant_id = $3
 		ORDER BY position
-		LIMIT $2`, importID, limit)
+		LIMIT $2`, importID, limit, sdk.TenantOrDefault(ctx))
 	staged, err := pgx.CollectRows(rows, pgx.RowToStructByName[stagedRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list rows: %w", err)
@@ -114,9 +118,9 @@ func (s *store) listImportContacts(ctx context.Context, importID uuid.UUID) ([]i
 	rows, _ := s.pool.Query(ctx,
 		`SELECT c.id AS contact_id, c.name, r.id AS row_id
 		FROM plugin_importer.import_rows r
-		JOIN core.contacts c ON c.id = r.contact_id
-		WHERE r.import_id = $1 AND r.outcome = $2
-		ORDER BY r.position`, importID, outcomeImported)
+		JOIN core.contacts c ON c.id = r.contact_id AND c.tenant_id = r.tenant_id
+		WHERE r.import_id = $1 AND r.outcome = $2 AND r.tenant_id = $3
+		ORDER BY r.position`, importID, outcomeImported, sdk.TenantOrDefault(ctx))
 	linked, err := pgx.CollectRows(rows, pgx.RowToStructByName[importContactRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list import contacts: %w", err)
@@ -136,9 +140,9 @@ func (s *store) claimForCommit(ctx context.Context, id uuid.UUID) (mapping, erro
 	var state string
 	err := s.pool.QueryRow(ctx,
 		`UPDATE plugin_importer.imports SET state = $2
-		WHERE id = $1 AND state IN ($2, $3)
+		WHERE id = $1 AND state IN ($2, $3) AND tenant_id = $4
 		RETURNING mapping, state`,
-		id, stateCommitting, stateReady).Scan(&claimed, &state)
+		id, stateCommitting, stateReady, sdk.TenantOrDefault(ctx)).Scan(&claimed, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errAlreadyCommitted
 	}
@@ -156,8 +160,8 @@ func (s *store) pendingRows(ctx context.Context, importID uuid.UUID) ([]stagedRo
 	rows, _ := s.pool.Query(ctx,
 		`SELECT id, position, cells, outcome, reason, contact_id
 		FROM plugin_importer.import_rows
-		WHERE import_id = $1 AND outcome = $2
-		ORDER BY position`, importID, outcomePending)
+		WHERE import_id = $1 AND outcome = $2 AND tenant_id = $3
+		ORDER BY position`, importID, outcomePending, sdk.TenantOrDefault(ctx))
 	pending, err := pgx.CollectRows(rows, pgx.RowToStructByName[stagedRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list pending rows: %w", err)
@@ -170,8 +174,9 @@ func (s *store) settleRow(ctx context.Context, rowID uuid.UUID, settled settleme
 	if _, err := s.pool.Exec(ctx,
 		`UPDATE plugin_importer.import_rows
 		SET outcome = $2, reason = COALESCE($3, reason), contact_id = $4
-		WHERE id = $1`,
-		rowID, settled.outcome, optionalReason(settled.reason), settled.contactID); err != nil {
+		WHERE id = $1 AND tenant_id = $5`,
+		rowID, settled.outcome, optionalReason(settled.reason), settled.contactID,
+		sdk.TenantOrDefault(ctx)); err != nil {
 		return fmt.Errorf("importer: settle row: %w", err)
 	}
 	return nil
@@ -190,11 +195,12 @@ func (s *store) finishCommit(ctx context.Context, id uuid.UUID) (commitCounts, e
 				count(*) FILTER (WHERE outcome = $3) AS imported,
 				count(*) FILTER (WHERE outcome = $4) AS skipped,
 				count(*) FILTER (WHERE outcome = $5) AS failed
-			FROM plugin_importer.import_rows WHERE import_id = $1
+			FROM plugin_importer.import_rows WHERE import_id = $1 AND tenant_id = $6
 		) tally
-		WHERE i.id = $1
+		WHERE i.id = $1 AND i.tenant_id = $6
 		RETURNING i.imported_count, i.skipped_count, i.failed_count`,
 		id, stateCommitted, outcomeImported, outcomeSkipped, outcomeFailed,
+		sdk.TenantOrDefault(ctx),
 	).Scan(&counts.Imported, &counts.Skipped, &counts.Failed)
 	if err != nil {
 		return commitCounts{}, fmt.Errorf("importer: finish commit: %w", err)
@@ -205,8 +211,9 @@ func (s *store) finishCommit(ctx context.Context, id uuid.UUID) (commitCounts, e
 // updateMapping stores the column assignments of an import that is still ready.
 func (s *store) updateMapping(ctx context.Context, id uuid.UUID, assigned mapping) error {
 	if _, err := s.pool.Exec(ctx,
-		`UPDATE plugin_importer.imports SET mapping = $2 WHERE id = $1 AND state = $3`,
-		id, assigned, stateReady); err != nil {
+		`UPDATE plugin_importer.imports SET mapping = $2
+		WHERE id = $1 AND state = $3 AND tenant_id = $4`,
+		id, assigned, stateReady, sdk.TenantOrDefault(ctx)); err != nil {
 		return fmt.Errorf("importer: update mapping: %w", err)
 	}
 	return nil
@@ -252,10 +259,11 @@ func (s *store) writeImport(
 
 	rows, _ := tx.Query(ctx,
 		"INSERT INTO plugin_importer.imports (id, user_id, filename, columns, mapping, "+
-			"state, row_count, imported_count, skipped_count, failed_count, created_at) "+
-			"VALUES ($1, $2, $3, $4, '{}', $5, $6, 0, 0, 0, now()) "+
+			"state, row_count, imported_count, skipped_count, failed_count, created_at, tenant_id) "+
+			"VALUES ($1, $2, $3, $4, '{}', $5, $6, 0, 0, 0, now(), $7) "+
 			"RETURNING "+summaryColumns+", columns, mapping",
 		ids[0], uploader, filename, parsed.columns, stateReady, len(parsed.rows),
+		sdk.TenantOrDefault(ctx),
 	)
 	stored, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByName[importRow])
 	if err != nil {
@@ -272,8 +280,9 @@ func insertRows(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, rows []row) err
 	for i, stored := range rows {
 		if _, err := tx.Exec(ctx,
 			"INSERT INTO plugin_importer.import_rows (id, import_id, position, cells, "+
-				"outcome, reason) VALUES ($1, $2, $3, $4, $5, $6)",
+				"outcome, reason, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
 			ids[i+1], ids[0], i+1, stored.cells, outcomePending, optionalReason(stored.reason),
+			sdk.TenantOrDefault(ctx),
 		); err != nil {
 			return err
 		}

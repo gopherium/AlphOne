@@ -94,12 +94,13 @@ func run(
 
 	auth := authkit.New(authConfig(userStore))
 	admin := authkit.NewAdmin(adminConfig(userStore))
+	tenants := postgres.NewTenantStore(pool)
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      version.Version(),
 		Contacts:     contacts,
 		Tasks:        tasks,
 		Webhooks:     webhooks,
-		Tenants:      postgres.NewTenantStore(pool),
+		Tenants:      tenants,
 		Tokens:       tokens,
 		Events:       events,
 		Live:         hub,
@@ -117,6 +118,7 @@ func run(
 	cfg := server.Config{
 		Version:           version.Version(),
 		Users:             userStore,
+		Tenants:           tenants,
 		Auth:              auth,
 		GraphRoot:         graphRoot,
 		Tokens:            tokens,
