@@ -173,6 +173,56 @@ func TestSendMessageDeliversReply(t *testing.T) {
 	}
 }
 
+func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool := newSendingHarness(t, map[string]string{
+		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
+	})
+	acme := seedTenant(t, pool)
+	mine := sdk.WithTenant(t.Context(), acme)
+	if err := p.SetCredentials(mine, "555000333", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	}
+	body := numberedEventBody("555000333", "wamid.acme")
+	if recorder := postEvent(t, p.Routes(), sign("app-secret", body), body); recorder.Code != http.StatusOK {
+		t.Fatalf("ingest status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if _, err := p.MutationResolvers().WhatsAppSendMessage(mine, onlyConversationID(t, pool), "Ready at 5pm"); err != nil {
+		t.Fatalf("WhatsAppSendMessage() error = %v, want nil", err)
+	}
+
+	if stub.lastPath != "/555000333/messages" {
+		t.Errorf("graph path = %q, want the tenant's number %q", stub.lastPath, "/555000333/messages")
+	}
+	if stub.lastAuth != "Bearer EAAG-acme-token" {
+		t.Errorf("graph authorization = %q, want the tenant's token", stub.lastAuth)
+	}
+}
+
+func TestSendMessageRefusesATenantWithoutCredentials(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool := newSendingHarness(t, map[string]string{
+		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
+	})
+	acme := seedTenant(t, pool)
+	seedOutboundRow(t, pool, "wamid.bare", acme)
+
+	_, err := p.MutationResolvers().WhatsAppSendMessage(
+		sdk.WithTenant(t.Context(), acme), onlyConversationID(t, pool), "hey",
+	)
+
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) || refused.Reason != "credentials_missing" {
+		t.Errorf("error = %v, want the missing credentials named as a reason", err)
+	}
+	if stub.lastAuth != "" {
+		t.Errorf("graph authorization = %q, want no call without credentials", stub.lastAuth)
+	}
+}
+
 func TestSendMessageAdvancesConversationActivity(t *testing.T) {
 	t.Parallel()
 

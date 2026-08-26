@@ -11,7 +11,7 @@ import (
 )
 
 // whatsappScopedTables lists every plugin table that carries the tenant boundary.
-var whatsappScopedTables = []string{"conversations", "messages", "media"}
+var whatsappScopedTables = []string{"conversations", "messages", "media", "credentials"}
 
 // seededConversation stores one contact and one conversation under the given tenant.
 func seededConversation(t *testing.T, p *Plugin, externalID string, standing uuid.UUID) uuid.UUID {

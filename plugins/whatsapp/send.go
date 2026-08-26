@@ -22,10 +22,8 @@ import (
 const defaultGraphURL = "https://graph.facebook.com/v23.0"
 
 type sender struct {
-	client        *http.Client
-	baseURL       string
-	accessToken   string
-	phoneNumberID string
+	client  *http.Client
+	baseURL string
 }
 
 type sendTextRequest struct {
@@ -50,8 +48,8 @@ func (e graphError) Error() string {
 	return fmt.Sprintf("graph error %d: %s", e.Code, e.Message)
 }
 
-// sendText posts a WhatsApp text message to the Cloud API and returns the resulting message id and raw response.
-func (s *sender) sendText(ctx context.Context, to, body string) (string, json.RawMessage, error) {
+// sendText posts a WhatsApp text message to the Cloud API as creds, returning the message id and raw response.
+func (s *sender) sendText(ctx context.Context, creds credentials, to, body string) (string, json.RawMessage, error) {
 	payload, _ := json.Marshal(sendTextRequest{
 		MessagingProduct: "whatsapp",
 		To:               to,
@@ -61,13 +59,13 @@ func (s *sender) sendText(ctx context.Context, to, body string) (string, json.Ra
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		s.baseURL+"/"+s.phoneNumberID+"/messages",
+		s.baseURL+"/"+creds.phoneNumberID+"/messages",
 		bytes.NewReader(payload),
 	)
 	if err != nil {
 		return "", nil, fmt.Errorf("whatsapp: build send request: %w", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+s.accessToken)
+	request.Header.Set("Authorization", "Bearer "+creds.accessToken)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := s.client.Do(request)
 	if err != nil {
@@ -137,7 +135,11 @@ func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, cont
 	if err != nil {
 		return messageRow{}, err
 	}
-	externalID, raw, err := p.sender.sendText(ctx, to, trimmed)
+	creds, err := p.credentialsFor(ctx)
+	if err != nil {
+		return messageRow{}, sdk.GraphError{Code: "VALIDATION", Reason: "credentials_missing", Err: err}
+	}
+	externalID, raw, err := p.sender.sendText(ctx, creds, to, trimmed)
 	if err != nil {
 		return messageRow{}, upstreamError(err)
 	}

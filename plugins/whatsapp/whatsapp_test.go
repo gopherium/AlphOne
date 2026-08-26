@@ -80,6 +80,24 @@ func newPlugin(t *testing.T, databaseURL string, resolver sdk.ContactResolver, e
 	return p
 }
 
+func TestRegisterRejectsAMalformedCredentialsKey(t *testing.T) {
+	t.Parallel()
+
+	p, err := whatsapp.Register(sdk.Deps{Getenv: func(key string) string {
+		if key == "ALPHONE_WHATSAPP_CREDENTIALS_KEY" {
+			return "not-hex"
+		}
+		return ""
+	}})
+
+	if err == nil {
+		t.Fatal("Register() error = nil, want the key refused")
+	}
+	if p != nil {
+		t.Errorf("Register() plugin = %v, want nil on failure", p)
+	}
+}
+
 func TestRegisterRejectsMalformedDatabaseURL(t *testing.T) {
 	t.Parallel()
 

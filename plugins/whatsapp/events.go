@@ -21,14 +21,15 @@ import (
 )
 
 type inboundMessage struct {
-	externalID  string
-	sender      string
-	senderName  string
-	content     string
-	contentType string
-	media       *mediaDescriptor
-	sentAt      time.Time
-	raw         json.RawMessage
+	externalID    string
+	sender        string
+	senderName    string
+	content       string
+	contentType   string
+	media         *mediaDescriptor
+	sentAt        time.Time
+	raw           json.RawMessage
+	phoneNumberID string
 }
 
 type webhookPayload struct {
@@ -39,10 +40,16 @@ type webhookPayload struct {
 
 type webhookChange struct {
 	Value struct {
+		Metadata webhookMetadata   `json:"metadata"`
 		Contacts []webhookSender   `json:"contacts"`
 		Messages []json.RawMessage `json:"messages"`
 		Statuses []json.RawMessage `json:"statuses"`
 	} `json:"value"`
+}
+
+// webhookMetadata names the business number a change arrived on.
+type webhookMetadata struct {
+	PhoneNumberID string `json:"phone_number_id"`
 }
 
 type webhookSender struct {
@@ -53,9 +60,10 @@ type webhookSender struct {
 }
 
 type statusUpdate struct {
-	wamid  string
-	status string
-	detail string
+	wamid         string
+	status        string
+	detail        string
+	phoneNumberID string
 }
 
 type webhookStatus struct {
@@ -143,15 +151,30 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 	}
 }
 
-// ingestBatch stores the messages and applies the status updates of one batch.
+// ingestBatch stores the messages and applies the status updates of one batch,
+// each inside the tenant owning the number it arrived on.
 func (p *Plugin) ingestBatch(ctx context.Context, batch webhookBatch) error {
 	for _, m := range batch.messages {
-		if err := p.ingest(ctx, m); err != nil {
+		routed, known, err := p.routeByNumber(ctx, m.phoneNumberID)
+		if err != nil {
+			return err
+		}
+		if !known {
+			continue
+		}
+		if err := p.ingest(routed, m); err != nil {
 			return err
 		}
 	}
 	for _, u := range batch.statuses {
-		if err := p.applyStatus(ctx, u); err != nil {
+		routed, known, err := p.routeByNumber(ctx, u.phoneNumberID)
+		if err != nil {
+			return err
+		}
+		if !known {
+			continue
+		}
+		if err := p.applyStatus(routed, u); err != nil {
 			return err
 		}
 	}
@@ -186,16 +209,19 @@ func parseWebhook(body []byte) (webhookBatch, error) {
 	return batch, nil
 }
 
-// collect appends the attributable messages and status updates in change.
+// collect appends the attributable messages and status updates in change,
+// each stamped with the number it arrived on.
 func (b *webhookBatch) collect(change webhookChange) {
 	names := senderNames(change.Value.Contacts)
 	for _, raw := range change.Value.Messages {
 		if m, ok := parseMessage(names, raw); ok {
+			m.phoneNumberID = change.Value.Metadata.PhoneNumberID
 			b.messages = append(b.messages, m)
 		}
 	}
 	for _, raw := range change.Value.Statuses {
 		if u, ok := parseStatus(raw); ok {
+			u.phoneNumberID = change.Value.Metadata.PhoneNumberID
 			b.statuses = append(b.statuses, u)
 		}
 	}

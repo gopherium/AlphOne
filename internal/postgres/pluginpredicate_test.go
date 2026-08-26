@@ -32,12 +32,17 @@ var pluginStores = []struct {
 	{
 		source: filepath.Join("..", "..", "plugins", "whatsapp", "store.go"),
 		schema: "plugin_whatsapp",
-		tables: []string{"conversations", "messages", "media"},
+		tables: []string{"conversations", "messages", "media", "credentials"},
 	},
 	{
 		source: filepath.Join("..", "..", "plugins", "whatsapp", "media.go"),
 		schema: "plugin_whatsapp",
-		tables: []string{"conversations", "messages", "media"},
+		tables: []string{"conversations", "messages", "media", "credentials"},
+	},
+	{
+		source: filepath.Join("..", "..", "plugins", "whatsapp", "credentials.go"),
+		schema: "plugin_whatsapp",
+		tables: []string{"conversations", "messages", "media", "credentials"},
 	},
 }
 
