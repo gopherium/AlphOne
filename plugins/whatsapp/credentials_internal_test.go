@@ -208,6 +208,76 @@ func newSealingPlugin(t *testing.T) *Plugin {
 	return p
 }
 
+func TestThePluginNamesItsChannel(t *testing.T) {
+	t.Parallel()
+
+	if held := (&Plugin{}).Channel(); held != "whatsapp" {
+		t.Errorf("Channel() = %q, want whatsapp", held)
+	}
+}
+
+func TestChannelCredentialsRoundTripThroughTheSeam(t *testing.T) {
+	t.Parallel()
+
+	p := newSealingPlugin(t)
+	acme := seededTenant(t, p, "Acme")
+	mine := sdk.WithTenant(t.Context(), acme)
+
+	if err := p.SetChannelCredentials(mine, "5550001", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetChannelCredentials() error = %v, want nil", err)
+	}
+
+	identifier, configured, err := p.ChannelIdentifier(mine)
+	if err != nil {
+		t.Fatalf("ChannelIdentifier() error = %v, want nil", err)
+	}
+	if !configured || identifier != "5550001" {
+		t.Errorf("ChannelIdentifier() = (%q, %t), want the stored number reported", identifier, configured)
+	}
+}
+
+func TestChannelIdentifierAnswersNothingWhenUnconfigured(t *testing.T) {
+	t.Parallel()
+
+	p := newSealingPlugin(t)
+	bare := sdk.WithTenant(t.Context(), seededTenant(t, p, "Globex"))
+
+	identifier, configured, err := p.ChannelIdentifier(bare)
+
+	if err != nil {
+		t.Fatalf("ChannelIdentifier() error = %v, want nil", err)
+	}
+	if configured || identifier != "" {
+		t.Errorf("ChannelIdentifier() = (%q, %t), want nothing configured", identifier, configured)
+	}
+}
+
+func TestChannelIdentifierAnswersTheEnvSeed(t *testing.T) {
+	t.Parallel()
+
+	p := newSealingPlugin(t)
+	p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
+
+	identifier, configured, err := p.ChannelIdentifier(t.Context())
+
+	if err != nil {
+		t.Fatalf("ChannelIdentifier() error = %v, want nil", err)
+	}
+	if !configured || identifier != "5550009" {
+		t.Errorf("ChannelIdentifier() = (%q, %t), want the env number reported", identifier, configured)
+	}
+}
+
+func TestChannelIdentifierReportsAStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	p := &Plugin{store: &store{pool: newUnreachablePool(t)}, key: testCredentialsKey(t)}
+
+	if _, _, err := p.ChannelIdentifier(t.Context()); err == nil {
+		t.Error("ChannelIdentifier() error = nil, want the connection failure surfaced")
+	}
+}
+
 func TestCredentialsRoundTripSealedInsideTheirTenant(t *testing.T) {
 	t.Parallel()
 

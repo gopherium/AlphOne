@@ -86,6 +86,7 @@ func run(
 		return fmt.Errorf("declare plugin roles: %w", err)
 	}
 	wireFieldProviders(registered)
+	wireCredentialProviders(registered)
 
 	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
@@ -226,6 +227,21 @@ func wireFieldProviders(registered []sdk.Plugin) {
 	for _, plugin := range registered {
 		if consumer, ok := plugin.(sdk.FieldConsumer); ok {
 			consumer.UseFieldProviders(providers)
+		}
+	}
+}
+
+// wireCredentialProviders hands every registered credential provider to every consumer.
+func wireCredentialProviders(registered []sdk.Plugin) {
+	var providers []sdk.CredentialProvider
+	for _, plugin := range registered {
+		if provider, ok := plugin.(sdk.CredentialProvider); ok {
+			providers = append(providers, provider)
+		}
+	}
+	for _, plugin := range registered {
+		if consumer, ok := plugin.(sdk.CredentialConsumer); ok {
+			consumer.UseCredentialProviders(providers)
 		}
 	}
 }

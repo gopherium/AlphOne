@@ -179,6 +179,31 @@ func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (conte
 	return ctx, false, nil
 }
 
+// The plugin serves its credentials to the host through the sdk seam.
+var _ sdk.CredentialProvider = (*Plugin)(nil)
+
+// Channel names the channel the plugin's credentials send on.
+func (p *Plugin) Channel() sdk.Channel {
+	return "whatsapp"
+}
+
+// SetChannelCredentials stores the calling tenant's number and token, sealed at rest.
+func (p *Plugin) SetChannelCredentials(ctx context.Context, identifier, secret string) error {
+	return p.SetCredentials(ctx, identifier, secret)
+}
+
+// ChannelIdentifier answers the calling tenant's configured number and whether one is set.
+func (p *Plugin) ChannelIdentifier(ctx context.Context) (string, bool, error) {
+	creds, err := p.credentialsFor(ctx)
+	if errors.Is(err, errNoCredentials) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return creds.phoneNumberID, true, nil
+}
+
 // credentialsFor answers the calling tenant's credentials, the env seed for the default tenant.
 func (p *Plugin) credentialsFor(ctx context.Context) (credentials, error) {
 	phoneNumberID, sealed, err := p.store.sealedCredentials(ctx)
