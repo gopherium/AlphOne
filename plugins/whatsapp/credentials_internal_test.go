@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -264,6 +266,36 @@ func TestTheDefaultTenantAnswersTheEnvSeed(t *testing.T) {
 	}
 	if held != p.envCredentials {
 		t.Errorf("credentialsFor() = %+v, want the env seed", held)
+	}
+}
+
+func TestRoutingNamesTheTenantRatherThanInheritingIt(t *testing.T) {
+	t.Parallel()
+
+	p := newSealingPlugin(t)
+	p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
+	ambient := sdk.WithTenant(t.Context(), uuid.Must(uuid.NewV7()))
+
+	tests := map[string]string{
+		"an arrival naming no number":      "",
+		"an arrival naming the env number": "5550009",
+	}
+	for testName, arriving := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			routed, known, err := p.routeByNumber(ambient, arriving)
+
+			if err != nil {
+				t.Fatalf("routeByNumber() error = %v, want nil", err)
+			}
+			if !known {
+				t.Fatal("routeByNumber() dropped the arrival, want the configured number to own it")
+			}
+			if held := sdk.TenantOrDefault(routed); held != sdk.DefaultTenantID {
+				t.Errorf("routed tenant = %s, want the default tenant rather than the ambient one", held)
+			}
+		})
 	}
 }
 

@@ -161,7 +161,10 @@ func (p *Plugin) SetCredentials(ctx context.Context, phoneNumberID, accessToken 
 // routeByNumber answers the context serving the number's tenant and whether any tenant owns it.
 func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
 	if phoneNumberID == "" {
-		return ctx, p.envCredentials.phoneNumberID != "", nil
+		if p.envCredentials.phoneNumberID == "" {
+			return ctx, false, nil
+		}
+		return sdk.WithTenant(ctx, sdk.DefaultTenantID), true, nil
 	}
 	tenantID, err := p.store.tenantForPhoneNumber(ctx, phoneNumberID)
 	if err == nil {
@@ -171,7 +174,7 @@ func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (conte
 		return ctx, false, fmt.Errorf("whatsapp: route number: %w", err)
 	}
 	if phoneNumberID == p.envCredentials.phoneNumberID {
-		return ctx, true, nil
+		return sdk.WithTenant(ctx, sdk.DefaultTenantID), true, nil
 	}
 	return ctx, false, nil
 }
