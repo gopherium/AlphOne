@@ -976,8 +976,27 @@ func (q *Queries) SettleWebhookDelivery(ctx context.Context, arg SettleWebhookDe
 	return err
 }
 
+const tenantByID = `-- name: TenantByID :one
+SELECT id, name, deactivated_at
+FROM core.tenants
+WHERE id = $1::uuid
+`
+
+type TenantByIDRow struct {
+	ID            uuid.UUID
+	Name          string
+	DeactivatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) TenantByID(ctx context.Context, id uuid.UUID) (TenantByIDRow, error) {
+	row := q.db.QueryRow(ctx, tenantByID, id)
+	var i TenantByIDRow
+	err := row.Scan(&i.ID, &i.Name, &i.DeactivatedAt)
+	return i, err
+}
+
 const tenantForUser = `-- name: TenantForUser :one
-SELECT t.id, t.name, (t.deactivated_at IS NOT NULL)::boolean AS deactivated
+SELECT t.id, t.name, t.deactivated_at
 FROM core.tenants t
 LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = $1::uuid
 WHERE m.user_id IS NOT NULL OR t.id = $2::uuid
@@ -991,15 +1010,15 @@ type TenantForUserParams struct {
 }
 
 type TenantForUserRow struct {
-	ID          uuid.UUID
-	Name        string
-	Deactivated bool
+	ID            uuid.UUID
+	Name          string
+	DeactivatedAt pgtype.Timestamptz
 }
 
 func (q *Queries) TenantForUser(ctx context.Context, arg TenantForUserParams) (TenantForUserRow, error) {
 	row := q.db.QueryRow(ctx, tenantForUser, arg.UserID, arg.DefaultID)
 	var i TenantForUserRow
-	err := row.Scan(&i.ID, &i.Name, &i.Deactivated)
+	err := row.Scan(&i.ID, &i.Name, &i.DeactivatedAt)
 	return i, err
 }
 
