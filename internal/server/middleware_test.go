@@ -32,6 +32,14 @@ func (s standingTenantStore) TenantForUser(_ context.Context, userID uuid.UUID) 
 	return tenant.Tenant{ID: held, Name: "Standing"}, nil
 }
 
+// deactivatedTenantStore places every user in one deactivated tenant.
+type deactivatedTenantStore struct{}
+
+// TenantForUser answers a deactivated tenant for every user.
+func (deactivatedTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tenant, error) {
+	return tenant.Tenant{ID: uuid.Must(uuid.NewV7()), Name: "Acme", Deactivated: true}, nil
+}
+
 // failingTenantStore refuses every lookup.
 type failingTenantStore struct{}
 
@@ -126,6 +134,78 @@ func TestMiddlewareHandsThePluginTheActingTenant(t *testing.T) {
 	}
 	if seen != acme {
 		t.Errorf("tenant = %v, want the standing tenant %v", seen, acme)
+	}
+}
+
+// deactivatedServer returns a server whose every caller stands in a deactivated tenant.
+func deactivatedServer(t *testing.T) http.Handler {
+	t.Helper()
+	users := newFakeUserStore()
+	addAda(t, users)
+	return newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(),
+		Users:    users,
+		Tenants:  deactivatedTenantStore{},
+		Plugins:  map[string]http.Handler{"echo": echoHandler()},
+	})
+}
+
+func TestAPluginWriteFromADeactivatedTenantIsRefused(t *testing.T) {
+	t.Parallel()
+
+	handler := deactivatedServer(t)
+	cookie := loginCookie(t, handler)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/plugins/echo/anything", nil)
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want %d for a write from a deactivated tenant", recorder.Code, http.StatusForbidden)
+	}
+}
+
+func TestAPluginReadFromADeactivatedTenantStillAnswers(t *testing.T) {
+	t.Parallel()
+
+	handler := deactivatedServer(t)
+	cookie := loginCookie(t, handler)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/plugins/echo/anything", nil)
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d, reads keep working while the data is kept", recorder.Code, http.StatusOK)
+	}
+}
+
+func TestAGraphWriteFromADeactivatedTenantIsRefused(t *testing.T) {
+	t.Parallel()
+
+	handler := deactivatedServer(t)
+	cookie := loginCookie(t, handler)
+
+	recorder := postGraphQL(t, handler,
+		`{"query":"mutation { createContact(name: \"Maria Perez\") { id } }"}`, cookie)
+
+	if !strings.Contains(recorder.Body.String(), "tenant_deactivated") {
+		t.Errorf("body = %s, want the write refused with tenant_deactivated", recorder.Body.String())
+	}
+}
+
+func TestAGraphReadFromADeactivatedTenantStillAnswers(t *testing.T) {
+	t.Parallel()
+
+	handler := deactivatedServer(t)
+	cookie := loginCookie(t, handler)
+
+	recorder := postGraphQL(t, handler, versionQuery, cookie)
+
+	if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), "tenant_deactivated") {
+		t.Errorf("answer = %d %s, want the read to keep working", recorder.Code, recorder.Body.String())
 	}
 }
 
