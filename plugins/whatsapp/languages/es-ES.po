@@ -29,6 +29,10 @@ msgid "Audio message"
 msgstr "Mensaje de audio"
 
 #, fuzzy
+msgid "Connect a WhatsApp number before sending."
+msgstr "Conecta un número de WhatsApp antes de enviar."
+
+#, fuzzy
 msgid "Conversations"
 msgstr "Conversaciones"
 
