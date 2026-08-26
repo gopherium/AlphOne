@@ -585,6 +585,10 @@ msgstr "No se ha podido crear el usuario."
 msgid "This token does not reach %(scope)s."
 msgstr "Este token no alcanza %(scope)s."
 
+#, fuzzy
+msgid "This workspace has been deactivated. Contact your operator."
+msgstr "Este espacio de trabajo ha sido desactivado. Contacta con tu operador."
+
 msgid "Title"
 msgstr "Título"
 

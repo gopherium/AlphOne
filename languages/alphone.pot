@@ -472,6 +472,9 @@ msgstr ""
 msgid "This token does not reach %(scope)s."
 msgstr ""
 
+msgid "This workspace has been deactivated. Contact your operator."
+msgstr ""
+
 msgid "Title"
 msgstr ""
 
