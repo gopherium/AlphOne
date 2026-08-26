@@ -7,6 +7,7 @@ import { afterEach, expect, test } from 'vitest'
 
 import { fetchLocale } from '../i18n/api'
 import { DOMAIN, declaredEntries, localeEntries, startAppLocale } from '../i18n/start'
+import { plugins } from '../plugins'
 import { appErrorTemplates, declaredTemplates } from '../i18n/errors'
 
 afterEach(() => {
@@ -60,16 +61,24 @@ test('names the domain AlphOne strings answer under', () => {
 	expect(DOMAIN).toBe('alphone')
 })
 
-test('loads one entry per domain beside the react-auth pair', () => {
+test('reads its own domain first and the react-auth pair last', () => {
 	const domains = localeEntries().map((entry) => entry.domain)
 
-	expect(domains).toEqual([
-		'alphone',
-		'alphone-fields',
-		'alphone-importer',
-		'alphone-whatsapp',
-		'gopherium-react-auth',
-	])
+	expect(domains[0]).toBe(DOMAIN)
+	expect(domains.at(-1)).toBe('gopherium-react-auth')
+})
+
+test('reads every domain a compiled-in plugin declares, in registration order', () => {
+	const domains = localeEntries().map((entry) => entry.domain)
+
+	expect(domains.slice(1, -1)).toEqual(declaredEntries(plugins).map((entry) => entry.domain))
+	expect(domains).toEqual(expect.arrayContaining(['alphone-fields', 'alphone-importer', 'alphone-whatsapp']))
+})
+
+test('reads each domain once, so no catalogue overwrites another', () => {
+	const domains = localeEntries().map((entry) => entry.domain)
+
+	expect(new Set(domains).size).toBe(domains.length)
 })
 
 test('skips a plugin declaring no domain of its own', () => {
