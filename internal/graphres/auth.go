@@ -15,7 +15,11 @@ import (
 
 	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
+
+// errTenantDeactivated refuses a member of a deactivated tenant.
+var errTenantDeactivated = errors.New("graphres: tenant deactivated")
 
 // rateLimitedError reports a login blocked by the attempt limiter.
 type rateLimitedError struct {
@@ -126,6 +130,9 @@ func (m MutationResolvers) Login(ctx context.Context, email, password string) (*
 	if err != nil {
 		return nil, err
 	}
+	if err := m.refuseDeactivatedTenant(ctx, identity.ID); err != nil {
+		return nil, err
+	}
 	cookie, err := m.root.Auth.StartSession(ctx, identity.ID)
 	if err != nil {
 		return nil, err
@@ -134,6 +141,21 @@ func (m MutationResolvers) Login(ctx context.Context, email, password string) (*
 		return nil, err
 	}
 	return &model.LoginPayload{Me: toAuthIdentity(identity, role.Role(identity.Role))}, nil
+}
+
+// refuseDeactivatedTenant refuses a caller whose standing tenant is deactivated.
+func (m MutationResolvers) refuseDeactivatedTenant(ctx context.Context, userID uuid.UUID) error {
+	if m.root.Tenants == nil {
+		return nil
+	}
+	standing, err := m.root.Tenants.TenantForUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if standing.Deactivated {
+		return sdk.GraphError{Code: "UNAUTHENTICATED", Reason: "tenant_deactivated", Err: errTenantDeactivated}
+	}
+	return nil
 }
 
 // Logout ends the calling session and clears its cookie.

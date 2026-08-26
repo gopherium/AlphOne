@@ -84,6 +84,48 @@ func errorOf(t *testing.T, answered *graphql.Response) string {
 	return answered.Errors[0].Message
 }
 
+func TestScopeGateRefusesAWriteFromADeactivatedTenant(t *testing.T) {
+	t.Parallel()
+
+	ctx := graphres.WithDeactivatedTenant(standingAs(t.Context(), role.Member))
+
+	answered := gatedWith(t, `mutation { createContact }`, ctx)
+
+	if got, want := errorOf(t, answered), "tenant deactivated"; got != want {
+		t.Errorf("error = %q, want %q", got, want)
+	}
+	if got := answered.Errors[0].Extensions["code"]; got != "UNAUTHORIZED" {
+		t.Errorf("code = %v, want UNAUTHORIZED", got)
+	}
+	if got := answered.Errors[0].Extensions["reason"]; got != "tenant_deactivated" {
+		t.Errorf("reason = %v, want tenant_deactivated", got)
+	}
+}
+
+func TestScopeGateLetsADeactivatedMemberLogOut(t *testing.T) {
+	t.Parallel()
+
+	ctx := graphres.WithDeactivatedTenant(standingAs(t.Context(), role.Member))
+
+	answered := gatedWith(t, `mutation { logout }`, ctx)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want the session still able to end itself", answered.Errors)
+	}
+}
+
+func TestScopeGateAllowsAReadFromADeactivatedTenant(t *testing.T) {
+	t.Parallel()
+
+	ctx := graphres.WithDeactivatedTenant(standingAs(t.Context(), role.Member))
+
+	answered := gatedWith(t, `{ contacts }`, ctx)
+
+	if len(answered.Errors) != 0 {
+		t.Errorf("errors = %v, want a read to keep working while the data is kept", answered.Errors)
+	}
+}
+
 func TestScopeGateHoldsASessionToNoScopeAtAll(t *testing.T) {
 	t.Parallel()
 
