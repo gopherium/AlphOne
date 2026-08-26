@@ -158,8 +158,26 @@ func (p *Plugin) SetCredentials(ctx context.Context, phoneNumberID, accessToken 
 	return p.store.upsertCredentials(ctx, phoneNumberID, sealed)
 }
 
+// UseTenantGate receives the host's tenant gate.
+func (p *Plugin) UseTenantGate(gate sdk.TenantGate) {
+	p.gate = gate
+}
+
 // routeByNumber answers the context serving the number's tenant and whether any tenant owns it.
 func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
+	routed, owned, err := p.numberTenant(ctx, phoneNumberID)
+	if err != nil || !owned {
+		return ctx, false, err
+	}
+	recording, err := p.recordsTraffic(routed, sdk.TenantOrDefault(routed))
+	if err != nil || !recording {
+		return ctx, false, err
+	}
+	return routed, true, nil
+}
+
+// numberTenant answers the context serving the number's tenant and whether any tenant owns it.
+func (p *Plugin) numberTenant(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
 	if phoneNumberID == "" {
 		if p.envCredentials.phoneNumberID == "" {
 			return ctx, false, nil
@@ -179,7 +197,14 @@ func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (conte
 	return ctx, false, nil
 }
 
-// The plugin serves its credentials to the host through the sdk seam.
+// recordsTraffic reports whether the tenant still records what a channel delivers.
+func (p *Plugin) recordsTraffic(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	if p.gate == nil {
+		return true, nil
+	}
+	return p.gate.AcceptsMachineTraffic(ctx, tenantID)
+}
+
 var _ sdk.CredentialProvider = (*Plugin)(nil)
 
 // Channel names the channel the plugin's credentials send on.
