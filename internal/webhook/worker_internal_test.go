@@ -29,7 +29,7 @@ func (q *countingQueue) ClaimDueDeliveries(_ context.Context, _, _ time.Time, _ 
 	return nil, nil
 }
 
-// SettleDelivery returns the configured settle failure.
+// SettleDelivery returns the configured settlement error.
 func (q *countingQueue) SettleDelivery(_ context.Context, _ uuid.UUID, _ string, _ time.Time, _ string) error {
 	return q.settleErr
 }
