@@ -12,12 +12,12 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// inTenant returns a context serving one seeded tenant.
-func inTenant(t *testing.T, p *Plugin, name string) context.Context {
+// inTenant returns a context serving one seeded tenant named Acme.
+func inTenant(t *testing.T, p *Plugin) context.Context {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
 	if _, err := p.pool.Exec(t.Context(),
-		"INSERT INTO core.tenants (id, name) VALUES ($1, $2)", id, name); err != nil {
+		"INSERT INTO core.tenants (id, name) VALUES ($1, 'Acme')", id); err != nil {
 		t.Fatalf("seeding the tenant: %v", err)
 	}
 	return sdk.WithTenant(t.Context(), id)
@@ -38,7 +38,7 @@ func TestADefinitionListingStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	acme := inTenant(t, p, "Acme")
+	acme := inTenant(t, p)
 	definedField(t, p, acme, "birthday")
 	definedField(t, p, t.Context(), "shoeSize")
 
@@ -56,7 +56,7 @@ func TestArchivingStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	acme := inTenant(t, p, "Acme")
+	acme := inTenant(t, p)
 	held := Definition{
 		ID: uuid.Must(uuid.NewV7()), Name: "birthday", Label: "Birthday",
 		Kind: "TEXT", CreatedAt: time.Now(),
@@ -70,11 +70,39 @@ func TestArchivingStaysInsideItsTenant(t *testing.T) {
 	}
 }
 
+func TestAValueBagIsNotWrittenFromAnotherTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	contactID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(),
+		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, now())",
+		contactID, "Maria Perez"); err != nil {
+		t.Fatalf("seeding the contact: %v", err)
+	}
+	if err := p.store.writeValues(acme, contactID, map[string]any{"birthday": "1990-01-01"}); err != nil {
+		t.Fatalf("writeValues() in Acme error = %v, want nil", err)
+	}
+
+	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthday": "2000-12-31"}); err != nil {
+		t.Fatalf("writeValues() elsewhere error = %v, want its own bag admitted", err)
+	}
+
+	held, err := p.store.valuesFor(acme, []uuid.UUID{contactID})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	if held[contactID]["birthday"] != "1990-01-01" {
+		t.Errorf("the Acme bag = %+v, want it untouched by the other tenant", held[contactID])
+	}
+}
+
 func TestAValueBagStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	acme := inTenant(t, p, "Acme")
+	acme := inTenant(t, p)
 	contactID := uuid.Must(uuid.NewV7())
 	if _, err := p.pool.Exec(t.Context(),
 		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, now())",

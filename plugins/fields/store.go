@@ -93,7 +93,7 @@ func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
 func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map[string]any) error {
 	const statement = `INSERT INTO plugin_fields.contact_values (contact_id, values, tenant_id)
 		VALUES ($1, jsonb_strip_nulls($2::jsonb), $3)
-		ON CONFLICT (contact_id) DO UPDATE
+		ON CONFLICT (tenant_id, contact_id) DO UPDATE
 		SET values = jsonb_strip_nulls(plugin_fields.contact_values.values || $2::jsonb)`
 	if _, err := s.pool.Exec(ctx, statement, contactID, values, sdk.TenantOrDefault(ctx)); err != nil {
 		return fmt.Errorf("fields: write contact values: %w", err)
