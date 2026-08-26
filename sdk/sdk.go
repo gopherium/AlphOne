@@ -128,6 +128,17 @@ type CredentialConsumer interface {
 	UseCredentialProviders(providers []CredentialProvider)
 }
 
+// TenantGate reports what a tenant still accepts while its workspace is closed.
+type TenantGate interface {
+	// AcceptsMachineTraffic reports whether a tenant still records what a channel delivers.
+	AcceptsMachineTraffic(ctx context.Context, tenantID uuid.UUID) (bool, error)
+}
+
+// TenantGateConsumer receives the host's tenant gate.
+type TenantGateConsumer interface {
+	UseTenantGate(gate TenantGate)
+}
+
 // Channel names a communication medium, such as "whatsapp" or "email".
 type Channel string
 

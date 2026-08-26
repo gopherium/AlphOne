@@ -6,6 +6,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -46,6 +50,70 @@ type credentialTakingPlugin struct {
 // UseCredentialProviders keeps the handed providers.
 func (p *credentialTakingPlugin) UseCredentialProviders(providers []sdk.CredentialProvider) {
 	p.received = providers
+}
+
+// gateTakingPlugin records the tenant gate the host hands it.
+type gateTakingPlugin struct {
+	inertPlugin
+	received sdk.TenantGate
+}
+
+// UseTenantGate keeps the handed gate.
+func (p *gateTakingPlugin) UseTenantGate(gate sdk.TenantGate) {
+	p.received = gate
+}
+
+func TestWiringHandsTheTenantGateToEveryConsumer(t *testing.T) {
+	t.Parallel()
+
+	taking := &gateTakingPlugin{inertPlugin: inertPlugin{id: "whatsapp"}}
+
+	wireTenantGate([]sdk.Plugin{taking, inertPlugin{id: "bystander"}}, tenantGateBridge{})
+
+	if taking.received == nil {
+		t.Error("the plugin received no tenant gate, want the host's gate")
+	}
+}
+
+func TestTheTenantGateAnswersFromTheStore(t *testing.T) {
+	t.Parallel()
+
+	pool := testPool(t, testDatabaseURL(t))
+	gate := tenantGateBridge{tenants: postgres.NewTenantStore(pool)}
+	closed := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name, deactivated_at) VALUES ($1, $2, now() - interval '20 days')",
+		closed, "Acme"); err != nil {
+		t.Fatalf("seeding the closed tenant: %v", err)
+	}
+
+	live, err := gate.AcceptsMachineTraffic(t.Context(), tenant.DefaultID)
+	if err != nil {
+		t.Fatalf("AcceptsMachineTraffic() error = %v, want nil", err)
+	}
+	if !live {
+		t.Error("the default tenant refuses machine traffic, want it accepted")
+	}
+
+	past, err := gate.AcceptsMachineTraffic(t.Context(), closed)
+	if err != nil {
+		t.Fatalf("AcceptsMachineTraffic() error = %v, want nil", err)
+	}
+	if past {
+		t.Error("a tenant closed twenty days ago accepts machine traffic, want it refused")
+	}
+}
+
+func TestTheTenantGateReportsAStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := testPool(t, testDatabaseURL(t))
+	gate := tenantGateBridge{tenants: postgres.NewTenantStore(pool)}
+	pool.Close()
+
+	if _, err := gate.AcceptsMachineTraffic(t.Context(), tenant.DefaultID); err == nil {
+		t.Error("AcceptsMachineTraffic() error = nil, want the closed pool reported")
+	}
 }
 
 func TestWiringHandsEveryCredentialProviderToEveryConsumer(t *testing.T) {

@@ -6,8 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -27,6 +31,20 @@ func markInvalid(err error) error {
 		}
 	}
 	return err
+}
+
+type tenantGateBridge struct {
+	tenants *postgres.TenantStore
+	grace   time.Duration
+}
+
+// AcceptsMachineTraffic reports whether the tenant still records what a channel delivers.
+func (b tenantGateBridge) AcceptsMachineTraffic(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	held, err := b.tenants.TenantByID(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+	return held.AcceptsMachineTraffic(time.Now(), b.grace), nil
 }
 
 type resolverBridge struct {
