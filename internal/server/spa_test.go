@@ -11,6 +11,7 @@ import (
 	"github.com/gopherium/alphone/internal/server"
 )
 
+// spaServer returns a server over an in memory web filesystem holding an index page and one asset.
 func spaServer(t *testing.T) http.Handler {
 	t.Helper()
 	return server.NewServer(server.Config{

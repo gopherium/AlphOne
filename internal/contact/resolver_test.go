@@ -29,6 +29,7 @@ type fakeStore struct {
 	beforeCreate func()
 }
 
+// newFakeStore returns an empty in memory contact store.
 func newFakeStore() *fakeStore {
 	return &fakeStore{
 		contacts:   map[uuid.UUID]contact.Contact{},
@@ -36,6 +37,7 @@ func newFakeStore() *fakeStore {
 	}
 }
 
+// Get returns the stored contact the id names, or the configured failure.
 func (f *fakeStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error) {
 	if f.getErr != nil {
 		return contact.Contact{}, f.getErr
@@ -47,6 +49,7 @@ func (f *fakeStore) Get(_ context.Context, id uuid.UUID) (contact.Contact, error
 	return c, nil
 }
 
+// LookupIdentity returns the stored identity for the channel and identifier, or the configured failure.
 func (f *fakeStore) LookupIdentity(
 	_ context.Context,
 	channel contact.Channel,
@@ -62,6 +65,7 @@ func (f *fakeStore) LookupIdentity(
 	return identity, nil
 }
 
+// CreateContactWithIdentity stores one contact and one identity, refusing an identifier already claimed.
 func (f *fakeStore) CreateContactWithIdentity(_ context.Context, c contact.Contact, identity contact.Identity) error {
 	if f.beforeCreate != nil {
 		f.beforeCreate()
@@ -78,6 +82,7 @@ func (f *fakeStore) CreateContactWithIdentity(_ context.Context, c contact.Conta
 	return nil
 }
 
+// CreateContactWithIdentities stores one contact and every given identity, refusing any identifier already claimed.
 func (f *fakeStore) CreateContactWithIdentities(
 	_ context.Context, c contact.Contact, identities []contact.Identity,
 ) error {
@@ -97,6 +102,7 @@ func (f *fakeStore) CreateContactWithIdentities(
 	return nil
 }
 
+// seedContact stores a named contact with one channel identity and returns it.
 func seedContact(
 	t *testing.T,
 	store *fakeStore,
@@ -311,6 +317,7 @@ type flakyReader struct {
 	allowed int
 }
 
+// Read fills the buffer for the allowed number of calls and then fails.
 func (r *flakyReader) Read(p []byte) (int, error) {
 	if r.allowed == 0 {
 		return 0, errEntropy
@@ -327,6 +334,7 @@ type recordingEvents struct {
 	data  []map[string]any
 }
 
+// Publish keeps the name and data of every published frame.
 func (r *recordingEvents) Publish(_ context.Context, frame event.Frame, data map[string]any) {
 	r.names = append(r.names, frame.Name)
 	r.data = append(r.data, data)

@@ -22,12 +22,14 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// sign returns the Meta signature header value for body under the given secret.
 func sign(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
+// eventBody returns a webhook payload carrying one inbound text message from the named contact.
 func eventBody(wamid, waID, name, timestamp, text string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
@@ -39,6 +41,7 @@ func eventBody(wamid, waID, name, timestamp, text string) []byte {
 	}`, waID, name, waID, wamid, timestamp, text)
 }
 
+// postEvent posts body to the webhook route under the given signature and returns the recorder.
 func postEvent(t *testing.T, routes http.Handler, signature string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
@@ -50,6 +53,7 @@ func postEvent(t *testing.T, routes http.Handler, signature string, body []byte)
 	return recorder
 }
 
+// newIngestingPlugin returns a migrated plugin holding a secret and a phone number, beside its pool.
 func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
 	cfg := newTestDatabase(t)
@@ -65,6 +69,7 @@ func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	return p, pool
 }
 
+// countRows returns the number of rows stored in the named table.
 func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	t.Helper()
 	var count int
@@ -210,6 +215,7 @@ func TestWebhookEventsIngestMediaMessages(t *testing.T) {
 	}
 }
 
+// statusEventBody returns a webhook payload carrying one delivery status for the given wamid.
 func statusEventBody(wamid, status string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
@@ -221,6 +227,7 @@ func statusEventBody(wamid, status string) []byte {
 	}`, wamid, status)
 }
 
+// seedOutboundRow stores one contact, conversation and outbound message for the wamid under the tenant.
 func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string, standing uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -250,6 +257,7 @@ func seedOutboundRow(t *testing.T, pool *pgxpool.Pool, wamid string, standing uu
 	}
 }
 
+// messageStatus returns the stored status of the message the wamid names.
 func messageStatus(t *testing.T, pool *pgxpool.Pool, wamid string) *string {
 	t.Helper()
 	var status *string

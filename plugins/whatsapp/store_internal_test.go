@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// seedPreviewConversation stores one conversation with a single inbound message and returns its id.
 func seedPreviewConversation(
 	t *testing.T, p *Plugin, contactID uuid.UUID, externalID, contentType, content string,
 ) uuid.UUID {

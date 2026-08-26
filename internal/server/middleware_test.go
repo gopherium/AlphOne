@@ -40,12 +40,14 @@ func (failingTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tena
 	return tenant.Tenant{}, errors.New("tenant store down")
 }
 
+// echoHandler returns a plugin handler writing a fixed body.
 func echoHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("plugin says hi"))
 	})
 }
 
+// newProtectedServer returns a server carrying the echo plugin with one public path, and its user store.
 func newProtectedServer(t *testing.T) (http.Handler, *testkit.Store) {
 	t.Helper()
 	users := newFakeUserStore()

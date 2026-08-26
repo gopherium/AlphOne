@@ -1,0 +1,32 @@
+reviews:
+  path_instructions:
+    - path: "**/*.go"
+      instructions: >-
+        The only comment this repository allows is a docblock directly above a declaration. A
+        docblock starts with the name of what it documents, and states WHAT
+        that thing does and never how or why. Do not ask for inline comments, TODO markers,
+        or section markers.
+    - path: "**/*_test.go"
+      instructions: >-
+        Test functions here deliberately carry no doc comment. Their name states what they verify
+        and every one of them follows that convention, so never ask for a doc comment on a
+        function whose name begins with Test, Benchmark or Fuzz. Helper functions and methods in
+        test files do carry a one line docblock, so a missing one there is worth reporting.
+    - path: "**/*.sql"
+      instructions: >-
+        Migrations carry no comments of any kind, so never ask for one to be added. A down
+        migration that refuses to run while data violates the constraint it restores is behaving
+        correctly, because the alternative is destroying rows to satisfy a rollback.
+    - path: "**/languages/*.po"
+      instructions: >-
+        Machine written translations are committed flagged fuzzy on purpose and they ship that way
+        in the runtime catalogues, which is a deliberate departure from gettext dropping fuzzy
+        entries at compile time. Translators clear the flag after review, so never ask for a fuzzy
+        entry to be removed, emptied or withheld from the build.
+code_generation:
+  docstrings:
+    path_instructions:
+      - path: "**/*_test.go"
+        instructions: >-
+          Never generate a docstring for a function whose name begins with Test, Benchmark or
+          Fuzz. Helpers take a single line starting with the function name.

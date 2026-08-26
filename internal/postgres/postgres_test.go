@@ -21,6 +21,7 @@ const (
 	foreignKeyViolation = "23503"
 )
 
+// newTestDB returns a migrated throwaway database, skipping the test in short mode.
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	if testing.Short() {
@@ -29,6 +30,7 @@ func newTestDB(t *testing.T) *sql.DB {
 	return pgtestdb.New(t, testdb.Config(), testdb.Migrator())
 }
 
+// mustContact returns a new contact with the given name, failing the test on any error.
 func mustContact(t *testing.T, name string) contact.Contact {
 	t.Helper()
 	c, err := contact.New(name)
@@ -38,6 +40,7 @@ func mustContact(t *testing.T, name string) contact.Contact {
 	return c
 }
 
+// mustIdentity returns a new identity for the given contact, failing the test on any error.
 func mustIdentity(t *testing.T, contactID uuid.UUID, channel contact.Channel, identifier string) contact.Identity {
 	t.Helper()
 	identity, err := contact.NewIdentity(contactID, channel, identifier, "")
@@ -47,6 +50,7 @@ func mustIdentity(t *testing.T, contactID uuid.UUID, channel contact.Channel, id
 	return identity
 }
 
+// insertContact stores the contact row, failing the test on any error.
 func insertContact(t *testing.T, db *sql.DB, c contact.Contact) {
 	t.Helper()
 	_, err := db.Exec(
@@ -58,6 +62,7 @@ func insertContact(t *testing.T, db *sql.DB, c contact.Contact) {
 	}
 }
 
+// insertIdentity stores the identity row and returns the database error.
 func insertIdentity(db *sql.DB, identity contact.Identity) error {
 	_, err := db.Exec(
 		"INSERT INTO core.contact_identities "+

@@ -119,32 +119,39 @@ var errPluginMigrate = errors.New("plugin migration exploded")
 
 type failingPlugin struct{}
 
+// ID returns the plugin's identifier.
 func (failingPlugin) ID() string {
 	return "failing"
 }
 
+// Start returns nil without starting anything.
 func (failingPlugin) Start(_ context.Context) error {
 	return nil
 }
 
+// Stop returns nil without stopping anything.
 func (failingPlugin) Stop(_ context.Context) error {
 	return nil
 }
 
+// Migrate returns the plugin migration failure.
 func (failingPlugin) Migrate(_ context.Context) error {
 	return errPluginMigrate
 }
 
+// failingPlugins returns one plugin whose migration always fails.
 func failingPlugins(_ sdk.Deps) ([]sdk.Plugin, error) {
 	return []sdk.Plugin{failingPlugin{}}, nil
 }
 
+// testGetenv returns an environment lookup answering from the given values.
 func testGetenv(values map[string]string) func(string) string {
 	return func(key string) string {
 		return values[key]
 	}
 }
 
+// newContactStore returns a contact store over a pool on a fresh test database.
 func newContactStore(t *testing.T) *postgres.ContactStore {
 	t.Helper()
 	pool, err := pgxpool.New(t.Context(), testDatabaseURL(t))
@@ -155,6 +162,7 @@ func newContactStore(t *testing.T) *postgres.ContactStore {
 	return postgres.NewContactStore(pool)
 }
 
+// testDatabaseURL returns the URL of a fresh migrated database, skipping the test in short mode.
 func testDatabaseURL(t *testing.T) string {
 	t.Helper()
 	if testing.Short() {
@@ -164,6 +172,7 @@ func testDatabaseURL(t *testing.T) string {
 	return cfg.URL()
 }
 
+// freeAddr returns a localhost address that is free to bind.
 func freeAddr(t *testing.T) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -177,6 +186,7 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
+// waitForServer waits until the server at baseURL answers the version probe.
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -465,6 +475,7 @@ func postGraphAuthed(
 	return string(answer)
 }
 
+// doAuthed sends a JSON request carrying the session cookie and returns the answer.
 func doAuthed(
 	t *testing.T,
 	ctx context.Context,

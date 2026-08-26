@@ -393,14 +393,17 @@ type failingWebhookStore struct {
 	err error
 }
 
+// CreateSubscription returns the store's error instead of writing the subscription.
 func (s failingWebhookStore) CreateSubscription(context.Context, webhook.Subscription) error {
 	return s.err
 }
 
+// ListSubscriptionsForUser returns the store's error instead of any subscription.
 func (s failingWebhookStore) ListSubscriptionsForUser(context.Context, uuid.UUID) ([]webhook.Subscription, error) {
 	return nil, s.err
 }
 
+// DeleteSubscription returns the store's error instead of deleting the subscription.
 func (s failingWebhookStore) DeleteSubscription(context.Context, uuid.UUID, uuid.UUID) error {
 	return s.err
 }

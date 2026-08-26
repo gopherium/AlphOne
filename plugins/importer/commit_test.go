@@ -33,6 +33,7 @@ type directory struct {
 	creates    int
 }
 
+// newDirectory returns an empty directory holding no contacts and no identities.
 func newDirectory() *directory {
 	return &directory{
 		contacts:   map[uuid.UUID]sdk.Contact{},
@@ -66,6 +67,7 @@ func (d *directory) seed(name, email string) sdk.Contact {
 	return owner
 }
 
+// FindByIdentity returns the contact owning the given identity.
 func (d *directory) FindByIdentity(
 	_ context.Context, channel sdk.Channel, identifier string,
 ) (sdk.Contact, bool, error) {
@@ -84,6 +86,7 @@ func (d *directory) FindByIdentity(
 	return d.contacts[ownerID], true, nil
 }
 
+// CreateWithIdentities stores a contact owning the given identities, or returns the contact already claiming one.
 func (d *directory) CreateWithIdentities(
 	_ context.Context, name string, identities []sdk.Identity,
 ) (sdk.Contact, bool, error) {
@@ -114,6 +117,7 @@ type recorder struct {
 	data  []map[string]any
 }
 
+// Publish keeps the name and data of one published event.
 func (r *recorder) Publish(_ context.Context, name string, data map[string]any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

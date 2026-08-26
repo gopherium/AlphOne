@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// seedMessage stores one contact, one open conversation and one inbound image message.
 func seedMessage(t *testing.T, p *Plugin, externalID string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -41,6 +42,7 @@ func seedMessage(t *testing.T, p *Plugin, externalID string) (uuid.UUID, uuid.UU
 	return conversationID, messageID
 }
 
+// insertPendingMedia stores one pending media row for the named message.
 func insertPendingMedia(t *testing.T, p *Plugin, messageID uuid.UUID, d mediaDescriptor) {
 	t.Helper()
 	if err := insertMediaPending(t.Context(), p.pool, messageID, d); err != nil {

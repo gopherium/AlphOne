@@ -12,6 +12,7 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 )
 
+// openTask returns one new open task due on a fixed day.
 func openTask(t *testing.T) task.Task {
 	t.Helper()
 	created, err := task.New(task.Input{

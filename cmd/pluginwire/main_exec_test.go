@@ -42,6 +42,7 @@ func writeTree(t *testing.T, root string) {
 	}
 }
 
+// coverBinary returns the coverage built pluginwire path and its environment, skipping the test when unset.
 func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")

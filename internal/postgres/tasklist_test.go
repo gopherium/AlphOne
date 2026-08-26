@@ -16,6 +16,7 @@ import (
 
 var taskDay = time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
 
+// storeTask stores one task built from the input and returns it.
 func storeTask(t *testing.T, store *postgres.TaskStore, in task.Input) task.Task {
 	t.Helper()
 	created := mustTask(t, in)
@@ -25,6 +26,7 @@ func storeTask(t *testing.T, store *postgres.TaskStore, in task.Input) task.Task
 	return created
 }
 
+// completed sets the stored status of the named task to done.
 func completed(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(),
@@ -33,6 +35,7 @@ func completed(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) {
 	}
 }
 
+// titlesOf returns the titles of the given tasks in order.
 func titlesOf(tasks []task.Task) []string {
 	titles := make([]string, len(tasks))
 	for i, listed := range tasks {

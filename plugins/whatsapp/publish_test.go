@@ -20,6 +20,7 @@ type recordingPublisher struct {
 	data      []map[string]any
 }
 
+// Publish records the event name and its data.
 func (p *recordingPublisher) Publish(_ context.Context, name string, data map[string]any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -27,6 +28,7 @@ func (p *recordingPublisher) Publish(_ context.Context, name string, data map[st
 	p.data = append(p.data, data)
 }
 
+// names returns a copy of the event names recorded so far.
 func (p *recordingPublisher) names() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()

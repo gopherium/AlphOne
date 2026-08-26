@@ -15,6 +15,7 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 )
 
+// mustTask returns a new task built from the input, failing the test if it is invalid.
 func mustTask(t *testing.T, in task.Input) task.Task {
 	t.Helper()
 	created, err := task.New(in)

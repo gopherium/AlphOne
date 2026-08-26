@@ -26,10 +26,12 @@ type fakeTokenStore struct {
 	touched []uuid.UUID
 }
 
+// newFakeTokenStore returns an empty in memory token store.
 func newFakeTokenStore() *fakeTokenStore {
 	return &fakeTokenStore{tokens: map[string]apitoken.Token{}}
 }
 
+// ByHash returns the configured error, the token the hash names, or a not found error.
 func (s *fakeTokenStore) ByHash(_ context.Context, hash string) (apitoken.Token, error) {
 	if s.err != nil {
 		return apitoken.Token{}, s.err
@@ -41,6 +43,7 @@ func (s *fakeTokenStore) ByHash(_ context.Context, hash string) (apitoken.Token,
 	return token, nil
 }
 
+// TouchLastUsed records the touched token id.
 func (s *fakeTokenStore) TouchLastUsed(_ context.Context, id uuid.UUID, _ time.Time) error {
 	s.touched = append(s.touched, id)
 	return nil

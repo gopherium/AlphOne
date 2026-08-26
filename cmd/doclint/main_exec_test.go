@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// coverBinary returns the built doclint path and a coverage environment, skipping the test outside make cover.
 func coverBinary(t *testing.T) (string, []string) {
 	t.Helper()
 	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
@@ -28,6 +29,7 @@ func coverBinary(t *testing.T) (string, []string) {
 	return filepath.Join(bindir, "doclint"), append(env, "GOCOVERDIR="+gocoverdir)
 }
 
+// writeFixture writes one source file into the given directory.
 func writeFixture(t *testing.T, dir, name, source string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {

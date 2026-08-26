@@ -20,6 +20,7 @@ import (
 	"github.com/gopherium/alphone/internal/testdb"
 )
 
+// mustMint returns a token minted for the user with full scopes and no expiry.
 func mustMint(t *testing.T, userID uuid.UUID, name string) apitoken.Minted {
 	t.Helper()
 	return mustMintScoped(t, userID, name, apitoken.Full(), apitoken.Never)

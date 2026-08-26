@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// webhookBody returns a webhook payload wrapping the given message element.
 func webhookBody(message string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
@@ -19,6 +20,7 @@ func webhookBody(message string) []byte {
 	}`, message)
 }
 
+// envelope returns one message element of the given id and type carrying the extra fields.
 func envelope(id, kind, fields string) string {
 	return fmt.Sprintf(`{"from": "184467235", "id": %q, "timestamp": "1751791000", "type": %q%s}`,
 		id, kind, fields)
@@ -250,6 +252,7 @@ func TestParseMessagesRejectsEnvelopeGarbage(t *testing.T) {
 	}
 }
 
+// statusEnvelope returns a webhook payload wrapping the given status elements.
 func statusEnvelope(statuses string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
