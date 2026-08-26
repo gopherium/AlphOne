@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"io/fs"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/peterldowns/pgtestdb"
@@ -60,6 +61,100 @@ func TestTenantForUserAnswersThePlacedTenant(t *testing.T) {
 	}
 	if got.ID != acme || got.Name != "Acme" {
 		t.Errorf("tenant = %+v, want the placed Acme tenant", got)
+	}
+}
+
+func TestTenantForUserReportsADeactivatedTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	acme := uuid.Must(uuid.NewV7())
+	member := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name, deactivated_at) VALUES ($1, $2, now())", acme, "Acme"); err != nil {
+		t.Fatalf("seeding the deactivated tenant: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", member, acme); err != nil {
+		t.Fatalf("placing the member: %v", err)
+	}
+
+	got, err := store.TenantForUser(t.Context(), member)
+
+	if err != nil {
+		t.Fatalf("TenantForUser() error = %v, want nil", err)
+	}
+	if !got.Deactivated {
+		t.Error("Deactivated = false, want the deactivation reported")
+	}
+}
+
+func TestTenantForUserReportsALiveTenantAsActive(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTenantStore(newTestPool(t))
+
+	got, err := store.TenantForUser(t.Context(), uuid.Must(uuid.NewV7()))
+
+	if err != nil {
+		t.Fatalf("TenantForUser() error = %v, want nil", err)
+	}
+	if got.Deactivated {
+		t.Error("Deactivated = true for the default tenant, want it active")
+	}
+}
+
+func TestTenantByIDReportsWhenItWasDeactivated(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	acme := uuid.Must(uuid.NewV7())
+	closed := time.Now().Add(-20 * 24 * time.Hour).UTC()
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name, deactivated_at) VALUES ($1, $2, $3)",
+		acme, "Acme", closed); err != nil {
+		t.Fatalf("seeding the deactivated tenant: %v", err)
+	}
+
+	held, err := store.TenantByID(t.Context(), acme)
+
+	if err != nil {
+		t.Fatalf("TenantByID() error = %v, want nil", err)
+	}
+	if !held.Deactivated {
+		t.Error("Deactivated = false, want the deactivation reported")
+	}
+	if held.AcceptsMachineTraffic(time.Now(), tenant.DefaultMachineGrace) {
+		t.Error("AcceptsMachineTraffic() = true, want the grace window already closed")
+	}
+}
+
+func TestTenantByIDAnswersALiveTenant(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewTenantStore(newTestPool(t))
+
+	held, err := store.TenantByID(t.Context(), tenant.DefaultID)
+
+	if err != nil {
+		t.Fatalf("TenantByID() error = %v, want nil", err)
+	}
+	if held.Deactivated || !held.AcceptsMachineTraffic(time.Now(), tenant.DefaultMachineGrace) {
+		t.Errorf("tenant = %+v, want the default tenant live and accepting", held)
+	}
+}
+
+func TestTenantByIDReportsAStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTenantStore(pool)
+	pool.Close()
+
+	if _, err := store.TenantByID(t.Context(), tenant.DefaultID); err == nil {
+		t.Error("TenantByID() error = nil, want the closed pool reported")
 	}
 }
 

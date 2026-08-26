@@ -199,12 +199,17 @@ FROM core.contacts
 WHERE id = ANY(@ids::uuid[]) AND tenant_id = @tenant_id;
 
 -- name: TenantForUser :one
-SELECT t.id, t.name
+SELECT t.id, t.name, t.deactivated_at
 FROM core.tenants t
 LEFT JOIN core.tenant_members m ON m.tenant_id = t.id AND m.user_id = @user_id::uuid
 WHERE m.user_id IS NOT NULL OR t.id = @default_id::uuid
 ORDER BY m.user_id IS NOT NULL DESC
 LIMIT 1;
+
+-- name: TenantByID :one
+SELECT id, name, deactivated_at
+FROM core.tenants
+WHERE id = @id::uuid;
 
 -- name: TenantsOfUsers :many
 SELECT user_id, tenant_id

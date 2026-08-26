@@ -37,6 +37,7 @@ type Plugin struct {
 	appSecret      string
 	key            []byte
 	envCredentials credentials
+	gate           sdk.TenantGate
 	store          *store
 	sender         *sender
 	events         *broadcaster
@@ -97,6 +98,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
 		baseURL:     graphURL,
 		credentials: p.credentialsFor,
+		records:     p.recordsTraffic,
 		maxBytes:    maxBytes,
 	})
 	return p, nil

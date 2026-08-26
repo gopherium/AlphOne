@@ -4,6 +4,7 @@ package whatsapp_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -517,6 +518,34 @@ func TestWebhookEventsKeepAnUnnumberedArrivalForTheConfiguredNumber(t *testing.T
 	}
 	if held := conversationTenant(t, pool); held != sdk.DefaultTenantID {
 		t.Errorf("conversation tenant = %s, want the default tenant", held)
+	}
+}
+
+// closedGate refuses machine traffic for every tenant.
+type closedGate struct{}
+
+// AcceptsMachineTraffic refuses every tenant.
+func (closedGate) AcceptsMachineTraffic(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func TestWebhookEventsDropAnArrivalPastTheGraceWindow(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
+	p.UseTenantGate(closedGate{})
+	body := numberedEventBody("5550009", "wamid.closed")
+
+	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d so Meta stops retrying", recorder.Code, http.StatusOK)
+	}
+	if got := countRows(t, pool, "plugin_whatsapp.conversations"); got != 0 {
+		t.Errorf("conversations = %d, want 0 once the grace window closed", got)
+	}
+	if got := countRows(t, pool, "core.contacts"); got != 0 {
+		t.Errorf("contacts = %d, want 0 once the grace window closed", got)
 	}
 }
 

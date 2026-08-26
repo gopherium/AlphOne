@@ -24,6 +24,7 @@ type Query {
   unscoped: String!
 }
 type Mutation {
+  logout: String! @scope(area: "auth", write: true)
   createContact: String! @scope(area: "contacts", write: true)
   createTask: String! @scope(area: "tasks", write: true)
   createUser: String! @scope(area: "users", write: true, capability: "manage_users")
@@ -51,7 +52,7 @@ func TestScopeMapReadsEveryRootOperation(t *testing.T) {
 
 	scopes := newScopeMap(t)
 
-	if got, want := len(scopes), 11; got != want {
+	if got, want := len(scopes), 12; got != want {
 		t.Errorf("scope map holds %d fields, want %d across query, mutation and subscription", got, want)
 	}
 	if !scopes.Allows(ast.Query, "contacts", apitoken.ParseScopes("contacts:read")) {

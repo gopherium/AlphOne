@@ -27,6 +27,7 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/version"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -85,7 +86,10 @@ func run(
 	if err := declareRoles(role.Default, registered); err != nil {
 		return fmt.Errorf("declare plugin roles: %w", err)
 	}
+	tenants := postgres.NewTenantStore(pool)
 	wireFieldProviders(registered)
+	wireCredentialProviders(registered)
+	wireTenantGate(registered, tenantGateBridge{tenants: tenants, grace: settings.machineGrace})
 
 	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
@@ -94,7 +98,6 @@ func run(
 
 	auth := authkit.New(authConfig(userStore))
 	admin := authkit.NewAdmin(adminConfig(userStore))
-	tenants := postgres.NewTenantStore(pool)
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      version.Version(),
 		Contacts:     contacts,
@@ -230,6 +233,30 @@ func wireFieldProviders(registered []sdk.Plugin) {
 	}
 }
 
+// wireTenantGate hands the host's tenant gate to every plugin taking one.
+func wireTenantGate(registered []sdk.Plugin, gate sdk.TenantGate) {
+	for _, plugin := range registered {
+		if consumer, ok := plugin.(sdk.TenantGateConsumer); ok {
+			consumer.UseTenantGate(gate)
+		}
+	}
+}
+
+// wireCredentialProviders hands every registered credential provider to every consumer.
+func wireCredentialProviders(registered []sdk.Plugin) {
+	var providers []sdk.CredentialProvider
+	for _, plugin := range registered {
+		if provider, ok := plugin.(sdk.CredentialProvider); ok {
+			providers = append(providers, provider)
+		}
+	}
+	for _, plugin := range registered {
+		if consumer, ok := plugin.(sdk.CredentialConsumer); ok {
+			consumer.UseCredentialProviders(providers)
+		}
+	}
+}
+
 // runConfig carries the environment-derived settings of the server.
 type runConfig struct {
 	databaseURL    string
@@ -237,6 +264,22 @@ type runConfig struct {
 	webDir         string
 	trustedProxies []string
 	graphiql       bool
+	machineGrace   time.Duration
+}
+
+// parseMachineGrace reads the grace window a deactivated tenant keeps recording for.
+func parseMachineGrace(raw string) (time.Duration, error) {
+	if raw == "" {
+		return tenant.DefaultMachineGrace, nil
+	}
+	held, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse ALPHONE_TENANT_MACHINE_GRACE: %w", err)
+	}
+	if held < 0 {
+		return 0, errors.New("ALPHONE_TENANT_MACHINE_GRACE must not be negative")
+	}
+	return held, nil
 }
 
 // loadRunConfig reads the server settings from the environment.
@@ -253,12 +296,17 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	machineGrace, err := parseMachineGrace(getenv("ALPHONE_TENANT_MACHINE_GRACE"))
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
 		webDir:         getenv("ALPHONE_WEB_DIR"),
 		trustedProxies: trustedProxies,
 		graphiql:       getenv("ALPHONE_DEV_GRAPHIQL") != "",
+		machineGrace:   machineGrace,
 	}, nil
 }
 

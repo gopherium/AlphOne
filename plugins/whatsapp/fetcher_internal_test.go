@@ -127,6 +127,7 @@ func newTestFetcher(t *testing.T, p *Plugin, baseURL string, maxBytes int64) *me
 	return newMediaFetcher(p.store, p.events, mediaFetcherConfig{
 		baseURL:     baseURL,
 		credentials: p.credentialsFor,
+		records:     p.recordsTraffic,
 		maxBytes:    maxBytes,
 		interval:    time.Hour,
 		timeout:     time.Minute,
@@ -301,6 +302,34 @@ func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
 	}
 	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
 		t.Errorf("graph hits = (%d, %d), want none without credentials", metadataHits, binaryHits)
+	}
+}
+
+// closedFetcherGate refuses machine traffic for every tenant.
+type closedFetcherGate struct{}
+
+// AcceptsMachineTraffic refuses every tenant.
+func (closedFetcherGate) AcceptsMachineTraffic(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func TestFetcherLeavesARowAlonePastTheGraceWindow(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	binary := []byte("media-bytes")
+	stub := newGraphStub(t, binary)
+	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
+	p.gate = closedFetcherGate{}
+	messageID := seedPendingImage(t, p, "wamid.closed", shaOf(binary))
+
+	f.sweepOnce(t.Context())
+
+	if state := mediaState(t, p, messageID); state.status != "pending" {
+		t.Errorf("status = %q, want the row left pending once the grace window closed", state.status)
+	}
+	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
+		t.Errorf("graph hits = (%d, %d), want none for a closed tenant", metadataHits, binaryHits)
 	}
 }
 

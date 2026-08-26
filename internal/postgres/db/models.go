@@ -55,9 +55,10 @@ type CoreTask struct {
 }
 
 type CoreTenant struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
+	ID            uuid.UUID
+	Name          string
+	CreatedAt     time.Time
+	DeactivatedAt pgtype.Timestamptz
 }
 
 type CoreTenantMember struct {

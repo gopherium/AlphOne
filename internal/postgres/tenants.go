@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/internal/postgres/db"
@@ -47,5 +48,24 @@ func (s *TenantStore) TenantForUser(ctx context.Context, userID uuid.UUID) (tena
 	if err != nil {
 		return tenant.Tenant{}, fmt.Errorf("read tenant: %w", err)
 	}
-	return tenant.Tenant{ID: row.ID, Name: row.Name}, nil
+	return tenantFrom(row.ID, row.Name, row.DeactivatedAt), nil
+}
+
+// TenantByID returns the tenant the id names, whether a caller stands in it or not.
+func (s *TenantStore) TenantByID(ctx context.Context, id uuid.UUID) (tenant.Tenant, error) {
+	row, err := s.queries.TenantByID(ctx, id)
+	if err != nil {
+		return tenant.Tenant{}, fmt.Errorf("read tenant by id: %w", err)
+	}
+	return tenantFrom(row.ID, row.Name, row.DeactivatedAt), nil
+}
+
+// tenantFrom returns the tenant one stored row describes.
+func tenantFrom(id uuid.UUID, name string, deactivatedAt pgtype.Timestamptz) tenant.Tenant {
+	return tenant.Tenant{
+		ID:            id,
+		Name:          name,
+		Deactivated:   deactivatedAt.Valid,
+		DeactivatedAt: deactivatedAt.Time,
+	}
 }

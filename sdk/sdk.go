@@ -113,6 +113,32 @@ type FieldConsumer interface {
 	UseFieldProviders(providers []FieldProvider)
 }
 
+// CredentialProvider stores the calling tenant's sending identity for one channel.
+type CredentialProvider interface {
+	// Channel names the channel the credentials send on.
+	Channel() Channel
+	// SetChannelCredentials stores the calling tenant's identifier and secret, sealed at rest.
+	SetChannelCredentials(ctx context.Context, identifier, secret string) error
+	// ChannelIdentifier answers the calling tenant's configured identifier and whether one is set.
+	ChannelIdentifier(ctx context.Context) (string, bool, error)
+}
+
+// CredentialConsumer receives the registered credential providers.
+type CredentialConsumer interface {
+	UseCredentialProviders(providers []CredentialProvider)
+}
+
+// TenantGate reports what a tenant still accepts while its workspace is closed.
+type TenantGate interface {
+	// AcceptsMachineTraffic reports whether a tenant still records what a channel delivers.
+	AcceptsMachineTraffic(ctx context.Context, tenantID uuid.UUID) (bool, error)
+}
+
+// TenantGateConsumer receives the host's tenant gate.
+type TenantGateConsumer interface {
+	UseTenantGate(gate TenantGate)
+}
+
 // Channel names a communication medium, such as "whatsapp" or "email".
 type Channel string
 

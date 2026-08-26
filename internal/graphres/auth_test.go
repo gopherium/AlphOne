@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -197,6 +198,97 @@ func TestLoginRejectsInvalidCredentials(t *testing.T) {
 
 	if got := firstErrorCode(t, response.Errors); got != "UNAUTHENTICATED" {
 		t.Errorf("code = %q, want UNAUTHENTICATED", got)
+	}
+}
+
+// deactivatedTenantStore places every user in one deactivated tenant.
+type deactivatedTenantStore struct{}
+
+// TenantForUser answers a deactivated tenant for every user.
+func (deactivatedTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tenant, error) {
+	return tenant.Tenant{ID: uuid.Must(uuid.NewV7()), Name: "Acme", Deactivated: true}, nil
+}
+
+// TenantsOf places no user anywhere.
+func (deactivatedTenantStore) TenantsOf(
+	context.Context, []uuid.UUID,
+) (map[uuid.UUID]uuid.UUID, error) {
+	return map[uuid.UUID]uuid.UUID{}, nil
+}
+
+// liveTenantStore places every user in one active tenant.
+type liveTenantStore struct{}
+
+// TenantForUser answers an active tenant for every user.
+func (liveTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tenant, error) {
+	return tenant.Tenant{ID: uuid.Must(uuid.NewV7()), Name: "Acme"}, nil
+}
+
+// TenantsOf places no user anywhere.
+func (liveTenantStore) TenantsOf(context.Context, []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	return map[uuid.UUID]uuid.UUID{}, nil
+}
+
+func TestLoginAdmitsAMemberOfALiveTenant(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	resolver := newAuthResolver(store)
+	resolver.Tenants = liveTenantStore{}
+	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+
+	response, err := client.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", testPassword))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	if len(response.Errors) != 0 {
+		t.Errorf("errors = %v, want a member of a live tenant admitted", response.Errors)
+	}
+}
+
+func TestLoginRefusesAMemberOfADeactivatedTenant(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	resolver := newAuthResolver(store)
+	resolver.Tenants = deactivatedTenantStore{}
+	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+
+	response, err := client.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", testPassword))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	if got := firstErrorCode(t, response.Errors); got != "UNAUTHENTICATED" {
+		t.Errorf("code = %q, want UNAUTHENTICATED", got)
+	}
+	if got := firstErrorReason(t, response.Errors); got != "tenant_deactivated" {
+		t.Errorf("reason = %q, want tenant_deactivated", got)
+	}
+}
+
+func TestLoginReportsATenantStoreFailure(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	resolver := newAuthResolver(store)
+	resolver.Tenants = failingTenantStore{}
+	client := newHTTPGraphClient(t, resolver, uuid.Nil)
+
+	response, err := client.RawPost(loginQuery,
+		gqlclient.Var("email", "maria@example.com"), gqlclient.Var("password", testPassword))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	if len(response.Errors) == 0 {
+		t.Fatal("no errors in the response, want the store failure surfaced")
 	}
 }
 

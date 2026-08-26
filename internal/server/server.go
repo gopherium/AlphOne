@@ -20,6 +20,7 @@ import (
 
 	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/credential"
+	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/mcp"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -174,6 +175,11 @@ func (s *server) withActingUser(next http.Handler) http.Handler {
 			http.Error(w, "no tenant resolved", http.StatusInternalServerError)
 			return
 		}
+		if graphres.TenantDeactivated(ctx) && changesState(r.Method) {
+			authkit.RespondError(w, http.StatusForbidden,
+				authkit.ErrorResponse{Message: "tenant deactivated"})
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -189,5 +195,9 @@ func withStandingTenant(
 	if err != nil {
 		return nil, err
 	}
-	return sdk.WithTenant(ctx, standing.ID), nil
+	ctx = sdk.WithTenant(ctx, standing.ID)
+	if standing.Deactivated {
+		ctx = graphres.WithDeactivatedTenant(ctx)
+	}
+	return ctx, nil
 }

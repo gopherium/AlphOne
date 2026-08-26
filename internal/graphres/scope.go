@@ -91,6 +91,12 @@ func scopeOf(declared *ast.Directive) fieldScope {
 	return scope
 }
 
+// WritesBeyondAuth reports whether one root field changes anything besides the caller's own session.
+func (m ScopeMap) WritesBeyondAuth(operation ast.Operation, field string) bool {
+	held := m[scopeKey{operation, field}]
+	return held.write && held.area != authArea
+}
+
 // AdminOnly reports whether one root field is reserved to the admin tier.
 func (m ScopeMap) AdminOnly(operation ast.Operation, field string) bool {
 	return m[scopeKey{operation, field}].admin
@@ -139,6 +145,20 @@ func (m ScopeMap) Needed(operation ast.Operation, field string) string {
 	return needed.area + ":" + access
 }
 
+// deactivatedKey marks a context whose standing tenant is deactivated.
+type deactivatedKey struct{}
+
+// WithDeactivatedTenant returns ctx marked as serving a deactivated tenant.
+func WithDeactivatedTenant(ctx context.Context) context.Context {
+	return context.WithValue(ctx, deactivatedKey{}, true)
+}
+
+// TenantDeactivated reports whether the context serves a deactivated tenant.
+func TenantDeactivated(ctx context.Context) bool {
+	marked, ok := ctx.Value(deactivatedKey{}).(bool)
+	return ok && marked
+}
+
 // ScopeGate returns the operation gate refusing every root field the caller's role and token do not reach.
 func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 	return func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
@@ -150,15 +170,40 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 		}
 		kind := operation.Operation.Operation
 		for _, selected := range graphql.CollectFields(operation, operation.Operation.SelectionSet, nil) {
-			if carried && !scopes.Allows(kind, selected.Name, token.Scopes) {
-				return scopeError(scopes.Needed(kind, selected.Name))
-			}
-			if needed := scopes.Capability(kind, selected.Name); needed != "" && !role.Can(tier, needed) {
-				return capabilityError(scopes.Needed(kind, selected.Name), needed)
+			if refused := fieldRefusal(ctx, scopes, kind, selected.Name, token, carried, tier); refused != nil {
+				return refused
 			}
 		}
 		return next(ctx)
 	}
+}
+
+// fieldRefusal returns the answer refusing one selected root field, nil when the caller reaches it.
+func fieldRefusal(
+	ctx context.Context, scopes ScopeMap, kind ast.Operation, name string,
+	token credential.Token, carried bool, tier role.Role,
+) graphql.ResponseHandler {
+	if carried && !scopes.Allows(kind, name, token.Scopes) {
+		return scopeError(scopes.Needed(kind, name))
+	}
+	if needed := scopes.Capability(kind, name); needed != "" && !role.Can(tier, needed) {
+		return capabilityError(scopes.Needed(kind, name), needed)
+	}
+	if TenantDeactivated(ctx) && scopes.WritesBeyondAuth(kind, name) {
+		return deactivatedError()
+	}
+	return nil
+}
+
+// deactivatedError answers one operation refusing a write from a deactivated tenant.
+func deactivatedError() graphql.ResponseHandler {
+	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
+		Message: "tenant deactivated",
+		Extensions: map[string]any{
+			"code":   "UNAUTHORIZED",
+			"reason": "tenant_deactivated",
+		},
+	}}})
 }
 
 // scopeError answers one operation with the scope its token lacks.

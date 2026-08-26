@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -32,6 +34,7 @@ const (
 type mediaFetcherConfig struct {
 	baseURL     string
 	credentials func(ctx context.Context) (credentials, error)
+	records     func(ctx context.Context, tenantID uuid.UUID) (bool, error)
 	maxBytes    int64
 	interval    time.Duration
 	timeout     time.Duration
@@ -44,6 +47,7 @@ type mediaFetcher struct {
 	client      *http.Client
 	baseURL     string
 	credentials func(ctx context.Context) (credentials, error)
+	records     func(ctx context.Context, tenantID uuid.UUID) (bool, error)
 	maxBytes    int64
 	interval    time.Duration
 	timeout     time.Duration
@@ -68,12 +72,17 @@ func newMediaFetcher(s *store, events *broadcaster, cfg mediaFetcherConfig) *med
 	if maxBytes == 0 {
 		maxBytes = defaultMediaMaxBytes
 	}
+	records := cfg.records
+	if records == nil {
+		records = func(context.Context, uuid.UUID) (bool, error) { return true, nil }
+	}
 	return &mediaFetcher{
 		store:       s,
 		events:      events,
 		client:      newOutboundClient(mediaDownloadTimeout),
 		baseURL:     cfg.baseURL,
 		credentials: cfg.credentials,
+		records:     records,
 		maxBytes:    maxBytes,
 		interval:    interval,
 		timeout:     timeout,
@@ -139,7 +148,11 @@ func (f *mediaFetcher) sweepOnce(ctx context.Context) {
 		return
 	}
 	for _, row := range pending {
-		f.fetchOne(sdk.WithTenant(sweepCtx, row.TenantID), row)
+		rowCtx := sdk.WithTenant(sweepCtx, row.TenantID)
+		if recording, err := f.records(rowCtx, row.TenantID); err != nil || !recording {
+			continue
+		}
+		f.fetchOne(rowCtx, row)
 	}
 }
 

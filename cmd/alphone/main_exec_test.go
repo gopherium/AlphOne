@@ -400,12 +400,12 @@ func uploadCSV(t *testing.T, addr, secret, content string) graphAnswer {
 	form := multipart.NewWriter(&body)
 	const operations = `{"query":"mutation($file: Upload!) { importUpload(file: $file) { id } }",` +
 		`"variables":{"file":null}}`
-	for field, value := range map[string]string{
-		"operations": operations,
-		"map":        `{"0":["variables.file"]}`,
+	for _, part := range [][2]string{
+		{"operations", operations},
+		{"map", `{"0":["variables.file"]}`},
 	} {
-		if err := form.WriteField(field, value); err != nil {
-			t.Fatalf("writing the %s part: %v", field, err)
+		if err := form.WriteField(part[0], part[1]); err != nil {
+			t.Fatalf("writing the %s part: %v", part[0], err)
 		}
 	}
 	part, err := form.CreateFormFile("0", "leads.csv")

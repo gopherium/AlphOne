@@ -158,8 +158,26 @@ func (p *Plugin) SetCredentials(ctx context.Context, phoneNumberID, accessToken 
 	return p.store.upsertCredentials(ctx, phoneNumberID, sealed)
 }
 
+// UseTenantGate receives the host's tenant gate.
+func (p *Plugin) UseTenantGate(gate sdk.TenantGate) {
+	p.gate = gate
+}
+
 // routeByNumber answers the context serving the number's tenant and whether any tenant owns it.
 func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
+	routed, owned, err := p.numberTenant(ctx, phoneNumberID)
+	if err != nil || !owned {
+		return ctx, false, err
+	}
+	recording, err := p.recordsTraffic(routed, sdk.TenantOrDefault(routed))
+	if err != nil || !recording {
+		return ctx, false, err
+	}
+	return routed, true, nil
+}
+
+// numberTenant answers the context serving the number's tenant and whether any tenant owns it.
+func (p *Plugin) numberTenant(ctx context.Context, phoneNumberID string) (context.Context, bool, error) {
 	if phoneNumberID == "" {
 		if p.envCredentials.phoneNumberID == "" {
 			return ctx, false, nil
@@ -177,6 +195,38 @@ func (p *Plugin) routeByNumber(ctx context.Context, phoneNumberID string) (conte
 		return sdk.WithTenant(ctx, sdk.DefaultTenantID), true, nil
 	}
 	return ctx, false, nil
+}
+
+// recordsTraffic reports whether the tenant still records what a channel delivers.
+func (p *Plugin) recordsTraffic(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	if p.gate == nil {
+		return true, nil
+	}
+	return p.gate.AcceptsMachineTraffic(ctx, tenantID)
+}
+
+var _ sdk.CredentialProvider = (*Plugin)(nil)
+
+// Channel names the channel the plugin's credentials send on.
+func (p *Plugin) Channel() sdk.Channel {
+	return "whatsapp"
+}
+
+// SetChannelCredentials stores the calling tenant's number and token, sealed at rest.
+func (p *Plugin) SetChannelCredentials(ctx context.Context, identifier, secret string) error {
+	return p.SetCredentials(ctx, identifier, secret)
+}
+
+// ChannelIdentifier answers the calling tenant's configured number and whether one is set.
+func (p *Plugin) ChannelIdentifier(ctx context.Context) (string, bool, error) {
+	creds, err := p.credentialsFor(ctx)
+	if errors.Is(err, errNoCredentials) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return creds.phoneNumberID, true, nil
 }
 
 // credentialsFor answers the calling tenant's credentials, the env seed for the default tenant.
