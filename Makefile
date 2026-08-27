@@ -133,7 +133,10 @@ E2E_DATABASE_URL ?= postgres://postgres:alphone@localhost:5433/$(E2E_DB)?sslmode
 E2E_EMAIL ?= e2e@example.com
 E2E_NAME ?= Grace Hopper
 E2E_PASSWORD ?= correct horse battery
+E2E_ROLE ?= admin
 E2E_WHATSAPP_APP_SECRET ?= e2e-app-secret
+E2E_WHATSAPP_CREDENTIALS_KEY ?= 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+E2E_TENANT_MACHINE_GRACE ?= 0s
 E2E_WHATSAPP_GRAPH_URL ?= http://127.0.0.1:4791
 
 e2e-build:
@@ -146,6 +149,8 @@ e2e-serve: db-up e2e-build
 		ALPHONE_WHATSAPP_GRAPH_URL="$(E2E_WHATSAPP_GRAPH_URL)" \
 		ALPHONE_WHATSAPP_ACCESS_TOKEN=e2e-not-a-real-token \
 		ALPHONE_WHATSAPP_PHONE_NUMBER_ID=e2e-phone-number-id \
+		ALPHONE_WHATSAPP_CREDENTIALS_KEY="$(E2E_WHATSAPP_CREDENTIALS_KEY)" \
+		ALPHONE_TENANT_MACHINE_GRACE="$(E2E_TENANT_MACHINE_GRACE)" \
 		./alphone
 
 e2e-db-reset: db-up
@@ -156,7 +161,7 @@ e2e-db-reset: db-up
 e2e-seed: db-up e2e-build
 	printf '%s\n' "$(E2E_PASSWORD)" | \
 		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone createadmin \
-		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)" -role admin
+		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)" -role "$(E2E_ROLE)"
 
 e2e-reset: e2e-db-reset e2e-seed
 

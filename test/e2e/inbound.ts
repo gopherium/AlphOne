@@ -12,6 +12,7 @@ import { whatsappAppSecret } from './env'
  * @param name - The sender's profile name.
  * @param messageId - The message's external id.
  * @param text - The message body.
+ * @param phoneNumberID - The receiving number's id, omitted for the install's own number.
  * @returns The serialized webhook payload.
  */
 export function inboundTextPayload(
@@ -19,6 +20,7 @@ export function inboundTextPayload(
 	name: string,
 	messageId: string,
 	text: string,
+	phoneNumberID?: string,
 ): string {
 	return JSON.stringify({
 		entry: [
@@ -26,6 +28,7 @@ export function inboundTextPayload(
 				changes: [
 					{
 						value: {
+							...(phoneNumberID ? { metadata: { phone_number_id: phoneNumberID } } : {}),
 							contacts: [{ wa_id: waId, profile: { name } }],
 							messages: [
 								{
@@ -59,14 +62,16 @@ export function sign(body: string): string {
  * @param waId - The sender's WhatsApp id.
  * @param name - The sender's profile name.
  * @param text - The message body.
+ * @param phoneNumberID - The receiving number's id, omitted for the install's own number.
  */
 export async function deliverInboundText(
 	request: APIRequestContext,
 	waId: string,
 	name: string,
 	text: string,
+	phoneNumberID?: string,
 ): Promise<void> {
-	const body = inboundTextPayload(waId, name, `wamid.e2e.${waId}`, text)
+	const body = inboundTextPayload(waId, name, `wamid.e2e.${waId}`, text, phoneNumberID)
 	const response = await request.post('/api/plugins/whatsapp/webhook', {
 		headers: {
 			'Content-Type': 'application/json',
