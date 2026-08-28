@@ -49,6 +49,36 @@ func TestServesSPAAssets(t *testing.T) {
 	}
 }
 
+func TestTheIndexIsRevalidatedOnEveryVisit(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache so a new build is never hidden behind a cached page", got)
+	}
+}
+
+func TestAClientRouteIsRevalidatedLikeTheIndex(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/users")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache because the fallback answers the index", got)
+	}
+}
+
+func TestAssetsAreKeptForAYear(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/assets/app.js")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("Cache-Control = %q, want the year an immutable hashed asset earns", got)
+	}
+}
+
 func TestFallsBackToIndexForClientRoutes(t *testing.T) {
 	t.Parallel()
 
