@@ -17,8 +17,10 @@ func spaServer(t *testing.T) http.Handler {
 	return server.NewServer(server.Config{
 		Users: newFakeUserStore(),
 		Web: fstest.MapFS{
-			"index.html":    {Data: []byte("<!doctype html><title>AlphOne</title>")},
-			"assets/app.js": {Data: []byte("console.log('app')")},
+			"index.html":               {Data: []byte("<!doctype html><title>AlphOne</title>")},
+			"assets/app.js":            {Data: []byte("console.log('app')")},
+			"assets/app-B7EuLSNJ.js":   {Data: []byte("console.log('hashed')")},
+			"assets/index-Do-XTcIQ.js": {Data: []byte("console.log('hyphenated hash')")},
 		},
 	})
 }
@@ -46,6 +48,56 @@ func TestServesSPAAssets(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "console.log") {
 		t.Errorf("body = %q, want the asset contents", recorder.Body.String())
+	}
+}
+
+func TestTheIndexIsRevalidatedOnEveryVisit(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache so a new build is never hidden behind a cached page", got)
+	}
+}
+
+func TestAClientRouteIsRevalidatedLikeTheIndex(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/users")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache because the fallback answers the index", got)
+	}
+}
+
+func TestHashedAssetsAreKeptForAYear(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/assets/app-B7EuLSNJ.js")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("Cache-Control = %q, want the year an immutable hashed asset earns", got)
+	}
+}
+
+func TestAHashHoldingAHyphenIsStillRecognised(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/assets/index-Do-XTcIQ.js")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("Cache-Control = %q, want the year, the build writes hashes holding a hyphen", got)
+	}
+}
+
+func TestAnAssetWithoutAHashIsRevalidated(t *testing.T) {
+	t.Parallel()
+
+	recorder := doRequest(t, spaServer(t), "/assets/app.js")
+
+	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache, a stable name can be replaced at the same address", got)
 	}
 }
 
