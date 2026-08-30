@@ -160,6 +160,8 @@ github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/gopherium/framework/mailkit v0.1.0 h1:A1xm46dpo/zYrzV+Owa2W4Y0QJ1TBDNLkz8qwHF6238=
+github.com/gopherium/framework/mailkit v0.1.0/go.mod h1:iI4n+UOwJPLzczDBhJVmkd69euIIhxeVMhHJi+nRShg=
 github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
 github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
 github.com/gopherium/gouncer/authkit v0.12.0 h1:K+NrprYKgicjGOUyz1P3VcDGA3pVctkiQLarfmbDTjE=
