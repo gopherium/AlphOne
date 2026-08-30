@@ -54,6 +54,7 @@ var validationErrors = []error{
 	apitoken.ErrUnknownArea,
 	apitoken.ErrNegativeLifetime,
 	apitoken.ErrLifetimeTooLong,
+	errTokenInvalid,
 }
 
 // notFoundErrors lists the domain errors presented as NOT_FOUND.
@@ -99,6 +100,7 @@ var reasonsFor = []struct {
 	{apitoken.ErrUnknownArea, "area_unknown", nil},
 	{apitoken.ErrNegativeLifetime, "lifetime_negative", nil},
 	{apitoken.ErrLifetimeTooLong, "lifetime_too_long", map[string]any{"maxDays": apitoken.MaxLifetimeDays}},
+	{errTokenInvalid, "token_invalid", nil},
 	{contact.ErrNotFound, "contact_not_found", nil},
 	{contact.ErrIdentityNotFound, "identity_not_found", nil},
 	{task.ErrNotFound, "task_not_found", nil},

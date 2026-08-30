@@ -127,6 +127,10 @@ type ImportRow {
 	reason: String
 	contactId: UUID
 }
+type InvitePayload {
+	delivered: Boolean!
+	activationLink: String
+}
 scalar JSON
 type LoginPayload {
 	me: Identity!
@@ -141,6 +145,11 @@ type Mutation {
 	createUser(email: String!, name: String!, password: String!, role: String): User! @scope(area: "users", write: true, capability: "manage_users")
 	setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
 	setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
+	invite(email: String!, name: String!, role: String): InvitePayload! @scope(area: "users", write: true, capability: "manage_users")
+	resendInvite(email: String!): InvitePayload! @scope(area: "users", write: true, capability: "manage_users")
+	acceptInvite(token: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
+	requestPasswordReset(email: String!): Boolean! @scope(area: "auth", write: true)
+	resetPassword(token: String!, password: String!): Boolean! @scope(area: "auth", write: true)
 	setLocale(locale: String!): String! @scope(area: "meta", write: true)
 	createTask(input: CreateTaskInput!): CreateTaskPayload! @scope(area: "tasks", write: true)
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
@@ -225,6 +234,7 @@ type User {
 	email: String!
 	name: String!
 	disabled: Boolean!
+	confirmed: Boolean!
 	createdAt: DateTime!
 	role: String!
 }

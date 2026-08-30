@@ -134,6 +134,17 @@ type AttemptLimiter interface {
 	RecordFailure(key string) error
 }
 
+// Mailer delivers the invitation and reset mail.
+type Mailer interface {
+	SendInvite(ctx context.Context, to, name, link string) error
+	SendReset(ctx context.Context, to, name, link string) error
+}
+
+// AccountReader reads one account by its normalized address.
+type AccountReader interface {
+	UserByEmail(ctx context.Context, email string) (gouncer.User, error)
+}
+
 // Resolver is the root resolver serving the core schema.
 type Resolver struct {
 	// Version is the reported application version.
@@ -160,6 +171,16 @@ type Resolver struct {
 	Settings SettingStore
 	// LoginLimiter counts failed logins per client IP.
 	LoginLimiter AttemptLimiter
+	// Invites serves the invitation and reset flows.
+	Invites *authkit.Invites
+	// Accounts reads accounts for the mail the flows deliver.
+	Accounts AccountReader
+	// Mailer delivers the account mail. Nil runs without a mailer.
+	Mailer Mailer
+	// PublicURL is the address email links lead back to, empty without a mailer.
+	PublicURL string
+	// TokenLimiter counts token operations per client IP.
+	TokenLimiter AttemptLimiter
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
 }

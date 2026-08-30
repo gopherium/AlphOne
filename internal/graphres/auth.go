@@ -55,6 +55,7 @@ func toUser(account authkit.Account, tier role.Role) *model.User {
 		Email:     account.Email,
 		Name:      account.Name,
 		Disabled:  account.Disabled,
+		Confirmed: account.Confirmed,
 		CreatedAt: account.CreatedAt,
 		Role:      tier.String(),
 	}
