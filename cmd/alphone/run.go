@@ -9,7 +9,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -265,6 +268,125 @@ type runConfig struct {
 	trustedProxies []string
 	graphiql       bool
 	machineGrace   time.Duration
+	mail           mailSettings
+	inviteTTL      time.Duration
+	resetTTL       time.Duration
+}
+
+// mailSettings names the relay, sender identity and link base mail rides on.
+type mailSettings struct {
+	host        string
+	port        int
+	username    string
+	password    string
+	from        string
+	tls         string
+	publicURL   string
+	templateDir string
+}
+
+// parseMailPort reads the relay port, empty applying the submission default.
+func parseMailPort(raw string) (int, error) {
+	if raw == "" {
+		return 587, nil
+	}
+	held, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse ALPHONE_SMTP_PORT: %w", err)
+	}
+	if held < 1 || held > 65535 {
+		return 0, errors.New("ALPHONE_SMTP_PORT must be between 1 and 65535")
+	}
+	return held, nil
+}
+
+// parseMailTLS reads the transport security policy, empty applying mandatory.
+func parseMailTLS(raw string) (string, error) {
+	switch raw {
+	case "":
+		return "mandatory", nil
+	case "mandatory", "opportunistic", "none":
+		return raw, nil
+	}
+	return "", fmt.Errorf("ALPHONE_SMTP_TLS must be mandatory, opportunistic or none, got %q", raw)
+}
+
+// parseTokenTTL reads one token lifetime, empty applying the fallback.
+func parseTokenTTL(name, raw string, fallback time.Duration) (time.Duration, error) {
+	if raw == "" {
+		return fallback, nil
+	}
+	held, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+	if held <= 0 {
+		return 0, fmt.Errorf("%s must be positive", name)
+	}
+	return held, nil
+}
+
+// parsePublicURL reads the address email links lead back to.
+func parsePublicURL(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	held, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse ALPHONE_PUBLIC_URL: %w", err)
+	}
+	if (held.Scheme != "http" && held.Scheme != "https") || held.Host == "" {
+		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must be an http or https address, got %q", raw)
+	}
+	return strings.TrimSuffix(raw, "/"), nil
+}
+
+// loadMailSettings reads the mail relay settings from the environment.
+func loadMailSettings(getenv func(string) string) (mailSettings, error) {
+	host := getenv("ALPHONE_SMTP_HOST")
+	if host == "" {
+		for _, name := range []string{
+			"ALPHONE_SMTP_PORT",
+			"ALPHONE_SMTP_USERNAME",
+			"ALPHONE_SMTP_PASSWORD",
+			"ALPHONE_SMTP_FROM",
+			"ALPHONE_SMTP_TLS",
+		} {
+			if getenv(name) != "" {
+				return mailSettings{}, fmt.Errorf("%s is set but ALPHONE_SMTP_HOST is not", name)
+			}
+		}
+		return mailSettings{}, nil
+	}
+	port, err := parseMailPort(getenv("ALPHONE_SMTP_PORT"))
+	if err != nil {
+		return mailSettings{}, err
+	}
+	tlsPolicy, err := parseMailTLS(getenv("ALPHONE_SMTP_TLS"))
+	if err != nil {
+		return mailSettings{}, err
+	}
+	from := getenv("ALPHONE_SMTP_FROM")
+	if from == "" {
+		return mailSettings{}, errors.New("ALPHONE_SMTP_FROM is required when ALPHONE_SMTP_HOST is set")
+	}
+	publicURL, err := parsePublicURL(getenv("ALPHONE_PUBLIC_URL"))
+	if err != nil {
+		return mailSettings{}, err
+	}
+	if publicURL == "" {
+		return mailSettings{}, errors.New("ALPHONE_PUBLIC_URL is required when ALPHONE_SMTP_HOST is set")
+	}
+	return mailSettings{
+		host:        host,
+		port:        port,
+		username:    getenv("ALPHONE_SMTP_USERNAME"),
+		password:    getenv("ALPHONE_SMTP_PASSWORD"),
+		from:        from,
+		tls:         tlsPolicy,
+		publicURL:   publicURL,
+		templateDir: getenv("ALPHONE_MAIL_TEMPLATE_DIR"),
+	}, nil
 }
 
 // parseMachineGrace reads the grace window a deactivated tenant keeps recording for.
@@ -300,6 +422,18 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	mail, err := loadMailSettings(getenv)
+	if err != nil {
+		return runConfig{}, err
+	}
+	inviteTTL, err := parseTokenTTL("ALPHONE_INVITE_TTL", getenv("ALPHONE_INVITE_TTL"), authkit.DefaultInviteTTL)
+	if err != nil {
+		return runConfig{}, err
+	}
+	resetTTL, err := parseTokenTTL("ALPHONE_RESET_TTL", getenv("ALPHONE_RESET_TTL"), authkit.DefaultResetTTL)
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
@@ -307,6 +441,9 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		trustedProxies: trustedProxies,
 		graphiql:       getenv("ALPHONE_DEV_GRAPHIQL") != "",
 		machineGrace:   machineGrace,
+		mail:           mail,
+		inviteTTL:      inviteTTL,
+		resetTTL:       resetTTL,
 	}, nil
 }
 
