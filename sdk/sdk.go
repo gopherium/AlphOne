@@ -128,6 +128,24 @@ type CredentialConsumer interface {
 	UseCredentialProviders(providers []CredentialProvider)
 }
 
+// Mail is one message a plugin asks the host to deliver.
+type Mail struct {
+	To      string
+	Subject string
+	Body    string
+}
+
+// MailSender delivers a plugin's mail through the host's configured relay.
+type MailSender interface {
+	// Send delivers m, answering the relay's refusal.
+	Send(ctx context.Context, m Mail) error
+}
+
+// MailSenderConsumer receives the host's mail sender when a relay is configured.
+type MailSenderConsumer interface {
+	UseMailSender(sender MailSender)
+}
+
 // TenantGate reports what a tenant still accepts while its workspace is closed.
 type TenantGate interface {
 	// AcceptsMachineTraffic reports whether a tenant still records what a channel delivers.

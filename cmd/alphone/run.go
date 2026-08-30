@@ -89,10 +89,15 @@ func run(
 	if err := declareRoles(role.Default, registered); err != nil {
 		return fmt.Errorf("declare plugin roles: %w", err)
 	}
+	mailSender, mailer, err := buildMail(settings.mail, logger)
+	if err != nil {
+		return err
+	}
 	tenants := postgres.NewTenantStore(pool)
 	wireFieldProviders(registered)
 	wireCredentialProviders(registered)
 	wireTenantGate(registered, tenantGateBridge{tenants: tenants, grace: settings.machineGrace})
+	wireMailSenderFrom(registered, mailSender)
 
 	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx); err != nil {
@@ -101,10 +106,6 @@ func run(
 
 	auth := authkit.New(authConfig(userStore))
 	admin := authkit.NewAdmin(adminConfig(userStore))
-	mailer, err := buildMailer(settings.mail, logger)
-	if err != nil {
-		return err
-	}
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:  version.Version(),
 		Contacts: contacts,
