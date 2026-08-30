@@ -101,19 +101,32 @@ func run(
 
 	auth := authkit.New(authConfig(userStore))
 	admin := authkit.NewAdmin(adminConfig(userStore))
+	mailer, err := buildMailer(settings.mail, logger)
+	if err != nil {
+		return err
+	}
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
-		Version:      version.Version(),
-		Contacts:     contacts,
-		Tasks:        tasks,
-		Webhooks:     webhooks,
-		Tenants:      tenants,
-		Tokens:       tokens,
-		Events:       events,
-		Live:         hub,
-		Auth:         auth,
-		Admin:        admin,
+		Version:  version.Version(),
+		Contacts: contacts,
+		Tasks:    tasks,
+		Webhooks: webhooks,
+		Tenants:  tenants,
+		Tokens:   tokens,
+		Events:   events,
+		Live:     hub,
+		Auth:     auth,
+		Admin:    admin,
+		Invites: authkit.NewInvites(authkit.InvitesConfig{
+			Store:     userStore,
+			InviteTTL: settings.inviteTTL,
+			ResetTTL:  settings.resetTTL,
+		}),
+		Accounts:     userStore,
+		Mailer:       mailer,
+		PublicURL:    settings.mail.publicURL,
 		Settings:     postgres.NewUserSettingStore(pool),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
