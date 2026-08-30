@@ -16,6 +16,7 @@ require (
 	github.com/gopherium/pluginkit/graphwire v0.3.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
+	github.com/mocktools/go-smtp-mock/v2 v2.5.4
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/peterldowns/pgtestdb/migrators/goosemigrator v0.1.1
@@ -65,6 +66,7 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.12 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/urfave/cli/v3 v3.10.1 // indirect
+	github.com/wneessen/go-mail v0.8.1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
