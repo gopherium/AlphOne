@@ -5,6 +5,7 @@ import {
 	Button,
 	EmptyState,
 	ErrorNotice,
+	InputControl,
 	LoadingRows,
 	MANAGE_USERS,
 	PageScreen,
@@ -20,11 +21,12 @@ import {
 	useSession,
 } from '@alphone/frontend-sdk'
 import { fetchUsers, setUserDisabled, usersQueryKey } from '@gopherium/react-auth/admin'
+import type { Invitation } from '@gopherium/react-auth/admin'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
 import type { Account } from '../auth/graphTransport'
-import { setUserRole } from '../auth/graphTransport'
+import { resendInvite, setUserRole } from '../auth/graphTransport'
 
 /**
  * Returns the label a role reads as, falling back to what the server stored.
@@ -63,9 +65,7 @@ function UserRow({
 			<td>{user.name}</td>
 			<td>{user.email}</td>
 			<td>
-				<Badge intent={user.disabled ? 'draft' : 'stable'}>
-					{user.disabled ? _x('Disabled', 'account status', 'alphone') : _x('Active', 'account status', 'alphone')}
-				</Badge>
+				<Badge intent={statusIntent(user)}>{statusLabel(user)}</Badge>
 			</td>
 			<td>
 				{isSelf || !manages ? (
@@ -107,7 +107,73 @@ function UserControls({ user }: { user: Account }) {
 			>
 				{barred ? __('Enable', 'alphone') : __('Disable', 'alphone')}
 			</Button>
+			{user.confirmed ? null : <ResendControl user={user} />}
 			{toggle.error ? <Text role="alert">{toggle.error.message}</Text> : null}
+		</Stack>
+	)
+}
+
+/**
+ * Returns the label the status column reads for one account.
+ * @param user - The account the row shows.
+ * @returns The status label.
+ */
+function statusLabel(user: Account): string {
+	if (user.disabled) {
+		return _x('Disabled', 'account status', 'alphone')
+	}
+	if (!user.confirmed) {
+		return _x('Invited', 'account status', 'alphone')
+	}
+	return _x('Active', 'account status', 'alphone')
+}
+
+/**
+ * Returns the badge intent the status column carries for one account.
+ * @param user - The account the row shows.
+ * @returns The badge intent.
+ */
+function statusIntent(user: Account): 'draft' | 'stable' | 'informational' {
+	if (user.disabled) {
+		return 'draft'
+	}
+	if (!user.confirmed) {
+		return 'informational'
+	}
+	return 'stable'
+}
+
+/**
+ * Renders the control replacing a pending account's invitation.
+ * @param user - The account awaiting activation.
+ * @returns The resend control element.
+ */
+function ResendControl({ user }: { user: Account }) {
+	const resend = useMutation<Invitation, Error>({
+		mutationFn: () => resendInvite(user.email),
+	})
+
+	return (
+		<Stack direction="column" gap="xs">
+			<Button
+				variant="outline"
+				aria-label={sprintf(__('Resend invitation to %(name)s', 'alphone'), { name: user.name })}
+				loading={resend.isPending}
+				onClick={() => resend.mutate()}
+			>
+				{__('Resend invitation', 'alphone')}
+			</Button>
+			{resend.data?.delivered === true ? (
+				<Text role="status">{__('Invitation sent.', 'alphone')}</Text>
+			) : null}
+			{resend.data?.delivered === false ? (
+				<InputControl
+					label={__('Activation link', 'alphone')}
+					readOnly
+					value={resend.data.activation_link}
+				/>
+			) : null}
+			{resend.error ? <Text role="alert">{resend.error.message}</Text> : null}
 		</Stack>
 	)
 }

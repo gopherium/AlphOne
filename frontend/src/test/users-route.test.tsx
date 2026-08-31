@@ -268,18 +268,9 @@ test('navigates to the users screen from the main menu', async () => {
 
 test('returns to the user list after creating a user', async () => {
 	server.use(
-		graphql.mutation('CreateUser', () =>
+		graphql.mutation('Invite', () =>
 			HttpResponse.json({
-				data: {
-					createUser: {
-						__typename: 'User',
-						id: '0198b2f0-0000-7000-8000-000000000002',
-						email: 'ada@example.com',
-						name: 'Ada Lovelace',
-						disabled: false,
-						createdAt: '2026-07-16T10:00:00Z',
-					},
-				},
+				data: { invite: { __typename: 'InvitePayload', delivered: true, activationLink: null } },
 			}),
 		),
 	)
@@ -290,11 +281,8 @@ test('returns to the user list after creating a user', async () => {
 		'ada@example.com',
 	)
 	await userEvent.type(screen.getByLabelText('Name'), 'Ada Lovelace')
-	await userEvent.type(
-		screen.getByLabelText('Password'),
-		'correct horse battery',
-	)
-	await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+	expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 
 	expect(
 		await screen.findByRole('heading', { name: 'Users' }),
@@ -307,16 +295,14 @@ test('returns to the user list after creating a user', async () => {
 async function submitNewUser() {
 	await userEvent.type(await screen.findByLabelText('Email'), 'ada@example.com')
 	await userEvent.type(screen.getByLabelText('Name'), 'Ada Lovelace')
-	await userEvent.type(screen.getByLabelText('Password'), 'correct horse battery')
-	await userEvent.click(screen.getByRole('button', { name: 'Create user' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 }
 
-test('reports a taken email in its own words', async () => {
+test('answers a taken address the same way as a fresh one', async () => {
 	server.use(
-		graphql.mutation('CreateUser', () =>
+		graphql.mutation('Invite', () =>
 			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'email already in use', extensions: { code: 'CONFLICT' } }],
+				data: { invite: { __typename: 'InvitePayload', delivered: true, activationLink: null } },
 			}),
 		),
 	)
@@ -324,15 +310,59 @@ test('reports a taken email in its own words', async () => {
 
 	await submitNewUser()
 
-	expect(await screen.findByText('That email is already in use.')).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+})
+
+test('leaves the invitation screen once the link is delivered by hand', async () => {
+	server.use(
+		graphql.mutation('Invite', () =>
+			HttpResponse.json({
+				data: {
+					invite: {
+						__typename: 'InvitePayload',
+						delivered: false,
+						activationLink: '/activate?token=t-5',
+					},
+				},
+			}),
+		),
+	)
+	renderAt('/users/new')
+	await submitNewUser()
+	await screen.findByLabelText('Activation link')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+
+	expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+})
+
+test('shows the activation link when no mail server delivered the invitation', async () => {
+	server.use(
+		graphql.mutation('Invite', () =>
+			HttpResponse.json({
+				data: {
+					invite: {
+						__typename: 'InvitePayload',
+						delivered: false,
+						activationLink: '/activate?token=t-4',
+					},
+				},
+			}),
+		),
+	)
+	renderAt('/users/new')
+
+	await submitNewUser()
+
+	expect(await screen.findByLabelText('Activation link')).toHaveValue('/activate?token=t-4')
 })
 
 test('surfaces a rejection message from the backend', async () => {
 	server.use(
-		graphql.mutation('CreateUser', () =>
+		graphql.mutation('Invite', () =>
 			HttpResponse.json({
 				data: null,
-				errors: [{ message: 'password too short', extensions: { code: 'VALIDATION' } }],
+				errors: [{ message: 'that name is too long', extensions: { code: 'VALIDATION' } }],
 			}),
 		),
 	)
@@ -340,12 +370,12 @@ test('surfaces a rejection message from the backend', async () => {
 
 	await submitNewUser()
 
-	expect(await screen.findByText('password too short')).toBeInTheDocument()
+	expect(await screen.findByText('that name is too long')).toBeInTheDocument()
 })
 
-test('falls back to generic copy when creation fails otherwise', async () => {
+test('falls back to generic copy when the invitation fails otherwise', async () => {
 	server.use(
-		graphql.mutation('CreateUser', () =>
+		graphql.mutation('Invite', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
@@ -353,7 +383,7 @@ test('falls back to generic copy when creation fails otherwise', async () => {
 
 	await submitNewUser()
 
-	expect(await screen.findByText('The user could not be created.')).toBeInTheDocument()
+	expect(await screen.findByText('The invitation could not be sent.')).toBeInTheDocument()
 })
 
 test('drops the session when the users request is unauthorized', async () => {
