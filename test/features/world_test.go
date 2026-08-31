@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -147,6 +149,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
