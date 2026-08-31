@@ -92,6 +92,15 @@ func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, targe
 	return gouncer.ErrUserNotFound
 }
 
+// sharesTenant reports whether the actor and the target stand in one tenant.
+func (r *Resolver) sharesTenant(ctx context.Context, actor, target uuid.UUID) (bool, error) {
+	placed, err := r.tenantsOf(ctx, []uuid.UUID{actor, target})
+	if err != nil {
+		return false, err
+	}
+	return placedIn(placed, actor) == placedIn(placed, target), nil
+}
+
 // tenantsOf returns the tenant each named account a row places stands in, the rest absent.
 func (r *Resolver) tenantsOf(
 	ctx context.Context, ids []uuid.UUID,

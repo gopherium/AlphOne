@@ -57,6 +57,20 @@ func (m MutationResolvers) ResendInvite(ctx context.Context, email string) (*mod
 
 // resend replaces the pending token behind email, staying neutral for every other address.
 func (m MutationResolvers) resend(ctx context.Context, email string) (*model.InvitePayload, error) {
+	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
+	if errors.Is(err, gouncer.ErrUserNotFound) {
+		return deliveredPayload(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sharing, err := m.root.sharesTenant(ctx, authkit.IdentityFromContext(ctx).ID, held.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !sharing {
+		return deliveredPayload(), nil
+	}
 	token, err := m.root.Invites.ResendInvite(ctx, email)
 	if errors.Is(err, gouncer.ErrUserNotFound) || errors.Is(err, authkit.ErrAlreadyActivated) {
 		return deliveredPayload(), nil
@@ -64,11 +78,12 @@ func (m MutationResolvers) resend(ctx context.Context, email string) (*model.Inv
 	if err != nil {
 		return nil, err
 	}
-	held, err := m.root.Accounts.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
-	if err != nil {
-		return nil, err
-	}
 	return m.deliverInvite(ctx, held.Email, held.Name, token)
+}
+
+// normalizedEmail returns the address the store keys an account under.
+func normalizedEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // deliverInvite mails the activation link, or answers it for hand delivery without a mailer.
