@@ -146,6 +146,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		PublicURL:    scenarioPublicURL,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
