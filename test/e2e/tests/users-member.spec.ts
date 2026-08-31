@@ -3,6 +3,7 @@
 import { expect, test } from '@playwright/test'
 
 import { baseURL } from '../env'
+import { provisionUser } from '../provision'
 
 test('a member reads the account list without managing it', async ({ page, browser }) => {
 	const stamp = Date.now()
@@ -10,13 +11,9 @@ test('a member reads the account list without managing it', async ({ page, brows
 	const name = `Maria Perez ${stamp}`
 	const password = 'correct horse battery'
 
-	await page.goto('/users')
-	await page.getByRole('link', { name: 'New user' }).click()
-	await page.getByLabel('Email').fill(email)
-	await page.getByLabel('Name').fill(name)
-	await page.getByLabel('Password').fill(password)
-	await page.getByRole('button', { name: 'Create user' }).click()
+	await provisionUser(page, browser, { email, name, password })
 
+	await page.goto('/users')
 	const created = page.getByRole('row').filter({ hasText: email })
 	await expect(created.getByRole('combobox', { name: `Role of ${name}` })).toBeVisible()
 

@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
+import { provisionUser } from '../provision'
+
 import { baseURL } from '../env'
 
 test('disabling a user revokes their live session', async ({ page, browser }) => {
@@ -10,12 +12,9 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 	const name = `Victim ${stamp}`
 	const password = 'correct horse battery'
 
+	await provisionUser(page, browser, { email, name, password })
+
 	await page.goto('/users')
-	await page.getByRole('link', { name: 'New user' }).click()
-	await page.getByLabel('Email').fill(email)
-	await page.getByLabel('Name').fill(name)
-	await page.getByLabel('Password').fill(password)
-	await page.getByRole('button', { name: 'Create user' }).click()
 
 	const row = page.getByRole('row').filter({ hasText: email })
 	await expect(row.getByText('Active')).toBeVisible()

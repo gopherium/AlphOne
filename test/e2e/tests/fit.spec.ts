@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { expect, test } from '@playwright/test'
+
+import { startMailSink } from '../mail'
 import type { APIRequestContext } from '@playwright/test'
 
 import { createTask, graph, graphUpload } from '../graph'
@@ -25,16 +27,20 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		'mutation($name: String!) { createContact(name: $name) { id } }',
 		{ name: `Maria Perez de la Fuente y Rodriguez ${stamp}` },
 	)
-	await graph(
-		request,
-		'mutation($email: String!, $name: String!, $password: String!) {' +
-			' createUser(email: $email, name: $name, password: $password) { id } }',
-		{
-			email: `maria.perez.de.la.fuente.${stamp}@example.com`,
-			name: `Maria Perez de la Fuente ${stamp}`,
-			password: 'correct horse battery',
-		},
-	)
+	const sink = await startMailSink()
+	try {
+		await graph(
+			request,
+			'mutation($email: String!, $name: String!) {' +
+				' invite(email: $email, name: $name) { delivered } }',
+			{
+				email: `maria.perez.de.la.fuente.${stamp}@example.com`,
+				name: `Maria Perez de la Fuente ${stamp}`,
+			},
+		)
+	} finally {
+		await sink.close()
+	}
 
 	await deliverInboundText(request, `1999${stamp}`, `Ada ${stamp}`, unbreakable)
 	const conversations = await graph<{ whatsAppConversations: { id: string }[] }>(

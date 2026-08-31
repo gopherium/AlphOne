@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
+import { provisionUser } from '../provision'
+
 import { credentials } from '../env'
 
 test.use({ storageState: { cookies: [], origins: [] } })
@@ -20,11 +22,7 @@ test('reads the interface in the language the reader chose', async ({ page, brow
 	await page.getByRole('button', { name: 'Log in' }).click()
 	await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
-	await page.goto('/users/new')
-	await page.getByLabel('Email').fill(reader.email)
-	await page.getByLabel('Name').fill(reader.name)
-	await page.getByLabel('Password').fill(reader.password)
-	await page.getByRole('button', { name: 'Create user' }).click()
+	await provisionUser(page, browser, reader)
 	await expect(page.getByText(reader.email)).toBeVisible()
 
 	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
