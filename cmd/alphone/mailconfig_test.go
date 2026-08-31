@@ -280,6 +280,8 @@ func TestThePublicURLRefusesAMalformedValue(t *testing.T) {
 		"no scheme":         "crm.example.com",
 		"a bare path":       "/crm",
 		"an unknown scheme": "ftp://crm.example.com",
+		"a path":            "https://crm.example.com/app",
+		"a deep path":       "https://crm.example.com/app/crm",
 		"a query":           "https://crm.example.com/app?tenant=acme",
 		"a bare question":   "https://crm.example.com/app?",
 		"a fragment":        "https://crm.example.com/app#section",

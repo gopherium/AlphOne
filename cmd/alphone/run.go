@@ -381,6 +381,9 @@ func parsePublicURL(raw string) (string, error) {
 	if strings.ContainsAny(raw, "?#") {
 		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must carry no query or fragment, got %q", raw)
 	}
+	if strings.Trim(held.Path, "/") != "" {
+		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must name a site root, got %q", raw)
+	}
 	return strings.TrimSuffix(raw, "/"), nil
 }
 
