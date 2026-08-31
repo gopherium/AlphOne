@@ -373,7 +373,7 @@ func TestRequestPasswordResetAnswersEveryAddressTheSameWay(t *testing.T) {
 	}
 }
 
-func TestRequestPasswordResetReplacesAStandingToken(t *testing.T) {
+func TestRequestPasswordResetKeepsAStandingToken(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
@@ -387,20 +387,13 @@ func TestRequestPasswordResetReplacesAStandingToken(t *testing.T) {
 	if len(first.Errors) != 0 || len(second.Errors) != 0 {
 		t.Fatalf("reset requests errored %v then %v, want both neutral", first.Errors, second.Errors)
 	}
-	if len(mailer.resets) != 2 {
-		t.Fatalf("sent %d reset mails, want a fresh link per request", len(mailer.resets))
-	}
-	if mailer.resets[0].link == mailer.resets[1].link {
-		t.Error("both mails carry the same link, want the second request to replace the token")
+	if len(mailer.resets) != 1 {
+		t.Fatalf("sent %d reset mails, want no new mail while a token stands", len(mailer.resets))
 	}
 
-	stale := activationTokenOf(t, mailer.resets[0].link)
-	if _, err := resolver.Invites.RedeemReset(t.Context(), stale, "brand new password"); err == nil {
-		t.Error("RedeemReset(stale) error = nil, want the replaced link dead")
-	}
-	fresh := activationTokenOf(t, mailer.resets[1].link)
-	if _, err := resolver.Invites.RedeemReset(t.Context(), fresh, "brand new password"); err != nil {
-		t.Errorf("RedeemReset(fresh) error = %v, want the latest link usable", err)
+	standing := activationTokenOf(t, mailer.resets[0].link)
+	if _, err := resolver.Invites.RedeemReset(t.Context(), standing, "brand new password"); err != nil {
+		t.Errorf("RedeemReset(standing) error = %v, want a public request to leave the held link alone", err)
 	}
 }
 
@@ -502,45 +495,36 @@ func TestUsersReportTheirConfirmation(t *testing.T) {
 	}
 }
 
-// failingOnceMailer refuses its first reset, then records what follows.
-type failingOnceMailer struct {
-	recordingMailer
-	refused bool
-}
-
-// SendReset refuses the first reset it is asked to deliver.
-func (m *failingOnceMailer) SendReset(ctx context.Context, to, name, link string) error {
-	if !m.refused {
-		m.refused = true
-		return errors.New("the relay refused the message")
-	}
-	return m.recordingMailer.SendReset(ctx, to, name, link)
-}
-
-func TestRequestPasswordResetRetriesAfterAFailedDelivery(t *testing.T) {
+func TestRequestPasswordResetAnswersAFailedDeliveryNeutrally(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
 	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
-	mailer := &failingOnceMailer{}
-	resolver := newInviteResolver(store, mailer)
+	resolver := newInviteResolver(store, &recordingMailer{err: errors.New("the relay refused the message")})
 
-	refused := requestResetThrough(t, resolver, "maria@example.com")
-	if len(refused.Errors) == 0 {
-		t.Fatal("the failed delivery answered no error, want the failure surfaced")
-	}
+	held := requestResetThrough(t, resolver, "maria@example.com")
+	unknown := requestResetThrough(t, resolver, "nobody@example.com")
 
-	retried := requestResetThrough(t, resolver, "maria@example.com")
+	if len(held.Errors) != 0 {
+		t.Errorf("a failed delivery answered %s, want the same neutral answer an unknown address gets", held.Errors)
+	}
+	if len(unknown.Errors) != 0 {
+		t.Fatalf("an unknown address errored: %s", unknown.Errors)
+	}
+}
 
-	if len(retried.Errors) != 0 {
-		t.Fatalf("the retry errored: %s", retried.Errors)
-	}
-	if len(mailer.resets) != 1 {
-		t.Fatalf("the retry mailed %d links, want one usable link", len(mailer.resets))
-	}
-	token := activationTokenOf(t, mailer.resets[0].link)
-	if _, err := resolver.Invites.RedeemReset(t.Context(), token, "brand new password"); err != nil {
-		t.Errorf("RedeemReset(retried) error = %v, want the mailed link usable", err)
+func TestRequestPasswordResetAnswersAStoreFailureNeutrally(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	store.LookupErr = errors.New("the database is unreachable")
+	resolver := newInviteResolver(store, &recordingMailer{})
+
+	held := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(held.Errors) != 0 {
+		t.Errorf("a store failure answered %s, want the neutral answer", held.Errors)
 	}
 }
 

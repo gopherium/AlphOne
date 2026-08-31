@@ -142,25 +142,32 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 	if err := m.root.ResetLimiter.RecordFailure(key); err != nil {
 		return false, fmt.Errorf("recording the reset request: %w", err)
 	}
-	token, err := m.resetToken(ctx, email)
-	if errors.Is(err, gouncer.ErrUserNotFound) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
 	if m.root.Mailer == nil {
 		return true, nil
 	}
 	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
 	if err != nil {
-		return false, err
+		m.logReset(ctx, "reading the account behind a reset request", err)
+		return true, nil
+	}
+	token, err := m.root.Invites.RequestReset(ctx, email)
+	if err != nil {
+		m.logReset(ctx, "issuing a reset token", err)
+		return true, nil
 	}
 	link := mail.ResetLink(m.root.PublicURL, token.Token)
 	if err := m.root.Mailer.SendReset(ctx, held.Email, held.Name, link); err != nil {
-		return false, fmt.Errorf("sending the reset link: %w", err)
+		m.logReset(ctx, "sending the reset link", err)
 	}
 	return true, nil
+}
+
+// logReset records what the neutral reset answer hides.
+func (m MutationResolvers) logReset(ctx context.Context, what string, err error) {
+	if m.root.Logger == nil {
+		return
+	}
+	m.root.Logger.ErrorContext(ctx, what, "error", err)
 }
 
 // ResetPassword spends the reset link, replacing the password and ending every session.
@@ -174,16 +181,6 @@ func (m MutationResolvers) ResetPassword(ctx context.Context, token, password st
 		return false, mappedErr
 	}
 	return true, nil
-}
-
-// resetToken mints the reset token to deliver, replacing one already standing
-// so a delivery that failed earlier can be retried.
-func (m MutationResolvers) resetToken(ctx context.Context, email string) (gouncer.Token, error) {
-	token, err := m.root.Invites.RequestReset(ctx, email)
-	if errors.Is(err, gouncer.ErrTokenExists) {
-		return m.root.Invites.ResendReset(ctx, email)
-	}
-	return token, err
 }
 
 // checkTokenBudget reserves a token operation for the caller's IP key.

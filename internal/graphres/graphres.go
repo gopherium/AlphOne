@@ -5,6 +5,7 @@ package graphres
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -193,6 +194,9 @@ type Resolver struct {
 
 	// ResetLimiter budgets reset requests per client IP.
 	ResetLimiter AttemptLimiter
+
+	// Logger records what a neutral answer hides. Nil discards it.
+	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
 }
