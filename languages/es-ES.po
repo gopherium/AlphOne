@@ -172,9 +172,6 @@ msgstr "Crear tarea"
 msgid "Create token"
 msgstr "Crear token"
 
-msgid "Create user"
-msgstr "Crear usuario"
-
 #, fuzzy
 msgid "Created"
 msgstr "Creado"
@@ -363,9 +360,6 @@ msgstr "Tareas vencidas"
 msgid "Overdue tasks could not be loaded."
 msgstr "No se han podido cargar las tareas vencidas."
 
-msgid "Password"
-msgstr "Contraseña"
-
 #, fuzzy
 msgid "Previous day"
 msgstr "Día anterior"
@@ -479,9 +473,6 @@ msgstr "Ese contacto ya no existe."
 msgid "That email and password do not match an account."
 msgstr "Ese correo y esa contraseña no coinciden con ninguna cuenta."
 
-msgid "That email is already in use."
-msgstr "Ese correo electrónico ya está en uso."
-
 #, fuzzy
 msgid "That event name is not one AlphOne knows."
 msgstr "Ese nombre de evento no es uno de los que AlphOne conoce."
@@ -577,9 +568,6 @@ msgstr "No se ha podido actualizar la tarea."
 #, fuzzy
 msgid "The token could not be created."
 msgstr "No se ha podido crear el token."
-
-msgid "The user could not be created."
-msgstr "No se ha podido crear el usuario."
 
 #, fuzzy
 msgid "This token does not reach %(scope)s."
@@ -711,3 +699,44 @@ msgstr "Cargando…"
 #, fuzzy
 msgid "Push to tomorrow"
 msgstr "Pasar a mañana"
+
+#, fuzzy
+msgid "Activation link"
+msgstr "Enlace de activación"
+
+#, fuzzy
+msgid "Done"
+msgstr "Hecho"
+
+#, fuzzy
+msgid "Invitation sent."
+msgstr "Invitación enviada."
+
+#, fuzzy
+msgid "No mail server is configured. Deliver the activation link by hand."
+msgstr "No hay servidor de correo configurado. Entrega el enlace de activación a mano."
+
+#, fuzzy
+msgid "Resend invitation"
+msgstr "Reenviar invitación"
+
+#, fuzzy
+msgid "Resend invitation to %(name)s"
+msgstr "Reenviar invitación a %(name)s"
+
+#, fuzzy
+msgid "Send invitation"
+msgstr "Enviar invitación"
+
+#, fuzzy
+msgid "The invitation could not be sent."
+msgstr "No se pudo enviar la invitación."
+
+#, fuzzy
+msgid "This link is no longer valid. Ask for a new one."
+msgstr "Este enlace ya no es válido. Pide uno nuevo."
+
+#, fuzzy
+msgctxt "account status"
+msgid "Invited"
+msgstr "Invitada"
