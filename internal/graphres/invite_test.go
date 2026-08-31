@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -556,5 +557,233 @@ func TestRequestPasswordResetSpendsItsOwnBudget(t *testing.T) {
 	))
 	if len(response.Errors) != 0 {
 		t.Errorf("resetPassword under a spent reset budget errored: %s", response.Errors)
+	}
+}
+
+// inviteMutation invites Maria Perez, asking only for the neutral flag.
+const inviteMutation = `mutation { invite(email: "maria@example.com", name: "Maria Perez") { delivered } }`
+
+// resendMutation resends Maria Perez's invitation, asking only for the neutral flag.
+const resendMutation = `mutation { resendInvite(email: "maria@example.com") { delivered } }`
+
+func TestInviteSurfacesTheStoreFailuresBehindIt(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		arrange func(*testing.T, *testkit.Store, *graphres.Resolver)
+		query   string
+	}{
+		"creating the account fails": {
+			arrange: func(_ *testing.T, store *testkit.Store, _ *graphres.Resolver) {
+				store.CreateUserErr = errors.New("the account store is unreachable")
+			},
+			query: inviteMutation,
+		},
+		"reading a taken address fails": {
+			arrange: func(t *testing.T, store *testkit.Store, _ *graphres.Resolver) {
+				store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+				store.LookupErr = errors.New("the account store is unreachable")
+			},
+			query: inviteMutation,
+		},
+		"reading the tenants fails": {
+			arrange: func(t *testing.T, store *testkit.Store, resolver *graphres.Resolver) {
+				store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+				resolver.Tenants = failingTenantStore{}
+			},
+			query: resendMutation,
+		},
+		"replacing the pending token fails": {
+			arrange: func(t *testing.T, store *testkit.Store, resolver *graphres.Resolver) {
+				inviteThrough(t, resolver)
+				store.TokenErr = errors.New("the token store is unreachable")
+			},
+			query: resendMutation,
+		},
+	}
+	for testName, held := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			resolver := newInviteResolver(store, &recordingMailer{})
+			held.arrange(t, store, resolver)
+			client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+
+			response, err := client.RawPost(held.query)
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+
+			if len(response.Errors) == 0 {
+				t.Error("errors = none, want the store failure surfaced")
+			}
+		})
+	}
+}
+
+func TestAcceptInviteSurfacesTheFailuresBehindIt(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*testkit.Store, *graphres.Resolver){
+		"the tenant is deactivated": func(_ *testkit.Store, resolver *graphres.Resolver) {
+			resolver.Tenants = deactivatedTenantStore{}
+		},
+		"starting the session fails": func(store *testkit.Store, _ *graphres.Resolver) {
+			store.CreateSessionErr = errors.New("the session store is unreachable")
+		},
+		"reading the new session fails": func(store *testkit.Store, _ *graphres.Resolver) {
+			store.SessionErr = errors.New("the session store is unreachable")
+		},
+	}
+	for testName, breakIt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			mailer := &recordingMailer{}
+			resolver := newInviteResolver(store, mailer)
+			inviteThrough(t, resolver)
+			token := activationTokenOf(t, mailer.invites[0].link)
+			breakIt(store, resolver)
+
+			response, _ := acceptThrough(t, resolver, token)
+
+			if len(response.Errors) == 0 {
+				t.Error("errors = none, want the failure surfaced")
+			}
+		})
+	}
+}
+
+func TestAcceptInviteFailsWithoutTheHTTPTransport(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	inviteThrough(t, resolver)
+	token := activationTokenOf(t, mailer.invites[0].link)
+	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+
+	response, err := client.RawPost(fmt.Sprintf(
+		`mutation { acceptInvite(token: %q, password: "correct horse battery") { me { email } } }`, token,
+	))
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+
+	if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
+		t.Errorf("code = %q, want INTERNAL with no response to set the cookie on", got)
+	}
+}
+
+func TestRequestPasswordResetSurfacesLimiterFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]graphres.AttemptLimiter{
+		"the budget check fails":      stubLimiter{checkErr: errors.New("the limiter is unreachable")},
+		"recording the request fails": stubLimiter{recordErr: errors.New("the limiter is unreachable")},
+	}
+	for testName, limiter := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+			mailer := &recordingMailer{}
+			resolver := newInviteResolver(store, mailer)
+			resolver.ResetLimiter = limiter
+
+			held := requestResetThrough(t, resolver, "maria@example.com")
+
+			if len(held.Errors) == 0 {
+				t.Error("errors = none, want the limiter failure surfaced")
+			}
+			if len(mailer.resets) != 0 {
+				t.Errorf("sent %d reset mails, want none behind a refused request", len(mailer.resets))
+			}
+		})
+	}
+}
+
+// resetAnswer is the answer shape of the requestPasswordReset mutation.
+type resetAnswer struct {
+	RequestPasswordReset bool `json:"requestPasswordReset"`
+}
+
+func TestRequestPasswordResetAnswersNeutrallyWithoutAMailer(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	resolver := newInviteResolver(store, nil)
+
+	held := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(held.Errors) != 0 {
+		t.Fatalf("a request without a mailer answered %s, want the neutral answer", held.Errors)
+	}
+	var answered resetAnswer
+	if err := json.Unmarshal(held.Data, &answered); err != nil {
+		t.Fatalf("decode answer %s: %v", held.Data, err)
+	}
+	if !answered.RequestPasswordReset {
+		t.Error("requestPasswordReset = false, want the same true answer a mailed request gets")
+	}
+	if len(store.Tokens) != 0 {
+		t.Errorf("the store holds %d tokens, want no reset token minted with nothing to mail it with", len(store.Tokens))
+	}
+}
+
+func TestRequestPasswordResetLogsTheDeliveryItHides(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	recorded := &bytes.Buffer{}
+	resolver := newInviteResolver(store, &recordingMailer{err: errors.New("the relay refused the message")})
+	resolver.Logger = slog.New(slog.NewTextHandler(recorded, nil))
+
+	held := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(held.Errors) != 0 {
+		t.Errorf("a failed delivery answered %s, want the neutral answer", held.Errors)
+	}
+	if !strings.Contains(recorded.String(), "sending the reset link") {
+		t.Errorf("the log holds %q, want the hidden delivery failure recorded", recorded.String())
+	}
+}
+
+func TestResetPasswordSurfacesTheTokenFailuresBehindIt(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*testkit.Store, *graphres.Resolver){
+		"the token budget check fails": func(_ *testkit.Store, resolver *graphres.Resolver) {
+			resolver.TokenLimiter = stubLimiter{checkErr: errors.New("the limiter is unreachable")}
+		},
+		"recording the refused token fails": func(_ *testkit.Store, resolver *graphres.Resolver) {
+			resolver.TokenLimiter = stubLimiter{recordErr: errors.New("the limiter is unreachable")}
+		},
+		"spending the token fails": func(store *testkit.Store, _ *graphres.Resolver) {
+			store.ResetErr = errors.New("the token store is unreachable")
+		},
+	}
+	for testName, breakIt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			resolver := newInviteResolver(store, &recordingMailer{})
+			breakIt(store, resolver)
+
+			response, _ := postAnonymouslyOverHTTP(t, resolver,
+				`mutation { resetPassword(token: "guessed-token", password: "brand new password") }`,
+			)
+
+			if len(response.Errors) == 0 {
+				t.Error("errors = none, want the failure surfaced")
+			}
+		})
 	}
 }
