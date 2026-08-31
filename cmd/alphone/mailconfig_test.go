@@ -92,8 +92,8 @@ func TestTheTokenLifetimesDefaultWithoutAMailer(t *testing.T) {
 	if held.inviteTTL != authkit.DefaultInviteTTL {
 		t.Errorf("inviteTTL = %v, want the authkit default %v", held.inviteTTL, authkit.DefaultInviteTTL)
 	}
-	if held.resetTTL != authkit.DefaultResetTTL {
-		t.Errorf("resetTTL = %v, want the authkit default %v", held.resetTTL, authkit.DefaultResetTTL)
+	if held.reset.ttl != authkit.DefaultResetTTL {
+		t.Errorf("resetTTL = %v, want the authkit default %v", held.reset.ttl, authkit.DefaultResetTTL)
 	}
 }
 
@@ -112,8 +112,8 @@ func TestTheTokenLifetimesAreReadWithoutAMailer(t *testing.T) {
 	if held.inviteTTL != 24*time.Hour {
 		t.Errorf("inviteTTL = %v, want 24h", held.inviteTTL)
 	}
-	if held.resetTTL != 30*time.Minute {
-		t.Errorf("resetTTL = %v, want 30m", held.resetTTL)
+	if held.reset.ttl != 30*time.Minute {
+		t.Errorf("resetTTL = %v, want 30m", held.reset.ttl)
 	}
 }
 
@@ -335,8 +335,8 @@ func TestTheResetBudgetDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	if held.resetAttempts != 3 {
-		t.Errorf("resetAttempts = %d, want the tight default 3", held.resetAttempts)
+	if held.reset.attempts != 3 {
+		t.Errorf("resetAttempts = %d, want the tight default 3", held.reset.attempts)
 	}
 }
 
@@ -351,8 +351,8 @@ func TestTheResetBudgetIsReadFromTheEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	if held.resetAttempts != 5 {
-		t.Errorf("resetAttempts = %d, want 5", held.resetAttempts)
+	if held.reset.attempts != 5 {
+		t.Errorf("resetAttempts = %d, want 5", held.reset.attempts)
 	}
 }
 
@@ -382,9 +382,80 @@ func TestTheResetBudgetRefusesAnUnreadableValue(t *testing.T) {
 func TestTheResetBudgetRidesTheTokenLifetime(t *testing.T) {
 	t.Parallel()
 
-	held := resetBudget(runConfig{resetAttempts: 5, resetTTL: 30 * time.Minute})
+	held := resetBudget(runConfig{reset: resetSettings{attempts: 5, ttl: 30 * time.Minute}})
 
 	if held.Limit != 5 || held.Window != 30*time.Minute {
 		t.Errorf("resetBudget() = %+v, want limit 5 over 30m", held)
+	}
+}
+
+func TestTheResetStackDefaults(t *testing.T) {
+	t.Parallel()
+
+	held, err := loadRunConfig(testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
+	}))
+
+	if err != nil {
+		t.Fatalf("loadRunConfig() error = %v, want nil", err)
+	}
+	if held.reset.links != 3 {
+		t.Errorf("resetLinks = %d, want the default 3", held.reset.links)
+	}
+	if held.reset.cooldown != time.Minute {
+		t.Errorf("resetCooldown = %v, want the default one minute", held.reset.cooldown)
+	}
+}
+
+func TestTheResetStackIsReadFromTheEnvironment(t *testing.T) {
+	t.Parallel()
+
+	held, err := loadRunConfig(testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
+		"ALPHONE_RESET_LINKS":    "5",
+		"ALPHONE_RESET_COOLDOWN": "30s",
+	}))
+
+	if err != nil {
+		t.Fatalf("loadRunConfig() error = %v, want nil", err)
+	}
+	if held.reset.links != 5 {
+		t.Errorf("resetLinks = %d, want 5", held.reset.links)
+	}
+	if held.reset.cooldown != 30*time.Second {
+		t.Errorf("resetCooldown = %v, want 30s", held.reset.cooldown)
+	}
+}
+
+func TestTheResetStackRefusesAnUnreadableValue(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]map[string]string{
+		"links not a number":  {"ALPHONE_RESET_LINKS": "a few"},
+		"links zero":          {"ALPHONE_RESET_LINKS": "0"},
+		"links negative":      {"ALPHONE_RESET_LINKS": "-1"},
+		"cooldown unreadable": {"ALPHONE_RESET_COOLDOWN": "soon"},
+		"cooldown negative":   {"ALPHONE_RESET_COOLDOWN": "-1m"},
+	}
+	for testName, vars := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			vars["ALPHONE_DATABASE_URL"] = "postgres://localhost/x"
+
+			if _, err := loadRunConfig(testGetenv(vars)); err == nil {
+				t.Error("loadRunConfig() error = nil, want the setting refused")
+			}
+		})
+	}
+}
+
+func TestTheResetCooldownRidesItsOwnWindow(t *testing.T) {
+	t.Parallel()
+
+	held := resetCooldownBudget(runConfig{reset: resetSettings{cooldown: 30 * time.Second}})
+
+	if held.Limit != 1 || held.Window != 30*time.Second {
+		t.Errorf("resetCooldownBudget() = %+v, want one mail per 30s", held)
 	}
 }

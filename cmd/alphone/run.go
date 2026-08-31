@@ -118,18 +118,20 @@ func run(
 		Auth:     auth,
 		Admin:    admin,
 		Invites: authkit.NewInvites(authkit.InvitesConfig{
-			Store:     userStore,
-			InviteTTL: settings.inviteTTL,
-			ResetTTL:  settings.resetTTL,
+			Store:           userStore,
+			InviteTTL:       settings.inviteTTL,
+			ResetTTL:        settings.reset.ttl,
+			ResetTokensLive: settings.reset.links,
 		}),
-		Accounts:     userStore,
-		Mailer:       mailer,
-		PublicURL:    settings.mail.publicURL,
-		Settings:     postgres.NewUserSettingStore(pool),
-		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-		ResetLimiter: ratelimit.NewLimiter(resetBudget(settings)),
-		Logger:       logger,
+		Accounts:      userStore,
+		Mailer:        mailer,
+		PublicURL:     settings.mail.publicURL,
+		Settings:      postgres.NewUserSettingStore(pool),
+		LoginLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
+		TokenLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
+		ResetLimiter:  ratelimit.NewLimiter(resetBudget(settings)),
+		ResetCooldown: ratelimit.NewLimiter(resetCooldownBudget(settings)),
+		Logger:        logger,
 	}, registered)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -286,8 +288,15 @@ type runConfig struct {
 	machineGrace   time.Duration
 	mail           mailSettings
 	inviteTTL      time.Duration
-	resetTTL       time.Duration
-	resetAttempts  int
+	reset          resetSettings
+}
+
+// resetSettings names the lifetime, stack and rate the reset links ride under.
+type resetSettings struct {
+	ttl      time.Duration
+	attempts int
+	links    int
+	cooldown time.Duration
 }
 
 // mailSettings names the relay, sender identity and link base mail rides on.
@@ -328,25 +337,36 @@ func parseMailTLS(raw string) (string, error) {
 	return "", fmt.Errorf("ALPHONE_SMTP_TLS must be mandatory, opportunistic or none, got %q", raw)
 }
 
+// resetCooldownBudget answers the rate limit reset mail to one address rides under.
+func resetCooldownBudget(settings runConfig) ratelimit.Config {
+	return ratelimit.Config{Limit: 1, Window: settings.reset.cooldown}
+}
+
 // resetBudget answers the rate limit reset requests ride under.
 func resetBudget(settings runConfig) ratelimit.Config {
-	return ratelimit.Config{Limit: settings.resetAttempts, Window: settings.resetTTL}
+	return ratelimit.Config{Limit: settings.reset.attempts, Window: settings.reset.ttl}
 }
 
 // defaultResetAttempts caps reset requests per client within one token lifetime.
 const defaultResetAttempts = 3
 
-// parseResetAttempts reads the reset requests allowed per client within one token lifetime.
-func parseResetAttempts(raw string) (int, error) {
+// defaultResetLinks caps the reset links standing for one account at once.
+const defaultResetLinks = 3
+
+// defaultResetCooldown spaces the reset mail one address may receive.
+const defaultResetCooldown = time.Minute
+
+// parsePositiveCount reads a positive count named by the variable, empty applying the fallback.
+func parsePositiveCount(name, raw string, fallback int) (int, error) {
 	if raw == "" {
-		return defaultResetAttempts, nil
+		return fallback, nil
 	}
 	held, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("parse ALPHONE_RESET_ATTEMPTS: %w", err)
+		return 0, fmt.Errorf("parse %s: %w", name, err)
 	}
 	if held <= 0 {
-		return 0, fmt.Errorf("ALPHONE_RESET_ATTEMPTS must be positive")
+		return 0, fmt.Errorf("%s must be positive", name)
 	}
 	return held, nil
 }
@@ -476,11 +496,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
-	resetTTL, err := parseTokenTTL("ALPHONE_RESET_TTL", getenv("ALPHONE_RESET_TTL"), authkit.DefaultResetTTL)
-	if err != nil {
-		return runConfig{}, err
-	}
-	resetAttempts, err := parseResetAttempts(getenv("ALPHONE_RESET_ATTEMPTS"))
+	reset, err := loadResetSettings(getenv)
 	if err != nil {
 		return runConfig{}, err
 	}
@@ -493,9 +509,29 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		machineGrace:   machineGrace,
 		mail:           mail,
 		inviteTTL:      inviteTTL,
-		resetTTL:       resetTTL,
-		resetAttempts:  resetAttempts,
+		reset:          reset,
 	}, nil
+}
+
+// loadResetSettings reads the reset link lifetime, stack and rates from the environment.
+func loadResetSettings(getenv func(string) string) (resetSettings, error) {
+	ttl, err := parseTokenTTL("ALPHONE_RESET_TTL", getenv("ALPHONE_RESET_TTL"), authkit.DefaultResetTTL)
+	if err != nil {
+		return resetSettings{}, err
+	}
+	attempts, err := parsePositiveCount("ALPHONE_RESET_ATTEMPTS", getenv("ALPHONE_RESET_ATTEMPTS"), defaultResetAttempts)
+	if err != nil {
+		return resetSettings{}, err
+	}
+	links, err := parsePositiveCount("ALPHONE_RESET_LINKS", getenv("ALPHONE_RESET_LINKS"), defaultResetLinks)
+	if err != nil {
+		return resetSettings{}, err
+	}
+	cooldown, err := parseTokenTTL("ALPHONE_RESET_COOLDOWN", getenv("ALPHONE_RESET_COOLDOWN"), defaultResetCooldown)
+	if err != nil {
+		return resetSettings{}, err
+	}
+	return resetSettings{ttl: ttl, attempts: attempts, links: links, cooldown: cooldown}, nil
 }
 
 // serveUntilDone serves HTTP until ctx is cancelled or serving fails, then
