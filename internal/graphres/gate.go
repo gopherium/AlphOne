@@ -13,8 +13,13 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 )
 
-// loginFieldName is the one root field an anonymous caller may select.
-const loginFieldName = "login"
+// anonymousMutationFields names the root mutations an anonymous caller may select.
+var anonymousMutationFields = map[string]bool{
+	"login":                true,
+	"acceptInvite":         true,
+	"requestPasswordReset": true,
+	"resetPassword":        true,
+}
 
 // AnonymousGate rejects anonymous operations reaching beyond login and the locale.
 func AnonymousGate(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
@@ -57,14 +62,14 @@ func onlyLocaleFields(selections ast.SelectionSet) bool {
 	return true
 }
 
-// onlyLoginFields reports whether every root selection is the plain login field.
+// onlyLoginFields reports whether every root selection is a plain anonymous mutation field.
 func onlyLoginFields(selections ast.SelectionSet) bool {
 	if len(selections) == 0 {
 		return false
 	}
 	for _, selection := range selections {
 		field, ok := selection.(*ast.Field)
-		if !ok || field.Name != loginFieldName {
+		if !ok || !anonymousMutationFields[field.Name] {
 			return false
 		}
 	}

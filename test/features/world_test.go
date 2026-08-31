@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -16,6 +18,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/peterldowns/pgtestdb"
 
+	smtpmock "github.com/mocktools/go-smtp-mock/v2"
+
+	"github.com/gopherium/framework/mailkit"
+	"github.com/gopherium/framework/mailkit/smtp"
+
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -25,6 +32,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/mail"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
@@ -76,6 +84,8 @@ type world struct {
 	memberValue  string
 	memberID     uuid.UUID
 	status       int
+	relay        *smtpmock.Server
+	invitedValue string
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -116,6 +126,11 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
 		registered = append(registered, importerPlugin)
 	}
+	relay := mailRelay(t)
+	mailer, err := mail.New(relaySender(t, relay), "")
+	if err != nil {
+		t.Fatalf("building the scenario mailer: %v", err)
+	}
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -127,7 +142,14 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
+		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: users}),
+		Accounts:     users,
+		Mailer:       mailer,
+		PublicURL:    scenarioPublicURL,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
@@ -170,7 +192,38 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		ownerID:  owner.ID,
 		secret:   minted.Secret,
 		tokenID:  minted.Token.ID,
+		relay:    relay,
 	}
+}
+
+// scenarioPublicURL is the address the mailed links of a scenario lead back to.
+const scenarioPublicURL = "https://crm.example.com"
+
+// mailRelay starts a mock relay that survives the reset go-mail sends after delivering.
+func mailRelay(t *testing.T) *smtpmock.Server {
+	t.Helper()
+	server := smtpmock.New(smtpmock.ConfigurationAttr{MultipleMessageReceiving: true})
+	if err := server.Start(); err != nil {
+		t.Fatalf("starting the scenario relay: %v", err)
+	}
+	t.Cleanup(func() { _ = server.Stop() })
+	return server
+}
+
+// relaySender returns a sender delivering to the scenario's relay.
+func relaySender(t *testing.T, relay *smtpmock.Server) mailkit.Sender {
+	t.Helper()
+	sender, err := smtp.New(smtp.Config{
+		Host: "127.0.0.1",
+		Port: relay.PortNumber(),
+		From: "crm@example.com",
+		TLS:  smtp.TLSNone,
+		HELO: "crm.example.com",
+	})
+	if err != nil {
+		t.Fatalf("building the scenario sender: %v", err)
+	}
+	return sender
 }
 
 // sparingly returns the database URL with a pool small enough for a whole suite.

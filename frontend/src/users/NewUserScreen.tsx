@@ -1,54 +1,69 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, PageScreen, __ } from '@alphone/frontend-sdk'
-import {
-	EmailTakenError,
-	ValidationError,
-	createUser,
-	usersQueryKey,
-} from '@gopherium/react-auth/admin'
+import { Button, ErrorNotice, InputControl, PageScreen, Text, __ } from '@alphone/frontend-sdk'
+import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/admin'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 /**
- * Returns the message shown under the form for a failed creation.
+ * Returns the message shown under the form for a failed invitation.
  * @param error - The mutation error.
  * @returns The message to show.
  */
-function createErrorText(error: unknown): string {
-	if (error instanceof EmailTakenError) {
-		return __('That email is already in use.', 'alphone')
-	}
+function inviteErrorText(error: unknown): string {
 	if (error instanceof ValidationError) {
 		return error.message
 	}
-	return __('The user could not be created.', 'alphone')
+	return __('The invitation could not be sent.', 'alphone')
 }
 
 /**
- * Renders the new user form and reports the created account upward.
+ * Renders the invitation form, reporting the handled invitation upward or
+ * showing the activation link when no mail server delivered it.
+ * @param onCreated - Called once the invitation is handled.
  * @returns The new user screen.
  */
 export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
 	const queryClient = useQueryClient()
 	const [email, setEmail] = useState('')
 	const [name, setName] = useState('')
-	const [password, setPassword] = useState('')
-	const create = useMutation({
-		mutationFn: () => createUser({ email: email.trim(), name: name.trim(), password }),
-		onSuccess: async () => {
+	const [activationLink, setActivationLink] = useState<string | null>(null)
+	const send = useMutation({
+		mutationFn: () => invite({ email: email.trim(), name: name.trim() }),
+		onSuccess: async (invitation) => {
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
-			await onCreated()
+			if (invitation.delivered) {
+				await onCreated()
+				return
+			}
+			setActivationLink(invitation.activation_link)
 		},
 	})
 
+	if (activationLink !== null) {
+		return (
+			<PageScreen title={__('New user', 'alphone')}>
+				<div className="godmin-form">
+					<Text role="status">
+						{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
+					</Text>
+					<InputControl
+						label={__('Activation link', 'alphone')}
+						readOnly
+						value={activationLink}
+					/>
+					<Button onClick={() => onCreated()}>{__('Done', 'alphone')}</Button>
+				</div>
+			</PageScreen>
+		)
+	}
 	return (
 		<PageScreen title={__('New user', 'alphone')}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
-					create.mutate()
+					send.mutate()
 				}}
 			>
 				<InputControl
@@ -64,22 +79,13 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
-				<InputControl
-					label={__('Password', 'alphone')}
-					type="password"
-					autoComplete="new-password"
-					value={password}
-					onChange={(event) => setPassword(event.target.value)}
-				/>
 				<Button
 					type="submit"
-					disabled={
-						email.trim() === '' || name.trim() === '' || password === '' || create.isPending
-					}
+					disabled={email.trim() === '' || name.trim() === '' || send.isPending}
 				>
-					{__('Create user', 'alphone')}
+					{__('Send invitation', 'alphone')}
 				</Button>
-				{create.isError ? <ErrorNotice>{createErrorText(create.error)}</ErrorNotice> : null}
+				{send.isError ? <ErrorNotice>{inviteErrorText(send.error)}</ErrorNotice> : null}
 			</form>
 		</PageScreen>
 	)

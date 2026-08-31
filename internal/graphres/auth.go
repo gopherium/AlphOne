@@ -55,6 +55,7 @@ func toUser(account authkit.Account, tier role.Role) *model.User {
 		Email:     account.Email,
 		Name:      account.Name,
 		Disabled:  account.Disabled,
+		Confirmed: account.Confirmed,
 		CreatedAt: account.CreatedAt,
 		Role:      tier.String(),
 	}
@@ -174,31 +175,6 @@ func (m MutationResolvers) Logout(ctx context.Context) (bool, error) {
 	}
 	http.SetCookie(carrier.writer, clearing)
 	return true, nil
-}
-
-// CreateUser creates a user account under the role it names, the narrowest when it names none.
-func (m MutationResolvers) CreateUser(
-	ctx context.Context,
-	email, name, password string,
-	named *string,
-) (*model.User, error) {
-	stood := role.Member
-	if named != nil {
-		parsed, err := role.Parse(*named)
-		if err != nil {
-			return nil, err
-		}
-		stood = parsed
-	}
-	actor := authkit.IdentityFromContext(ctx)
-	if !role.Outranks(role.Role(actor.Role), stood) {
-		return nil, role.ErrBeyondReach
-	}
-	account, err := m.root.Admin.CreateAccount(ctx, email, name, password, stood.String())
-	if err != nil {
-		return nil, err
-	}
-	return toUser(account, stood), nil
 }
 
 // SetUserDisabled updates whether the account may log in, keeping the deployment an enabled admin.

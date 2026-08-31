@@ -160,12 +160,14 @@ github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/gopherium/gouncer v0.3.0 h1:57DDOJ/GYYCEtcSScPOBYZ06TabGR164Cw7edhT3ME8=
-github.com/gopherium/gouncer v0.3.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
-github.com/gopherium/gouncer/authkit v0.10.0 h1:K1+xOxVH4+3ThCi6QnHsfpzAz5RLK9DZeHX+3xrllxw=
-github.com/gopherium/gouncer/authkit v0.10.0/go.mod h1:aQtcQewsZa/DJK7HBa3Jh0lCRLKOo8JMFtJAeC2Rzh4=
-github.com/gopherium/gouncer/authkit/postgres v0.7.0 h1:FiraBa4X5bfNPpKpGa/CTAXRaXn02+Qd7qOeiWnMgMI=
-github.com/gopherium/gouncer/authkit/postgres v0.7.0/go.mod h1:ceZbaPTkuMQ1aYEQT5LtgsiXnl+3ku20+drL9XEnDWk=
+github.com/gopherium/framework/mailkit v0.1.0 h1:A1xm46dpo/zYrzV+Owa2W4Y0QJ1TBDNLkz8qwHF6238=
+github.com/gopherium/framework/mailkit v0.1.0/go.mod h1:iI4n+UOwJPLzczDBhJVmkd69euIIhxeVMhHJi+nRShg=
+github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
+github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
+github.com/gopherium/gouncer/authkit v0.15.0 h1:yng4mH4TG65kG314eIs9gx2TU1EhLz/+XYuhZPHOlLM=
+github.com/gopherium/gouncer/authkit v0.15.0/go.mod h1:eQU0bybVcopHrAP+GPOYmxfnNIDfmSZ6d8RG4YgeUw0=
+github.com/gopherium/gouncer/authkit/postgres v0.10.0 h1:IpeH9q0xViVd2bhhOqT0xiSgy7+1bMM77udZCAKx2J0=
+github.com/gopherium/gouncer/authkit/postgres v0.10.0/go.mod h1:dkjjTekQk7qe2aImA7lUrxsZf5LHf34vjWc8qqtCCMg=
 github.com/gopherium/gouncer/authkit/ratelimit v0.3.0 h1:K4e8kwzO9XRJB95TErMVV4CuskTtG2c2CwL7nLAI/Ko=
 github.com/gopherium/gouncer/authkit/ratelimit v0.3.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
 github.com/gopherium/pluginkit v0.5.0 h1:vJPqQXnC+Hxzi5iGqmbxNYtnSk9s5794PY7H80KcSAo=
@@ -233,6 +235,8 @@ github.com/microcosm-cc/bluemonday v1.0.27 h1:MpEUotklkwCSLeH+Qdx1VJgNqLlpY2KXwX
 github.com/microcosm-cc/bluemonday v1.0.27/go.mod h1:jFi9vgW+H7c3V0lb6nR74Ib/DIB5OBs92Dimizgw2cA=
 github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c h1:cqn374mizHuIWj+OSJCajGr/phAmuMug9qIX3l9CflE=
 github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
+github.com/mocktools/go-smtp-mock/v2 v2.5.4 h1:U89Y4SuOhDFUfboMYUtXzWDp7hNLrofRa5yNqGSESSM=
+github.com/mocktools/go-smtp-mock/v2 v2.5.4/go.mod h1:qBGjYXy5jKKVFhDnB39DYQfn4hWfcqWAlJTcvrku3rg=
 github.com/modelcontextprotocol/go-sdk v1.7.0 h1:yqjY2dsbKAC0LSuWZVBMrHgiG8ukXv6NRo0JiALay44=
 github.com/modelcontextprotocol/go-sdk v1.7.0/go.mod h1:dL7u98E/zjJTGzEq+j30jQ8K2k1mb6LeAH4inEcSGts=
 github.com/muesli/smartcrop v0.3.0 h1:JTlSkmxWg/oQ1TcLDoypuirdE8Y/jzNirQeLkxpA6Oc=
@@ -325,6 +329,8 @@ github.com/sqlc-dev/doubleclick v1.0.0/go.mod h1:ODHRroSrk/rr5neRHlWMSRijqOak8Ym
 github.com/sqlc-dev/sqlc v1.31.1 h1:+V+BjBJfFNPX/RFfL8eiZD9jk9lVJUEGGllWvnYNqbc=
 github.com/sqlc-dev/sqlc v1.31.1/go.mod h1:6ZPww/Jd3G6MzJeW6NrqizjL+52vYNaaXP9yMeJ/Nao=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
+github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
+github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
@@ -351,6 +357,8 @@ github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07 h1:mJdDDPblDfP
 github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07/go.mod h1:Ak17IJ037caFp4jpCw/iQQ7/W74Sqpb1YuKJU6HTKfM=
 github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 h1:OvLBa8SqJnZ6P+mjlzc2K7PM22rRUPE1x32G9DTPrC4=
 github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52/go.mod h1:jMeV4Vpbi8osrE/pKUxRZkVaA0EX7NZN0A9/oRzgpgY=
+github.com/wneessen/go-mail v0.8.1 h1:tVcncj02/QySVFw3zr/kXOzZcuFQqBNT6K+Rbgm/pcM=
+github.com/wneessen/go-mail v0.8.1/go.mod h1:dWZ61zadzCIyvB4y1/YzC5O7MrbbzBfPkARmbosdf8w=
 github.com/xuri/efp v0.0.1 h1:fws5Rv3myXyYni8uwj2qKjVaRP30PdjeYe2Y6FDsCL8=
 github.com/xuri/efp v0.0.1/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
 github.com/xuri/excelize/v2 v2.11.0 h1:HxaEFl6sRN2+8J5a8HaKq+0M4FsjBGMnWWtjOCPSG88=

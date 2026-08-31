@@ -148,6 +148,11 @@ type ImportRow struct {
 	ContactID *uuid.UUID `json:"contactId,omitempty"`
 }
 
+type InvitePayload struct {
+	Delivered      bool    `json:"delivered"`
+	ActivationLink *string `json:"activationLink,omitempty"`
+}
+
 type LoginPayload struct {
 	Me *Identity `json:"me"`
 }
@@ -209,6 +214,7 @@ type User struct {
 	Email     string    `json:"email"`
 	Name      string    `json:"name"`
 	Disabled  bool      `json:"disabled"`
+	Confirmed bool      `json:"confirmed"`
 	CreatedAt time.Time `json:"createdAt"`
 	Role      string    `json:"role"`
 }

@@ -206,7 +206,12 @@ func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 		}
 	}
 
-	want := map[string]bool{"createUser": true, "setUserDisabled": true, "setUserRole": true}
+	want := map[string]bool{
+		"setUserDisabled": true,
+		"setUserRole":     true,
+		"invite":          true,
+		"resendInvite":    true,
+	}
 	if len(reserved) != len(want) {
 		t.Errorf("fields needing manage_users = %v, want %v", reserved, want)
 	}

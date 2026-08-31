@@ -8,7 +8,7 @@ Feature: A role narrows what a user may do
     Given a running AlphOne holding an admin and a member
 
   Scenario: A user created by an admin arrives a member
-    When the admin's session creates a user named "Grace Hopper"
+    When the admin's session invites a user named "Grace Hopper"
     Then the user list shows "Grace Hopper" as a "member"
 
   Scenario: A member is refused user management

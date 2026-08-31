@@ -16,8 +16,14 @@ type User {
   email: String!
   name: String!
   disabled: Boolean!
+  confirmed: Boolean!
   createdAt: DateTime!
   role: String!
+}
+
+type InvitePayload {
+  delivered: Boolean!
+  activationLink: String
 }
 
 extend type Query {
@@ -28,7 +34,11 @@ extend type Query {
 extend type Mutation {
   login(email: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
   logout: Boolean! @scope(area: "auth", write: true)
-  createUser(email: String!, name: String!, password: String!, role: String): User! @scope(area: "users", write: true, capability: "manage_users")
   setUserDisabled(id: UUID!, disabled: Boolean!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
   setUserRole(id: UUID!, role: String!): Boolean! @scope(area: "users", write: true, capability: "manage_users")
+  invite(email: String!, name: String!, role: String): InvitePayload! @scope(area: "users", write: true, capability: "manage_users")
+  resendInvite(email: String!): InvitePayload! @scope(area: "users", write: true, capability: "manage_users")
+  acceptInvite(token: String!, password: String!): LoginPayload! @scope(area: "auth", write: true)
+  requestPasswordReset(email: String!): Boolean! @scope(area: "auth", write: true)
+  resetPassword(token: String!, password: String!): Boolean! @scope(area: "auth", write: true)
 }

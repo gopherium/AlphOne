@@ -85,7 +85,8 @@ jobs:
           git fetch origin ${{ github.base_ref }} --depth 1
           if git cat-file -e "origin/${{ github.base_ref }}:graph/schema.graphql" 2>/dev/null; then
             pnpm --filter @alphone/e2e run schema:diff \
-              "git:origin/${{ github.base_ref }}:graph/schema.graphql" ../../graph/schema.graphql
+              "git:origin/${{ github.base_ref }}:graph/schema.graphql" ../../graph/schema.graphql \
+              --rule ./approved-removals.ts
           else
             echo "no schema snapshot on the base branch, skipping"
           fi

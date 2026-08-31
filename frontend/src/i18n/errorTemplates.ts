@@ -41,6 +41,7 @@ export function errorTemplates(): Record<string, string> {
 		value_malformed: __('That value is not in the form AlphOne expects.', DOMAIN),
 		token_name_required: __('A token needs a name.', DOMAIN),
 		token_not_found: __('That token no longer exists.', DOMAIN),
+		token_invalid: __('This link is no longer valid. Ask for a new one.', DOMAIN),
 		scope_malformed: __('Write a scope as an area, a colon, then read or write.', DOMAIN),
 		scopes_required: __('Choose at least one area the token reaches.', DOMAIN),
 		area_unknown: __('That area is not one AlphOne offers.', DOMAIN),

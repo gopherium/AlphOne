@@ -2,7 +2,7 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
-import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
+import { ValidationError } from '@gopherium/react-auth/admin'
 import { print } from 'graphql'
 import { expect, test } from 'vitest'
 
@@ -152,51 +152,6 @@ test('fetchUsers throws the graph failure without a payload', async () => {
 	graphResponds('query Users', graphError('INTERNAL', 'listing users failed upstream'))
 
 	await expect(graphAuthTransport.fetchUsers()).rejects.toThrow('listing users failed upstream')
-})
-
-test('createUser resolves the created account', async () => {
-	graphResponds('mutation CreateUser', {
-		data: {
-			createUser: { ...maria, disabled: false, createdAt: '2026-08-05T10:30:15.123456Z' },
-		},
-	})
-
-	const account = await graphAuthTransport.createUser({
-		email: maria.email,
-		name: maria.name,
-		password: 'password1234',
-	})
-
-	expect(account).toMatchObject({ id: maria.id, email: maria.email, disabled: false })
-	expect(account.created_at).toBeInstanceOf(Date)
-})
-
-test('createUser rejects anonymous callers with UnauthorizedError', async () => {
-	graphResponds('mutation CreateUser', graphError('UNAUTHENTICATED'))
-
-	await expect(
-		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'password1234' }),
-	).rejects.toBeInstanceOf(UnauthorizedError)
-})
-
-test('createUser throws the graph failure without a payload', async () => {
-	graphResponds('mutation CreateUser', graphError('INTERNAL', 'creating user failed upstream'))
-
-	await expect(
-		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'password1234' }),
-	).rejects.toThrow('creating user failed upstream')
-})
-
-test('createUser maps conflicts and validation onto the admin errors', async () => {
-	graphResponds('mutation CreateUser', graphError('CONFLICT'))
-	await expect(
-		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'password1234' }),
-	).rejects.toBeInstanceOf(EmailTakenError)
-
-	graphResponds('mutation CreateUser', graphError('VALIDATION', 'password too short'))
-	await expect(
-		graphAuthTransport.createUser({ email: maria.email, name: maria.name, password: 'x' }),
-	).rejects.toThrow('password too short')
 })
 
 test('setUserDisabled maps validation onto ValidationError', async () => {

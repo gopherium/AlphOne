@@ -46,6 +46,9 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
+msgid "Activation link"
+msgstr ""
+
 msgid "Add a task"
 msgstr ""
 
@@ -145,9 +148,6 @@ msgstr ""
 msgid "Create token"
 msgstr ""
 
-msgid "Create user"
-msgstr ""
-
 msgid "Created"
 msgstr ""
 
@@ -158,6 +158,9 @@ msgid "Disable"
 msgstr ""
 
 msgid "Disable %(name)s"
+msgstr ""
+
+msgid "Done"
 msgstr ""
 
 msgid "Done (%(count)s)"
@@ -185,6 +188,9 @@ msgid "Expires"
 msgstr ""
 
 msgid "Identities"
+msgstr ""
+
+msgid "Invitation sent."
 msgstr ""
 
 msgid "Label"
@@ -274,6 +280,9 @@ msgstr ""
 msgid "No identities yet."
 msgstr ""
 
+msgid "No mail server is configured. Deliver the activation link by hand."
+msgstr ""
+
 msgid "No open tasks."
 msgstr ""
 
@@ -296,9 +305,6 @@ msgid "Overdue tasks"
 msgstr ""
 
 msgid "Overdue tasks could not be loaded."
-msgstr ""
-
-msgid "Password"
 msgstr ""
 
 msgid "Previous day"
@@ -328,6 +334,12 @@ msgstr ""
 msgid "Reopen"
 msgstr ""
 
+msgid "Resend invitation"
+msgstr ""
+
+msgid "Resend invitation to %(name)s"
+msgstr ""
+
 msgid "Revoke"
 msgstr ""
 
@@ -350,6 +362,9 @@ msgid "Scopes"
 msgstr ""
 
 msgid "Search contacts"
+msgstr ""
+
+msgid "Send invitation"
 msgstr ""
 
 msgid "Sign in to go on."
@@ -389,9 +404,6 @@ msgid "That contact no longer exists."
 msgstr ""
 
 msgid "That email and password do not match an account."
-msgstr ""
-
-msgid "That email is already in use."
 msgstr ""
 
 msgid "That event name is not one AlphOne knows."
@@ -442,6 +454,9 @@ msgstr ""
 msgid "The identity could not be removed."
 msgstr ""
 
+msgid "The invitation could not be sent."
+msgstr ""
+
 msgid "The language changes when the page next loads."
 msgstr ""
 
@@ -466,7 +481,7 @@ msgstr ""
 msgid "The token could not be created."
 msgstr ""
 
-msgid "The user could not be created."
+msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
 msgid "This token does not reach %(scope)s."
@@ -529,6 +544,10 @@ msgstr ""
 
 msgctxt "account status"
 msgid "Disabled"
+msgstr ""
+
+msgctxt "account status"
+msgid "Invited"
 msgstr ""
 
 msgctxt "admin section"

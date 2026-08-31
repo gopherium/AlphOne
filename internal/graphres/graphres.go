@@ -5,6 +5,8 @@ package graphres
 
 import (
 	"context"
+	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -92,6 +94,15 @@ func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, targe
 	return gouncer.ErrUserNotFound
 }
 
+// sharesTenant reports whether the actor and the target stand in one tenant.
+func (r *Resolver) sharesTenant(ctx context.Context, actor, target uuid.UUID) (bool, error) {
+	placed, err := r.tenantsOf(ctx, []uuid.UUID{actor, target})
+	if err != nil {
+		return false, err
+	}
+	return placedIn(placed, actor) == placedIn(placed, target), nil
+}
+
 // tenantsOf returns the tenant each named account a row places stands in, the rest absent.
 func (r *Resolver) tenantsOf(
 	ctx context.Context, ids []uuid.UUID,
@@ -134,6 +145,17 @@ type AttemptLimiter interface {
 	RecordFailure(key string) error
 }
 
+// Mailer delivers the invitation and reset mail.
+type Mailer interface {
+	SendInvite(ctx context.Context, to, name, link string) error
+	SendReset(ctx context.Context, to, name, link string) error
+}
+
+// AccountReader reads one account by its normalized address.
+type AccountReader interface {
+	UserByEmail(ctx context.Context, email string) (gouncer.User, error)
+}
+
 // Resolver is the root resolver serving the core schema.
 type Resolver struct {
 	// Version is the reported application version.
@@ -160,6 +182,28 @@ type Resolver struct {
 	Settings SettingStore
 	// LoginLimiter counts failed logins per client IP.
 	LoginLimiter AttemptLimiter
+	// Invites serves the invitation and reset flows.
+	Invites *authkit.Invites
+	// Accounts reads accounts for the mail the flows deliver.
+	Accounts AccountReader
+	// Mailer delivers the account mail. Nil runs without a mailer.
+	Mailer Mailer
+	// PublicURL is the address email links lead back to, empty without a mailer.
+	PublicURL string
+	// TokenLimiter counts token operations per client IP.
+	TokenLimiter AttemptLimiter
+
+	// ResetLimiter budgets reset requests per client IP.
+	ResetLimiter AttemptLimiter
+
+	// ResetCooldown budgets reset mail per address. Nil sends on every request.
+	ResetCooldown AttemptLimiter
+
+	// resetCooldownMu serializes the reset cooldown spend.
+	resetCooldownMu sync.Mutex
+
+	// Logger records what a neutral answer hides. Nil discards it.
+	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
 }
