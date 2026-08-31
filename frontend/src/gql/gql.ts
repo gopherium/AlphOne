@@ -17,10 +17,14 @@ type Documents = {
     "\n\tquery Me {\n\t\tme {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\trole\n\t\t\tcapabilities\n\t\t\tgrantable\n\t\t}\n\t}\n": typeof types.MeDocument,
     "\n\tmutation Login($email: String!, $password: String!) {\n\t\tlogin(email: $email, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": typeof types.LoginDocument,
     "\n\tmutation Logout {\n\t\tlogout\n\t}\n": typeof types.LogoutDocument,
-    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": typeof types.UsersDocument,
+    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": typeof types.UsersDocument,
     "\n\tmutation SetUserRole($id: UUID!, $role: String!) {\n\t\tsetUserRole(id: $id, role: $role)\n\t}\n": typeof types.SetUserRoleDocument,
-    "\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": typeof types.CreateUserDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": typeof types.SetUserDisabledDocument,
+    "\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": typeof types.InviteDocument,
+    "\n\tmutation ResendInvite($email: String!) {\n\t\tresendInvite(email: $email) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": typeof types.ResendInviteDocument,
+    "\n\tmutation AcceptInvite($token: String!, $password: String!) {\n\t\tacceptInvite(token: $token, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": typeof types.AcceptInviteDocument,
+    "\n\tmutation RequestPasswordReset($email: String!) {\n\t\trequestPasswordReset(email: $email)\n\t}\n": typeof types.RequestPasswordResetDocument,
+    "\n\tmutation ResetPassword($token: String!, $password: String!) {\n\t\tresetPassword(token: $token, password: $password)\n\t}\n": typeof types.ResetPasswordDocument,
     "\n\tmutation CreateContact($name: String!) {\n\t\tcreateContact(name: $name) {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": typeof types.CreateContactDocument,
     "\n\tmutation RenameContact($id: UUID!, $name: String!) {\n\t\trenameContact(id: $id, name: $name) {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": typeof types.RenameContactDocument,
     "\n\tmutation AddContactIdentity($contactId: UUID!, $identity: ContactIdentityInput!) {\n\t\taddContactIdentity(contactId: $contactId, identity: $identity) {\n\t\t\tid\n\t\t\tchannel\n\t\t\tidentifier\n\t\t\tdisplayName\n\t\t}\n\t}\n": typeof types.AddContactIdentityDocument,
@@ -43,10 +47,14 @@ const documents: Documents = {
     "\n\tquery Me {\n\t\tme {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\trole\n\t\t\tcapabilities\n\t\t\tgrantable\n\t\t}\n\t}\n": types.MeDocument,
     "\n\tmutation Login($email: String!, $password: String!) {\n\t\tlogin(email: $email, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": types.LoginDocument,
     "\n\tmutation Logout {\n\t\tlogout\n\t}\n": types.LogoutDocument,
-    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": types.UsersDocument,
+    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": types.UsersDocument,
     "\n\tmutation SetUserRole($id: UUID!, $role: String!) {\n\t\tsetUserRole(id: $id, role: $role)\n\t}\n": types.SetUserRoleDocument,
-    "\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n": types.CreateUserDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": types.SetUserDisabledDocument,
+    "\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": types.InviteDocument,
+    "\n\tmutation ResendInvite($email: String!) {\n\t\tresendInvite(email: $email) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": types.ResendInviteDocument,
+    "\n\tmutation AcceptInvite($token: String!, $password: String!) {\n\t\tacceptInvite(token: $token, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": types.AcceptInviteDocument,
+    "\n\tmutation RequestPasswordReset($email: String!) {\n\t\trequestPasswordReset(email: $email)\n\t}\n": types.RequestPasswordResetDocument,
+    "\n\tmutation ResetPassword($token: String!, $password: String!) {\n\t\tresetPassword(token: $token, password: $password)\n\t}\n": types.ResetPasswordDocument,
     "\n\tmutation CreateContact($name: String!) {\n\t\tcreateContact(name: $name) {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": types.CreateContactDocument,
     "\n\tmutation RenameContact($id: UUID!, $name: String!) {\n\t\trenameContact(id: $id, name: $name) {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": types.RenameContactDocument,
     "\n\tmutation AddContactIdentity($contactId: UUID!, $identity: ContactIdentityInput!) {\n\t\taddContactIdentity(contactId: $contactId, identity: $identity) {\n\t\t\tid\n\t\t\tchannel\n\t\t\tidentifier\n\t\t\tdisplayName\n\t\t}\n\t}\n": types.AddContactIdentityDocument,
@@ -95,7 +103,7 @@ export function graphql(source: "\n\tmutation Logout {\n\t\tlogout\n\t}\n"): (ty
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"];
+export function graphql(source: "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -103,11 +111,27 @@ export function graphql(source: "\n\tmutation SetUserRole($id: UUID!, $role: Str
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n"): (typeof documents)["\n\tmutation CreateUser($email: String!, $name: String!, $password: String!) {\n\t\tcreateUser(email: $email, name: $name, password: $password) {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tcreatedAt\n\t\t}\n\t}\n"];
+export function graphql(source: "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"): (typeof documents)["\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"): (typeof documents)["\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n"];
+export function graphql(source: "\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n"): (typeof documents)["\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation ResendInvite($email: String!) {\n\t\tresendInvite(email: $email) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n"): (typeof documents)["\n\tmutation ResendInvite($email: String!) {\n\t\tresendInvite(email: $email) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation AcceptInvite($token: String!, $password: String!) {\n\t\tacceptInvite(token: $token, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n"): (typeof documents)["\n\tmutation AcceptInvite($token: String!, $password: String!) {\n\t\tacceptInvite(token: $token, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation RequestPasswordReset($email: String!) {\n\t\trequestPasswordReset(email: $email)\n\t}\n"): (typeof documents)["\n\tmutation RequestPasswordReset($email: String!) {\n\t\trequestPasswordReset(email: $email)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation ResetPassword($token: String!, $password: String!) {\n\t\tresetPassword(token: $token, password: $password)\n\t}\n"): (typeof documents)["\n\tmutation ResetPassword($token: String!, $password: String!) {\n\t\tresetPassword(token: $token, password: $password)\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

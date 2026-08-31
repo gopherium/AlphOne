@@ -3,20 +3,33 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core'
 import { print } from 'graphql'
 
-import { InvalidCredentialsError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
-import { EmailTakenError, ValidationError } from '@gopherium/react-auth/admin'
-import type { NewUser, User as BrickAccount } from '@gopherium/react-auth/admin'
+import {
+	InvalidCredentialsError,
+	InvalidTokenError,
+	RateLimitedError,
+	UnauthorizedError,
+} from '@gopherium/react-auth'
+import { ValidationError } from '@gopherium/react-auth/admin'
+import type {
+	Invitation,
+	NewInvite,
+	User as BrickAccount,
+} from '@gopherium/react-auth/admin'
 
 /**
  * Account is one user account as the admin screens consume it.
  */
-export type Account = BrickAccount
+export type Account = BrickAccount & { confirmed: boolean }
 
 import {
-	createUserMutation,
+	acceptInviteMutation,
+	inviteMutation,
 	loginMutation,
 	logoutMutation,
 	meQuery,
+	requestPasswordResetMutation,
+	resendInviteMutation,
+	resetPasswordMutation,
 	setUserDisabledMutation,
 	setUserRoleMutation,
 	usersQuery,
@@ -24,7 +37,7 @@ import {
 
 interface GraphError {
 	message: string
-	extensions?: { code?: string; retryAfter?: number }
+	extensions?: { code?: string; reason?: string; retryAfter?: number }
 }
 
 interface GraphResult<TData> {
@@ -79,6 +92,15 @@ function firstMessage<TData>(result: GraphResult<TData>, fallback: string): stri
 }
 
 /**
+ * Returns the first error reason of a graph result.
+ * @param result - The parsed graph response.
+ * @returns The extensions reason, or undefined without errors.
+ */
+function firstReason<TData>(result: GraphResult<TData>): string | undefined {
+	return result.errors?.[0]?.extensions?.reason
+}
+
+/**
  * Maps a graph user onto the admin account shape.
  * @param user - The graph user selection.
  * @returns The account as the admin screens consume it.
@@ -88,6 +110,7 @@ function toAccount(user: {
 	email: string
 	name: string
 	disabled: boolean
+	confirmed: boolean
 	createdAt: string
 	role?: string
 }): Account {
@@ -96,6 +119,7 @@ function toAccount(user: {
 		email: user.email,
 		name: user.name,
 		disabled: user.disabled,
+		confirmed: user.confirmed,
 		created_at: new Date(user.createdAt),
 		role: user.role ?? '',
 	}
@@ -175,26 +199,125 @@ async function fetchUsers(signal?: AbortSignal): Promise<Account[]> {
 }
 
 /**
- * Creates an account through the createUser mutation.
- * @param input - The email, name, and password of the new account.
- * @returns The created account.
+ * Maps an invitation answer onto the shape the invite screen consumes.
+ * @param report - The delivery report the graph answered.
+ * @returns The invitation as the screens consume it.
  */
-async function createUser(input: NewUser): Promise<Account> {
-	const result = await execute(createUserMutation, input)
-	const code = firstCode(result)
+function toInvitation(report: { delivered: boolean; activationLink?: string | null }): Invitation {
+	if (report.delivered) {
+		return { delivered: true }
+	}
+	if (!report.activationLink) {
+		throw new Error('the invitation carries no activation link')
+	}
+	return { delivered: false, activation_link: report.activationLink }
+}
+
+/**
+ * Refuses an invitation answer by the code the graph carried.
+ * @param code - The extensions code of the first error.
+ * @param message - The message the error carried.
+ */
+function refuseInvitation(code: string | undefined, message: string): void {
 	if (code === 'UNAUTHENTICATED') {
 		throw new UnauthorizedError('session expired')
 	}
-	if (code === 'CONFLICT') {
-		throw new EmailTakenError('email already in use')
+	if (code === 'RATE_LIMITED') {
+		throw new RateLimitedError('too many requests')
+	}
+	if (code === 'VALIDATION' || code === 'CONFLICT') {
+		throw new ValidationError(message)
+	}
+}
+
+/**
+ * Sends an invitation through the invite mutation.
+ * @param input - The email, name, and optional role of the invited account.
+ * @returns The delivery report, carrying the link when nothing mailed it.
+ */
+async function invite(input: NewInvite): Promise<Invitation> {
+	const result = await execute(inviteMutation, {
+		email: input.email,
+		name: input.name,
+		role: input.role ?? null,
+	})
+	refuseInvitation(firstCode(result), firstMessage(result, 'invalid invitation details'))
+	if (!result.data) {
+		throw new Error(firstMessage(result, 'inviting failed'))
+	}
+	return toInvitation(result.data.invite)
+}
+
+/**
+ * Replaces a pending account's invitation through the resendInvite mutation.
+ * @param email - The address the invitation was sent to.
+ * @returns The delivery report, carrying the link when nothing mailed it.
+ */
+export async function resendInvite(email: string): Promise<Invitation> {
+	const result = await execute(resendInviteMutation, { email })
+	refuseInvitation(firstCode(result), firstMessage(result, 'the invitation could not be sent'))
+	if (!result.data) {
+		throw new Error(firstMessage(result, 'resending the invitation failed'))
+	}
+	return toInvitation(result.data.resendInvite)
+}
+
+/**
+ * Refuses a token operation by the reason the graph carried.
+ * @param code - The extensions code of the first error.
+ * @param reason - The stable reason of the first error.
+ * @param message - The message the error carried.
+ */
+function refuseToken(code: string | undefined, reason: string | undefined, message: string): void {
+	if (code === 'RATE_LIMITED') {
+		throw new RateLimitedError('too many attempts')
+	}
+	if (reason === 'token_invalid') {
+		throw new InvalidTokenError('the link is no longer valid')
 	}
 	if (code === 'VALIDATION') {
-		throw new ValidationError(firstMessage(result, 'invalid user details'))
+		throw new ValidationError(message)
 	}
+}
+
+/**
+ * Accepts an invitation through the acceptInvite mutation.
+ * @param token - The activation link's secret.
+ * @param password - The password the invited person chooses.
+ * @returns The activated and signed-in user.
+ */
+async function acceptInvite(token: string, password: string) {
+	const result = await execute(acceptInviteMutation, { token, password })
+	refuseToken(firstCode(result), firstReason(result), firstMessage(result, 'invalid password'))
 	if (!result.data) {
-		throw new Error(firstMessage(result, 'creating user failed'))
+		throw new Error(firstMessage(result, 'activation failed'))
 	}
-	return toAccount(result.data.createUser)
+	return result.data.acceptInvite.me
+}
+
+/**
+ * Asks for a reset link through the requestPasswordReset mutation.
+ * @param email - The address asking for a reset.
+ */
+async function requestPasswordReset(email: string): Promise<void> {
+	const result = await execute(requestPasswordResetMutation, { email })
+	refuseToken(firstCode(result), firstReason(result), firstMessage(result, 'the request failed'))
+	if (!result.data) {
+		throw new Error(firstMessage(result, 'requesting the reset failed'))
+	}
+}
+
+/**
+ * Replaces the password behind a reset link through the resetPassword mutation.
+ * @param token - The reset link's secret.
+ * @param password - The password the person chooses.
+ */
+async function resetPassword(token: string, password: string): Promise<void> {
+	const result = await execute(resetPasswordMutation, { token, password })
+	refuseToken(firstCode(result), firstReason(result), firstMessage(result, 'invalid password'))
+	if (!result.data) {
+		throw new Error(firstMessage(result, 'resetting the password failed'))
+	}
 }
 
 /**
@@ -240,6 +363,9 @@ export const graphAuthTransport = {
 	logout,
 	isSessionRevoked,
 	fetchUsers,
-	createUser,
 	setUserDisabled,
+	invite,
+	acceptInvite,
+	requestPasswordReset,
+	resetPassword,
 }

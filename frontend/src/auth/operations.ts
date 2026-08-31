@@ -43,6 +43,7 @@ export const usersQuery = graphql(`
 			email
 			name
 			disabled
+			confirmed
 			createdAt
 			role
 		}
@@ -55,20 +56,53 @@ export const setUserRoleMutation = graphql(`
 	}
 `)
 
-export const createUserMutation = graphql(`
-	mutation CreateUser($email: String!, $name: String!, $password: String!) {
-		createUser(email: $email, name: $name, password: $password) {
-			id
-			email
-			name
-			disabled
-			createdAt
+export const setUserDisabledMutation = graphql(`
+	mutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {
+		setUserDisabled(id: $id, disabled: $disabled)
+	}
+`)
+
+export const inviteMutation = graphql(`
+	mutation Invite($email: String!, $name: String!, $role: String) {
+		invite(email: $email, name: $name, role: $role) {
+			delivered
+			activationLink
 		}
 	}
 `)
 
-export const setUserDisabledMutation = graphql(`
-	mutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {
-		setUserDisabled(id: $id, disabled: $disabled)
+export const resendInviteMutation = graphql(`
+	mutation ResendInvite($email: String!) {
+		resendInvite(email: $email) {
+			delivered
+			activationLink
+		}
+	}
+`)
+
+export const acceptInviteMutation = graphql(`
+	mutation AcceptInvite($token: String!, $password: String!) {
+		acceptInvite(token: $token, password: $password) {
+			me {
+				id
+				email
+				name
+				role
+				capabilities
+				grantable
+			}
+		}
+	}
+`)
+
+export const requestPasswordResetMutation = graphql(`
+	mutation RequestPasswordReset($email: String!) {
+		requestPasswordReset(email: $email)
+	}
+`)
+
+export const resetPasswordMutation = graphql(`
+	mutation ResetPassword($token: String!, $password: String!) {
+		resetPassword(token: $token, password: $password)
 	}
 `)
