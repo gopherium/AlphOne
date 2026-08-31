@@ -150,6 +150,14 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 		m.logReset(ctx, "reading the account behind a reset request", err)
 		return true, nil
 	}
+	cooled, err := m.spendResetCooldown(held.Email)
+	if err != nil {
+		m.logReset(ctx, "budgeting the reset mail for an address", err)
+		return true, nil
+	}
+	if !cooled {
+		return true, nil
+	}
 	token, err := m.root.Invites.RequestReset(ctx, email)
 	if err != nil {
 		m.logReset(ctx, "issuing a reset token", err)
@@ -160,6 +168,18 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 		m.logReset(ctx, "sending the reset link", err)
 	}
 	return true, nil
+}
+
+// spendResetCooldown reports whether the address may be mailed now, spending its budget.
+func (m MutationResolvers) spendResetCooldown(address string) (bool, error) {
+	if m.root.ResetCooldown == nil {
+		return true, nil
+	}
+	allowed, _, err := m.root.ResetCooldown.Check(address)
+	if err != nil || !allowed {
+		return false, err
+	}
+	return true, m.root.ResetCooldown.RecordFailure(address)
 }
 
 // logReset records what the neutral reset answer hides.

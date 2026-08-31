@@ -63,7 +63,7 @@ func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.R
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
-		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: store}),
+		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: store, ResetTokensLive: 3}),
 		Accounts:     store,
 		PublicURL:    "https://crm.example.com",
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
@@ -374,7 +374,7 @@ func TestRequestPasswordResetAnswersEveryAddressTheSameWay(t *testing.T) {
 	}
 }
 
-func TestRequestPasswordResetKeepsAStandingToken(t *testing.T) {
+func TestRequestPasswordResetStacksAFreshLink(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
@@ -388,13 +388,83 @@ func TestRequestPasswordResetKeepsAStandingToken(t *testing.T) {
 	if len(first.Errors) != 0 || len(second.Errors) != 0 {
 		t.Fatalf("reset requests errored %v then %v, want both neutral", first.Errors, second.Errors)
 	}
-	if len(mailer.resets) != 1 {
-		t.Fatalf("sent %d reset mails, want no new mail while a token stands", len(mailer.resets))
+	if len(mailer.resets) != 2 {
+		t.Fatalf("sent %d reset mails, want a fresh link per request", len(mailer.resets))
+	}
+	if mailer.resets[0].link == mailer.resets[1].link {
+		t.Fatal("both mails carry the same link, want independent links")
 	}
 
 	standing := activationTokenOf(t, mailer.resets[0].link)
 	if _, err := resolver.Invites.RedeemReset(t.Context(), standing, "brand new password"); err != nil {
-		t.Errorf("RedeemReset(standing) error = %v, want a public request to leave the held link alone", err)
+		t.Errorf("RedeemReset(the earlier link) error = %v, want a later request to leave it standing", err)
+	}
+}
+
+func TestSpendingOneResetLinkEndsTheFamily(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetLimiter = ratelimit.NewLimiter(ratelimit.Config{Limit: 3, Window: time.Minute})
+
+	for range 3 {
+		requestResetThrough(t, resolver, "maria@example.com")
+	}
+	if len(mailer.resets) != 3 {
+		t.Fatalf("sent %d reset mails, want three standing links", len(mailer.resets))
+	}
+
+	spent := activationTokenOf(t, mailer.resets[1].link)
+	if _, err := resolver.Invites.RedeemReset(t.Context(), spent, "brand new password"); err != nil {
+		t.Fatalf("RedeemReset(middle link) error = %v, want nil", err)
+	}
+
+	for _, index := range []int{0, 2} {
+		sibling := activationTokenOf(t, mailer.resets[index].link)
+		if _, err := resolver.Invites.RedeemReset(t.Context(), sibling, "another password"); err == nil {
+			t.Errorf("RedeemReset(link %d) error = nil, want the family ended with the spent one", index)
+		}
+	}
+}
+
+func TestRequestPasswordResetHoldsInsideTheCooldown(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetCooldown = ratelimit.NewLimiter(ratelimit.Config{Limit: 1, Window: time.Minute})
+
+	first := requestResetThrough(t, resolver, "maria@example.com")
+	second := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(first.Errors) != 0 || len(second.Errors) != 0 {
+		t.Fatalf("reset requests errored %v then %v, want both neutral", first.Errors, second.Errors)
+	}
+	if len(mailer.resets) != 1 {
+		t.Errorf("sent %d reset mails, want the cooldown to hold the second", len(mailer.resets))
+	}
+}
+
+func TestTheResetCooldownIsKeyedPerAddress(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	store.AddUser(t, "ada@example.com", "Ada Lovelace", testPassword)
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetCooldown = ratelimit.NewLimiter(ratelimit.Config{Limit: 1, Window: time.Minute})
+
+	requestResetThrough(t, resolver, "maria@example.com")
+	requestResetThrough(t, resolver, "ada@example.com")
+
+	if len(mailer.resets) != 2 {
+		t.Errorf("sent %d reset mails, want one address not to spend another's cooldown", len(mailer.resets))
 	}
 }
 
@@ -785,5 +855,60 @@ func TestResetPasswordSurfacesTheTokenFailuresBehindIt(t *testing.T) {
 				t.Error("errors = none, want the failure surfaced")
 			}
 		})
+	}
+}
+
+func TestRequestPasswordResetSurvivesACooldownFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]stubLimiter{
+		"the cooldown check fails": {checkErr: errors.New("cooldown down")},
+		"recording the mail fails": {recordErr: errors.New("cooldown down")},
+	}
+	for testName, limiter := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+			mailer := &recordingMailer{}
+			resolver := newInviteResolver(store, mailer)
+			resolver.ResetCooldown = limiter
+
+			held := requestResetThrough(t, resolver, "maria@example.com")
+
+			if len(held.Errors) != 0 {
+				t.Errorf("a cooldown failure answered %s, want the neutral answer", held.Errors)
+			}
+			if len(mailer.resets) != 0 {
+				t.Errorf("sent %d reset mails, want none when the cooldown cannot be spent", len(mailer.resets))
+			}
+		})
+	}
+}
+
+func TestRequestPasswordResetHoldsWhenTheStackIsFull(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetLimiter = ratelimit.NewLimiter(ratelimit.Config{Limit: 5, Window: time.Minute})
+
+	for range 3 {
+		requestResetThrough(t, resolver, "maria@example.com")
+	}
+	if len(mailer.resets) != 3 {
+		t.Fatalf("sent %d reset mails, want the stack filled", len(mailer.resets))
+	}
+
+	beyond := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(beyond.Errors) != 0 {
+		t.Errorf("a request beyond the stack answered %s, want the neutral answer", beyond.Errors)
+	}
+	if len(mailer.resets) != 3 {
+		t.Errorf("sent %d reset mails, want no new link beyond the stack", len(mailer.resets))
 	}
 }

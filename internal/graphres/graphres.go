@@ -195,6 +195,9 @@ type Resolver struct {
 	// ResetLimiter budgets reset requests per client IP.
 	ResetLimiter AttemptLimiter
 
+	// ResetCooldown budgets reset mail per address. Nil sends on every request.
+	ResetCooldown AttemptLimiter
+
 	// Logger records what a neutral answer hides. Nil discards it.
 	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
