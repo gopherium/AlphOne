@@ -98,6 +98,10 @@ func initializeRoles(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerRoleSteps(sc, t) }
 }
 
+func initializeMail(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerMailSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -144,4 +148,8 @@ func TestTokens(t *testing.T) {
 
 func TestRoles(t *testing.T) {
 	runFeature(t, "features/roles.feature", initializeRoles(t))
+}
+
+func TestMail(t *testing.T) {
+	runFeature(t, "features/mail.feature", initializeMail(t))
 }
