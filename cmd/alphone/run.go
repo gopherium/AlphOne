@@ -129,6 +129,7 @@ func run(
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(resetBudget(settings)),
+		Logger:       logger,
 	}, registered)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -376,6 +377,9 @@ func parsePublicURL(raw string) (string, error) {
 	}
 	if (held.Scheme != "http" && held.Scheme != "https") || held.Host == "" {
 		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must be an http or https address, got %q", raw)
+	}
+	if strings.ContainsAny(raw, "?#") {
+		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must carry no query or fragment, got %q", raw)
 	}
 	return strings.TrimSuffix(raw, "/"), nil
 }
