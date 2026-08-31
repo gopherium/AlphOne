@@ -164,8 +164,8 @@ github.com/gopherium/framework/mailkit v0.1.0 h1:A1xm46dpo/zYrzV+Owa2W4Y0QJ1TBDN
 github.com/gopherium/framework/mailkit v0.1.0/go.mod h1:iI4n+UOwJPLzczDBhJVmkd69euIIhxeVMhHJi+nRShg=
 github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
 github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
-github.com/gopherium/gouncer/authkit v0.13.0 h1:IOeLw2R3xtzk0e6lFHR+kWP8owUzNqWNtVG1K9d/i14=
-github.com/gopherium/gouncer/authkit v0.13.0/go.mod h1:eQU0bybVcopHrAP+GPOYmxfnNIDfmSZ6d8RG4YgeUw0=
+github.com/gopherium/gouncer/authkit v0.14.0 h1:Ci6rLv0JotWqsHYBO+4g4aSo3Fyofqu9SMn3bBaOas8=
+github.com/gopherium/gouncer/authkit v0.14.0/go.mod h1:eQU0bybVcopHrAP+GPOYmxfnNIDfmSZ6d8RG4YgeUw0=
 github.com/gopherium/gouncer/authkit/postgres v0.9.0 h1:JfISQrmuoCX8zWMwxecsTvp1TCzz40PbAWWCI4/35bE=
 github.com/gopherium/gouncer/authkit/postgres v0.9.0/go.mod h1:NW1efZF8zIskkJDEhqYPBT8ECDyl16njrEraLniHneE=
 github.com/gopherium/gouncer/authkit/ratelimit v0.3.0 h1:K4e8kwzO9XRJB95TErMVV4CuskTtG2c2CwL7nLAI/Ko=
