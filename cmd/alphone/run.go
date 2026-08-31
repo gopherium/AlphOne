@@ -128,6 +128,7 @@ func run(
 		Settings:     postgres.NewUserSettingStore(pool),
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		ResetLimiter: ratelimit.NewLimiter(resetBudget(settings)),
 	}, registered)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -285,6 +286,7 @@ type runConfig struct {
 	mail           mailSettings
 	inviteTTL      time.Duration
 	resetTTL       time.Duration
+	resetAttempts  int
 }
 
 // mailSettings names the relay, sender identity and link base mail rides on.
@@ -323,6 +325,29 @@ func parseMailTLS(raw string) (string, error) {
 		return raw, nil
 	}
 	return "", fmt.Errorf("ALPHONE_SMTP_TLS must be mandatory, opportunistic or none, got %q", raw)
+}
+
+// resetBudget answers the rate limit reset requests ride under.
+func resetBudget(settings runConfig) ratelimit.Config {
+	return ratelimit.Config{Limit: settings.resetAttempts, Window: settings.resetTTL}
+}
+
+// defaultResetAttempts caps reset requests per client within one token lifetime.
+const defaultResetAttempts = 3
+
+// parseResetAttempts reads the reset requests allowed per client within one token lifetime.
+func parseResetAttempts(raw string) (int, error) {
+	if raw == "" {
+		return defaultResetAttempts, nil
+	}
+	held, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse ALPHONE_RESET_ATTEMPTS: %w", err)
+	}
+	if held <= 0 {
+		return 0, fmt.Errorf("ALPHONE_RESET_ATTEMPTS must be positive")
+	}
+	return held, nil
 }
 
 // parseTokenTTL reads one token lifetime, empty applying the fallback.
@@ -448,6 +473,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	resetAttempts, err := parseResetAttempts(getenv("ALPHONE_RESET_ATTEMPTS"))
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
@@ -458,6 +487,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		mail:           mail,
 		inviteTTL:      inviteTTL,
 		resetTTL:       resetTTL,
+		resetAttempts:  resetAttempts,
 	}, nil
 }
 

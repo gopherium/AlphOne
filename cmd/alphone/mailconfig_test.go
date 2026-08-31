@@ -316,3 +316,67 @@ func TestThePublicURLDropsItsTrailingSlash(t *testing.T) {
 		t.Errorf("mail.publicURL = %q, want the slash dropped", held.mail.publicURL)
 	}
 }
+
+func TestTheResetBudgetDefaults(t *testing.T) {
+	t.Parallel()
+
+	held, err := loadRunConfig(testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
+	}))
+
+	if err != nil {
+		t.Fatalf("loadRunConfig() error = %v, want nil", err)
+	}
+	if held.resetAttempts != 3 {
+		t.Errorf("resetAttempts = %d, want the tight default 3", held.resetAttempts)
+	}
+}
+
+func TestTheResetBudgetIsReadFromTheEnvironment(t *testing.T) {
+	t.Parallel()
+
+	held, err := loadRunConfig(testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
+		"ALPHONE_RESET_ATTEMPTS": "5",
+	}))
+
+	if err != nil {
+		t.Fatalf("loadRunConfig() error = %v, want nil", err)
+	}
+	if held.resetAttempts != 5 {
+		t.Errorf("resetAttempts = %d, want 5", held.resetAttempts)
+	}
+}
+
+func TestTheResetBudgetRefusesAnUnreadableValue(t *testing.T) {
+	t.Parallel()
+
+	for testName, raw := range map[string]string{
+		"not a number": "a few",
+		"zero":         "0",
+		"negative":     "-1",
+	} {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := loadRunConfig(testGetenv(map[string]string{
+				"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
+				"ALPHONE_RESET_ATTEMPTS": raw,
+			}))
+
+			if err == nil {
+				t.Errorf("loadRunConfig() with %q error = nil, want it refused", raw)
+			}
+		})
+	}
+}
+
+func TestTheResetBudgetRidesTheTokenLifetime(t *testing.T) {
+	t.Parallel()
+
+	held := resetBudget(runConfig{resetAttempts: 5, resetTTL: 30 * time.Minute})
+
+	if held.Limit != 5 || held.Window != 30*time.Minute {
+		t.Errorf("resetBudget() = %+v, want limit 5 over 30m", held)
+	}
+}
