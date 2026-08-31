@@ -206,39 +206,51 @@ func TestGraphUserAdministration(t *testing.T) {
 	srv := newAuthGraphServer(t, role.Admin)
 	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
 
-	created := postGraphQL(t, srv, graphBody(t, `mutation { createUser(`+
-		`email: "maria@example.com", name: "Maria Perez", password: "password1234")`+
-		` { id email disabled } }`), cookie)
-	body := decodeBody[graphResponse](t, created)
+	invited := postGraphQL(t, srv, graphBody(t, `mutation { invite(`+
+		`email: "maria@example.com", name: "Maria Perez")`+
+		` { delivered activationLink } }`), cookie)
+	body := decodeBody[graphResponse](t, invited)
 	if len(body.Errors) != 0 {
-		t.Fatalf("createUser errors = %v, want none", body.Errors)
-	}
-	var createdPayload struct {
-		CreateUser struct {
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"createUser"`
-	}
-	if err := json.Unmarshal(body.Data, &createdPayload); err != nil {
-		t.Fatalf("decoding createUser: %v", err)
+		t.Fatalf("invite errors = %v, want none", body.Errors)
 	}
 
-	listed := postGraphQL(t, srv, `{"query":"{ users { email } }"}`, cookie)
+	listed := postGraphQL(t, srv, `{"query":"{ users { id email confirmed } }"}`, cookie)
 	if !strings.Contains(listed.Body.String(), "maria@example.com") {
 		t.Errorf("users = %s, want maria listed", listed.Body.String())
 	}
+	if !strings.Contains(listed.Body.String(), `"confirmed":false`) {
+		t.Errorf("users = %s, want maria listed as awaiting activation", listed.Body.String())
+	}
+	var listing struct {
+		Users []struct {
+			ID    string `json:"id"`
+			Email string `json:"email"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(decodeBody[graphResponse](t, listed).Data, &listing); err != nil {
+		t.Fatalf("decoding users: %v", err)
+	}
+	invitedID := ""
+	for _, held := range listing.Users {
+		if held.Email == "maria@example.com" {
+			invitedID = held.ID
+		}
+	}
+	if invitedID == "" {
+		t.Fatal("the invited account is missing from the listing")
+	}
 
 	disabled := postGraphQL(t, srv, graphBody(t, fmt.Sprintf(
-		`mutation { setUserDisabled(id: %q, disabled: true) }`, createdPayload.CreateUser.ID,
+		`mutation { setUserDisabled(id: %q, disabled: true) }`, invitedID,
 	)), cookie)
 	if !strings.Contains(disabled.Body.String(), `"setUserDisabled":true`) {
 		t.Errorf("setUserDisabled = %s, want true", disabled.Body.String())
 	}
 
-	duplicate := postGraphQL(t, srv, graphBody(t, `mutation { createUser(`+
-		`email: "maria@example.com", name: "Maria Perez", password: "password1234") { id } }`), cookie)
-	if got := graphErrorCode(t, duplicate); got != "CONFLICT" {
-		t.Errorf("duplicate email code = %q, want CONFLICT", got)
+	again := postGraphQL(t, srv, graphBody(t, `mutation { invite(`+
+		`email: "maria@example.com", name: "Maria Perez") { delivered } }`), cookie)
+	if !strings.Contains(again.Body.String(), `"delivered":true`) {
+		t.Errorf("second invite = %s, want the neutral delivered answer", again.Body.String())
 	}
 }
 
@@ -248,8 +260,8 @@ func TestGraphRefusesUserManagementToAMemberSession(t *testing.T) {
 	srv := newAuthGraphServer(t, role.Member)
 	cookie := graphSessionCookie(t, loginMutation(t, srv, "ada@example.com", testPassword))
 
-	recorder := postGraphQL(t, srv, graphBody(t, `mutation { createUser(`+
-		`email: "maria@example.com", name: "Maria Perez", password: "password1234") { id } }`), cookie)
+	recorder := postGraphQL(t, srv, graphBody(t, `mutation { invite(`+
+		`email: "maria@example.com", name: "Maria Perez") { delivered } }`), cookie)
 
 	body := decodeBody[graphResponse](t, recorder)
 	if len(body.Errors) != 1 {

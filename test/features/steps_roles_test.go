@@ -59,10 +59,10 @@ func registerRoleSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return w.standsAsAdmin(ctx, w.ownerID)
 	})
 
-	sc.When(`^the admin's session creates a user named "([^"]*)"$`, func(ctx context.Context, name string) error {
+	sc.When(`^the admin's session invites a user named "([^"]*)"$`, func(ctx context.Context, name string) error {
 		return worldFrom(ctx).postGraphAsSession(ctx, fmt.Sprintf(
-			`{"query":"mutation { createUser(email: \"grace@example.com\", name: \"%s\",`+
-				` password: \"correct horse battery\") { id } }"}`, name))
+			`{"query":"mutation { invite(email: \"grace@example.com\", name: \"%s\")`+
+				` { delivered } }"}`, name))
 	})
 
 	sc.Then(`^the user list shows "([^"]*)" as a "([^"]*)"$`,

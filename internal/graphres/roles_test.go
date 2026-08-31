@@ -132,7 +132,7 @@ func TestMeAnswersTheCallersTier(t *testing.T) {
 	}
 }
 
-func TestCreateUserStartsAtTheNarrowestRoleWhenTheInputNamesNone(t *testing.T) {
+func TestInviteStartsAtTheNarrowestRoleWhenTheInputNamesNone(t *testing.T) {
 	t.Parallel()
 
 	store, _ := roledStore(t, role.Admin)
@@ -141,21 +141,31 @@ func TestCreateUserStartsAtTheNarrowestRoleWhenTheInputNamesNone(t *testing.T) {
 	client := newActingClient(t, resolver, actor)
 
 	var answered struct {
-		CreateUser struct {
-			Role string `json:"role"`
-		} `json:"createUser"`
+		Invite struct {
+			Delivered bool `json:"delivered"`
+		} `json:"invite"`
 	}
-	client.MustPost(`mutation { createUser(`+
-		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery"`+
-		`) { role } }`, &answered)
+	client.MustPost(`mutation { invite(`+
+		`email: "maria@example.com", name: "Maria Perez"`+
+		`) { delivered } }`, &answered)
 
-	if answered.CreateUser.Role != role.Member.String() {
+	if got := invitedRole(t, store, "maria@example.com"); got != role.Member.String() {
 		t.Errorf("role = %q, want %q, an account starts at the narrowest role",
-			answered.CreateUser.Role, role.Member.String())
+			got, role.Member.String())
 	}
 }
 
-func TestCreateUserStartsAtTheRoleTheInputNames(t *testing.T) {
+// invitedRole answers the role the store holds for one invited address.
+func invitedRole(t *testing.T, store *testkit.Store, email string) string {
+	t.Helper()
+	held, err := store.UserByEmail(t.Context(), email)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the invited account", err)
+	}
+	return held.Role
+}
+
+func TestInviteStartsAtTheRoleTheInputNames(t *testing.T) {
 	t.Parallel()
 
 	store, _ := roledStore(t, role.Admin)
@@ -164,20 +174,20 @@ func TestCreateUserStartsAtTheRoleTheInputNames(t *testing.T) {
 	client := newActingClient(t, resolver, actor)
 
 	var answered struct {
-		CreateUser struct {
-			Role string `json:"role"`
-		} `json:"createUser"`
+		Invite struct {
+			Delivered bool `json:"delivered"`
+		} `json:"invite"`
 	}
-	client.MustPost(`mutation { createUser(`+
-		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "admin"`+
-		`) { role } }`, &answered)
+	client.MustPost(`mutation { invite(`+
+		`email: "maria@example.com", name: "Maria Perez", role: "admin"`+
+		`) { delivered } }`, &answered)
 
-	if answered.CreateUser.Role != role.Admin.String() {
-		t.Errorf("role = %q, want %q", answered.CreateUser.Role, role.Admin.String())
+	if got := invitedRole(t, store, "maria@example.com"); got != role.Admin.String() {
+		t.Errorf("role = %q, want %q", got, role.Admin.String())
 	}
 }
 
-func TestCreateUserRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
+func TestInviteRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 	t.Parallel()
 
 	store, _ := roledStore(t, role.Admin)
@@ -185,9 +195,9 @@ func TestCreateUserRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
 	client := newActingClient(t, resolver, actor)
 
-	answered, err := client.RawPost(`mutation { createUser(` +
-		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", role: "root"` +
-		`) { role } }`)
+	answered, err := client.RawPost(`mutation { invite(` +
+		`email: "maria@example.com", name: "Maria Perez", role: "root"` +
+		`) { delivered } }`)
 
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
@@ -197,7 +207,7 @@ func TestCreateUserRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 	}
 }
 
-func TestCreateUserRefusesARoleBeyondTheCallersReach(t *testing.T) {
+func TestInviteRefusesARoleBeyondTheCallersReach(t *testing.T) {
 	t.Parallel()
 
 	store, _ := roledStore(t, role.Admin)
@@ -205,15 +215,15 @@ func TestCreateUserRefusesARoleBeyondTheCallersReach(t *testing.T) {
 	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
 	client := newActingClient(t, resolver, actor)
 
-	answered, err := client.RawPost(`mutation { createUser(` +
-		`email: "maria@example.com", name: "Maria Perez", password: "correct horse battery", ` +
-		`role: "` + stewardRole.String() + `") { role } }`)
+	answered, err := client.RawPost(`mutation { invite(` +
+		`email: "maria@example.com", name: "Maria Perez", ` +
+		`role: "` + stewardRole.String() + `") { delivered } }`)
 
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
 	if len(answered.Errors) == 0 {
-		t.Error("createUser answered no error, want an admin refused a role it does not hold")
+		t.Error("invite answered no error, want an admin refused a role it does not hold")
 	}
 }
 

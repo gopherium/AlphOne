@@ -127,7 +127,10 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
+		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: users}),
+		Accounts:     users,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)

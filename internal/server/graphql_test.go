@@ -69,6 +69,11 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Auth:         auth,
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+	}
+	if store, ok := cfg.Users.(authkit.InviteStore); ok {
+		resolver.Invites = authkit.NewInvites(authkit.InvitesConfig{Store: store})
+		resolver.Accounts = store
 	}
 	if hub != nil {
 		resolver.Live = hub

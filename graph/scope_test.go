@@ -207,7 +207,6 @@ func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 	}
 
 	want := map[string]bool{
-		"createUser":      true,
 		"setUserDisabled": true,
 		"setUserRole":     true,
 		"invite":          true,

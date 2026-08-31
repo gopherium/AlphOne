@@ -29,7 +29,10 @@ func newAuthResolver(store *testkit.Store) *graphres.Resolver {
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
+		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: store}),
+		Accounts:     store,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
+		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 8, Window: time.Minute}),
 	}
 }
 
@@ -487,58 +490,6 @@ func TestUsersSurfacesStoreFailures(t *testing.T) {
 
 	if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
 		t.Errorf("code = %q, want INTERNAL", got)
-	}
-}
-
-func TestCreateUserStoresTheAccount(t *testing.T) {
-	t.Parallel()
-
-	client := newGraphClient(t, newAuthResolver(testkit.NewStore()), uuid.Must(uuid.NewV7()))
-
-	var response struct {
-		CreateUser struct {
-			Email    string `json:"email"`
-			Name     string `json:"name"`
-			Disabled bool   `json:"disabled"`
-		} `json:"createUser"`
-	}
-	client.MustPost(
-		`mutation { createUser(email: "maria@example.com", name: "Maria Perez", password: "password1234") {
-			email name disabled
-		} }`,
-		&response,
-	)
-
-	if response.CreateUser.Email != "maria@example.com" || response.CreateUser.Disabled {
-		t.Errorf("createUser = %+v, want Maria Perez's enabled account", response.CreateUser)
-	}
-}
-
-func TestCreateUserMapsTheAdminFailures(t *testing.T) {
-	t.Parallel()
-
-	store := testkit.NewStore()
-	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
-	client := newGraphClient(t, newAuthResolver(store), uuid.Must(uuid.NewV7()))
-
-	taken, err := client.RawPost(
-		`mutation { createUser(email: "maria@example.com", name: "Maria Perez", password: "password1234") { id } }`,
-	)
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, taken.Errors); got != "CONFLICT" {
-		t.Errorf("taken email code = %q, want CONFLICT", got)
-	}
-
-	weak, err := client.RawPost(
-		`mutation { createUser(email: "new@example.com", name: "Maria Perez", password: "short") { id } }`,
-	)
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, weak.Errors); got != "VALIDATION" {
-		t.Errorf("weak password code = %q, want VALIDATION", got)
 	}
 }
 

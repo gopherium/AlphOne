@@ -590,30 +590,40 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatalf("createContact = %q, want the stored contact", createContact)
 	}
 
-	createUser := postGraphAuthed(t, ctx, session, baseURL,
-		`{"query":"mutation { createUser(email: \"grace@example.com\", name: \"Grace Hopper\",`+
-			` password: \"correct horse battery\") { id } }"}`)
-	var created struct {
-		Data struct {
-			CreateUser struct {
-				ID uuid.UUID `json:"id"`
-			} `json:"createUser"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(createUser), &created); err != nil {
-		t.Fatalf("decoding created user from %q: %v", createUser, err)
-	}
-	if created.Data.CreateUser.ID == uuid.Nil {
-		t.Fatalf("createUser = %q, want the stored user's id", createUser)
+	invited := postGraphAuthed(t, ctx, session, baseURL,
+		`{"query":"mutation { invite(email: \"grace@example.com\", name: \"Grace Hopper\")`+
+			` { delivered activationLink } }"}`)
+	if !strings.Contains(invited, `"delivered":false`) {
+		t.Fatalf("invite = %q, want the link answered without a relay", invited)
 	}
 
-	listUsers := postGraphAuthed(t, ctx, session, baseURL, `{"query":"{ users { email } }"}`)
+	listUsers := postGraphAuthed(t, ctx, session, baseURL, `{"query":"{ users { id email confirmed } }"}`)
 	if !strings.Contains(listUsers, "grace@example.com") {
-		t.Fatalf("users query = %q, want it listing the new user", listUsers)
+		t.Fatalf("users query = %q, want it listing the invited account", listUsers)
+	}
+	var listing struct {
+		Data struct {
+			Users []struct {
+				ID    uuid.UUID `json:"id"`
+				Email string    `json:"email"`
+			} `json:"users"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(listUsers), &listing); err != nil {
+		t.Fatalf("decoding the user listing from %q: %v", listUsers, err)
+	}
+	invitedID := uuid.Nil
+	for _, held := range listing.Data.Users {
+		if held.Email == "grace@example.com" {
+			invitedID = held.ID
+		}
+	}
+	if invitedID == uuid.Nil {
+		t.Fatalf("users query = %q, want the invited account's id", listUsers)
 	}
 
 	disableUser := postGraphAuthed(t, ctx, session, baseURL,
-		`{"query":"mutation { setUserDisabled(id: \"`+created.Data.CreateUser.ID.String()+`\", disabled: true) }"}`)
+		`{"query":"mutation { setUserDisabled(id: \"`+invitedID.String()+`\", disabled: true) }"}`)
 	if !strings.Contains(disableUser, `"setUserDisabled":true`) {
 		t.Fatalf("setUserDisabled = %q, want true", disableUser)
 	}
