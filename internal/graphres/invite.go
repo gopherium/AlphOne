@@ -175,6 +175,8 @@ func (m MutationResolvers) spendResetCooldown(address string) (bool, error) {
 	if m.root.ResetCooldown == nil {
 		return true, nil
 	}
+	m.root.resetCooldownMu.Lock()
+	defer m.root.resetCooldownMu.Unlock()
 	allowed, _, err := m.root.ResetCooldown.Check(address)
 	if err != nil || !allowed {
 		return false, err

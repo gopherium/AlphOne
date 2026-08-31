@@ -6,6 +6,7 @@ package graphres
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -197,6 +198,9 @@ type Resolver struct {
 
 	// ResetCooldown budgets reset mail per address. Nil sends on every request.
 	ResetCooldown AttemptLimiter
+
+	// resetCooldownMu serializes the reset cooldown spend.
+	resetCooldownMu sync.Mutex
 
 	// Logger records what a neutral answer hides. Nil discards it.
 	Logger *slog.Logger

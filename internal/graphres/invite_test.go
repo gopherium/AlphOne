@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -911,4 +913,69 @@ func TestRequestPasswordResetHoldsWhenTheStackIsFull(t *testing.T) {
 	if len(mailer.resets) != 3 {
 		t.Errorf("sent %d reset mails, want no new link beyond the stack", len(mailer.resets))
 	}
+}
+
+// gatedLimiter counts spends and holds every check until it is released.
+type gatedLimiter struct {
+	mu      sync.Mutex
+	spent   int
+	limit   int
+	release chan struct{}
+}
+
+// Check reports whether the budget was free when it was consulted.
+func (g *gatedLimiter) Check(string) (bool, time.Duration, error) {
+	g.mu.Lock()
+	spent := g.spent
+	g.mu.Unlock()
+	<-g.release
+	return spent < g.limit, 0, nil
+}
+
+// RecordFailure counts one spend.
+func (g *gatedLimiter) RecordFailure(string) error {
+	g.mu.Lock()
+	g.spent++
+	g.mu.Unlock()
+	return nil
+}
+
+func TestTheResetCooldownIsSpentAtomically(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &countingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetLimiter = ratelimit.NewLimiter(ratelimit.Config{Limit: 100, Window: time.Minute})
+	gate := &gatedLimiter{limit: 1, release: make(chan struct{})}
+	resolver.ResetCooldown = gate
+
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			requestResetThrough(t, resolver, "maria@example.com")
+		}()
+	}
+	time.Sleep(100 * time.Millisecond)
+	close(gate.release)
+	wg.Wait()
+
+	if got := mailer.sent.Load(); got != 1 {
+		t.Errorf("two simultaneous requests mailed %d links, want the cooldown to admit exactly one", got)
+	}
+}
+
+// countingMailer counts the reset mail it accepts.
+type countingMailer struct {
+	recordingMailer
+	sent atomic.Int64
+}
+
+// SendReset counts one delivered reset link.
+func (c *countingMailer) SendReset(context.Context, string, string, string) error {
+	c.sent.Add(1)
+	return nil
 }
