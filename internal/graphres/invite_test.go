@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +67,7 @@ func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.R
 		PublicURL:    "https://crm.example.com",
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
+		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 	}
 	if mailer != nil {
 		held.Mailer = mailer
@@ -371,7 +373,7 @@ func TestRequestPasswordResetAnswersEveryAddressTheSameWay(t *testing.T) {
 	}
 }
 
-func TestRequestPasswordResetKeepsAStandingToken(t *testing.T) {
+func TestRequestPasswordResetReplacesAStandingToken(t *testing.T) {
 	t.Parallel()
 
 	store := testkit.NewStore()
@@ -385,8 +387,20 @@ func TestRequestPasswordResetKeepsAStandingToken(t *testing.T) {
 	if len(first.Errors) != 0 || len(second.Errors) != 0 {
 		t.Fatalf("reset requests errored %v then %v, want both neutral", first.Errors, second.Errors)
 	}
-	if len(mailer.resets) != 1 {
-		t.Errorf("sent %d reset mails, want no new mail while a token stands", len(mailer.resets))
+	if len(mailer.resets) != 2 {
+		t.Fatalf("sent %d reset mails, want a fresh link per request", len(mailer.resets))
+	}
+	if mailer.resets[0].link == mailer.resets[1].link {
+		t.Error("both mails carry the same link, want the second request to replace the token")
+	}
+
+	stale := activationTokenOf(t, mailer.resets[0].link)
+	if _, err := resolver.Invites.RedeemReset(t.Context(), stale, "brand new password"); err == nil {
+		t.Error("RedeemReset(stale) error = nil, want the replaced link dead")
+	}
+	fresh := activationTokenOf(t, mailer.resets[1].link)
+	if _, err := resolver.Invites.RedeemReset(t.Context(), fresh, "brand new password"); err != nil {
+		t.Errorf("RedeemReset(fresh) error = %v, want the latest link usable", err)
 	}
 }
 
@@ -485,5 +499,78 @@ func TestUsersReportTheirConfirmation(t *testing.T) {
 	}
 	if !confirmed["ada@example.com"] {
 		t.Error("the password-created account answers unconfirmed, want confirmed")
+	}
+}
+
+// failingOnceMailer refuses its first reset, then records what follows.
+type failingOnceMailer struct {
+	recordingMailer
+	refused bool
+}
+
+// SendReset refuses the first reset it is asked to deliver.
+func (m *failingOnceMailer) SendReset(ctx context.Context, to, name, link string) error {
+	if !m.refused {
+		m.refused = true
+		return errors.New("the relay refused the message")
+	}
+	return m.recordingMailer.SendReset(ctx, to, name, link)
+}
+
+func TestRequestPasswordResetRetriesAfterAFailedDelivery(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &failingOnceMailer{}
+	resolver := newInviteResolver(store, mailer)
+
+	refused := requestResetThrough(t, resolver, "maria@example.com")
+	if len(refused.Errors) == 0 {
+		t.Fatal("the failed delivery answered no error, want the failure surfaced")
+	}
+
+	retried := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(retried.Errors) != 0 {
+		t.Fatalf("the retry errored: %s", retried.Errors)
+	}
+	if len(mailer.resets) != 1 {
+		t.Fatalf("the retry mailed %d links, want one usable link", len(mailer.resets))
+	}
+	token := activationTokenOf(t, mailer.resets[0].link)
+	if _, err := resolver.Invites.RedeemReset(t.Context(), token, "brand new password"); err != nil {
+		t.Errorf("RedeemReset(retried) error = %v, want the mailed link usable", err)
+	}
+}
+
+func TestRequestPasswordResetSpendsItsOwnBudget(t *testing.T) {
+	t.Parallel()
+
+	store := testkit.NewStore()
+	store.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	mailer := &recordingMailer{}
+	resolver := newInviteResolver(store, mailer)
+	resolver.ResetLimiter = ratelimit.NewLimiter(ratelimit.Config{Limit: 1, Window: time.Minute})
+
+	first := requestResetThrough(t, resolver, "maria@example.com")
+	second := requestResetThrough(t, resolver, "maria@example.com")
+
+	if len(first.Errors) != 0 {
+		t.Fatalf("first request errored: %s", first.Errors)
+	}
+	if got := firstErrorReason(t, second.Errors); got != "rate_limited" {
+		t.Errorf("second request reason = %q, want rate_limited by the reset budget", got)
+	}
+	if len(mailer.resets) != 1 {
+		t.Errorf("sent %d reset mails, want the refused request to mail nothing", len(mailer.resets))
+	}
+
+	token := activationTokenOf(t, mailer.resets[0].link)
+	response, _ := postAnonymouslyOverHTTP(t, resolver, fmt.Sprintf(
+		`mutation { resetPassword(token: %q, password: "brand new password") }`, token,
+	))
+	if len(response.Errors) != 0 {
+		t.Errorf("resetPassword under a spent reset budget errored: %s", response.Errors)
 	}
 }

@@ -190,6 +190,9 @@ type Resolver struct {
 	PublicURL string
 	// TokenLimiter counts token operations per client IP.
 	TokenLimiter AttemptLimiter
+
+	// ResetLimiter budgets reset requests per client IP.
+	ResetLimiter AttemptLimiter
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
 }

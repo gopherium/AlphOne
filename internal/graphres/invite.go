@@ -131,15 +131,19 @@ func (m MutationResolvers) AcceptInvite(
 
 // RequestPasswordReset asks for a reset link, answering nothing about the address.
 func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email string) (bool, error) {
-	key, err := m.checkTokenBudget(ctx)
+	key := clientIPFrom(ctx)
+	allowed, retryAfter, err := m.root.ResetLimiter.Check(key)
 	if err != nil {
 		return false, err
 	}
-	if err := m.root.TokenLimiter.RecordFailure(key); err != nil {
+	if !allowed {
+		return false, rateLimitedError{retryAfter: retryAfter}
+	}
+	if err := m.root.ResetLimiter.RecordFailure(key); err != nil {
 		return false, fmt.Errorf("recording the reset request: %w", err)
 	}
-	token, err := m.root.Invites.RequestReset(ctx, email)
-	if errors.Is(err, gouncer.ErrUserNotFound) || errors.Is(err, gouncer.ErrTokenExists) {
+	token, err := m.resetToken(ctx, email)
+	if errors.Is(err, gouncer.ErrUserNotFound) {
 		return true, nil
 	}
 	if err != nil {
@@ -148,7 +152,7 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 	if m.root.Mailer == nil {
 		return true, nil
 	}
-	held, err := m.root.Accounts.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
 	if err != nil {
 		return false, err
 	}
@@ -170,6 +174,16 @@ func (m MutationResolvers) ResetPassword(ctx context.Context, token, password st
 		return false, mappedErr
 	}
 	return true, nil
+}
+
+// resetToken mints the reset token to deliver, replacing one already standing
+// so a delivery that failed earlier can be retried.
+func (m MutationResolvers) resetToken(ctx context.Context, email string) (gouncer.Token, error) {
+	token, err := m.root.Invites.RequestReset(ctx, email)
+	if errors.Is(err, gouncer.ErrTokenExists) {
+		return m.root.Invites.ResendReset(ctx, email)
+	}
+	return token, err
 }
 
 // checkTokenBudget reserves a token operation for the caller's IP key.
