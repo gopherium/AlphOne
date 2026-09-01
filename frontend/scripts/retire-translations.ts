@@ -17,8 +17,8 @@ const root = repositoryRoot()
 
 const targets = domains().map((domain) => {
 	const variable = projectVariable(domain.name)
-	const project = process.env[variable]
-	if (project === undefined) {
+	const project = process.env[variable]?.trim()
+	if (project === undefined || project === '') {
 		console.error(`set ${variable} to retire ${domain.name}`)
 		process.exit(1)
 	}
