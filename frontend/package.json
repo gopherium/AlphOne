@@ -13,6 +13,7 @@
 		"pot": "node scripts/write-pot.ts",
 		"preview": "vite preview",
 		"translations": "node --env-file-if-exists=../.env scripts/sync-translations.ts",
+		"translations:push": "node --env-file-if-exists=../.env scripts/push-translations.ts",
 		"translations:retire": "node --env-file-if-exists=../.env scripts/retire-translations.ts",
 		"typecheck": "tsc -b"
 	},

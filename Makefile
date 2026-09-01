@@ -39,6 +39,9 @@ catalogs:
 translations:
 	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/sync-translations.ts
 
+translations-push:
+	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/push-translations.ts
+
 translations-retire:
 	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/retire-translations.ts
 
