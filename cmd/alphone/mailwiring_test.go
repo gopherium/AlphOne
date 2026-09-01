@@ -34,6 +34,20 @@ func mailRelay(t *testing.T) *smtpmock.Server {
 	return server
 }
 
+// stopRun cancels the server and waits for run to release its pool before the test database is dropped.
+func stopRun(t *testing.T, cancel context.CancelFunc, runErr <-chan error) {
+	t.Helper()
+	cancel()
+	select {
+	case err := <-runErr:
+		if err != nil {
+			t.Errorf("run() error = %v, want nil after graceful shutdown", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("run() did not return after context cancellation")
+	}
+}
+
 // seedAdmin stores an enabled admin account able to invite.
 func seedAdmin(t *testing.T, databaseURL string) {
 	t.Helper()
@@ -125,13 +139,14 @@ func TestRunAnswersTheActivationLinkWithoutARelay(t *testing.T) {
 	addr := freeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
+	runErr := make(chan error, 1)
 	go func() {
-		_ = run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testGetenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 		}), io.Discard, registerPlugins)
 	}()
+	t.Cleanup(func() { stopRun(t, cancel, runErr) })
 
 	baseURL := "http://" + addr
 	waitForServer(t, baseURL)
@@ -161,9 +176,9 @@ func TestRunMailsAnInvitationThatActivates(t *testing.T) {
 	databaseURL := testDatabaseURL(t)
 	const publicURL = "https://crm.example.com"
 	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
+	runErr := make(chan error, 1)
 	go func() {
-		_ = run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testGetenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 			"ALPHONE_SMTP_HOST":    "127.0.0.1",
@@ -173,6 +188,7 @@ func TestRunMailsAnInvitationThatActivates(t *testing.T) {
 			"ALPHONE_PUBLIC_URL":   publicURL,
 		}), io.Discard, registerPlugins)
 	}()
+	t.Cleanup(func() { stopRun(t, cancel, runErr) })
 
 	baseURL := "http://" + addr
 	waitForServer(t, baseURL)
