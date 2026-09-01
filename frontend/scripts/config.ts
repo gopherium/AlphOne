@@ -66,6 +66,25 @@ export function potConfig(domain: Domain, sources: string[] = domain.sources): P
 	}
 }
 
+/** DEFAULT_UPLOAD_SPACING_SECONDS is the wait between two platform uploads. */
+const DEFAULT_UPLOAD_SPACING_SECONDS = 60
+
+/**
+ * Returns the milliseconds separating two uploads to the platform.
+ * @returns The spacing in milliseconds.
+ */
+export function uploadSpacing(): number {
+	const raw = process.env.POEDITOR_UPLOAD_SPACING?.trim()
+	if (raw === undefined || raw === '') {
+		return DEFAULT_UPLOAD_SPACING_SECONDS * 1000
+	}
+	const held = Number(raw)
+	if (!Number.isFinite(held) || held <= 0) {
+		throw new Error('POEDITOR_UPLOAD_SPACING must be a positive number of seconds')
+	}
+	return held * 1000
+}
+
 /**
  * Returns the environment variable naming one domain's platform project.
  * @param domain - The text domain the project holds.

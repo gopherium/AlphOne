@@ -5,11 +5,8 @@ import { join } from 'node:path'
 
 import { poeditorAt, syncTranslations } from '@gopherium/gottext/sync'
 
-import { domains, projectVariable, repositoryRoot } from './config.ts'
+import { domains, projectVariable, repositoryRoot, uploadSpacing } from './config.ts'
 import { supportedLocales } from './locales.ts'
-
-/** UPLOAD_SPACING_MS is the wait between two uploads. */
-const UPLOAD_SPACING_MS = 25_000
 
 /**
  * Waits the given milliseconds.
@@ -29,6 +26,8 @@ if (token === undefined) {
 const root = repositoryRoot()
 const locales = supportedLocales(root)
 
+const spacing = uploadSpacing()
+
 const targets = domains().map((domain) => {
 	const variable = projectVariable(domain.name)
 	const project = process.env[variable]?.trim()
@@ -43,13 +42,13 @@ let uploaded = false
 
 for (const { domain, project } of targets) {
 	if (uploaded) {
-		await pause(UPLOAD_SPACING_MS)
+		await pause(spacing)
 	}
 	uploaded = true
 	const languages = join(root, domain.languages)
 	mkdirSync(languages, { recursive: true })
 	const done = await syncTranslations(
-		poeditorAt({ token, project, domain: domain.name }),
+		poeditorAt({ token, project, domain: domain.name, paced: spacing }),
 		locales,
 		{
 			read: (locale) => {
