@@ -198,7 +198,7 @@ type ComplexityRoot struct {
 		SetUserRole           func(childComplexity int, id uuid.UUID, role string) int
 		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
 		WhatsAppSendMessage   func(childComplexity int, conversationID uuid.UUID, content string) int
-		WriteContactFields    func(childComplexity int, contactID uuid.UUID, values any) int
+		WriteContactFields    func(childComplexity int, contactID uuid.UUID, values interface{}) int
 	}
 
 	PageInfo struct {
@@ -322,7 +322,7 @@ type ContactResolver interface {
 	CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error)
 	Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error)
 	Tasks(ctx context.Context, obj *model.Contact, status *string, first *int, after *string) (*model.TaskConnection, error)
-	Field(ctx context.Context, obj *model.Contact, name string) (any, error)
+	Field(ctx context.Context, obj *model.Contact, name string) (interface{}, error)
 	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
 type ImportJobResolver interface {
@@ -352,7 +352,7 @@ type MutationResolver interface {
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
-	WriteContactFields(ctx context.Context, contactID uuid.UUID, values any) (bool, error)
+	WriteContactFields(ctx context.Context, contactID uuid.UUID, values interface{}) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
 	ImportSetMapping(ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput) (*model.ImportJob, error)
 	ImportCommit(ctx context.Context, id uuid.UUID) (*model.ImportCommitPayload, error)
@@ -1165,7 +1165,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.WriteContactFields(childComplexity, args["contactId"].(uuid.UUID), args["values"].(any)), true
+		return e.ComplexityRoot.Mutation.WriteContactFields(childComplexity, args["contactId"].(uuid.UUID), args["values"].(interface{})), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
