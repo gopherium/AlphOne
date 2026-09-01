@@ -13,6 +13,7 @@
 		"pot": "node scripts/write-pot.ts",
 		"preview": "vite preview",
 		"translations": "node --env-file-if-exists=../.env scripts/sync-translations.ts",
+		"translations:push": "node --env-file-if-exists=../.env scripts/push-translations.ts",
 		"translations:retire": "node --env-file-if-exists=../.env scripts/retire-translations.ts",
 		"typecheck": "tsc -b"
 	},
@@ -22,7 +23,7 @@
 		"@alphone/plugin-importer": "workspace:*",
 		"@alphone/plugin-whatsapp": "workspace:*",
 		"@gopherium/godmin": "0.7.0",
-		"@gopherium/gottext": "0.2.0",
+		"@gopherium/gottext": "0.4.0",
 		"@gopherium/react-auth": "0.8.0",
 		"@tanstack/react-query": "^5.101.4",
 		"@tanstack/react-router": "^1.170.23",

@@ -1,9 +1,7 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { poeditorAt, syncTranslations } from '@gopherium/gottext/sync'
+import { poeditorAt, pushTranslations } from '@gopherium/gottext/sync'
 
 import { domains, projectVariable, repositoryRoot } from './config.ts'
 import { supportedLocales } from './locales.ts'
@@ -22,7 +20,7 @@ function pause(ms: number): Promise<void> {
 
 const token = process.env.POEDITOR_API_TOKEN
 if (token === undefined) {
-	console.error('set POEDITOR_API_TOKEN to sync translations')
+	console.error('set POEDITOR_API_TOKEN to push translations')
 	process.exit(1)
 }
 
@@ -33,7 +31,7 @@ const targets = domains().map((domain) => {
 	const variable = projectVariable(domain.name)
 	const project = process.env[variable]?.trim()
 	if (project === undefined || project === '') {
-		console.error(`set ${variable} to sync ${domain.name}`)
+		console.error(`set ${variable} to push ${domain.name}`)
 		process.exit(1)
 	}
 	return { domain, project }
@@ -47,8 +45,7 @@ for (const { domain, project } of targets) {
 	}
 	uploaded = true
 	const languages = join(root, domain.languages)
-	mkdirSync(languages, { recursive: true })
-	const done = await syncTranslations(
+	const done = await pushTranslations(
 		poeditorAt({ token, project, domain: domain.name }),
 		locales,
 		{
@@ -56,19 +53,19 @@ for (const { domain, project } of targets) {
 				const target = join(languages, `${locale}.po`)
 				return existsSync(target) ? readFileSync(target, 'utf8') : undefined
 			},
-			write: (locale, source) => writeFileSync(join(languages, `${locale}.po`), source),
+			write: () => {},
 		},
 		readFileSync(join(languages, `${domain.name}.pot`), 'utf8'),
 	)
 	console.log(
-		done.moved.length === 0
-			? `${domain.name}: no translation moved`
-			: `${domain.name}: translations moved: ${done.moved.join(', ')}`,
+		done.pushed.length === 0
+			? `${domain.name}: no catalogue pushed`
+			: `${domain.name}: catalogues pushed: ${done.pushed.join(', ')}`,
 	)
+	for (const held of done.added) {
+		console.log(`${domain.name}: added ${held}`)
+	}
 	for (const held of done.skipped) {
 		console.log(`${domain.name}: skipped ${held}`)
-	}
-	for (const held of done.kept) {
-		console.log(`${domain.name}: kept ${held}`)
 	}
 }

@@ -36,10 +36,13 @@ pot:
 catalogs:
 	pnpm --filter @alphone/frontend exec node scripts/write-catalogs.ts
 
-translations:
+translations: pot
 	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/sync-translations.ts
 
-translations-retire:
+translations-push: pot
+	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/push-translations.ts
+
+translations-retire: pot
 	cd frontend && node --env-file-if-exists=$(CURDIR)/.env scripts/retire-translations.ts
 
 outdated:

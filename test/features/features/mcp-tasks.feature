@@ -15,9 +15,9 @@ Feature: An agent lists tasks
     And the task "Call Maria Perez back" names its contact "Maria Perez"
 
   Scenario: A chosen day lists only that day
-    Given an open task "Prepare the renewal" due on 2026-09-01
+    Given an open task "Prepare the renewal" due on 2020-01-15
     And an open task "Send the quote" due today
-    When the agent calls list_my_tasks for 2026-09-01
+    When the agent calls list_my_tasks for 2020-01-15
     Then the answer lists 1 task
     And the task "Prepare the renewal" is listed
 

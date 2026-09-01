@@ -59,8 +59,8 @@ importers:
         specifier: 0.7.0
         version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
       '@gopherium/gottext':
-        specifier: 0.2.0
-        version: 0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
+        specifier: 0.4.0
+        version: 0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.8.0
         version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
@@ -249,8 +249,8 @@ importers:
         specifier: 0.7.0
         version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
       '@gopherium/gottext':
-        specifier: 0.2.0
-        version: 0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
+        specifier: 0.4.0
+        version: 0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.8.0
         version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
@@ -931,8 +931,8 @@ packages:
       vitest:
         optional: true
 
-  '@gopherium/gottext@0.2.0':
-    resolution: {integrity: sha512-Pr6whkn01B+b/lXe6ry2kIXtO18G3SJPyMW4NFYWdXnZOBAtqNafmwyv9lTTdn634li+RMSGL0Ej7wqngUDm/A==}
+  '@gopherium/gottext@0.4.0':
+    resolution: {integrity: sha512-3+ugYk1CG3o22lWEFABRdqvFt7B0kMDlTdcc3fVM3dgoYCjTAFm4Xb+YM+co6YdaXTNOzn66dQMB/p2lWVcc0A==}
     engines: {node: '>=22'}
     peerDependencies:
       '@wordpress/i18n': 6.26.0
@@ -5485,7 +5485,7 @@ snapshots:
       stylelint: 17.14.1(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/gottext@0.2.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)':
+  '@gopherium/gottext@0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)':
     dependencies:
       '@wordpress/i18n': 6.26.0
       gettext-parser: 9.1.1
