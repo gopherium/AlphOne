@@ -1,23 +1,23 @@
 {
-  "name": "alphone",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@11.10.0",
-  "engines": {
-    "node": ">=26"
-  },
-  "scripts": {
-    "dev": "pnpm --filter @alphone/frontend dev"
-  },
-  "devDependencies": {
-    "@graphql-codegen/cli": "^7.2.0",
-    "@graphql-codegen/client-preset": "^6.1.1",
-    "eslint": "^10.7.0",
-    "eslint-plugin-jsdoc": "^63.2.0",
-    "eslint-plugin-sonarjs": "^4.2.0",
-    "eslint-plugin-tsdoc": "^0.5.2",
-    "knip": "^6.29.0",
-    "oxlint": "^1.75.0",
-    "typescript-eslint": "^8.65.0"
-  }
+	"name": "alphone",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@12.2.1",
+	"engines": {
+		"node": ">=26"
+	},
+	"scripts": {
+		"dev": "pnpm --filter @alphone/frontend dev"
+	},
+	"devDependencies": {
+		"@graphql-codegen/cli": "^7.2.0",
+		"@graphql-codegen/client-preset": "^6.1.1",
+		"eslint": "^10.7.0",
+		"eslint-plugin-jsdoc": "^63.2.0",
+		"eslint-plugin-sonarjs": "^4.2.0",
+		"eslint-plugin-tsdoc": "^0.5.2",
+		"knip": "^6.29.0",
+		"oxlint": "^1.75.0",
+		"typescript-eslint": "^8.65.0"
+	}
 }
