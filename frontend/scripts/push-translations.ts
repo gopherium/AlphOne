@@ -27,19 +27,23 @@ if (token === undefined) {
 const root = repositoryRoot()
 const locales = supportedLocales(root)
 
-let uploaded = false
-
-for (const domain of domains()) {
-	if (uploaded) {
-		await pause(UPLOAD_SPACING_MS)
-	}
-	uploaded = true
+const targets = domains().map((domain) => {
 	const variable = projectVariable(domain.name)
 	const project = process.env[variable]
 	if (project === undefined) {
 		console.error(`set ${variable} to push ${domain.name}`)
 		process.exit(1)
 	}
+	return { domain, project }
+})
+
+let uploaded = false
+
+for (const { domain, project } of targets) {
+	if (uploaded) {
+		await pause(UPLOAD_SPACING_MS)
+	}
+	uploaded = true
 	const languages = join(root, domain.languages)
 	const done = await pushTranslations(
 		poeditorAt({ token, project, domain: domain.name }),

@@ -15,13 +15,17 @@ if (token === undefined) {
 
 const root = repositoryRoot()
 
-for (const domain of domains()) {
+const targets = domains().map((domain) => {
 	const variable = projectVariable(domain.name)
 	const project = process.env[variable]
 	if (project === undefined) {
 		console.error(`set ${variable} to retire ${domain.name}`)
 		process.exit(1)
 	}
+	return { domain, project }
+})
+
+for (const { domain, project } of targets) {
 	const template = readFileSync(join(root, domain.languages, `${domain.name}.pot`), 'utf8')
 	const deleted = await poeditorAt({ token, project, domain: domain.name }).retireTerms(template)
 	console.log(
