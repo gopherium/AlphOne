@@ -1,3 +1,104 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.2.1
+        version: 12.2.1
+
+packages:
+
+  '@pnpm/exe.darwin-arm64@12.2.1':
+    resolution: {integrity: sha512-efC1yfz2xbyHiMLrQAYtnoo5XP20LeAiYYcyL1962qQagZrMXIB0BoQYeZoPTLggLh0Q4MD7jpZUInU5fWxCgQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/exe.darwin-x64@12.2.1':
+    resolution: {integrity: sha512-0bloFmxrvYY5LYex5V6SZySwg+egBk0pOW+YUeOm9fiG2U1wv+qRVLBOUvIzLAeJE7vBlAzxUwXkQAYtr12n+Q==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pnpm/exe.linux-arm64-musl@12.2.1':
+    resolution: {integrity: sha512-AZl7apVZC4TV1/vTp/bS16XUsHeqx9AHsU4V55joiGR+iR6vl+WF0WlGvGCTjqjICS4q/kThpgNrtG8aqQ9seQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-arm64@12.2.1':
+    resolution: {integrity: sha512-S36+tMEGrPz3nwtfFU9kYxbHoi8sV7WJfMO9njEL4jRaShTNaLRERMAqyI2DUCiA5QCr6/a50lt4+pKCV2mCvw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-x64-musl@12.2.1':
+    resolution: {integrity: sha512-4MQClkAk1em55LFZJpeIqb7j+gEqCgX8yC42j9DFWL42q1uMX1e1tvTy2Dtd4NoWQqgdkLxOStZ+D9CYC+28ow==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-x64@12.2.1':
+    resolution: {integrity: sha512-A/AlR71Leph7qgB3ThSU9yU/vLfre4HmP6nbt3/qt51fzAjQ0xuq7j+cw0f1yDskzOsGzmo5uD6ruefCwLK5uQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.win32-arm64@12.2.1':
+    resolution: {integrity: sha512-TEGUmroT6NGfo2O2+tHK9Zr1lhP1zLzpwx+QAQV19l8V4ljUoMfz8Os5V9zzNCtIpzyKcK7SuG7fkVbxFgRMzg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/exe.win32-x64@12.2.1':
+    resolution: {integrity: sha512-V2Q+AF8fCsw8/CC3bWF8kopOmH0aAjgk9m7H7uAQNulOYIJs9YJBiAlgByswmt+igV9axc4dBI//ZlK2NKpDcw==}
+    cpu: [x64]
+    os: [win32]
+
+  pnpm@12.2.1:
+    resolution: {integrity: sha512-9Vymiqy561q2nGb4KKmK+JoyKGcDrvH42hMcp+q01nfzS/qF4YZGepGcB5nfi29KokD33CkZszsycxkBBBYmFg==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe.darwin-arm64@12.2.1':
+    optional: true
+
+  '@pnpm/exe.darwin-x64@12.2.1':
+    optional: true
+
+  '@pnpm/exe.linux-arm64-musl@12.2.1':
+    optional: true
+
+  '@pnpm/exe.linux-arm64@12.2.1':
+    optional: true
+
+  '@pnpm/exe.linux-x64-musl@12.2.1':
+    optional: true
+
+  '@pnpm/exe.linux-x64@12.2.1':
+    optional: true
+
+  '@pnpm/exe.win32-arm64@12.2.1':
+    optional: true
+
+  '@pnpm/exe.win32-x64@12.2.1':
+    optional: true
+
+  pnpm@12.2.1:
+    optionalDependencies:
+      '@pnpm/exe.darwin-arm64': 12.2.1
+      '@pnpm/exe.darwin-x64': 12.2.1
+      '@pnpm/exe.linux-arm64': 12.2.1
+      '@pnpm/exe.linux-arm64-musl': 12.2.1
+      '@pnpm/exe.linux-x64': 12.2.1
+      '@pnpm/exe.linux-x64-musl': 12.2.1
+      '@pnpm/exe.win32-arm64': 12.2.1
+      '@pnpm/exe.win32-x64': 12.2.1
+
+---
 lockfileVersion: '9.0'
 
 settings:
@@ -57,13 +158,13 @@ importers:
         version: link:../plugins/whatsapp/frontend
       '@gopherium/godmin':
         specifier: 0.7.0
-        version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
+        version: 0.7.0(b7d0a8c4f7c3e9bddee87842c5ad2394)
       '@gopherium/gottext':
-        specifier: 0.4.0
-        version: 0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
+        specifier: 0.5.0
+        version: 0.5.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.8.0
-        version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
+        version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -75,10 +176,10 @@ importers:
         version: 6.26.0
       '@wordpress/theme':
         specifier: 1.1.0
-        version: 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/ui':
         specifier: 0.19.0
-        version: 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       graphql:
         specifier: ^17.0.2
         version: 17.0.2
@@ -121,7 +222,7 @@ importers:
         version: 29.1.1
       stylelint:
         specifier: ^17.14.1
-        version: 17.14.1(typescript@6.0.3)
+        version: 17.14.1(supports-color@10.2.2)(typescript@6.0.3)
       typescript:
         specifier: ~6.0.2
         version: 6.0.3
@@ -247,13 +348,13 @@ importers:
     dependencies:
       '@gopherium/godmin':
         specifier: 0.7.0
-        version: 0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)
+        version: 0.7.0(b7d0a8c4f7c3e9bddee87842c5ad2394)
       '@gopherium/gottext':
-        specifier: 0.4.0
-        version: 0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
+        specifier: 0.5.0
+        version: 0.5.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.8.0
-        version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
+        version: 0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -265,10 +366,10 @@ importers:
         version: 2.0.0(@urql/core@6.0.3(graphql@17.0.2))
       '@wordpress/components':
         specifier: 38.0.0
-        version: 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/dataviews':
         specifier: 17.3.0
-        version: 17.3.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 17.3.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/i18n':
         specifier: 6.26.0
         version: 6.26.0
@@ -277,10 +378,10 @@ importers:
         version: 15.3.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/theme':
         specifier: 1.1.0
-        version: 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/ui':
         specifier: 0.19.0
-        version: 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+        version: 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       graphql:
         specifier: ^17.0.2
         version: 17.0.2
@@ -322,7 +423,7 @@ importers:
     devDependencies:
       '@graphql-inspector/cli':
         specifier: ^6.0.8
-        version: 6.0.8(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)
+        version: 6.0.8(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)
       '@playwright/test':
         specifier: 1.61.1
         version: 1.61.1
@@ -931,8 +1032,8 @@ packages:
       vitest:
         optional: true
 
-  '@gopherium/gottext@0.4.0':
-    resolution: {integrity: sha512-3+ugYk1CG3o22lWEFABRdqvFt7B0kMDlTdcc3fVM3dgoYCjTAFm4Xb+YM+co6YdaXTNOzn66dQMB/p2lWVcc0A==}
+  '@gopherium/gottext@0.5.0':
+    resolution: {integrity: sha512-yJJpL6ot9vQd+AlUPBWiw2LKzIPSIhypvMcJ/z2MUDe/mg5gQZP1FWRvubQapimZsBuX0CHhuEowGyS22ioa4A==}
     engines: {node: '>=22'}
     peerDependencies:
       '@wordpress/i18n': 6.26.0
@@ -3430,6 +3531,10 @@ packages:
     peerDependencies:
       graphql: ^15.2.0 || ^16.0.0
 
+  graphql@15.10.3:
+    resolution: {integrity: sha512-e2ut+7oOFe5/jENYc+T7GZnL5lIBd7vcWg6TlqVx1L/MFXY3CKOsEcP+jMPgL8uwcfrllJRNSmqq5psZahdKZg==}
+    engines: {node: '>= 10.x'}
+
   graphql@16.14.2:
     resolution: {integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
@@ -5002,7 +5107,7 @@ snapshots:
       '@babel/traverse': 7.29.8
       '@babel/types': 7.29.8
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -5022,7 +5127,7 @@ snapshots:
       '@babel/types': 7.29.8
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -5112,7 +5217,7 @@ snapshots:
       '@babel/parser': 7.29.8
       '@babel/template': 7.29.7
       '@babel/types': 7.29.8
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -5432,7 +5537,7 @@ snapshots:
   '@eslint/config-array@0.23.5':
     dependencies:
       '@eslint/object-schema': 3.0.5
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.5
     transitivePeerDependencies:
       - supports-color
@@ -5473,27 +5578,27 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@gopherium/godmin@0.7.0(@tanstack/react-router@1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/style-runtime@0.8.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vitest@4.1.10)':
+  '@gopherium/godmin@0.7.0(b7d0a8c4f7c3e9bddee87842c5ad2394)':
     dependencies:
       '@wordpress/style-runtime': 0.8.0
-      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
-      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       react: 19.2.8
     optionalDependencies:
       '@tanstack/react-router': 1.170.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      stylelint: 17.14.1(typescript@6.0.3)
+      stylelint: 17.14.1(supports-color@10.2.2)(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/gottext@0.4.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)':
+  '@gopherium/gottext@0.5.0(@wordpress/i18n@6.26.0)(gettext-extractor@4.0.6)':
     dependencies:
       '@wordpress/i18n': 6.26.0
       gettext-parser: 9.1.1
     optionalDependencies:
       gettext-extractor: 4.0.6
 
-  '@gopherium/react-auth@0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)':
-    dependencies:
+  ? '@gopherium/react-auth@0.8.0(@tanstack/react-query@5.101.4(react@19.2.8))(@testing-library/jest-dom@6.9.1)(@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@wordpress/i18n@6.26.0)(@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(react@19.2.8)(vitest@4.1.10)'
+  : dependencies:
       '@tanstack/react-query': 5.101.4(react@19.2.8)
       '@wordpress/i18n': 6.26.0
       react: 19.2.8
@@ -5501,8 +5606,8 @@ snapshots:
     optionalDependencies:
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/react': 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
-      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       msw: 2.15.0(@types/node@26.1.2)(typescript@6.0.3)
       vitest: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(msw@2.15.0(@types/node@26.1.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
@@ -5656,41 +5761,41 @@ snapshots:
 
   '@graphql-hive/signal@2.0.0': {}
 
-  '@graphql-inspector/audit-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/audit-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      '@graphql-tools/utils': 10.8.6(graphql@17.0.2)
+      '@graphql-tools/utils': 10.8.6(graphql@15.10.3)
       cli-table3: 0.6.3
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/cli@6.0.8(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)':
+  '@graphql-inspector/cli@6.0.8(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)':
     dependencies:
       '@babel/core': 7.26.10
-      '@graphql-inspector/audit-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/code-loader': 5.0.1(graphql@17.0.2)
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/config': 4.0.2(graphql@17.0.2)
-      '@graphql-inspector/coverage-command': 6.1.14(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/diff-command': 6.0.8(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/docs-command': 5.0.5(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/git-loader': 5.0.1(graphql@17.0.2)
-      '@graphql-inspector/github-loader': 5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)
-      '@graphql-inspector/graphql-loader': 5.0.1(graphql@17.0.2)
-      '@graphql-inspector/introspect-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/json-loader': 5.0.1(graphql@17.0.2)
-      '@graphql-inspector/loaders': 4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2)
-      '@graphql-inspector/serve-command': 5.0.7(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/similar-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/url-loader': 5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)
-      '@graphql-inspector/validate-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      graphql: 17.0.2
+      '@graphql-inspector/audit-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/code-loader': 5.0.1(graphql@15.10.3)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/config': 4.0.2(graphql@15.10.3)
+      '@graphql-inspector/coverage-command': 6.1.14(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/diff-command': 6.0.8(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/docs-command': 5.0.5(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/git-loader': 5.0.1(graphql@15.10.3)
+      '@graphql-inspector/github-loader': 5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)
+      '@graphql-inspector/graphql-loader': 5.0.1(graphql@15.10.3)
+      '@graphql-inspector/introspect-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/json-loader': 5.0.1(graphql@15.10.3)
+      '@graphql-inspector/loaders': 4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3)
+      '@graphql-inspector/serve-command': 5.0.7(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/similar-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/url-loader': 5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)
+      '@graphql-inspector/validate-command': 5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      graphql: 15.10.3
       tslib: 2.6.2
       yargs: 17.7.2
     transitivePeerDependencies:
@@ -5700,63 +5805,63 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@graphql-inspector/code-loader@5.0.1(graphql@17.0.2)':
+  '@graphql-inspector/code-loader@5.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/code-file-loader': 8.1.2(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/code-file-loader': 8.1.2(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-inspector/commands@6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/commands@6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/config': 4.0.2(graphql@17.0.2)
-      '@graphql-inspector/loaders': 4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-inspector/config': 4.0.2(graphql@15.10.3)
+      '@graphql-inspector/loaders': 4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
       yargs: 17.7.2
 
-  '@graphql-inspector/config@4.0.2(graphql@17.0.2)':
+  '@graphql-inspector/config@4.0.2(graphql@15.10.3)':
     dependencies:
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.6.2
 
-  '@graphql-inspector/core@7.1.3(graphql@17.0.2)':
+  '@graphql-inspector/core@7.1.3(graphql@15.10.3)':
     dependencies:
       dependency-graph: 1.0.0
-      graphql: 17.0.2
+      graphql: 15.10.3
       object-inspect: 1.13.2
       tslib: 2.6.2
 
-  '@graphql-inspector/coverage-command@6.1.14(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/coverage-command@6.1.14(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      '@graphql-tools/utils': 10.8.6(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.8.6(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/diff-command@6.0.8(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/diff-command@6.0.8(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/docs-command@5.0.5(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/docs-command@5.0.5(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      graphql: 17.0.2
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      graphql: 15.10.3
       open: 8.4.2
       tslib: 2.6.2
     transitivePeerDependencies:
@@ -5764,55 +5869,55 @@ snapshots:
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/git-loader@5.0.1(graphql@17.0.2)':
+  '@graphql-inspector/git-loader@5.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/git-loader': 8.0.6(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/git-loader': 8.0.6(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-inspector/github-loader@5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)':
+  '@graphql-inspector/github-loader@5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/github-loader': 8.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/github-loader': 8.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@types/node'
       - encoding
       - supports-color
 
-  '@graphql-inspector/graphql-loader@5.0.1(graphql@17.0.2)':
+  '@graphql-inspector/graphql-loader@5.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/graphql-file-loader': 8.0.1(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/graphql-file-loader': 8.0.1(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
 
-  '@graphql-inspector/introspect-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/introspect-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/json-loader@5.0.1(graphql@17.0.2)':
+  '@graphql-inspector/json-loader@5.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/json-file-loader': 8.0.1(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/json-file-loader': 8.0.1(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
 
-  '@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2)':
+  '@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3)':
     dependencies:
-      '@graphql-inspector/config': 4.0.2(graphql@17.0.2)
-      '@graphql-tools/code-file-loader': 8.1.20(graphql@17.0.2)
-      '@graphql-tools/load': 8.0.19(graphql@17.0.2)
-      '@graphql-tools/utils': 10.8.6(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-inspector/config': 4.0.2(graphql@15.10.3)
+      '@graphql-tools/code-file-loader': 8.1.20(graphql@15.10.3)
+      '@graphql-tools/load': 8.0.19(graphql@15.10.3)
+      '@graphql-tools/utils': 10.8.6(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - supports-color
@@ -5825,12 +5930,12 @@ snapshots:
       std-env: 3.7.0
       tslib: 2.6.2
 
-  '@graphql-inspector/serve-command@5.0.7(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/serve-command@5.0.7(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
       '@graphql-inspector/logger': 5.0.1
-      graphql: 17.0.2
-      graphql-yoga: 5.7.0(graphql@17.0.2)
+      graphql: 15.10.3
+      graphql-yoga: 5.7.0(graphql@15.10.3)
       open: 8.4.2
       tslib: 2.6.2
     transitivePeerDependencies:
@@ -5838,22 +5943,22 @@ snapshots:
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/similar-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/similar-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
       - '@graphql-inspector/loaders'
       - yargs
 
-  '@graphql-inspector/url-loader@5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)':
+  '@graphql-inspector/url-loader@5.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/url-loader': 8.0.2(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/url-loader': 8.0.2(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@types/node'
@@ -5861,13 +5966,13 @@ snapshots:
       - encoding
       - utf-8-validate
 
-  '@graphql-inspector/validate-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)':
+  '@graphql-inspector/validate-command@5.0.20(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)':
     dependencies:
-      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@17.0.2))(graphql@17.0.2))(graphql@17.0.2)(yargs@17.7.2)
-      '@graphql-inspector/core': 7.1.3(graphql@17.0.2)
+      '@graphql-inspector/commands': 6.0.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(@graphql-inspector/loaders@4.1.0(@graphql-inspector/config@4.0.2(graphql@15.10.3))(graphql@15.10.3))(graphql@15.10.3)(yargs@17.7.2)
+      '@graphql-inspector/core': 7.1.3(graphql@15.10.3)
       '@graphql-inspector/logger': 5.0.1
-      '@graphql-tools/utils': 10.8.6(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.8.6(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.6.2
     transitivePeerDependencies:
       - '@graphql-inspector/config'
@@ -5890,31 +5995,31 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/batch-execute@9.0.19(graphql@17.0.2)':
+  '@graphql-tools/batch-execute@9.0.19(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@whatwg-node/promise-helpers': 1.3.2
       dataloader: 2.2.3
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
 
-  '@graphql-tools/code-file-loader@8.1.2(graphql@17.0.2)':
+  '@graphql-tools/code-file-loader@8.1.2(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/graphql-tag-pluck': 8.3.1(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/graphql-tag-pluck': 8.3.1(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       globby: 11.1.0
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
       unixify: 1.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/code-file-loader@8.1.20(graphql@17.0.2)':
+  '@graphql-tools/code-file-loader@8.1.20(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/graphql-tag-pluck': 8.3.19(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/graphql-tag-pluck': 8.3.19(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       globby: 11.1.0
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
       unixify: 1.0.0
     transitivePeerDependencies:
@@ -5931,17 +6036,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/delegate@10.2.23(graphql@17.0.2)':
+  '@graphql-tools/delegate@10.2.23(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/batch-execute': 9.0.19(graphql@17.0.2)
-      '@graphql-tools/executor': 1.5.7(graphql@17.0.2)
-      '@graphql-tools/schema': 10.0.38(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/batch-execute': 9.0.19(graphql@15.10.3)
+      '@graphql-tools/executor': 1.5.7(graphql@15.10.3)
+      '@graphql-tools/schema': 10.0.38(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@repeaterjs/repeater': 3.1.0
       '@whatwg-node/promise-helpers': 1.3.2
       dataloader: 2.2.3
       dset: 3.1.4
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
 
   '@graphql-tools/delegate@12.1.1(graphql@17.0.2)':
@@ -5962,17 +6067,17 @@ snapshots:
       lodash.sortby: 4.7.0
       tslib: 2.8.1
 
-  '@graphql-tools/executor-common@0.0.1(graphql@17.0.2)':
+  '@graphql-tools/executor-common@0.0.1(graphql@15.10.3)':
     dependencies:
       '@envelop/core': 5.5.1
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
 
-  '@graphql-tools/executor-common@0.0.4(graphql@17.0.2)':
+  '@graphql-tools/executor-common@0.0.4(graphql@15.10.3)':
     dependencies:
       '@envelop/core': 5.5.1
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
 
   '@graphql-tools/executor-common@1.0.6(graphql@17.0.2)':
     dependencies:
@@ -5980,13 +6085,13 @@ snapshots:
       '@graphql-tools/utils': 11.2.2(graphql@17.0.2)
       graphql: 17.0.2
 
-  '@graphql-tools/executor-graphql-ws@1.3.7(graphql@17.0.2)':
+  '@graphql-tools/executor-graphql-ws@1.3.7(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/executor-common': 0.0.1(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/executor-common': 0.0.1(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@whatwg-node/disposablestack': 0.0.5
-      graphql: 17.0.2
-      graphql-ws: 5.16.2(graphql@17.0.2)
+      graphql: 15.10.3
+      graphql-ws: 5.16.2(graphql@15.10.3)
       isomorphic-ws: 5.0.0(ws@8.21.2)
       tslib: 2.8.1
       ws: 8.21.2
@@ -6010,16 +6115,16 @@ snapshots:
       - crossws
       - utf-8-validate
 
-  '@graphql-tools/executor-http@1.3.3(@types/node@26.1.2)(graphql@17.0.2)':
+  '@graphql-tools/executor-http@1.3.3(@types/node@26.1.2)(graphql@15.10.3)':
     dependencies:
       '@graphql-hive/signal': 1.0.0
-      '@graphql-tools/executor-common': 0.0.4(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/executor-common': 0.0.4(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@repeaterjs/repeater': 3.1.0
       '@whatwg-node/disposablestack': 0.0.6
       '@whatwg-node/fetch': 0.10.13
       '@whatwg-node/promise-helpers': 1.3.2
-      graphql: 17.0.2
+      graphql: 15.10.3
       meros: 1.3.2(@types/node@26.1.2)
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -6040,6 +6145,18 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  '@graphql-tools/executor-legacy-ws@1.1.32(graphql@15.10.3)':
+    dependencies:
+      '@graphql-tools/utils': 11.2.2(graphql@15.10.3)
+      '@types/ws': 8.18.1
+      graphql: 15.10.3
+      isomorphic-ws: 5.0.0(ws@8.21.2)
+      tslib: 2.8.1
+      ws: 8.21.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@graphql-tools/executor-legacy-ws@1.1.32(graphql@17.0.2)':
     dependencies:
       '@graphql-tools/utils': 11.2.2(graphql@17.0.2)
@@ -6051,6 +6168,16 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@graphql-tools/executor@1.5.7(graphql@15.10.3)':
+    dependencies:
+      '@graphql-tools/utils': 11.2.2(graphql@15.10.3)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.3)
+      '@repeaterjs/repeater': 3.1.0
+      '@whatwg-node/disposablestack': 0.0.6
+      '@whatwg-node/promise-helpers': 1.3.2
+      graphql: 15.10.3
+      tslib: 2.8.1
 
   '@graphql-tools/executor@1.5.7(graphql@17.0.2)':
     dependencies:
@@ -6074,11 +6201,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/git-loader@8.0.6(graphql@17.0.2)':
+  '@graphql-tools/git-loader@8.0.6(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/graphql-tag-pluck': 8.3.1(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/graphql-tag-pluck': 8.3.1(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
       is-glob: 4.0.3
       micromatch: 4.0.8
       tslib: 2.8.1
@@ -6086,14 +6213,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/github-loader@8.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)':
+  '@graphql-tools/github-loader@8.0.1(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)':
     dependencies:
       '@ardatan/sync-fetch': 0.0.1(encoding@0.1.13)
-      '@graphql-tools/executor-http': 1.3.3(@types/node@26.1.2)(graphql@17.0.2)
-      '@graphql-tools/graphql-tag-pluck': 8.3.35(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/executor-http': 1.3.3(@types/node@26.1.2)(graphql@15.10.3)
+      '@graphql-tools/graphql-tag-pluck': 8.3.35(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@whatwg-node/fetch': 0.9.23
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
       value-or-promise: 1.0.12
     transitivePeerDependencies:
@@ -6115,12 +6242,12 @@ snapshots:
       - '@types/node'
       - supports-color
 
-  '@graphql-tools/graphql-file-loader@8.0.1(graphql@17.0.2)':
+  '@graphql-tools/graphql-file-loader@8.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/import': 7.0.1(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/import': 7.0.1(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       globby: 11.1.0
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
       unixify: 1.0.0
 
@@ -6133,28 +6260,41 @@ snapshots:
       tslib: 2.8.1
       unixify: 1.0.0
 
-  '@graphql-tools/graphql-tag-pluck@8.3.1(graphql@17.0.2)':
+  '@graphql-tools/graphql-tag-pluck@8.3.1(graphql@15.10.3)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.8
       '@babel/plugin-syntax-import-assertions': 7.29.7(@babel/core@7.29.7)
       '@babel/traverse': 7.29.8
       '@babel/types': 7.29.8
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/graphql-tag-pluck@8.3.19(graphql@17.0.2)':
+  '@graphql-tools/graphql-tag-pluck@8.3.19(graphql@15.10.3)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.8
       '@babel/plugin-syntax-import-assertions': 7.29.7(@babel/core@7.29.7)
       '@babel/traverse': 7.29.8
       '@babel/types': 7.29.8
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+
+  '@graphql-tools/graphql-tag-pluck@8.3.35(graphql@15.10.3)':
+    dependencies:
+      '@babel/core': 7.29.7
+      '@babel/parser': 7.29.8
+      '@babel/plugin-syntax-import-assertions': 7.29.7(@babel/core@7.29.7)
+      '@babel/traverse': 7.29.8
+      '@babel/types': 7.29.8
+      '@graphql-tools/utils': 11.2.2(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -6172,10 +6312,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@graphql-tools/import@7.0.1(graphql@17.0.2)':
+  '@graphql-tools/import@7.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
       resolve-from: 5.0.0
       tslib: 2.8.1
 
@@ -6186,11 +6326,11 @@ snapshots:
       resolve-from: 5.0.0
       tslib: 2.8.1
 
-  '@graphql-tools/json-file-loader@8.0.1(graphql@17.0.2)':
+  '@graphql-tools/json-file-loader@8.0.1(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       globby: 11.1.0
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
       unixify: 1.0.0
 
@@ -6202,11 +6342,11 @@ snapshots:
       tslib: 2.8.1
       unixify: 1.0.0
 
-  '@graphql-tools/load@8.0.19(graphql@17.0.2)':
+  '@graphql-tools/load@8.0.19(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/schema': 10.0.38(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      graphql: 17.0.2
+      '@graphql-tools/schema': 10.0.38(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      graphql: 15.10.3
       p-limit: 3.1.0
       tslib: 2.8.1
 
@@ -6216,6 +6356,12 @@ snapshots:
       '@graphql-tools/utils': 11.2.2(graphql@17.0.2)
       graphql: 17.0.2
       p-limit: 3.1.0
+      tslib: 2.8.1
+
+  '@graphql-tools/merge@9.2.2(graphql@15.10.3)':
+    dependencies:
+      '@graphql-tools/utils': 11.2.2(graphql@15.10.3)
+      graphql: 15.10.3
       tslib: 2.8.1
 
   '@graphql-tools/merge@9.2.2(graphql@17.0.2)':
@@ -6236,6 +6382,13 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
+  '@graphql-tools/schema@10.0.38(graphql@15.10.3)':
+    dependencies:
+      '@graphql-tools/merge': 9.2.2(graphql@15.10.3)
+      '@graphql-tools/utils': 11.2.2(graphql@15.10.3)
+      graphql: 15.10.3
+      tslib: 2.8.1
+
   '@graphql-tools/schema@10.0.38(graphql@17.0.2)':
     dependencies:
       '@graphql-tools/merge': 9.2.2(graphql@17.0.2)
@@ -6243,18 +6396,18 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/url-loader@8.0.2(@types/node@26.1.2)(encoding@0.1.13)(graphql@17.0.2)':
+  '@graphql-tools/url-loader@8.0.2(@types/node@26.1.2)(encoding@0.1.13)(graphql@15.10.3)':
     dependencies:
       '@ardatan/sync-fetch': 0.0.1(encoding@0.1.13)
-      '@graphql-tools/delegate': 10.2.23(graphql@17.0.2)
-      '@graphql-tools/executor-graphql-ws': 1.3.7(graphql@17.0.2)
-      '@graphql-tools/executor-http': 1.3.3(@types/node@26.1.2)(graphql@17.0.2)
-      '@graphql-tools/executor-legacy-ws': 1.1.32(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
-      '@graphql-tools/wrap': 10.1.4(graphql@17.0.2)
+      '@graphql-tools/delegate': 10.2.23(graphql@15.10.3)
+      '@graphql-tools/executor-graphql-ws': 1.3.7(graphql@15.10.3)
+      '@graphql-tools/executor-http': 1.3.3(@types/node@26.1.2)(graphql@15.10.3)
+      '@graphql-tools/executor-legacy-ws': 1.1.32(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
+      '@graphql-tools/wrap': 10.1.4(graphql@15.10.3)
       '@types/ws': 8.18.1
       '@whatwg-node/fetch': 0.9.23
-      graphql: 17.0.2
+      graphql: 15.10.3
       isomorphic-ws: 5.0.0(ws@8.21.2)
       tslib: 2.8.1
       value-or-promise: 1.0.12
@@ -6287,21 +6440,29 @@ snapshots:
       - crossws
       - utf-8-validate
 
-  '@graphql-tools/utils@10.11.0(graphql@17.0.2)':
+  '@graphql-tools/utils@10.11.0(graphql@15.10.3)':
     dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@17.0.2)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.3)
       '@whatwg-node/promise-helpers': 1.3.2
       cross-inspect: 1.0.1
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
 
-  '@graphql-tools/utils@10.8.6(graphql@17.0.2)':
+  '@graphql-tools/utils@10.8.6(graphql@15.10.3)':
     dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@17.0.2)
+      '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.3)
       '@whatwg-node/promise-helpers': 1.3.2
       cross-inspect: 1.0.1
       dset: 3.1.4
-      graphql: 17.0.2
+      graphql: 15.10.3
+      tslib: 2.8.1
+
+  '@graphql-tools/utils@11.2.2(graphql@15.10.3)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@15.10.3)
+      '@whatwg-node/promise-helpers': 1.3.2
+      cross-inspect: 1.0.1
+      graphql: 15.10.3
       tslib: 2.8.1
 
   '@graphql-tools/utils@11.2.2(graphql@17.0.2)':
@@ -6312,13 +6473,13 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
-  '@graphql-tools/wrap@10.1.4(graphql@17.0.2)':
+  '@graphql-tools/wrap@10.1.4(graphql@15.10.3)':
     dependencies:
-      '@graphql-tools/delegate': 10.2.23(graphql@17.0.2)
-      '@graphql-tools/schema': 10.0.38(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/delegate': 10.2.23(graphql@15.10.3)
+      '@graphql-tools/schema': 10.0.38(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@whatwg-node/promise-helpers': 1.3.2
-      graphql: 17.0.2
+      graphql: 15.10.3
       tslib: 2.8.1
 
   '@graphql-tools/wrap@11.1.21(graphql@17.0.2)':
@@ -6329,6 +6490,10 @@ snapshots:
       '@whatwg-node/promise-helpers': 1.3.2
       graphql: 17.0.2
       tslib: 2.8.1
+
+  '@graphql-typed-document-node/core@3.2.0(graphql@15.10.3)':
+    dependencies:
+      graphql: 15.10.3
 
   '@graphql-typed-document-node/core@3.2.0(graphql@17.0.2)':
     dependencies:
@@ -6974,7 +7139,7 @@ snapshots:
       '@typescript-eslint/types': 8.65.0
       '@typescript-eslint/typescript-estree': 8.65.0(typescript@6.0.3)
       '@typescript-eslint/visitor-keys': 8.65.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       eslint: 10.8.0(jiti@2.7.0)
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -6984,7 +7149,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.65.0(typescript@6.0.3)
       '@typescript-eslint/types': 8.65.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -6993,7 +7158,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.65.0(typescript@6.0.3)
       '@typescript-eslint/types': 8.65.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -7021,7 +7186,7 @@ snapshots:
       '@typescript-eslint/types': 8.65.0
       '@typescript-eslint/typescript-estree': 8.65.0(typescript@6.0.3)
       '@typescript-eslint/utils': 8.65.0(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3)
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       eslint: 10.8.0(jiti@2.7.0)
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
@@ -7038,7 +7203,7 @@ snapshots:
       '@typescript-eslint/tsconfig-utils': 8.56.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.56.1
       '@typescript-eslint/visitor-keys': 8.56.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
@@ -7053,7 +7218,7 @@ snapshots:
       '@typescript-eslint/tsconfig-utils': 8.65.0(typescript@6.0.3)
       '@typescript-eslint/types': 8.65.0
       '@typescript-eslint/visitor-keys': 8.65.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
@@ -7237,7 +7402,7 @@ snapshots:
 
   '@wordpress/base-styles@12.0.0': {}
 
-  '@wordpress/components@38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/components@38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@ariakit/react': 0.4.36(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@date-fns/utc': 2.1.1
@@ -7269,7 +7434,7 @@ snapshots:
       '@wordpress/private-apis': 1.52.0
       '@wordpress/rich-text': 7.52.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/style-runtime': 0.8.0
-      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/warning': 3.52.0
       change-case: 4.1.2
       clsx: 2.1.1
@@ -7347,12 +7512,12 @@ snapshots:
       - '@types/react-dom'
       - react-dom
 
-  '@wordpress/dataviews@17.3.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/dataviews@17.3.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@ariakit/react': 0.4.36(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/a11y': 4.52.0
       '@wordpress/base-styles': 12.0.0
-      '@wordpress/components': 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/components': 38.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/compose': 8.5.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/data': 10.52.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/date': 5.52.0
@@ -7364,7 +7529,7 @@ snapshots:
       '@wordpress/primitives': 4.52.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/private-apis': 1.52.0
       '@wordpress/rich-text': 7.52.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/ui': 0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/warning': 3.52.0
       clsx: 2.1.1
       colord: 2.9.3
@@ -7501,7 +7666,7 @@ snapshots:
 
   '@wordpress/style-runtime@0.8.0': {}
 
-  '@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/theme@1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@wordpress/compose': 8.5.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/deprecated': 4.52.0
@@ -7516,12 +7681,12 @@ snapshots:
       '@types/react': 19.2.18
       esbuild: 0.28.1
       postcss: 8.5.26
-      stylelint: 17.14.1(typescript@6.0.3)
+      stylelint: 17.14.1(supports-color@10.2.2)(typescript@6.0.3)
       vite: 8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@types/react-dom'
 
-  '@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
+  '@wordpress/ui@0.19.0(@date-fns/tz@1.5.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(date-fns@4.4.0)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@base-ui/react': 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/a11y': 4.52.0
@@ -7533,7 +7698,7 @@ snapshots:
       '@wordpress/primitives': 4.52.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@wordpress/private-apis': 1.52.0
       '@wordpress/style-runtime': 0.8.0
-      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/theme': 1.1.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.1)(postcss@8.5.26)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       clsx: 2.1.1
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -7840,9 +8005,11 @@ snapshots:
 
   debounce@3.0.0: {}
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@10.2.2):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 10.2.2
 
   decimal.js@10.6.0: {}
 
@@ -7943,7 +8110,7 @@ snapshots:
       '@es-joy/resolve.exports': 1.2.0
       are-docs-informative: 0.0.2
       comment-parser: 1.4.7
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       escape-string-regexp: 4.0.0
       eslint: 10.8.0(jiti@2.7.0)
       espree: 11.2.0
@@ -8009,7 +8176,7 @@ snapshots:
       '@types/estree': 1.0.9
       ajv: 6.15.0
       cross-spawn: 7.0.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       escape-string-regexp: 4.0.0
       eslint-scope: 9.1.2
       eslint-visitor-keys: 5.0.1
@@ -8289,9 +8456,9 @@ snapshots:
       graphql: 17.0.2
       tslib: 2.8.1
 
-  graphql-ws@5.16.2(graphql@17.0.2):
+  graphql-ws@5.16.2(graphql@15.10.3):
     dependencies:
-      graphql: 17.0.2
+      graphql: 15.10.3
 
   graphql-ws@6.2.0(graphql@17.0.2)(ws@8.21.2):
     dependencies:
@@ -8299,20 +8466,22 @@ snapshots:
     optionalDependencies:
       ws: 8.21.2
 
-  graphql-yoga@5.7.0(graphql@17.0.2):
+  graphql-yoga@5.7.0(graphql@15.10.3):
     dependencies:
       '@envelop/core': 5.5.1
-      '@graphql-tools/executor': 1.5.7(graphql@17.0.2)
-      '@graphql-tools/schema': 10.0.38(graphql@17.0.2)
-      '@graphql-tools/utils': 10.11.0(graphql@17.0.2)
+      '@graphql-tools/executor': 1.5.7(graphql@15.10.3)
+      '@graphql-tools/schema': 10.0.38(graphql@15.10.3)
+      '@graphql-tools/utils': 10.11.0(graphql@15.10.3)
       '@graphql-yoga/logger': 2.0.1
       '@graphql-yoga/subscription': 5.0.5
       '@whatwg-node/fetch': 0.9.23
       '@whatwg-node/server': 0.9.71
       dset: 3.1.4
-      graphql: 17.0.2
+      graphql: 15.10.3
       lru-cache: 10.4.3
       tslib: 2.8.1
+
+  graphql@15.10.3: {}
 
   graphql@16.14.2: {}
 
@@ -9277,7 +9446,7 @@ snapshots:
 
   strip-json-comments@5.0.3: {}
 
-  stylelint@17.14.1(typescript@6.0.3):
+  stylelint@17.14.1(supports-color@10.2.2)(typescript@6.0.3):
     dependencies:
       '@csstools/css-calc': 3.2.1(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-parser-algorithms': 4.0.0(@csstools/css-tokenizer@4.0.0)
@@ -9290,7 +9459,7 @@ snapshots:
       cosmiconfig: 9.0.2(typescript@6.0.3)
       css-functions-list: 3.3.3
       css-tree: 3.2.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       fast-glob: 3.3.3
       fastest-levenshtein: 1.0.16
       file-entry-cache: 11.1.5
