@@ -28,6 +28,25 @@ func standingTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return acme
 }
 
+// refuseAtCommit makes every membership row raise when the transaction commits.
+func refuseAtCommit(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	statements := []string{
+		`CREATE FUNCTION core.refuse_at_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			RAISE EXCEPTION 'the membership stands refused';
+		END;
+		$$`,
+		`CREATE CONSTRAINT TRIGGER refuse_membership AFTER INSERT ON core.tenant_members
+		DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.refuse_at_commit()`,
+	}
+	for _, statement := range statements {
+		if _, err := pool.Exec(t.Context(), statement); err != nil {
+			t.Fatalf("arming the deferred refusal: %v", err)
+		}
+	}
+}
+
 func TestInviteIntoPlacesTheAccountInTheTenant(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +104,40 @@ func TestInviteIntoLeavesNoAccountWhenThePlacementFails(t *testing.T) {
 	_, err = authkitpg.NewUserStore(pool).UserByEmail(t.Context(), "maria@example.com")
 	if !errors.Is(err, gouncer.ErrUserNotFound) {
 		t.Errorf("UserByEmail() error = %v, want ErrUserNotFound after the rollback", err)
+	}
+}
+
+func TestInviteIntoRefusesWhenTheTransactionCannotBegin(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	onboarding := postgres.NewOnboarding(pool, authkit.InvitesConfig{})
+	pool.Close()
+
+	_, err := onboarding.InviteInto(
+		t.Context(), tenant.DefaultID, "maria@example.com", "Maria Perez", "member")
+
+	if err == nil {
+		t.Fatal("InviteInto() error = nil, want the closed pool refused")
+	}
+}
+
+func TestInviteIntoRefusesWhenTheTransactionCannotCommit(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	acme := standingTenant(t, pool)
+	refuseAtCommit(t, pool)
+	onboarding := postgres.NewOnboarding(pool, authkit.InvitesConfig{})
+
+	_, err := onboarding.InviteInto(t.Context(), acme, "maria@example.com", "Maria Perez", "member")
+
+	if err == nil {
+		t.Fatal("InviteInto() error = nil, want the refused commit reported")
+	}
+	_, err = authkitpg.NewUserStore(pool).UserByEmail(t.Context(), "maria@example.com")
+	if !errors.Is(err, gouncer.ErrUserNotFound) {
+		t.Errorf("UserByEmail() error = %v, want ErrUserNotFound after the refused commit", err)
 	}
 }
 
