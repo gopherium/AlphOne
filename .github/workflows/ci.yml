@@ -110,6 +110,7 @@ jobs:
         with:
           version: v2.13.2
           install-mode: goinstall
+      - run: go run ./cmd/doclint
 
   vuln:
     runs-on: ubuntu-latest
