@@ -2,7 +2,7 @@
 
 # Build the single-page app.
 FROM node:26-slim AS frontend
-RUN npm install -g pnpm@11.10.0
+RUN npm install -g pnpm@12.2.1
 WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY frontend ./frontend
