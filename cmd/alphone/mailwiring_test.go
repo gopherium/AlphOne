@@ -34,9 +34,10 @@ func mailRelay(t *testing.T) *smtpmock.Server {
 	return server
 }
 
-// stopRun cancels the server and waits for run to release its pool before the test database is dropped.
+// stopRun drops the idle client connections, cancels the server and waits for run to release its pool.
 func stopRun(t *testing.T, cancel context.CancelFunc, runErr <-chan error) {
 	t.Helper()
+	http.DefaultClient.CloseIdleConnections()
 	cancel()
 	select {
 	case err := <-runErr:

@@ -667,13 +667,5 @@ func TestRunServesAPI(t *testing.T) {
 		t.Fatalf("webhook event status = %d, want %d", eventResponse.StatusCode, http.StatusOK)
 	}
 
-	cancel()
-	select {
-	case err := <-runErr:
-		if err != nil {
-			t.Fatalf("run() error = %v, want nil after graceful shutdown", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("run() did not return after context cancellation")
-	}
+	stopRun(t, cancel, runErr)
 }
