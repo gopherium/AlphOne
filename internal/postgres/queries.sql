@@ -216,6 +216,10 @@ SELECT user_id, tenant_id
 FROM core.tenant_members
 WHERE user_id = ANY(@ids::uuid[]);
 
+-- name: PlaceMember :exec
+INSERT INTO core.tenant_members (user_id, tenant_id)
+VALUES (@user_id::uuid, @tenant_id::uuid);
+
 -- name: UserSetting :many
 SELECT value
 FROM core.user_settings

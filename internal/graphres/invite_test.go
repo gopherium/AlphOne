@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 	"github.com/gopherium/gouncer/authkit/testkit"
@@ -59,13 +60,43 @@ func (m *recordingMailer) SendReset(_ context.Context, to, name, link string) er
 	return nil
 }
 
+// placingInvites invites through the store and records the tenant each address was handed to.
+type placingInvites struct {
+	invites *authkit.Invites
+	mu      sync.Mutex
+	placed  map[string]uuid.UUID
+}
+
+// InviteInto invites the address through the store and records tenantID against it.
+func (p *placingInvites) InviteInto(
+	ctx context.Context, tenantID uuid.UUID, email, name, role string,
+) (gouncer.Token, error) {
+	token, err := p.invites.Invite(ctx, email, name, role)
+	if err != nil {
+		return token, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.placed[email] = tenantID
+	return token, nil
+}
+
+// placedIn answers the tenant the address was handed to, the zero id when none was.
+func (p *placingInvites) placedIn(email string) uuid.UUID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.placed[email]
+}
+
 // newInviteResolver returns a resolver serving the invite flows over store and mailer.
 func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.Resolver {
+	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store, ResetTokensLive: 3})
 	held := &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
-		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: store, ResetTokensLive: 3}),
+		Invites:      invites,
+		Onboarding:   &placingInvites{invites: invites, placed: map[string]uuid.UUID{}},
 		Accounts:     store,
 		PublicURL:    "https://crm.example.com",
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),

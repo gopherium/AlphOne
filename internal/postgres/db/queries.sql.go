@@ -911,6 +911,21 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListW
 	return items, nil
 }
 
+const placeMember = `-- name: PlaceMember :exec
+INSERT INTO core.tenant_members (user_id, tenant_id)
+VALUES ($1::uuid, $2::uuid)
+`
+
+type PlaceMemberParams struct {
+	UserID   uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) PlaceMember(ctx context.Context, arg PlaceMemberParams) error {
+	_, err := q.db.Exec(ctx, placeMember, arg.UserID, arg.TenantID)
+	return err
+}
+
 const revokeAPIToken = `-- name: RevokeAPIToken :execrows
 DELETE FROM core.api_tokens
 WHERE id = $1 AND user_id = $2 AND tenant_id = $3

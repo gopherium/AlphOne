@@ -25,11 +25,13 @@ const testPassword = "password1234"
 
 // newAuthResolver returns a resolver whose auth seams serve store.
 func newAuthResolver(store *testkit.Store) *graphres.Resolver {
+	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store})
 	return &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
-		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: store}),
+		Invites:      invites,
+		Onboarding:   &placingInvites{invites: invites, placed: map[string]uuid.UUID{}},
 		Accounts:     store,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 8, Window: time.Minute}),
