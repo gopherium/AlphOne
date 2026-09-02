@@ -78,6 +78,7 @@ func run(
 	resolver := contact.NewResolver(contacts, contact.WithEvents(events))
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: settings.databaseURL,
+		PublicURL:   settings.mail.publicURL,
 		Resolver:    resolverBridge{resolver: resolver},
 		Contacts:    directoryBridge{resolver: resolver},
 		Events:      pluginPublisher{publisher: events},
@@ -106,23 +107,25 @@ func run(
 
 	auth := authkit.New(authConfig(userStore))
 	admin := authkit.NewAdmin(adminConfig(userStore))
+	inviteConfig := authkit.InvitesConfig{
+		Store:           userStore,
+		InviteTTL:       settings.inviteTTL,
+		ResetTTL:        settings.reset.ttl,
+		ResetTokensLive: settings.reset.links,
+	}
 	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
-		Version:  version.Version(),
-		Contacts: contacts,
-		Tasks:    tasks,
-		Webhooks: webhooks,
-		Tenants:  tenants,
-		Tokens:   tokens,
-		Events:   events,
-		Live:     hub,
-		Auth:     auth,
-		Admin:    admin,
-		Invites: authkit.NewInvites(authkit.InvitesConfig{
-			Store:           userStore,
-			InviteTTL:       settings.inviteTTL,
-			ResetTTL:        settings.reset.ttl,
-			ResetTokensLive: settings.reset.links,
-		}),
+		Version:       version.Version(),
+		Contacts:      contacts,
+		Tasks:         tasks,
+		Webhooks:      webhooks,
+		Tenants:       tenants,
+		Tokens:        tokens,
+		Events:        events,
+		Live:          hub,
+		Auth:          auth,
+		Admin:         admin,
+		Invites:       authkit.NewInvites(inviteConfig),
+		Onboarding:    postgres.NewOnboarding(pool, inviteConfig),
 		Accounts:      userStore,
 		Mailer:        mailer,
 		PublicURL:     settings.mail.publicURL,
