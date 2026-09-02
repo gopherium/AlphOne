@@ -195,7 +195,8 @@ func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
 	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
 }
 
-// declarePluginRoles registers the plugins and grants the registry every role they declare.
+// declarePluginRoles registers the plugins over the settings a role declaration needs and grants
+// the registry every role they declare.
 func declarePluginRoles(
 	registry *role.Registry,
 	getenv func(string) string,
