@@ -113,16 +113,16 @@ func newGraphQLHandler(
 // one it holds streams to.
 func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
 	return graphPolicy{
-			limiter:    newStreamLimiter(graphMaxConcurrentOps),
-			lifetime:   graphOperationTimeout,
-			retryAfter: graphRetryAfter,
-			overflow:   overflowOperations,
-		}, graphPolicy{
-			limiter:    newStreamLimiter(maxStreams),
-			lifetime:   streamLifetime,
-			retryAfter: streamLifetime,
-			overflow:   overflowStreams,
-		}
+		limiter:    newStreamLimiter(graphMaxConcurrentOps),
+		lifetime:   graphOperationTimeout,
+		retryAfter: graphRetryAfter,
+		overflow:   overflowOperations,
+	}, graphPolicy{
+		limiter:    newStreamLimiter(maxStreams),
+		lifetime:   streamLifetime,
+		retryAfter: streamLifetime,
+		overflow:   overflowStreams,
+	}
 }
 
 // graphBodyLimit returns the body budget of the request content type.
