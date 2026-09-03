@@ -2,15 +2,21 @@ coverage:
   status:
     project:
       default:
-        target: auto
+        target: 100%
         threshold: 0%
     patch:
       default:
         target: 100%
 
 ignore:
-  - "internal/postgres/db"
-  - "internal/testdb"
-  - "internal/graphroot"
-  - "graph/generated.go"
-  - "graph/model"
+  - internal/postgres/db
+  - internal/testdb
+  - internal/graphroot
+  - graph/generated.go
+  - graph/model
+  - frontend/src/gql
+  - cmd/alphone/main.go
+  - cmd/alphone/plugins_gen.go
+  - cmd/pluginwire/main.go
+  - cmd/doclint/main.go
+  - cmd/schemagen/main.go
