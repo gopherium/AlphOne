@@ -14,6 +14,7 @@ import (
 	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/mail"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // errTokenInvalid refuses a spent, expired or unknown single use link.
@@ -40,7 +41,7 @@ func (m MutationResolvers) Invite(
 	if !role.Outranks(role.Role(actor.Role), stood) {
 		return nil, role.ErrBeyondReach
 	}
-	token, err := m.root.Invites.Invite(ctx, email, name, stood.String())
+	token, err := m.root.Onboarding.InviteInto(ctx, sdk.TenantOrDefault(ctx), email, name, stood.String())
 	if errors.Is(err, gouncer.ErrEmailTaken) {
 		return m.resend(ctx, email)
 	}

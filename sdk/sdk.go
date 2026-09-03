@@ -45,10 +45,12 @@ type PublicPathProvider = pluginkit.PublicPathProvider
 // which the host calls once per installed plugin.
 type Deps struct {
 	DatabaseURL string
-	Resolver    ContactResolver
-	Contacts    ContactDirectory
-	Getenv      func(string) string
-	Events      Publisher
+	// PublicURL is the address people reach the application at, empty without a mail relay.
+	PublicURL string
+	Resolver  ContactResolver
+	Contacts  ContactDirectory
+	Getenv    func(string) string
+	Events    Publisher
 }
 
 // Publisher announces a plugin's own events to the host.

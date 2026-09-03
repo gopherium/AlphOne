@@ -11,7 +11,7 @@ require (
 	github.com/gopherium/framework/mailkit v0.1.0
 	github.com/gopherium/gouncer v0.4.0
 	github.com/gopherium/gouncer/authkit v0.15.0
-	github.com/gopherium/gouncer/authkit/postgres v0.10.0
+	github.com/gopherium/gouncer/authkit/postgres v0.11.0
 	github.com/gopherium/gouncer/authkit/ratelimit v0.3.0
 	github.com/gopherium/pluginkit v0.5.0
 	github.com/gopherium/pluginkit/graphwire v0.3.0

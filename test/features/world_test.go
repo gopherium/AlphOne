@@ -131,6 +131,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err != nil {
 		t.Fatalf("building the scenario mailer: %v", err)
 	}
+	inviteConfig := authkit.InvitesConfig{Store: users}
 	root, err := graphroot.FromPlugins(&graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -142,7 +143,8 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Live:         hub,
 		Auth:         auth,
 		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
-		Invites:      authkit.NewInvites(authkit.InvitesConfig{Store: users}),
+		Invites:      authkit.NewInvites(inviteConfig),
+		Onboarding:   postgres.NewOnboarding(pool, inviteConfig),
 		Accounts:     users,
 		Mailer:       mailer,
 		PublicURL:    scenarioPublicURL,

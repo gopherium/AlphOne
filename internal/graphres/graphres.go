@@ -156,6 +156,11 @@ type AccountReader interface {
 	UserByEmail(ctx context.Context, email string) (gouncer.User, error)
 }
 
+// Onboarder invites an account into a tenant as one transaction.
+type Onboarder interface {
+	InviteInto(ctx context.Context, tenantID uuid.UUID, email, name, role string) (gouncer.Token, error)
+}
+
 // Resolver is the root resolver serving the core schema.
 type Resolver struct {
 	// Version is the reported application version.
@@ -186,6 +191,8 @@ type Resolver struct {
 	Invites *authkit.Invites
 	// Accounts reads accounts for the mail the flows deliver.
 	Accounts AccountReader
+	// Onboarding invites accounts into the caller's tenant.
+	Onboarding Onboarder
 	// Mailer delivers the account mail. Nil runs without a mailer.
 	Mailer Mailer
 	// PublicURL is the address email links lead back to, empty without a mailer.

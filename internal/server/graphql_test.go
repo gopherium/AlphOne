@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
@@ -21,6 +24,18 @@ import (
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/sdk"
 )
+
+// unplacedOnboarding invites through the store and places the account in no tenant.
+type unplacedOnboarding struct {
+	invites *authkit.Invites
+}
+
+// InviteInto invites the address, leaving the tenant it names untouched.
+func (o unplacedOnboarding) InviteInto(
+	ctx context.Context, _ uuid.UUID, email, name, role string,
+) (gouncer.Token, error) {
+	return o.invites.Invite(ctx, email, name, role)
+}
 
 // graphConfig carries the stores and bounds a test graph server composes.
 type graphConfig struct {
@@ -72,7 +87,9 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 	}
 	if store, ok := cfg.Users.(authkit.InviteStore); ok {
-		resolver.Invites = authkit.NewInvites(authkit.InvitesConfig{Store: store})
+		invites := authkit.NewInvites(authkit.InvitesConfig{Store: store})
+		resolver.Invites = invites
+		resolver.Onboarding = unplacedOnboarding{invites: invites}
 		resolver.Accounts = store
 	}
 	if hub != nil {
