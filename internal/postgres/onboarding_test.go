@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -132,8 +133,8 @@ func TestInviteIntoRefusesWhenTheTransactionCannotCommit(t *testing.T) {
 
 	_, err := onboarding.InviteInto(t.Context(), acme, "maria@example.com", "Maria Perez", "member")
 
-	if err == nil {
-		t.Fatal("InviteInto() error = nil, want the refused commit reported")
+	if err == nil || !strings.Contains(err.Error(), "the membership stands refused") {
+		t.Fatalf("InviteInto() error = %v, want the refusal the commit raised", err)
 	}
 	_, err = authkitpg.NewUserStore(pool).UserByEmail(t.Context(), "maria@example.com")
 	if !errors.Is(err, gouncer.ErrUserNotFound) {
