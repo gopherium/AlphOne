@@ -25,7 +25,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/vikstrous/dataloadgen v0.0.10
 	github.com/xuri/excelize/v2 v2.11.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 )
 
 require (
