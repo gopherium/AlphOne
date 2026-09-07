@@ -11,6 +11,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gopherium/pluginkit"
@@ -47,10 +48,12 @@ type Deps struct {
 	DatabaseURL string
 	// PublicURL is the address people reach the application at, empty without a mail relay.
 	PublicURL string
-	Resolver  ContactResolver
-	Contacts  ContactDirectory
-	Getenv    func(string) string
-	Events    Publisher
+	// MachineGrace is how long a deactivated tenant keeps recording what a channel delivers.
+	MachineGrace time.Duration
+	Resolver     ContactResolver
+	Contacts     ContactDirectory
+	Getenv       func(string) string
+	Events       Publisher
 }
 
 // Publisher announces a plugin's own events to the host.

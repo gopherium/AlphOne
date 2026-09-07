@@ -77,12 +77,13 @@ func run(
 
 	resolver := contact.NewResolver(contacts, contact.WithEvents(events))
 	registered, err := plugins(sdk.Deps{
-		DatabaseURL: settings.databaseURL,
-		PublicURL:   settings.mail.publicURL,
-		Resolver:    resolverBridge{resolver: resolver},
-		Contacts:    directoryBridge{resolver: resolver},
-		Events:      pluginPublisher{publisher: events},
-		Getenv:      getenv,
+		DatabaseURL:  settings.databaseURL,
+		PublicURL:    settings.mail.publicURL,
+		MachineGrace: settings.machineGrace,
+		Resolver:     resolverBridge{resolver: resolver},
+		Contacts:     directoryBridge{resolver: resolver},
+		Events:       pluginPublisher{publisher: events},
+		Getenv:       getenv,
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)

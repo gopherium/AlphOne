@@ -31,6 +31,7 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -301,6 +302,49 @@ func TestRunReportsPluginFailure(t *testing.T) {
 
 	if !errors.Is(err, errPluginMigrate) {
 		t.Fatalf("run() error = %v, want %v in its chain", err, errPluginMigrate)
+	}
+}
+
+var errCaptured = errors.New("plugins captured")
+
+// capturingPlugins records the dependencies the host hands over and stops the run.
+func capturingPlugins(into *sdk.Deps) func(sdk.Deps) ([]sdk.Plugin, error) {
+	return func(deps sdk.Deps) ([]sdk.Plugin, error) {
+		*into = deps
+		return nil, errCaptured
+	}
+}
+
+func TestRunHandsPluginsTheMachineGrace(t *testing.T) {
+	t.Parallel()
+
+	var handed sdk.Deps
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":         testDatabaseURL(t),
+		"ALPHONE_TENANT_MACHINE_GRACE": "72h",
+	}), io.Discard, capturingPlugins(&handed))
+
+	if !errors.Is(err, errCaptured) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, errCaptured)
+	}
+	if handed.MachineGrace != 72*time.Hour {
+		t.Errorf("Deps.MachineGrace = %v, want 72h", handed.MachineGrace)
+	}
+}
+
+func TestRunHandsPluginsTheDefaultMachineGrace(t *testing.T) {
+	t.Parallel()
+
+	var handed sdk.Deps
+	err := run(t.Context(), testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
+	}), io.Discard, capturingPlugins(&handed))
+
+	if !errors.Is(err, errCaptured) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, errCaptured)
+	}
+	if handed.MachineGrace != tenant.DefaultMachineGrace {
+		t.Errorf("Deps.MachineGrace = %v, want the default %v", handed.MachineGrace, tenant.DefaultMachineGrace)
 	}
 }
 
