@@ -538,6 +538,9 @@ msgstr ""
 msgid "Your role does not allow %(capability)s."
 msgstr ""
 
+msgid "v%(version)s"
+msgstr ""
+
 msgctxt "account status"
 msgid "Active"
 msgstr ""

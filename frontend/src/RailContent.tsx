@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	__, Stack, Text } from '@alphone/frontend-sdk'
+	__, sprintf, Stack, Text } from '@alphone/frontend-sdk'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, useRouterState } from '@tanstack/react-router'
 
@@ -32,7 +32,7 @@ export function RailContent() {
 			</Stack>
 			<AccountPanel className="alphone-rail__account" />
 			{version ? (
-				<Text className="alphone-rail__version">v{version}</Text>
+				<Text className="alphone-rail__version">{sprintf(__('v%(version)s', 'alphone'), { version })}</Text>
 			) : null}
 		</>
 	)

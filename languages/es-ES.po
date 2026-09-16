@@ -740,3 +740,7 @@ msgstr "Este enlace ya no es válido. Pide uno nuevo."
 msgctxt "account status"
 msgid "Invited"
 msgstr "Invitada"
+
+#, fuzzy
+msgid "v%(version)s"
+msgstr "v%(version)s"
