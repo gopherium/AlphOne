@@ -24,7 +24,7 @@ export function Layout() {
 	const canvas = useCanvas()
 	return (
 		<Frame.Root location={location} chromeColor={CHROME_COLOR} canvasColor={CANVAS_COLOR}>
-			<Frame.Rail brand={<Text variant="heading-lg">AlphOne</Text>}>
+			<Frame.Rail brand={<Text variant="heading-lg">{'AlphOne'}</Text>}>
 				<RailContent />
 			</Frame.Rail>
 			<Frame.Canvas canvas={canvas}>
