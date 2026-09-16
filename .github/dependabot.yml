@@ -18,11 +18,17 @@ updates:
       default-days: 2
       semver-major-days: 30
       semver-minor-days: 7
+      exclude:
+        - "@wordpress/*"
+        - "@gopherium/*"
     groups:
+      design-system:
+        patterns:
+          - "@wordpress/*"
+          - "@gopherium/*"
       frontend:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "@wordpress/*"
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
