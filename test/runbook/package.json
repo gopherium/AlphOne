@@ -8,7 +8,7 @@
     "typecheck": "tsc -b"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.5.1",
     "typescript": "^6.0.2"
   }
 }
