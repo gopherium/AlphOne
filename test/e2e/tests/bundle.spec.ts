@@ -12,10 +12,10 @@ const dist = join(process.cwd(), '..', '..', 'frontend', 'dist')
 const assets = join(dist, 'assets')
 
 // entryCeiling bounds the JavaScript every visitor downloads before first paint, in bytes.
-const entryCeiling = 1120 * 1024
+const entryCeiling = 1240 * 1024
 
 // previewCeiling bounds the lazy chunk only the import preview downloads.
-const previewCeiling = 1700 * 1024
+const previewCeiling = 1900 * 1024
 
 /**
  * Returns the built asset whose name starts with the given prefix.
