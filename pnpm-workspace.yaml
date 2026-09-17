@@ -17,7 +17,6 @@ minimumReleaseAgeExclude:
 overrides:
   react: ^19.2.8
   react-dom: ^19.2.8
-  '@wordpress/i18n': 6.26.0
 
 peerDependencyRules:
   allowedVersions:
