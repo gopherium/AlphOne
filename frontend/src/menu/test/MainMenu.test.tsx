@@ -19,6 +19,10 @@ import { MainMenu } from '../MainMenu'
 
 const navItems = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
 
+/**
+ * Renders the main menu under a signed-in admin, the router standing at the path.
+ * @param path - The route the router starts on.
+ */
 function renderMenuAt(path: string) {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false, staleTime: Infinity } },

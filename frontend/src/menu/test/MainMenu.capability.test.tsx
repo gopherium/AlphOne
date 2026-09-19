@@ -38,6 +38,10 @@ const managingSession = {
 	capabilities: ['manage_widgets'],
 }
 
+/**
+ * Renders the main menu under the signed-in account given.
+ * @param session - The account the menu is rendered for.
+ */
 function renderMenuAs(session: typeof memberSession) {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false, staleTime: Infinity } },
