@@ -4,6 +4,8 @@ import type { Catalog } from '@gopherium/gottext'
 import type { AnyRoute } from '@tanstack/react-router'
 import type { ComponentProps, ComponentType, ReactElement } from 'react'
 
+import type { Capability } from './session'
+
 declare module '@tanstack/react-router' {
 	interface StaticDataRouteOption {
 		Sidebar?: ComponentType
@@ -14,6 +16,7 @@ export interface NavItem {
 	label: string
 	to: string
 	icon: ReactElement<ComponentProps<'svg'>>
+	capability?: Capability
 }
 
 export interface ContactPanel {
