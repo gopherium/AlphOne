@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { adminSession, seedSession } from '@alphone/frontend-sdk/testing'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	Outlet,
 	RouterProvider,
@@ -18,6 +20,10 @@ import { MainMenu } from '../MainMenu'
 const navItems = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
 
 function renderMenuAt(path: string) {
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+	})
+	seedSession(client, adminSession)
 	const rootRoute = createRootRoute({
 		component: function MenuHost() {
 			return (
@@ -43,7 +49,11 @@ function renderMenuAt(path: string) {
 		routeTree: rootRoute.addChildren(routes),
 		history: createMemoryHistory({ initialEntries: [path] }),
 	})
-	render(<RouterProvider router={router} />)
+	render(
+		<QueryClientProvider client={client}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	)
 }
 
 test('renders a menu link for every core and plugin nav entry', async () => {
