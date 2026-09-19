@@ -345,6 +345,36 @@ func TestParseRejectsMoreWorksheetRowsThanTheCap(t *testing.T) {
 	}
 }
 
+func TestParseReadsACellCitingANegativeSharedStringAsEmpty(t *testing.T) {
+	t.Parallel()
+
+	data := workbookBytes(t, "Sheet1", [][]any{{"Name", "Email"}})
+	negative := rewriteEntry(t, data, "xl/worksheets/sheet1.xml", func(content string) string {
+		if !strings.Contains(content, `r="B1" t="s"><v>1</v>`) {
+			t.Fatalf("the worksheet holds no shared string cell B1 to rewrite: %s", content)
+		}
+		return strings.Replace(content, `r="B1" t="s"><v>1</v>`, `r="B1" t="s"><v>-1</v>`, 1)
+	})
+
+	got, err := Parse(negative)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if diff := cmp.Diff([]string{"Name"}, got.columns); diff != "" {
+		t.Errorf("columns mismatch, want the cell citing shared string -1 read as empty (-want +got):\n%s", diff)
+	}
+}
+
+func TestWorkbookLimitsKeepEveryPartInMemory(t *testing.T) {
+	t.Parallel()
+
+	if workbookLimits.UnzipXMLSizeLimit < workbookLimits.UnzipSizeLimit {
+		t.Errorf("UnzipXMLSizeLimit = %d below UnzipSizeLimit = %d, want no part of an accepted workbook spilled to disk",
+			workbookLimits.UnzipXMLSizeLimit, workbookLimits.UnzipSizeLimit)
+	}
+}
+
 func TestParseRejectsAZipThatIsNotAWorkbook(t *testing.T) {
 	t.Parallel()
 
