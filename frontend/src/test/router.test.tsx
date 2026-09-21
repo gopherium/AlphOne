@@ -3,8 +3,7 @@
 import { screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
-import { coreNav } from '../menu/coreNav'
-import { plugins } from '../plugins'
+import { everyNavEntry, reachingSession } from './navSession'
 import { renderAt } from './render'
 
 test('sends the root path to the day of tasks', async () => {
@@ -23,12 +22,10 @@ test('shows the AlphOne masthead as a link home, not a heading', async () => {
 })
 
 test('renders a navigation entry for every core and plugin section', async () => {
-	renderAt('/')
+	renderAt('/', reachingSession)
 
 	const nav = await screen.findByRole('navigation')
-	expect(within(nav).queryAllByRole('link')).toHaveLength(
-		coreNav.length + plugins.flatMap((plugin) => plugin.nav).length,
-	)
+	expect(within(nav).queryAllByRole('link')).toHaveLength(everyNavEntry.length)
 })
 
 test('marks only entries that drill into a sidebar section with a chevron', async () => {

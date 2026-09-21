@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { adminSession, seedSession } from '@alphone/frontend-sdk/testing'
+import { seedSession } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
 	Outlet,
@@ -13,21 +13,18 @@ import {
 import { render, screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
-import { plugins } from '../../plugins'
-import { coreNav } from '../coreNav'
+import { everyNavEntry, reachingSession } from '../../test/navSession'
 import { MainMenu } from '../MainMenu'
 
-const navItems = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
-
 /**
- * Renders the main menu under a signed-in admin, the router standing at the path.
+ * Renders the main menu under a session reaching every entry, the router standing at the path.
  * @param path - The route the router starts on.
  */
 function renderMenuAt(path: string) {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false, staleTime: Infinity } },
 	})
-	seedSession(client, adminSession)
+	seedSession(client, reachingSession)
 	const rootRoute = createRootRoute({
 		component: function MenuHost() {
 			return (
@@ -40,7 +37,7 @@ function renderMenuAt(path: string) {
 			)
 		},
 	})
-	const routes = [{ to: '/' }, ...navItems].map((item) =>
+	const routes = [{ to: '/' }, ...everyNavEntry].map((item) =>
 		createRoute({
 			getParentRoute: () => rootRoute,
 			path: item.to,
@@ -64,8 +61,8 @@ test('renders a menu link for every core and plugin nav entry', async () => {
 	renderMenuAt('/')
 
 	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
-	expect(within(nav).getAllByRole('link')).toHaveLength(navItems.length)
-	for (const item of navItems) {
+	expect(within(nav).getAllByRole('link')).toHaveLength(everyNavEntry.length)
+	for (const item of everyNavEntry) {
 		expect(
 			within(nav).getByRole('link', { name: item.label }),
 		).toBeInTheDocument()
@@ -73,7 +70,7 @@ test('renders a menu link for every core and plugin nav entry', async () => {
 })
 
 test('marks the item for the active route as current', async () => {
-	const [target] = navItems
+	const [target] = everyNavEntry
 	renderMenuAt(target.to)
 
 	const link = await screen.findByRole('link', { name: target.label })
