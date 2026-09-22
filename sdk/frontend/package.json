@@ -28,7 +28,7 @@
 		"wonka": "^6.3.6"
 	},
 	"devDependencies": {
-		"@tanstack/react-router": "^1.170.36",
+		"@tanstack/react-router": "^1.170.38",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",
 		"@types/react": "^19.3.0",
