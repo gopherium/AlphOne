@@ -119,6 +119,29 @@ func TestEverySpokenErrorKeepsItsMessage(t *testing.T) {
 	}
 }
 
+func TestPresentErrorClassifiesTheBricksInvalidInputAsValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, invalid := range []error{
+		gouncer.ErrInvalidEmail,
+		gouncer.ErrEmptyName,
+		gouncer.ErrNameTooLong,
+		gouncer.ErrWeakPassword,
+		gouncer.ErrPasswordTooLong,
+	} {
+		_, answer, _ := authkit.ErrorResponseForAuthError(invalid)
+
+		presented := graphres.PresentError(context.Background(), invalid)
+
+		if got := code(t, presented); got != "VALIDATION" {
+			t.Errorf("%v code = %q, want VALIDATION", invalid, got)
+		}
+		if presented.Message != answer.Message {
+			t.Errorf("%v message = %q, want the brick's own %q", invalid, presented.Message, answer.Message)
+		}
+	}
+}
+
 func TestPresentErrorCarriesTheConflictOwner(t *testing.T) {
 	t.Parallel()
 
