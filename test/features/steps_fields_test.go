@@ -36,11 +36,12 @@ type graphAnswer struct {
 			Kind  string `json:"kind"`
 		} `json:"defineField"`
 		Fields []struct {
-			ID         string  `json:"id"`
-			Name       string  `json:"name"`
-			Label      string  `json:"label"`
-			Kind       string  `json:"kind"`
-			ArchivedAt *string `json:"archivedAt"`
+			ID         string           `json:"id"`
+			Name       string           `json:"name"`
+			Label      string           `json:"label"`
+			Kind       string           `json:"kind"`
+			ArchivedAt *string          `json:"archivedAt"`
+			SubFields  []map[string]any `json:"subFields"`
 		} `json:"fields"`
 	} `json:"data"`
 	Errors []struct {
