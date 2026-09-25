@@ -26,21 +26,30 @@ type store struct {
 	pool *pgxpool.Pool
 }
 
-// define stores a definition, reviving an archived one of the same name and kind.
+// define stores a definition, reviving an archived one of the same kind, and clears values under a name defined anew.
 func (s *store) define(ctx context.Context, definition Definition) error {
-	const statement = `INSERT INTO plugin_fields.definitions
-			(id, name, label, kind, created_at, tenant_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (tenant_id, name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
-		WHERE plugin_fields.definitions.archived_at IS NOT NULL
-			AND plugin_fields.definitions.kind = EXCLUDED.kind`
-	tag, err := s.pool.Exec(ctx, statement,
+	const statement = `WITH stored AS (
+			INSERT INTO plugin_fields.definitions
+				(id, name, label, kind, created_at, tenant_id)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (tenant_id, name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
+			WHERE plugin_fields.definitions.archived_at IS NOT NULL
+				AND plugin_fields.definitions.kind = EXCLUDED.kind
+			RETURNING 1
+		), swept AS (
+			UPDATE plugin_fields.contact_values SET values = values - $2::text
+			WHERE tenant_id = $6 AND values ? $2::text
+				AND EXISTS (SELECT 1 FROM stored)
+				AND NOT EXISTS (SELECT 1 FROM plugin_fields.definitions WHERE tenant_id = $6 AND name = $2)
+		)
+		SELECT count(*) FROM stored`
+	var stored int
+	if err := s.pool.QueryRow(ctx, statement,
 		definition.ID, definition.Name, definition.Label, string(definition.Kind),
-		definition.CreatedAt, sdk.TenantOrDefault(ctx))
-	if err != nil {
+		definition.CreatedAt, sdk.TenantOrDefault(ctx)).Scan(&stored); err != nil {
 		return fmt.Errorf("fields: define definition: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if stored == 0 {
 		return s.errorFor(ctx, definition)
 	}
 	return nil
