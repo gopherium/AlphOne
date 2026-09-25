@@ -40,13 +40,31 @@ func (p *Plugin) MutationResolvers() MutationResolvers {
 
 // toGraphDefinition maps a stored definition onto its graph model.
 func toGraphDefinition(stored Definition) *model.FieldDefinition {
+	subFields := make([]*model.FieldSubField, 0, len(stored.SubFields))
+	for _, column := range stored.SubFields {
+		subFields = append(subFields, &model.FieldSubField{
+			Name:  column.Name,
+			Label: column.Label,
+			Kind:  model.FieldKind(column.Kind),
+		})
+	}
 	return &model.FieldDefinition{
 		ID:         stored.ID,
 		Name:       stored.Name,
 		Label:      stored.Label,
 		Kind:       model.FieldKind(stored.Kind),
+		SubFields:  subFields,
 		ArchivedAt: stored.ArchivedAt,
 	}
+}
+
+// subFieldsOf reads the sub fields a define carries.
+func subFieldsOf(given []*model.FieldSubFieldInput) []SubField {
+	read := make([]SubField, 0, len(given))
+	for _, column := range given {
+		read = append(read, SubField{Name: column.Name, Label: column.Label, Kind: kind(column.Kind)})
+	}
+	return read
 }
 
 // Fields lists the catalogue.
@@ -68,9 +86,9 @@ func (q QueryResolvers) Fields(ctx context.Context, includeArchived *bool) ([]*m
 
 // DefineField stores a definition and forgets the caller's catalogue view.
 func (m MutationResolvers) DefineField(
-	ctx context.Context, name, label string, declared model.FieldKind,
+	ctx context.Context, name, label string, declared model.FieldKind, subFields []*model.FieldSubFieldInput,
 ) (*model.FieldDefinition, error) {
-	definition, err := newDefinition(name, label, string(declared), reservedNames)
+	definition, err := newDefinition(name, label, string(declared), reservedNames, subFieldsOf(subFields)...)
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
