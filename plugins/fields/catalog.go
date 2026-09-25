@@ -5,6 +5,7 @@ package fields
 import (
 	"cmp"
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -115,8 +116,7 @@ func (c *catalog) fly(ctx context.Context, tenant uuid.UUID, shared *flight) {
 	shared.stop()
 	current := c.detach(tenant, shared)
 	if err == nil {
-		c.stamped++
-		read.stamp = c.stamped
+		read.stamp = c.stampFor(tenant, read.fields)
 		if current {
 			c.views.Add(tenant, read)
 		}
@@ -132,6 +132,15 @@ func (c *catalog) detach(tenant uuid.UUID, shared *flight) bool {
 	}
 	delete(c.flights, tenant)
 	return true
+}
+
+// stampFor returns the stamp of the tenant's held view when that view holds the same fields, a new stamp otherwise.
+func (c *catalog) stampFor(tenant uuid.UUID, fields []sdk.GraphField) uint64 {
+	if held, ok := c.views.Peek(tenant); ok && slices.Equal(held.fields, fields) {
+		return held.stamp
+	}
+	c.stamped++
+	return c.stamped
 }
 
 // read builds an unstamped view of the calling tenant's live definitions.

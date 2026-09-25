@@ -269,7 +269,7 @@ func TestCatalogStoresNothingFromAFailedReadAndRetriesForTheCaller(t *testing.T)
 	}
 }
 
-func TestCatalogNeverRepeatsAStamp(t *testing.T) {
+func TestCatalogStampsEachTenantAndEachForgottenViewApart(t *testing.T) {
 	t.Parallel()
 
 	loader := newFakeLoader()
@@ -508,6 +508,51 @@ func TestCatalogSharesARefreshUnderWaySoNoOlderReadLandsLast(t *testing.T) {
 	}
 	if got := loader.readsOf(tenant); got != 2 {
 		t.Errorf("reads = %d, want 2, the first read and the one shared refresh", got)
+	}
+}
+
+func TestCatalogKeepsTheStampWhenARefreshReadsTheSameFields(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.held[tenant] = []Definition{defined(t, "birthDate", "DATE")}
+	now := &clock{now: time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)}
+	held := newCatalog(loader, 0, 10*time.Second)
+	held.now = now.read
+	before := mustView(t, held, ctx)
+
+	now.pass(10 * time.Second)
+	after := mustView(t, held, ctx)
+
+	if got := loader.readsOf(tenant); got != 2 {
+		t.Fatalf("reads = %d, want 2 once the refresh passed", got)
+	}
+	if after.stamp != before.stamp {
+		t.Errorf("stamp = %d after a refresh reading the same fields, want %d kept", after.stamp, before.stamp)
+	}
+}
+
+func TestCatalogStampsARefreshReadingOtherFieldsAnew(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.held[tenant] = []Definition{defined(t, "birthDate", "DATE")}
+	now := &clock{now: time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)}
+	held := newCatalog(loader, 0, 10*time.Second)
+	held.now = now.read
+	before := mustView(t, held, ctx)
+
+	loader.answer(tenant, defined(t, "birthDate", "DATE"), defined(t, "shoeSize", "NUMBER"))
+	now.pass(10 * time.Second)
+	after := mustView(t, held, ctx)
+
+	if after.stamp == before.stamp {
+		t.Errorf("stamp = %d after a refresh reading other fields, want a new one", after.stamp)
+	}
+	if len(after.fields) != 2 {
+		t.Errorf("fields = %+v, want birthDate and shoeSize", after.fields)
 	}
 }
 
