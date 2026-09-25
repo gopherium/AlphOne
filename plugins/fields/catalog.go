@@ -3,9 +3,14 @@
 package fields
 
 import (
+	"cmp"
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -13,49 +18,71 @@ import (
 // contactEntity names the GraphQL type every defined field hangs on.
 const contactEntity = "Contact"
 
-// loader reads the live catalogue the graph serves.
+// loader reads the calling tenant's live catalogue.
 type loader interface {
 	liveDefinitions(ctx context.Context) ([]Definition, error)
 }
 
-// view is one immutable reading of the catalogue.
+// view is one tenant's immutable reading of its live definitions.
 type view struct {
-	version uint64
-	fields  []sdk.GraphField
-	names   map[string]bool
-	kinds   map[string]kind
+	stamp  uint64
+	read   time.Time
+	fields []sdk.GraphField
+	kinds  map[string]kind
 }
 
-// catalog holds the versioned view of the live definitions.
+// catalog holds the views of the tenants served most recently.
 type catalog struct {
 	loader  loader
-	live    atomic.Pointer[view]
-	missed  atomic.Bool
-	reading sync.Mutex
+	views   *lru.Cache[uuid.UUID, *view]
+	refresh time.Duration
+	now     func() time.Time
+	stamps  atomic.Uint64
+	forgets atomic.Uint64
+	storing sync.Mutex
 }
 
-// newCatalog returns an empty catalogue reading through the given loader.
-func newCatalog(source loader) *catalog {
-	held := &catalog{loader: source}
-	held.live.Store(&view{names: map[string]bool{}, kinds: map[string]kind{}})
-	return held
+// newCatalog returns a catalogue reading through the given loader, holding up to held tenants for refresh each.
+func newCatalog(source loader, held int, refresh time.Duration) *catalog {
+	views, _ := lru.New[uuid.UUID, *view](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld))
+	return &catalog{
+		loader:  source,
+		views:   views,
+		refresh: cmp.Or(max(refresh, 0), sdk.DefaultTenantsRefresh),
+		now:     time.Now,
+	}
 }
 
-// reload replaces the held view with a fresh read.
-func (c *catalog) reload(ctx context.Context) error {
-	c.reading.Lock()
-	defer c.reading.Unlock()
+// viewFor returns the calling tenant's view, reading it when none is held or the held one is too old.
+func (c *catalog) viewFor(ctx context.Context) (*view, error) {
+	tenant := sdk.TenantOrDefault(ctx)
+	if held, ok := c.views.Get(tenant); ok && c.now().Sub(held.read) < c.refresh {
+		return held, nil
+	}
+	generation := c.forgets.Load()
+	read, err := c.read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c.storing.Lock()
+	defer c.storing.Unlock()
+	if c.forgets.Load() == generation {
+		c.views.Add(tenant, read)
+	}
+	return read, nil
+}
+
+// read builds a freshly stamped view of the calling tenant's live definitions.
+func (c *catalog) read(ctx context.Context) (*view, error) {
 	definitions, err := c.loader.liveDefinitions(ctx)
 	if err != nil {
-		c.missed.Store(true)
-		return err
+		return nil, err
 	}
-	c.missed.Store(false)
 	next := &view{
-		version: c.live.Load().version + 1,
-		fields:  make([]sdk.GraphField, 0, len(definitions)),
-		names:   make(map[string]bool, len(definitions)),
-		kinds:   make(map[string]kind, len(definitions)),
+		stamp:  c.stamps.Add(1),
+		read:   c.now(),
+		fields: make([]sdk.GraphField, 0, len(definitions)),
+		kinds:  make(map[string]kind, len(definitions)),
 	}
 	for _, definition := range definitions {
 		next.fields = append(next.fields, sdk.GraphField{
@@ -63,28 +90,15 @@ func (c *catalog) reload(ctx context.Context) error {
 			Name:   definition.Name,
 			Type:   definition.Kind.scalar(),
 		})
-		next.names[definition.Name] = true
 		next.kinds[definition.Name] = definition.Kind
 	}
-	c.live.Store(next)
-	return nil
+	return next, nil
 }
 
-// snapshot reports the catalogue version beside the fields the graph serves.
-func (c *catalog) snapshot(ctx context.Context) (uint64, []sdk.GraphField) {
-	if c.missed.Load() {
-		_ = c.reload(ctx)
-	}
-	held := c.live.Load()
-	return held.version, held.fields
-}
-
-// holds reports whether a live definition carries the given name.
-func (c *catalog) holds(name string) bool {
-	return c.live.Load().names[name]
-}
-
-// liveKinds reports the kind every live definition declares, by name.
-func (c *catalog) liveKinds() map[string]kind {
-	return c.live.Load().kinds
+// forget drops the calling tenant's view, keeping any read already under way out of the cache.
+func (c *catalog) forget(ctx context.Context) {
+	c.storing.Lock()
+	defer c.storing.Unlock()
+	c.forgets.Add(1)
+	c.views.Remove(sdk.TenantOrDefault(ctx))
 }

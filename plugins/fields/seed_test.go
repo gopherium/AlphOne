@@ -3,7 +3,6 @@
 package fields
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -128,14 +127,17 @@ func TestSeedReportsAClosedPool(t *testing.T) {
 	}
 }
 
-func TestSeedReportsAFailedCatalogueReload(t *testing.T) {
+func TestSeedRenewsTheDefaultTenantsFields(t *testing.T) {
 	t.Parallel()
 
-	p := newWedgedPlugin(t)
+	p := newMigratedPlugin(t)
+	mustView(t, p.catalog, t.Context())
 
-	err := p.Seed(t.Context())
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
 
-	if !errors.Is(err, errCatalogue) {
-		t.Errorf("Seed() error = %v, want the reload failure", err)
+	if _, known := mustView(t, p.catalog, t.Context()).kinds[seedFieldName]; !known {
+		t.Errorf("the default tenant's fields miss %s, want the seeded field known", seedFieldName)
 	}
 }

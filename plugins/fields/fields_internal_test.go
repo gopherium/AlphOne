@@ -5,6 +5,7 @@ package fields
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -71,41 +72,80 @@ func TestMigrateReportsAnUnreachableSchemaCreate(t *testing.T) {
 	}
 }
 
-func TestStartReportsAnUnreachableCatalogue(t *testing.T) {
-	t.Parallel()
+// unreachableURL addresses a database no test can reach.
+const unreachableURL = "postgres://plugin:plugin@localhost:9/plugin?connect_timeout=1"
 
-	p, err := Register(sdk.Deps{DatabaseURL: "postgres://plugin:plugin@localhost:9/plugin?connect_timeout=1"})
+// newUnreachablePlugin registers the plugin against a database no test can reach.
+func newUnreachablePlugin(t *testing.T, deps sdk.Deps) *Plugin {
+	t.Helper()
+	deps.DatabaseURL = unreachableURL
+	p, err := Register(deps)
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}
 	t.Cleanup(func() { _ = p.Stop(t.Context()) })
+	return p
+}
 
-	if err := p.Start(t.Context()); err == nil {
-		t.Fatal("Start() error = nil, want the catalogue read refused")
+func TestStartReadsNoCatalogue(t *testing.T) {
+	t.Parallel()
+
+	p := newUnreachablePlugin(t, sdk.Deps{})
+
+	if err := p.Start(t.Context()); err != nil {
+		t.Fatalf("Start() error = %v, want the catalogue left to the first request", err)
 	}
 }
 
-func TestFieldsSnapshotServesTheLoadedCatalogue(t *testing.T) {
+func TestRegisterHandsTheCatalogueTheHostsBounds(t *testing.T) {
+	t.Parallel()
+
+	p := newUnreachablePlugin(t, sdk.Deps{TenantsHeld: 1, TenantsRefresh: time.Hour})
+	loader := newFakeLoader()
+	p.catalog.loader = loader
+	inFirst, first := inTenantOf(t)
+	inSecond, _ := inTenantOf(t)
+
+	mustView(t, p.catalog, inFirst)
+	mustView(t, p.catalog, inSecond)
+	mustView(t, p.catalog, inFirst)
+
+	if got := loader.readsOf(first); got != 2 {
+		t.Errorf("first tenant reads = %d, want 2 with one tenant held", got)
+	}
+	if p.catalog.refresh != time.Hour {
+		t.Errorf("refresh = %v, want the host's hour", p.catalog.refresh)
+	}
+}
+
+func TestFieldsSnapshotServesTheCallersOwnCatalogue(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
-		t.Fatalf("define() error = %v, want nil", err)
-	}
-	if err := p.catalog.reload(t.Context()); err != nil {
-		t.Fatalf("reload() error = %v, want nil", err)
-	}
+	acme := inTenant(t, p)
+	definedField(t, p, t.Context(), "birthDate")
+	definedField(t, p, acme, "shoeSize")
 
-	version, held, err := p.FieldsSnapshot(t.Context())
+	stamp, held, err := p.FieldsSnapshot(acme)
 
 	if err != nil {
 		t.Fatalf("FieldsSnapshot() error = %v, want nil", err)
 	}
-	if version == 0 {
-		t.Error("version = 0, want the loaded catalogue's version")
+	if stamp == 0 {
+		t.Error("stamp = 0, want the read stamped")
 	}
-	if len(held) != 1 || held[0].Name != "birthDate" || held[0].Type != "Date" {
-		t.Errorf("fields = %+v, want birthDate answering Date", held)
+	if len(held) != 1 || held[0].Name != "shoeSize" || held[0].Type != "String" {
+		t.Errorf("fields = %+v, want only the caller's shoeSize answering String", held)
+	}
+}
+
+func TestFieldsSnapshotReportsAnUnreachableCatalogue(t *testing.T) {
+	t.Parallel()
+
+	p := newUnreachablePlugin(t, sdk.Deps{})
+
+	if _, _, err := p.FieldsSnapshot(t.Context()); err == nil {
+		t.Fatal("FieldsSnapshot() error = nil, want the catalogue read refused")
 	}
 }
 
