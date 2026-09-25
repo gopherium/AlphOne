@@ -62,6 +62,7 @@ type FieldDefinition {
 	name: String!
 	label: String!
 	kind: FieldKind!
+	subFields: [FieldSubField!]!
 	archivedAt: DateTime
 }
 enum FieldKind {
@@ -71,6 +72,17 @@ enum FieldKind {
 	BOOLEAN
 	DATE
 	SELECT
+	REPEATER
+}
+type FieldSubField {
+	name: String!
+	label: String!
+	kind: FieldKind!
+}
+input FieldSubFieldInput {
+	name: String!
+	label: String!
+	kind: FieldKind!
 }
 type Identity {
 	id: UUID!
@@ -156,7 +168,7 @@ type Mutation {
 	apiTokenRevoke(id: UUID!): Boolean! @scope(area: "tokens", write: true)
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true)
 	deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
-	defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition! @scope(area: "fields", write: true)
+	defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition! @scope(area: "fields", write: true)
 	archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
 	writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
 	importUpload(file: Upload!): ImportJob! @scope(area: "imports", write: true)
