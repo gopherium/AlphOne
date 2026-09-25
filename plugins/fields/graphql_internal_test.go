@@ -25,6 +25,24 @@ func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 	}
 }
 
+func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
+	t.Parallel()
+
+	want := map[error]string{
+		errSubFieldsRequired:   "field_sub_fields_required",
+		errSubFieldsUnexpected: "field_sub_fields_unexpected",
+		errSubFieldNested:      "field_sub_field_nested",
+		errSubFieldNameInvalid: "field_sub_field_name_invalid",
+		errSubFieldNameTaken:   "field_sub_field_name_taken",
+	}
+
+	for sentinel, reason := range want {
+		if got := fieldReason(sentinel); got != reason {
+			t.Errorf("fieldReason(%v) = %q, want %q", sentinel, got, reason)
+		}
+	}
+}
+
 func TestFieldReasonAnswersNothingForAnUnlistedError(t *testing.T) {
 	t.Parallel()
 

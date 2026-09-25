@@ -4,6 +4,7 @@ package fields
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -138,12 +139,73 @@ func TestNewDefinitionCountsLabelCharactersNotBytes(t *testing.T) {
 	}
 }
 
+// historyInput is the sub fields a history repeater is defined with.
+var historyInput = []SubField{
+	{Name: "date", Label: " Date ", Kind: kindDate},
+	{Name: "comment", Label: "Comment", Kind: kindLongText},
+}
+
+func TestNewDefinitionHoldsARepeatersSubFieldsTrimmed(t *testing.T) {
+	t.Parallel()
+
+	definition, err := newDefinition("history", "History", "REPEATER", nil, historyInput...)
+
+	if err != nil {
+		t.Fatalf("newDefinition() error = %v, want nil", err)
+	}
+	want := []SubField{
+		{Name: "date", Label: "Date", Kind: kindDate},
+		{Name: "comment", Label: "Comment", Kind: kindLongText},
+	}
+	if definition.Kind != kindRepeater || !slices.Equal(definition.SubFields, want) {
+		t.Errorf("definition = %+v, want a repeater holding %+v", definition, want)
+	}
+}
+
+func TestNewDefinitionRefusesSubFieldsItCannotHold(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		declared  string
+		subFields []SubField
+		want      error
+	}{
+		"a repeater without any":  {"REPEATER", nil, errSubFieldsRequired},
+		"a plain field with some": {"DATE", historyInput, errSubFieldsUnexpected},
+		"a repeater inside": {"REPEATER",
+			[]SubField{{Name: "entries", Label: "Entries", Kind: kindRepeater}}, errSubFieldNested},
+		"a malformed name": {"REPEATER",
+			[]SubField{{Name: "Due Date", Label: "Due", Kind: kindDate}}, errSubFieldNameInvalid},
+		"a name held twice": {"REPEATER", []SubField{
+			{Name: "note", Label: "Note", Kind: kindText}, {Name: "note", Label: "Other", Kind: kindText},
+		}, errSubFieldNameTaken},
+		"an unknown kind": {"REPEATER",
+			[]SubField{{Name: "due", Label: "Due", Kind: "TIMESTAMP"}}, errUnknownKind},
+		"a blank label": {"REPEATER",
+			[]SubField{{Name: "due", Label: "   ", Kind: kindDate}}, errBlankLabel},
+		"a label beyond the cap": {"REPEATER",
+			[]SubField{{Name: "due", Label: strings.Repeat("x", labelMax+1), Kind: kindDate}}, errLabelTooLong},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newDefinition("history", "History", testCase.declared, nil, testCase.subFields...)
+
+			if !errors.Is(err, testCase.want) {
+				t.Errorf("error = %v, want %v", err, testCase.want)
+			}
+		})
+	}
+}
+
 func TestEveryKindMapsToAScalar(t *testing.T) {
 	t.Parallel()
 
 	want := map[kind]string{
 		kindText: "String", kindLongText: "String", kindNumber: "Int",
 		kindBoolean: "Boolean", kindDate: "Date", kindSelect: "String",
+		kindRepeater: "JSON",
 	}
 
 	for held, scalar := range want {
