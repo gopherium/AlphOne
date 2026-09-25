@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, delay, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -172,13 +172,17 @@ test('writes the role the reader picked for another account', async () => {
 
 test('refuses a second role while the first write is in flight', async () => {
 	let asked = 0
+	let release!: () => void
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
 	server.use(
 		graphql.query('Users', () =>
 			HttpResponse.json({ data: { users: [{ ...userNode(colleague, false), role: 'member' }] } }),
 		),
 		graphql.mutation('SetUserRole', async () => {
 			asked += 1
-			await delay(50)
+			await held
 			return HttpResponse.json({ data: { setUserRole: true } })
 		}),
 	)
@@ -186,11 +190,13 @@ test('refuses a second role while the first write is in flight', async () => {
 
 	await userEvent.click(await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' }))
 	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
+	await waitFor(() => expect(screen.queryAllByRole('option')).toHaveLength(0))
 
 	const control = await screen.findByRole('combobox', { name: 'Role of Ada Lovelace' })
 	expect(control).toBeDisabled()
 	await userEvent.click(control)
-	expect(screen.queryByRole('option')).toBeNull()
+	expect(screen.queryAllByRole('option')).toHaveLength(0)
+	release()
 	await waitFor(() => expect(asked).toBe(1))
 })
 
