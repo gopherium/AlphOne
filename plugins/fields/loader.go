@@ -23,7 +23,7 @@ func (p *Plugin) valueLoader(ctx context.Context) (*dataloadgen.Loader[uuid.UUID
 	})
 }
 
-// fetchValues loads the value bags of a batch of contacts.
+// fetchValues loads the field values of a batch of contacts.
 func (p *Plugin) fetchValues(ctx context.Context, ids []uuid.UUID) ([]map[string]any, []error) {
 	results := make([]map[string]any, len(ids))
 	errs := make([]error, len(ids))
@@ -40,7 +40,7 @@ func (p *Plugin) fetchValues(ctx context.Context, ids []uuid.UUID) ([]map[string
 	return results, errs
 }
 
-// loadValues returns one contact's value bag through the request loader.
+// loadValues returns one contact's field values through the request loader.
 func (p *Plugin) loadValues(ctx context.Context, id uuid.UUID) (map[string]any, error) {
 	loader, err := p.valueLoader(ctx)
 	if err != nil {
