@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -21,24 +22,54 @@ type fakeLoader struct {
 	held  map[uuid.UUID][]Definition
 	err   error
 	runs  map[uuid.UUID]int
-	gate  chan struct{}
-	enter chan struct{}
+	gated chan gatedRead
 }
 
-// liveDefinitions reports the calling tenant's settable definitions, waiting on the gate when one is set.
+// gatedRead is one read the loader holds open until the test releases it.
+type gatedRead struct {
+	ctx     context.Context
+	release chan struct{}
+}
+
+// liveDefinitions reports the calling tenant's definitions as they stand when the read begins, held open while gated.
 func (f *fakeLoader) liveDefinitions(ctx context.Context) ([]Definition, error) {
 	tenant := sdk.TenantOrDefault(ctx)
 	f.mu.Lock()
 	f.runs[tenant]++
-	gate, enter := f.gate, f.enter
+	definitions, err, gated := f.held[tenant], f.err, f.gated
 	f.mu.Unlock()
-	if gate != nil {
-		enter <- struct{}{}
-		<-gate
+	if gated == nil {
+		return definitions, err
 	}
+	read := gatedRead{ctx: ctx, release: make(chan struct{})}
+	gated <- read
+	select {
+	case <-read.release:
+		return definitions, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// answer sets the definitions every later read of the tenant reports.
+func (f *fakeLoader) answer(tenant uuid.UUID, definitions ...Definition) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.held[tenant], f.err
+	f.held[tenant] = definitions
+}
+
+// gate holds every later read open until the test releases it.
+func (f *fakeLoader) gate() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.gated = make(chan gatedRead)
+}
+
+// ungate lets every later read answer at once.
+func (f *fakeLoader) ungate() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.gated = nil
 }
 
 // readsOf reports how often the calling tenant's catalogue was read.
@@ -98,6 +129,52 @@ func mustView(t *testing.T, held *catalog, ctx context.Context) *view {
 		t.Fatalf("viewFor() error = %v, want nil", err)
 	}
 	return read
+}
+
+// reply is what one viewFor call returned.
+type reply struct {
+	view *view
+	err  error
+}
+
+// viewing calls viewFor in the background, handing back what it returns.
+func viewing(held *catalog, ctx context.Context) <-chan reply {
+	replies := make(chan reply, 1)
+	go func() {
+		read, err := held.viewFor(ctx)
+		replies <- reply{view: read, err: err}
+	}()
+	return replies
+}
+
+// mustReply waits for a background viewFor call, failing the test on an error.
+func mustReply(t *testing.T, replies <-chan reply) *view {
+	t.Helper()
+	got := <-replies
+	if got.err != nil {
+		t.Fatalf("viewFor() error = %v, want nil", got.err)
+	}
+	return got.view
+}
+
+// sharing reports how many callers wait on the tenant's read under way.
+func sharing(held *catalog, tenant uuid.UUID) int {
+	held.mu.Lock()
+	defer held.mu.Unlock()
+	if shared := held.flights[tenant]; shared != nil {
+		return shared.waiting
+	}
+	return 0
+}
+
+// noReadStarts fails the test when another read reaches the gated loader within a moment.
+func noReadStarts(t *testing.T, loader *fakeLoader) {
+	t.Helper()
+	select {
+	case <-loader.gated:
+		t.Fatal("a second read started while one was under way, want every caller to share it")
+	case <-time.After(100 * time.Millisecond):
+	}
 }
 
 func TestCatalogServesEachTenantItsOwnDefinitionsAsGraphFields(t *testing.T) {
@@ -323,33 +400,24 @@ func TestCatalogWaitsForAForgetUnderWayBeforeStoringARead(t *testing.T) {
 
 	loader := newFakeLoader()
 	ctx, tenant := inTenantOf(t)
-	loader.gate = make(chan struct{})
-	loader.enter = make(chan struct{})
+	loader.gate()
 	held := newCatalog(loader, 0, 0)
-	done := make(chan error)
-	go func() {
-		_, err := held.viewFor(ctx)
-		done <- err
-	}()
+	reading := viewing(held, ctx)
+	read := <-loader.gated
 
-	<-loader.enter
-	held.storing.Lock()
-	close(loader.gate)
+	held.mu.Lock()
+	close(read.release)
 	select {
-	case <-done:
-		held.storing.Unlock()
-		t.Fatal("viewFor() returned while a forget held the storing lock, want it to wait")
+	case <-reading:
+		held.mu.Unlock()
+		t.Fatal("viewFor() returned while a forget held the catalogue, want it to wait")
 	case <-time.After(100 * time.Millisecond):
 	}
-	held.forgets.Add(1)
+	delete(held.flights, tenant)
 	held.views.Remove(tenant)
-	held.storing.Unlock()
-	if err := <-done; err != nil {
-		t.Fatalf("viewFor() error = %v, want nil", err)
-	}
-	loader.mu.Lock()
-	loader.gate = nil
-	loader.mu.Unlock()
+	held.mu.Unlock()
+	mustReply(t, reading)
+	loader.ungate()
 	mustView(t, held, ctx)
 
 	if got := loader.readsOf(tenant); got != 2 {
@@ -362,27 +430,162 @@ func TestCatalogKeepsAReadThatAForgetOvertookOutOfTheCache(t *testing.T) {
 
 	loader := newFakeLoader()
 	ctx, tenant := inTenantOf(t)
-	loader.gate = make(chan struct{})
-	loader.enter = make(chan struct{})
+	loader.gate()
 	held := newCatalog(loader, 0, 0)
-	done := make(chan error)
-	go func() {
-		_, err := held.viewFor(ctx)
-		done <- err
-	}()
-
-	<-loader.enter
+	overtaken := viewing(held, ctx)
+	stale := <-loader.gated
+	loader.answer(tenant, defined(t, "birthDate", "DATE"))
 	held.forget(ctx)
-	close(loader.gate)
-	if err := <-done; err != nil {
-		t.Fatalf("viewFor() error = %v, want nil", err)
-	}
-	loader.mu.Lock()
-	loader.gate = nil
-	loader.mu.Unlock()
-	mustView(t, held, ctx)
 
+	fresh := viewing(held, ctx)
+	close((<-loader.gated).release)
+	if got := mustReply(t, fresh); len(got.fields) != 1 {
+		t.Fatalf("fields = %+v, want birthDate from a read started after the forget", got.fields)
+	}
+	close(stale.release)
+	mustReply(t, overtaken)
+	loader.ungate()
+
+	if got := mustView(t, held, ctx); len(got.fields) != 1 {
+		t.Errorf("fields = %+v, want the read after the forget kept over the one it overtook", got.fields)
+	}
 	if got := loader.readsOf(tenant); got != 2 {
 		t.Errorf("reads = %d, want 2, a read a forget overtook must not be kept", got)
+	}
+}
+
+func TestCatalogSharesOneReadAmongCallersMissingATenantTogether(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.gate()
+	held := newCatalog(loader, 0, 0)
+	first := viewing(held, ctx)
+	read := <-loader.gated
+	second := viewing(held, ctx)
+	third := viewing(held, ctx)
+
+	noReadStarts(t, loader)
+	close(read.release)
+
+	shared := mustReply(t, first)
+	if mustReply(t, second) != shared || mustReply(t, third) != shared {
+		t.Error("callers missing the tenant together got different views, want the one read they shared")
+	}
+	if got := loader.readsOf(tenant); got != 1 {
+		t.Errorf("reads = %d, want 1 for callers missing the tenant together", got)
+	}
+}
+
+func TestCatalogSharesARefreshUnderWaySoNoOlderReadLandsLast(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.held[tenant] = []Definition{defined(t, "birthDate", "DATE")}
+	now := &clock{now: time.Date(2026, 9, 25, 9, 0, 0, 0, time.UTC)}
+	held := newCatalog(loader, 0, 10*time.Second)
+	held.now = now.read
+	mustView(t, held, ctx)
+	now.pass(10 * time.Second)
+	loader.gate()
+	first := viewing(held, ctx)
+	refresh := <-loader.gated
+	loader.answer(tenant, defined(t, "birthDate", "DATE"), defined(t, "shoeSize", "NUMBER"))
+
+	second := viewing(held, ctx)
+	noReadStarts(t, loader)
+	close(refresh.release)
+
+	shared := mustReply(t, first)
+	if mustReply(t, second) != shared {
+		t.Error("callers during one refresh got different views, want the refresh they shared")
+	}
+	loader.ungate()
+	if mustView(t, held, ctx) != shared {
+		t.Error("the held view is not the refresh every caller shared, want no other read landing over it")
+	}
+	if got := loader.readsOf(tenant); got != 2 {
+		t.Errorf("reads = %d, want 2, the first read and the one shared refresh", got)
+	}
+}
+
+func TestCatalogKeepsAReadThatAnotherTenantsForgetCrossed(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	inOther, _ := inTenantOf(t)
+	loader.gate()
+	held := newCatalog(loader, 0, 0)
+	reading := viewing(held, ctx)
+	read := <-loader.gated
+
+	held.forget(inOther)
+	close(read.release)
+	mustReply(t, reading)
+	loader.ungate()
+	mustView(t, held, ctx)
+
+	if got := loader.readsOf(tenant); got != 1 {
+		t.Errorf("reads = %d, want 1, another tenant's forget must not cost this tenant its read", got)
+	}
+}
+
+func TestCatalogFinishesASharedReadForTheCallersStillWaiting(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.held[tenant] = []Definition{defined(t, "birthDate", "DATE")}
+	loader.gate()
+	held := newCatalog(loader, 0, 0)
+	leaving, leave := context.WithCancel(ctx)
+	left := viewing(held, leaving)
+	read := <-loader.gated
+	staying := viewing(held, ctx)
+	for sharing(held, tenant) < 2 {
+		runtime.Gosched()
+	}
+
+	leave()
+	if got := <-left; !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("the caller that left got %v, want its own cancellation", got.err)
+	}
+	if err := read.ctx.Err(); err != nil {
+		t.Fatalf("the shared read ended with %v, want it kept for the caller still waiting", err)
+	}
+	close(read.release)
+
+	if got := mustReply(t, staying); len(got.fields) != 1 || got.fields[0].Name != "birthDate" {
+		t.Errorf("fields = %+v, want the shared read's birthDate", got.fields)
+	}
+}
+
+func TestCatalogStopsAReadNoCallerWaitsForAnyMore(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.gate()
+	held := newCatalog(loader, 0, 0)
+	leaving, leave := context.WithCancel(ctx)
+	left := viewing(held, leaving)
+	abandoned := <-loader.gated
+
+	leave()
+	if got := <-left; !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("the caller that left got %v, want its own cancellation", got.err)
+	}
+	if abandoned.ctx.Err() == nil {
+		t.Error("the read nobody waits for still runs, want it stopped")
+	}
+	next := viewing(held, ctx)
+	close((<-loader.gated).release)
+	mustReply(t, next)
+
+	if got := loader.readsOf(tenant); got != 2 {
+		t.Errorf("reads = %d, want a fresh read for the caller after the one that left", got)
 	}
 }

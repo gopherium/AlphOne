@@ -6,11 +6,10 @@ import (
 	"cmp"
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -31,55 +30,117 @@ type view struct {
 	kinds  map[string]kind
 }
 
+// flight is one read of a tenant's catalogue, shared by every caller missing that tenant meanwhile.
+type flight struct {
+	done    chan struct{}
+	stop    context.CancelFunc
+	waiting int
+	view    *view
+	err     error
+}
+
 // catalog holds the views of the tenants served most recently.
 type catalog struct {
 	loader  loader
-	views   *lru.Cache[uuid.UUID, *view]
 	refresh time.Duration
 	now     func() time.Time
-	stamps  atomic.Uint64
-	forgets atomic.Uint64
-	storing sync.Mutex
+	mu      sync.Mutex
+	views   *simplelru.LRU[uuid.UUID, *view]
+	flights map[uuid.UUID]*flight
+	stamped uint64
 }
 
 // newCatalog returns a catalogue reading through the given loader, holding up to held tenants for refresh each.
 func newCatalog(source loader, held int, refresh time.Duration) *catalog {
-	views, _ := lru.New[uuid.UUID, *view](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld))
+	views, _ := simplelru.NewLRU[uuid.UUID, *view](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld), nil)
 	return &catalog{
 		loader:  source,
-		views:   views,
 		refresh: cmp.Or(max(refresh, 0), sdk.DefaultTenantsRefresh),
 		now:     time.Now,
+		views:   views,
+		flights: map[uuid.UUID]*flight{},
 	}
 }
 
 // viewFor returns the calling tenant's view, reading it when none is held or the held one is too old.
 func (c *catalog) viewFor(ctx context.Context) (*view, error) {
 	tenant := sdk.TenantOrDefault(ctx)
+	held, shared := c.join(ctx, tenant)
+	if held != nil {
+		return held, nil
+	}
+	select {
+	case <-shared.done:
+		return shared.view, shared.err
+	case <-ctx.Done():
+		c.leave(tenant, shared)
+		return nil, ctx.Err()
+	}
+}
+
+// join returns the tenant's fresh view, or else the read of it under way, starting one when none is.
+func (c *catalog) join(ctx context.Context, tenant uuid.UUID) (*view, *flight) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if held, ok := c.views.Get(tenant); ok && c.now().Sub(held.read) < c.refresh {
 		return held, nil
 	}
-	generation := c.forgets.Load()
-	read, err := c.read(ctx)
-	if err != nil {
-		return nil, err
+	shared, ok := c.flights[tenant]
+	if !ok {
+		reading, stop := context.WithCancel(context.WithoutCancel(ctx))
+		shared = &flight{done: make(chan struct{}), stop: stop}
+		c.flights[tenant] = shared
+		go c.fly(reading, tenant, shared)
 	}
-	c.storing.Lock()
-	defer c.storing.Unlock()
-	if c.forgets.Load() == generation {
-		c.views.Add(tenant, read)
-	}
-	return read, nil
+	shared.waiting++
+	return nil, shared
 }
 
-// read builds a freshly stamped view of the calling tenant's live definitions.
+// leave drops one caller from a shared read, stopping the read once no caller waits on it.
+func (c *catalog) leave(tenant uuid.UUID, shared *flight) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	shared.waiting--
+	if shared.waiting == 0 {
+		shared.stop()
+		c.detach(tenant, shared)
+	}
+}
+
+// fly reads the tenant's catalogue and hands the result to every caller sharing the flight.
+func (c *catalog) fly(ctx context.Context, tenant uuid.UUID, shared *flight) {
+	read, err := c.read(ctx)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	shared.stop()
+	current := c.detach(tenant, shared)
+	if err == nil {
+		c.stamped++
+		read.stamp = c.stamped
+		if current {
+			c.views.Add(tenant, read)
+		}
+	}
+	shared.view, shared.err = read, err
+	close(shared.done)
+}
+
+// detach keeps later callers from joining the given read, reporting whether it was the tenant's current one.
+func (c *catalog) detach(tenant uuid.UUID, shared *flight) bool {
+	if c.flights[tenant] != shared {
+		return false
+	}
+	delete(c.flights, tenant)
+	return true
+}
+
+// read builds an unstamped view of the calling tenant's live definitions.
 func (c *catalog) read(ctx context.Context) (*view, error) {
 	definitions, err := c.loader.liveDefinitions(ctx)
 	if err != nil {
 		return nil, err
 	}
 	next := &view{
-		stamp:  c.stamps.Add(1),
 		read:   c.now(),
 		fields: make([]sdk.GraphField, 0, len(definitions)),
 		kinds:  make(map[string]kind, len(definitions)),
@@ -95,10 +156,11 @@ func (c *catalog) read(ctx context.Context) (*view, error) {
 	return next, nil
 }
 
-// forget drops the calling tenant's view, keeping any read already under way out of the cache.
+// forget drops the calling tenant's view, keeping any read of it already under way out of the cache.
 func (c *catalog) forget(ctx context.Context) {
-	c.storing.Lock()
-	defer c.storing.Unlock()
-	c.forgets.Add(1)
-	c.views.Remove(sdk.TenantOrDefault(ctx))
+	tenant := sdk.TenantOrDefault(ctx)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.flights, tenant)
+	c.views.Remove(tenant)
 }
