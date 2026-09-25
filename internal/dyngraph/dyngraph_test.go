@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -78,18 +79,25 @@ func stubBuild(t *testing.T, sdl string, seen **ast.OperationDefinition, calls *
 
 // fakeSource serves each tenant a settable stamp and settable fields.
 type fakeSource struct {
-	mu     sync.Mutex
-	stamps map[uuid.UUID]uint64
-	fields map[uuid.UUID][]sdk.GraphField
-	err    error
+	mu      sync.Mutex
+	stamps  map[uuid.UUID]uint64
+	fields  map[uuid.UUID][]sdk.GraphField
+	err     error
+	entered chan struct{}
+	release chan struct{}
 }
 
-// FieldsSnapshot reports the calling tenant's settable stamp and fields.
+// FieldsSnapshot reports the calling tenant's settable stamp and fields, held until released when gated.
 func (f *fakeSource) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	tenant := sdk.TenantOrDefault(ctx)
-	return f.stamps[tenant], f.fields[tenant], f.err
+	stamp, fields, err := f.stamps[tenant], f.fields[tenant], f.err
+	f.mu.Unlock()
+	if f.entered != nil {
+		f.entered <- struct{}{}
+		<-f.release
+	}
+	return stamp, fields, err
 }
 
 // set gives a tenant a stamp and the fields it serves.
@@ -306,6 +314,40 @@ func TestBuildsATenantsGraphAgainOnlyWhenItsStampMoves(t *testing.T) {
 	}
 	if schema.Types["Contact"].Fields.ForName("loyaltyPoints") == nil {
 		t.Error("loyaltyPoints missing, want the moved catalogue served")
+	}
+}
+
+func TestBuildsOneGraphForCallersMissingATenantTogether(t *testing.T) {
+	t.Parallel()
+
+	var builds atomic.Int32
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	counted := func(widened *ast.Schema) graphql.ExecutableSchema {
+		builds.Add(1)
+		return stub(widened)
+	}
+	source := sourceOf(birthDate)
+	source.entered = make(chan struct{})
+	source.release = make(chan struct{})
+	graphs := graphsOf(counted, 0, source)
+	answers := make(chan graphql.ExecutableSchema, 3)
+	for range 3 {
+		go func() { answers <- graphs.For(t.Context()) }()
+	}
+	for range 3 {
+		<-source.entered
+	}
+
+	close(source.release)
+
+	first := <-answers
+	for range 2 {
+		if <-answers != first {
+			t.Error("callers missing the tenant together got different graphs, want the one built for them all")
+		}
+	}
+	if got := builds.Load(); got != 2 {
+		t.Errorf("builds = %d, want the compiled schema and one widened graph", got)
 	}
 }
 

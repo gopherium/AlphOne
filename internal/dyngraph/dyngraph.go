@@ -9,6 +9,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
@@ -39,12 +40,13 @@ type graphEntry[T any] struct {
 
 // Graphs serves each tenant the generated schema widened by its own field catalogue.
 type Graphs[T any] struct {
-	build   Build
-	serve   Serve[T]
-	base    *ast.Schema
-	plain   T
-	sources []sdk.FieldSource
-	held    *lru.Cache[uuid.UUID, graphEntry[T]]
+	build    Build
+	serve    Serve[T]
+	base     *ast.Schema
+	plain    T
+	sources  []sdk.FieldSource
+	held     *lru.Cache[uuid.UUID, graphEntry[T]]
+	building sync.Mutex
 }
 
 // New returns the graphs serving build widened by each tenant's fields from the sources, holding up to held tenants.
@@ -81,6 +83,16 @@ func (g *Graphs[T]) For(ctx context.Context) T {
 		return g.plain
 	}
 	if found && slices.Equal(stamps, cached.stamps) {
+		return cached.served
+	}
+	return g.builtFor(tenant, stamps, fields)
+}
+
+// builtFor returns the tenant's graph for the given stamps, building it unless a caller missing it too already did.
+func (g *Graphs[T]) builtFor(tenant uuid.UUID, stamps []uint64, fields []sdk.GraphField) T {
+	g.building.Lock()
+	defer g.building.Unlock()
+	if cached, found := g.held.Get(tenant); found && slices.Equal(stamps, cached.stamps) {
 		return cached.served
 	}
 	served := g.graphOf(fields)
