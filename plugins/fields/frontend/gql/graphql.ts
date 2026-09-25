@@ -9,6 +9,7 @@ export type FieldKind =
   | 'DATE'
   | 'LONGTEXT'
   | 'NUMBER'
+  | 'REPEATER'
   | 'SELECT'
   | 'TEXT';
 
