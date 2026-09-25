@@ -93,6 +93,9 @@ query {
 No rebuild, no code change. The field appears in schema introspection too, so
 API tools and AI agents discover it on their own.
 
+A field belongs to the workspace that created it. Callers in another workspace
+never see it, not in the API and not in introspection.
+
 Writing values goes through one mutation:
 
 ```graphql
