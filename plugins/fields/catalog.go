@@ -25,10 +25,11 @@ type loader interface {
 
 // view is one tenant's immutable reading of its live definitions.
 type view struct {
-	stamp  uint64
-	read   time.Time
-	fields []sdk.GraphField
-	kinds  map[string]kind
+	stamp   uint64
+	read    time.Time
+	fields  []sdk.GraphField
+	kinds   map[string]kind
+	columns map[string][]SubField
 }
 
 // flight is one read of a tenant's catalogue, shared by every caller missing that tenant meanwhile.
@@ -155,9 +156,10 @@ func (c *catalog) read(ctx context.Context) (*view, error) {
 		return nil, err
 	}
 	next := &view{
-		read:   c.now(),
-		fields: make([]sdk.GraphField, 0, len(definitions)),
-		kinds:  make(map[string]kind, len(definitions)),
+		read:    c.now(),
+		fields:  make([]sdk.GraphField, 0, len(definitions)),
+		kinds:   make(map[string]kind, len(definitions)),
+		columns: make(map[string][]SubField, len(definitions)),
 	}
 	for _, definition := range definitions {
 		next.fields = append(next.fields, sdk.GraphField{
@@ -166,6 +168,7 @@ func (c *catalog) read(ctx context.Context) (*view, error) {
 			Type:   definition.Kind.scalar(),
 		})
 		next.kinds[definition.Name] = definition.Kind
+		next.columns[definition.Name] = definition.SubFields
 	}
 	return next, nil
 }

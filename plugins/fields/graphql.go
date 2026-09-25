@@ -115,7 +115,7 @@ func (m MutationResolvers) WriteContactFields(
 	if err != nil {
 		return false, err
 	}
-	checked, err := checkValues(read.kinds, given)
+	checked, err := checkValues(read, given)
 	if err != nil {
 		return false, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}

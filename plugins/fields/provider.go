@@ -67,7 +67,7 @@ func (p *Plugin) readTexts(ctx context.Context, values map[string]string) (map[s
 	for name, text := range written {
 		given[name] = typedText(held.kinds[name], text)
 	}
-	checked, err := checkValues(held.kinds, given)
+	checked, err := checkValues(held, given)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", sdk.ErrInvalidFieldText, err)
 	}
