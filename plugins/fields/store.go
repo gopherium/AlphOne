@@ -18,7 +18,7 @@ import (
 var (
 	errNameTaken    = errors.New("fields: another definition holds that name")
 	errNoDefinition = errors.New("fields: no live definition holds that id")
-	errKindLocked   = errors.New("fields: the archived definition of that name holds another kind")
+	errKindLocked   = errors.New("fields: the archived definition of that name holds another kind or other sub fields")
 )
 
 // store reads and writes the definition catalogue.
@@ -26,15 +26,20 @@ type store struct {
 	pool *pgxpool.Pool
 }
 
-// define stores a definition, reviving an archived one of the same kind, and clears values under a name defined anew.
+// define stores a definition, reviving an archived one of the same shape, and clears values under a name defined anew.
 func (s *store) define(ctx context.Context, definition Definition) error {
 	const statement = `WITH stored AS (
 			INSERT INTO plugin_fields.definitions
-				(id, name, label, kind, created_at, tenant_id)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (tenant_id, name) DO UPDATE SET archived_at = NULL, label = EXCLUDED.label
+				(id, name, label, kind, created_at, tenant_id, sub_fields)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+			ON CONFLICT (tenant_id, name) DO UPDATE
+				SET archived_at = NULL, label = EXCLUDED.label, sub_fields = EXCLUDED.sub_fields
 			WHERE plugin_fields.definitions.archived_at IS NOT NULL
 				AND plugin_fields.definitions.kind = EXCLUDED.kind
+				AND jsonb_path_query_array(plugin_fields.definitions.sub_fields, '$[*].name')
+					= jsonb_path_query_array(EXCLUDED.sub_fields, '$[*].name')
+				AND jsonb_path_query_array(plugin_fields.definitions.sub_fields, '$[*].kind')
+					= jsonb_path_query_array(EXCLUDED.sub_fields, '$[*].kind')
 			RETURNING 1
 		), swept AS (
 			UPDATE plugin_fields.contact_values SET values = values - $2::text
@@ -46,7 +51,8 @@ func (s *store) define(ctx context.Context, definition Definition) error {
 	var stored int
 	if err := s.pool.QueryRow(ctx, statement,
 		definition.ID, definition.Name, definition.Label, string(definition.Kind),
-		definition.CreatedAt, sdk.TenantOrDefault(ctx)).Scan(&stored); err != nil {
+		definition.CreatedAt, sdk.TenantOrDefault(ctx),
+		append([]SubField{}, definition.SubFields...)).Scan(&stored); err != nil {
 		return fmt.Errorf("fields: define definition: %w", err)
 	}
 	if stored == 0 {
@@ -85,7 +91,7 @@ func (s *store) archive(ctx context.Context, id uuid.UUID) error {
 
 // liveDefinitions lists every definition no operator has archived.
 func (s *store) liveDefinitions(ctx context.Context) ([]Definition, error) {
-	const query = `SELECT id, name, label, kind, archived_at, created_at
+	const query = `SELECT id, name, label, kind, sub_fields, archived_at, created_at
 		FROM plugin_fields.definitions
 		WHERE archived_at IS NULL AND tenant_id = $1 ORDER BY created_at, id`
 	return s.query(ctx, query)
@@ -93,7 +99,7 @@ func (s *store) liveDefinitions(ctx context.Context) ([]Definition, error) {
 
 // allDefinitions lists every definition, archived ones included.
 func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
-	const query = `SELECT id, name, label, kind, archived_at, created_at
+	const query = `SELECT id, name, label, kind, sub_fields, archived_at, created_at
 		FROM plugin_fields.definitions WHERE tenant_id = $1 ORDER BY created_at, id`
 	return s.query(ctx, query)
 }
@@ -157,7 +163,7 @@ func (s *store) query(ctx context.Context, statement string) ([]Definition, erro
 		var definition Definition
 		var declared string
 		err := row.Scan(&definition.ID, &definition.Name, &definition.Label,
-			&declared, &definition.ArchivedAt, &definition.CreatedAt)
+			&declared, &definition.SubFields, &definition.ArchivedAt, &definition.CreatedAt)
 		definition.Kind = kind(declared)
 		return definition, err
 	})

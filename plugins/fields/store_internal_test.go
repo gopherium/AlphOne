@@ -5,11 +5,13 @@ package fields
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
 
@@ -253,6 +255,136 @@ func TestStoreRefusesRevivingUnderADifferentKind(t *testing.T) {
 
 	if !errors.Is(err, errKindLocked) {
 		t.Errorf("error = %v, want errKindLocked", err)
+	}
+}
+
+// checkViolation is the SQLSTATE of a row a CHECK constraint refuses.
+const checkViolation = "23514"
+
+// historyOf builds the history repeater holding the given sub fields.
+func historyOf(subFields ...SubField) Definition {
+	return Definition{
+		ID:        uuid.Must(uuid.NewV7()),
+		Name:      "history",
+		Label:     "Label",
+		Kind:      kindRepeater,
+		SubFields: subFields,
+		CreatedAt: time.Now().UTC(),
+	}
+}
+
+// historyColumns are the sub fields of the repeater most store tests keep.
+var historyColumns = []SubField{
+	{Name: "date", Label: "Date", Kind: kindDate},
+	{Name: "comment", Label: "Comment", Kind: kindLongText},
+}
+
+// archivedRepeater stores a history repeater and archives it, returning the stored definition.
+func archivedRepeater(t *testing.T, p *Plugin) Definition {
+	t.Helper()
+	original := historyOf(historyColumns...)
+	if err := p.store.define(t.Context(), original); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+	if err := p.store.archive(t.Context(), original.ID); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+	return original
+}
+
+func TestStoreRoundTripsARepeatersSubFieldsInOrder(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+
+	if err := p.store.define(t.Context(), historyOf(historyColumns...)); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+
+	held, err := p.store.liveDefinitions(t.Context())
+	if err != nil {
+		t.Fatalf("liveDefinitions() error = %v, want nil", err)
+	}
+	if len(held) != 1 || !slices.Equal(held[0].SubFields, historyColumns) {
+		t.Errorf("definitions = %+v, want the repeater with its sub fields in order", held)
+	}
+}
+
+func TestStoreRevivesARepeaterHoldingTheSameSubFields(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	original := archivedRepeater(t, p)
+	relabelled := []SubField{
+		{Name: "date", Label: "Day", Kind: kindDate},
+		{Name: "comment", Label: "Note", Kind: kindLongText},
+	}
+
+	if err := p.store.define(t.Context(), historyOf(relabelled...)); err != nil {
+		t.Fatalf("define() error = %v, want the archived repeater revived", err)
+	}
+
+	live, err := p.store.liveDefinitions(t.Context())
+	if err != nil {
+		t.Fatalf("liveDefinitions() error = %v, want nil", err)
+	}
+	if len(live) != 1 || live[0].ID != original.ID || !slices.Equal(live[0].SubFields, relabelled) {
+		t.Errorf("definitions = %+v, want the original revived with the new sub labels", live)
+	}
+}
+
+func TestStoreRefusesRevivingARepeaterUnderOtherSubFields(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string][]SubField{
+		"another name": {
+			{Name: "date", Label: "Date", Kind: kindDate},
+			{Name: "note", Label: "Comment", Kind: kindLongText},
+		},
+		"another kind": {
+			{Name: "date", Label: "Date", Kind: kindText},
+			{Name: "comment", Label: "Comment", Kind: kindLongText},
+		},
+		"fewer": {{Name: "date", Label: "Date", Kind: kindDate}},
+	}
+	for name, subFields := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			p := newMigratedPlugin(t)
+			archivedRepeater(t, p)
+
+			err := p.store.define(t.Context(), historyOf(subFields...))
+
+			if !errors.Is(err, errKindLocked) {
+				t.Errorf("error = %v, want errKindLocked", err)
+			}
+		})
+	}
+}
+
+func TestStoreRefusesSubFieldsOnlyARepeaterMayHold(t *testing.T) {
+	t.Parallel()
+
+	withSubFields := defined(t, "birthDate", "DATE")
+	withSubFields.SubFields = historyColumns
+	cases := map[string]Definition{
+		"a repeater without sub fields": historyOf(),
+		"a plain field with sub fields": withSubFields,
+	}
+	for name, definition := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			p := newMigratedPlugin(t)
+
+			err := p.store.define(t.Context(), definition)
+
+			var refused *pgconn.PgError
+			if !errors.As(err, &refused) || refused.Code != checkViolation {
+				t.Errorf("error = %v, want the database to refuse the row", err)
+			}
+		})
 	}
 }
 

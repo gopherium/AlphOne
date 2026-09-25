@@ -36,6 +36,7 @@ const (
 	kindBoolean  kind = "BOOLEAN"
 	kindDate     kind = "DATE"
 	kindSelect   kind = "SELECT"
+	kindRepeater kind = "REPEATER"
 )
 
 // kinds maps every declarable kind to the GraphQL scalar it answers with.
@@ -56,12 +57,20 @@ func (k kind) scalar() string {
 	return kinds[k]
 }
 
+// SubField is one column of the rows a repeater holds.
+type SubField struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+	Kind  kind   `json:"kind"`
+}
+
 // Definition is one runtime defined field as the catalogue holds it.
 type Definition struct {
 	ID         uuid.UUID
 	Name       string
 	Label      string
 	Kind       kind
+	SubFields  []SubField
 	ArchivedAt *time.Time
 	CreatedAt  time.Time
 }
