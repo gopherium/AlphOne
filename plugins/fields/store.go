@@ -98,7 +98,7 @@ func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
 	return s.query(ctx, query)
 }
 
-// writeValues merges values into a contact's bag, dropping the keys written null.
+// writeValues merges values into a contact's field values, dropping the keys written null.
 func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map[string]any) error {
 	const statement = `INSERT INTO plugin_fields.contact_values (contact_id, values, tenant_id)
 		VALUES ($1, jsonb_strip_nulls($2::jsonb), $3)
@@ -110,20 +110,20 @@ func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map
 	return nil
 }
 
-// valueRow pairs a contact with the value bag it holds.
+// valueRow pairs a contact with the field values it holds.
 type valueRow struct {
 	contactID uuid.UUID
 	values    map[string]any
 }
 
-// valuesFor reads the value bags of the given contacts.
+// valuesFor reads the field values of the given contacts.
 func (s *store) valuesFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]map[string]any, error) {
 	const query = `SELECT contact_id, values FROM plugin_fields.contact_values
 		WHERE contact_id = ANY($1) AND tenant_id = $2`
 	return s.collectValues(ctx, query, ids)
 }
 
-// collectValues reads the value bags the given statement selects.
+// collectValues reads the field values the given statement selects.
 func (s *store) collectValues(
 	ctx context.Context, statement string, ids []uuid.UUID,
 ) (map[uuid.UUID]map[string]any, error) {

@@ -86,7 +86,7 @@ func TestAValueBagIsNotWrittenFromAnotherTenant(t *testing.T) {
 	}
 
 	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthday": "2000-12-31"}); err != nil {
-		t.Fatalf("writeValues() elsewhere error = %v, want its own bag admitted", err)
+		t.Fatalf("writeValues() elsewhere error = %v, want its own values admitted", err)
 	}
 
 	held, err := p.store.valuesFor(acme, []uuid.UUID{contactID})
@@ -94,7 +94,7 @@ func TestAValueBagIsNotWrittenFromAnotherTenant(t *testing.T) {
 		t.Fatalf("valuesFor() error = %v, want nil", err)
 	}
 	if held[contactID]["birthday"] != "1990-01-01" {
-		t.Errorf("the Acme bag = %+v, want it untouched by the other tenant", held[contactID])
+		t.Errorf("Acme's values = %+v, want it untouched by the other tenant", held[contactID])
 	}
 }
 
@@ -119,6 +119,6 @@ func TestAValueBagStaysInsideItsTenant(t *testing.T) {
 		t.Fatalf("valuesFor() error = %v, want nil", err)
 	}
 	if len(held) != 0 {
-		t.Errorf("valuesFor() = %+v from another tenant, want the bag withheld", held)
+		t.Errorf("valuesFor() = %+v from another tenant, want the values withheld", held)
 	}
 }
