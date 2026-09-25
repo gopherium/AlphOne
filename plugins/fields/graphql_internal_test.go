@@ -4,6 +4,7 @@ package fields
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -22,6 +23,20 @@ func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 	var raised sdk.GraphError
 	if !errors.As(err, &raised) || raised.Reason != "field_name_malformed" {
 		t.Errorf("error = %v, want the malformed name named as a reason", err)
+	}
+}
+
+func TestDefineFieldNamesALabelBeyondTheCap(t *testing.T) {
+	t.Parallel()
+
+	p := newClosedPlugin(t)
+	label := strings.Repeat("x", labelMax+1)
+
+	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "birthDate", label, model.FieldKindDate)
+
+	var raised sdk.GraphError
+	if !errors.As(err, &raised) || raised.Reason != "field_label_too_long" {
+		t.Errorf("error = %v, want the long label named as a reason", err)
 	}
 }
 

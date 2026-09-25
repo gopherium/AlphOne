@@ -145,6 +145,7 @@ var fieldReasons = []struct {
 	{errMalformedName, "field_name_malformed"},
 	{errUnknownKind, "field_kind_unknown"},
 	{errBlankLabel, "field_label_required"},
+	{errLabelTooLong, "field_label_too_long"},
 	{errReservedName, "field_name_reserved"},
 	{errSubFieldsRequired, "field_sub_fields_required"},
 	{errSubFieldsUnexpected, "field_sub_fields_unexpected"},
