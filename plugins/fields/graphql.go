@@ -66,7 +66,7 @@ func (q QueryResolvers) Fields(ctx context.Context, includeArchived *bool) ([]*m
 	return listed, nil
 }
 
-// DefineField stores a definition and republishes the catalogue.
+// DefineField stores a definition and forgets the caller's catalogue view.
 func (m MutationResolvers) DefineField(
 	ctx context.Context, name, label string, declared model.FieldKind,
 ) (*model.FieldDefinition, error) {
@@ -80,9 +80,7 @@ func (m MutationResolvers) DefineField(
 		}
 		return nil, err
 	}
-	if err := m.plugin.catalog.reload(ctx); err != nil {
-		return nil, err
-	}
+	m.plugin.catalog.forget(ctx)
 	return toGraphDefinition(definition), nil
 }
 
@@ -113,7 +111,11 @@ func (m MutationResolvers) WriteContactFields(
 	if !ok {
 		return false, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(errValuesNotAnObject), Err: errValuesNotAnObject}
 	}
-	checked, err := checkValues(m.plugin.catalog.liveKinds(), given)
+	read, err := m.plugin.catalog.viewFor(ctx)
+	if err != nil {
+		return false, err
+	}
+	checked, err := checkValues(read.kinds, given)
 	if err != nil {
 		return false, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
@@ -123,7 +125,7 @@ func (m MutationResolvers) WriteContactFields(
 	return true, nil
 }
 
-// ArchiveField archives a definition and republishes the catalogue.
+// ArchiveField archives a definition and forgets the caller's catalogue view.
 func (m MutationResolvers) ArchiveField(ctx context.Context, id uuid.UUID) (bool, error) {
 	if err := m.plugin.store.archive(ctx, id); err != nil {
 		if errors.Is(err, errNoDefinition) {
@@ -131,9 +133,7 @@ func (m MutationResolvers) ArchiveField(ctx context.Context, id uuid.UUID) (bool
 		}
 		return false, err
 	}
-	if err := m.plugin.catalog.reload(ctx); err != nil {
-		return false, err
-	}
+	m.plugin.catalog.forget(ctx)
 	return true, nil
 }
 

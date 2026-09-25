@@ -3,6 +3,7 @@
 package fields
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -25,14 +26,76 @@ func labelled(t *testing.T, name, label, declared string) Definition {
 	return definition
 }
 
-// define stores a definition and reloads the catalogue behind it.
+// storedValues reads the field values one contact holds in the tenant the context serves.
+func storedValues(t *testing.T, p *Plugin, ctx context.Context, contactID uuid.UUID) map[string]any {
+	t.Helper()
+	held, err := p.store.valuesFor(ctx, []uuid.UUID{contactID})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	return held[contactID]
+}
+
+// define stores a definition and forgets the catalogue view it changes.
 func define(t *testing.T, p *Plugin, definition Definition) {
 	t.Helper()
 	if err := p.store.define(t.Context(), definition); err != nil {
 		t.Fatalf("define(%q) error = %v, want nil", definition.Name, err)
 	}
-	if err := p.catalog.reload(t.Context()); err != nil {
-		t.Fatalf("reload() error = %v, want nil", err)
+	p.catalog.forget(t.Context())
+}
+
+func TestCheckContactFieldTextsReadsTheCallersOwnFields(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	definedField(t, p, t.Context(), "birthDate")
+	definedField(t, p, acme, "shoeSize")
+
+	if err := p.CheckContactFieldTexts(acme, map[string]string{"shoeSize": "44"}); err != nil {
+		t.Errorf("Acme checking its own shoeSize error = %v, want nil", err)
+	}
+	err := p.CheckContactFieldTexts(acme, map[string]string{"birthDate": "x"})
+	if !errors.Is(err, sdk.ErrInvalidFieldText) {
+		t.Errorf("Acme checking the default tenant's birthDate error = %v, want an invalid text", err)
+	}
+}
+
+func TestWriteContactFieldTextsReadsAndWritesTheCallersOwnTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	definedField(t, p, t.Context(), "birthDate")
+	definedField(t, p, acme, "shoeSize")
+	contactID := seedContact(t, p, "Maria Perez")
+
+	if err := p.WriteContactFieldTexts(acme, contactID, map[string]string{"shoeSize": "44"}); err != nil {
+		t.Fatalf("Acme writing its own shoeSize error = %v, want nil", err)
+	}
+
+	if got := storedValues(t, p, acme, contactID)["shoeSize"]; got != "44" {
+		t.Errorf("Acme's shoeSize = %#v, want the written text", got)
+	}
+	if got := storedValues(t, p, t.Context(), contactID); len(got) != 0 {
+		t.Errorf("the default tenant's values = %#v, want nothing written there", got)
+	}
+	err := p.WriteContactFieldTexts(acme, contactID, map[string]string{"birthDate": "1990-04-17"})
+	if !errors.Is(err, sdk.ErrInvalidFieldText) {
+		t.Errorf("Acme writing the default tenant's birthDate error = %v, want an invalid text", err)
+	}
+}
+
+func TestCheckContactFieldTextsReportsAFailedCatalogueReadAsItIs(t *testing.T) {
+	t.Parallel()
+
+	p := newWedgedPlugin(t)
+
+	err := p.CheckContactFieldTexts(t.Context(), map[string]string{"birthDate": "1990-04-17"})
+
+	if !errors.Is(err, errCatalogue) || errors.Is(err, sdk.ErrInvalidFieldText) {
+		t.Errorf("error = %v, want the catalogue failure and no invalid text", err)
 	}
 }
 

@@ -3,9 +3,11 @@
 package fields
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -101,6 +103,137 @@ func TestStoreRevivesAnArchivedDefinition(t *testing.T) {
 	}
 	if live[0].ID != original.ID {
 		t.Errorf("id = %s, want the original %s kept so stored values stay reachable", live[0].ID, original.ID)
+	}
+}
+
+func TestStoreClearsStrayValuesWhenATenantFirstDefinesANameAnotherTenantHolds(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	contactID := seedContact(t, p, "Maria Perez")
+	definedField(t, p, t.Context(), "shoeSize")
+	stray := map[string]any{"shoeSize": "44", "nickname": "kept"}
+	if err := p.store.writeValues(acme, contactID, stray); err != nil {
+		t.Fatalf("writeValues() in Acme error = %v, want nil", err)
+	}
+	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"shoeSize": "38"}); err != nil {
+		t.Fatalf("writeValues() elsewhere error = %v, want nil", err)
+	}
+
+	if err := p.store.define(acme, defined(t, "shoeSize", "NUMBER")); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+
+	if held := storedValues(t, p, acme, contactID); held["shoeSize"] != nil || held["nickname"] != "kept" {
+		t.Errorf("Acme's values = %+v, want only the stray shoeSize cleared", held)
+	}
+	if held := storedValues(t, p, t.Context(), contactID); held["shoeSize"] != "38" {
+		t.Errorf("the other tenant's values = %+v, want its shoeSize untouched", held)
+	}
+}
+
+func TestStoreKeepsTheValuesOfARevivedDefinition(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	contactID := seedContact(t, p, "Maria Perez")
+	original := defined(t, "birthDate", "DATE")
+	if err := p.store.define(t.Context(), original); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthDate": "1990-04-17"}); err != nil {
+		t.Fatalf("writeValues() error = %v, want nil", err)
+	}
+	if err := p.store.archive(t.Context(), original.ID); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+		t.Fatalf("define() error = %v, want the archived definition revived", err)
+	}
+
+	if held := storedValues(t, p, t.Context(), contactID); held["birthDate"] != "1990-04-17" {
+		t.Errorf("values = %+v, want the revived field's value kept", held)
+	}
+}
+
+// awaitLockedDefine waits until a define statement is blocked on a row lock.
+func awaitLockedDefine(t *testing.T, p *Plugin) {
+	t.Helper()
+	const query = `SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE 'WITH stored AS%'`
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := p.pool.QueryRow(t.Context(), query).Scan(&waiting); err != nil {
+			t.Fatalf("reading the waiting statements: %v", err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no define statement waited on the racing insert")
+}
+
+func TestStoreKeepsALiveValueWhenARacingDefineIsRefused(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	contactID := seedContact(t, p, "Maria Perez")
+	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"loyalty": "stray"}); err != nil {
+		t.Fatalf("writeValues() error = %v, want nil", err)
+	}
+	racing, err := p.pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("beginning the racing define: %v", err)
+	}
+	t.Cleanup(func() { _ = racing.Rollback(context.Background()) })
+	if _, err := racing.Exec(t.Context(), `INSERT INTO plugin_fields.definitions
+		(id, name, label, kind, created_at, tenant_id) VALUES ($1, 'loyalty', 'Loyalty', 'TEXT', now(), $2)`,
+		uuid.Must(uuid.NewV7()), sdk.DefaultTenantID); err != nil {
+		t.Fatalf("racing insert: %v", err)
+	}
+	if _, err := racing.Exec(t.Context(), `UPDATE plugin_fields.contact_values
+		SET values = '{"loyalty":"kept"}'::jsonb WHERE contact_id = $1`, contactID); err != nil {
+		t.Fatalf("racing value: %v", err)
+	}
+	second := defined(t, "loyalty", "TEXT")
+	done := make(chan error, 1)
+	go func() { done <- p.store.define(context.Background(), second) }()
+
+	awaitLockedDefine(t, p)
+	if err := racing.Commit(t.Context()); err != nil {
+		t.Fatalf("committing the racing define: %v", err)
+	}
+
+	if err := <-done; !errors.Is(err, errNameTaken) {
+		t.Fatalf("define() error = %v, want errNameTaken", err)
+	}
+	if held := storedValues(t, p, t.Context(), contactID); held["loyalty"] != "kept" {
+		t.Errorf("values = %+v, want the racing define's value kept", held)
+	}
+}
+
+func TestStoreClearsNothingWhenItRefusesADefinition(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	contactID := seedContact(t, p, "Maria Perez")
+	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthDate": "1990-04-17"}); err != nil {
+		t.Fatalf("writeValues() error = %v, want nil", err)
+	}
+
+	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); !errors.Is(err, errNameTaken) {
+		t.Fatalf("define() error = %v, want errNameTaken", err)
+	}
+
+	if held := storedValues(t, p, t.Context(), contactID); held["birthDate"] != "1990-04-17" {
+		t.Errorf("values = %+v, want the live field's value kept", held)
 	}
 }
 

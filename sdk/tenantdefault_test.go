@@ -4,9 +4,21 @@ package sdk
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+func TestAPluginKeepsTheRecentTenantsForAMinuteByDefault(t *testing.T) {
+	t.Parallel()
+
+	if DefaultTenantsHeld != 256 {
+		t.Errorf("DefaultTenantsHeld = %d, want 256", DefaultTenantsHeld)
+	}
+	if DefaultTenantsRefresh != time.Minute {
+		t.Errorf("DefaultTenantsRefresh = %v, want a minute", DefaultTenantsRefresh)
+	}
+}
 
 func TestTheDefaultTenantServesARequestNoHostPlaced(t *testing.T) {
 	t.Parallel()

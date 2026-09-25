@@ -49,17 +49,23 @@ type graphAnswer struct {
 	} `json:"errors"`
 }
 
-// operation posts a graph operation with variables and keeps the raw answer.
+// operation posts a graph operation with variables as the owner and keeps the raw answer.
 func (w *world) operation(ctx context.Context, document string, variables map[string]any) (graphAnswer, error) {
+	return w.operationAs(ctx, w.secret, document, variables)
+}
+
+// operationAs posts a graph operation with variables under a bearer secret and keeps the raw answer.
+func (w *world) operationAs(
+	ctx context.Context, secret, document string, variables map[string]any,
+) (graphAnswer, error) {
 	body, err := json.Marshal(map[string]any{"query": document, "variables": variables})
 	if err != nil {
 		return graphAnswer{}, fmt.Errorf("encoding the operation: %w", err)
 	}
-	raw, err := w.postGraph(ctx, string(body))
+	raw, err := w.postGraphWith(ctx, secret, string(body))
 	if err != nil {
 		return graphAnswer{}, err
 	}
-	w.answered = raw
 	var answer graphAnswer
 	if err := json.Unmarshal(raw, &answer); err != nil {
 		return graphAnswer{}, fmt.Errorf("decoding %s: %w", raw, err)

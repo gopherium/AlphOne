@@ -5,9 +5,14 @@ package dyngraph_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/google/uuid"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/validator/rules"
@@ -24,7 +29,8 @@ type Contact {
 	id: ID!
 	name: String!
 	field(name: String!): JSON
-}`
+}
+type Task { title: String! }`
 
 // bareSDL is a compiled schema shape holding no carrier field.
 const bareSDL = `
@@ -56,7 +62,7 @@ func (s *stubInner) Exec(ctx context.Context) graphql.ResponseHandler {
 	return func(context.Context) *graphql.Response { return &graphql.Response{} }
 }
 
-// stubBuild returns a Build serving sdl, remembering every widened schema it got.
+// stubBuild returns a Build serving sdl, counting every build it makes.
 func stubBuild(t *testing.T, sdl string, seen **ast.OperationDefinition, calls *int) (dyngraph.Build, *ast.Schema) {
 	t.Helper()
 	compiled := gqlparser.MustLoadSchema(&ast.Source{Name: "test.graphqls", Input: sdl})
@@ -72,20 +78,95 @@ func stubBuild(t *testing.T, sdl string, seen **ast.OperationDefinition, calls *
 	}, compiled
 }
 
-// fakeSource serves a settable snapshot.
+// fakeSource serves each tenant a settable stamp and settable fields.
 type fakeSource struct {
-	version uint64
-	fields  []sdk.GraphField
+	mu      sync.Mutex
+	stamps  map[uuid.UUID]uint64
+	fields  map[uuid.UUID][]sdk.GraphField
 	err     error
+	entered chan struct{}
+	release chan struct{}
 }
 
-// FieldsSnapshot reports the settable snapshot.
-func (f *fakeSource) FieldsSnapshot(context.Context) (uint64, []sdk.GraphField, error) {
-	return f.version, f.fields, f.err
+// FieldsSnapshot reports the calling tenant's stamp and fields as they stand when the call begins, held while gated.
+func (f *fakeSource) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
+	f.mu.Lock()
+	tenant := sdk.TenantOrDefault(ctx)
+	stamp, fields, err := f.stamps[tenant], f.fields[tenant], f.err
+	entered, release := f.entered, f.release
+	f.mu.Unlock()
+	if entered != nil {
+		entered <- struct{}{}
+		<-release
+	}
+	return stamp, fields, err
 }
 
-// birthDate is the field every test defines.
+// gate holds every later call until release closes, announcing each call on entered.
+func (f *fakeSource) gate() (entered <-chan struct{}, release chan struct{}) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entered, f.release = make(chan struct{}), make(chan struct{})
+	return f.entered, f.release
+}
+
+// ungate lets every later call answer at once.
+func (f *fakeSource) ungate() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entered, f.release = nil, nil
+}
+
+// fail makes every later call report an unavailable catalogue.
+func (f *fakeSource) fail() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err = errors.New("catalogue unavailable")
+}
+
+// set gives a tenant a stamp and the fields it serves.
+func (f *fakeSource) set(tenant uuid.UUID, stamp uint64, fields ...sdk.GraphField) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stamps[tenant] = stamp
+	f.fields[tenant] = fields
+}
+
+// sourceOf returns a source serving the default tenant the given fields at stamp one.
+func sourceOf(fields ...sdk.GraphField) *fakeSource {
+	source := &fakeSource{stamps: map[uuid.UUID]uint64{}, fields: map[uuid.UUID][]sdk.GraphField{}}
+	source.set(sdk.DefaultTenantID, 1, fields...)
+	return source
+}
+
+// birthDate is the field most tests define.
 var birthDate = sdk.GraphField{Entity: "Contact", Name: "birthDate", Type: "JSON"}
+
+// shoeSize is the field another tenant defines.
+var shoeSize = sdk.GraphField{Entity: "Contact", Name: "shoeSize", Type: "JSON"}
+
+// loyaltyPoints is the field a tenant defines between two of its graphs.
+var loyaltyPoints = sdk.GraphField{Entity: "Contact", Name: "loyaltyPoints", Type: "JSON"}
+
+// declares reports whether the schema declares the named field on Contact.
+func declares(schema *ast.Schema, name string) bool {
+	return schema.Types["Contact"].Fields.ForName(name) != nil
+}
+
+// served returns the executable schema itself, the way a test inspects what a tenant is served.
+func served(schema graphql.ExecutableSchema) graphql.ExecutableSchema { return schema }
+
+// graphsOf returns graphs serving build widened by the sources, holding up to held tenants.
+func graphsOf(build dyngraph.Build, held int, sources ...sdk.FieldSource) *dyngraph.Graphs[graphql.ExecutableSchema] {
+	return dyngraph.New(build, served, held, sources...)
+}
+
+// inTenantOf returns a context serving a fresh tenant and that tenant.
+func inTenantOf(t *testing.T) (context.Context, uuid.UUID) {
+	t.Helper()
+	tenant := uuid.Must(uuid.NewV7())
+	return sdk.WithTenant(t.Context(), tenant), tenant
+}
 
 // operationFor parses source against schema and wraps it in an operation context.
 func operationFor(t *testing.T, schema *ast.Schema, source string) context.Context {
@@ -98,15 +179,27 @@ func operationFor(t *testing.T, schema *ast.Schema, source string) context.Conte
 	return graphql.WithOperationContext(t.Context(), opCtx)
 }
 
-func TestPassesThroughWithoutSources(t *testing.T) {
+func TestServesTheCompiledSchemaWithoutSources(t *testing.T) {
 	t.Parallel()
 
 	build, compiled := stubBuild(t, carriedSDL, nil, nil)
 
-	dyn := dyngraph.New(build)
+	graphs := graphsOf(build, 0)
 
-	if dyn.Schema() != compiled {
-		t.Error("Schema() = a copy, want the compiled schema untouched")
+	if graphs.For(t.Context()).Schema() != compiled || graphs.Plain().Schema() != compiled {
+		t.Error("the served schema is a copy, want the compiled schema untouched")
+	}
+}
+
+func TestServesTheCompiledSchemaAsThePlainGraph(t *testing.T) {
+	t.Parallel()
+
+	build, compiled := stubBuild(t, carriedSDL, nil, nil)
+
+	graphs := graphsOf(build, 0, sourceOf(birthDate))
+
+	if graphs.Plain().Schema() != compiled {
+		t.Error("Plain() serves a widened schema, want the compiled one")
 	}
 }
 
@@ -115,9 +208,9 @@ func TestWidensADefinedField(t *testing.T) {
 
 	build, _ := stubBuild(t, carriedSDL, nil, nil)
 
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	graphs := graphsOf(build, 0, sourceOf(birthDate))
 
-	widened := dyn.Schema().Types["Contact"].Fields.ForName("birthDate")
+	widened := graphs.For(t.Context()).Schema().Types["Contact"].Fields.ForName("birthDate")
 	if widened == nil {
 		t.Fatal("birthDate missing, want it declared on Contact")
 	}
@@ -126,14 +219,46 @@ func TestWidensADefinedField(t *testing.T) {
 	}
 }
 
+func TestServesEachTenantItsOwnFields(t *testing.T) {
+	t.Parallel()
+
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	source := sourceOf(birthDate)
+	inAcme, acme := inTenantOf(t)
+	source.set(acme, 1, shoeSize)
+	graphs := graphsOf(build, 0, source)
+
+	owned := graphs.For(t.Context()).Schema().Types["Contact"].Fields
+	acmes := graphs.For(inAcme).Schema().Types["Contact"].Fields
+
+	if owned.ForName("birthDate") == nil || owned.ForName("shoeSize") != nil {
+		t.Errorf("the default tenant's Contact = %v, want birthDate and no shoeSize", owned)
+	}
+	if acmes.ForName("shoeSize") == nil || acmes.ForName("birthDate") != nil {
+		t.Errorf("Acme's Contact = %v, want shoeSize and no birthDate", acmes)
+	}
+}
+
+func TestServesThePlainGraphToATenantWithNoFields(t *testing.T) {
+	t.Parallel()
+
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	inAcme, _ := inTenantOf(t)
+	graphs := graphsOf(build, 0, sourceOf(birthDate))
+
+	if graphs.For(inAcme) != graphs.Plain() {
+		t.Error("a tenant with no fields got a graph of its own, want the plain one shared")
+	}
+}
+
 func TestSkipsWideningWithoutACarrier(t *testing.T) {
 	t.Parallel()
 
 	build, _ := stubBuild(t, bareSDL, nil, nil)
 
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	graphs := graphsOf(build, 0, sourceOf(birthDate))
 
-	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") != nil {
+	if graphs.For(t.Context()).Schema().Types["Contact"].Fields.ForName("birthDate") != nil {
 		t.Error("birthDate declared, want no widening when the carrier is absent")
 	}
 }
@@ -144,9 +269,9 @@ func TestNeverShadowsACompiledField(t *testing.T) {
 	shadow := sdk.GraphField{Entity: "Contact", Name: "name", Type: "JSON"}
 	build, _ := stubBuild(t, carriedSDL, nil, nil)
 
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{shadow}})
+	graphs := graphsOf(build, 0, sourceOf(shadow))
 
-	if got := dyn.Schema().Types["Contact"].Fields.ForName("name").Type.Name(); got != "String" {
+	if got := graphs.For(t.Context()).Schema().Types["Contact"].Fields.ForName("name").Type.Name(); got != "String" {
 		t.Errorf("name answers %q, want the compiled String untouched", got)
 	}
 }
@@ -156,10 +281,10 @@ func TestRewritesOntoTheCarrier(t *testing.T) {
 
 	var seen *ast.OperationDefinition
 	build, _ := stubBuild(t, carriedSDL, &seen, nil)
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
-	ctx := operationFor(t, dyn.Schema(), `{ contact { name birthDate bd: birthDate } }`)
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
+	ctx := operationFor(t, graph.Schema(), `{ contact { name birthDate bd: birthDate } }`)
 
-	dyn.Exec(ctx)
+	graph.Exec(ctx)
 
 	fields := seen.SelectionSet[0].(*ast.Field).SelectionSet
 	name, plain, aliased := fields[0].(*ast.Field), fields[1].(*ast.Field), fields[2].(*ast.Field)
@@ -182,15 +307,15 @@ func TestRewritesThroughFragments(t *testing.T) {
 
 	var seen *ast.OperationDefinition
 	build, _ := stubBuild(t, carriedSDL, &seen, nil)
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
 	source := `query { contact { ...person } } fragment person on Contact { birthDate }`
-	doc, err := gqlparser.LoadQueryWithRules(dyn.Schema(), source, rules.NewDefaultRules())
+	doc, err := gqlparser.LoadQueryWithRules(graph.Schema(), source, rules.NewDefaultRules())
 	if err != nil {
 		t.Fatalf("parsing the fragment query: %v", err)
 	}
 	opCtx := &graphql.OperationContext{Operation: doc.Operations[0], Doc: doc}
 
-	dyn.Exec(graphql.WithOperationContext(t.Context(), opCtx))
+	graph.Exec(graphql.WithOperationContext(t.Context(), opCtx))
 
 	rewritten := doc.Fragments[0].SelectionSet[0].(*ast.Field)
 	if rewritten.Name != "field" || rewritten.Alias != "birthDate" {
@@ -198,58 +323,190 @@ func TestRewritesThroughFragments(t *testing.T) {
 	}
 }
 
-func TestReloadsOnlyOnAVersionBump(t *testing.T) {
+func TestBuildsATenantsGraphAgainOnlyWhenItsStampMoves(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
+	source := sourceOf(birthDate)
 	build, _ := stubBuild(t, carriedSDL, nil, &calls)
-	dyn := dyngraph.New(build, source)
+	graphs := graphsOf(build, 0, source)
+	graphs.For(t.Context())
 	built := calls
 
-	dyn.Exec(operationFor(t, dyn.Schema(), `{ contact { name } }`))
-	dyn.Exec(operationFor(t, dyn.Schema(), `{ contact { name } }`))
+	graphs.For(t.Context())
 	if calls != built {
-		t.Errorf("builds = %d, want %d with the version unchanged", calls, built)
+		t.Errorf("builds = %d, want %d with the stamp unchanged", calls, built)
 	}
-
 	extra := sdk.GraphField{Entity: "Contact", Name: "loyaltyPoints", Type: "JSON"}
-	source.version, source.fields = 2, []sdk.GraphField{birthDate, extra}
-	dyn.Exec(operationFor(t, dyn.Schema(), `{ contact { name } }`))
+	source.set(sdk.DefaultTenantID, 2, birthDate, extra)
+	schema := graphs.For(t.Context()).Schema()
+
 	if calls != built+1 {
-		t.Errorf("builds = %d, want %d after the bump", calls, built+1)
+		t.Errorf("builds = %d, want %d after the stamp moved", calls, built+1)
 	}
-	if dyn.Schema().Types["Contact"].Fields.ForName("loyaltyPoints") == nil {
-		t.Error("loyaltyPoints missing, want the bumped catalogue served")
-	}
-}
-
-func TestServesASourceStartingAtVersionZero(t *testing.T) {
-	t.Parallel()
-
-	build, _ := stubBuild(t, carriedSDL, nil, nil)
-
-	dyn := dyngraph.New(build, &fakeSource{version: 0, fields: []sdk.GraphField{birthDate}})
-
-	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") == nil {
-		t.Error("birthDate missing, want a zero version catalogue served too")
+	if schema.Types["Contact"].Fields.ForName("loyaltyPoints") == nil {
+		t.Error("loyaltyPoints missing, want the moved catalogue served")
 	}
 }
 
-func TestSchemaRefreshesBeforeValidationSeesIt(t *testing.T) {
+func TestBuildsOneGraphForCallersMissingATenantTogether(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
-	build, _ := stubBuild(t, carriedSDL, nil, nil)
-	dyn := dyngraph.New(build, source)
-	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") == nil {
-		t.Fatal("birthDate missing, want the first load served")
+	var builds atomic.Int32
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	counted := func(widened *ast.Schema) graphql.ExecutableSchema {
+		builds.Add(1)
+		return stub(widened)
 	}
+	source := sourceOf(birthDate)
+	entered, release := source.gate()
+	graphs := graphsOf(counted, 0, source)
+	answers := make(chan graphql.ExecutableSchema, 3)
+	for range 3 {
+		go func() { answers <- graphs.For(t.Context()) }()
+	}
+	for range 3 {
+		<-entered
+	}
+	source.ungate()
 
-	source.version, source.fields = 2, nil
+	close(release)
 
-	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") != nil {
-		t.Error("birthDate still declared, want Schema() to serve the archived catalogue")
+	first := <-answers
+	for range 2 {
+		if <-answers != first {
+			t.Error("callers missing the tenant together got different graphs, want the one built for them all")
+		}
+	}
+	if got := builds.Load(); got != 2 {
+		t.Errorf("builds = %d, want the compiled schema and one widened graph", got)
+	}
+}
+
+func TestBuildsATenantsGraphWhileAnotherTenantsBuildRuns(t *testing.T) {
+	t.Parallel()
+
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	gated := func(widened *ast.Schema) graphql.ExecutableSchema {
+		if widened != nil && widened.Types["Contact"].Fields.ForName("birthDate") != nil {
+			entered <- struct{}{}
+			<-release
+		}
+		return stub(widened)
+	}
+	source := sourceOf()
+	inSlow, slow := inTenantOf(t)
+	inQuick, quick := inTenantOf(t)
+	source.set(slow, 1, birthDate)
+	source.set(quick, 1, shoeSize)
+	graphs := graphsOf(gated, 0, source)
+	go graphs.For(inSlow)
+	<-entered
+
+	built := make(chan graphql.ExecutableSchema, 1)
+	go func() { built <- graphs.For(inQuick) }()
+
+	select {
+	case graph := <-built:
+		if graph.Schema().Types["Contact"].Fields.ForName("shoeSize") == nil {
+			t.Error("shoeSize missing, want the quick tenant's own graph")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a tenant's graph waited on another tenant's build, want builds of different tenants apart")
+	}
+}
+
+func TestLetsGoOfABuildLockOnceNoBuildUsesIt(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	inAcme, acme := inTenantOf(t)
+	source.set(acme, 1, shoeSize)
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 0, source)
+	graphs.For(t.Context())
+
+	graphs.For(inAcme)
+
+	if got := graphs.BuildLocks(); got != 0 {
+		t.Errorf("build locks = %d, want none once no build runs", got)
+	}
+}
+
+func TestKeepsATenantsBuildLockWhileTheCacheLetsItsGraphGo(t *testing.T) {
+	t.Parallel()
+
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	gated := func(widened *ast.Schema) graphql.ExecutableSchema {
+		if widened != nil && declares(widened, "loyaltyPoints") && !declares(widened, "shoeSize") {
+			entered <- struct{}{}
+			<-release
+		}
+		return stub(widened)
+	}
+	source := sourceOf()
+	inAcme, acme := inTenantOf(t)
+	inOther, other := inTenantOf(t)
+	source.set(acme, 1, birthDate)
+	source.set(other, 1, shoeSize)
+	graphs := graphsOf(gated, 1, source)
+	graphs.For(inAcme)
+	source.set(acme, 2, birthDate, loyaltyPoints)
+	older := make(chan graphql.ExecutableSchema, 1)
+	go func() { older <- graphs.For(inAcme) }()
+	<-entered
+	graphs.For(inOther)
+	source.set(acme, 3, birthDate, loyaltyPoints, shoeSize)
+
+	newer := make(chan graphql.ExecutableSchema, 1)
+	go func() { newer <- graphs.For(inAcme) }()
+	select {
+	case <-newer:
+		close(release)
+		t.Fatal("a caller built beside the tenant's build under way, want it to wait for that build")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	<-older
+
+	if !declares((<-newer).Schema(), "shoeSize") {
+		t.Error("the caller that waited got an older graph, want the newest one")
+	}
+	source.fail()
+	if !declares(graphs.For(inAcme).Schema(), "shoeSize") {
+		t.Error("the held graph lost shoeSize, want an older build never kept over a newer one")
+	}
+}
+
+func TestBuildsFromTheSourcesAsTheyStandOnceTheTenantsLockIsHeld(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 0, source)
+	graphs.For(t.Context())
+	source.set(sdk.DefaultTenantID, 2, birthDate, loyaltyPoints)
+	entered, release := source.gate()
+	late := make(chan graphql.ExecutableSchema, 1)
+	go func() { late <- graphs.For(t.Context()) }()
+	<-entered
+	source.ungate()
+	source.set(sdk.DefaultTenantID, 3, birthDate, loyaltyPoints, shoeSize)
+	graphs.For(t.Context())
+
+	close(release)
+
+	if !declares((<-late).Schema(), "shoeSize") {
+		t.Error("a caller built from the sources as it first read them, want them read again under the lock")
+	}
+	source.fail()
+	if !declares(graphs.For(t.Context()).Schema(), "shoeSize") {
+		t.Error("the held graph lost shoeSize, want an older reading never built over a newer graph")
 	}
 }
 
@@ -257,13 +514,15 @@ func TestRewritesAnyFieldTheCompiledSchemaLacks(t *testing.T) {
 	t.Parallel()
 
 	var seen *ast.OperationDefinition
-	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
+	source := sourceOf(birthDate)
 	build, _ := stubBuild(t, carriedSDL, &seen, nil)
-	dyn := dyngraph.New(build, source)
-	ctx := operationFor(t, dyn.Schema(), `{ contact { birthDate } }`)
-	source.version, source.fields = 2, nil
+	graphs := graphsOf(build, 0, source)
+	graph := graphs.For(t.Context())
+	ctx := operationFor(t, graph.Schema(), `{ contact { birthDate } }`)
+	source.set(sdk.DefaultTenantID, 2)
+	graphs.For(t.Context())
 
-	dyn.Exec(ctx)
+	graph.Exec(ctx)
 
 	rewritten := seen.SelectionSet[0].(*ast.Field).SelectionSet[0].(*ast.Field)
 	if rewritten.Name != "field" {
@@ -275,10 +534,9 @@ func TestLeavesAFieldAloneOnATypeCarryingNoCarrier(t *testing.T) {
 	t.Parallel()
 
 	var seen *ast.OperationDefinition
-	build, compiled := stubBuild(t, bareSDL, &seen, nil)
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
-	contact := compiled.Types["Contact"]
-	selection := &ast.Field{Name: "birthDate", ObjectDefinition: contact}
+	build, compiled := stubBuild(t, carriedSDL, &seen, nil)
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
+	selection := &ast.Field{Name: "estimatedHours", ObjectDefinition: compiled.Types["Task"]}
 	operation := &ast.OperationDefinition{
 		Operation:    ast.Query,
 		SelectionSet: ast.SelectionSet{selection},
@@ -286,10 +544,31 @@ func TestLeavesAFieldAloneOnATypeCarryingNoCarrier(t *testing.T) {
 	ctx := graphql.WithOperationContext(t.Context(),
 		&graphql.OperationContext{Operation: operation, Doc: &ast.QueryDocument{}})
 
-	dyn.Exec(ctx)
+	graph.Exec(ctx)
+
+	if selection.Name != "estimatedHours" {
+		t.Errorf("selection = %q, want it untouched when the type carries no carrier", selection.Name)
+	}
+}
+
+func TestLeavesAFieldAloneOnATypeTheCompiledSchemaLacks(t *testing.T) {
+	t.Parallel()
+
+	var seen *ast.OperationDefinition
+	build, _ := stubBuild(t, carriedSDL, &seen, nil)
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
+	selection := &ast.Field{Name: "birthDate", ObjectDefinition: &ast.Definition{Name: "Unknown"}}
+	operation := &ast.OperationDefinition{
+		Operation:    ast.Query,
+		SelectionSet: ast.SelectionSet{selection},
+	}
+	ctx := graphql.WithOperationContext(t.Context(),
+		&graphql.OperationContext{Operation: operation, Doc: &ast.QueryDocument{}})
+
+	graph.Exec(ctx)
 
 	if selection.Name != "birthDate" {
-		t.Errorf("selection = %q, want it untouched when the type carries no carrier", selection.Name)
+		t.Errorf("selection = %q, want it untouched on a type the compiled schema lacks", selection.Name)
 	}
 }
 
@@ -297,9 +576,9 @@ func TestDelegatesComplexityToTheInnerExecutor(t *testing.T) {
 	t.Parallel()
 
 	build, _ := stubBuild(t, carriedSDL, nil, nil)
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
 
-	if _, priced := dyn.Complexity(t.Context(), "Contact", "name", 1, nil); priced {
+	if _, priced := graph.Complexity(t.Context(), "Contact", "name", 1, nil); priced {
 		t.Error("Complexity() priced a field the stub never prices, want the inner answer")
 	}
 }
@@ -309,11 +588,11 @@ func TestRewritesInsideInlineFragmentsAndSkipsIntrospection(t *testing.T) {
 
 	var seen *ast.OperationDefinition
 	build, _ := stubBuild(t, carriedSDL, &seen, nil)
-	dyn := dyngraph.New(build, &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}})
+	graph := graphsOf(build, 0, sourceOf(birthDate)).For(t.Context())
 	source := `{ contact { __typename ... on Contact { birthDate } } }`
-	ctx := operationFor(t, dyn.Schema(), source)
+	ctx := operationFor(t, graph.Schema(), source)
 
-	dyn.Exec(ctx)
+	graph.Exec(ctx)
 
 	contact := seen.SelectionSet[0].(*ast.Field)
 	typename := contact.SelectionSet[0].(*ast.Field)
@@ -326,18 +605,104 @@ func TestRewritesInsideInlineFragmentsAndSkipsIntrospection(t *testing.T) {
 	}
 }
 
-func TestServesTheLastSnapshotOnASourceError(t *testing.T) {
+func TestServesTheLastGraphOnASourceError(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeSource{version: 1, fields: []sdk.GraphField{birthDate}}
+	source := sourceOf(birthDate)
 	build, _ := stubBuild(t, carriedSDL, nil, nil)
-	dyn := dyngraph.New(build, source)
+	graphs := graphsOf(build, 0, source)
+	graphs.For(t.Context())
 
+	source.mu.Lock()
 	source.err = errors.New("catalogue unavailable")
-	source.version = 9
-	dyn.Exec(operationFor(t, dyn.Schema(), `{ contact { name } }`))
+	source.mu.Unlock()
+	source.set(sdk.DefaultTenantID, 9)
 
-	if dyn.Schema().Types["Contact"].Fields.ForName("birthDate") == nil {
-		t.Error("birthDate missing, want the last good snapshot served on an error")
+	if graphs.For(t.Context()).Schema().Types["Contact"].Fields.ForName("birthDate") == nil {
+		t.Error("birthDate missing, want the last good graph served on an error")
+	}
+}
+
+func TestServesThePlainGraphOnASourceErrorBeforeAnyGraph(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	source.err = errors.New("catalogue unavailable")
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 0, source)
+
+	if graphs.For(t.Context()) != graphs.Plain() {
+		t.Error("a failed first read served a graph of its own, want the plain one")
+	}
+}
+
+func TestLetsTheTenantServedLeastRecentlyGo(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	inAcme, acme := inTenantOf(t)
+	source.set(acme, 1, shoeSize)
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 1, source)
+	first := graphs.For(t.Context())
+	graphs.For(inAcme)
+
+	if graphs.For(t.Context()) == first {
+		t.Error("the tenant kept its graph past the one held, want it let go and built again")
+	}
+}
+
+// visitFreshTenants serves count fresh tenants a field each.
+func visitFreshTenants(t *testing.T, graphs *dyngraph.Graphs[graphql.ExecutableSchema], source *fakeSource, count int) {
+	t.Helper()
+	for range count {
+		ctx, tenant := inTenantOf(t)
+		source.set(tenant, 1, shoeSize)
+		graphs.For(ctx)
+	}
+}
+
+func TestHoldsTheDefaultNumberOfTenantsWhenGivenNone(t *testing.T) {
+	t.Parallel()
+
+	for _, given := range []int{0, -1} {
+		t.Run(fmt.Sprint(given), func(t *testing.T) {
+			t.Parallel()
+
+			source := sourceOf(birthDate)
+			build, _ := stubBuild(t, carriedSDL, nil, nil)
+			graphs := graphsOf(build, given, source)
+			first := graphs.For(t.Context())
+			visitFreshTenants(t, graphs, source, sdk.DefaultTenantsHeld-1)
+			if graphs.For(t.Context()) != first {
+				t.Fatal("the tenant lost its graph before the default number was passed, want it held")
+			}
+
+			visitFreshTenants(t, graphs, source, sdk.DefaultTenantsHeld)
+
+			if graphs.For(t.Context()) == first {
+				t.Error("the tenant kept its graph past the default number, want it let go and built again")
+			}
+		})
+	}
+}
+
+func TestBuildsATenantsGraphAgainWhenAnySourcesStampMoves(t *testing.T) {
+	t.Parallel()
+
+	first := sourceOf(birthDate)
+	second := sourceOf()
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 0, first, second)
+	graphs.For(t.Context())
+
+	second.set(sdk.DefaultTenantID, 2, shoeSize)
+	schema := graphs.For(t.Context()).Schema()
+
+	if schema.Types["Contact"].Fields.ForName("shoeSize") == nil {
+		t.Error("shoeSize missing, want the graph built again when the second source's stamp moved")
+	}
+	if schema.Types["Contact"].Fields.ForName("birthDate") == nil {
+		t.Error("birthDate missing, want the first source's field still served")
 	}
 }

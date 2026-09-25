@@ -77,13 +77,15 @@ func run(
 
 	resolver := contact.NewResolver(contacts, contact.WithEvents(events))
 	registered, err := plugins(sdk.Deps{
-		DatabaseURL:  settings.databaseURL,
-		PublicURL:    settings.mail.publicURL,
-		MachineGrace: settings.machineGrace,
-		Resolver:     resolverBridge{resolver: resolver},
-		Contacts:     directoryBridge{resolver: resolver},
-		Events:       pluginPublisher{publisher: events},
-		Getenv:       getenv,
+		DatabaseURL:    settings.databaseURL,
+		PublicURL:      settings.mail.publicURL,
+		MachineGrace:   settings.machineGrace,
+		TenantsHeld:    settings.tenants.held,
+		TenantsRefresh: settings.tenants.refresh,
+		Resolver:       resolverBridge{resolver: resolver},
+		Contacts:       directoryBridge{resolver: resolver},
+		Events:         pluginPublisher{publisher: events},
+		Getenv:         getenv,
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
@@ -143,20 +145,17 @@ func run(
 		return errors.Join(fmt.Errorf("compose graph root: %w", err), host.Stop(stopCtx))
 	}
 
-	cfg := server.Config{
-		Version:           version.Version(),
-		Users:             userStore,
-		Tenants:           tenants,
-		Auth:              auth,
-		GraphRoot:         graphRoot,
-		Tokens:            tokens,
-		Plugins:           host.Routes(),
-		PluginPublicPaths: host.PublicPaths(),
-		PluginAreas:       pluginAreas(registered),
-		FieldSources:      fieldSources(registered),
-		TrustedProxies:    settings.trustedProxies,
-		GraphiQL:          settings.graphiql,
-	}
+	cfg := settings.serverConfig()
+	cfg.Version = version.Version()
+	cfg.Users = userStore
+	cfg.Tenants = tenants
+	cfg.Auth = auth
+	cfg.GraphRoot = graphRoot
+	cfg.Tokens = tokens
+	cfg.Plugins = host.Routes()
+	cfg.PluginPublicPaths = host.PublicPaths()
+	cfg.PluginAreas = pluginAreas(registered)
+	cfg.FieldSources = fieldSources(registered)
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
 	}
@@ -294,6 +293,35 @@ type runConfig struct {
 	mail           mailSettings
 	inviteTTL      time.Duration
 	reset          resetSettings
+	tenants        tenantSettings
+}
+
+// tenantSettings bounds the per-tenant state plugins and the graph keep in memory.
+type tenantSettings struct {
+	held    int
+	refresh time.Duration
+}
+
+// serverConfig returns the server settings the run config carries, for run to complete.
+func (c runConfig) serverConfig() server.Config {
+	return server.Config{
+		TrustedProxies: c.trustedProxies,
+		GraphiQL:       c.graphiql,
+		TenantsHeld:    c.tenants.held,
+	}
+}
+
+// loadTenantSettings reads how many tenants' state to keep in memory and how long to keep one.
+func loadTenantSettings(getenv func(string) string) (tenantSettings, error) {
+	held, err := parsePositiveCount("ALPHONE_TENANTS_HELD", getenv("ALPHONE_TENANTS_HELD"), sdk.DefaultTenantsHeld)
+	if err != nil {
+		return tenantSettings{}, err
+	}
+	refresh, err := parseTokenTTL("ALPHONE_TENANTS_REFRESH", getenv("ALPHONE_TENANTS_REFRESH"), sdk.DefaultTenantsRefresh)
+	if err != nil {
+		return tenantSettings{}, err
+	}
+	return tenantSettings{held: held, refresh: refresh}, nil
 }
 
 // resetSettings names the lifetime, stack and rate the reset links ride under.
@@ -505,6 +533,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	tenants, err := loadTenantSettings(getenv)
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
@@ -515,6 +547,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		mail:           mail,
 		inviteTTL:      inviteTTL,
 		reset:          reset,
+		tenants:        tenants,
 	}, nil
 }
 

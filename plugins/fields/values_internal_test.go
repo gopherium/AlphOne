@@ -64,9 +64,6 @@ func TestWriteContactFieldsReportsAStoreFailure(t *testing.T) {
 	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
-	if err := p.catalog.reload(t.Context()); err != nil {
-		t.Fatalf("reload() error = %v, want nil", err)
-	}
 
 	_, err := (MutationResolvers{plugin: p}).WriteContactFields(
 		t.Context(), uuid.Must(uuid.NewV7()), map[string]any{"birthDate": "1990-04-17"})

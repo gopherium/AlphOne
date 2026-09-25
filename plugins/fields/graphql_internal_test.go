@@ -33,7 +33,7 @@ func TestFieldReasonAnswersNothingForAnUnlistedError(t *testing.T) {
 	}
 }
 
-// errCatalogue is the failure a wedged catalogue reload reports.
+// errCatalogue is the failure a wedged catalogue read reports.
 var errCatalogue = errors.New("catalogue unavailable")
 
 // newClosedPlugin returns a migrated plugin whose pool is already closed.
@@ -44,11 +44,13 @@ func newClosedPlugin(t *testing.T) *Plugin {
 	return p
 }
 
-// newWedgedPlugin returns a working store whose catalogue always fails to reload.
+// newWedgedPlugin returns a working store whose catalogue always fails to read.
 func newWedgedPlugin(t *testing.T) *Plugin {
 	t.Helper()
 	p := newMigratedPlugin(t)
-	p.catalog = newCatalog(&fakeLoader{err: errCatalogue})
+	loader := newFakeLoader()
+	loader.err = errCatalogue
+	p.catalog = newCatalog(loader, 0, 0)
 	return p
 }
 
@@ -85,22 +87,78 @@ func TestResolversReportAClosedPool(t *testing.T) {
 	}
 }
 
-func TestResolversReportAFailedCatalogueReload(t *testing.T) {
+func TestAWriteReportsAFailedCatalogueRead(t *testing.T) {
 	t.Parallel()
 
 	p := newWedgedPlugin(t)
-	stored := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), stored); err != nil {
-		t.Fatalf("create() error = %v, want nil", err)
-	}
 
-	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "loyaltyPoints", "Points", model.FieldKindNumber)
+	_, err := (MutationResolvers{plugin: p}).WriteContactFields(
+		t.Context(), uuid.Must(uuid.NewV7()), map[string]any{"birthDate": "1990-04-17"})
+
 	if !errors.Is(err, errCatalogue) {
-		t.Errorf("DefineField() error = %v, want the reload failure", err)
+		t.Errorf("WriteContactFields() error = %v, want the catalogue failure", err)
+	}
+}
+
+func TestADefineOrArchiveTheStoreCommittedAnswersSuccess(t *testing.T) {
+	t.Parallel()
+
+	p := newWedgedPlugin(t)
+
+	defined, err := (MutationResolvers{plugin: p}).DefineField(
+		t.Context(), "loyaltyPoints", "Points", model.FieldKindNumber)
+	if err != nil {
+		t.Fatalf("DefineField() error = %v, want the committed define answered", err)
+	}
+	archived, err := (MutationResolvers{plugin: p}).ArchiveField(t.Context(), defined.ID)
+
+	if err != nil || !archived {
+		t.Errorf("ArchiveField() = %v, %v, want the committed archive answered", archived, err)
+	}
+}
+
+func TestAWriteChecksTheCallersOwnFields(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	contactID := seedContact(t, p, "Maria Perez")
+	definedField(t, p, t.Context(), "birthDate")
+	definedField(t, p, acme, "shoeSize")
+	resolvers := MutationResolvers{plugin: p}
+
+	if _, err := resolvers.WriteContactFields(acme, contactID, map[string]any{"shoeSize": "44"}); err != nil {
+		t.Errorf("Acme writing its own shoeSize error = %v, want nil", err)
+	}
+	if _, err := resolvers.WriteContactFields(t.Context(), contactID, map[string]any{"shoeSize": "44"}); err == nil {
+		t.Error("the default tenant writing Acme's shoeSize error = nil, want it refused")
+	}
+	if _, err := resolvers.WriteContactFields(acme, contactID, map[string]any{"birthDate": "x"}); err == nil {
+		t.Error("Acme writing the default tenant's birthDate error = nil, want it refused")
+	}
+}
+
+func TestDefiningAndArchivingRenewTheCallersFields(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	contactID := seedContact(t, p, "Maria Perez")
+	resolvers := MutationResolvers{plugin: p}
+	mustView(t, p.catalog, t.Context())
+
+	stored, err := resolvers.DefineField(t.Context(), "birthDate", "Birth date", model.FieldKindText)
+	if err != nil {
+		t.Fatalf("DefineField() error = %v, want nil", err)
+	}
+	if _, err := resolvers.WriteContactFields(t.Context(), contactID, map[string]any{"birthDate": "x"}); err != nil {
+		t.Fatalf("a write after the define error = %v, want the new field known", err)
+	}
+	if _, err := resolvers.ArchiveField(t.Context(), stored.ID); err != nil {
+		t.Fatalf("ArchiveField() error = %v, want nil", err)
 	}
 
-	if _, err := (MutationResolvers{plugin: p}).ArchiveField(t.Context(), stored.ID); !errors.Is(err, errCatalogue) {
-		t.Errorf("ArchiveField() error = %v, want the reload failure", err)
+	if _, err := resolvers.WriteContactFields(t.Context(), contactID, map[string]any{"birthDate": "x"}); err == nil {
+		t.Error("a write after the archive error = nil, want the archived field refused")
 	}
 }
 

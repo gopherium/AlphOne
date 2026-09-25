@@ -18,6 +18,33 @@ import (
 // coreListingQuery is the fixed contact listing the byte identity scenario pins.
 const coreListingQuery = `{"query":"{ contacts(first: 5) { edges { node { id name createdAt } } } }"}`
 
+// contactTypeQuery introspects the fields of the Contact type.
+const contactTypeQuery = `{"query":"{ __type(name: \"Contact\") { fields { name type { name } } } }"}`
+
+// introspectedScalars returns the scalar each Contact field answers with in the last introspection.
+func (w *world) introspectedScalars() (map[string]string, error) {
+	var answer struct {
+		Data struct {
+			Type struct {
+				Fields []struct {
+					Name string `json:"name"`
+					Type struct {
+						Name string `json:"name"`
+					} `json:"type"`
+				} `json:"fields"`
+			} `json:"__type"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.answered, &answer); err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", w.answered, err)
+	}
+	scalars := make(map[string]string, len(answer.Data.Type.Fields))
+	for _, held := range answer.Data.Type.Fields {
+		scalars[held.Name] = held.Type.Name
+	}
+	return scalars, nil
+}
+
 // postGraph posts a graph request with the world's bearer token.
 func (w *world) postGraph(ctx context.Context, body string) ([]byte, error) {
 	request, err := http.NewRequestWithContext(
@@ -72,47 +99,6 @@ func registerFieldsGraphSteps(sc *godog.ScenarioContext, t *testing.T) {
 			return worldFrom(ctx).defineField(ctx, name, label, kind)
 		})
 
-	sc.When(`^the Contact type is introspected$`, func(ctx context.Context) error {
-		w := worldFrom(ctx)
-		const query = `{"query":"{ __type(name: \"Contact\") { fields { name type { name } } } }"}`
-		raw, err := w.postGraph(ctx, query)
-		if err != nil {
-			return err
-		}
-		w.answered = raw
-		return nil
-	})
-
-	sc.Then(`^the introspection lists "([^"]*)" answering the scalar "([^"]*)"$`,
-		func(ctx context.Context, name, scalar string) error {
-			var answer struct {
-				Data struct {
-					Type struct {
-						Fields []struct {
-							Name string `json:"name"`
-							Type struct {
-								Name string `json:"name"`
-							} `json:"type"`
-						} `json:"fields"`
-					} `json:"__type"`
-				} `json:"data"`
-			}
-			w := worldFrom(ctx)
-			if err := json.Unmarshal(w.answered, &answer); err != nil {
-				return fmt.Errorf("decoding %s: %w", w.answered, err)
-			}
-			for _, held := range answer.Data.Type.Fields {
-				if held.Name != name {
-					continue
-				}
-				if held.Type.Name != scalar {
-					return fmt.Errorf("%s answers %q, want %q", name, held.Type.Name, scalar)
-				}
-				return nil
-			}
-			return fmt.Errorf("introspection lists no field %q, answered %s", name, w.answered)
-		})
-
 	sc.Then(`^the core contact listing answers byte identical to the capture$`,
 		func(ctx context.Context) error {
 			w := worldFrom(ctx)
@@ -122,6 +108,37 @@ func registerFieldsGraphSteps(sc *godog.ScenarioContext, t *testing.T) {
 			}
 			if !bytes.Equal(answered, w.captured) {
 				return fmt.Errorf("the listing changed, captured %s, answered %s", w.captured, answered)
+			}
+			return nil
+		})
+	bindIntrospectionSteps(sc)
+}
+
+// bindIntrospectionSteps binds the Contact introspection steps onto an already booted world.
+func bindIntrospectionSteps(sc *godog.ScenarioContext) {
+	sc.When(`^the Contact type is introspected$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		raw, err := w.postGraph(ctx, contactTypeQuery)
+		if err != nil {
+			return err
+		}
+		w.answered = raw
+		return nil
+	})
+
+	sc.Then(`^the introspection lists "([^"]*)" answering the scalar "([^"]*)"$`,
+		func(ctx context.Context, name, scalar string) error {
+			w := worldFrom(ctx)
+			scalars, err := w.introspectedScalars()
+			if err != nil {
+				return err
+			}
+			held, listed := scalars[name]
+			if !listed {
+				return fmt.Errorf("introspection lists no field %q, answered %s", name, w.answered)
+			}
+			if held != scalar {
+				return fmt.Errorf("%s answers %q, want %q", name, held, scalar)
 			}
 			return nil
 		})

@@ -39,7 +39,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		return nil, fmt.Errorf("fields: connect database: %w", err)
 	}
 	store := &store{pool: pool}
-	return &Plugin{pool: pool, store: store, catalog: newCatalog(store)}, nil
+	return &Plugin{pool: pool, store: store, catalog: newCatalog(store, deps.TenantsHeld, deps.TenantsRefresh)}, nil
 }
 
 // ID reports the plugin identifier.
@@ -47,9 +47,9 @@ func (p *Plugin) ID() string {
 	return "fields"
 }
 
-// Start loads the catalogue the graph serves.
-func (p *Plugin) Start(ctx context.Context) error {
-	return p.catalog.reload(ctx)
+// Start leaves every tenant's catalogue to the first request that needs it.
+func (p *Plugin) Start(_ context.Context) error {
+	return nil
 }
 
 // Stop releases the plugin's database resources.
@@ -84,10 +84,13 @@ func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 	return nil
 }
 
-// FieldsSnapshot reports the catalogue version and the fields the graph serves.
+// FieldsSnapshot reports the stamp of the calling tenant's catalogue and the fields the graph serves it.
 func (p *Plugin) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
-	version, held := p.catalog.snapshot(ctx)
-	return version, held, nil
+	read, err := p.catalog.viewFor(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	return read.stamp, read.fields, nil
 }
 
 // mustSub returns the sub-filesystem of fsys rooted at dir, panicking if it cannot be created.

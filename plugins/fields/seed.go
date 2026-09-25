@@ -25,9 +25,7 @@ func (p *Plugin) Seed(ctx context.Context) error {
 	if err := p.seedDefinition(ctx); err != nil {
 		return err
 	}
-	if err := p.catalog.reload(ctx); err != nil {
-		return err
-	}
+	p.catalog.forget(ctx)
 	return p.seedValue(ctx)
 }
 

@@ -42,14 +42,28 @@ const (
 // graphRetryAfter is how soon a caller may retry an operation the budget refused.
 const graphRetryAfter = time.Second
 
-// executableSchema serves the compiled schema, widened when field sources exist.
-func executableSchema(root graph.ResolverRoot, sources []sdk.FieldSource) graphql.ExecutableSchema {
-	if len(sources) == 0 {
-		return graphres.ExecutableSchema(root)
-	}
+// graphServer returns the gqlgen server answering over one executable schema with every graph guard.
+func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *handler.Server {
+	srv := handler.New(schema)
+	srv.AddTransport(subscriptionSSE{})
+	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.MultipartForm{})
+	srv.Use(extension.Introspection{})
+	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.AroundOperations(graphres.AnonymousGate)
+	srv.AroundOperations(graphres.ScopeGate(scopes))
+	srv.SetErrorPresenter(graphres.PresentError)
+	return srv
+}
+
+// tenantGraphs returns the graph servers answering each tenant over its own widened schema.
+func tenantGraphs(root graph.ResolverRoot, sources []sdk.FieldSource, held int) *dyngraph.Graphs[*handler.Server] {
+	scopes := graphres.NewScopeMap(graphres.ExecutableSchema(root).Schema())
 	return dyngraph.New(func(widened *ast.Schema) graphql.ExecutableSchema {
 		return graphres.ExecutableSchemaOver(root, widened)
-	}, sources...)
+	}, func(schema graphql.ExecutableSchema) *handler.Server {
+		return graphServer(schema, scopes)
+	}, held, sources...)
 }
 
 // graphPolicy is the budget one kind of graph request is held to.
@@ -73,28 +87,21 @@ func retryAfterSeconds(hint time.Duration) int {
 	return seconds
 }
 
-// newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root.
+// newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root, each tenant its own fields.
 func newGraphQLHandler(
 	root graph.ResolverRoot,
 	tenants TenantStore,
 	streamLifetime time.Duration,
 	maxStreams int,
 	sources []sdk.FieldSource,
+	held int,
 ) http.Handler {
-	schema := executableSchema(root, sources)
-	srv := handler.New(schema)
-	srv.AddTransport(subscriptionSSE{})
-	srv.AddTransport(transport.POST{})
-	srv.AddTransport(transport.MultipartForm{})
-	srv.Use(extension.Introspection{})
-	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
-	srv.AroundOperations(graphres.AnonymousGate)
-	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema())))
-	srv.SetErrorPresenter(graphres.PresentError)
+	graphs := tenantGraphs(root, sources, held)
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
 		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
+		answer := graphs.Plain()
 		if user := authkit.IdentityFromContext(r.Context()); user.ID != uuid.Nil {
 			standing, err := withStandingTenant(sdk.WithUser(ctx, user.ID), tenants, user.ID)
 			if err != nil {
@@ -102,8 +109,9 @@ func newGraphQLHandler(
 				return
 			}
 			ctx = standing
+			answer = graphs.For(ctx)
 		}
-		srv.ServeHTTP(w, r.WithContext(ctx))
+		answer.ServeHTTP(w, r.WithContext(ctx))
 	})
 	operations, streams := graphPolicies(streamLifetime, maxStreams)
 	return withOperationGuards(loaded, operations, streams)

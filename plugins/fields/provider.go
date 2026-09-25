@@ -33,9 +33,9 @@ func (p *Plugin) LiveContactFields(ctx context.Context) ([]sdk.ContactField, err
 	return listed, nil
 }
 
-// CheckContactFieldTexts reports whether every text fits the kind its definition declares.
-func (p *Plugin) CheckContactFieldTexts(_ context.Context, values map[string]string) error {
-	_, err := p.readTexts(values)
+// CheckContactFieldTexts reports whether every text fits the kind the caller's definition declares.
+func (p *Plugin) CheckContactFieldTexts(ctx context.Context, values map[string]string) error {
+	_, err := p.readTexts(ctx, values)
 	return err
 }
 
@@ -43,7 +43,7 @@ func (p *Plugin) CheckContactFieldTexts(_ context.Context, values map[string]str
 func (p *Plugin) WriteContactFieldTexts(
 	ctx context.Context, contactID uuid.UUID, values map[string]string,
 ) error {
-	read, err := p.readTexts(values)
+	read, err := p.readTexts(ctx, values)
 	if err != nil {
 		return err
 	}
@@ -53,22 +53,36 @@ func (p *Plugin) WriteContactFieldTexts(
 	return p.store.writeValues(ctx, contactID, read)
 }
 
-// readTexts returns the storable values the texts describe, refusing the rest.
-func (p *Plugin) readTexts(values map[string]string) (map[string]any, error) {
-	live := p.catalog.liveKinds()
-	given := make(map[string]any, len(values))
-	for name, text := range values {
-		trimmed := strings.TrimSpace(text)
-		if trimmed == "" {
-			continue
-		}
-		given[name] = typedText(live[name], trimmed)
+// readTexts returns the storable values the texts describe under the caller's fields, refusing the rest.
+func (p *Plugin) readTexts(ctx context.Context, values map[string]string) (map[string]any, error) {
+	written := filledTexts(values)
+	if len(written) == 0 {
+		return map[string]any{}, nil
 	}
-	checked, err := checkValues(live, given)
+	held, err := p.catalog.viewFor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	given := make(map[string]any, len(written))
+	for name, text := range written {
+		given[name] = typedText(held.kinds[name], text)
+	}
+	checked, err := checkValues(held.kinds, given)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", sdk.ErrInvalidFieldText, err)
 	}
 	return checked, nil
+}
+
+// filledTexts returns the texts that carry more than space, trimmed.
+func filledTexts(values map[string]string) map[string]string {
+	filled := make(map[string]string, len(values))
+	for name, text := range values {
+		if trimmed := strings.TrimSpace(text); trimmed != "" {
+			filled[name] = trimmed
+		}
+	}
+	return filled
 }
 
 // typedText reads text as the value its kind holds, leaving the rest as written.

@@ -73,6 +73,11 @@ func initializeFieldsGraph(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerFieldsGraphSteps(sc, t) }
 }
 
+// initializeFieldsTenants registers the steps of fields kept per tenant.
+func initializeFieldsTenants(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsTenantsSteps(sc, t) }
+}
+
 // initializeTenants registers the tenant seam steps.
 func initializeTenants(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerTenantSteps(sc, t) }
@@ -128,6 +133,10 @@ func TestFieldsValues(t *testing.T) {
 
 func TestFieldsGraph(t *testing.T) {
 	runFeature(t, "features/fields-graph.feature", initializeFieldsGraph(t))
+}
+
+func TestFieldsTenants(t *testing.T) {
+	runFeature(t, "features/fields-tenants.feature", initializeFieldsTenants(t))
 }
 
 func TestTenants(t *testing.T) {
