@@ -88,17 +88,40 @@ type fakeSource struct {
 	release chan struct{}
 }
 
-// FieldsSnapshot reports the calling tenant's settable stamp and fields, held until released when gated.
+// FieldsSnapshot reports the calling tenant's stamp and fields as they stand when the call begins, held while gated.
 func (f *fakeSource) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
 	f.mu.Lock()
 	tenant := sdk.TenantOrDefault(ctx)
 	stamp, fields, err := f.stamps[tenant], f.fields[tenant], f.err
+	entered, release := f.entered, f.release
 	f.mu.Unlock()
-	if f.entered != nil {
-		f.entered <- struct{}{}
-		<-f.release
+	if entered != nil {
+		entered <- struct{}{}
+		<-release
 	}
 	return stamp, fields, err
+}
+
+// gate holds every later call until release closes, announcing each call on entered.
+func (f *fakeSource) gate() (entered <-chan struct{}, release chan struct{}) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entered, f.release = make(chan struct{}), make(chan struct{})
+	return f.entered, f.release
+}
+
+// ungate lets every later call answer at once.
+func (f *fakeSource) ungate() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entered, f.release = nil, nil
+}
+
+// fail makes every later call report an unavailable catalogue.
+func (f *fakeSource) fail() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err = errors.New("catalogue unavailable")
 }
 
 // set gives a tenant a stamp and the fields it serves.
@@ -121,6 +144,14 @@ var birthDate = sdk.GraphField{Entity: "Contact", Name: "birthDate", Type: "JSON
 
 // shoeSize is the field another tenant defines.
 var shoeSize = sdk.GraphField{Entity: "Contact", Name: "shoeSize", Type: "JSON"}
+
+// loyaltyPoints is the field a tenant defines between two of its graphs.
+var loyaltyPoints = sdk.GraphField{Entity: "Contact", Name: "loyaltyPoints", Type: "JSON"}
+
+// declares reports whether the schema declares the named field on Contact.
+func declares(schema *ast.Schema, name string) bool {
+	return schema.Types["Contact"].Fields.ForName(name) != nil
+}
 
 // served returns the executable schema itself, the way a test inspects what a tenant is served.
 func served(schema graphql.ExecutableSchema) graphql.ExecutableSchema { return schema }
@@ -328,18 +359,18 @@ func TestBuildsOneGraphForCallersMissingATenantTogether(t *testing.T) {
 		return stub(widened)
 	}
 	source := sourceOf(birthDate)
-	source.entered = make(chan struct{})
-	source.release = make(chan struct{})
+	entered, release := source.gate()
 	graphs := graphsOf(counted, 0, source)
 	answers := make(chan graphql.ExecutableSchema, 3)
 	for range 3 {
 		go func() { answers <- graphs.For(t.Context()) }()
 	}
 	for range 3 {
-		<-source.entered
+		<-entered
 	}
+	source.ungate()
 
-	close(source.release)
+	close(release)
 
 	first := <-answers
 	for range 2 {
@@ -388,20 +419,94 @@ func TestBuildsATenantsGraphWhileAnotherTenantsBuildRuns(t *testing.T) {
 	}
 }
 
-func TestLetsGoOfTheBuildLockOfATenantTheCacheLetsGo(t *testing.T) {
+func TestLetsGoOfABuildLockOnceNoBuildUsesIt(t *testing.T) {
 	t.Parallel()
 
 	source := sourceOf(birthDate)
 	inAcme, acme := inTenantOf(t)
 	source.set(acme, 1, shoeSize)
 	build, _ := stubBuild(t, carriedSDL, nil, nil)
-	graphs := graphsOf(build, 1, source)
+	graphs := graphsOf(build, 0, source)
 	graphs.For(t.Context())
 
 	graphs.For(inAcme)
 
-	if got := graphs.BuildLocks(); got != 1 {
-		t.Errorf("build locks = %d, want only the held tenant's", got)
+	if got := graphs.BuildLocks(); got != 0 {
+		t.Errorf("build locks = %d, want none once no build runs", got)
+	}
+}
+
+func TestKeepsATenantsBuildLockWhileTheCacheLetsItsGraphGo(t *testing.T) {
+	t.Parallel()
+
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	gated := func(widened *ast.Schema) graphql.ExecutableSchema {
+		if widened != nil && declares(widened, "loyaltyPoints") && !declares(widened, "shoeSize") {
+			entered <- struct{}{}
+			<-release
+		}
+		return stub(widened)
+	}
+	source := sourceOf()
+	inAcme, acme := inTenantOf(t)
+	inOther, other := inTenantOf(t)
+	source.set(acme, 1, birthDate)
+	source.set(other, 1, shoeSize)
+	graphs := graphsOf(gated, 1, source)
+	graphs.For(inAcme)
+	source.set(acme, 2, birthDate, loyaltyPoints)
+	older := make(chan graphql.ExecutableSchema, 1)
+	go func() { older <- graphs.For(inAcme) }()
+	<-entered
+	graphs.For(inOther)
+	source.set(acme, 3, birthDate, loyaltyPoints, shoeSize)
+
+	newer := make(chan graphql.ExecutableSchema, 1)
+	go func() { newer <- graphs.For(inAcme) }()
+	select {
+	case <-newer:
+		close(release)
+		t.Fatal("a caller built beside the tenant's build under way, want it to wait for that build")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	<-older
+
+	if !declares((<-newer).Schema(), "shoeSize") {
+		t.Error("the caller that waited got an older graph, want the newest one")
+	}
+	source.fail()
+	if !declares(graphs.For(inAcme).Schema(), "shoeSize") {
+		t.Error("the held graph lost shoeSize, want an older build never kept over a newer one")
+	}
+}
+
+func TestBuildsFromTheSourcesAsTheyStandOnceTheTenantsLockIsHeld(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 0, source)
+	graphs.For(t.Context())
+	source.set(sdk.DefaultTenantID, 2, birthDate, loyaltyPoints)
+	entered, release := source.gate()
+	late := make(chan graphql.ExecutableSchema, 1)
+	go func() { late <- graphs.For(t.Context()) }()
+	<-entered
+	source.ungate()
+	source.set(sdk.DefaultTenantID, 3, birthDate, loyaltyPoints, shoeSize)
+	graphs.For(t.Context())
+
+	close(release)
+
+	if !declares((<-late).Schema(), "shoeSize") {
+		t.Error("a caller built from the sources as it first read them, want them read again under the lock")
+	}
+	source.fail()
+	if !declares(graphs.For(t.Context()).Schema(), "shoeSize") {
+		t.Error("the held graph lost shoeSize, want an older reading never built over a newer graph")
 	}
 }
 

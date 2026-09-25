@@ -38,34 +38,43 @@ type graphEntry[T any] struct {
 	served T
 }
 
+// snapshot is every source's stamps and fields for one tenant, read together.
+type snapshot struct {
+	stamps []uint64
+	fields []sdk.GraphField
+}
+
+// buildLock orders one tenant's builds and counts the callers holding or awaiting it.
+type buildLock struct {
+	sync.Mutex
+	users int
+}
+
 // Graphs serves each tenant the generated schema widened by its own field catalogue.
 type Graphs[T any] struct {
-	build    Build
-	serve    Serve[T]
-	base     *ast.Schema
-	plain    T
-	sources  []sdk.FieldSource
-	held     *lru.Cache[uuid.UUID, graphEntry[T]]
-	building sync.Map
+	build   Build
+	serve   Serve[T]
+	base    *ast.Schema
+	plain   T
+	sources []sdk.FieldSource
+	held    *lru.Cache[uuid.UUID, graphEntry[T]]
+	locking sync.Mutex
+	locks   map[uuid.UUID]*buildLock
 }
 
 // New returns the graphs serving build widened by each tenant's fields from the sources, holding up to held tenants.
 func New[T any](build Build, serve Serve[T], held int, sources ...sdk.FieldSource) *Graphs[T] {
 	compiled := build(nil)
-	graphs := &Graphs[T]{
+	cache, _ := lru.New[uuid.UUID, graphEntry[T]](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld))
+	return &Graphs[T]{
 		build:   build,
 		serve:   serve,
 		base:    compiled.Schema(),
 		plain:   serve(compiled),
 		sources: sources,
+		held:    cache,
+		locks:   map[uuid.UUID]*buildLock{},
 	}
-	graphs.held, _ = lru.NewWithEvict(cmp.Or(max(held, 0), sdk.DefaultTenantsHeld), graphs.letGo)
-	return graphs
-}
-
-// letGo drops the build lock of a tenant whose graph the cache let go.
-func (g *Graphs[T]) letGo(tenant uuid.UUID, _ graphEntry[T]) {
-	g.building.Delete(tenant)
 }
 
 // Plain returns the compiled graph, the one served outside any tenant's fields.
@@ -79,32 +88,56 @@ func (g *Graphs[T]) For(ctx context.Context) T {
 		return g.plain
 	}
 	tenant := sdk.TenantOrDefault(ctx)
-	cached, found := g.held.Get(tenant)
-	stamps, fields, err := g.collect(ctx)
-	if err != nil {
-		if found {
-			return cached.served
-		}
-		return g.plain
+	if served, _, answered := g.check(ctx, tenant); answered {
+		return served
 	}
-	if found && slices.Equal(stamps, cached.stamps) {
-		return cached.served
+	unlock := g.lockFor(tenant)
+	defer unlock()
+	served, due, answered := g.check(ctx, tenant)
+	if answered {
+		return served
 	}
-	return g.builtFor(tenant, stamps, fields)
+	served = g.graphOf(due.fields)
+	g.held.Add(tenant, graphEntry[T]{stamps: due.stamps, served: served})
+	return served
 }
 
-// builtFor returns the tenant's graph for the given stamps, building it unless a caller missing it too already did.
-func (g *Graphs[T]) builtFor(tenant uuid.UUID, stamps []uint64, fields []sdk.GraphField) T {
-	held, _ := g.building.LoadOrStore(tenant, &sync.Mutex{})
-	lock := held.(*sync.Mutex)
-	lock.Lock()
-	defer lock.Unlock()
-	if cached, found := g.held.Get(tenant); found && slices.Equal(stamps, cached.stamps) {
-		return cached.served
+// check returns the graph the tenant is served without a build, or else the snapshot a build needs.
+func (g *Graphs[T]) check(ctx context.Context, tenant uuid.UUID) (T, snapshot, bool) {
+	cached, found := g.held.Get(tenant)
+	stamps, fields, err := g.collect(ctx)
+	switch {
+	case err != nil && found:
+		return cached.served, snapshot{}, true
+	case err != nil:
+		return g.plain, snapshot{}, true
+	case found && slices.Equal(stamps, cached.stamps):
+		return cached.served, snapshot{}, true
 	}
-	served := g.graphOf(fields)
-	g.held.Add(tenant, graphEntry[T]{stamps: stamps, served: served})
-	return served
+	var none T
+	return none, snapshot{stamps: stamps, fields: fields}, false
+}
+
+// lockFor locks the tenant's builds and returns the unlock, which lets the lock go once no caller holds or awaits it.
+func (g *Graphs[T]) lockFor(tenant uuid.UUID) func() {
+	g.locking.Lock()
+	lock, ok := g.locks[tenant]
+	if !ok {
+		lock = &buildLock{}
+		g.locks[tenant] = lock
+	}
+	lock.users++
+	g.locking.Unlock()
+	lock.Lock()
+	return func() {
+		lock.Unlock()
+		g.locking.Lock()
+		defer g.locking.Unlock()
+		lock.users--
+		if lock.users == 0 {
+			delete(g.locks, tenant)
+		}
+	}
 }
 
 // collect gathers every source's stamp and fields for the calling tenant.

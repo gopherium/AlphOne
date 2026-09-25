@@ -4,10 +4,7 @@ package dyngraph
 
 // BuildLocks reports how many tenants hold a build lock.
 func (g *Graphs[T]) BuildLocks() int {
-	locks := 0
-	g.building.Range(func(any, any) bool {
-		locks++
-		return true
-	})
-	return locks
+	g.locking.Lock()
+	defer g.locking.Unlock()
+	return len(g.locks)
 }
