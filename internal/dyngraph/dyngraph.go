@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Elastic-2.0
 
 // Package dyngraph serves runtime defined fields as real GraphQL fields over
-// the generated executable schema.
+// the generated executable schema, each tenant only its own.
 package dyngraph
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/gopherium/alphone/sdk"
@@ -26,79 +28,89 @@ const carrierArg = "name"
 // schema. A nil schema means the compiled in one.
 type Build func(*ast.Schema) graphql.ExecutableSchema
 
-// snapshot is one immutable view of the catalogue, its schema and its executor.
-type snapshot struct {
-	inner    graphql.ExecutableSchema
-	schema   *ast.Schema
-	byEntity map[string]map[string]sdk.GraphField
-	versions []uint64
+// Serve wraps one executable schema in what the host answers a request with.
+type Serve[T any] func(graphql.ExecutableSchema) T
+
+// graphEntry is one tenant's served graph and the source stamps it was built from.
+type graphEntry[T any] struct {
+	stamps []uint64
+	served T
 }
 
-// Schema serves the generated schema widened by every source's field catalogue.
-type Schema struct {
+// Graphs serves each tenant the generated schema widened by its own field catalogue.
+type Graphs[T any] struct {
 	build   Build
+	serve   Serve[T]
 	base    *ast.Schema
+	plain   T
 	sources []sdk.FieldSource
-	reload  sync.Mutex
-	live    atomic.Pointer[snapshot]
+	held    *lru.Cache[uuid.UUID, graphEntry[T]]
 }
 
-// New returns a schema serving build widened by the given sources.
-func New(build Build, sources ...sdk.FieldSource) *Schema {
-	s := &Schema{build: build, sources: sources}
+// New returns the graphs serving build widened by each tenant's fields from the sources, holding up to held tenants.
+func New[T any](build Build, serve Serve[T], held int, sources ...sdk.FieldSource) *Graphs[T] {
 	compiled := build(nil)
-	s.base = compiled.Schema()
-	s.live.Store(&snapshot{inner: compiled, schema: s.base})
-	s.refresh(context.Background())
-	return s
+	cache, _ := lru.New[uuid.UUID, graphEntry[T]](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld))
+	return &Graphs[T]{
+		build:   build,
+		serve:   serve,
+		base:    compiled.Schema(),
+		plain:   serve(compiled),
+		sources: sources,
+		held:    cache,
+	}
 }
 
-// refresh swaps the served snapshot when any source moved past it.
-func (s *Schema) refresh(ctx context.Context) {
-	if len(s.sources) == 0 {
-		return
-	}
-	versions, fields, err := s.collect(ctx)
-	if err != nil || versionsEqual(versions, s.live.Load().versions) {
-		return
-	}
-	s.reload.Lock()
-	defer s.reload.Unlock()
-	byEntity := groupByEntity(s.base, fields)
-	widened := widen(s.base, byEntity)
-	served := widened
-	if widened == s.base {
-		served = nil
-	}
-	s.live.Store(&snapshot{inner: s.build(served), schema: widened, byEntity: byEntity, versions: versions})
+// Plain returns the compiled graph, the one served outside any tenant's fields.
+func (g *Graphs[T]) Plain() T {
+	return g.plain
 }
 
-// collect gathers every source's snapshot.
-func (s *Schema) collect(ctx context.Context) ([]uint64, []sdk.GraphField, error) {
-	versions := make([]uint64, len(s.sources))
+// For returns the calling tenant's graph, built again only when a source's stamp moved.
+func (g *Graphs[T]) For(ctx context.Context) T {
+	if len(g.sources) == 0 {
+		return g.plain
+	}
+	tenant := sdk.TenantOrDefault(ctx)
+	cached, found := g.held.Get(tenant)
+	stamps, fields, err := g.collect(ctx)
+	if err != nil {
+		if found {
+			return cached.served
+		}
+		return g.plain
+	}
+	if found && slices.Equal(stamps, cached.stamps) {
+		return cached.served
+	}
+	served := g.graphOf(fields)
+	g.held.Add(tenant, graphEntry[T]{stamps: stamps, served: served})
+	return served
+}
+
+// collect gathers every source's stamp and fields for the calling tenant.
+func (g *Graphs[T]) collect(ctx context.Context) ([]uint64, []sdk.GraphField, error) {
+	stamps := make([]uint64, len(g.sources))
 	var fields []sdk.GraphField
-	for i, source := range s.sources {
-		version, held, err := source.FieldsSnapshot(ctx)
+	for i, source := range g.sources {
+		stamp, held, err := source.FieldsSnapshot(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
-		versions[i] = version
+		stamps[i] = stamp
 		fields = append(fields, held...)
 	}
-	return versions, fields, nil
+	return stamps, fields, nil
 }
 
-// versionsEqual reports whether two version vectors match.
-func versionsEqual(a, b []uint64) bool {
-	if len(a) != len(b) {
-		return false
+// graphOf returns the graph serving the given fields, the plain one when none can be served.
+func (g *Graphs[T]) graphOf(fields []sdk.GraphField) T {
+	byEntity := groupByEntity(g.base, fields)
+	if len(byEntity) == 0 {
+		return g.plain
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	schema := widen(g.base, byEntity)
+	return g.serve(&widened{inner: g.build(schema), schema: schema, base: g.base})
 }
 
 // groupByEntity indexes fields by entity and name, dropping unservable ones.
@@ -122,9 +134,6 @@ func groupByEntity(base *ast.Schema, fields []sdk.GraphField) map[string]map[str
 
 // widen returns a copy of base whose entities carry the catalogue fields.
 func widen(base *ast.Schema, byEntity map[string]map[string]sdk.GraphField) *ast.Schema {
-	if len(byEntity) == 0 {
-		return base
-	}
 	widened := *base
 	widened.Types = make(map[string]*ast.Definition, len(base.Types))
 	for name, def := range base.Types {
@@ -149,51 +158,56 @@ func widen(base *ast.Schema, byEntity map[string]map[string]sdk.GraphField) *ast
 	return &widened
 }
 
-// Schema reports the widened schema every request validates and introspects against.
-func (s *Schema) Schema() *ast.Schema {
-	s.refresh(context.Background())
-	return s.live.Load().schema
+// widened serves one tenant's widened schema over the generated executor.
+type widened struct {
+	inner  graphql.ExecutableSchema
+	schema *ast.Schema
+	base   *ast.Schema
+}
+
+// Schema reports the widened schema the tenant's requests validate and introspect against.
+func (w *widened) Schema() *ast.Schema {
+	return w.schema
 }
 
 // Complexity prices a field.
-func (s *Schema) Complexity(
+func (w *widened) Complexity(
 	ctx context.Context, typeName, field string, childComplexity int, args map[string]any,
 ) (int, bool) {
-	return s.live.Load().inner.Complexity(ctx, typeName, field, childComplexity, args)
+	return w.inner.Complexity(ctx, typeName, field, childComplexity, args)
 }
 
 // Exec runs the generated executor over the rewritten operation.
-func (s *Schema) Exec(ctx context.Context) graphql.ResponseHandler {
-	live := s.live.Load()
+func (w *widened) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
-	s.rewrite(opCtx.Operation.SelectionSet)
+	rewrite(w.base, opCtx.Operation.SelectionSet)
 	for _, fragment := range opCtx.Doc.Fragments {
-		s.rewrite(fragment.SelectionSet)
+		rewrite(w.base, fragment.SelectionSet)
 	}
-	return live.inner.Exec(ctx)
+	return w.inner.Exec(ctx)
 }
 
 // rewrite points every field the compiled schema lacks at the carrier.
-func (s *Schema) rewrite(selections ast.SelectionSet) {
+func rewrite(base *ast.Schema, selections ast.SelectionSet) {
 	for _, selection := range selections {
 		switch node := selection.(type) {
 		case *ast.Field:
-			if !s.rewriteField(node) {
-				s.rewrite(node.SelectionSet)
+			if !rewriteField(base, node) {
+				rewrite(base, node.SelectionSet)
 			}
 		case *ast.InlineFragment:
-			s.rewrite(node.SelectionSet)
+			rewrite(base, node.SelectionSet)
 		case *ast.FragmentSpread:
 		}
 	}
 }
 
 // rewriteField points one field at the carrier, reporting whether it did.
-func (s *Schema) rewriteField(field *ast.Field) bool {
+func rewriteField(base *ast.Schema, field *ast.Field) bool {
 	if field.ObjectDefinition == nil || strings.HasPrefix(field.Name, "__") {
 		return false
 	}
-	owner := s.base.Types[field.ObjectDefinition.Name]
+	owner := base.Types[field.ObjectDefinition.Name]
 	if owner == nil || owner.Fields.ForName(field.Name) != nil {
 		return false
 	}

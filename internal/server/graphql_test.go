@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +50,7 @@ type graphConfig struct {
 	PluginPublicPaths map[string][]string
 	PluginAreas       map[string]string
 	FieldSources      []sdk.FieldSource
+	TenantsHeld       int
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
 	GraphiQL          bool
@@ -109,6 +111,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		PluginPublicPaths: cfg.PluginPublicPaths,
 		PluginAreas:       cfg.PluginAreas,
 		FieldSources:      cfg.FieldSources,
+		TenantsHeld:       cfg.TenantsHeld,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
 		GraphiQL:          cfg.GraphiQL,
@@ -151,6 +154,119 @@ func TestGraphQLIgnoresAFieldOnACarrierlessType(t *testing.T) {
 		`{"query":"{ tasks(date: \"2026-08-12\", first: 1) { edges { node { estimatedHours } } } }"}`, cookie)
 	if !strings.Contains(refused.Body.String(), "Cannot query field") {
 		t.Errorf("body = %q, want the field refused on a type carrying no carrier", refused.Body.String())
+	}
+}
+
+// tenantFieldSource serves each tenant the fields listed for it.
+type tenantFieldSource struct {
+	byTenant map[uuid.UUID][]sdk.GraphField
+}
+
+// FieldsSnapshot reports the fields listed for the calling tenant.
+func (s tenantFieldSource) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
+	return 1, s.byTenant[sdk.TenantOrDefault(ctx)], nil
+}
+
+// contactFieldsQuery introspects the names of the Contact fields.
+const contactFieldsQuery = `{"query":"{ __type(name: \"Contact\") { fields { name } } }"}`
+
+func TestGraphQLServesEachCallerItsTenantsOwnFields(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	ada := addAda(t, users)
+	acme := uuid.Must(uuid.NewV7())
+	source := tenantFieldSource{byTenant: map[uuid.UUID][]sdk.GraphField{
+		sdk.DefaultTenantID: {{Entity: "Contact", Name: "birthDate", Type: "String"}},
+		acme:                {{Entity: "Contact", Name: "shoeSize", Type: "Int"}},
+	}}
+	srv := newGraphServer(t, graphConfig{
+		Contacts:     newFakeContactStore(),
+		Users:        users,
+		Tenants:      standingTenantStore{standing: map[uuid.UUID]uuid.UUID{ada.ID: acme}},
+		FieldSources: []sdk.FieldSource{source},
+	})
+	cookie := loginCookie(t, srv)
+
+	answered := postGraphQL(t, srv, contactFieldsQuery, cookie).Body.String()
+
+	if !strings.Contains(answered, `"shoeSize"`) || strings.Contains(answered, `"birthDate"`) {
+		t.Errorf("introspection = %s, want only the caller's tenant's shoeSize", answered)
+	}
+}
+
+// swappableFieldSource serves each tenant its listed fields under one stamp that never moves.
+type swappableFieldSource struct {
+	mu       sync.Mutex
+	byTenant map[uuid.UUID][]sdk.GraphField
+}
+
+// FieldsSnapshot reports the calling tenant's listed fields under stamp one.
+func (s *swappableFieldSource) FieldsSnapshot(ctx context.Context) (uint64, []sdk.GraphField, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return 1, s.byTenant[sdk.TenantOrDefault(ctx)], nil
+}
+
+// swap lists other fields for a tenant under the same stamp.
+func (s *swappableFieldSource) swap(tenant uuid.UUID, fields ...sdk.GraphField) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byTenant[tenant] = fields
+}
+
+func TestGraphQLHoldsOnlyAsManyTenantGraphsAsConfigured(t *testing.T) {
+	t.Parallel()
+
+	users, ada := twoUserStore(t)
+	acme := uuid.Must(uuid.NewV7())
+	source := &swappableFieldSource{byTenant: map[uuid.UUID][]sdk.GraphField{
+		acme:                {{Entity: "Contact", Name: "shoeSize", Type: "Int"}},
+		sdk.DefaultTenantID: {{Entity: "Contact", Name: "birthDate", Type: "String"}},
+	}}
+	srv := newGraphServer(t, graphConfig{
+		Contacts:     newFakeContactStore(),
+		Users:        users,
+		Tenants:      standingTenantStore{standing: map[uuid.UUID]uuid.UUID{ada.ID: acme}},
+		FieldSources: []sdk.FieldSource{source},
+		TenantsHeld:  1,
+	})
+	cookies := twoUserCookies(t, srv)
+	postGraphQL(t, srv, contactFieldsQuery, cookies[0])
+	source.swap(acme, sdk.GraphField{Entity: "Contact", Name: "hatSize", Type: "Int"})
+	if held := postGraphQL(t, srv, contactFieldsQuery, cookies[0]).Body.String(); !strings.Contains(held, `"shoeSize"`) {
+		t.Fatalf("introspection = %s, want the held graph served while its stamp stands", held)
+	}
+
+	postGraphQL(t, srv, contactFieldsQuery, cookies[1])
+	rebuilt := postGraphQL(t, srv, contactFieldsQuery, cookies[0]).Body.String()
+
+	if !strings.Contains(rebuilt, `"hatSize"`) {
+		t.Errorf("introspection = %s, want Acme's graph let go past the one held and built again", rebuilt)
+	}
+}
+
+func TestGraphQLSuggestsNoDefinedFieldToACallerWithNoSession(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	source := tenantFieldSource{byTenant: map[uuid.UUID][]sdk.GraphField{
+		sdk.DefaultTenantID: {{Entity: "Contact", Name: "birthDate", Type: "String"}},
+	}}
+	srv := newGraphServer(t, graphConfig{
+		Contacts:     newFakeContactStore(),
+		Users:        users,
+		FieldSources: []sdk.FieldSource{source},
+	})
+
+	answered := postGraphQL(t, srv,
+		`{"query":"{ contacts(first: 1) { edges { node { birthDat } } } }"}`, nil).Body.String()
+
+	if !strings.Contains(answered, "Cannot query field") {
+		t.Fatalf("body = %s, want the misspelt field refused", answered)
+	}
+	if strings.Contains(answered, "birthDate") {
+		t.Errorf("body = %s, want no defined field named to a caller with no session", answered)
 	}
 }
 

@@ -66,6 +66,8 @@ type Config struct {
 	MaxStreamsPerUser int
 	// FieldSources lists the plugins serving runtime defined graph fields.
 	FieldSources []sdk.FieldSource
+	// TenantsHeld caps how many tenants' widened graphs the server keeps in memory. Zero or below applies the SDK default.
+	TenantsHeld int
 	// GraphiQL enables the interactive query page on GET /api/graphql.
 	GraphiQL bool
 	// Version names this build to a connecting agent.
@@ -91,7 +93,8 @@ func NewServer(cfg Config) http.Handler {
 	}
 	router := chi.NewRouter()
 	if cfg.GraphRoot != nil {
-		graph := newGraphQLHandler(cfg.GraphRoot, cfg.Tenants, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources)
+		graph := newGraphQLHandler(
+			cfg.GraphRoot, cfg.Tenants, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources, cfg.TenantsHeld)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)
