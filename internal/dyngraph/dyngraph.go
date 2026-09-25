@@ -46,21 +46,26 @@ type Graphs[T any] struct {
 	plain    T
 	sources  []sdk.FieldSource
 	held     *lru.Cache[uuid.UUID, graphEntry[T]]
-	building sync.Mutex
+	building sync.Map
 }
 
 // New returns the graphs serving build widened by each tenant's fields from the sources, holding up to held tenants.
 func New[T any](build Build, serve Serve[T], held int, sources ...sdk.FieldSource) *Graphs[T] {
 	compiled := build(nil)
-	cache, _ := lru.New[uuid.UUID, graphEntry[T]](cmp.Or(max(held, 0), sdk.DefaultTenantsHeld))
-	return &Graphs[T]{
+	graphs := &Graphs[T]{
 		build:   build,
 		serve:   serve,
 		base:    compiled.Schema(),
 		plain:   serve(compiled),
 		sources: sources,
-		held:    cache,
 	}
+	graphs.held, _ = lru.NewWithEvict(cmp.Or(max(held, 0), sdk.DefaultTenantsHeld), graphs.letGo)
+	return graphs
+}
+
+// letGo drops the build lock of a tenant whose graph the cache let go.
+func (g *Graphs[T]) letGo(tenant uuid.UUID, _ graphEntry[T]) {
+	g.building.Delete(tenant)
 }
 
 // Plain returns the compiled graph, the one served outside any tenant's fields.
@@ -90,8 +95,10 @@ func (g *Graphs[T]) For(ctx context.Context) T {
 
 // builtFor returns the tenant's graph for the given stamps, building it unless a caller missing it too already did.
 func (g *Graphs[T]) builtFor(tenant uuid.UUID, stamps []uint64, fields []sdk.GraphField) T {
-	g.building.Lock()
-	defer g.building.Unlock()
+	held, _ := g.building.LoadOrStore(tenant, &sync.Mutex{})
+	lock := held.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
 	if cached, found := g.held.Get(tenant); found && slices.Equal(stamps, cached.stamps) {
 		return cached.served
 	}

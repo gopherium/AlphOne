@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
@@ -348,6 +349,59 @@ func TestBuildsOneGraphForCallersMissingATenantTogether(t *testing.T) {
 	}
 	if got := builds.Load(); got != 2 {
 		t.Errorf("builds = %d, want the compiled schema and one widened graph", got)
+	}
+}
+
+func TestBuildsATenantsGraphWhileAnotherTenantsBuildRuns(t *testing.T) {
+	t.Parallel()
+
+	stub, _ := stubBuild(t, carriedSDL, nil, nil)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	gated := func(widened *ast.Schema) graphql.ExecutableSchema {
+		if widened != nil && widened.Types["Contact"].Fields.ForName("birthDate") != nil {
+			entered <- struct{}{}
+			<-release
+		}
+		return stub(widened)
+	}
+	source := sourceOf()
+	inSlow, slow := inTenantOf(t)
+	inQuick, quick := inTenantOf(t)
+	source.set(slow, 1, birthDate)
+	source.set(quick, 1, shoeSize)
+	graphs := graphsOf(gated, 0, source)
+	go graphs.For(inSlow)
+	<-entered
+
+	built := make(chan graphql.ExecutableSchema, 1)
+	go func() { built <- graphs.For(inQuick) }()
+
+	select {
+	case graph := <-built:
+		if graph.Schema().Types["Contact"].Fields.ForName("shoeSize") == nil {
+			t.Error("shoeSize missing, want the quick tenant's own graph")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a tenant's graph waited on another tenant's build, want builds of different tenants apart")
+	}
+}
+
+func TestLetsGoOfTheBuildLockOfATenantTheCacheLetsGo(t *testing.T) {
+	t.Parallel()
+
+	source := sourceOf(birthDate)
+	inAcme, acme := inTenantOf(t)
+	source.set(acme, 1, shoeSize)
+	build, _ := stubBuild(t, carriedSDL, nil, nil)
+	graphs := graphsOf(build, 1, source)
+	graphs.For(t.Context())
+
+	graphs.For(inAcme)
+
+	if got := graphs.BuildLocks(); got != 1 {
+		t.Errorf("build locks = %d, want only the held tenant's", got)
 	}
 }
 
