@@ -182,7 +182,11 @@ func registerImportFieldsSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return context.WithValue(ctx, worldKey{}, newImportWorld(t)), nil
 	})
 	bindFieldsCatalogSteps(sc)
+	bindImportSteps(sc)
+}
 
+// bindImportSteps binds the import mapping steps onto an already booted world.
+func bindImportSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^a contact named "([^"]*)" reachable at "([^"]*)"$`,
 		func(ctx context.Context, name, email string) error {
 			return worldFrom(ctx).seedReachableContact(ctx, name, email)

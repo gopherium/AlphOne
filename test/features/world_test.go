@@ -78,6 +78,7 @@ type world struct {
 	answered     []byte
 	lastField    uuid.UUID
 	altSecret    string
+	members      map[string]string
 	scopedSecret string
 	scopedID     uuid.UUID
 	sessionValue string
@@ -177,6 +178,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Users:        users,
 		Auth:         auth,
 		GraphRoot:    root,
+		Tenants:      postgres.NewTenantStore(pool),
 		Tokens:       tokens,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
@@ -195,6 +197,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		secret:   minted.Secret,
 		tokenID:  minted.Token.ID,
 		relay:    relay,
+		members:  map[string]string{},
 	}
 }
 

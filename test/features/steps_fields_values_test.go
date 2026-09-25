@@ -55,7 +55,11 @@ func (w *world) readField(ctx context.Context, name string) (fieldAnswer, error)
 // registerFieldsValuesSteps binds the field value steps and the world lifecycle.
 func registerFieldsValuesSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerFieldsCatalogSteps(sc, t)
+	bindFieldValueSteps(sc)
+}
 
+// bindFieldValueSteps binds the field value steps onto an already booted world.
+func bindFieldValueSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^a contact named "([^"]*)"$`, func(ctx context.Context, name string) error {
 		_, err := worldFrom(ctx).seedContact(ctx, name)
 		return err

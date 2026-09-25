@@ -73,7 +73,11 @@ func registerTenantSteps(sc *godog.ScenarioContext, t *testing.T) {
 		}
 		return nil
 	})
+	bindTenantSteps(sc)
+}
 
+// bindTenantSteps binds the tenant steps onto an already booted world.
+func bindTenantSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^the tenant "([^"]*)" exists$`, func(ctx context.Context, name string) error {
 		_, err := worldFrom(ctx).seedTenant(ctx, name)
 		return err
@@ -97,6 +101,7 @@ func registerTenantSteps(sc *godog.ScenarioContext, t *testing.T) {
 				return err
 			}
 			w.altSecret = secret
+			w.members[name] = secret
 			return w.placeMember(ctx, userID, name)
 		})
 
