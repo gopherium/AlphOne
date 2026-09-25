@@ -33,11 +33,12 @@ type view struct {
 
 // flight is one read of a tenant's catalogue, shared by every caller missing that tenant meanwhile.
 type flight struct {
-	done    chan struct{}
-	stop    context.CancelFunc
-	waiting int
-	view    *view
-	err     error
+	done      chan struct{}
+	stop      context.CancelFunc
+	waiting   int
+	overtaken bool
+	view      *view
+	err       error
 }
 
 // catalog holds the views of the tenants served most recently.
@@ -63,19 +64,23 @@ func newCatalog(source loader, held int, refresh time.Duration) *catalog {
 	}
 }
 
-// viewFor returns the calling tenant's view, reading it when none is held or the held one is too old.
+// viewFor returns the calling tenant's view, reading it when none is held, it is too old or a forget overtook the read.
 func (c *catalog) viewFor(ctx context.Context) (*view, error) {
 	tenant := sdk.TenantOrDefault(ctx)
-	held, shared := c.join(ctx, tenant)
-	if held != nil {
-		return held, nil
-	}
-	select {
-	case <-shared.done:
-		return shared.view, shared.err
-	case <-ctx.Done():
-		c.leave(tenant, shared)
-		return nil, ctx.Err()
+	for {
+		held, shared := c.join(ctx, tenant)
+		if held != nil {
+			return held, nil
+		}
+		select {
+		case <-shared.done:
+			if !shared.overtaken {
+				return shared.view, shared.err
+			}
+		case <-ctx.Done():
+			c.leave(tenant, shared)
+			return nil, ctx.Err()
+		}
 	}
 }
 
@@ -165,11 +170,19 @@ func (c *catalog) read(ctx context.Context) (*view, error) {
 	return next, nil
 }
 
-// forget drops the calling tenant's view, keeping any read of it already under way out of the cache.
+// forget drops the calling tenant's view and overtakes any read of it under way.
 func (c *catalog) forget(ctx context.Context) {
-	tenant := sdk.TenantOrDefault(ctx)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.flights, tenant)
+	c.drop(sdk.TenantOrDefault(ctx))
+}
+
+// drop removes the tenant's view and stops any read of it under way, sending that read's callers to read again.
+func (c *catalog) drop(tenant uuid.UUID) {
+	if shared, ok := c.flights[tenant]; ok {
+		shared.overtaken = true
+		shared.stop()
+		delete(c.flights, tenant)
+	}
 	c.views.Remove(tenant)
 }

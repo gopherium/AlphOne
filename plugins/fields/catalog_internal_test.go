@@ -413,9 +413,9 @@ func TestCatalogWaitsForAForgetUnderWayBeforeStoringARead(t *testing.T) {
 		t.Fatal("viewFor() returned while a forget held the catalogue, want it to wait")
 	case <-time.After(100 * time.Millisecond):
 	}
-	delete(held.flights, tenant)
-	held.views.Remove(tenant)
+	held.drop(tenant)
 	held.mu.Unlock()
+	close((<-loader.gated).release)
 	mustReply(t, reading)
 	loader.ungate()
 	mustView(t, held, ctx)
@@ -451,6 +451,29 @@ func TestCatalogKeepsAReadThatAForgetOvertookOutOfTheCache(t *testing.T) {
 	}
 	if got := loader.readsOf(tenant); got != 2 {
 		t.Errorf("reads = %d, want 2, a read a forget overtook must not be kept", got)
+	}
+}
+
+func TestCatalogReadsAgainForACallerWhoseReadAForgetOvertook(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	loader.gate()
+	held := newCatalog(loader, 0, 0)
+	overtaken := viewing(held, ctx)
+	stale := <-loader.gated
+	loader.answer(tenant, defined(t, "birthDate", "DATE"))
+
+	held.forget(ctx)
+	if stale.ctx.Err() == nil {
+		close(stale.release)
+		t.Fatal("the read a forget overtook still runs, want it stopped")
+	}
+	close((<-loader.gated).release)
+
+	if got := mustReply(t, overtaken); len(got.fields) != 1 || got.fields[0].Name != "birthDate" {
+		t.Errorf("fields = %+v, want birthDate from the read after the forget", got.fields)
 	}
 }
 
