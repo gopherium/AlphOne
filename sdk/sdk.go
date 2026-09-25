@@ -50,10 +50,14 @@ type Deps struct {
 	PublicURL string
 	// MachineGrace is how long a deactivated tenant keeps recording what a channel delivers.
 	MachineGrace time.Duration
-	Resolver     ContactResolver
-	Contacts     ContactDirectory
-	Getenv       func(string) string
-	Events       Publisher
+	// TenantsHeld is how many tenants' runtime state a plugin keeps in memory, zero or below for the default.
+	TenantsHeld int
+	// TenantsRefresh is how long a plugin keeps a tenant's state before reading it again, zero or below for the default.
+	TenantsRefresh time.Duration
+	Resolver       ContactResolver
+	Contacts       ContactDirectory
+	Getenv         func(string) string
+	Events         Publisher
 }
 
 // Publisher announces a plugin's own events to the host.
@@ -90,7 +94,7 @@ type GraphField struct {
 	Type string
 }
 
-// FieldSource reports the runtime defined fields a plugin serves.
+// FieldSource reports the calling tenant's runtime defined fields, with a stamp that changes whenever they do.
 type FieldSource interface {
 	FieldsSnapshot(ctx context.Context) (uint64, []GraphField, error)
 }

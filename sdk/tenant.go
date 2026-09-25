@@ -4,12 +4,19 @@ package sdk
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 // DefaultTenantID identifies the tenant every unplaced caller stands in.
 var DefaultTenantID = uuid.MustParse("00000000-0000-7000-8000-000000000001")
+
+// DefaultTenantsHeld is how many tenants' runtime state a plugin keeps in memory when the host sets none.
+const DefaultTenantsHeld = 256
+
+// DefaultTenantsRefresh is how long a plugin keeps a tenant's state before reading it again, when the host sets none.
+const DefaultTenantsRefresh = time.Minute
 
 // tenantKey is the context key carrying the tenant a plugin request serves.
 type tenantKey struct{}
