@@ -110,6 +110,50 @@ func TestSeedWritesTheValuesOntoTheDemoContact(t *testing.T) {
 	}
 }
 
+func TestSeedKeepsWhatTheDemoContactAlreadyHolds(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	maria := seedContact(t, p, seedContactName)
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("first Seed() error = %v, want nil", err)
+	}
+	edited := []map[string]any{{"date": "2026-09-20", "comment": "Called back."}}
+	if err := p.store.writeValues(t.Context(), maria, map[string]any{"history": edited}); err != nil {
+		t.Fatalf("writeValues() error = %v, want nil", err)
+	}
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("second Seed() error = %v, want nil", err)
+	}
+
+	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{maria})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	kept := []any{map[string]any{"date": "2026-09-20", "comment": "Called back."}}
+	if !reflect.DeepEqual(held[maria]["history"], kept) {
+		t.Errorf("history = %#v, want the edited history kept through a second seed", held[maria]["history"])
+	}
+	if held[maria]["birthDate"] != "1990-04-17" {
+		t.Errorf("birthDate = %#v, want the demo date still there", held[maria]["birthDate"])
+	}
+}
+
+func TestSeedReportsValuesItCannotRead(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	seedContact(t, p, seedContactName)
+	if _, err := p.pool.Exec(t.Context(), "DROP TABLE plugin_fields.contact_values"); err != nil {
+		t.Fatalf("dropping the values table: %v", err)
+	}
+
+	if err := p.seedValues(t.Context()); err == nil {
+		t.Error("seedValues() error = nil, want the unread values reported")
+	}
+}
+
 func TestSeedSkipsTheValueWithoutTheDemoContact(t *testing.T) {
 	t.Parallel()
 

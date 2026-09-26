@@ -63,7 +63,7 @@ func (p *Plugin) seedDefinitions(ctx context.Context) error {
 	return nil
 }
 
-// seedValues writes the demo values onto the demo contact when one exists.
+// seedValues writes the demo values the demo contact does not hold yet, when one exists.
 func (p *Plugin) seedValues(ctx context.Context) error {
 	const query = `SELECT id FROM core.contacts WHERE name = $1 ORDER BY created_at, id LIMIT 1`
 	var contactID uuid.UUID
@@ -74,5 +74,15 @@ func (p *Plugin) seedValues(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fields: seed contact lookup: %w", err)
 	}
-	return p.store.writeValues(ctx, contactID, demoValues)
+	held, err := p.store.valuesFor(ctx, []uuid.UUID{contactID})
+	if err != nil {
+		return fmt.Errorf("fields: seed values lookup: %w", err)
+	}
+	missing := make(map[string]any, len(demoValues))
+	for name, value := range demoValues {
+		if _, kept := held[contactID][name]; !kept {
+			missing[name] = value
+		}
+	}
+	return p.store.writeValues(ctx, contactID, missing)
 }
