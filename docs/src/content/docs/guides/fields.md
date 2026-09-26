@@ -36,8 +36,9 @@ filled in.
 
 ## Fill a field in
 
-Open a contact. Below the tasks you will find a **Fields** section with one
-input per field you created. Type, then press **Save fields**.
+Open a contact. The **Fields** section sits beside the tasks, or under them
+on a narrow screen, with one input per field you created. Type, then press
+**Save fields**.
 
 A Long text field is a box several lines tall. Press Enter to start a new
 line. The text keeps its line breaks when you save.
