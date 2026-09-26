@@ -419,6 +419,7 @@ The stock plugins add their own:
 | `field_sub_field_nested` | | a sub field cannot be a repeater |
 | `field_sub_field_name_invalid` | | a sub field name is camelCase |
 | `field_sub_field_name_taken` | | two sub fields of one repeater share a name |
+| `field_sub_field_name_reserved` | | a sub field is named `id`, which each entry keeps for itself |
 | `field_name_taken` | | another definition holds the name |
 | `field_kind_locked` | | an archived definition pins the kind and sub fields |
 | `field_not_found` | | the id names no live definition |

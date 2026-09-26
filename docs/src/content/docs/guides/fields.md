@@ -202,7 +202,8 @@ mutation {
 ```
 
 The API does not make sub field names for you. Send a camelCase name for each
-one, unique inside the repeater.
+one, unique inside the repeater. `id` is refused, because each entry keeps its
+own id under that name.
 
 ## What stays fixed
 
