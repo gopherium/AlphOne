@@ -12,7 +12,7 @@ import { graphError, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
-import { isoDate, laterDate, shiftDate } from './format'
+import { isValidDate, isoDate, laterDate, shiftDate } from './format'
 import { createTaskMutation, updateTaskMutation } from './operations'
 import { TaskList } from './TaskList'
 import type { RowControls, ListedTask } from './TaskList'
@@ -77,17 +77,20 @@ export function ContactTasks({
 }
 
 /**
- * Renders the form that adds a task to a contact.
+ * Renders the form that adds a task to a contact on a chosen day.
  * @param props - The contact the task belongs to and what to call once it is added.
  * @returns The add task form and its error.
  */
 function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded: () => void }) {
 	const [title, setTitle] = useState('')
+	const [picked, setPicked] = useState<string | null>(null)
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
+	const dueOn = picked ?? isoDate(new Date())
 	const submitAdd = async () => {
-		const result = await runAdd({ input: { title, dueOn: isoDate(new Date()), contactId } })
+		const result = await runAdd({ input: { title, dueOn, contactId } })
 		if (result.data) {
 			setTitle('')
+			setPicked(null)
 			onAdded()
 		}
 	}
@@ -95,7 +98,7 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 	return (
 		<>
 			<form
-				className="alphone-tasks__add"
+				className="alphone-tasks__add alphone-tasks__add--contact"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
@@ -108,9 +111,15 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 					value={title}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
+				<InputControl
+					label={__('Due date', 'alphone')}
+					type="date"
+					value={dueOn}
+					onChange={(event) => setPicked(event.target.value)}
+				/>
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || add.fetching}
+					disabled={title.trim() === '' || !isValidDate(dueOn) || add.fetching}
 					loading={add.fetching}
 				>
 					{__('Add task', 'alphone')}
