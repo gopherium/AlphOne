@@ -69,6 +69,50 @@ func TestGraphWritesAndReadsANumber(t *testing.T) {
 	}
 }
 
+func TestGraphWritesNumbersWrittenInline(t *testing.T) {
+	t.Parallel()
+
+	client, contactID := newValuesClient(t)
+	var defined struct {
+		DefineField struct {
+			ID string `json:"id"`
+		}
+	}
+	client.MustPost(
+		`mutation { defineField(name: "loyaltyPoints", label: "Loyalty points", kind: NUMBER) { id } }`,
+		&defined)
+	client.MustPost(
+		`mutation { defineField(name: "visits", label: "Visits", kind: REPEATER, `+
+			`subFields: [{ name: "minutes", label: "Minutes", kind: NUMBER }]) { id } }`,
+		&defined)
+
+	var written struct{ WriteContactFields bool }
+	err := client.Post(
+		`mutation($id: UUID!) { writeContactFields(contactId: $id, `+
+			`values: { loyaltyPoints: 420, visits: [{ minutes: 45 }] }) }`,
+		&written, gqlclient.Var("id", contactID.String()))
+
+	if err != nil {
+		t.Fatalf("inline write error = %v, want whole numbers written inline accepted", err)
+	}
+	var read struct {
+		Contact struct {
+			Points any `json:"points"`
+			Visits any `json:"visits"`
+		}
+	}
+	client.MustPost(
+		`query($id: UUID!) { contact(id: $id) { points: field(name: "loyaltyPoints") `+
+			`visits: field(name: "visits") } }`,
+		&read, gqlclient.Var("id", contactID.String()))
+	if read.Contact.Points != float64(420) {
+		t.Errorf("loyaltyPoints = %#v, want 420", read.Contact.Points)
+	}
+	if rows, ok := read.Contact.Visits.([]any); !ok || len(rows) != 1 {
+		t.Errorf("visits = %#v, want the one inline row", read.Contact.Visits)
+	}
+}
+
 func TestGraphAnswersNullForAnUnwrittenField(t *testing.T) {
 	t.Parallel()
 

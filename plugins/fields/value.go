@@ -59,11 +59,13 @@ func coerceNumber(given any) (any, error) {
 	return int64(number), nil
 }
 
-// decimalOf reads a decoded JSON number, which arrives typed either way.
+// decimalOf reads a number from a variable or an inline literal, which arrive typed differently.
 func decimalOf(given any) (float64, bool) {
 	switch held := given.(type) {
 	case float64:
 		return held, true
+	case int64:
+		return float64(held), true
 	case json.Number:
 		number, err := held.Float64()
 		return number, err == nil
