@@ -60,7 +60,8 @@ Long text.
 A sub field can be any kind except Repeater, so a repeater never holds another
 repeater. You do not type a name for a sub field. AlphOne makes one from its
 label, so `Follow-up comment` becomes `followUpComment`. Two sub fields with
-the same label get two names, such as `note` and `note2`.
+the same label get two names, such as `note` and `note2`. A sub field labelled
+`ID` becomes `id2`, because each entry keeps its own id under `id`.
 
 The sub fields cannot be changed once the repeater exists. The reason is the
 same as for the kind: old entries would no longer fit.
