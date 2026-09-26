@@ -16,7 +16,16 @@ export function kindItems(): { value: FieldKind; label: string }[] {
 		{ value: 'BOOLEAN', label: _x('Yes or no', 'field kind', 'alphone-fields') },
 		{ value: 'DATE', label: _x('Date', 'field kind', 'alphone-fields') },
 		{ value: 'SELECT', label: _x('Choice', 'field kind', 'alphone-fields') },
+		{ value: 'REPEATER', label: _x('Repeater', 'field kind', 'alphone-fields') },
 	]
+}
+
+/**
+ * Returns the kind options a sub field may hold, every kind but the repeater.
+ * @returns The options, in menu order.
+ */
+export function subKindItems() {
+	return kindItems().filter((item) => item.value !== 'REPEATER')
 }
 
 /**

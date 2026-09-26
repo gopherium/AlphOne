@@ -22,6 +22,7 @@ const birthDate = {
 	name: 'birthDate',
 	label: 'Birth date',
 	kind: 'DATE',
+	subFields: [],
 }
 
 function renderPanel() {
@@ -129,6 +130,7 @@ const loyaltyPoints = {
 	name: 'loyaltyPoints',
 	label: 'Loyalty points',
 	kind: 'NUMBER',
+	subFields: [],
 }
 
 const subscribed = {
@@ -137,6 +139,7 @@ const subscribed = {
 	name: 'subscribed',
 	label: 'Subscribed',
 	kind: 'BOOLEAN',
+	subFields: [],
 }
 
 function captureWrite() {
@@ -156,6 +159,7 @@ const jobTitle = {
 	name: 'jobTitle',
 	label: 'Job title',
 	kind: 'TEXT',
+	subFields: [],
 }
 
 test('a text field sends its text unchanged', async () => {
@@ -181,6 +185,7 @@ const notes = {
 	name: 'notes',
 	label: 'Notes',
 	kind: 'LONGTEXT',
+	subFields: [],
 }
 
 test('a long text field renders a text area with its stored text', async () => {

@@ -17,6 +17,18 @@ msgid "A field needs a label."
 msgstr "El campo necesita una etiqueta."
 
 #, fuzzy
+msgid "A repeater cannot hold another repeater."
+msgstr "Un repetidor no puede contener otro repetidor."
+
+#, fuzzy
+msgid "A repeater needs at least one sub field."
+msgstr "Un repetidor necesita al menos un subcampo."
+
+#, fuzzy
+msgid "A sub field name starts lowercase and runs together, like followUp."
+msgstr "El nombre de un subcampo empieza por minúscula y va todo junto, como followUp."
+
+#, fuzzy
 msgid "Add a field"
 msgstr "Añadir un campo"
 
@@ -29,8 +41,12 @@ msgid "Add field"
 msgstr "Añadir campo"
 
 #, fuzzy
-msgid "An archived field of that name holds another kind."
-msgstr "Un campo archivado con ese nombre tiene otro tipo."
+msgid "Add sub field"
+msgstr "Añadir subcampo"
+
+#, fuzzy
+msgid "An archived field of that name holds another kind or other sub fields."
+msgstr "Un campo archivado con ese nombre tiene otro tipo u otros subcampos."
 
 #, fuzzy
 msgid "Another field already holds that name."
@@ -61,6 +77,14 @@ msgid "Loading fields…"
 msgstr "Cargando los campos…"
 
 #, fuzzy
+msgid "Move sub field down"
+msgstr "Bajar el subcampo"
+
+#, fuzzy
+msgid "Move sub field up"
+msgstr "Subir el subcampo"
+
+#, fuzzy
 msgid "Name"
 msgstr "Nombre"
 
@@ -69,12 +93,32 @@ msgid "No fields yet."
 msgstr "Todavía no hay ningún campo."
 
 #, fuzzy
+msgid "No sub fields yet."
+msgstr "Todavía no hay ningún subcampo."
+
+#, fuzzy
+msgid "Only a repeater holds sub fields."
+msgstr "Solo un repetidor tiene subcampos."
+
+#, fuzzy
+msgid "Remove sub field"
+msgstr "Quitar el subcampo"
+
+#, fuzzy
 msgid "Save fields"
 msgstr "Guardar los campos"
 
 #, fuzzy
 msgid "Send the values as field names to values."
 msgstr "Envía los valores como pares de nombre de campo y valor."
+
+#, fuzzy
+msgid "Sub field %(number)d"
+msgstr "Subcampo %(number)d"
+
+#, fuzzy
+msgid "Sub fields"
+msgstr "Subcampos"
 
 #, fuzzy
 msgid "That field is not one this contact holds."
@@ -87,6 +131,10 @@ msgstr "Ese campo ya no existe."
 #, fuzzy
 msgid "That kind is not one AlphOne offers."
 msgstr "Ese tipo no es uno de los que ofrece AlphOne."
+
+#, fuzzy
+msgid "That label is too long. Try a shorter one."
+msgstr "Esa etiqueta es demasiado larga. Prueba con una más corta."
 
 #, fuzzy
 msgid "That value does not match the kind the field declares."
@@ -113,6 +161,10 @@ msgid "The fields could not be saved."
 msgstr "No se han podido guardar los campos."
 
 #, fuzzy
+msgid "Two sub fields of this repeater hold the same name."
+msgstr "Dos subcampos de este repetidor tienen el mismo nombre."
+
+#, fuzzy
 msgctxt "admin section"
 msgid "Fields"
 msgstr "Campos"
@@ -136,6 +188,11 @@ msgstr "Texto largo"
 msgctxt "field kind"
 msgid "Number"
 msgstr "Número"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Repeater"
+msgstr "Repetidor"
 
 #, fuzzy
 msgctxt "field kind"

@@ -9,17 +9,32 @@ export const fieldsQuery = graphql(`
 			name
 			label
 			kind
+			subFields {
+				name
+				label
+				kind
+			}
 		}
 	}
 `)
 
 export const defineFieldMutation = graphql(`
-	mutation DefineField($name: String!, $label: String!, $kind: FieldKind!) {
-		defineField(name: $name, label: $label, kind: $kind) {
+	mutation DefineField(
+		$name: String!
+		$label: String!
+		$kind: FieldKind!
+		$subFields: [FieldSubFieldInput!]
+	) {
+		defineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {
 			id
 			name
 			label
 			kind
+			subFields {
+				name
+				label
+				kind
+			}
 		}
 	}
 `)

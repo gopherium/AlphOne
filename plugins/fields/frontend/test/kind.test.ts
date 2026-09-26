@@ -2,10 +2,25 @@
 
 import { expect, test } from 'vitest'
 
-import { kindItems, kindOf } from '../kind'
+import { kindItems, kindOf, subKindItems } from '../kind'
 
 test('a chosen item resolves to its kind', () => {
 	expect(kindOf({ value: 'DATE' })).toEqual({ value: 'DATE', label: 'Date' })
+})
+
+test('the kind menu offers the repeater last', () => {
+	expect(kindItems().at(-1)).toEqual({ value: 'REPEATER', label: 'Repeater' })
+})
+
+test('a sub field may hold every kind but the repeater', () => {
+	expect(subKindItems().map((item) => item.value)).toEqual([
+		'TEXT',
+		'LONGTEXT',
+		'NUMBER',
+		'BOOLEAN',
+		'DATE',
+		'SELECT',
+	])
 })
 
 test('a cleared selection falls back to text', () => {
