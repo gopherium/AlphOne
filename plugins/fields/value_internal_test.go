@@ -330,6 +330,146 @@ func TestCheckValuesClearsARepeaterWrittenWithoutRows(t *testing.T) {
 	}
 }
 
+// historyColumnsOf returns the sub fields of the history repeater the value tests hold.
+func historyColumnsOf() []SubField {
+	return historyView().columns["history"]
+}
+
+func TestCheckEntryKeepsItsCellsCoerced(t *testing.T) {
+	t.Parallel()
+
+	checked, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"date": "2026-09-10", "comment": "Sent the offer", "count": float64(2)}, "")
+
+	if err != nil {
+		t.Fatalf("checkEntry() error = %v, want nil", err)
+	}
+	want := map[string]any{"date": "2026-09-10", "comment": "Sent the offer", "count": int64(2)}
+	if !reflect.DeepEqual(checked, want) {
+		t.Errorf("entry = %#v, want every cell coerced", checked)
+	}
+}
+
+func TestCheckEntryNamesEveryUnknownKeyWithoutAnIndex(t *testing.T) {
+	t.Parallel()
+
+	_, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"date": "2026-09-01", "size": "large", "mood": "happy"}, "")
+
+	if !errors.Is(err, errNoField) || !strings.HasSuffix(err.Error(), "history.mood, history.size") {
+		t.Errorf("checkEntry() error = %v, want every bad key named by its path, sorted", err)
+	}
+}
+
+func TestCheckEntryNamesTheCellItRefused(t *testing.T) {
+	t.Parallel()
+
+	_, err := checkEntry("visits", historyColumnsOf(), map[string]any{"date": "not a date"}, "")
+
+	if !errors.Is(err, errWrongKind) || !strings.Contains(err.Error(), "visits.date expects DATE") {
+		t.Errorf("checkEntry() error = %v, want the cell named by its field and its kind", err)
+	}
+}
+
+func TestCheckEntryRefusesAValueThatIsNotAnEntry(t *testing.T) {
+	t.Parallel()
+
+	for name, given := range map[string]any{"a text": "a text", "a list": []any{}, "null": nil} {
+		_, err := checkEntry("history", historyColumnsOf(), given, "")
+
+		if !errors.Is(err, errWrongKind) || !strings.Contains(err.Error(), "history expects an entry") {
+			t.Errorf("%s: checkEntry() error = %v, want the shape refused", name, err)
+		}
+	}
+}
+
+func TestCheckEntryRefusesAnEntryWithEveryCellBlank(t *testing.T) {
+	t.Parallel()
+
+	for name, given := range map[string]map[string]any{
+		"no cells":         {},
+		"null cells":       {"date": nil, "count": nil},
+		"an empty text":    {"date": nil, "comment": ""},
+		"only spaces":      {"comment": "   "},
+		"only line breaks": {"comment": "\n\t\n"},
+	} {
+		_, err := checkEntry("history", historyColumnsOf(), given, "")
+
+		if !errors.Is(err, errEntryEmpty) {
+			t.Errorf("%s: checkEntry() error = %v, want errEntryEmpty", name, err)
+		}
+	}
+}
+
+func TestCheckEntryDropsBlankTextBesideAFilledCell(t *testing.T) {
+	t.Parallel()
+
+	checked, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"date": "2026-09-01", "comment": "  "}, "")
+
+	if err != nil {
+		t.Fatalf("checkEntry() error = %v, want nil", err)
+	}
+	if want := map[string]any{"date": "2026-09-01"}; !reflect.DeepEqual(checked, want) {
+		t.Errorf("entry = %#v, want the blank comment left out", checked)
+	}
+}
+
+func TestCheckEntryKeepsTextSurroundedBySpaceAsWritten(t *testing.T) {
+	t.Parallel()
+
+	checked, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"comment": "  Follow-up call.\nAsked for a second quote.  "}, "")
+
+	if err != nil {
+		t.Fatalf("checkEntry() error = %v, want nil", err)
+	}
+	if checked["comment"] != "  Follow-up call.\nAsked for a second quote.  " {
+		t.Errorf("comment = %#v, want the text kept as written", checked["comment"])
+	}
+}
+
+func TestCheckEntryRefusesAnIDCellOnAnAdd(t *testing.T) {
+	t.Parallel()
+
+	_, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"id": "0199a3c4-0000-7000-8000-000000000001", "comment": "First call"}, "")
+
+	if !errors.Is(err, errNoField) || !strings.HasSuffix(err.Error(), "history.id") {
+		t.Errorf("checkEntry() error = %v, want the id cell named as unknown", err)
+	}
+}
+
+func TestCheckEntryAcceptsTheEntrysOwnIDBack(t *testing.T) {
+	t.Parallel()
+	own := "0199a3c4-0000-7000-8000-000000000001"
+	given := map[string]any{"id": own, "comment": "First call"}
+
+	checked, err := checkEntry("history", historyColumnsOf(), given, own)
+
+	if err != nil {
+		t.Fatalf("checkEntry() error = %v, want the entry's own id accepted", err)
+	}
+	if want := map[string]any{"comment": "First call"}; !reflect.DeepEqual(checked, want) {
+		t.Errorf("entry = %#v, want the cells without the id", checked)
+	}
+	if given["id"] != own {
+		t.Errorf("given = %#v, want the caller's entry left as sent", given)
+	}
+}
+
+func TestCheckEntryRefusesAnotherEntrysID(t *testing.T) {
+	t.Parallel()
+
+	_, err := checkEntry("history", historyColumnsOf(),
+		map[string]any{"id": "0199a3c4-0000-7000-8000-000000000002", "comment": "First call"},
+		"0199a3c4-0000-7000-8000-000000000001")
+
+	if !errors.Is(err, errNoField) || !strings.HasSuffix(err.Error(), "history.id") {
+		t.Errorf("checkEntry() error = %v, want another entry's id named as unknown", err)
+	}
+}
+
 func TestCheckValuesRefusesRowsOfAnotherShape(t *testing.T) {
 	t.Parallel()
 

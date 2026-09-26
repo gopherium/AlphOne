@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strings"
@@ -17,7 +18,57 @@ var (
 	errWrongKind         = errors.New("fields: the value does not match the kind its definition declares")
 	errNoField           = errors.New("fields: no live definition holds that name")
 	errValuesNotAnObject = errors.New("fields: values is an object of field names to values")
+	errEntryEmpty        = errors.New("fields: an entry holds at least one filled cell")
 )
+
+// checkEntry returns the storable cells of one repeater entry, refusing unknown keys, wrong kinds and a blank entry.
+func checkEntry(name string, columns []SubField, given any, own string) (map[string]any, error) {
+	cells, ok := given.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s expects an entry", errWrongKind, name)
+	}
+	entry, unknown, err := checkRow(name, columnKinds(columns), withoutOwnID(cells, own))
+	if err != nil {
+		return nil, err
+	}
+	if len(unknown) > 0 {
+		sort.Strings(unknown)
+		return nil, fmt.Errorf("%w: %s", errNoField, strings.Join(unknown, ", "))
+	}
+	dropBlankText(entry)
+	if len(entry) == 0 {
+		return nil, fmt.Errorf("%w: %s", errEntryEmpty, name)
+	}
+	return entry, nil
+}
+
+// withoutOwnID returns the cells with an id cell naming the entry's own id left out.
+func withoutOwnID(cells map[string]any, own string) map[string]any {
+	if own == "" || cells[entryIDKey] != own {
+		return cells
+	}
+	kept := maps.Clone(cells)
+	delete(kept, entryIDKey)
+	return kept
+}
+
+// dropBlankText removes every text cell holding nothing but white space.
+func dropBlankText(entry map[string]any) {
+	for key, value := range entry {
+		if text, isText := value.(string); isText && strings.TrimSpace(text) == "" {
+			delete(entry, key)
+		}
+	}
+}
+
+// columnKinds maps each sub field name to the kind it declares.
+func columnKinds(columns []SubField) map[string]kind {
+	kindsOf := make(map[string]kind, len(columns))
+	for _, column := range columns {
+		kindsOf[column.Name] = column.Kind
+	}
+	return kindsOf
+}
 
 // coerce returns the storable form of a value, refusing one of another kind.
 func coerce(held kind, given any) (any, error) {
@@ -134,10 +185,7 @@ func checkRows(name string, columns []SubField, given any) (any, []string, error
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: %s expects %s", errWrongKind, name, kindRepeater)
 	}
-	kindsOf := make(map[string]kind, len(columns))
-	for _, column := range columns {
-		kindsOf[column.Name] = column.Kind
-	}
+	kindsOf := columnKinds(columns)
 	var unknown []string
 	rows := make([]map[string]any, 0, len(listed))
 	for at, entry := range listed {
