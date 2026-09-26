@@ -3,14 +3,11 @@
 import {
 	__,
 	Button,
-	Checkbox,
 	ErrorNotice,
-	InputControl,
 	LoadingRows,
 	RepeatRows,
 	Stack,
 	Text,
-	TextareaControl,
 	graphError,
 	sprintf,
 	useGraph,
@@ -20,6 +17,9 @@ import {
 } from '@alphone/frontend-sdk'
 import { useId, useMemo, useState } from 'react'
 
+import { entryText, textOf, typedValue } from './cellText'
+import type { EntryText, SubFieldRow } from './cellText'
+import { FieldInput } from './cells'
 import { contactValuesDocument } from './document'
 import { fieldsQuery, writeContactFieldsMutation } from './operations'
 
@@ -33,16 +33,6 @@ interface FieldRow {
 	kind: string
 	subFields: SubFieldRow[]
 }
-
-/** SubFieldRow is one sub field of a repeater, edited as a cell of every entry. */
-interface SubFieldRow {
-	name: string
-	label: string
-	kind: string
-}
-
-/** EntryText is the text of one repeater entry, keyed by sub field name. */
-type EntryText = Record<string, string>
 
 /**
  * Renders the runtime defined fields of one contact.
@@ -151,16 +141,6 @@ function FieldsForm({
 }
 
 /**
- * Returns the value an entry holds under one of its own keys, never an inherited one.
- * @param entry - The stored cells, keyed by sub field name.
- * @param key - The sub field name to read.
- * @returns The value, or undefined when the entry holds no such key of its own.
- */
-function own(entry: Record<string, unknown>, key: string) {
-	return Object.hasOwn(entry, key) ? entry[key] : undefined
-}
-
-/**
  * Renders the entries of one repeater, each a group of its sub field inputs.
  * @param props - The repeater, its stored entries, the edited ones and the change handler.
  * @returns The entries editor.
@@ -214,78 +194,6 @@ function EntriesInput({
 }
 
 /**
- * Renders one field's input, matched to the kind its definition declares.
- * @param props - The field, its current text and the change handler.
- * @returns The field input.
- */
-function FieldInput({
-	field,
-	value,
-	onChange,
-}: {
-	field: { label: string; kind: string }
-	value: string
-	onChange: (next: string) => void
-}) {
-	if (field.kind === 'BOOLEAN') {
-		return (
-			<Stack direction="row" gap="sm" align="center">
-				<Checkbox
-					aria-label={field.label}
-					checked={value === 'true'}
-					onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
-				/>
-				<Text>{field.label}</Text>
-			</Stack>
-		)
-	}
-	if (field.kind === 'LONGTEXT') {
-		return (
-			<TextareaControl
-				label={field.label}
-				value={value}
-				onChange={(event) => onChange(event.target.value)}
-			/>
-		)
-	}
-	return (
-		<InputControl
-			label={field.label}
-			type={inputType(field.kind)}
-			value={value}
-			onChange={(event) => onChange(event.target.value)}
-		/>
-	)
-}
-
-/**
- * Returns the HTML input type one field kind is edited with.
- * @param kind - The kind the definition declares.
- * @returns The input type.
- */
-function inputType(kind: string) {
-	if (kind === 'NUMBER') {
-		return 'number'
-	}
-	if (kind === 'DATE') {
-		return 'date'
-	}
-	return 'text'
-}
-
-/**
- * Returns the text form of a stored value.
- * @param stored - The value the graph answered.
- * @returns The text the input renders.
- */
-function textOf(stored: unknown) {
-	if (stored === null || stored === undefined) {
-		return ''
-	}
-	return String(stored)
-}
-
-/**
  * Returns the text of every stored entry of one repeater.
  * @param subFields - The sub fields every entry holds.
  * @param stored - The entries the graph answered, absent when none are stored.
@@ -294,16 +202,6 @@ function textOf(stored: unknown) {
 function entriesOf(subFields: SubFieldRow[], stored: unknown) {
 	const held = (stored ?? []) as Record<string, unknown>[]
 	return held.map((entry) => entryText(subFields, entry))
-}
-
-/**
- * Returns the text of one entry, one cell per sub field.
- * @param subFields - The sub fields the entry holds.
- * @param entry - The stored cells, keyed by sub field name.
- * @returns The text of every cell, empty where the entry holds none.
- */
-function entryText(subFields: SubFieldRow[], entry: Record<string, unknown>): EntryText {
-	return Object.fromEntries(subFields.map((column) => [column.name, textOf(own(entry, column.name))]))
 }
 
 /**
@@ -361,23 +259,4 @@ function typedEntries(subFields: SubFieldRow[], changed: EntryText[]) {
 	return changed.map((entry) =>
 		Object.fromEntries(subFields.map((column) => [column.name, typedValue(column.kind, entry[column.name])])),
 	)
-}
-
-/**
- * Returns one typed value the graph accepts for the given kind.
- * @param kind - The kind the definition declares.
- * @param text - The text the operator typed.
- * @returns The typed value, or null when the text is blank.
- */
-function typedValue(kind: string, text: string) {
-	if (text === '') {
-		return null
-	}
-	if (kind === 'NUMBER') {
-		return Number(text)
-	}
-	if (kind === 'BOOLEAN') {
-		return text === 'true'
-	}
-	return text
 }
