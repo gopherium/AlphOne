@@ -459,6 +459,18 @@
 	gap: var(--wpds-dimension-gap-md);
 }
 
+.alphone-tasks__contact-block .alphone-tasks__row {
+	flex-wrap: wrap;
+}
+
+.alphone-tasks__contact-block .alphone-tasks__title {
+	flex: 1 1 50%;
+}
+
+.alphone-tasks__contact-block .alphone-tasks__push {
+	margin-left: auto;
+}
+
 /* Small viewport overrides live together at the end of the sheet, so they
    always win over the rules above them without needing extra specificity. */
 @media (max-width: 639px) {
