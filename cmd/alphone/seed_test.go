@@ -455,6 +455,30 @@ func TestSeedReportsBrokenContactStorage(t *testing.T) {
 	}
 }
 
+func TestSeedReportsTheHistoryContactItCannotStore(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
+		t.Fatalf("migrating: %v", err)
+	}
+	pool := testPool(t, databaseURL)
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE core.contacts ADD CONSTRAINT seed_sabotage CHECK (name <> 'Maria Perez')"); err != nil {
+		t.Fatalf("refusing the history contact: %v", err)
+	}
+
+	err := seed(t.Context(), getenv, &strings.Builder{})
+
+	if err == nil || !strings.Contains(err.Error(), "seed contact") {
+		t.Fatalf("seed() error = %v, want the unstored history contact reported", err)
+	}
+	if adas := countRows(t, pool, "core.contacts"); adas != 1 {
+		t.Errorf("contacts = %d, want Ada Lovelace stored before the refused one", adas)
+	}
+}
+
 func TestSeedReportsTheColleagueItCannotStore(t *testing.T) {
 	t.Parallel()
 
