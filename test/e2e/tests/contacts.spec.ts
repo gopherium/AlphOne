@@ -20,8 +20,8 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await expect(page.getByRole('heading', { name })).toBeVisible()
 
 	await expect(page.getByText('No identities yet.')).toBeVisible()
-	await page.getByLabel('Value').fill(email)
-	await page.getByLabel('Label').fill('Work')
+	await page.getByLabel('Value', { exact: true }).fill(email)
+	await page.getByLabel('Label', { exact: true }).fill('Work')
 	await page.getByRole('button', { name: 'Add identity' }).click()
 	await expect(page.getByText(`email: ${email} (Work)`)).toBeVisible()
 
@@ -33,8 +33,8 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await page.getByRole('link', { name }).click()
 	await expect(page.getByRole('heading', { name })).toBeVisible()
 
-	await page.getByLabel('Name').fill(renamed)
-	await page.getByRole('button', { name: 'Save' }).click()
+	await page.getByLabel('Name', { exact: true }).fill(renamed)
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
 	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
