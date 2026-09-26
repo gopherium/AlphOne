@@ -22,6 +22,7 @@ export function errorTemplates(): Record<string, string> {
 		field_sub_field_nested: __('A repeater cannot hold another repeater.', DOMAIN),
 		field_sub_field_name_invalid: __('A sub field name starts lowercase and runs together, like followUp.', DOMAIN),
 		field_sub_field_name_taken: __('Two sub fields of this repeater hold the same name.', DOMAIN),
+		field_sub_field_name_reserved: __('A sub field cannot be named id. Each entry keeps that name for itself.', DOMAIN),
 		field_name_taken: __('Another field already holds that name.', DOMAIN),
 		field_kind_locked: __('An archived field of that name holds another kind or other sub fields.', DOMAIN),
 		field_not_found: __('That field no longer exists.', DOMAIN),

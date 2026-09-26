@@ -78,11 +78,12 @@ func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
 	t.Parallel()
 
 	want := map[error]string{
-		errSubFieldsRequired:   "field_sub_fields_required",
-		errSubFieldsUnexpected: "field_sub_fields_unexpected",
-		errSubFieldNested:      "field_sub_field_nested",
-		errSubFieldNameInvalid: "field_sub_field_name_invalid",
-		errSubFieldNameTaken:   "field_sub_field_name_taken",
+		errSubFieldsRequired:    "field_sub_fields_required",
+		errSubFieldsUnexpected:  "field_sub_fields_unexpected",
+		errSubFieldNested:       "field_sub_field_nested",
+		errSubFieldNameInvalid:  "field_sub_field_name_invalid",
+		errSubFieldNameTaken:    "field_sub_field_name_taken",
+		errSubFieldNameReserved: "field_sub_field_name_reserved",
 	}
 
 	for sentinel, reason := range want {

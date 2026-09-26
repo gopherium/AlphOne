@@ -170,6 +170,7 @@ var fieldReasons = []struct {
 	{errSubFieldNested, "field_sub_field_nested"},
 	{errSubFieldNameInvalid, "field_sub_field_name_invalid"},
 	{errSubFieldNameTaken, "field_sub_field_name_taken"},
+	{errSubFieldNameReserved, "field_sub_field_name_reserved"},
 	{errNameTaken, "field_name_taken"},
 	{errKindLocked, "field_kind_locked"},
 	{errNoDefinition, "field_not_found"},

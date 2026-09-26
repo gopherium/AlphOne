@@ -29,6 +29,10 @@ msgid "A repeater needs at least one sub field."
 msgstr "Un repetidor necesita al menos un subcampo."
 
 #, fuzzy
+msgid "A sub field cannot be named id. Each entry keeps that name for itself."
+msgstr "Un subcampo no puede llamarse id. Cada entrada guarda ese nombre para sí misma."
+
+#, fuzzy
 msgid "A sub field name starts lowercase and runs together, like followUp."
 msgstr "El nombre de un subcampo empieza por minúscula y va todo junto, como followUp."
 

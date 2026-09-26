@@ -141,7 +141,6 @@ Feature: A repeater keeps a list of entries on a contact
     Then the catalogue lists "history" with label "History" and kind REPEATER
     And the mapping registry does not list "history"
 
-  @wip
   Scenario: A sub field named id is refused
     When the operator defines the repeater "history" labelled "History" with sub fields:
       | name | label | kind |
