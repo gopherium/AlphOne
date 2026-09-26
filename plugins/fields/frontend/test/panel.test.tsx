@@ -175,6 +175,44 @@ test('a text field sends its text unchanged', async () => {
 	)
 })
 
+const notes = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000505',
+	name: 'notes',
+	label: 'Notes',
+	kind: 'LONGTEXT',
+}
+
+test('a long text field renders a text area with its stored text', async () => {
+	serveCatalogue([notes])
+	serveValues({ notes: 'First line\nSecond line' })
+
+	renderPanel()
+
+	const area = await screen.findByRole('textbox', { name: 'Notes' })
+	expect(area).toBeInstanceOf(HTMLTextAreaElement)
+	expect(area).toHaveAttribute('rows', '4')
+	await waitFor(() => expect(area).toHaveValue('First line\nSecond line'))
+})
+
+test('a long text field keeps the line breaks it is given', async () => {
+	serveCatalogue([notes])
+	serveValues({ notes: null })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.type(await screen.findByLabelText('Notes'), 'First line{Enter}Second line')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { notes: 'First line\nSecond line' },
+		}),
+	)
+	expect(written).toHaveBeenCalledTimes(1)
+})
+
 test('a number field sends a number, not its text', async () => {
 	serveCatalogue([loyaltyPoints])
 	serveValues({ loyaltyPoints: null })

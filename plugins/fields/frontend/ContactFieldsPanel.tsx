@@ -8,6 +8,7 @@ import {
 	InputControl,
 	Stack,
 	Text,
+	TextareaControl,
 	graphError,
 	useGraph,
 	useGraphMutation,
@@ -121,6 +122,15 @@ function FieldInput({
 				/>
 				<Text>{field.label}</Text>
 			</Stack>
+		)
+	}
+	if (field.kind === 'LONGTEXT') {
+		return (
+			<TextareaControl
+				label={field.label}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+			/>
 		)
 	}
 	return (
