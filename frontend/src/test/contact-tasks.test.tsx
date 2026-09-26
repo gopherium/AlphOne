@@ -178,7 +178,7 @@ test('pushes a task to tomorrow from the contact page', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ id: callID, due_on: tomorrow })
@@ -316,7 +316,7 @@ test('reports when a contact task cannot be updated', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })

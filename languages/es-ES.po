@@ -697,8 +697,8 @@ msgid "Loading…"
 msgstr "Cargando…"
 
 #, fuzzy
-msgid "Push to tomorrow"
-msgstr "Pasar a mañana"
+msgid "Postpone"
+msgstr "Posponer"
 
 #, fuzzy
 msgid "Activation link"
