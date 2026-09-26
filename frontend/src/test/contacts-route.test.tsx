@@ -285,6 +285,15 @@ test('shows the contact detail with its identities', async () => {
 	expect(screen.getByText('Created Jul 6, 2026')).toBeInTheDocument()
 })
 
+test('sets the creation date beside the contact work', async () => {
+	renderAt(`/contacts/${anaID}`)
+
+	const created = await screen.findByText('Created Jul 6, 2026')
+	expect(created.closest('.godmin-page__aside')).not.toBeNull()
+	expect(screen.getByRole('heading', { name: 'Identities' }).closest('.godmin-page__main')).not.toBeNull()
+	expect(screen.getByRole('heading', { name: 'Tasks' }).closest('.godmin-page__main')).not.toBeNull()
+})
+
 test('adds an email identity to the contact', async () => {
 	const identities = [
 		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
