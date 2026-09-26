@@ -603,6 +603,22 @@ test('a failed value read is reported instead of an empty editor', async () => {
 	expect(screen.queryByRole('button', { name: 'Save fields' })).not.toBeInTheDocument()
 })
 
+test('a sub field named after a built-in member starts every entry blank', async () => {
+	serveCatalogue([
+		{
+			...history,
+			subFields: [{ __typename: 'FieldSubField', name: 'constructor', label: 'Builder', kind: 'TEXT' }],
+		},
+	])
+	serveValues({ history: [{}] })
+
+	renderPanel()
+	expect((await entry(1)).getByLabelText('Builder')).toHaveValue('')
+	await userEvent.click(screen.getByRole('button', { name: 'Add an entry to History' }))
+
+	expect((await entry(2)).getByLabelText('Builder')).toHaveValue('')
+})
+
 test('a failed catalogue read leaves the contact screen alone', async () => {
 	server.use(
 		graphql.query('Fields', () => HttpResponse.json({ errors: [{ message: 'boom' }] })),

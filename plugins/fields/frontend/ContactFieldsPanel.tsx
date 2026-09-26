@@ -151,6 +151,16 @@ function FieldsForm({
 }
 
 /**
+ * Returns the value an entry holds under one of its own keys, never an inherited one.
+ * @param entry - The stored cells, keyed by sub field name.
+ * @param key - The sub field name to read.
+ * @returns The value, or undefined when the entry holds no such key of its own.
+ */
+function own(entry: Record<string, unknown>, key: string) {
+	return Object.hasOwn(entry, key) ? entry[key] : undefined
+}
+
+/**
  * Renders the entries of one repeater, each a group of its sub field inputs.
  * @param props - The repeater, its stored entries, the edited ones and the change handler.
  * @returns The entries editor.
@@ -293,7 +303,7 @@ function entriesOf(subFields: SubFieldRow[], stored: unknown) {
  * @returns The text of every cell, empty where the entry holds none.
  */
 function entryText(subFields: SubFieldRow[], entry: Record<string, unknown>): EntryText {
-	return Object.fromEntries(subFields.map((column) => [column.name, textOf(entry[column.name])]))
+	return Object.fromEntries(subFields.map((column) => [column.name, textOf(own(entry, column.name))]))
 }
 
 /**
