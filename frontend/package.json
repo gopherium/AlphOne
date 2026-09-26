@@ -22,7 +22,7 @@
 		"@alphone/plugin-fields": "workspace:*",
 		"@alphone/plugin-importer": "workspace:*",
 		"@alphone/plugin-whatsapp": "workspace:*",
-		"@gopherium/godmin": "0.8.0",
+		"@gopherium/godmin": "0.9.0",
 		"@gopherium/gottext": "0.5.0",
 		"@gopherium/react-auth": "0.9.0",
 		"@tanstack/react-query": "^5.102.8",
