@@ -205,6 +205,27 @@ func TestLiveContactFieldsLeavesOutAnArchivedField(t *testing.T) {
 	}
 }
 
+func TestLiveContactFieldsLeavesOutARepeater(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	history, err := newDefinition("history", "History", "REPEATER", nil, historyInput...)
+	if err != nil {
+		t.Fatalf("newDefinition() error = %v, want nil", err)
+	}
+	define(t, p, history)
+	define(t, p, labelled(t, "birthDate", "Birth date", "DATE"))
+
+	listed, err := p.LiveContactFields(t.Context())
+
+	if err != nil {
+		t.Fatalf("LiveContactFields() error = %v, want nil", err)
+	}
+	if len(listed) != 1 || listed[0].Name != "birthDate" {
+		t.Errorf("listed = %#v, want only birthDate, since one cell cannot fill a list of rows", listed)
+	}
+}
+
 func TestLiveContactFieldsReportsAReadFailure(t *testing.T) {
 	t.Parallel()
 
