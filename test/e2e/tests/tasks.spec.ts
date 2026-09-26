@@ -46,7 +46,7 @@ test('pushes a task to the next day', async ({ page }) => {
 
 	await page
 		.getByRole('listitem', { name: title })
-		.getByRole('button', { name: 'Push to tomorrow' })
+		.getByRole('button', { name: 'Postpone' })
 		.click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
@@ -70,7 +70,7 @@ test('carries work left over from an earlier day into today', async ({ page }) =
 
 	await page
 		.getByRole('listitem', { name: title })
-		.getByRole('button', { name: 'Push to tomorrow' })
+		.getByRole('button', { name: 'Postpone' })
 		.click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
