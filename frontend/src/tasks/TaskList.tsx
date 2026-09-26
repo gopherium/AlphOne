@@ -109,7 +109,7 @@ function TaskRow({
 					className="alphone-tasks__push"
 					onClick={() => controls.onPush(task)}
 				>
-					{__('Push to tomorrow', 'alphone')}
+					{__('Postpone', 'alphone')}
 				</Button>
 			)}
 		</Stack>

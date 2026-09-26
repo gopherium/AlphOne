@@ -579,7 +579,7 @@ test('pushes a task to tomorrow', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toEqual({ id: callID, body: { due_on: tomorrow } })
@@ -590,7 +590,7 @@ test('pushes an overdue task to tomorrow rather than to the day after it was due
 	renderAt('/tasks')
 	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
 
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toEqual({ id: oldID, body: { due_on: tomorrow } })
@@ -602,7 +602,7 @@ test('pushes a task on a future day to the day after it', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toEqual({ id: callID, body: { due_on: localDate(2) } })
@@ -634,7 +634,7 @@ test('leaves done tasks without a push control', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Done (1)' }))
 
 	const row = await screen.findByRole('listitem', { name: 'Book the courier' })
-	expect(within(row).queryByRole('button', { name: 'Push to tomorrow' })).not.toBeInTheDocument()
+	expect(within(row).queryByRole('button', { name: 'Postpone' })).not.toBeInTheDocument()
 })
 
 test('reports when overdue work cannot be loaded', async () => {
@@ -727,7 +727,7 @@ test('leaves the day alone when pushing a task fails', async () => {
 	await screen.findByText('Call the supplier')
 
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 	expect(screen.getByText('Call the supplier')).toBeInTheDocument()

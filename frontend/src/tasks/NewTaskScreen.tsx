@@ -18,6 +18,7 @@ import { useState } from 'react'
 
 import { contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { isValidDate } from './format'
 import { createTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -85,7 +86,7 @@ export function NewTaskScreen({
 				<ContactPicker contact={contact} onPick={setContact} />
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || create.fetching}
+					disabled={title.trim() === '' || !isValidDate(dueOn) || create.fetching}
 					loading={create.fetching}
 				>
 					{__('Create task', 'alphone')}

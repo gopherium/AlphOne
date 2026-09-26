@@ -307,13 +307,13 @@ msgstr ""
 msgid "Overdue tasks could not be loaded."
 msgstr ""
 
+msgid "Postpone"
+msgstr ""
+
 msgid "Previous day"
 msgstr ""
 
 msgid "Priority"
-msgstr ""
-
-msgid "Push to tomorrow"
 msgstr ""
 
 msgid "Read %(area)s"

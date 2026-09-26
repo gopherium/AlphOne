@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 func TestSeedDefinesTheDemoFields(t *testing.T) {
@@ -84,11 +86,86 @@ func TestSeedRevivesAnArchivedDemoField(t *testing.T) {
 	}
 }
 
+// seedDemoContact stores a contact named Maria Perez holding the demo email.
+func seedDemoContact(t *testing.T, p *Plugin) uuid.UUID {
+	t.Helper()
+	id := seedContact(t, p, "Maria Perez")
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
+		VALUES ($1, $2, 'email', $3, '', now())`, uuid.Must(uuid.NewV7()), id, seedContactEmail); err != nil {
+		t.Fatalf("seeding the contact's email: %v", err)
+	}
+	return id
+}
+
+func TestSeedWritesTheValuesOntoTheContactHoldingTheDemoEmail(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	namesake := seedContact(t, p, "Maria Perez")
+	maria := seedDemoContact(t, p)
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{namesake, maria})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	if _, written := held[namesake]["history"]; written {
+		t.Errorf("history landed on an older contact of the same name, want the one holding the demo email")
+	}
+	if held[maria]["history"] == nil {
+		t.Errorf("values = %#v, want the history on the contact holding the demo email", held[maria])
+	}
+}
+
+func TestSeedLeavesAnotherTenantsContactWithTheDemoEmailAlone(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := inTenant(t, p)
+	elsewhere := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, 'Maria Perez', now(), $2)`,
+		elsewhere, sdk.TenantOrDefault(acme)); err != nil {
+		t.Fatalf("seeding the other tenant's contact: %v", err)
+	}
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at, tenant_id)
+		VALUES ($1, $2, 'email', $3, '', now(), $4)`,
+		uuid.Must(uuid.NewV7()), elsewhere, seedContactEmail, sdk.TenantOrDefault(acme)); err != nil {
+		t.Fatalf("seeding the other tenant's email: %v", err)
+	}
+	maria := seedDemoContact(t, p)
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{maria})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	if held[maria]["history"] == nil {
+		t.Errorf("values = %#v, want the history on the seeding tenant's contact", held[maria])
+	}
+	var strays int
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM plugin_fields.contact_values WHERE contact_id = $1", elsewhere).Scan(&strays); err != nil {
+		t.Fatalf("counting the other tenant's values: %v", err)
+	}
+	if strays != 0 {
+		t.Errorf("the other tenant's contact holds %d value rows, want none", strays)
+	}
+}
+
 func TestSeedWritesTheValuesOntoTheDemoContact(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	maria := seedContact(t, p, seedContactName)
+	maria := seedDemoContact(t, p)
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
@@ -114,7 +191,7 @@ func TestSeedKeepsWhatTheDemoContactAlreadyHolds(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	maria := seedContact(t, p, seedContactName)
+	maria := seedDemoContact(t, p)
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("first Seed() error = %v, want nil", err)
 	}
@@ -144,7 +221,7 @@ func TestSeedReportsValuesItCannotRead(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	seedContact(t, p, seedContactName)
+	seedDemoContact(t, p)
 	if _, err := p.pool.Exec(t.Context(), "DROP TABLE plugin_fields.contact_values"); err != nil {
 		t.Fatalf("dropping the values table: %v", err)
 	}

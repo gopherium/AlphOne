@@ -203,6 +203,15 @@ test('refuses to create a task without a title', async () => {
 	)
 })
 
+test('keeps Create task off while the due date is empty', async () => {
+	renderAt('/tasks/new')
+	await userEvent.type(await screen.findByLabelText('Title'), 'Order more boxes')
+
+	await userEvent.clear(screen.getByLabelText('Due date'))
+
+	expect(screen.getByRole('button', { name: 'Create task' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('reports when the task is rejected', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>

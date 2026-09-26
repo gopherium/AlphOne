@@ -93,7 +93,7 @@ beforeEach(() => {
 		graphql.mutation('CreateTask', ({ variables }) => {
 			const input = variables.input as Record<string, unknown>
 			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId })
-			const row = taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), today)
+			const row = taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), String(input.dueOn))
 			tasks = [...tasks, row]
 			return HttpResponse.json({
 				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
@@ -178,7 +178,7 @@ test('pushes a task to tomorrow from the contact page', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ id: callID, due_on: tomorrow })
@@ -198,6 +198,53 @@ test('adds a task for the contact due today', async () => {
 		due_on: today,
 	})
 	expect(await screen.findByText('Send the invoice')).toBeInTheDocument()
+})
+
+test('starts a new contact task on today', async () => {
+	renderAt(`/contacts/${contactID}`)
+
+	expect(await screen.findByLabelText('Due date')).toHaveValue(today)
+})
+
+test('adds a task for the contact due on the chosen day', async () => {
+	const chosen = localDate(3)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	const due = screen.getByLabelText('Due date')
+	await userEvent.clear(due)
+	await userEvent.type(due, chosen)
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({ title: 'Send the invoice', contact_id: contactID, due_on: chosen })
+	const row = await screen.findByRole('listitem', { name: 'Send the invoice' })
+	expect(within(row).getByText(dueLabel(chosen))).toBeInTheDocument()
+})
+
+test('keeps Add task off while the due date is empty', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	await userEvent.clear(screen.getByLabelText('Due date'))
+
+	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('starts the next task on today after an add', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	const due = screen.getByLabelText('Due date')
+	await userEvent.clear(due)
+	await userEvent.type(due, localDate(3))
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	await waitFor(() => expect(screen.getByLabelText('Due date')).toHaveValue(today))
 })
 
 test('says when a contact has nothing open', async () => {
@@ -316,7 +363,7 @@ test('reports when a contact task cannot be updated', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
-	await userEvent.click(within(row).getByRole('button', { name: 'Push to tomorrow' }))
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 })

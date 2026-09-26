@@ -117,6 +117,14 @@ test('reschedules a task from the date field', async () => {
 	expect(patched[0]).toMatchObject({ due_on: '2026-08-20' })
 })
 
+test('keeps Save off while the due date is empty', async () => {
+	renderAt(`/tasks/${taskID}`)
+
+	await userEvent.clear(await screen.findByLabelText('Due date'))
+
+	expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('raises the priority of a task', async () => {
 	renderAt(`/tasks/${taskID}`)
 

@@ -46,7 +46,7 @@ test('pushes a task to the next day', async ({ page }) => {
 
 	await page
 		.getByRole('listitem', { name: title })
-		.getByRole('button', { name: 'Push to tomorrow' })
+		.getByRole('button', { name: 'Postpone' })
 		.click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
@@ -70,7 +70,7 @@ test('carries work left over from an earlier day into today', async ({ page }) =
 
 	await page
 		.getByRole('listitem', { name: title })
-		.getByRole('button', { name: 'Push to tomorrow' })
+		.getByRole('button', { name: 'Postpone' })
 		.click()
 
 	await expect(page.getByRole('listitem', { name: title })).toBeHidden()
@@ -119,4 +119,35 @@ test('adds a task from a contact and links it back', async ({ page }) => {
 
 	await expect(page.getByRole('heading', { name: title })).toBeVisible()
 	await expect(page.getByRole('link', { name: contact })).toBeVisible()
+})
+
+test('adds a task from a contact on a chosen day', async ({ page }) => {
+	const stamp = Date.now()
+	const contact = `Customer ${stamp}`
+	const title = `Follow up with ${contact}`
+	const chosen = new Date()
+	chosen.setDate(chosen.getDate() + 3)
+	const due = chosen.toLocaleDateString('en-CA')
+	const label = `Due ${chosen.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+
+	await page.goto('/')
+	await page.getByRole('link', { name: 'Contacts' }).click()
+	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByLabel('Name').fill(contact)
+	await page.getByRole('button', { name: 'Create contact' }).click()
+	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
+
+	await page.getByRole('textbox', { name: 'New task for this contact' }).fill(title)
+	await page.getByLabel('Due date', { exact: true }).fill(due)
+	await page.getByRole('button', { name: 'Add task' }).click()
+
+	const row = page.getByRole('list', { name: 'Contact tasks' }).getByRole('listitem', { name: title })
+	await expect(row).toContainText(label)
+	const browserToday = await page.evaluate(() => new Date().toLocaleDateString('en-CA'))
+	await expect(page.getByLabel('Due date', { exact: true })).toHaveValue(browserToday)
+
+	await row.getByRole('link', { name: title }).click()
+
+	await expect(page.getByRole('heading', { name: title })).toBeVisible()
+	await expect(page.getByLabel('Due date', { exact: true })).toHaveValue(due)
 })

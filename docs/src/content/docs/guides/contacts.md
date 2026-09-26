@@ -44,6 +44,13 @@ A contact's detail page lists its identities: the per-channel handles
 that link conversations to the contact, such as a WhatsApp phone number.
 Identities are created automatically by channels and cannot be edited.
 
+## The contact page
+
+A contact's page has two columns. The left one holds the name, the
+identities and the tasks, which is where the work happens. The right one
+holds the date the contact was created and the custom fields. On a narrow
+screen the right column moves under the tasks.
+
 ## Storing more about a contact
 
 A contact holds only a name and its identities out of the box. To store an

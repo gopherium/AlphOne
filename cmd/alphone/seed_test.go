@@ -87,7 +87,7 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [7]int{7, 6, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{7, 7, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -262,6 +262,29 @@ func TestSeedStoresADayOfTasks(t *testing.T) {
 	}
 }
 
+func TestSeedLinksATaskDueInThreeDaysToTheHistoryContact(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+	pool := testPool(t, databaseURL)
+
+	var dueOn string
+	err := pool.QueryRow(t.Context(), `
+		SELECT to_char(t.due_on, 'YYYY-MM-DD')
+		FROM core.tasks t
+		JOIN core.contacts c ON c.id = t.contact_id
+		WHERE c.name = 'Maria Perez'`).Scan(&dueOn)
+
+	want := time.Now().UTC().AddDate(0, 0, 3).Format(time.DateOnly)
+	if err != nil || dueOn != want {
+		t.Errorf("the history contact's task is due %q (err %v), want %q", dueOn, err, want)
+	}
+}
+
 func TestSeedRaisesOneTaskAboveTheRest(t *testing.T) {
 	t.Parallel()
 
@@ -307,7 +330,7 @@ func TestSeedTasksReportsAdminLookupFailure(t *testing.T) {
 	users.LookupErr = errors.New("store down")
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
 
-	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+	err := seedTasks(t.Context(), store, users, nil)
 
 	if err == nil {
 		t.Fatal("seedTasks() error = nil, want an admin lookup failure")
@@ -324,7 +347,7 @@ func TestSeedTasksReportsLookupFailure(t *testing.T) {
 	store := postgres.NewTaskStore(pool)
 	pool.Close()
 
-	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+	err := seedTasks(t.Context(), store, users, nil)
 
 	if err == nil {
 		t.Fatal("seedTasks() error = nil, want a lookup failure")
@@ -338,7 +361,7 @@ func TestSeedTasksReportsAColleagueLookupFailure(t *testing.T) {
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
 
-	err := seedTasks(t.Context(), store, users, uuid.Must(uuid.NewV7()))
+	err := seedTasks(t.Context(), store, users, nil)
 
 	if err == nil {
 		t.Fatal("seedTasks() error = nil, want the missing colleague reported")
@@ -356,7 +379,7 @@ func TestSeedTasksReportsIDGenerationFailure(t *testing.T) {
 	uuid.SetRand(failingReader{})
 	defer uuid.SetRand(nil)
 
-	err := seedTasks(t.Context(), store, users, uuid.Nil)
+	err := seedTasks(t.Context(), store, users, nil)
 
 	if !errors.Is(err, errEntropy) {
 		t.Fatalf("seedTasks() error = %v, want the entropy failure in its chain", err)
@@ -378,7 +401,7 @@ func TestSeedIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [7]int{7, 6, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{7, 7, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.String(), "admin@example.com already exists") {
