@@ -43,6 +43,14 @@ export function InvoicesScreen() {
 `subtitle` and `actions` are optional. The page spans the full canvas
 width, so a screen with one action and a screen with four still line up.
 
+Pass `aside` to show a second column beside the content, for details that
+sit next to the main work. On a wide page it starts 320px wide. On a narrow
+page it moves under the content, and an aside that renders nothing takes no
+room.
+
+A plugin's contact panel always renders in the contact page's aside, so
+design it for a 320px column.
+
 Put navigation and creation controls in `actions`. A form's submit
 button belongs at the bottom of the form, not in the header.
 
