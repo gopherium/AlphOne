@@ -4,6 +4,9 @@ import { _x } from '@alphone/frontend-sdk'
 
 import type { FieldKind } from './gql/graphql'
 
+/** ENTRY_ID_KEY is the key a repeater entry keeps its id under. */
+export const ENTRY_ID_KEY = 'id'
+
 /**
  * Returns the kind options, read fresh so the loaded catalogue answers.
  * @returns The options, in menu order.
