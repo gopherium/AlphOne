@@ -115,8 +115,8 @@ from the API straight away.
 
 Archiving does not delete anything. The values stay in the database. If you
 create the field again later, with the same name and the same kind, the old
-values come back. A repeater also needs the same sub fields, with the same
-names and kinds, or AlphOne refuses it.
+values come back. A repeater also needs the same sub fields, in the same
+order and with the same names and kinds, or AlphOne refuses it.
 
 ## Using your fields from the API
 
