@@ -6,6 +6,7 @@ import {
 	Checkbox,
 	ErrorNotice,
 	InputControl,
+	LoadingRows,
 	RepeatRows,
 	Stack,
 	Text,
@@ -55,71 +56,97 @@ export function ContactFieldsPanel({ contactId }: { contactId: string }) {
 	if (catalogue.error || fields.length === 0) {
 		return null
 	}
-	return <FieldValues contactId={contactId} fields={fields} />
+	return <FieldValues key={contactId} contactId={contactId} fields={fields} />
 }
 
 /**
- * Renders the value editor for the given fields of one contact.
+ * Renders the value editor of one contact once its stored values load.
  * @param props - The contact and the fields it holds values for.
- * @returns The value editor.
+ * @returns The value editor, a loading placeholder or the failed read.
  */
 function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRow[] }) {
 	const [values] = useGraphQuery({
 		query: contactValuesDocument(fields.map((field) => field.name)),
 		variables: { id: contactId },
 	})
-	const [edited, setEdited] = useState<Record<string, string>>({})
-	const [entries, setEntries] = useState<Record<string, EntryText[]>>({})
-	const [written, write] = useGraphMutation(writeContactFieldsMutation)
-	const graph = useGraph()
-	const stored = (values.data?.contact ?? {}) as Record<string, unknown>
+	let body = <LoadingRows label={__('Loading fields…', 'alphone-fields')} rows={fields.length} />
+	if (values.error) {
+		body = <ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
+	} else if (values.data) {
+		const stored = (values.data.contact ?? {}) as Record<string, unknown>
+		body = <FieldsForm contactId={contactId} fields={fields} stored={stored} />
+	}
 
 	return (
 		<Stack direction="column" gap="sm">
 			<Text variant="heading-sm" render={<h2 />}>
 				{__('Fields', 'alphone-fields')}
 			</Text>
-			<form
-				className="godmin-form"
-				onSubmit={(event) => {
-					event.preventDefault()
-					void write({ contactId, values: writable(fields, edited, entries) }).then((result) => {
-						if (!result.error) {
-							setEdited({})
-							setEntries({})
-							graph.refetch([valuesOperation])
-						}
-					})
-				}}
-			>
-				{written.error ? (
-					<ErrorNotice>
-						{validationMessage(graphError(written.error), __('The fields could not be saved.', 'alphone-fields'))}
-					</ErrorNotice>
-				) : null}
-				{fields.map((field) =>
-					field.kind === 'REPEATER' ? (
-						<EntriesInput
-							key={field.id}
-							field={field}
-							stored={stored[field.name]}
-							entries={entries[field.name]}
-							onChange={(next) => setEntries((held) => ({ ...held, [field.name]: next }))}
-						/>
-					) : (
-						<FieldInput
-							key={field.id}
-							field={field}
-							value={edited[field.name] ?? textOf(stored[field.name])}
-							onChange={(next) => setEdited({ ...edited, [field.name]: next })}
-						/>
-					),
-				)}
-				<Button type="submit" loading={written.fetching}>
-					{__('Save fields', 'alphone-fields')}
-				</Button>
-			</form>
+			{body}
 		</Stack>
+	)
+}
+
+/**
+ * Renders the form editing the stored values of one contact.
+ * @param props - The contact, the fields it holds values for and the values the graph answered.
+ * @returns The value form.
+ */
+function FieldsForm({
+	contactId,
+	fields,
+	stored,
+}: {
+	contactId: string
+	fields: FieldRow[]
+	stored: Record<string, unknown>
+}) {
+	const [edited, setEdited] = useState<Record<string, string>>({})
+	const [entries, setEntries] = useState<Record<string, EntryText[]>>({})
+	const [written, write] = useGraphMutation(writeContactFieldsMutation)
+	const graph = useGraph()
+
+	return (
+		<form
+			className="godmin-form"
+			onSubmit={(event) => {
+				event.preventDefault()
+				void write({ contactId, values: writable(fields, edited, entries) }).then((result) => {
+					if (!result.error) {
+						setEdited({})
+						setEntries({})
+						graph.refetch([valuesOperation])
+					}
+				})
+			}}
+		>
+			{written.error ? (
+				<ErrorNotice>
+					{validationMessage(graphError(written.error), __('The fields could not be saved.', 'alphone-fields'))}
+				</ErrorNotice>
+			) : null}
+			{fields.map((field) =>
+				field.kind === 'REPEATER' ? (
+					<EntriesInput
+						key={field.id}
+						field={field}
+						stored={stored[field.name]}
+						entries={entries[field.name]}
+						onChange={(next) => setEntries((held) => ({ ...held, [field.name]: next }))}
+					/>
+				) : (
+					<FieldInput
+						key={field.id}
+						field={field}
+						value={edited[field.name] ?? textOf(stored[field.name])}
+						onChange={(next) => setEdited({ ...edited, [field.name]: next })}
+					/>
+				),
+			)}
+			<Button type="submit" loading={written.fetching}>
+				{__('Save fields', 'alphone-fields')}
+			</Button>
+		</form>
 	)
 }
 

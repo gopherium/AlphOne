@@ -505,18 +505,102 @@ test('a saved entry list is edited afresh from what the graph answers', async ()
 				data: { contact: { __typename: 'Contact', id: contactID, history: stored } },
 			}),
 		),
-		graphql.mutation('WriteContactFields', ({ variables }) => {
-			stored = (variables.values as { history: unknown }).history
+		graphql.mutation('WriteContactFields', () => {
+			stored = [offerSent]
 			return HttpResponse.json({ data: { writeContactFields: true } })
 		}),
 	)
 
 	renderPanel()
-	await userEvent.click((await entry(1)).getByRole('button', { name: 'Remove entry' }))
+	await entry(1)
+	await userEvent.click(screen.getByRole('button', { name: 'Add an entry to History' }))
+	await entry(2)
 	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
 
+	await waitFor(async () => expect((await entry(1)).getByLabelText('Date')).toHaveValue(offerSent.date))
+	expect(screen.queryByRole('group', { name: 'History 2' })).not.toBeInTheDocument()
+})
+
+test('unsaved entries stay with the contact they were typed on', async () => {
+	serveCatalogue([history])
+	const otherID = '0198c000-0000-7000-8000-000000000402'
+	server.use(
+		graphql.query('ContactFieldValues', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					contact: {
+						__typename: 'Contact',
+						id: variables.id,
+						history: variables.id === contactID ? [firstCall] : [offerSent],
+					},
+				},
+			}),
+		),
+	)
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	const { graph } = fakeGraphClient()
+	const shown = (id: string) => (
+		<QueryClientProvider client={client}>
+			<GraphProvider graph={graph}>
+				<ContactFieldsPanel contactId={id} />
+			</GraphProvider>
+		</QueryClientProvider>
+	)
+
+	const { rerender } = render(shown(contactID))
+	await entry(1)
+	await userEvent.click(screen.getByRole('button', { name: 'Add an entry to History' }))
+	await entry(2)
+	rerender(shown(otherID))
+
+	await waitFor(async () => expect((await entry(1)).getByLabelText('Date')).toHaveValue(offerSent.date))
+	expect(screen.queryByRole('group', { name: 'History 2' })).not.toBeInTheDocument()
+})
+
+test('the editor waits for the stored entries before it opens', async () => {
+	serveCatalogue([history])
+	let release = () => {}
+	const answered = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('ContactFieldValues', async () => {
+			await answered
+			return HttpResponse.json({
+				data: { contact: { __typename: 'Contact', id: contactID, history: [firstCall] } },
+			})
+		}),
+	)
+
+	renderPanel()
+
+	expect(await screen.findByRole('status')).toHaveTextContent('Loading fields…')
+	expect(screen.queryByRole('button', { name: 'Add an entry to History' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'Save fields' })).not.toBeInTheDocument()
+	release()
+	expect((await entry(1)).getByLabelText('Date')).toHaveValue(firstCall.date)
+})
+
+test('a contact the graph no longer finds opens with no stored entries', async () => {
+	serveCatalogue([history])
+	server.use(graphql.query('ContactFieldValues', () => HttpResponse.json({ data: { contact: null } })))
+
+	renderPanel()
+
 	expect(await screen.findByText('No entries yet.')).toBeInTheDocument()
-	await waitFor(() => expect(stored).toBeNull())
+})
+
+test('a failed value read is reported instead of an empty editor', async () => {
+	serveCatalogue([history])
+	server.use(
+		graphql.query('ContactFieldValues', () => HttpResponse.json({ errors: [{ message: 'boom' }] })),
+	)
+
+	renderPanel()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
+	expect(screen.queryByRole('button', { name: 'Add an entry to History' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'Save fields' })).not.toBeInTheDocument()
 })
 
 test('a failed catalogue read leaves the contact screen alone', async () => {
