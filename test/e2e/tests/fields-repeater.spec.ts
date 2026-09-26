@@ -65,7 +65,14 @@ test('defines a repeater and keeps a contact history in order', async ({ page })
 	await second.getByLabel('Date', { exact: true }).fill('2026-09-10')
 	await second.getByLabel('Comment', { exact: true }).fill('Sent the offer.')
 	await second.getByRole('button', { name: 'Move entry up' }).click()
+	const saved = page.waitForResponse(
+		(response) =>
+			response.url().includes('/api/graphql') &&
+			(response.request().postData() ?? '').includes('WriteContactFields'),
+	)
 	await page.getByRole('button', { name: 'Save fields' }).click()
+	const answer = await saved
+	expect(await answer.text()).toContain('"writeContactFields":true')
 
 	await page.reload()
 	const kept = page.getByRole('group', { name: `${label} 1`, exact: true })
