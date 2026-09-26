@@ -4,6 +4,8 @@ package fields
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -86,6 +88,21 @@ func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
 	for sentinel, reason := range want {
 		if got := fieldReason(sentinel); got != reason {
 			t.Errorf("fieldReason(%v) = %q, want %q", sentinel, got, reason)
+		}
+	}
+}
+
+func TestEveryReasonHasAFrontendMessage(t *testing.T) {
+	t.Parallel()
+
+	templates, err := os.ReadFile(filepath.Join("frontend", "errorTemplates.ts"))
+	if err != nil {
+		t.Fatalf("reading the frontend templates: %v", err)
+	}
+
+	for _, held := range fieldReasons {
+		if !strings.Contains(string(templates), "\t"+held.reason+": __(") {
+			t.Errorf("reason %q has no frontend message, want the screens to speak it", held.reason)
 		}
 	}
 }
