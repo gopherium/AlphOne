@@ -2,8 +2,7 @@ name: docs
 
 on:
   push:
-    branches: [main]
-    paths: ["docs/**", "internal/version/VERSION", ".github/workflows/docs.yml"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify the embedded version matches the tag
+        if: github.ref_type == 'tag'
+        run: |
+          embedded="$(cat internal/version/VERSION)"
+          tagged="${GITHUB_REF_NAME#v}"
+          if [ "$embedded" != "$tagged" ]; then
+            echo "internal/version/VERSION is $embedded but the tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - uses: withastro/action@e84f40bd8d2caa9e768ec82ad30dd81f0b280853 # v6.1.2
         with:
           path: ./docs
