@@ -17,6 +17,7 @@ func TestSeedStoresACommittedDemoImport(t *testing.T) {
 
 	p, pool, contacts, _ := newCommittingPlugin(t)
 	ada := contacts.seed("Ada Lovelace", "ada@example.com")
+	maria := contacts.seed("Maria Perez", "maria.perez@example.com")
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
@@ -34,13 +35,16 @@ func TestSeedStoresACommittedDemoImport(t *testing.T) {
 	if state != "committed" {
 		t.Errorf("state = %q, want committed so the history shows a finished import", state)
 	}
-	if rowCount != 6 || imported != 3 || skipped != 2 || failed != 1 {
-		t.Errorf("counts = %d rows, %d imported, %d skipped, %d failed, want 6, 3, 2, 1",
+	if rowCount != 6 || imported != 2 || skipped != 3 || failed != 1 {
+		t.Errorf("counts = %d rows, %d imported, %d skipped, %d failed, want 6, 2, 3, 1",
 			rowCount, imported, skipped, failed)
 	}
 	if outcomes := outcomesOf(t, pool, id); slices.Compare(outcomes, []string{
-		"imported", "imported", "imported", "skipped", "skipped", "failed"}) != 0 {
-		t.Errorf("outcomes = %v, want three imported, two skipped, one failed", outcomes)
+		"skipped", "imported", "imported", "skipped", "skipped", "failed"}) != 0 {
+		t.Errorf("outcomes = %v, want Maria Perez skipped, two imported, two more skipped, one failed", outcomes)
+	}
+	if linked := linkOf(t, pool, 1); linked == nil || *linked != maria.ID {
+		t.Errorf("the Maria Perez row links to %v, want the contact already holding her email %v", linked, maria.ID)
 	}
 	var columns []string
 	var second string
@@ -63,19 +67,20 @@ func TestSeedStoresACommittedDemoImport(t *testing.T) {
 	}
 }
 
-func TestSeedPointsARowAtWhatAnEarlierRowStored(t *testing.T) {
+func TestSeedPointsBothPerezRowsAtTheStoredContact(t *testing.T) {
 	t.Parallel()
 
-	p, pool, _, _ := newCommittingPlugin(t)
+	p, pool, contacts, _ := newCommittingPlugin(t)
+	maria := contacts.seed("Maria Perez", "maria.perez@example.com")
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
-	stored, collided := linkOf(t, pool, 1), linkOf(t, pool, 5)
-	if collided == nil || stored == nil || *collided != *stored {
-		t.Errorf("the second skipped row links to %v, want the contact row 1 stored, %v",
-			collided, stored)
+	for _, position := range []int{1, 5} {
+		if linked := linkOf(t, pool, position); linked == nil || *linked != maria.ID {
+			t.Errorf("row %d links to %v, want the stored Maria Perez %v", position, linked, maria.ID)
+		}
 	}
 }
 
@@ -88,7 +93,7 @@ func TestSeedStoresTheImportedContact(t *testing.T) {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
-	linked := linkOf(t, pool, 1)
+	linked := linkOf(t, pool, 2)
 	if linked == nil {
 		t.Fatal("imported row links to no contact, want the one the import created")
 	}
@@ -97,7 +102,7 @@ func TestSeedStoresTheImportedContact(t *testing.T) {
 		"SELECT name FROM core.contacts WHERE id = $1", *linked).Scan(&name); err != nil {
 		t.Fatalf("reading the created contact: %v", err)
 	}
-	if name != "Maria Perez" {
+	if name != "Grace Hopper" {
 		t.Errorf("contact name = %q, want the name the imported row carries", name)
 	}
 }
@@ -152,8 +157,8 @@ func TestSeedLeavesAnEarlierRunAlone(t *testing.T) {
 	if imports != 1 || rows != 6 {
 		t.Errorf("stored %d imports and %d rows, want 1 and 6", imports, rows)
 	}
-	if contacts.creates != 3 {
-		t.Errorf("created %d contacts, want the second run to create none", contacts.creates)
+	if contacts.creates != 2 {
+		t.Errorf("created %d contacts, want the two imported rows once and the second run none", contacts.creates)
 	}
 }
 
@@ -166,8 +171,10 @@ func TestSeedRunsWithoutTheClaimingContact(t *testing.T) {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
-	if linked := linkOf(t, pool, 4); linked != nil {
-		t.Errorf("skipped row links to %v, want no contact when none claims the email", linked)
+	for _, position := range []int{1, 4} {
+		if linked := linkOf(t, pool, position); linked != nil {
+			t.Errorf("skipped row %d links to %v, want no contact when none claims the email", position, linked)
+		}
 	}
 }
 
