@@ -5,7 +5,7 @@ description: How the daily task list works, from quick capture to rescheduling w
 
 Tasks are the work you owe someone. AlphOne opens on the day's list, and
 that list is the main screen of the product: work it top to bottom and
-push forward whatever did not happen.
+postpone whatever did not happen.
 
 ## The day
 
@@ -42,10 +42,10 @@ something the app does behind your back.
 
 ## Rescheduling
 
-**Push to tomorrow** moves a task to the day after today, whatever it was
-due before. A task that has been overdue for a week lands on tomorrow,
-not on a date that is still in the past. This is the no-answer pattern:
-call, no reply, push, and it comes back tomorrow.
+**Postpone** moves an open task one day later. A task due today, or overdue
+for a week, lands on tomorrow, never on a date that is still in the past. A
+task already due on a later day moves to the day after it. This is the
+no-answer pattern: call, no reply, postpone, and it comes back tomorrow.
 
 For any other date, open the task and edit its due date directly.
 
