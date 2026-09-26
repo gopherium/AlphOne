@@ -133,7 +133,6 @@ Feature: A repeater keeps a list of entries on a contact
     When the Contact type is introspected
     Then the introspection lists "history" answering the scalar "JSON"
 
-  @wip
   Scenario: A repeater is not offered as an import column
     When the operator defines the repeater "history" labelled "History" with sub fields:
       | name    | label   | kind     |
