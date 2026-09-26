@@ -7,6 +7,9 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-fields\n"
 
+msgid "%(label)s %(number)d"
+msgstr ""
+
 msgid "A field name starts lowercase and runs together, like birthDate."
 msgstr ""
 
@@ -26,6 +29,9 @@ msgid "Add a field"
 msgstr ""
 
 msgid "Add a field to store more about every contact."
+msgstr ""
+
+msgid "Add an entry to %(label)s"
 msgstr ""
 
 msgid "Add field"
@@ -58,6 +64,12 @@ msgstr ""
 msgid "Loading fields…"
 msgstr ""
 
+msgid "Move entry down"
+msgstr ""
+
+msgid "Move entry up"
+msgstr ""
+
 msgid "Move sub field down"
 msgstr ""
 
@@ -67,6 +79,9 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
+msgid "No entries yet."
+msgstr ""
+
 msgid "No fields yet."
 msgstr ""
 
@@ -74,6 +89,9 @@ msgid "No sub fields yet."
 msgstr ""
 
 msgid "Only a repeater holds sub fields."
+msgstr ""
+
+msgid "Remove entry"
 msgstr ""
 
 msgid "Remove sub field"

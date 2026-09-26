@@ -8,7 +8,7 @@ import {
 	server,
 } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 
@@ -321,6 +321,202 @@ test('clearing a field sends null', async () => {
 			values: { birthDate: null },
 		}),
 	)
+})
+
+const history = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000506',
+	name: 'history',
+	label: 'History',
+	kind: 'REPEATER',
+	subFields: [
+		{ __typename: 'FieldSubField', name: 'date', label: 'Date', kind: 'DATE' },
+		{ __typename: 'FieldSubField', name: 'comment', label: 'Comment', kind: 'LONGTEXT' },
+	],
+}
+
+const firstCall = { date: '2026-09-01', comment: 'First call about the yearly plan.' }
+
+const offerSent = { date: '2026-09-10', comment: 'Sent the offer and booked a follow-up call.' }
+
+async function entry(number: number) {
+	return within(await screen.findByRole('group', { name: `History ${number}` }))
+}
+
+test('a repeater renders one group per stored entry, long text in a text area', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall, offerSent] })
+
+	renderPanel()
+
+	const first = await entry(1)
+	expect(first.getByLabelText('Date')).toHaveValue('2026-09-01')
+	expect(first.getByRole('textbox', { name: 'Comment' })).toBeInstanceOf(HTMLTextAreaElement)
+	expect(first.getByRole('textbox', { name: 'Comment' })).toHaveValue(firstCall.comment)
+	expect((await entry(2)).getByLabelText('Date')).toHaveValue('2026-09-10')
+	expect(screen.getByRole('group', { name: 'History' })).toBeInTheDocument()
+})
+
+test('a repeater holding no entries invites the first one', async () => {
+	serveCatalogue([history])
+	serveValues({ history: null })
+
+	renderPanel()
+
+	expect(await screen.findByText('No entries yet.')).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Add an entry to History' })).toBeInTheDocument()
+})
+
+test('a stored entry missing a cell renders that cell empty', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [{ comment: firstCall.comment }] })
+
+	renderPanel()
+
+	expect((await entry(1)).getByLabelText('Date')).toHaveValue('')
+})
+
+test('adding an entry sends the whole list with the new entry last', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	const written = captureWrite()
+
+	renderPanel()
+	await entry(1)
+	await userEvent.click(screen.getByRole('button', { name: 'Add an entry to History' }))
+	const added = await entry(2)
+	await userEvent.type(added.getByLabelText('Date'), '2026-09-20')
+	await userEvent.type(added.getByLabelText('Comment'), 'Called back.{Enter}Agreed on a date.')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: {
+				history: [firstCall, { date: '2026-09-20', comment: 'Called back.\nAgreed on a date.' }],
+			},
+		}),
+	)
+	expect(written).toHaveBeenCalledTimes(1)
+})
+
+test('a blank cell in an entry is sent as null', async () => {
+	serveCatalogue([history])
+	serveValues({ history: null })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.click(await screen.findByRole('button', { name: 'Add an entry to History' }))
+	await userEvent.type((await entry(1)).getByLabelText('Comment'), 'Left a message.')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { history: [{ date: null, comment: 'Left a message.' }] },
+		}),
+	)
+})
+
+test('moving an entry up sends the list in its new order', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall, offerSent] })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.click((await entry(2)).getByRole('button', { name: 'Move entry up' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { history: [offerSent, firstCall] },
+		}),
+	)
+})
+
+test('removing the only entry sends null', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.click((await entry(1)).getByRole('button', { name: 'Remove entry' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({ contactId: contactID, values: { history: null } }),
+	)
+})
+
+test('an untouched repeater is left out of the write', async () => {
+	serveCatalogue([history, jobTitle])
+	serveValues({ history: [firstCall], jobTitle: null })
+	const written = captureWrite()
+
+	renderPanel()
+	await entry(1)
+	await userEvent.type(screen.getByLabelText('Job title'), 'Rear Admiral')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { jobTitle: 'Rear Admiral' },
+		}),
+	)
+})
+
+test('a number cell in an entry sends a number', async () => {
+	const visits = {
+		__typename: 'FieldDefinition',
+		id: '0198c000-0000-7000-8000-000000000507',
+		name: 'visits',
+		label: 'Visits',
+		kind: 'REPEATER',
+		subFields: [{ __typename: 'FieldSubField', name: 'minutes', label: 'Minutes', kind: 'NUMBER' }],
+	}
+	serveCatalogue([visits])
+	serveValues({ visits: null })
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.click(await screen.findByRole('button', { name: 'Add an entry to Visits' }))
+	await userEvent.type(
+		within(screen.getByRole('group', { name: 'Visits 1' })).getByLabelText('Minutes'),
+		'45',
+	)
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	await waitFor(() =>
+		expect(written).toHaveBeenCalledWith({
+			contactId: contactID,
+			values: { visits: [{ minutes: 45 }] },
+		}),
+	)
+})
+
+test('a saved entry list is edited afresh from what the graph answers', async () => {
+	serveCatalogue([history])
+	let stored: unknown = [firstCall]
+	server.use(
+		graphql.query('ContactFieldValues', () =>
+			HttpResponse.json({
+				data: { contact: { __typename: 'Contact', id: contactID, history: stored } },
+			}),
+		),
+		graphql.mutation('WriteContactFields', ({ variables }) => {
+			stored = (variables.values as { history: unknown }).history
+			return HttpResponse.json({ data: { writeContactFields: true } })
+		}),
+	)
+
+	renderPanel()
+	await userEvent.click((await entry(1)).getByRole('button', { name: 'Remove entry' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	expect(await screen.findByText('No entries yet.')).toBeInTheDocument()
+	await waitFor(() => expect(stored).toBeNull())
 })
 
 test('a failed catalogue read leaves the contact screen alone', async () => {

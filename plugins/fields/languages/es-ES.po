@@ -9,6 +9,10 @@ msgstr ""
 "Language: es\n"
 
 #, fuzzy
+msgid "%(label)s %(number)d"
+msgstr "%(label)s %(number)d"
+
+#, fuzzy
 msgid "A field name starts lowercase and runs together, like birthDate."
 msgstr "El nombre de un campo empieza por minúscula y va todo junto, como birthDate."
 
@@ -35,6 +39,10 @@ msgstr "Añadir un campo"
 #, fuzzy
 msgid "Add a field to store more about every contact."
 msgstr "Añade un campo para guardar más información de cada contacto."
+
+#, fuzzy
+msgid "Add an entry to %(label)s"
+msgstr "Añadir una entrada a %(label)s"
 
 #, fuzzy
 msgid "Add field"
@@ -77,6 +85,14 @@ msgid "Loading fields…"
 msgstr "Cargando los campos…"
 
 #, fuzzy
+msgid "Move entry down"
+msgstr "Bajar la entrada"
+
+#, fuzzy
+msgid "Move entry up"
+msgstr "Subir la entrada"
+
+#, fuzzy
 msgid "Move sub field down"
 msgstr "Bajar el subcampo"
 
@@ -89,6 +105,10 @@ msgid "Name"
 msgstr "Nombre"
 
 #, fuzzy
+msgid "No entries yet."
+msgstr "Todavía no hay ninguna entrada."
+
+#, fuzzy
 msgid "No fields yet."
 msgstr "Todavía no hay ningún campo."
 
@@ -99,6 +119,10 @@ msgstr "Todavía no hay ningún subcampo."
 #, fuzzy
 msgid "Only a repeater holds sub fields."
 msgstr "Solo un repetidor tiene subcampos."
+
+#, fuzzy
+msgid "Remove entry"
+msgstr "Quitar la entrada"
 
 #, fuzzy
 msgid "Remove sub field"
