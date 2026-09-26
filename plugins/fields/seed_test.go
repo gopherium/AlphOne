@@ -84,11 +84,46 @@ func TestSeedRevivesAnArchivedDemoField(t *testing.T) {
 	}
 }
 
+// seedDemoContact stores a contact named Maria Perez holding the demo email.
+func seedDemoContact(t *testing.T, p *Plugin) uuid.UUID {
+	t.Helper()
+	id := seedContact(t, p, "Maria Perez")
+	if _, err := p.pool.Exec(t.Context(),
+		`INSERT INTO core.contact_identities (id, contact_id, channel, identifier, display_name, created_at)
+		VALUES ($1, $2, 'email', $3, '', now())`, uuid.Must(uuid.NewV7()), id, seedContactEmail); err != nil {
+		t.Fatalf("seeding the contact's email: %v", err)
+	}
+	return id
+}
+
+func TestSeedWritesTheValuesOntoTheContactHoldingTheDemoEmail(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	namesake := seedContact(t, p, "Maria Perez")
+	maria := seedDemoContact(t, p)
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{namesake, maria})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	if _, written := held[namesake]["history"]; written {
+		t.Errorf("history landed on an older contact of the same name, want the one holding the demo email")
+	}
+	if held[maria]["history"] == nil {
+		t.Errorf("values = %#v, want the history on the contact holding the demo email", held[maria])
+	}
+}
+
 func TestSeedWritesTheValuesOntoTheDemoContact(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	maria := seedContact(t, p, seedContactName)
+	maria := seedDemoContact(t, p)
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
@@ -114,7 +149,7 @@ func TestSeedKeepsWhatTheDemoContactAlreadyHolds(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	maria := seedContact(t, p, seedContactName)
+	maria := seedDemoContact(t, p)
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("first Seed() error = %v, want nil", err)
 	}
@@ -144,7 +179,7 @@ func TestSeedReportsValuesItCannotRead(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	seedContact(t, p, seedContactName)
+	seedDemoContact(t, p)
 	if _, err := p.pool.Exec(t.Context(), "DROP TABLE plugin_fields.contact_values"); err != nil {
 		t.Fatalf("dropping the values table: %v", err)
 	}

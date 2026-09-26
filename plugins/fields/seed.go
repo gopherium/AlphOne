@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// seedContactName names the demo contact [Plugin.Seed] writes onto, for development only.
-const seedContactName = "Maria Perez"
+// seedContactEmail is the email the demo contact [Plugin.Seed] writes onto holds, for development only.
+const seedContactEmail = "maria.perez@example.com"
 
 // demoFields are the definitions [Plugin.Seed] stores, for development only.
 var demoFields = []Definition{
@@ -65,9 +65,10 @@ func (p *Plugin) seedDefinitions(ctx context.Context) error {
 
 // seedValues writes the demo values the demo contact does not hold yet, when one exists.
 func (p *Plugin) seedValues(ctx context.Context) error {
-	const query = `SELECT id FROM core.contacts WHERE name = $1 ORDER BY created_at, id LIMIT 1`
+	const query = `SELECT contact_id FROM core.contact_identities
+		WHERE channel = 'email' AND identifier = $1 ORDER BY created_at, id LIMIT 1`
 	var contactID uuid.UUID
-	err := p.pool.QueryRow(ctx, query, seedContactName).Scan(&contactID)
+	err := p.pool.QueryRow(ctx, query, seedContactEmail).Scan(&contactID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}

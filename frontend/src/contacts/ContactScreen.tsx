@@ -50,7 +50,7 @@ export interface ContactDetail {
 }
 
 /**
- * Renders one contact's detail: rename form, identities, and creation date.
+ * Renders one contact's detail: its name, identities and tasks beside its creation date and panels.
  * @returns The contact screen.
  */
 export function ContactScreen({ contactId }: { contactId: string }) {
@@ -72,7 +72,17 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		return <ErrorNotice>{__('The contact could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	return (
-		<PageScreen title={contact.name}>
+		<PageScreen
+			title={contact.name}
+			aside={
+				<>
+					<Text className="alphone-contacts__created">
+						{sprintf(__('Created %(date)s', 'alphone'), { date: formatCreated(new Date(contact.createdAt)) })}
+					</Text>
+					<ContactPanels contactId={contact.id} panels={contactPanels} />
+				</>
+			}
+		>
 			<RenameForm key={contact.name} contact={contact} />
 			<Text variant="heading-sm" render={<h2 />}>
 				{__('Identities', 'alphone')}
@@ -80,10 +90,6 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
-			<ContactPanels contactId={contact.id} panels={contactPanels} />
-			<Text className="alphone-contacts__created">
-				{sprintf(__('Created %(date)s', 'alphone'), { date: formatCreated(new Date(contact.createdAt)) })}
-			</Text>
 		</PageScreen>
 	)
 }

@@ -52,15 +52,12 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return err
 	}
 	resolver := contact.NewResolver(postgres.NewContactStore(pool))
-	ada, err := resolver.Resolve(ctx, "email", "ada@example.com", "Ada Lovelace")
+	contacts, err := seedContacts(ctx, resolver)
 	if err != nil {
-		return fmt.Errorf("seed contact: %w", err)
-	}
-	if _, err := resolver.Resolve(ctx, "email", "maria.perez@example.com", "Maria Perez"); err != nil {
-		return fmt.Errorf("seed contact: %w", err)
+		return err
 	}
 	tasks := postgres.NewTaskStore(pool)
-	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), ada.ID); err != nil {
+	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), contacts); err != nil {
 		return err
 	}
 	if err := seedPlugins(ctx, databaseURL, getenv, resolver); err != nil {
@@ -115,6 +112,33 @@ func reportLogins(stdout io.Writer, created map[string]bool) {
 	}
 }
 
+// demoContact is one contact the seeder ensures, found by its email.
+type demoContact struct {
+	email string
+	name  string
+}
+
+// demoContacts names every contact the seeder ensures, in creation order.
+func demoContacts() []demoContact {
+	return []demoContact{
+		{email: "ada@example.com", name: "Ada Lovelace"},
+		{email: "maria.perez@example.com", name: "Maria Perez"},
+	}
+}
+
+// seedContacts stores the demo contacts and returns each one's id by email.
+func seedContacts(ctx context.Context, resolver *contact.Resolver) (map[string]uuid.UUID, error) {
+	ids := make(map[string]uuid.UUID, len(demoContacts()))
+	for _, demo := range demoContacts() {
+		stored, err := resolver.Resolve(ctx, "email", demo.email, demo.name)
+		if err != nil {
+			return nil, fmt.Errorf("seed contact: %w", err)
+		}
+		ids[demo.email] = stored.ID
+	}
+	return ids, nil
+}
+
 // demoTask is one scripted task of the demo data set.
 type demoTask struct {
 	id       string
@@ -122,7 +146,7 @@ type demoTask struct {
 	offset   int
 	priority int
 	done     bool
-	linked   bool
+	contact  string
 	origin   string
 	member   bool
 }
@@ -131,7 +155,7 @@ type demoTask struct {
 func demoTasks() []demoTask {
 	return []demoTask{
 		{id: "0198d000-0000-7000-8000-000000000001", title: "Chase the overdue invoice", offset: -1},
-		{id: "0198d000-0000-7000-8000-000000000002", title: "Call Ada about the renewal", linked: true},
+		{id: "0198d000-0000-7000-8000-000000000002", title: "Call Ada about the renewal", contact: "ada@example.com"},
 		{id: "0198d000-0000-7000-8000-000000000003", title: "Approve the new pricing", priority: 1},
 		{id: "0198d000-0000-7000-8000-000000000004", title: "File the delivery notes", done: true},
 		{
@@ -145,6 +169,12 @@ func demoTasks() []demoTask {
 			title:  "Draft the welcome email",
 			member: true,
 		},
+		{
+			id:      "0198d000-0000-7000-8000-000000000007",
+			title:   "Follow up with Maria on the offer",
+			offset:  3,
+			contact: "maria.perez@example.com",
+		},
 	}
 }
 
@@ -157,7 +187,7 @@ func seedTasks(
 	ctx context.Context,
 	store *postgres.TaskStore,
 	users gouncer.Store,
-	contactID uuid.UUID,
+	contacts map[string]uuid.UUID,
 ) error {
 	admin, err := users.UserByEmail(ctx, seedAdminEmail)
 	if err != nil {
@@ -179,7 +209,7 @@ func seedTasks(
 		} else if !errors.Is(err, task.ErrNotFound) {
 			return fmt.Errorf("seed task lookup: %w", err)
 		}
-		built, err := buildDemoTask(scripted, id, today, assigneeID, contactID)
+		built, err := buildDemoTask(scripted, id, today, assigneeID, contacts[scripted.contact])
 		if err != nil {
 			return err
 		}
@@ -203,7 +233,7 @@ func buildDemoTask(
 		Priority:   scripted.priority,
 		AssigneeID: assigneeID,
 	}
-	if scripted.linked {
+	if scripted.contact != "" {
 		in.ContactID = contactID
 	}
 	if scripted.origin != "" {

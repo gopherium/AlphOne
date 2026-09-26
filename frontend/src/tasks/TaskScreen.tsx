@@ -17,6 +17,7 @@ import {
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { isValidDate } from './format'
 import { taskDetailQuery, updateTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -117,7 +118,7 @@ function TaskForm({ task }: { task: DetailedTask }) {
 			<div className="alphone-tasks__actions">
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || save.fetching}
+					disabled={title.trim() === '' || !isValidDate(dueOn) || save.fetching}
 					loading={save.fetching}
 				>
 					{__('Save', 'alphone')}
