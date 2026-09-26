@@ -102,6 +102,13 @@ type ComplexityRoot struct {
 		Kind       func(childComplexity int) int
 		Label      func(childComplexity int) int
 		Name       func(childComplexity int) int
+		SubFields  func(childComplexity int) int
+	}
+
+	FieldSubField struct {
+		Kind  func(childComplexity int) int
+		Label func(childComplexity int) int
+		Name  func(childComplexity int) int
 	}
 
 	Identity struct {
@@ -180,7 +187,7 @@ type ComplexityRoot struct {
 		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
 		CreateTask            func(childComplexity int, input model.CreateTaskInput) int
 		CreateWebhook         func(childComplexity int, url string, events []string) int
-		DefineField           func(childComplexity int, name string, label string, kind model.FieldKind) int
+		DefineField           func(childComplexity int, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) int
 		DeleteContactIdentity func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
 		DeleteWebhook         func(childComplexity int, id uuid.UUID) int
 		ImportCommit          func(childComplexity int, id uuid.UUID) int
@@ -350,7 +357,7 @@ type MutationResolver interface {
 	APITokenRevoke(ctx context.Context, id uuid.UUID) (bool, error)
 	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
-	DefineField(ctx context.Context, name string, label string, kind model.FieldKind) (*model.FieldDefinition, error)
+	DefineField(ctx context.Context, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
 	WriteContactFields(ctx context.Context, contactID uuid.UUID, values interface{}) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
@@ -619,6 +626,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.FieldDefinition.Name(childComplexity), true
+	case "FieldDefinition.subFields":
+		if e.ComplexityRoot.FieldDefinition.SubFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldDefinition.SubFields(childComplexity), true
+
+	case "FieldSubField.kind":
+		if e.ComplexityRoot.FieldSubField.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldSubField.Kind(childComplexity), true
+	case "FieldSubField.label":
+		if e.ComplexityRoot.FieldSubField.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldSubField.Label(childComplexity), true
+	case "FieldSubField.name":
+		if e.ComplexityRoot.FieldSubField.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FieldSubField.Name(childComplexity), true
 
 	case "Identity.capabilities":
 		if e.ComplexityRoot.Identity.Capabilities == nil {
@@ -972,7 +1004,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.DefineField(childComplexity, args["name"].(string), args["label"].(string), args["kind"].(model.FieldKind)), true
+		return e.ComplexityRoot.Mutation.DefineField(childComplexity, args["name"].(string), args["label"].(string), args["kind"].(model.FieldKind), args["subFields"].([]*model.FieldSubFieldInput)), true
 	case "Mutation.deleteContactIdentity":
 		if e.ComplexityRoot.Mutation.DeleteContactIdentity == nil {
 			break
@@ -1696,6 +1728,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputContactIdentityInput,
 		ec.unmarshalInputCreateTaskInput,
+		ec.unmarshalInputFieldSubFieldInput,
 		ec.unmarshalInputImportAssignmentInput,
 		ec.unmarshalInputUpdateTaskInput,
 	)
@@ -1816,7 +1849,20 @@ type FieldDefinition {
   name: String!
   label: String!
   kind: FieldKind!
+  subFields: [FieldSubField!]!
   archivedAt: DateTime
+}
+
+type FieldSubField {
+  name: String!
+  label: String!
+  kind: FieldKind!
+}
+
+input FieldSubFieldInput {
+  name: String!
+  label: String!
+  kind: FieldKind!
 }
 
 enum FieldKind {
@@ -1826,6 +1872,7 @@ enum FieldKind {
   BOOLEAN
   DATE
   SELECT
+  REPEATER
 }
 
 extend type Query {
@@ -1833,7 +1880,7 @@ extend type Query {
 }
 
 extend type Mutation {
-  defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+  defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition!
     @scope(area: "fields", write: true)
   archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
   writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
@@ -2077,10 +2124,24 @@ func (ec *executionContext) childFields_FieldDefinition(ctx context.Context, fie
 		return ec.fieldContext_FieldDefinition_label(ctx, field)
 	case "kind":
 		return ec.fieldContext_FieldDefinition_kind(ctx, field)
+	case "subFields":
+		return ec.fieldContext_FieldDefinition_subFields(ctx, field)
 	case "archivedAt":
 		return ec.fieldContext_FieldDefinition_archivedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type FieldDefinition", field.Name)
+}
+
+func (ec *executionContext) childFields_FieldSubField(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_FieldSubField_name(ctx, field)
+	case "label":
+		return ec.fieldContext_FieldSubField_label(ctx, field)
+	case "kind":
+		return ec.fieldContext_FieldSubField_kind(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FieldSubField", field.Name)
 }
 
 func (ec *executionContext) childFields_Identity(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2748,6 +2809,14 @@ func (ec *executionContext) field_Mutation_defineField_args(ctx context.Context,
 		return nil, err
 	}
 	args["kind"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "subFields",
+		func(ctx context.Context, v any) ([]*model.FieldSubFieldInput, error) {
+			return ec.unmarshalOFieldSubFieldInput2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["subFields"] = arg3
 	return args, nil
 }
 
@@ -4182,6 +4251,38 @@ func (ec *executionContext) fieldContext_FieldDefinition_kind(_ context.Context,
 	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type FieldKind does not have child fields"))
 }
 
+func (ec *executionContext) _FieldDefinition_subFields(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldDefinition_subFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SubFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FieldSubField) graphql.Marshaler {
+			return ec.marshalNFieldSubField2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldDefinition_subFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FieldDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FieldSubField(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _FieldDefinition_archivedAt(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4203,6 +4304,75 @@ func (ec *executionContext) _FieldDefinition_archivedAt(ctx context.Context, fie
 }
 func (ec *executionContext) fieldContext_FieldDefinition_archivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("FieldDefinition", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _FieldSubField_name(ctx context.Context, field graphql.CollectedField, obj *model.FieldSubField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldSubField_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldSubField_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldSubField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FieldSubField_label(ctx context.Context, field graphql.CollectedField, obj *model.FieldSubField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldSubField_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldSubField_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldSubField", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FieldSubField_kind(ctx context.Context, field graphql.CollectedField, obj *model.FieldSubField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FieldSubField_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.FieldKind) graphql.Marshaler {
+			return ec.marshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FieldSubField_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FieldSubField", field, false, false, errors.New("field of type FieldKind does not have child fields"))
 }
 
 func (ec *executionContext) _Identity_id(ctx context.Context, field graphql.CollectedField, obj *model.Identity) (ret graphql.Marshaler) {
@@ -6042,7 +6212,7 @@ func (ec *executionContext) _Mutation_defineField(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DefineField(ctx, fc.Args["name"].(string), fc.Args["label"].(string), fc.Args["kind"].(model.FieldKind))
+			return ec.Resolvers.Mutation().DefineField(ctx, fc.Args["name"].(string), fc.Args["label"].(string), fc.Args["kind"].(model.FieldKind), fc.Args["subFields"].([]*model.FieldSubFieldInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.FieldDefinition) graphql.Marshaler {
@@ -9658,6 +9828,50 @@ func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputFieldSubFieldInput(ctx context.Context, obj any) (model.FieldSubFieldInput, error) {
+	var it model.FieldSubFieldInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "label", "kind"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNFieldKind2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputImportAssignmentInput(ctx context.Context, obj any) (model.ImportAssignmentInput, error) {
 	var it model.ImportAssignmentInput
 	if obj == nil {
@@ -10350,9 +10564,62 @@ func (ec *executionContext) _FieldDefinition(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "subFields":
+			out.Values[i] = ec._FieldDefinition_subFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "archivedAt":
 			out.Values[i] = ec._FieldDefinition_archivedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var fieldSubFieldImplementors = []string{"FieldSubField"}
+
+func (ec *executionContext) _FieldSubField(ctx context.Context, sel ast.SelectionSet, obj *model.FieldSubField) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fieldSubFieldImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FieldSubField")
+		case "name":
+			out.Values[i] = ec._FieldSubField_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._FieldSubField_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._FieldSubField_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -13017,6 +13284,37 @@ func (ec *executionContext) marshalNFieldKind2githubᚗcomᚋgopheriumᚋalphone
 	return v
 }
 
+func (ec *executionContext) marshalNFieldSubField2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FieldSubField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFieldSubField2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFieldSubField2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubField(ctx context.Context, sel ast.SelectionSet, v *model.FieldSubField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FieldSubField(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFieldSubFieldInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInput(ctx context.Context, v any) (*model.FieldSubFieldInput, error) {
+	res, err := ec.unmarshalInputFieldSubFieldInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNIdentity2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐIdentity(ctx context.Context, sel ast.SelectionSet, v model.Identity) graphql.Marshaler {
 	return ec._Identity(ctx, sel, &v)
 }
@@ -13760,6 +14058,23 @@ func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context,
 	_ = ctx
 	res := scalar.MarshalDateTime(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOFieldSubFieldInput2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInputᚄ(ctx context.Context, v any) ([]*model.FieldSubFieldInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.FieldSubFieldInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNFieldSubFieldInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOImportJob2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportJob(ctx context.Context, sel ast.SelectionSet, v *model.ImportJob) graphql.Marshaler {

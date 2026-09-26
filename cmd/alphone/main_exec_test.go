@@ -223,6 +223,44 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	}
 }
 
+func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	var stderr bytes.Buffer
+	seedCmd := exec.Command(binary, "seed")
+	seedCmd.Dir = t.TempDir()
+	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	seedCmd.Stderr = &stderr
+	if err := seedCmd.Run(); err != nil {
+		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
+	}
+	addr, secret := servedSeededBinary(t, databaseURL)
+
+	read := postGraph(t, addr, secret,
+		`{"query":"{ contacts(first: 50) { edges { node { name birthDate history } } } }"}`)
+
+	if read.Data.Contacts == nil {
+		t.Fatal("the read answered no contacts, want the seeded demo contact")
+	}
+	var maria map[string]any
+	for _, edge := range read.Data.Contacts.Edges {
+		if edge.Node["name"] == "Maria Perez" {
+			maria = edge.Node
+		}
+	}
+	if maria == nil {
+		t.Fatal("the seed listed no Maria Perez, want the demo contact")
+	}
+	if maria["birthDate"] != "1990-04-17" {
+		t.Errorf("birthDate = %#v, want 1990-04-17", maria["birthDate"])
+	}
+	if rows, ok := maria["history"].([]any); !ok || len(rows) != 2 {
+		t.Errorf("history = %#v, want the two demo entries from a single seed run", maria["history"])
+	}
+}
+
 func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	t.Parallel()
 

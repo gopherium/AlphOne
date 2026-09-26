@@ -8,11 +8,14 @@ import {
 	InputControl,
 	LoadingRows,
 	PageScreen,
+	RepeatRows,
 	SelectControl,
 	Stack,
 	Text,
 	__,
+	displayLocale,
 	graphError,
+	keyFromLabel,
 	sprintf,
 	useGraph,
 	useGraphMutation,
@@ -23,7 +26,7 @@ import { useState } from 'react'
 
 import { fieldsIcon } from './icon'
 import type { FieldKind } from './gql/graphql'
-import { kindItems, kindOf } from './kind'
+import { kindItems, kindOf, subKindItems } from './kind'
 import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
 
 const catalogueOperation = 'Fields'
@@ -34,6 +37,20 @@ interface FieldRow {
 	name: string
 	label: string
 	kind: string
+	subFields: SubFieldRow[]
+}
+
+/** SubFieldRow is one sub field of a repeater as the screen renders it. */
+interface SubFieldRow {
+	name: string
+	label: string
+	kind: string
+}
+
+/** DraftSubField is one sub field the add form holds before it is named. */
+interface DraftSubField {
+	label: string
+	kind: FieldKind
 }
 
 /**
@@ -134,7 +151,7 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 									<code>{field.name}</code>
 								</td>
 								<td>
-									<Badge intent="stable">{kindLabel(field.kind)}</Badge>
+									<KindCell field={field} />
 								</td>
 								<td className="godmin-table__actions">
 									<Button
@@ -158,12 +175,55 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 }
 
 /**
+ * Renders the kind of one field, with the labels of its sub fields when it holds any.
+ * @param props - The catalogue row.
+ * @returns The kind cell content.
+ */
+function KindCell({ field }: { field: FieldRow }) {
+	const badge = <Badge intent="stable">{kindLabel(field.kind)}</Badge>
+	if (field.subFields.length === 0) {
+		return badge
+	}
+	return (
+		<Stack direction="column" gap="xs" align="start">
+			{badge}
+			<Text variant="body-sm">{labelList(field.subFields)}</Text>
+		</Stack>
+	)
+}
+
+/**
  * Returns the human label of one field kind.
  * @param kind - The kind the definition declares.
  * @returns The label shown in the catalogue.
  */
 function kindLabel(kind: string) {
 	return kindOf({ value: kind }).label
+}
+
+/**
+ * Returns the labels of the given sub fields as one list in the reader's language.
+ * @param subFields - The sub fields of a repeater, in order.
+ * @returns The joined labels.
+ */
+function labelList(subFields: SubFieldRow[]) {
+	return new Intl.ListFormat(displayLocale(), { type: 'unit' }).format(
+		subFields.map((column) => column.label),
+	)
+}
+
+/**
+ * Returns the sub fields as the define mutation takes them, each named from its label.
+ * @param drafts - The sub fields the operator listed, in order.
+ * @returns The sub fields, each under a name no sibling repeats.
+ */
+function namedSubFields(drafts: DraftSubField[]) {
+	const taken: string[] = []
+	return drafts.map((draft) => {
+		const name = keyFromLabel(draft.label, { style: 'camel', taken })
+		taken.push(name)
+		return { name, label: draft.label, kind: draft.kind }
+	})
 }
 
 /**
@@ -175,18 +235,22 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 	const [label, setLabel] = useState('')
 	const [name, setName] = useState('')
 	const [kind, setKind] = useState<FieldKind>('TEXT')
+	const [subFields, setSubFields] = useState<DraftSubField[]>([])
 	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
+	const repeater = kind === 'REPEATER'
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void define({ name, label, kind }).then((result) => {
+				const sent = repeater ? namedSubFields(subFields) : undefined
+				void define({ name, label, kind, subFields: sent }).then((result) => {
 					if (!result.error) {
 						setLabel('')
 						setName('')
+						setSubFields([])
 						onAdded()
 					}
 				})
@@ -215,9 +279,62 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 				value={kinds.find((option) => option.value === kind)}
 				onValueChange={(item) => setKind(kindOf(item).value)}
 			/>
+			{repeater ? <SubFieldRows rows={subFields} onChange={setSubFields} /> : null}
 			<Button type="submit" loading={defined.fetching}>
 				{__('Add field', 'alphone-fields')}
 			</Button>
 		</form>
+	)
+}
+
+/**
+ * Renders the sub fields a new repeater holds, each with its label and kind.
+ * @param props - The listed sub fields and what to call with a change.
+ * @returns The sub fields editor.
+ */
+function SubFieldRows({
+	rows,
+	onChange,
+}: {
+	rows: DraftSubField[]
+	onChange: (rows: DraftSubField[]) => void
+}) {
+	const kinds = subKindItems()
+
+	return (
+		<Stack direction="column" gap="sm">
+			<Text variant="heading-sm" render={<h3 />}>
+				{__('Sub fields', 'alphone-fields')}
+			</Text>
+			<RepeatRows
+				rows={rows}
+				onChange={onChange}
+				blank={(): DraftSubField => ({ label: '', kind: 'TEXT' })}
+				renderRow={(row, update) => (
+					<>
+						<InputControl
+							label={__('Label', 'alphone-fields')}
+							autoComplete="off"
+							value={row.label}
+							onChange={(event) => update({ ...row, label: event.target.value })}
+						/>
+						<SelectControl
+							label={__('Kind', 'alphone-fields')}
+							items={kinds}
+							value={kinds.find((option) => option.value === row.kind)}
+							onValueChange={(item) => update({ ...row, kind: kindOf(item).value })}
+						/>
+					</>
+				)}
+				rowLabel={(at) => sprintf(__('Sub field %(number)d', 'alphone-fields'), { number: at + 1 })}
+				labels={{
+					add: __('Add sub field', 'alphone-fields'),
+					empty: __('No sub fields yet.', 'alphone-fields'),
+					moveUp: __('Move sub field up', 'alphone-fields'),
+					moveDown: __('Move sub field down', 'alphone-fields'),
+					remove: __('Remove sub field', 'alphone-fields'),
+				}}
+			/>
+		</Stack>
 	)
 }

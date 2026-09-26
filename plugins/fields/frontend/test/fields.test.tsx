@@ -20,6 +20,7 @@ const birthDate = {
 	name: 'birthDate',
 	label: 'Birth date',
 	kind: 'DATE',
+	subFields: [],
 }
 
 function renderScreen() {
@@ -233,6 +234,163 @@ test('a validation error is reported word for word', async () => {
 	await submitField()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/camelCase/)
+})
+
+const history = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000506',
+	name: 'history',
+	label: 'History',
+	kind: 'REPEATER',
+	subFields: [
+		{ __typename: 'FieldSubField', name: 'date', label: 'Date', kind: 'DATE' },
+		{ __typename: 'FieldSubField', name: 'comment', label: 'Comment', kind: 'LONGTEXT' },
+	],
+}
+
+function captureDefine() {
+	const defined = vi.fn()
+	server.use(
+		graphql.mutation('DefineField', async ({ variables }) => {
+			defined(variables)
+			return HttpResponse.json({ data: { defineField: history } })
+		}),
+	)
+	return defined
+}
+
+async function startRepeater() {
+	await screen.findByText(/No fields yet/i)
+	await userEvent.type(await screen.findByLabelText('Label'), 'History')
+	await userEvent.type(screen.getByLabelText('Name'), 'history')
+	await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Repeater' }))
+}
+
+async function addSubField(label: string, kind: string) {
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+	const rows = screen.getAllByRole('group', { name: /^Sub field \d+$/ })
+	const row = within(rows[rows.length - 1])
+	await userEvent.type(row.getByLabelText('Label'), label)
+	await userEvent.click(row.getByRole('combobox', { name: 'Kind' }))
+	await userEvent.click(await screen.findByRole('option', { name: kind }))
+}
+
+test('the catalogue shows a repeater beside the labels of its sub fields', async () => {
+	serveFields([history])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
+	expect(cells[2]).toHaveTextContent('Repeater')
+	expect(cells[2]).toHaveTextContent('Date, Comment')
+})
+
+test('a field holding no sub fields shows its kind alone', async () => {
+	serveFields([birthDate])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
+	expect(cells[2]).toHaveTextContent(/^Date$/)
+})
+
+test('only the repeater kind asks for sub fields', async () => {
+	serveFields([])
+
+	renderScreen()
+	await screen.findByText(/No fields yet/i)
+
+	expect(screen.queryByRole('button', { name: 'Add sub field' })).not.toBeInTheDocument()
+	await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Repeater' }))
+	expect(screen.getByText('No sub fields yet.')).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Add sub field' })).toBeInTheDocument()
+})
+
+test('defining a repeater sends sub fields named from their labels', async () => {
+	serveFields([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	await addSubField('Follow-up comment', 'Long text')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() =>
+		expect(defined).toHaveBeenCalledWith({
+			name: 'history',
+			label: 'History',
+			kind: 'REPEATER',
+			subFields: [
+				{ name: 'date', label: 'Date', kind: 'DATE' },
+				{ name: 'followUpComment', label: 'Follow-up comment', kind: 'LONGTEXT' },
+			],
+		}),
+	)
+	expect(defined).toHaveBeenCalledTimes(1)
+})
+
+test('two sub fields sharing a label are sent under distinct names', async () => {
+	serveFields([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Note', 'Text')
+	await addSubField('Note', 'Text')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	expect(defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)).toEqual([
+		'note',
+		'note2',
+	])
+})
+
+test('the sub field kind menu leaves the repeater out', async () => {
+	serveFields([])
+
+	renderScreen()
+	await startRepeater()
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+	const row = within(screen.getByRole('group', { name: 'Sub field 1' }))
+	await userEvent.click(row.getByRole('combobox', { name: 'Kind' }))
+
+	expect(await screen.findByRole('option', { name: 'Long text' })).toBeInTheDocument()
+	expect(screen.queryByRole('option', { name: 'Repeater' })).not.toBeInTheDocument()
+})
+
+test('a field moved off the repeater kind sends no sub fields', async () => {
+	serveFields([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	await userEvent.click(screen.getAllByRole('combobox', { name: 'Kind' })[0])
+	await userEvent.click(await screen.findByRole('option', { name: 'Text' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	expect(defined.mock.calls[0][0]).toEqual({ name: 'history', label: 'History', kind: 'TEXT' })
+	expect(defined.mock.calls[0][0]).not.toHaveProperty('subFields')
+})
+
+test('a defined repeater clears its sub fields for the next one', async () => {
+	serveFields([])
+	captureDefine()
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	expect(await screen.findByText('No sub fields yet.')).toBeInTheDocument()
+	expect(screen.queryByRole('group', { name: 'Sub field 1' })).not.toBeInTheDocument()
 })
 
 test('archiving a field sends its id', async () => {

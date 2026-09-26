@@ -28,6 +28,9 @@ func (p *Plugin) LiveContactFields(ctx context.Context) ([]sdk.ContactField, err
 	}
 	listed := make([]sdk.ContactField, 0, len(definitions))
 	for _, definition := range definitions {
+		if definition.Kind == kindRepeater {
+			continue
+		}
 		listed = append(listed, sdk.ContactField{Name: definition.Name, Label: definition.Label})
 	}
 	return listed, nil
@@ -67,7 +70,7 @@ func (p *Plugin) readTexts(ctx context.Context, values map[string]string) (map[s
 	for name, text := range written {
 		given[name] = typedText(held.kinds[name], text)
 	}
-	checked, err := checkValues(held.kinds, given)
+	checked, err := checkValues(held, given)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", sdk.ErrInvalidFieldText, err)
 	}
@@ -96,7 +99,7 @@ func typedText(held kind, text string) any {
 		if flag, known := booleanTexts[strings.ToLower(text)]; known {
 			return flag
 		}
-	case kindText, kindLongText, kindSelect, kindDate:
+	case kindText, kindLongText, kindSelect, kindDate, kindRepeater:
 	}
 	return text
 }

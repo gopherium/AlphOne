@@ -54,6 +54,7 @@ export {
 	Skeleton,
 	Stack,
 	Text,
+	TextareaControl,
 	VisuallyHidden,
 } from '@wordpress/ui'
 export {
@@ -67,11 +68,13 @@ export {
 export { ThemeProvider } from '@wordpress/theme'
 export {
 	ErrorNotice,
+	keyFromLabel,
 	LoadingRows,
 	LoadingScreen,
 	LoadMore,
 	Page as PageScreen,
 	PageTitle,
+	RepeatRows,
 } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'

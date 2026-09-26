@@ -52,6 +52,15 @@ func (w *world) readField(ctx context.Context, name string) (fieldAnswer, error)
 	return answer, nil
 }
 
+// writeValue writes one field value of the seeded contact through the graph.
+func (w *world) writeValue(ctx context.Context, name string, value any) error {
+	_, err := w.operation(ctx, writeFieldsMutation, map[string]any{
+		"contactId": w.lastContact.String(),
+		"values":    map[string]any{name: value},
+	})
+	return err
+}
+
 // registerFieldsValuesSteps binds the field value steps and the world lifecycle.
 func registerFieldsValuesSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerFieldsCatalogSteps(sc, t)
@@ -67,12 +76,7 @@ func bindFieldValueSteps(sc *godog.ScenarioContext) {
 
 	sc.Step(`^the operator writes "([^"]*)" into "([^"]*)" of the contact$`,
 		func(ctx context.Context, value, name string) error {
-			w := worldFrom(ctx)
-			_, err := w.operation(ctx, writeFieldsMutation, map[string]any{
-				"contactId": w.lastContact.String(),
-				"values":    map[string]any{name: value},
-			})
-			return err
+			return worldFrom(ctx).writeValue(ctx, name, value)
 		})
 
 	sc.When(`^the contact is queried for the field "([^"]*)"$`, func(ctx context.Context, name string) error {

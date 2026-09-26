@@ -35,7 +35,8 @@ func demoRows() []demoRow {
 		{
 			id:      "0198d000-0000-7000-8000-0000000000b1",
 			cells:   []string{"Maria Perez", "maria.perez@example.com", "184467235", "1990-04-17"},
-			outcome: outcomeImported,
+			outcome: outcomeSkipped,
+			reason:  "the contact detail already belongs to a contact",
 		},
 		{
 			id:      "0198d000-0000-7000-8000-0000000000b2",

@@ -7,7 +7,20 @@ type FieldDefinition {
   name: String!
   label: String!
   kind: FieldKind!
+  subFields: [FieldSubField!]!
   archivedAt: DateTime
+}
+
+type FieldSubField {
+  name: String!
+  label: String!
+  kind: FieldKind!
+}
+
+input FieldSubFieldInput {
+  name: String!
+  label: String!
+  kind: FieldKind!
 }
 
 enum FieldKind {
@@ -17,6 +30,7 @@ enum FieldKind {
   BOOLEAN
   DATE
   SELECT
+  REPEATER
 }
 
 extend type Query {
@@ -24,7 +38,7 @@ extend type Query {
 }
 
 extend type Mutation {
-  defineField(name: String!, label: String!, kind: FieldKind!): FieldDefinition!
+  defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition!
     @scope(area: "fields", write: true)
   archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
   writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)

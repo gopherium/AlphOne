@@ -78,6 +78,11 @@ func initializeFieldsTenants(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerFieldsTenantsSteps(sc, t) }
 }
 
+// initializeFieldsRepeater registers the repeater field steps.
+func initializeFieldsRepeater(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerFieldsRepeaterSteps(sc, t) }
+}
+
 // initializeTenants registers the tenant seam steps.
 func initializeTenants(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerTenantSteps(sc, t) }
@@ -137,6 +142,10 @@ func TestFieldsGraph(t *testing.T) {
 
 func TestFieldsTenants(t *testing.T) {
 	runFeature(t, "features/fields-tenants.feature", initializeFieldsTenants(t))
+}
+
+func TestFieldsRepeater(t *testing.T) {
+	runFeature(t, "features/fields-repeater.feature", initializeFieldsRepeater(t))
 }
 
 func TestTenants(t *testing.T) {

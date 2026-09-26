@@ -131,16 +131,4 @@ func registerFieldsTenantsSteps(sc *godog.ScenarioContext, t *testing.T) {
 		}
 		return nil
 	})
-
-	sc.Then(`^the mapping registry does not list "([^"]*)"$`, func(ctx context.Context, name string) error {
-		w := worldFrom(ctx)
-		listed, err := w.readRegistry(ctx)
-		if err != nil {
-			return err
-		}
-		if listed[name] {
-			return fmt.Errorf("the registry lists %q, answered %s", name, w.answered)
-		}
-		return nil
-	})
 }

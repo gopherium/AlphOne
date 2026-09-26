@@ -78,11 +78,24 @@ type CreateWebhookPayload struct {
 }
 
 type FieldDefinition struct {
-	ID         uuid.UUID  `json:"id"`
-	Name       string     `json:"name"`
-	Label      string     `json:"label"`
-	Kind       FieldKind  `json:"kind"`
-	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	ID         uuid.UUID        `json:"id"`
+	Name       string           `json:"name"`
+	Label      string           `json:"label"`
+	Kind       FieldKind        `json:"kind"`
+	SubFields  []*FieldSubField `json:"subFields"`
+	ArchivedAt *time.Time       `json:"archivedAt,omitempty"`
+}
+
+type FieldSubField struct {
+	Name  string    `json:"name"`
+	Label string    `json:"label"`
+	Kind  FieldKind `json:"kind"`
+}
+
+type FieldSubFieldInput struct {
+	Name  string    `json:"name"`
+	Label string    `json:"label"`
+	Kind  FieldKind `json:"kind"`
 }
 
 type Identity struct {
@@ -267,6 +280,7 @@ const (
 	FieldKindBoolean  FieldKind = "BOOLEAN"
 	FieldKindDate     FieldKind = "DATE"
 	FieldKindSelect   FieldKind = "SELECT"
+	FieldKindRepeater FieldKind = "REPEATER"
 )
 
 var AllFieldKind = []FieldKind{
@@ -276,11 +290,12 @@ var AllFieldKind = []FieldKind{
 	FieldKindBoolean,
 	FieldKindDate,
 	FieldKindSelect,
+	FieldKindRepeater,
 }
 
 func (e FieldKind) IsValid() bool {
 	switch e {
-	case FieldKindText, FieldKindLongtext, FieldKindNumber, FieldKindBoolean, FieldKindDate, FieldKindSelect:
+	case FieldKindText, FieldKindLongtext, FieldKindNumber, FieldKindBoolean, FieldKindDate, FieldKindSelect, FieldKindRepeater:
 		return true
 	}
 	return false

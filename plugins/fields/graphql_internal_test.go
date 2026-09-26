@@ -4,6 +4,10 @@ package fields
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,11 +21,89 @@ func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 
 	p := newClosedPlugin(t)
 
-	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "Not Camel", "Label", model.FieldKindDate)
+	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "Not Camel", "Label", model.FieldKindDate, nil)
 
 	var raised sdk.GraphError
 	if !errors.As(err, &raised) || raised.Reason != "field_name_malformed" {
 		t.Errorf("error = %v, want the malformed name named as a reason", err)
+	}
+}
+
+func TestDefineFieldNamesALabelBeyondTheCap(t *testing.T) {
+	t.Parallel()
+
+	p := newClosedPlugin(t)
+	label := strings.Repeat("x", labelMax+1)
+
+	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "birthDate", label, model.FieldKindDate, nil)
+
+	var raised sdk.GraphError
+	if !errors.As(err, &raised) || raised.Reason != "field_label_too_long" {
+		t.Errorf("error = %v, want the long label named as a reason", err)
+	}
+}
+
+func TestDefineFieldStoresTheSubFieldsItWasGiven(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	given := []*model.FieldSubFieldInput{
+		{Name: "date", Label: "Date", Kind: model.FieldKindDate},
+		{Name: "comment", Label: " Comment ", Kind: model.FieldKindLongtext},
+	}
+
+	defined, err := (MutationResolvers{plugin: p}).DefineField(
+		t.Context(), "history", "History", model.FieldKindRepeater, given)
+	if err != nil {
+		t.Fatalf("DefineField() error = %v, want nil", err)
+	}
+	listed, err := (QueryResolvers{plugin: p}).Fields(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("Fields() error = %v, want nil", err)
+	}
+
+	want := []*model.FieldSubField{
+		{Name: "date", Label: "Date", Kind: model.FieldKindDate},
+		{Name: "comment", Label: "Comment", Kind: model.FieldKindLongtext},
+	}
+	if !reflect.DeepEqual(defined.SubFields, want) {
+		t.Errorf("defined sub fields = %+v, want %+v", defined.SubFields, want)
+	}
+	if len(listed) != 1 || !reflect.DeepEqual(listed[0].SubFields, want) {
+		t.Errorf("listed = %+v, want the repeater listed with its sub fields", listed)
+	}
+}
+
+func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
+	t.Parallel()
+
+	want := map[error]string{
+		errSubFieldsRequired:   "field_sub_fields_required",
+		errSubFieldsUnexpected: "field_sub_fields_unexpected",
+		errSubFieldNested:      "field_sub_field_nested",
+		errSubFieldNameInvalid: "field_sub_field_name_invalid",
+		errSubFieldNameTaken:   "field_sub_field_name_taken",
+	}
+
+	for sentinel, reason := range want {
+		if got := fieldReason(sentinel); got != reason {
+			t.Errorf("fieldReason(%v) = %q, want %q", sentinel, got, reason)
+		}
+	}
+}
+
+func TestEveryReasonHasAFrontendMessage(t *testing.T) {
+	t.Parallel()
+
+	templates, err := os.ReadFile(filepath.Join("frontend", "errorTemplates.ts"))
+	if err != nil {
+		t.Fatalf("reading the frontend templates: %v", err)
+	}
+
+	for _, held := range fieldReasons {
+		if !strings.Contains(string(templates), "\t"+held.reason+": __(") {
+			t.Errorf("reason %q has no frontend message, want the screens to speak it", held.reason)
+		}
 	}
 }
 
@@ -78,7 +160,7 @@ func TestResolversReportAClosedPool(t *testing.T) {
 	if _, err := (QueryResolvers{plugin: p}).Fields(t.Context(), nil); err == nil {
 		t.Error("Fields() error = nil, want the closed pool reported")
 	}
-	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "birthDate", "Birth date", model.FieldKindDate)
+	_, err := (MutationResolvers{plugin: p}).DefineField(t.Context(), "birthDate", "Birth date", model.FieldKindDate, nil)
 	if err == nil {
 		t.Error("DefineField() error = nil, want the closed pool reported")
 	}
@@ -106,7 +188,7 @@ func TestADefineOrArchiveTheStoreCommittedAnswersSuccess(t *testing.T) {
 	p := newWedgedPlugin(t)
 
 	defined, err := (MutationResolvers{plugin: p}).DefineField(
-		t.Context(), "loyaltyPoints", "Points", model.FieldKindNumber)
+		t.Context(), "loyaltyPoints", "Points", model.FieldKindNumber, nil)
 	if err != nil {
 		t.Fatalf("DefineField() error = %v, want the committed define answered", err)
 	}
@@ -146,7 +228,7 @@ func TestDefiningAndArchivingRenewTheCallersFields(t *testing.T) {
 	resolvers := MutationResolvers{plugin: p}
 	mustView(t, p.catalog, t.Context())
 
-	stored, err := resolvers.DefineField(t.Context(), "birthDate", "Birth date", model.FieldKindText)
+	stored, err := resolvers.DefineField(t.Context(), "birthDate", "Birth date", model.FieldKindText, nil)
 	if err != nil {
 		t.Fatalf("DefineField() error = %v, want nil", err)
 	}

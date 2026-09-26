@@ -411,10 +411,16 @@ The stock plugins add their own:
 | ------ | ---- | ---- |
 | `field_name_malformed` | | a field name is camelCase |
 | `field_label_required` | | a field needs a label |
+| `field_label_too_long` | | the label is past the cap |
 | `field_kind_unknown` | | the kind is not one the plugin knows |
 | `field_name_reserved` | | the name is already a column of the type |
+| `field_sub_fields_required` | | a repeater needs at least one sub field |
+| `field_sub_fields_unexpected` | | only a repeater holds sub fields |
+| `field_sub_field_nested` | | a sub field cannot be a repeater |
+| `field_sub_field_name_invalid` | | a sub field name is camelCase |
+| `field_sub_field_name_taken` | | two sub fields of one repeater share a name |
 | `field_name_taken` | | another definition holds the name |
-| `field_kind_locked` | | an archived definition pins the kind |
+| `field_kind_locked` | | an archived definition pins the kind and sub fields |
 | `field_not_found` | | the id names no live definition |
 | `field_unknown` | | no live definition holds the name |
 | `value_kind_mismatch` | | the value does not match the declared kind |

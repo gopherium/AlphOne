@@ -7,10 +7,22 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-fields\n"
 
+msgid "%(label)s %(number)d"
+msgstr ""
+
 msgid "A field name starts lowercase and runs together, like birthDate."
 msgstr ""
 
 msgid "A field needs a label."
+msgstr ""
+
+msgid "A repeater cannot hold another repeater."
+msgstr ""
+
+msgid "A repeater needs at least one sub field."
+msgstr ""
+
+msgid "A sub field name starts lowercase and runs together, like followUp."
 msgstr ""
 
 msgid "Add a field"
@@ -19,10 +31,16 @@ msgstr ""
 msgid "Add a field to store more about every contact."
 msgstr ""
 
+msgid "Add an entry to %(label)s"
+msgstr ""
+
 msgid "Add field"
 msgstr ""
 
-msgid "An archived field of that name holds another kind."
+msgid "Add sub field"
+msgstr ""
+
+msgid "An archived field of that name holds another kind or other sub fields."
 msgstr ""
 
 msgid "Another field already holds that name."
@@ -46,16 +64,49 @@ msgstr ""
 msgid "Loading fields…"
 msgstr ""
 
+msgid "Move entry down"
+msgstr ""
+
+msgid "Move entry up"
+msgstr ""
+
+msgid "Move sub field down"
+msgstr ""
+
+msgid "Move sub field up"
+msgstr ""
+
 msgid "Name"
 msgstr ""
 
+msgid "No entries yet."
+msgstr ""
+
 msgid "No fields yet."
+msgstr ""
+
+msgid "No sub fields yet."
+msgstr ""
+
+msgid "Only a repeater holds sub fields."
+msgstr ""
+
+msgid "Remove entry"
+msgstr ""
+
+msgid "Remove sub field"
 msgstr ""
 
 msgid "Save fields"
 msgstr ""
 
 msgid "Send the values as field names to values."
+msgstr ""
+
+msgid "Sub field %(number)d"
+msgstr ""
+
+msgid "Sub fields"
 msgstr ""
 
 msgid "That field is not one this contact holds."
@@ -65,6 +116,9 @@ msgid "That field no longer exists."
 msgstr ""
 
 msgid "That kind is not one AlphOne offers."
+msgstr ""
+
+msgid "That label is too long. Try a shorter one."
 msgstr ""
 
 msgid "That value does not match the kind the field declares."
@@ -85,6 +139,9 @@ msgstr ""
 msgid "The fields could not be saved."
 msgstr ""
 
+msgid "Two sub fields of this repeater hold the same name."
+msgstr ""
+
 msgctxt "admin section"
 msgid "Fields"
 msgstr ""
@@ -103,6 +160,10 @@ msgstr ""
 
 msgctxt "field kind"
 msgid "Number"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Repeater"
 msgstr ""
 
 msgctxt "field kind"

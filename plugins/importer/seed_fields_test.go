@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -17,13 +19,13 @@ func TestSeedFillsTheBirthDateOfEveryImportedContact(t *testing.T) {
 	provider := newFieldProvider(birthDate())
 	p, pool, contacts := newServedPlugin(t, provider)
 	contacts.seed("Ada Lovelace", "ada@example.com")
+	contacts.seed("Maria Perez", "maria.perez@example.com")
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
 	want := map[string]string{
-		"Maria Perez":  "1990-04-17",
 		"Grace Hopper": "1906-12-09",
 		"Alan Turing":  "1912-06-23",
 	}
@@ -56,13 +58,16 @@ func TestSeedLeavesASkippedRowsContactUntouched(t *testing.T) {
 	provider := newFieldProvider(birthDate())
 	p, _, contacts := newServedPlugin(t, provider)
 	ada := contacts.seed("Ada Lovelace", "ada@example.com")
+	maria := contacts.seed("Maria Perez", "maria.perez@example.com")
 
 	if err := p.Seed(t.Context()); err != nil {
 		t.Fatalf("Seed() error = %v, want nil", err)
 	}
 
-	if _, written := provider.written[ada.ID]; written {
-		t.Errorf("written = %v, want the claimed contact left alone", provider.written)
+	for _, claimed := range []uuid.UUID{ada.ID, maria.ID} {
+		if _, written := provider.written[claimed]; written {
+			t.Errorf("written = %v, want every claimed contact left alone", provider.written)
+		}
 	}
 }
 

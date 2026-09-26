@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -199,6 +200,28 @@ func TestCatalogServesEachTenantItsOwnDefinitionsAsGraphFields(t *testing.T) {
 	}
 	if len(secondView.fields) != 1 || secondView.fields[0].Name != "shoeSize" || secondView.fields[0].Type != "Int" {
 		t.Errorf("second tenant fields = %+v, want shoeSize answering Int", secondView.fields)
+	}
+}
+
+func TestCatalogHoldsTheColumnsOfEachRepeater(t *testing.T) {
+	t.Parallel()
+
+	loader := newFakeLoader()
+	ctx, tenant := inTenantOf(t)
+	history, err := newDefinition("history", "History", "REPEATER", nil, historyInput...)
+	if err != nil {
+		t.Fatalf("newDefinition() error = %v, want nil", err)
+	}
+	loader.held[tenant] = []Definition{history}
+	held := newCatalog(loader, 0, 0)
+
+	read := mustView(t, held, ctx)
+
+	if !slices.Equal(read.columns["history"], history.SubFields) {
+		t.Errorf("columns = %+v, want the repeater's sub fields", read.columns)
+	}
+	if read.kinds["history"] != kindRepeater {
+		t.Errorf("kinds = %v, want history held as a repeater", read.kinds)
 	}
 }
 

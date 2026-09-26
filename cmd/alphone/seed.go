@@ -56,6 +56,9 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err != nil {
 		return fmt.Errorf("seed contact: %w", err)
 	}
+	if _, err := resolver.Resolve(ctx, "email", "maria.perez@example.com", "Maria Perez"); err != nil {
+		return fmt.Errorf("seed contact: %w", err)
+	}
 	tasks := postgres.NewTaskStore(pool)
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), ada.ID); err != nil {
 		return err
