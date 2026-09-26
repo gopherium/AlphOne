@@ -282,6 +282,19 @@ const conversationsQuery = gql`
 	}
 `
 
+const fieldsQuery = gql`
+	query Fields {
+		fields {
+			id
+			subFields {
+				name
+				label
+				kind
+			}
+		}
+	}
+`
+
 const createTaskMutation = gql`
 	mutation CreateTask($input: CreateTaskInput!) {
 		createTask(input: $input) {
@@ -374,6 +387,21 @@ test('keys every embedded type the graph returns without warning', async () => {
 				},
 			}),
 		),
+		graphql.query('Fields', () =>
+			HttpResponse.json({
+				data: {
+					fields: [
+						{
+							__typename: 'FieldDefinition',
+							id: 'id-history',
+							subFields: [
+								{ __typename: 'FieldSubField', name: 'date', label: 'Date', kind: 'DATE' },
+							],
+						},
+					],
+				},
+			}),
+		),
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({
 				data: {
@@ -419,6 +447,7 @@ test('keys every embedded type the graph returns without warning', async () => {
 	const results = [
 		await graph.client.query(importJobQuery, { id: 'id-import' }).toPromise(),
 		await graph.client.query(conversationsQuery, {}).toPromise(),
+		await graph.client.query(fieldsQuery, {}).toPromise(),
 		await graph.client.mutation(createTaskMutation, { input: { title: 'x', dueOn: '2026-08-07' } }).toPromise(),
 		await graph.client.mutation(importCommitMutation, { id: 'id-import' }).toPromise(),
 		await graph.client

@@ -219,6 +219,7 @@ export function graphCacheExchange(): Exchange {
 			LoginPayload: () => null,
 			ImportAssignment: () => null,
 			WhatsAppMedia: () => null,
+			FieldSubField: () => null,
 			ImportContact: (data) => data.rowId as string,
 			ImportField: (data) => data.name as string,
 		},
