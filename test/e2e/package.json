@@ -8,10 +8,10 @@
     "schema:diff": "graphql-inspector diff"
   },
   "devDependencies": {
-    "@graphql-inspector/cli": "^6.0.8",
+    "@graphql-inspector/cli": "^7.0.0",
     "@playwright/test": "1.63.0",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.2",
     "@types/smtp-server": "^3.5.13",
-    "smtp-server": "^3.19.12"
+    "smtp-server": "^3.19.13"
   }
 }
