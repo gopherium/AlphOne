@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -135,10 +134,14 @@ func checkRows(name string, columns []SubField, given any) (any, []string, error
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: %s expects %s", errWrongKind, name, kindRepeater)
 	}
+	kindsOf := make(map[string]kind, len(columns))
+	for _, column := range columns {
+		kindsOf[column.Name] = column.Kind
+	}
 	var unknown []string
 	rows := make([]map[string]any, 0, len(listed))
 	for at, entry := range listed {
-		row, stray, err := checkRow(fmt.Sprintf("%s[%d]", name, at), columns, entry)
+		row, stray, err := checkRow(fmt.Sprintf("%s[%d]", name, at), kindsOf, entry)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -154,7 +157,7 @@ func checkRows(name string, columns []SubField, given any) (any, []string, error
 }
 
 // checkRow returns the storable cells of one row and the paths of the cells no column holds.
-func checkRow(path string, columns []SubField, given any) (map[string]any, []string, error) {
+func checkRow(path string, kindsOf map[string]kind, given any) (map[string]any, []string, error) {
 	cells, ok := given.(map[string]any)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: %s expects a row", errWrongKind, path)
@@ -162,14 +165,14 @@ func checkRow(path string, columns []SubField, given any) (map[string]any, []str
 	var unknown []string
 	row := make(map[string]any, len(cells))
 	for key, value := range cells {
-		at := slices.IndexFunc(columns, func(column SubField) bool { return column.Name == key })
-		if at < 0 {
+		held, known := kindsOf[key]
+		if !known {
 			unknown = append(unknown, path+"."+key)
 			continue
 		}
-		coerced, err := coerce(columns[at].Kind, value)
+		coerced, err := coerce(held, value)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%w: %s.%s expects %s", errWrongKind, path, key, columns[at].Kind)
+			return nil, nil, fmt.Errorf("%w: %s.%s expects %s", errWrongKind, path, key, held)
 		}
 		if coerced != nil {
 			row[key] = coerced

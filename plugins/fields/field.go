@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -139,22 +138,24 @@ func checkSubFields(held kind, subFields []SubField) ([]SubField, error) {
 		return nil, errSubFieldsRequired
 	}
 	checked := make([]SubField, 0, len(subFields))
+	taken := make(map[string]bool, len(subFields))
 	for _, column := range subFields {
-		sub, err := checkSubField(column, checked)
+		sub, err := checkSubField(column, taken)
 		if err != nil {
 			return nil, err
 		}
+		taken[sub.Name] = true
 		checked = append(checked, sub)
 	}
 	return checked, nil
 }
 
-// checkSubField validates one sub field against the siblings checked before it.
-func checkSubField(column SubField, siblings []SubField) (SubField, error) {
+// checkSubField validates one sub field against the names its siblings took before it.
+func checkSubField(column SubField, taken map[string]bool) (SubField, error) {
 	if !namePattern.MatchString(column.Name) {
 		return SubField{}, errSubFieldNameInvalid
 	}
-	if slices.ContainsFunc(siblings, func(sibling SubField) bool { return sibling.Name == column.Name }) {
+	if taken[column.Name] {
 		return SubField{}, errSubFieldNameTaken
 	}
 	if column.Kind == kindRepeater {
