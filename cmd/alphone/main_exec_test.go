@@ -256,8 +256,8 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	if maria["birthDate"] != "1990-04-17" {
 		t.Errorf("birthDate = %#v, want 1990-04-17", maria["birthDate"])
 	}
-	if rows, ok := maria["history"].([]any); !ok || len(rows) != 2 {
-		t.Errorf("history = %#v, want the two demo entries from a single seed run", maria["history"])
+	if rows, ok := maria["history"].([]any); !ok || len(rows) != 3 {
+		t.Errorf("history = %#v, want the three demo entries from a single seed run", maria["history"])
 	}
 }
 
