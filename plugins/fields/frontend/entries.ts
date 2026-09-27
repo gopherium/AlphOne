@@ -194,6 +194,5 @@ function cellValue(kind: string, text: string): string {
  * @returns The shown day.
  */
 function dayText(day: string): string {
-	const [year, month, date] = day.split('-').map(Number)
-	return formatDate(new Date(year, month - 1, date), DAY_STYLE)
+	return formatDate(day, DAY_STYLE)
 }
