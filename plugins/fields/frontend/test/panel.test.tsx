@@ -13,8 +13,17 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 
 import { ContactFieldsPanel } from '../ContactFieldsPanel'
-
-const contactID = '0198c000-0000-7000-8000-000000000401'
+import {
+	captureWrite,
+	contactID,
+	firstCall,
+	history,
+	jobTitle,
+	offerSent,
+	renderPanel,
+	serveCatalogue,
+	serveValues,
+} from './harness'
 
 const birthDate = {
 	__typename: 'FieldDefinition',
@@ -23,32 +32,6 @@ const birthDate = {
 	label: 'Birth date',
 	kind: 'DATE',
 	subFields: [],
-}
-
-function renderPanel() {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	const { graph } = fakeGraphClient()
-	return render(
-		<QueryClientProvider client={client}>
-			<GraphProvider graph={graph}>
-				<ContactFieldsPanel contactId={contactID} />
-			</GraphProvider>
-		</QueryClientProvider>,
-	)
-}
-
-function serveCatalogue(fields: unknown[]) {
-	server.use(graphql.query('Fields', () => HttpResponse.json({ data: { fields } })))
-}
-
-function serveValues(values: Record<string, unknown>) {
-	server.use(
-		graphql.query('ContactFieldValues', () =>
-			HttpResponse.json({
-				data: { contact: { __typename: 'Contact', id: contactID, ...values } },
-			}),
-		),
-	)
 }
 
 test('a defined field renders with its stored value', async () => {
@@ -139,26 +122,6 @@ const subscribed = {
 	name: 'subscribed',
 	label: 'Subscribed',
 	kind: 'BOOLEAN',
-	subFields: [],
-}
-
-function captureWrite() {
-	const written = vi.fn()
-	server.use(
-		graphql.mutation('WriteContactFields', async ({ variables }) => {
-			written(variables)
-			return HttpResponse.json({ data: { writeContactFields: true } })
-		}),
-	)
-	return written
-}
-
-const jobTitle = {
-	__typename: 'FieldDefinition',
-	id: '0198c000-0000-7000-8000-000000000504',
-	name: 'jobTitle',
-	label: 'Job title',
-	kind: 'TEXT',
 	subFields: [],
 }
 
@@ -322,22 +285,6 @@ test('clearing a field sends null', async () => {
 		}),
 	)
 })
-
-const history = {
-	__typename: 'FieldDefinition',
-	id: '0198c000-0000-7000-8000-000000000506',
-	name: 'history',
-	label: 'History',
-	kind: 'REPEATER',
-	subFields: [
-		{ __typename: 'FieldSubField', name: 'date', label: 'Date', kind: 'DATE' },
-		{ __typename: 'FieldSubField', name: 'comment', label: 'Comment', kind: 'LONGTEXT' },
-	],
-}
-
-const firstCall = { date: '2026-09-01', comment: 'First call about the yearly plan.' }
-
-const offerSent = { date: '2026-09-10', comment: 'Sent the offer and booked a follow-up call.' }
 
 async function entry(number: number) {
 	return within(await screen.findByRole('group', { name: `History ${number}` }))
