@@ -56,31 +56,53 @@ test('defines a repeater and keeps a contact history in order', async ({ page })
 
 	const history = page.getByRole('group', { name: label, exact: true })
 	await expect(history.getByText('No entries yet.')).toBeVisible()
-	await page.getByRole('button', { name: `Add an entry to ${label}` }).click()
-	const first = page.getByRole('group', { name: `${label} 1`, exact: true })
-	await first.getByLabel('Date', { exact: true }).fill('2026-09-01')
-	await first.getByLabel('Comment', { exact: true }).fill('First call about the yearly plan.\nAsked for a quote.')
-	await page.getByRole('button', { name: `Add an entry to ${label}` }).click()
-	const second = page.getByRole('group', { name: `${label} 2`, exact: true })
-	await second.getByLabel('Date', { exact: true }).fill('2026-09-10')
-	await second.getByLabel('Comment', { exact: true }).fill('Sent the offer.')
-	await second.getByRole('button', { name: 'Move entry up' }).click()
-	const saved = page.waitForResponse(
-		(response) =>
-			response.url().includes('/api/graphql') &&
-			(response.request().postData() ?? '').includes('WriteContactFields'),
-	)
-	await page.getByRole('button', { name: 'Save fields' }).click()
-	const answer = await saved
-	expect(await answer.text()).toContain('"writeContactFields":true')
+	const form = history.getByRole('form', { name: `Add an entry to ${label}` })
+	await expect(form.getByRole('textbox', { name: 'Comment', exact: true })).toHaveJSProperty('tagName', 'TEXTAREA')
+	await addEntry(page, form, '2026-09-01', 'First call about the yearly plan.\nAsked for a quote.')
+	await addEntry(page, form, '2026-09-10', 'Sent the offer.')
+	await addEntry(page, form, '2026-09-18', 'Follow-up call.')
+	const entries = history.getByRole('listitem')
+	await expect(entries.first()).toHaveAccessibleName('Sep 18, 2026')
+
+	const removed = operationAnswer(page, 'DeleteContactFieldEntry')
+	await history.getByRole('button', { name: 'Remove entry: Sep 10, 2026' }).click()
+	await history.getByRole('button', { name: 'Remove', exact: true }).click()
+	await removed
 
 	await page.reload()
-	const kept = page.getByRole('group', { name: `${label} 1`, exact: true })
-	await expect(kept.getByLabel('Date', { exact: true })).toHaveValue('2026-09-10')
-	await expect(kept.getByLabel('Comment', { exact: true })).toHaveValue('Sent the offer.')
-	const moved = page.getByRole('group', { name: `${label} 2`, exact: true })
-	await expect(moved.getByLabel('Date', { exact: true })).toHaveValue('2026-09-01')
-	const comment = moved.getByRole('textbox', { name: 'Comment', exact: true })
-	await expect(comment).toHaveValue('First call about the yearly plan.\nAsked for a quote.')
-	await expect(comment).toHaveJSProperty('tagName', 'TEXTAREA')
+	await expect(entries).toHaveCount(2)
+	await expect(entries.nth(0)).toHaveAccessibleName('Sep 18, 2026')
+	await expect(entries.nth(1)).toHaveAccessibleName('Sep 1, 2026')
+	const body = entries.nth(1).locator('p.godmin-log-list__body')
+	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toContain('\n')
 })
+
+/**
+ * Waits for the graph to answer the named operation.
+ * @param page - The page sending the operation.
+ * @param operation - The operation name.
+ * @returns The answer, once it arrives.
+ */
+function operationAnswer(page: Page, operation: string) {
+	return page.waitForResponse(
+		(response) =>
+			response.url().includes('/api/graphql') && (response.request().postData() ?? '').includes(operation),
+	)
+}
+
+/**
+ * Adds one entry through a repeater's add form and waits until the form is ready for the next one.
+ * @param page - The page showing the contact.
+ * @param form - The add form.
+ * @param date - The entry's date.
+ * @param comment - The entry's comment.
+ */
+async function addEntry(page: Page, form: Locator, date: string, comment: string) {
+	const text = form.getByLabel('Comment', { exact: true })
+	await form.getByLabel('Date', { exact: true }).fill(date)
+	await text.fill(comment)
+	const stored = operationAnswer(page, 'AddContactFieldEntry')
+	await form.getByRole('button', { name: /^Add an entry to / }).click()
+	await stored
+	await expect(text).toHaveValue('')
+}
