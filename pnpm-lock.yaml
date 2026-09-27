@@ -159,8 +159,8 @@ importers:
         specifier: 0.11.0
         version: 0.11.0(dcf93bb2df0535b72c5d2768136b7099)
       '@gopherium/gottext':
-        specifier: 0.5.0
-        version: 0.5.0(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
+        specifier: 0.5.1
+        version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.9.0
         version: 0.9.0(0e1302f3c8b195b54f88c3f54ba61f37)
@@ -349,8 +349,8 @@ importers:
         specifier: 0.11.0
         version: 0.11.0(dcf93bb2df0535b72c5d2768136b7099)
       '@gopherium/gottext':
-        specifier: 0.5.0
-        version: 0.5.0(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
+        specifier: 0.5.1
+        version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
       '@gopherium/react-auth':
         specifier: 0.9.0
         version: 0.9.0(1fb7c474b0e30cb304088605b249a6f6)
@@ -1049,8 +1049,8 @@ packages:
       vitest:
         optional: true
 
-  '@gopherium/gottext@0.5.0':
-    resolution: {integrity: sha512-yJJpL6ot9vQd+AlUPBWiw2LKzIPSIhypvMcJ/z2MUDe/mg5gQZP1FWRvubQapimZsBuX0CHhuEowGyS22ioa4A==}
+  '@gopherium/gottext@0.5.1':
+    resolution: {integrity: sha512-8tzbD3HysVa9/XCme7r7+AiKaHqZTix6Fca7s1vezXWe9qcxmwm2R6gbzszsTdA5SaJaV/dXA9u+S3tOIEEePw==}
     engines: {node: '>=22'}
     peerDependencies:
       '@wordpress/i18n': '>=6.26.0 <7.0.0'
@@ -5702,7 +5702,7 @@ snapshots:
       stylelint: 17.15.0(supports-color@10.2.2)(typescript@6.0.3)
       vitest: 4.1.11(@types/node@26.5.1)(@vitest/coverage-v8@4.1.11)(jsdom@30.0.1)(msw@2.15.0(@types/node@26.5.1)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.1)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/gottext@0.5.0(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)':
+  '@gopherium/gottext@0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)':
     dependencies:
       '@wordpress/i18n': 6.28.0
       gettext-parser: 9.1.1
