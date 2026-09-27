@@ -27,9 +27,7 @@ import { useState } from 'react'
 import { fieldsIcon } from './icon'
 import type { FieldKind } from './gql/graphql'
 import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
-import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
-
-const catalogueOperation = 'Fields'
+import { archiveFieldMutation, catalogueOperation, defineFieldMutation, fieldsQuery } from './operations'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {

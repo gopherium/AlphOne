@@ -20,10 +20,8 @@ import { useId, useMemo, useState } from 'react'
 import { entryText, textOf, typedValue } from './cellText'
 import type { EntryText, SubFieldRow } from './cellText'
 import { FieldInput } from './cells'
-import { contactValuesDocument } from './document'
+import { contactValuesDocument, valuesOperation } from './document'
 import { fieldsQuery, writeContactFieldsMutation } from './operations'
-
-const valuesOperation = 'ContactFieldValues'
 
 /** FieldRow is one catalogue entry the panel renders an input for. */
 interface FieldRow {

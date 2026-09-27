@@ -2,7 +2,11 @@
 
 import { expect, test } from 'vitest'
 
-import { contactValuesDocument } from '../document'
+import { contactValuesDocument, valuesOperation } from '../document'
+
+test('names the values query it builds', () => {
+	expect(contactValuesDocument(['birthDate'])).toContain(`query ${valuesOperation}(`)
+})
 
 test('a document selects every defined field by its own name', () => {
 	const document = contactValuesDocument(['birthDate', 'loyaltyPoints'])

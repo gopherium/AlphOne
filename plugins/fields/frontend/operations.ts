@@ -2,6 +2,9 @@
 
 import { graphql } from './gql'
 
+/** catalogueOperation names the query reading the field catalogue. */
+export const catalogueOperation = 'Fields'
+
 export const fieldsQuery = graphql(`
 	query Fields {
 		fields {
