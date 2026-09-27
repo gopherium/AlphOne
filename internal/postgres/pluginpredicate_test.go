@@ -228,12 +228,12 @@ func TestEveryPluginStatementFiltersItsTableByTenant(t *testing.T) {
 			continue
 		}
 		for _, statement := range statements {
-			if tenantSafe(statement) || answersBeforeTheTenant(statement) {
+			if answersBeforeTheTenant(statement) {
 				continue
 			}
 			for _, table := range held.tables {
 				named := regexp.MustCompile(`\b` + held.schema + `\.` + table + `\b`)
-				if named.MatchString(statement) {
+				if named.MatchString(statement) && !tenantSafe(statement, table) {
 					t.Errorf("%s touches %s.%s without filtering by tenant_id: %s",
 						held.source, held.schema, table, statement)
 				}
