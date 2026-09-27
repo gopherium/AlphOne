@@ -43,7 +43,7 @@ func (w *world) secretFor(tenant string) (string, error) {
 	return w.secretOf(tenant)
 }
 
-// remember keeps an entry's id under every text cell it holds, so later steps name the entry by its text.
+// remember keeps an entry's id under every text cell it holds.
 func (w *world) remember(entry map[string]any) {
 	id, _ := entry["id"].(string)
 	if w.entryIDs == nil {
