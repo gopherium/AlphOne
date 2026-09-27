@@ -60,6 +60,12 @@ export const addContactFieldEntryMutation = graphql(`
 	}
 `)
 
+export const updateContactFieldEntryMutation = graphql(`
+	mutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {
+		updateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)
+	}
+`)
+
 export const deleteContactFieldEntryMutation = graphql(`
 	mutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {
 		deleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)
