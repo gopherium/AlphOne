@@ -101,6 +101,8 @@ func TestEveryEntrySentinelNamesItsReason(t *testing.T) {
 		errEntryEmpty:   "field_entry_empty",
 		errNoEntry:      "field_entry_not_found",
 		errEntriesFull:  "field_entries_full",
+
+		errRepeaterEntriesOnly: "field_repeater_entries_only",
 	}
 
 	for sentinel, reason := range want {

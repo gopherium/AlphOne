@@ -22,6 +22,9 @@ msgstr ""
 msgid "A repeater needs at least one sub field."
 msgstr ""
 
+msgid "A repeater takes its entries one at a time."
+msgstr ""
+
 msgid "A sub field cannot be named id. Each entry keeps that name for itself."
 msgstr ""
 

@@ -33,5 +33,6 @@ export function errorTemplates(): Record<string, string> {
 		field_entry_empty: __('Fill in at least one part of the entry.', DOMAIN),
 		field_entry_not_found: __('That entry no longer exists.', DOMAIN),
 		field_entries_full: __('This list is full. It holds %(max)d entries at most.', DOMAIN),
+		field_repeater_entries_only: __('A repeater takes its entries one at a time.', DOMAIN),
 	}
 }

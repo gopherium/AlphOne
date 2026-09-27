@@ -181,6 +181,7 @@ var fieldReasons = []struct {
 	{errEntryEmpty, "field_entry_empty"},
 	{errNoEntry, "field_entry_not_found"},
 	{errEntriesFull, "field_entries_full"},
+	{errRepeaterEntriesOnly, "field_repeater_entries_only"},
 }
 
 // fieldReason returns the stable reason a fields error answers with.
