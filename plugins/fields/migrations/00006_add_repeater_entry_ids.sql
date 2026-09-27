@@ -8,7 +8,7 @@ UPDATE plugin_fields.contact_values AS held
 SET values = held.values || rebuilt.lists
 FROM (
     SELECT v.tenant_id, v.contact_id, jsonb_object_agg(d.name, (
-        SELECT jsonb_agg(listed.entry || jsonb_build_object('id', uuidv7()) ORDER BY listed.at DESC)
+        SELECT jsonb_agg(listed.entry || jsonb_build_object('id', gen_random_uuid()) ORDER BY listed.at DESC)
         FROM jsonb_array_elements(v.values -> d.name) WITH ORDINALITY AS listed (entry, at)
     )) AS lists
     FROM plugin_fields.contact_values AS v
