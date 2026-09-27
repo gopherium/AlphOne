@@ -178,12 +178,38 @@ func TestSeedWritesTheValuesOntoTheDemoContact(t *testing.T) {
 	if held[maria]["birthDate"] != "1990-04-17" {
 		t.Errorf("birthDate = %#v, want 1990-04-17", held[maria]["birthDate"])
 	}
+	ids, cells := splitIDs(t, held[maria]["history"])
 	rows := []any{
-		map[string]any{"date": "2026-09-01", "comment": "First call about the yearly plan."},
+		map[string]any{"date": "2026-09-18", "comment": "Follow-up call.\nAsked for a second quote."},
 		map[string]any{"date": "2026-09-10", "comment": "Sent the offer and booked a follow-up call."},
+		map[string]any{"date": "2026-09-01", "comment": "First call about the yearly plan."},
 	}
-	if !reflect.DeepEqual(held[maria]["history"], rows) {
-		t.Errorf("history = %#v, want the two demo entries in order", held[maria]["history"])
+	if !reflect.DeepEqual(cells, rows) {
+		t.Errorf("history = %#v, want the three demo entries newest first", cells)
+	}
+	if len(slices.Compact(slices.Sorted(slices.Values(ids)))) != 3 {
+		t.Errorf("ids = %q, want each demo entry under its own id", ids)
+	}
+}
+
+func TestSeedAddsTheDemoHistoryAllOrNothing(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	maria := seedDemoContact(t, p)
+	p.entriesMax = 2
+
+	err := p.Seed(t.Context())
+
+	if !errors.Is(err, errEntriesFull) {
+		t.Fatalf("Seed() error = %v, want the history refused whole under a cap of two", err)
+	}
+	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{maria})
+	if err != nil {
+		t.Fatalf("valuesFor() error = %v, want nil", err)
+	}
+	if _, kept := held[maria]["history"]; kept {
+		t.Errorf("history = %#v, want no part of the demo history stored", held[maria]["history"])
 	}
 }
 
