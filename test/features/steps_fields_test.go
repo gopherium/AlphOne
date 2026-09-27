@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,6 +27,9 @@ const fieldsQuery = `query($includeArchived: Boolean) {
 	fields(includeArchived: $includeArchived) { id name label kind archivedAt }
 }`
 
+// reservedFieldNamesQuery reads the names a field cannot take through the graph.
+const reservedFieldNamesQuery = `query { reservedFieldNames }`
+
 // graphAnswer is the envelope every catalogue step reads.
 type graphAnswer struct {
 	Data struct {
@@ -43,6 +47,7 @@ type graphAnswer struct {
 			ArchivedAt *string          `json:"archivedAt"`
 			SubFields  []map[string]any `json:"subFields"`
 		} `json:"fields"`
+		ReservedFieldNames []string `json:"reservedFieldNames"`
 	} `json:"data"`
 	Errors []struct {
 		Message    string         `json:"message"`
@@ -74,8 +79,9 @@ func (w *world) operationAs(
 	return answer, nil
 }
 
-// defineField declares a field, remembering the id when the graph accepts it.
+// defineField declares a field, remembering the id when the graph accepts it and forgetting it otherwise.
 func (w *world) defineField(ctx context.Context, name, label, kind string) error {
+	w.lastField = uuid.Nil
 	answer, err := w.operation(ctx, defineFieldMutation,
 		map[string]any{"name": name, "label": label, "kind": kind})
 	if err != nil {
@@ -200,4 +206,67 @@ func bindFieldsCatalogSteps(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+
+	sc.Then(`^the (?:definition|change) is refused with the reason "([^"]*)"$`,
+		func(ctx context.Context, reason string) error {
+			w := worldFrom(ctx)
+			var answer graphAnswer
+			if err := json.Unmarshal(w.answered, &answer); err != nil {
+				return fmt.Errorf("decoding %s: %w", w.answered, err)
+			}
+			if len(answer.Errors) == 0 {
+				return fmt.Errorf("the graph accepted it, answered %s", w.answered)
+			}
+			if got := answer.Errors[0].Extensions["reason"]; got != reason {
+				return fmt.Errorf("reason = %v, want %s, answered %s", got, reason, w.answered)
+			}
+			return nil
+		})
+
+	bindReservedNameSteps(sc)
+}
+
+// bindReservedNameSteps binds the steps that read the names a field cannot take and the id a define answers.
+func bindReservedNameSteps(sc *godog.ScenarioContext) {
+	sc.When(`^the operator asks which names a field cannot take$`, func(ctx context.Context) error {
+		_, err := worldFrom(ctx).operation(ctx, reservedFieldNamesQuery, map[string]any{})
+		return err
+	})
+
+	sc.Then(`^the names a field cannot take are:$`, func(ctx context.Context, table *godog.Table) error {
+		w := worldFrom(ctx)
+		var answer graphAnswer
+		if err := json.Unmarshal(w.answered, &answer); err != nil {
+			return fmt.Errorf("decoding %s: %w", w.answered, err)
+		}
+		want := make([]string, 0, len(table.Rows))
+		for _, row := range table.Rows[1:] {
+			want = append(want, row.Cells[0].Value)
+		}
+		if !slices.Equal(answer.Data.ReservedFieldNames, want) {
+			return fmt.Errorf("names = %v, want %v, answered %s", answer.Data.ReservedFieldNames, want, w.answered)
+		}
+		return nil
+	})
+
+	sc.Then(`^the definition answers the id the catalogue lists for "([^"]*)"$`,
+		func(ctx context.Context, name string) error {
+			w := worldFrom(ctx)
+			if w.lastField == uuid.Nil {
+				return fmt.Errorf("the definition answered no id, answered %s", w.answered)
+			}
+			listed, err := w.operation(ctx, fieldsQuery, map[string]any{})
+			if err != nil {
+				return err
+			}
+			for _, held := range listed.Data.Fields {
+				if held.Name == name && held.ID != w.lastField.String() {
+					return fmt.Errorf("the definition answered %s, the catalogue lists %s", w.lastField, held.ID)
+				}
+				if held.Name == name {
+					return nil
+				}
+			}
+			return fmt.Errorf("the catalogue lists no field named %q, answered %s", name, w.answered)
+		})
 }
