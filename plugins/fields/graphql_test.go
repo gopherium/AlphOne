@@ -29,6 +29,12 @@ const unreachable = "postgres://graph:graph@localhost:1/graph"
 // newFieldsClient returns a graph client over a migrated fields plugin.
 func newFieldsClient(t *testing.T) *gqlclient.Client {
 	t.Helper()
+	return newFieldsClientWith(t, nil)
+}
+
+// newFieldsClientWith returns a graph client over a migrated fields plugin reading the given environment.
+func newFieldsClientWith(t *testing.T, getenv func(string) string) *gqlclient.Client {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
@@ -38,7 +44,7 @@ func newFieldsClient(t *testing.T) *gqlclient.Client {
 		t.Fatalf("connecting the test pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL()})
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL(), Getenv: getenv})
 	if err != nil {
 		t.Fatalf("fields.Register() error = %v, want nil", err)
 	}
