@@ -900,6 +900,15 @@ test('an entry holding only a second date is named by that detail line', async (
 	expect(await itemNames('Visits')).toEqual(['Follow up on: Oct 1, 2026'])
 })
 
+test('an entry whose text starts on blank lines is named by its first line of words', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [{ id: ID1, comment: '\n  \nCalled back.\nLeft a message.' }] })
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(['Called back.'])
+})
+
 test('Edit opens the entry prefilled in its own row', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent, firstCall] })

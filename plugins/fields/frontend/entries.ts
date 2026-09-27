@@ -110,13 +110,19 @@ export function entryParts(subFields: SubFieldRow[], cells: Record<string, unkno
 }
 
 /**
- * Returns the name a row is announced by: its day, its first line of text or its first detail line.
+ * Returns the name a row is announced by: its day, its first line of words or its first detail line.
  * @param parts - The parts of the row.
  * @returns The name.
  */
 export function entryName(parts: EntryParts): string {
 	return (
-		parts.day?.text ?? parts.body?.split('\n')[0] ?? parts.lines[0]?.text ?? __('Blank entry', 'alphone-fields')
+		parts.day?.text ??
+		parts.body
+			?.split('\n')
+			.find((line) => line.trim() !== '')
+			?.trim() ??
+		parts.lines[0]?.text ??
+		__('Blank entry', 'alphone-fields')
 	)
 }
 
