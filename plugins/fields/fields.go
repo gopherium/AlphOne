@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,22 +25,55 @@ var migrations embed.FS
 
 var migrationSource = mustSub(migrations, "migrations")
 
+// entriesMaxVariable names the setting that caps the entries one repeater holds.
+const entriesMaxVariable = "ALPHONE_FIELDS_ENTRIES_MAX"
+
+// defaultEntriesMax is how many entries one repeater holds when the setting is unset.
+const defaultEntriesMax = 500
+
 // Plugin holds the catalogue of contact fields an operator defines.
 type Plugin struct {
-	pool      *pgxpool.Pool
-	store     *store
-	catalog   *catalog
-	batchWait time.Duration
+	pool       *pgxpool.Pool
+	store      *store
+	catalog    *catalog
+	batchWait  time.Duration
+	entriesMax int
 }
 
-// Register builds the fields [Plugin] from the host-provided deps.
+// entriesCap parses the most entries one repeater holds, applying the default when raw is empty.
+func entriesCap(raw string) (int, error) {
+	if raw == "" {
+		return defaultEntriesMax, nil
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("fields: parse %s: %w", entriesMaxVariable, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("fields: %s must be positive", entriesMaxVariable)
+	}
+	return int(parsed), nil
+}
+
+// Register builds the fields [Plugin] from the host-provided deps, reading the entries cap from the environment.
 func Register(deps sdk.Deps) (*Plugin, error) {
+	getenv := deps.Getenv
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	entriesMax, err := entriesCap(getenv(entriesMaxVariable))
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.New(context.Background(), deps.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("fields: connect database: %w", err)
 	}
 	store := &store{pool: pool}
-	return &Plugin{pool: pool, store: store, catalog: newCatalog(store, deps.TenantsHeld, deps.TenantsRefresh)}, nil
+	return &Plugin{
+		pool: pool, store: store, entriesMax: entriesMax,
+		catalog: newCatalog(store, deps.TenantsHeld, deps.TenantsRefresh),
+	}, nil
 }
 
 // ID reports the plugin identifier.
