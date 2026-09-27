@@ -269,7 +269,7 @@ test('clearing a field sends null', async () => {
 })
 
 test('a failed value read is reported instead of an empty editor', async () => {
-	serveCatalogue([history])
+	serveCatalogue([history, jobTitle])
 	server.use(
 		graphql.query('ContactFieldValues', () => HttpResponse.json({ errors: [{ message: 'boom' }] })),
 	)

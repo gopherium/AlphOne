@@ -4,7 +4,7 @@ import { configureErrorText } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import {
 	ID1,
@@ -39,17 +39,23 @@ const removed = { data: { deleteContactFieldEntry: true } }
 /** updated is the body a successful edit answers. */
 const updated = { data: { updateContactFieldEntry: { id: ID2, comment: 'Edited.' } } }
 
-/** now is the moment the add form's dates start from. */
-const now = new Date()
+/** NOW is the moment every test starts at. */
+const NOW = new Date('2026-09-27T12:00:00Z')
 
 /** today is the local calendar day the add form starts its dates on. */
 const today = [
-	String(now.getFullYear()).padStart(4, '0'),
-	String(now.getMonth() + 1).padStart(2, '0'),
-	String(now.getDate()).padStart(2, '0'),
+	String(NOW.getFullYear()).padStart(4, '0'),
+	String(NOW.getMonth() + 1).padStart(2, '0'),
+	String(NOW.getDate()).padStart(2, '0'),
 ].join('-')
 
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+	vi.setSystemTime(NOW)
+})
+
 afterEach(() => {
+	vi.useRealTimers()
 	configureErrorText({ templates: () => ({}), fallback: () => '' })
 	vi.unstubAllEnvs()
 })
@@ -393,8 +399,9 @@ test('Add shows it is busy while the add runs', async () => {
 	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
 
 	expect(addButton()).toHaveAttribute('aria-disabled', 'true')
+	expect(addButton().className).toMatch(/is-loading/)
 	adding.release()
-	await waitFor(() => expect(addButton()).toHaveAttribute('aria-disabled', 'true'))
+	await waitFor(() => expect(addButton().className).not.toMatch(/is-loading/))
 })
 
 test('the add form locks its cells while the add runs', async () => {
@@ -524,6 +531,20 @@ test('an add to a repeater archived elsewhere reads the catalogue again', async 
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
 	expect(screen.getByRole('alert')).toHaveTextContent('That field is not one this contact holds.')
 	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
+})
+
+test('an add refused as a repeater gone shows one notice', async () => {
+	speakTemplates()
+	serveCatalogue([history, jobTitle])
+	serveValues({ history: null, jobTitle: null })
+	capture('AddContactFieldEntry', refusal('VALIDATION', 'field_unknown'))
+
+	renderPanel()
+	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
+	await userEvent.click(addButton())
+
+	await waitFor(() => expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus())
+	expect(screen.getAllByRole('alert')).toHaveLength(1)
 })
 
 test('an add that fails otherwise shows the fallback', async () => {
@@ -868,7 +889,7 @@ test('a draft stays with the contact it was typed on', async () => {
 })
 
 test('entries wait for the stored values before they show', async () => {
-	serveCatalogue([history])
+	serveCatalogue([history, jobTitle])
 	let release = () => {}
 	const answered = new Promise<void>((resolve) => {
 		release = resolve
@@ -877,7 +898,7 @@ test('entries wait for the stored values before they show', async () => {
 		graphql.query('ContactFieldValues', async () => {
 			await answered
 			return HttpResponse.json({
-				data: { contact: { __typename: 'Contact', id: contactID, history: [firstCall] } },
+				data: { contact: { __typename: 'Contact', id: contactID, history: [firstCall], jobTitle: null } },
 			})
 		}),
 	)
@@ -889,6 +910,7 @@ test('entries wait for the stored values before they show', async () => {
 	expect(screen.queryByRole('button', { name: 'Save fields' })).not.toBeInTheDocument()
 	release()
 	expect(await screen.findByRole('listitem', { name: 'Sep 1, 2026' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Save fields' })).toBeInTheDocument()
 })
 
 test('an entry holding only a second date is named by that detail line', async () => {

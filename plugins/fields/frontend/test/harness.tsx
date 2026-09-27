@@ -181,7 +181,7 @@ export function serveValues(values: Record<string, unknown>) {
 }
 
 /**
- * Answers the values query with whatever the returned setter last stored, so a test can change it mid flight.
+ * Answers the values query with whatever the returned setter last stored.
  * @param first - The values answered until the setter is called.
  * @returns The setter.
  */
