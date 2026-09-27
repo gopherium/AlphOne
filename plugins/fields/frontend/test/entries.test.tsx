@@ -15,11 +15,14 @@ import {
 	contactID,
 	firstButton,
 	firstCall,
+	firstCallName,
 	followUp,
+	followUpName,
 	history,
 	hold,
 	jobTitle,
 	offerSent,
+	offerSentName,
 	otherContactID,
 	refusal,
 	renderPanel,
@@ -115,7 +118,7 @@ test('lists entries in the order the graph answers them', async () => {
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 10, 2026', 'Sep 1, 2026'])
+	expect(await itemNames()).toEqual([offerSentName, firstCallName])
 })
 
 test('shows the first date as a muted time above the text', async () => {
@@ -124,7 +127,7 @@ test('shows the first date as a muted time above the text', async () => {
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026' })
+	const item = await screen.findByRole('listitem', { name: offerSentName })
 	const time = item.querySelector('time')
 	expect(time).toHaveAttribute('datetime', '2026-09-10')
 	expect(time).toHaveTextContent('Sep 10, 2026')
@@ -137,7 +140,7 @@ test('keeps the line breaks of its text', async () => {
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 18, 2026' })
+	const item = await screen.findByRole('listitem', { name: followUpName })
 	expect(item.querySelector('p.godmin-log-list__body')?.textContent).toBe(followUp.comment)
 })
 
@@ -159,7 +162,7 @@ test('shows other cells as label and value lines in sub field order', async () =
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026' })
+	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026, Paid in cash.' })
 	expect([...item.querySelectorAll('p')].map((line) => line.textContent)).toEqual([
 		'Paid in cash.',
 		'Minutes: 45',
@@ -205,7 +208,7 @@ test('a sub field named after a built-in member shows nothing inherited', async 
 	expect((await addForm()).getByLabelText('Builder')).toHaveValue('')
 })
 
-test('names each row by its day, its first line or its first detail', async () => {
+test('names each row by its day and its first line, its first line or its first detail', async () => {
 	serveCatalogue([history, visits])
 	serveValues({
 		history: [offerSent, { id: ID3, comment: 'Left a message.\nNo answer.' }],
@@ -214,9 +217,43 @@ test('names each row by its day, its first line or its first detail', async () =
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 10, 2026', 'Left a message.'])
+	expect(await itemNames()).toEqual([offerSentName, 'Left a message.'])
 	expect(await itemNames('Visits')).toEqual(['Minutes: 45'])
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 10, 2026' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}` })).toBeInTheDocument()
+})
+
+test('tells apart two entries of one day by their first line', async () => {
+	serveCatalogue([history])
+	serveValues({
+		history: [
+			{ id: ID2, date: '2026-09-27', comment: 'Called back.\nLeft a message.' },
+			{ id: ID1, date: '2026-09-27', comment: 'Sent the offer.' },
+		],
+	})
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(['Sep 27, 2026, Called back.', 'Sep 27, 2026, Sent the offer.'])
+	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Called back.' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Sent the offer.' })).toBeInTheDocument()
+})
+
+test('names an entry holding a day and only details by the day and its first detail', async () => {
+	serveCatalogue([visits])
+	serveValues({ visits: [{ id: ID1, date: '2026-09-10', minutes: 45, paid: true }] })
+
+	renderPanel()
+
+	expect(await itemNames('Visits')).toEqual(['Sep 10, 2026, Minutes: 45'])
+})
+
+test('names an entry holding only a day by that day', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [{ id: ID1, date: '2026-09-10' }] })
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(['Sep 10, 2026'])
 })
 
 test('shows the day an entry names to a reader west of UTC', async () => {
@@ -226,7 +263,7 @@ test('shows the day an entry names to a reader west of UTC', async () => {
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026' })
+	const item = await screen.findByRole('listitem', { name: offerSentName })
 	expect(item.querySelector('time')).toHaveTextContent('Sep 10, 2026')
 })
 
@@ -428,7 +465,7 @@ test('an added entry resets the form to today and shows on top', async () => {
 	capture('AddContactFieldEntry', added)
 
 	const { graph } = renderPanel()
-	await screen.findByRole('listitem', { name: 'Sep 1, 2026' })
+	await screen.findByRole('listitem', { name: firstCallName })
 	change({ history: [followUp, firstCall] })
 	const form = await addForm()
 	await userEvent.clear(form.getByLabelText('Date'))
@@ -436,7 +473,7 @@ test('an added entry resets the form to today and shows on top', async () => {
 	await userEvent.type(form.getByLabelText('Comment'), 'Follow-up call.')
 	await userEvent.click(addButton())
 
-	await waitFor(async () => expect((await itemNames())[0]).toBe('Sep 18, 2026'))
+	await waitFor(async () => expect((await itemNames())[0]).toBe(followUpName))
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(form.getByLabelText('Date')).toHaveValue(today)
 	expect(form.getByLabelText('Comment')).toHaveValue('')
@@ -465,7 +502,7 @@ test('an add answered while a removal is confirmed leaves focus on Keep', async 
 	await userEvent.type(comment, 'x')
 	await userEvent.click(addButton())
 	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
-	await userEvent.click(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+	await userEvent.click(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` }))
 	adding.release()
 
 	await waitFor(() => expect(comment).toHaveValue(''))
@@ -592,9 +629,9 @@ test('Remove asks first and puts focus on Keep', async () => {
 	const removing = capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await userEvent.click(await screen.findByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
 
-	const item = within(screen.getByRole('listitem', { name: 'Sep 1, 2026' }))
+	const item = within(screen.getByRole('listitem', { name: firstCallName }))
 	expect(item.getByRole('group', { name: 'Remove this entry?' })).toBeInTheDocument()
 	expect(item.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
 	expect(item.getByRole('button', { name: 'Keep' })).toHaveFocus()
@@ -607,11 +644,11 @@ test('Keep leaves the entry and puts focus back on Remove entry', async () => {
 	const removing = capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await userEvent.click(await screen.findByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
 	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
 
 	expect(screen.queryByRole('group', { name: 'Remove this entry?' })).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' })).toHaveFocus()
+	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveFocus()
 	expect(removing).not.toHaveBeenCalled()
 })
 
@@ -621,7 +658,7 @@ test('confirming a removal sends the entry id and reads the list again', async (
 	const removing = capture('DeleteContactFieldEntry', removed)
 
 	const { graph } = renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
 	await waitFor(() =>
 		expect(removing).toHaveBeenCalledWith({ contactId: contactID, field: 'history', entryId: ID1 }),
@@ -635,12 +672,12 @@ test('a removal in flight disables its own row and every other row', async () =>
 	const removing = hold('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
 
 	expect(screen.getByRole('button', { name: 'Remove' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 10, 2026' })).toHaveAttribute(
+	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}` })).toHaveAttribute(
 		'aria-disabled',
 		'true',
 	)
@@ -653,14 +690,14 @@ test('a removed entry stays disabled until the graph stops answering it', async 
 	capture('DeleteContactFieldEntry', removed)
 
 	const { graph } = renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await waitFor(() => expect(graph.refetch).toHaveBeenCalled())
 
-	const settling = await screen.findByRole('button', { name: 'Remove entry: Sep 1, 2026' })
+	const settling = await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(settling).toHaveAttribute('aria-disabled', 'true')
 	change({ history: [offerSent] })
 	act(() => graph.refetch(['ContactFieldValues']))
-	await waitFor(() => expect(screen.queryByRole('listitem', { name: 'Sep 1, 2026' })).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('listitem', { name: firstCallName })).not.toBeInTheDocument())
 })
 
 test('a removal moves focus to the next entry', async () => {
@@ -669,9 +706,9 @@ test('a removal moves focus to the next entry', async () => {
 	capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 10, 2026')
+	await removeEntry(offerSentName)
 
-	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: 'Sep 1, 2026' }))).toHaveFocus())
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
 })
 
 test('removing the oldest entry moves focus to the one above it', async () => {
@@ -680,9 +717,9 @@ test('removing the oldest entry moves focus to the one above it', async () => {
 	capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
-	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: 'Sep 10, 2026' }))).toHaveFocus())
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: offerSentName }))).toHaveFocus())
 })
 
 test('a removal passes over an entry that is still leaving', async () => {
@@ -691,9 +728,9 @@ test('a removal passes over an entry that is still leaving', async () => {
 	capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
-	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: 'Sep 10, 2026' }))).toHaveFocus())
-	await removeEntry('Sep 10, 2026')
+	await removeEntry(firstCallName)
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: offerSentName }))).toHaveFocus())
+	await removeEntry(offerSentName)
 
 	await waitFor(async () => expect((await addForm()).getByLabelText('Date')).toHaveFocus())
 })
@@ -704,13 +741,13 @@ test('a removal answered while typing in the add form leaves focus there', async
 	const removing = hold('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
 	const comment = (await addForm()).getByLabelText('Comment')
 	await userEvent.type(comment, 'x')
 	removing.release()
 
-	await waitFor(() => expect(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' })).toBeInTheDocument())
+	await waitFor(() => expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toBeInTheDocument())
 	expect(comment).toHaveFocus()
 })
 
@@ -720,9 +757,9 @@ test('removing the last entry moves focus to the add form', async () => {
 	capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await screen.findByRole('listitem', { name: 'Sep 1, 2026' })
+	await screen.findByRole('listitem', { name: firstCallName })
 	change({ history: null })
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
 	expect(await screen.findByText('No entries yet.')).toBeInTheDocument()
 	await waitFor(async () => expect((await addForm()).getByLabelText('Date')).toHaveFocus())
@@ -735,11 +772,11 @@ test('a removal answered as not found says so and reads the list again', async (
 	capture('DeleteContactFieldEntry', refusal('NOT_FOUND', 'field_entry_not_found'))
 
 	const { graph } = renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('That entry no longer exists.')
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' })).toHaveAttribute(
+	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveAttribute(
 		'aria-disabled',
 		'true',
 	)
@@ -751,10 +788,10 @@ test('a refused removal keeps the entry usable', async () => {
 	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be removed.')
-	const kept = screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' })
+	const kept = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(kept).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(kept).toHaveFocus())
 })
@@ -765,10 +802,10 @@ test('a second removal clears the last failure while it runs', async () => {
 	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await screen.findByRole('alert')
 	const removing = hold('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
 
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -782,9 +819,9 @@ test('asking to remove an entry clears an earlier failure', async () => {
 	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await screen.findByRole('alert')
-	await userEvent.click(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+	await userEvent.click(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` }))
 
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
@@ -795,9 +832,9 @@ test('Edit clears an earlier failure', async () => {
 	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await screen.findByRole('alert')
-	await editEntry('Sep 1, 2026')
+	await editEntry(firstCallName)
 
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
@@ -809,7 +846,7 @@ test('an added entry clears an earlier failure', async () => {
 	capture('AddContactFieldEntry', added)
 
 	renderPanel()
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 	await screen.findByRole('alert')
 	const comment = (await addForm()).getByLabelText('Comment')
 	await userEvent.type(comment, 'x')
@@ -826,9 +863,9 @@ test('a removal from a repeater archived elsewhere reads the catalogue again', a
 	capture('DeleteContactFieldEntry', refusal('VALIDATION', 'field_unknown'))
 
 	const { graph } = renderPanel()
-	await screen.findByRole('listitem', { name: 'Sep 1, 2026' })
+	await screen.findByRole('listitem', { name: firstCallName })
 	serveCatalogue([jobTitle])
-	await removeEntry('Sep 1, 2026')
+	await removeEntry(firstCallName)
 
 	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
@@ -882,7 +919,7 @@ test('a draft stays with the contact it was typed on', async () => {
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'Typed on the first contact.')
 	showContact(otherContactID)
 
-	await screen.findByRole('listitem', { name: 'Sep 10, 2026' })
+	await screen.findByRole('listitem', { name: offerSentName })
 	const form = await addForm()
 	expect(form.getByLabelText('Comment')).toHaveValue('')
 	expect(form.getByLabelText('Date')).toHaveValue(today)
@@ -909,7 +946,7 @@ test('entries wait for the stored values before they show', async () => {
 	expect(screen.queryByRole('button', { name: 'Add an entry to History' })).not.toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: 'Save fields' })).not.toBeInTheDocument()
 	release()
-	expect(await screen.findByRole('listitem', { name: 'Sep 1, 2026' })).toBeInTheDocument()
+	expect(await screen.findByRole('listitem', { name: firstCallName })).toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Save fields' })).toBeInTheDocument()
 })
 
@@ -936,13 +973,13 @@ test('Edit opens the entry prefilled in its own row', async () => {
 	serveValues({ history: [offerSent, firstCall] })
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 
 	expect(editor.getByLabelText('Date')).toHaveValue('2026-09-10')
 	const comment = editor.getByRole('textbox', { name: 'Comment' })
 	expect(comment).toBeInstanceOf(HTMLTextAreaElement)
 	expect(comment).toHaveValue(offerSent.comment)
-	const item = within(screen.getByRole('listitem', { name: 'Sep 10, 2026' }))
+	const item = within(screen.getByRole('listitem', { name: offerSentName }))
 	expect(item.queryByRole('button', { name: /^(Edit|Remove) entry/ })).not.toBeInTheDocument()
 })
 
@@ -951,7 +988,7 @@ test('Edit puts focus on the first cell', async () => {
 	serveValues({ history: [offerSent] })
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 
 	await waitFor(() => expect(editor.getByLabelText('Date')).toHaveFocus())
 })
@@ -961,8 +998,8 @@ test('only one editor opens at a time', async () => {
 	serveValues({ history: [offerSent, firstCall] })
 
 	renderPanel()
-	await editEntry('Sep 10, 2026')
-	await editEntry('Sep 1, 2026')
+	await editEntry(offerSentName)
+	await editEntry(firstCallName)
 
 	const editors = screen.getAllByRole('form', { name: /^Edit entry/ })
 	expect(editors).toHaveLength(1)
@@ -974,8 +1011,8 @@ test('Edit closes a removal waiting to be confirmed on another row', async () =>
 	serveValues({ history: [offerSent, firstCall] })
 
 	renderPanel()
-	await userEvent.click(await screen.findByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
-	await editEntry('Sep 10, 2026')
+	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
+	await editEntry(offerSentName)
 
 	expect(screen.queryByRole('group', { name: 'Remove this entry?' })).not.toBeInTheDocument()
 })
@@ -986,12 +1023,12 @@ test('Cancel sends nothing and puts focus back on Edit entry', async () => {
 	const updating = capture('UpdateContactFieldEntry', updated)
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.type(editor.getByLabelText('Comment'), ' More.')
 	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
 
 	expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveFocus()
+	expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveFocus()
 	expect(updating).not.toHaveBeenCalled()
 })
 
@@ -1001,7 +1038,7 @@ test('Save stays off while every cell of the entry is blank', async () => {
 	const updating = capture('UpdateContactFieldEntry', updated)
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.clear(editor.getByLabelText('Date'))
 	await userEvent.clear(editor.getByLabelText('Comment'))
 	await userEvent.type(editor.getByLabelText('Comment'), '  ')
@@ -1040,7 +1077,7 @@ test('Enter in a cell during a save in flight sends one update', async () => {
 	const updating = hold('UpdateContactFieldEntry', updated)
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
 	await userEvent.type(editor.getByLabelText('Date'), '{Enter}')
@@ -1056,7 +1093,7 @@ test('a save in flight locks its cells, Save, Cancel and every other row', async
 	const updating = hold('UpdateContactFieldEntry', updated)
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
 
@@ -1064,7 +1101,7 @@ test('a save in flight locks its cells, Save, Cancel and every other row', async
 	expect(editor.getByLabelText('Comment')).toBeDisabled()
 	expect(editor.getByRole('button', { name: 'Save entry' })).toHaveAttribute('aria-disabled', 'true')
 	expect(editor.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true')
-	expect(screen.getByRole('button', { name: 'Edit entry: Sep 1, 2026' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: `Edit entry: ${firstCallName}` })).toHaveAttribute('aria-disabled', 'true')
 	updating.release()
 })
 
@@ -1074,12 +1111,12 @@ test('a saved entry closes the editor, reads the list again and puts focus on Ed
 	capture('UpdateContactFieldEntry', updated)
 
 	const { graph } = renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	await waitFor(() => expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
-	await waitFor(() => expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveFocus())
+	await waitFor(() => expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveFocus())
 })
 
 test('a refused save keeps the editor and its draft', async () => {
@@ -1089,7 +1126,7 @@ test('a refused save keeps the editor and its draft', async () => {
 	capture('UpdateContactFieldEntry', refusal('VALIDATION', 'value_kind_mismatch'))
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.type(editor.getByLabelText('Comment'), ' More.')
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
@@ -1104,14 +1141,14 @@ test('a save answered as not found says so and passes focus on', async () => {
 	capture('UpdateContactFieldEntry', refusal('NOT_FOUND', 'field_entry_not_found'))
 
 	const { graph } = renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('That entry no longer exists.')
 	expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument()
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
-	expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveAttribute('aria-disabled', 'true')
-	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: 'Sep 1, 2026' }))).toHaveFocus())
+	expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
 })
 
 test('a save to a repeater archived elsewhere reads the catalogue again', async () => {
@@ -1121,7 +1158,7 @@ test('a save to a repeater archived elsewhere reads the catalogue again', async 
 	capture('UpdateContactFieldEntry', refusal('VALIDATION', 'field_unknown'))
 
 	const { graph } = renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	serveCatalogue([jobTitle])
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
@@ -1137,7 +1174,7 @@ test('a save that fails otherwise shows the fallback', async () => {
 	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
@@ -1149,7 +1186,7 @@ test('Cancel clears the failure of a refused save', async () => {
 	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 	await screen.findByRole('alert')
 	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
@@ -1163,7 +1200,7 @@ test('a second save clears the last failure while it runs', async () => {
 	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 	await screen.findByRole('alert')
 	const updating = hold('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
@@ -1196,9 +1233,9 @@ test('a removal puts focus on the next entry Edit entry', async () => {
 	capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await removeEntry('Sep 10, 2026')
+	await removeEntry(offerSentName)
 
-	await waitFor(() => expect(screen.getByRole('button', { name: 'Edit entry: Sep 1, 2026' })).toHaveFocus())
+	await waitFor(() => expect(screen.getByRole('button', { name: `Edit entry: ${firstCallName}` })).toHaveFocus())
 })
 
 test('an add answered while an editor is open leaves focus in the editor', async () => {
@@ -1211,7 +1248,7 @@ test('an add answered while an editor is open leaves focus in the editor', async
 	await userEvent.type(comment, 'x')
 	await userEvent.click(addButton())
 	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
-	const editor = await editEntry('Sep 10, 2026')
+	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByLabelText('Comment'))
 	adding.release()
 

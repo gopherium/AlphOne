@@ -202,6 +202,10 @@ msgctxt "entry cell"
 msgid "Yes"
 msgstr ""
 
+msgctxt "entry name"
+msgid "%(day)s, %(text)s"
+msgstr ""
+
 msgctxt "field kind"
 msgid "Choice"
 msgstr ""

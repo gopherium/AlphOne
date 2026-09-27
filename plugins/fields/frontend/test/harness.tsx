@@ -73,6 +73,15 @@ export const offerSent = { id: ID2, date: '2026-09-10', comment: 'Sent the offer
 /** followUp is the newest stored history entry, its comment on two lines. */
 export const followUp = { id: ID3, date: '2026-09-18', comment: 'Follow-up call.\nAsked for a second quote.' }
 
+/** firstCallName is the name the row of firstCall is announced by. */
+export const firstCallName = 'Sep 1, 2026, First call about the yearly plan.'
+
+/** offerSentName is the name the row of offerSent is announced by. */
+export const offerSentName = 'Sep 10, 2026, Sent the offer and booked a follow-up call.'
+
+/** followUpName is the name the row of followUp is announced by. */
+export const followUpName = 'Sep 18, 2026, Follow-up call.'
+
 /**
  * Renders the fields panel of the test contact inside its graph and query providers.
  * @returns The render result, the graph client and a switch to another contact.

@@ -110,20 +110,28 @@ export function entryParts(subFields: SubFieldRow[], cells: Record<string, unkno
 }
 
 /**
- * Returns the name a row is announced by: its day, its first line of words or its first detail line.
+ * Returns the name a row is announced by: its day and its first words, else either one alone.
  * @param parts - The parts of the row.
  * @returns The name.
  */
 export function entryName(parts: EntryParts): string {
-	return (
-		parts.day?.text ??
-		parts.body
-			?.split('\n')
-			.find((line) => line.trim() !== '')
-			?.trim() ??
-		parts.lines[0]?.text ??
-		__('Blank entry', 'alphone-fields')
-	)
+	const said = firstWords(parts.body) ?? parts.lines[0]?.text
+	if (parts.day === undefined || said === undefined) {
+		return parts.day?.text ?? said ?? __('Blank entry', 'alphone-fields')
+	}
+	return sprintf(_x('%(day)s, %(text)s', 'entry name', 'alphone-fields'), { day: parts.day.text, text: said })
+}
+
+/**
+ * Returns the first line of a text holding more than white space, trimmed.
+ * @param body - The text, absent when the row holds none.
+ * @returns The line, absent when there is no text.
+ */
+function firstWords(body: string | undefined): string | undefined {
+	return body
+		?.split('\n')
+		.find((line) => line.trim() !== '')
+		?.trim()
 }
 
 /**
