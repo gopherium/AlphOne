@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -192,24 +193,48 @@ func TestSeedWritesTheValuesOntoTheDemoContact(t *testing.T) {
 	}
 }
 
-func TestSeedAddsTheDemoHistoryAllOrNothing(t *testing.T) {
+func TestSeedKeepsTheNewestDemoHistoryACapHolds(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
 	maria := seedDemoContact(t, p)
 	p.entriesMax = 2
 
-	err := p.Seed(t.Context())
-
-	if !errors.Is(err, errEntriesFull) {
-		t.Fatalf("Seed() error = %v, want the history refused whole under a cap of two", err)
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want the demo history cut to a cap of two", err)
 	}
+
 	held, err := p.store.valuesFor(t.Context(), []uuid.UUID{maria})
 	if err != nil {
 		t.Fatalf("valuesFor() error = %v, want nil", err)
 	}
-	if _, kept := held[maria]["history"]; kept {
-		t.Errorf("history = %#v, want no part of the demo history stored", held[maria]["history"])
+	_, cells := splitIDs(t, held[maria]["history"])
+	rows := []any{
+		map[string]any{"date": "2026-09-18", "comment": "Follow-up call.\nAsked for a second quote."},
+		map[string]any{"date": "2026-09-10", "comment": "Sent the offer and booked a follow-up call."},
+	}
+	if !reflect.DeepEqual(cells, rows) {
+		t.Errorf("history = %#v, want the two newest demo entries", cells)
+	}
+	if held[maria]["birthDate"] != "1990-04-17" {
+		t.Errorf("birthDate = %#v, want 1990-04-17", held[maria]["birthDate"])
+	}
+}
+
+func TestSeedReportsAHistoryItCannotStore(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	seedDemoContact(t, p)
+	if _, err := p.pool.Exec(t.Context(),
+		"ALTER TABLE plugin_fields.contact_values ADD CONSTRAINT no_history CHECK (NOT values ? 'history')"); err != nil {
+		t.Fatalf("refusing stored histories: %v", err)
+	}
+
+	err := p.Seed(t.Context())
+
+	if err == nil || !strings.Contains(err.Error(), "seed history") {
+		t.Errorf("Seed() error = %v, want the refused history reported", err)
 	}
 }
 

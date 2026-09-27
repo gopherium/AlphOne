@@ -71,7 +71,7 @@ func (p *Plugin) seedDefinitions(ctx context.Context) error {
 	return nil
 }
 
-// seedValues writes the demo values the demo contact does not hold yet, when one exists.
+// seedValues writes the demo values the demo contact does not hold yet, the history cut to the cap, when one exists.
 func (p *Plugin) seedValues(ctx context.Context) error {
 	const query = `SELECT contact_id FROM core.contact_identities
 		WHERE channel = 'email' AND identifier = $1 AND tenant_id = $2 ORDER BY created_at, id LIMIT 1`
@@ -94,7 +94,8 @@ func (p *Plugin) seedValues(ctx context.Context) error {
 		}
 	}
 	if _, kept := held[contactID][demoHistoryName]; !kept {
-		if _, err := p.store.addEntry(ctx, contactID, demoHistoryName, demoHistory, p.entriesMax); err != nil {
+		history := demoHistory[max(0, len(demoHistory)-p.entriesMax):]
+		if _, err := p.store.addEntry(ctx, contactID, demoHistoryName, history, p.entriesMax); err != nil {
 			return fmt.Errorf("fields: seed history: %w", err)
 		}
 	}
