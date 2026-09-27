@@ -179,33 +179,36 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		APITokenCreate        func(childComplexity int, name string, scopes []string, ttlDays *int) int
-		APITokenRevoke        func(childComplexity int, id uuid.UUID) int
-		AcceptInvite          func(childComplexity int, token string, password string) int
-		AddContactIdentity    func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
-		ArchiveField          func(childComplexity int, id uuid.UUID) int
-		CreateContact         func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
-		CreateTask            func(childComplexity int, input model.CreateTaskInput) int
-		CreateWebhook         func(childComplexity int, url string, events []string) int
-		DefineField           func(childComplexity int, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) int
-		DeleteContactIdentity func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
-		DeleteWebhook         func(childComplexity int, id uuid.UUID) int
-		ImportCommit          func(childComplexity int, id uuid.UUID) int
-		ImportSetMapping      func(childComplexity int, id uuid.UUID, assignments []*model.ImportAssignmentInput) int
-		ImportUpload          func(childComplexity int, file graphql.Upload) int
-		Invite                func(childComplexity int, email string, name string, role *string) int
-		Login                 func(childComplexity int, email string, password string) int
-		Logout                func(childComplexity int) int
-		RenameContact         func(childComplexity int, id uuid.UUID, name string) int
-		RequestPasswordReset  func(childComplexity int, email string) int
-		ResendInvite          func(childComplexity int, email string) int
-		ResetPassword         func(childComplexity int, token string, password string) int
-		SetLocale             func(childComplexity int, locale string) int
-		SetUserDisabled       func(childComplexity int, id uuid.UUID, disabled bool) int
-		SetUserRole           func(childComplexity int, id uuid.UUID, role string) int
-		UpdateTask            func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
-		WhatsAppSendMessage   func(childComplexity int, conversationID uuid.UUID, content string) int
-		WriteContactFields    func(childComplexity int, contactID uuid.UUID, values interface{}) int
+		APITokenCreate          func(childComplexity int, name string, scopes []string, ttlDays *int) int
+		APITokenRevoke          func(childComplexity int, id uuid.UUID) int
+		AcceptInvite            func(childComplexity int, token string, password string) int
+		AddContactFieldEntry    func(childComplexity int, contactID uuid.UUID, field string, entry interface{}) int
+		AddContactIdentity      func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
+		ArchiveField            func(childComplexity int, id uuid.UUID) int
+		CreateContact           func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
+		CreateTask              func(childComplexity int, input model.CreateTaskInput) int
+		CreateWebhook           func(childComplexity int, url string, events []string) int
+		DefineField             func(childComplexity int, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) int
+		DeleteContactFieldEntry func(childComplexity int, contactID uuid.UUID, field string, entryID uuid.UUID) int
+		DeleteContactIdentity   func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
+		DeleteWebhook           func(childComplexity int, id uuid.UUID) int
+		ImportCommit            func(childComplexity int, id uuid.UUID) int
+		ImportSetMapping        func(childComplexity int, id uuid.UUID, assignments []*model.ImportAssignmentInput) int
+		ImportUpload            func(childComplexity int, file graphql.Upload) int
+		Invite                  func(childComplexity int, email string, name string, role *string) int
+		Login                   func(childComplexity int, email string, password string) int
+		Logout                  func(childComplexity int) int
+		RenameContact           func(childComplexity int, id uuid.UUID, name string) int
+		RequestPasswordReset    func(childComplexity int, email string) int
+		ResendInvite            func(childComplexity int, email string) int
+		ResetPassword           func(childComplexity int, token string, password string) int
+		SetLocale               func(childComplexity int, locale string) int
+		SetUserDisabled         func(childComplexity int, id uuid.UUID, disabled bool) int
+		SetUserRole             func(childComplexity int, id uuid.UUID, role string) int
+		UpdateContactFieldEntry func(childComplexity int, contactID uuid.UUID, field string, entryID uuid.UUID, entry interface{}) int
+		UpdateTask              func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
+		WhatsAppSendMessage     func(childComplexity int, conversationID uuid.UUID, content string) int
+		WriteContactFields      func(childComplexity int, contactID uuid.UUID, values interface{}) int
 	}
 
 	PageInfo struct {
@@ -360,6 +363,9 @@ type MutationResolver interface {
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
 	WriteContactFields(ctx context.Context, contactID uuid.UUID, values interface{}) (bool, error)
+	AddContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entry interface{}) (interface{}, error)
+	UpdateContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID, entry interface{}) (interface{}, error)
+	DeleteContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
 	ImportSetMapping(ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput) (*model.ImportJob, error)
 	ImportCommit(ctx context.Context, id uuid.UUID) (*model.ImportCommitPayload, error)
@@ -939,6 +945,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AcceptInvite(childComplexity, args["token"].(string), args["password"].(string)), true
+	case "Mutation.addContactFieldEntry":
+		if e.ComplexityRoot.Mutation.AddContactFieldEntry == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addContactFieldEntry_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entry"].(interface{})), true
 	case "Mutation.addContactIdentity":
 		if e.ComplexityRoot.Mutation.AddContactIdentity == nil {
 			break
@@ -1005,6 +1022,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DefineField(childComplexity, args["name"].(string), args["label"].(string), args["kind"].(model.FieldKind), args["subFields"].([]*model.FieldSubFieldInput)), true
+	case "Mutation.deleteContactFieldEntry":
+		if e.ComplexityRoot.Mutation.DeleteContactFieldEntry == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteContactFieldEntry_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entryId"].(uuid.UUID)), true
 	case "Mutation.deleteContactIdentity":
 		if e.ComplexityRoot.Mutation.DeleteContactIdentity == nil {
 			break
@@ -1165,6 +1193,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetUserRole(childComplexity, args["id"].(uuid.UUID), args["role"].(string)), true
+	case "Mutation.updateContactFieldEntry":
+		if e.ComplexityRoot.Mutation.UpdateContactFieldEntry == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateContactFieldEntry_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entryId"].(uuid.UUID), args["entry"].(interface{})), true
 	case "Mutation.updateTask":
 		if e.ComplexityRoot.Mutation.UpdateTask == nil {
 			break
@@ -1884,6 +1923,11 @@ extend type Mutation {
     @scope(area: "fields", write: true)
   archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
   writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
+  addContactFieldEntry(contactId: UUID!, field: String!, entry: JSON!): JSON! @scope(area: "contacts", write: true)
+  updateContactFieldEntry(contactId: UUID!, field: String!, entryId: UUID!, entry: JSON!): JSON!
+    @scope(area: "contacts", write: true)
+  deleteContactFieldEntry(contactId: UUID!, field: String!, entryId: UUID!): Boolean!
+    @scope(area: "contacts", write: true)
 }
 `, BuiltIn: false},
 	{Name: "../plugins/importer/graph/schema.graphqls", Input: `extend type Query {
@@ -2644,6 +2688,36 @@ func (ec *executionContext) field_Mutation_acceptInvite_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_addContactFieldEntry_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "field",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["field"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "entry",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalNJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["entry"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addContactIdentity_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2817,6 +2891,36 @@ func (ec *executionContext) field_Mutation_defineField_args(ctx context.Context,
 		return nil, err
 	}
 	args["subFields"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteContactFieldEntry_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "field",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["field"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "entryId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["entryId"] = arg2
 	return args, nil
 }
 
@@ -3085,6 +3189,44 @@ func (ec *executionContext) field_Mutation_setUserRole_args(ctx context.Context,
 		return nil, err
 	}
 	args["role"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateContactFieldEntry_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "field",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["field"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "entryId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["entryId"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "entry",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalNJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["entry"] = arg3
 	return args, nil
 }
 
@@ -6334,6 +6476,150 @@ func (ec *executionContext) fieldContext_Mutation_writeContactFields(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_writeContactFields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addContactFieldEntry(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addContactFieldEntry(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddContactFieldEntry(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["field"].(string),
+				func() any {
+					if fc.Args["entry"] == nil {
+						return nil
+					}
+					return fc.Args["entry"].(any)
+				}())
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addContactFieldEntry(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addContactFieldEntry_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateContactFieldEntry(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateContactFieldEntry(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateContactFieldEntry(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["field"].(string), fc.Args["entryId"].(uuid.UUID),
+				func() any {
+					if fc.Args["entry"] == nil {
+						return nil
+					}
+					return fc.Args["entry"].(any)
+				}())
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateContactFieldEntry(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateContactFieldEntry_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteContactFieldEntry(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteContactFieldEntry(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteContactFieldEntry(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["field"].(string), fc.Args["entryId"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteContactFieldEntry(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteContactFieldEntry_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11383,6 +11669,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "writeContactFields":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_writeContactFields(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addContactFieldEntry":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addContactFieldEntry(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateContactFieldEntry":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateContactFieldEntry(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteContactFieldEntry":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteContactFieldEntry(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
