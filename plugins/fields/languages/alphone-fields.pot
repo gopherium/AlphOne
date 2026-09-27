@@ -61,6 +61,15 @@ msgstr ""
 msgid "Blank entry"
 msgstr ""
 
+msgid "Cancel"
+msgstr ""
+
+msgid "Edit entry"
+msgstr ""
+
+msgid "Edit entry: %(name)s"
+msgstr ""
+
 msgid "Fields"
 msgstr ""
 
@@ -115,6 +124,9 @@ msgstr ""
 msgid "Remove this entry?"
 msgstr ""
 
+msgid "Save entry"
+msgstr ""
+
 msgid "Save fields"
 msgstr ""
 
@@ -155,6 +167,9 @@ msgid "The entry could not be added."
 msgstr ""
 
 msgid "The entry could not be removed."
+msgstr ""
+
+msgid "The entry could not be saved."
 msgstr ""
 
 msgid "The field could not be archived."

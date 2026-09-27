@@ -36,6 +36,9 @@ const added = { data: { addContactFieldEntry: { id: ID3, comment: 'x' } } }
 /** removed is the body a successful removal answers. */
 const removed = { data: { deleteContactFieldEntry: true } }
 
+/** updated is the body a successful edit answers. */
+const updated = { data: { updateContactFieldEntry: { id: ID2, comment: 'Edited.' } } }
+
 /** now is the moment the add form's dates start from. */
 const now = new Date()
 
@@ -88,6 +91,16 @@ async function itemNames(label = 'History') {
 async function removeEntry(name: string) {
 	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${name}` }))
 	await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+}
+
+/**
+ * Opens the editor of the named entry.
+ * @param name - The entry's name.
+ * @returns The editor form.
+ */
+async function editEntry(name: string) {
+	await userEvent.click(await screen.findByRole('button', { name: `Edit entry: ${name}` }))
+	return within(screen.getByRole('form', { name: `Edit entry: ${name}` }))
 }
 
 test('lists entries in the order the graph answers them', async () => {
@@ -824,4 +837,276 @@ test('an entry holding only a second date is named by that detail line', async (
 	renderPanel()
 
 	expect(await itemNames('Visits')).toEqual(['Follow up on: Oct 1, 2026'])
+})
+
+test('Edit opens the entry prefilled in its own row', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+
+	expect(editor.getByLabelText('Date')).toHaveValue('2026-09-10')
+	const comment = editor.getByRole('textbox', { name: 'Comment' })
+	expect(comment).toBeInstanceOf(HTMLTextAreaElement)
+	expect(comment).toHaveValue(offerSent.comment)
+	const item = within(screen.getByRole('listitem', { name: 'Sep 10, 2026' }))
+	expect(item.queryByRole('button', { name: /^(Edit|Remove) entry/ })).not.toBeInTheDocument()
+})
+
+test('Edit puts focus on the first cell', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+
+	await waitFor(() => expect(editor.getByLabelText('Date')).toHaveFocus())
+})
+
+test('only one editor opens at a time', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+
+	renderPanel()
+	await editEntry('Sep 10, 2026')
+	await editEntry('Sep 1, 2026')
+
+	const editors = screen.getAllByRole('form', { name: /^Edit entry/ })
+	expect(editors).toHaveLength(1)
+	expect(within(editors[0]).getByLabelText('Date')).toHaveValue('2026-09-01')
+})
+
+test('Edit closes a removal waiting to be confirmed on another row', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+
+	renderPanel()
+	await userEvent.click(await screen.findByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+	await editEntry('Sep 10, 2026')
+
+	expect(screen.queryByRole('group', { name: 'Remove this entry?' })).not.toBeInTheDocument()
+})
+
+test('Cancel sends nothing and puts focus back on Edit entry', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	const updating = capture('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.type(editor.getByLabelText('Comment'), ' More.')
+	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+
+	expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveFocus()
+	expect(updating).not.toHaveBeenCalled()
+})
+
+test('Save stays off while every cell of the entry is blank', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	const updating = capture('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.clear(editor.getByLabelText('Date'))
+	await userEvent.clear(editor.getByLabelText('Comment'))
+	await userEvent.type(editor.getByLabelText('Comment'), '  ')
+
+	expect(editor.getByRole('button', { name: 'Save entry' })).toHaveAttribute('aria-disabled', 'true')
+	await userEvent.type(editor.getByLabelText('Date'), '{Enter}')
+	await act(async () => {})
+	expect(updating).not.toHaveBeenCalled()
+})
+
+test('saving sends the entry id and every typed cell', async () => {
+	serveCatalogue([visits])
+	serveValues({ visits: [{ id: ID1, note: 'Called.', minutes: 30, paid: false }] })
+	const updating = capture('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Called.')
+	await userEvent.clear(editor.getByLabelText('Minutes'))
+	await userEvent.type(editor.getByLabelText('Minutes'), '45')
+	await userEvent.click(editor.getByRole('checkbox', { name: 'Paid' }))
+	await userEvent.clear(editor.getByLabelText('Note'))
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	await waitFor(() => expect(updating).toHaveBeenCalledOnce())
+	expect(updating).toHaveBeenCalledWith({
+		contactId: contactID,
+		field: 'visits',
+		entryId: ID1,
+		entry: { date: null, note: null, minutes: 45, paid: true, channel: null, followUpOn: null },
+	})
+})
+
+test('Enter in a cell during a save in flight sends one update', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	const updating = hold('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
+	await userEvent.type(editor.getByLabelText('Date'), '{Enter}')
+	updating.release()
+
+	await waitFor(() => expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument())
+	expect(updating.called).toHaveBeenCalledOnce()
+})
+
+test('a save in flight disables Save, Cancel and every other row', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+	const updating = hold('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
+
+	expect(editor.getByRole('button', { name: 'Save entry' })).toHaveAttribute('aria-disabled', 'true')
+	expect(editor.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Edit entry: Sep 1, 2026' })).toHaveAttribute('aria-disabled', 'true')
+	updating.release()
+})
+
+test('a saved entry closes the editor, reads the list again and puts focus on Edit entry', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	capture('UpdateContactFieldEntry', updated)
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	await waitFor(() => expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument())
+	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveFocus())
+})
+
+test('a refused save keeps the editor and its draft', async () => {
+	speakTemplates()
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	capture('UpdateContactFieldEntry', refusal('VALIDATION', 'value_kind_mismatch'))
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.type(editor.getByLabelText('Comment'), ' More.')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('That value does not match the kind the field declares.')
+	expect(editor.getByLabelText('Comment')).toHaveValue(`${offerSent.comment} More.`)
+})
+
+test('a save answered as not found says so and passes focus on', async () => {
+	speakTemplates()
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+	capture('UpdateContactFieldEntry', refusal('NOT_FOUND', 'field_entry_not_found'))
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('That entry no longer exists.')
+	expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument()
+	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
+	expect(screen.getByRole('button', { name: 'Edit entry: Sep 10, 2026' })).toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: 'Sep 1, 2026' }))).toHaveFocus())
+})
+
+test('a save to a repeater archived elsewhere reads the catalogue again', async () => {
+	speakTemplates()
+	serveCatalogue([history, jobTitle])
+	serveValues({ history: [offerSent], jobTitle: null })
+	capture('UpdateContactFieldEntry', refusal('VALIDATION', 'field_unknown'))
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	serveCatalogue([jobTitle])
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
+	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
+	expect(screen.getByRole('alert')).toHaveTextContent('That field is not one this contact holds.')
+	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
+})
+
+test('a save that fails otherwise shows the fallback', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+})
+
+test('a second save clears the last failure while it runs', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+	await screen.findByRole('alert')
+	const updating = hold('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	updating.release()
+	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+})
+
+test('the editor of a sub field named after a built-in member starts blank', async () => {
+	serveCatalogue([
+		{
+			...history,
+			subFields: [{ __typename: 'FieldSubField', name: 'constructor', label: 'Builder', kind: 'TEXT' }],
+		},
+	])
+	serveValues({ history: [{ id: ID1 }] })
+
+	renderPanel()
+	const editor = await editEntry('Blank entry')
+
+	expect(editor.getByLabelText('Builder')).toHaveValue('')
+})
+
+test('a removal puts focus on the next entry Edit entry', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+	capture('DeleteContactFieldEntry', removed)
+
+	renderPanel()
+	await removeEntry('Sep 10, 2026')
+
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Edit entry: Sep 1, 2026' })).toHaveFocus())
+})
+
+test('an add answered while an editor is open leaves focus in the editor', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	const adding = hold('AddContactFieldEntry', added)
+
+	renderPanel()
+	const comment = (await addForm()).getByLabelText('Comment')
+	await userEvent.type(comment, 'x')
+	await userEvent.click(addButton())
+	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByLabelText('Comment'))
+	adding.release()
+
+	await waitFor(() => expect(comment).toHaveValue(''))
+	expect(editor.getByLabelText('Comment')).toHaveFocus()
 })

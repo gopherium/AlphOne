@@ -66,6 +66,15 @@ export function holdsInput(subFields: SubFieldRow[], picked: ReadonlyMap<string,
 }
 
 /**
+ * Reports whether every cell of an entry is blank.
+ * @param text - The text of every cell.
+ * @returns True when no cell holds more than white space.
+ */
+export function isBlank(text: EntryText): boolean {
+	return Object.values(text).every((cell) => cell.trim() === '')
+}
+
+/**
  * Returns an entry in the form the entry mutations take.
  * @param subFields - The sub fields an entry holds.
  * @param text - The text of every cell.

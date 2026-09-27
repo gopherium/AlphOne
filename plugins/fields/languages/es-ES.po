@@ -81,6 +81,18 @@ msgid "Blank entry"
 msgstr "Entrada en blanco"
 
 #, fuzzy
+msgid "Cancel"
+msgstr "Cancelar"
+
+#, fuzzy
+msgid "Edit entry"
+msgstr "Editar la entrada"
+
+#, fuzzy
+msgid "Edit entry: %(name)s"
+msgstr "Editar la entrada: %(name)s"
+
+#, fuzzy
 msgid "Fields"
 msgstr "Campos"
 
@@ -153,6 +165,10 @@ msgid "Remove this entry?"
 msgstr "¿Quitar esta entrada?"
 
 #, fuzzy
+msgid "Save entry"
+msgstr "Guardar la entrada"
+
+#, fuzzy
 msgid "Save fields"
 msgstr "Guardar los campos"
 
@@ -207,6 +223,10 @@ msgstr "No se ha podido añadir la entrada."
 #, fuzzy
 msgid "The entry could not be removed."
 msgstr "No se ha podido quitar la entrada."
+
+#, fuzzy
+msgid "The entry could not be saved."
+msgstr "No se ha podido guardar la entrada."
 
 #, fuzzy
 msgid "The field could not be archived."
