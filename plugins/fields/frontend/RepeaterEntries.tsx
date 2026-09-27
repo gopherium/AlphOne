@@ -19,7 +19,7 @@ import { draftCells, entriesOf, holdsInput, localDay, typedEntry } from './entri
 import type { RepeaterRow } from './entries'
 import { entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
 import { EntryRow } from './EntryRow'
-import { focusFirstControl, whenFocusStayed } from './focus'
+import { focusFirstControl } from './focus'
 import { addContactFieldEntryMutation } from './operations'
 import { useEntryActions } from './useEntryActions'
 import type { GoneHandler } from './useEntryActions'
@@ -91,7 +91,7 @@ function AddEntryForm({
 	contactId: string
 	field: RepeaterRow
 	focusCount: number
-	onAdded: () => void
+	onAdded: (from: Element | null) => void
 	onGone: GoneHandler
 }) {
 	const [picked, setPicked] = useState<ReadonlyMap<string, string>>(() => new Map())
@@ -115,7 +115,7 @@ function AddEntryForm({
 		const outcome = outcomeOf(result.error)
 		if (outcome === 'done') {
 			setPicked(new Map())
-			whenFocusStayed(from, onAdded)
+			onAdded(from)
 		} else if (outcome === 'field-gone') {
 			onGone(entryMessage(result.error as GraphFailure, fallback), from)
 		}

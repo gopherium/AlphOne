@@ -755,6 +755,49 @@ test('a second removal clears the last failure while it runs', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be removed.')
 })
 
+test('asking to remove an entry clears an earlier failure', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
+
+	renderPanel()
+	await removeEntry('Sep 1, 2026')
+	await screen.findByRole('alert')
+	await userEvent.click(screen.getByRole('button', { name: 'Remove entry: Sep 1, 2026' }))
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('Edit clears an earlier failure', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
+
+	renderPanel()
+	await removeEntry('Sep 1, 2026')
+	await screen.findByRole('alert')
+	await editEntry('Sep 1, 2026')
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('an added entry clears an earlier failure', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
+	capture('AddContactFieldEntry', added)
+
+	renderPanel()
+	await removeEntry('Sep 1, 2026')
+	await screen.findByRole('alert')
+	const comment = (await addForm()).getByLabelText('Comment')
+	await userEvent.type(comment, 'x')
+	await userEvent.click(addButton())
+
+	await waitFor(() => expect(comment).toHaveValue(''))
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('a removal from a repeater archived elsewhere reads the catalogue again', async () => {
 	speakTemplates()
 	serveCatalogue([history, jobTitle])
@@ -1067,6 +1110,20 @@ test('a save that fails otherwise shows the fallback', async () => {
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+})
+
+test('Cancel clears the failure of a refused save', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent] })
+	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
+
+	renderPanel()
+	const editor = await editEntry('Sep 10, 2026')
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+	await screen.findByRole('alert')
+	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a second save clears the last failure while it runs', async () => {

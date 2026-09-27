@@ -74,13 +74,18 @@ export function useEntryActions({
 	const [, runDelete] = useGraphMutation(deleteContactFieldEntryMutation)
 	const graph = useGraph()
 
-	const added = () => setAddFocus((count) => count + 1)
+	const focusAdd = () => setAddFocus((count) => count + 1)
+
+	const added = (from: Element | null) => {
+		setFailure('')
+		whenFocusStayed(from, focusAdd)
+	}
 
 	const leave = (id: string, from: Element | null) => {
 		const next = neighbour(entries, id, settling)
 		setOpen(null)
 		setSettling((held) => [...held, id])
-		whenFocusStayed(from, () => (next === '' ? added() : setRowFocus({ id: next, on: 'first' })))
+		whenFocusStayed(from, () => (next === '' ? focusAdd() : setRowFocus({ id: next, on: 'first' })))
 	}
 
 	const settle = (id: string, from: Element | null, error: GraphFailure | undefined, steps: SettleSteps) => {
@@ -110,6 +115,7 @@ export function useEntryActions({
 		},
 		cancel: (id) => {
 			setOpen(null)
+			setFailure('')
 			setRowFocus({ id, on: 'first' })
 		},
 		save: async (id, draft) => {
@@ -134,6 +140,7 @@ export function useEntryActions({
 		},
 		remove: (id) => {
 			setOpen({ id, as: 'confirm' })
+			setFailure('')
 			setRowFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
