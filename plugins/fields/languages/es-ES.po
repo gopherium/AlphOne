@@ -77,6 +77,10 @@ msgid "Fields"
 msgstr "Campos"
 
 #, fuzzy
+msgid "Fill in at least one part of the entry."
+msgstr "Rellena al menos una parte de la entrada."
+
+#, fuzzy
 msgid "Kind"
 msgstr "Tipo"
 
@@ -149,6 +153,14 @@ msgid "Sub fields"
 msgstr "Subcampos"
 
 #, fuzzy
+msgid "That entry no longer exists."
+msgstr "Esa entrada ya no existe."
+
+#, fuzzy
+msgid "That field does not keep a list of entries."
+msgstr "Ese campo no guarda una lista de entradas."
+
+#, fuzzy
 msgid "That field is not one this contact holds."
 msgstr "Ese campo no es uno de los que tiene este contacto."
 
@@ -187,6 +199,10 @@ msgstr "No se han podido cargar los campos."
 #, fuzzy
 msgid "The fields could not be saved."
 msgstr "No se han podido guardar los campos."
+
+#, fuzzy
+msgid "This list is full. It holds %(max)d entries at most."
+msgstr "Esta lista está llena. Guarda como mucho %(max)d entradas."
 
 #, fuzzy
 msgid "Two sub fields of this repeater hold the same name."

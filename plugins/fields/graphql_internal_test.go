@@ -93,6 +93,23 @@ func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
 	}
 }
 
+func TestEveryEntrySentinelNamesItsReason(t *testing.T) {
+	t.Parallel()
+
+	want := map[error]string{
+		errNotARepeater: "field_not_a_repeater",
+		errEntryEmpty:   "field_entry_empty",
+		errNoEntry:      "field_entry_not_found",
+		errEntriesFull:  "field_entries_full",
+	}
+
+	for sentinel, reason := range want {
+		if got := fieldReason(sentinel); got != reason {
+			t.Errorf("fieldReason(%v) = %q, want %q", sentinel, got, reason)
+		}
+	}
+}
+
 func TestEveryReasonHasAFrontendMessage(t *testing.T) {
 	t.Parallel()
 

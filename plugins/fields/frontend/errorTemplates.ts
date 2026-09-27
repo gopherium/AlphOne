@@ -29,5 +29,9 @@ export function errorTemplates(): Record<string, string> {
 		field_unknown: __('That field is not one this contact holds.', DOMAIN),
 		value_kind_mismatch: __('That value does not match the kind the field declares.', DOMAIN),
 		values_not_an_object: __('Send the values as field names to values.', DOMAIN),
+		field_not_a_repeater: __('That field does not keep a list of entries.', DOMAIN),
+		field_entry_empty: __('Fill in at least one part of the entry.', DOMAIN),
+		field_entry_not_found: __('That entry no longer exists.', DOMAIN),
+		field_entries_full: __('This list is full. It holds %(max)d entries at most.', DOMAIN),
 	}
 }

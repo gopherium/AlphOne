@@ -58,6 +58,9 @@ msgstr ""
 msgid "Fields"
 msgstr ""
 
+msgid "Fill in at least one part of the entry."
+msgstr ""
+
 msgid "Kind"
 msgstr ""
 
@@ -112,6 +115,12 @@ msgstr ""
 msgid "Sub fields"
 msgstr ""
 
+msgid "That entry no longer exists."
+msgstr ""
+
+msgid "That field does not keep a list of entries."
+msgstr ""
+
 msgid "That field is not one this contact holds."
 msgstr ""
 
@@ -140,6 +149,9 @@ msgid "The fields could not be loaded."
 msgstr ""
 
 msgid "The fields could not be saved."
+msgstr ""
+
+msgid "This list is full. It holds %(max)d entries at most."
 msgstr ""
 
 msgid "Two sub fields of this repeater hold the same name."

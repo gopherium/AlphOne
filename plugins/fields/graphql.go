@@ -177,6 +177,10 @@ var fieldReasons = []struct {
 	{errWrongKind, "value_kind_mismatch"},
 	{errNoField, "field_unknown"},
 	{errValuesNotAnObject, "values_not_an_object"},
+	{errNotARepeater, "field_not_a_repeater"},
+	{errEntryEmpty, "field_entry_empty"},
+	{errNoEntry, "field_entry_not_found"},
+	{errEntriesFull, "field_entries_full"},
 }
 
 // fieldReason returns the stable reason a fields error answers with.
