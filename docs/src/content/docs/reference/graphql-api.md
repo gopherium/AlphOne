@@ -426,6 +426,10 @@ The stock plugins add their own:
 | `field_unknown` | | no live definition holds the name |
 | `value_kind_mismatch` | | the value does not match the declared kind |
 | `values_not_an_object` | | values arrive as an object of names |
+| `field_not_a_repeater` | | the field keeps no list of entries |
+| `field_entry_empty` | | every cell of the entry is blank |
+| `field_entry_not_found` | | no entry of that id is in that field of the contact |
+| `field_entries_full` | `max` | the list already holds the most entries it may |
 | `message_content_required` | | a message needs text |
 | `conversation_not_found` | | the id names no conversation |
 | `upstream_failed` | | the messaging platform did not accept |
@@ -515,6 +519,7 @@ cannot drift. Point a client at the endpoint, or read
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
+| Fields | `fields`, `Contact.field` | `defineField`, `archiveField`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
 | Version | `version` | |
