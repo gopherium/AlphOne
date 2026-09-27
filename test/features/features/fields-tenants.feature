@@ -57,3 +57,34 @@ Feature: Each tenant keeps its own contact fields
     When the import is committed
     Then the commit answers 1 imported
     And the contact "Maria Perez" answers "1990-04-17" for the field "birthDate"
+
+  Scenario: A tenant cannot add an entry to another tenant's contact
+    Given a contact named "Maria Perez"
+    And the tenant "Acme" defines the repeater "history" labelled "History" with sub fields:
+      | name    | label   | kind     |
+      | comment | Comment | LONGTEXT |
+    When the tenant "Acme" adds an entry to "history" of the contact:
+      | comment    |
+      | First call |
+    Then the change is refused with the reason "contact_not_found"
+
+  Scenario: A tenant cannot edit or remove another tenant's entry
+    Given a contact named "Maria Perez"
+    And the repeater "history" labelled "History" is defined with sub fields:
+      | name    | label   | kind     |
+      | comment | Comment | LONGTEXT |
+    And the operator added the entries to "history" of the contact, oldest first:
+      | comment    |
+      | First call |
+    And the tenant "Acme" defines the repeater "history" labelled "History" with sub fields:
+      | name    | label   | kind     |
+      | comment | Comment | LONGTEXT |
+    When the tenant "Acme" edits the entry "First call" of "history" to:
+      | comment |
+      | Changed |
+    Then the change is refused with the reason "field_entry_not_found"
+    When the tenant "Acme" removes the entry "First call" from "history"
+    Then the change is refused with the reason "field_entry_not_found"
+    And the contact's "history" answers the entries, newest first:
+      | comment    |
+      | First call |

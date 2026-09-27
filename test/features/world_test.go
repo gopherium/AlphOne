@@ -87,6 +87,9 @@ type world struct {
 	status       int
 	relay        *smtpmock.Server
 	invitedValue string
+	entryIDs     map[string]string
+	answeredIDs  []string
+	entryField   string
 }
 
 // newWorld boots an isolated database and a real server for one scenario.

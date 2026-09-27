@@ -18,12 +18,18 @@ type Documents = {
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": typeof types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": typeof types.ArchiveFieldDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": typeof types.WriteContactFieldsDocument,
+    "\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n": typeof types.AddContactFieldEntryDocument,
+    "\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n": typeof types.UpdateContactFieldEntryDocument,
+    "\n\tmutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {\n\t\tdeleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)\n\t}\n": typeof types.DeleteContactFieldEntryDocument,
 };
 const documents: Documents = {
     "\n\tquery Fields {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": types.FieldsDocument,
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": types.ArchiveFieldDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": types.WriteContactFieldsDocument,
+    "\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n": types.AddContactFieldEntryDocument,
+    "\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n": types.UpdateContactFieldEntryDocument,
+    "\n\tmutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {\n\t\tdeleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)\n\t}\n": types.DeleteContactFieldEntryDocument,
 };
 
 /**
@@ -56,6 +62,18 @@ export function graphql(source: "\n\tmutation ArchiveField($id: UUID!) {\n\t\tar
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n"): (typeof documents)["\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n"): (typeof documents)["\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n"): (typeof documents)["\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {\n\t\tdeleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)\n\t}\n"): (typeof documents)["\n\tmutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {\n\t\tdeleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)\n\t}\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

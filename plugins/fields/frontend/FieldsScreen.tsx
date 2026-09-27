@@ -26,10 +26,8 @@ import { useState } from 'react'
 
 import { fieldsIcon } from './icon'
 import type { FieldKind } from './gql/graphql'
-import { kindItems, kindOf, subKindItems } from './kind'
-import { archiveFieldMutation, defineFieldMutation, fieldsQuery } from './operations'
-
-const catalogueOperation = 'Fields'
+import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
+import { archiveFieldMutation, catalogueOperation, defineFieldMutation, fieldsQuery } from './operations'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {
@@ -215,10 +213,10 @@ function labelList(subFields: SubFieldRow[]) {
 /**
  * Returns the sub fields as the define mutation takes them, each named from its label.
  * @param drafts - The sub fields the operator listed, in order.
- * @returns The sub fields, each under a name no sibling repeats.
+ * @returns The sub fields, each under a name no sibling repeats and entries do not keep their id under.
  */
 function namedSubFields(drafts: DraftSubField[]) {
-	const taken: string[] = []
+	const taken: string[] = [ENTRY_ID_KEY]
 	return drafts.map((draft) => {
 		const name = keyFromLabel(draft.label, { style: 'camel', taken })
 		taken.push(name)

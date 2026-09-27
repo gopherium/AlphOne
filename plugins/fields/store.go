@@ -6,9 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/sdk"
@@ -19,6 +21,9 @@ var (
 	errNameTaken    = errors.New("fields: another definition holds that name")
 	errNoDefinition = errors.New("fields: no live definition holds that id")
 	errKindLocked   = errors.New("fields: the archived definition of that name holds another kind or other sub fields")
+	errNoContact    = errors.New("fields: the caller's tenant holds no contact of that id")
+	errEntriesFull  = errors.New("fields: the repeater has no room for the entries given")
+	errNoEntry      = errors.New("fields: no entry of that id is in that contact's field")
 )
 
 // store reads and writes the definition catalogue.
@@ -112,6 +117,109 @@ func (s *store) writeValues(ctx context.Context, contactID uuid.UUID, values map
 		SET values = jsonb_strip_nulls(plugin_fields.contact_values.values || $2::jsonb)`
 	if _, err := s.pool.Exec(ctx, statement, contactID, values, sdk.TenantOrDefault(ctx)); err != nil {
 		return fmt.Errorf("fields: write contact values: %w", err)
+	}
+	return nil
+}
+
+// contactReference is the constraint tying a value row to the contact it describes.
+const contactReference = "contact_values_contact_id_fkey"
+
+// addEntryStatement prepends entries to a contact's list and says whether the contact and the room were there.
+const addEntryStatement = `WITH entry_contact AS (
+		SELECT id, tenant_id FROM core.contacts WHERE id = $1 AND tenant_id = $4
+	), added AS (
+		INSERT INTO plugin_fields.contact_values (contact_id, values, tenant_id)
+		SELECT id, jsonb_build_object($2::text, $3::jsonb), tenant_id FROM entry_contact
+		WHERE jsonb_array_length($3::jsonb) <= $5
+		ON CONFLICT (tenant_id, contact_id) DO UPDATE
+		SET values = plugin_fields.contact_values.values || jsonb_build_object($2::text,
+			$3::jsonb || coalesce(plugin_fields.contact_values.values -> $2::text, '[]'::jsonb))
+		WHERE jsonb_array_length(coalesce(plugin_fields.contact_values.values -> $2::text, '[]'::jsonb))
+			+ jsonb_array_length($3::jsonb) <= $5
+		RETURNING 1
+	)
+	SELECT EXISTS (SELECT 1 FROM entry_contact), EXISTS (SELECT 1 FROM added)`
+
+// updateEntryStatement replaces the cells of one entry in place, keeping its id.
+const updateEntryStatement = `UPDATE plugin_fields.contact_values
+	SET values = values || jsonb_build_object($2::text, (
+		SELECT jsonb_agg(CASE WHEN listed.entry ->> 'id' = $3::text
+			THEN $4::jsonb || jsonb_build_object('id', $3::text) ELSE listed.entry END ORDER BY listed.at)
+		FROM jsonb_array_elements(values -> $2::text) WITH ORDINALITY AS listed (entry, at)))
+	WHERE tenant_id = $5 AND contact_id = $1
+		AND values -> $2::text @> jsonb_build_array(jsonb_build_object('id', $3::text))`
+
+// deleteEntryStatement drops one entry, and the key with the last one.
+const deleteEntryStatement = `UPDATE plugin_fields.contact_values
+	SET values = (values - $2::text) || coalesce((
+		SELECT jsonb_build_object($2::text, jsonb_agg(listed.entry ORDER BY listed.at))
+		FROM jsonb_array_elements(values -> $2::text) WITH ORDINALITY AS listed (entry, at)
+		WHERE listed.entry ->> 'id' IS DISTINCT FROM $3::text
+		HAVING count(*) > 0), '{}'::jsonb)
+	WHERE tenant_id = $4 AND contact_id = $1
+		AND values -> $2::text @> jsonb_build_array(jsonb_build_object('id', $3::text))`
+
+// addEntry prepends entries to a contact's repeater list, the last given on top, and returns them with their ids.
+func (s *store) addEntry(
+	ctx context.Context, contactID uuid.UUID, name string, entries []map[string]any, limit int,
+) ([]map[string]any, error) {
+	stored := newestFirst(entries)
+	var held, added bool
+	err := s.pool.QueryRow(ctx, addEntryStatement,
+		contactID, name, stored, sdk.TenantOrDefault(ctx), limit).Scan(&held, &added)
+	switch {
+	case isMissingContact(err):
+		return nil, errNoContact
+	case err != nil:
+		return nil, fmt.Errorf("fields: add entries: %w", err)
+	case !held:
+		return nil, errNoContact
+	case !added:
+		return nil, errEntriesFull
+	}
+	return stored, nil
+}
+
+// newestFirst returns the entries each under a fresh id, the last given first.
+func newestFirst(entries []map[string]any) []map[string]any {
+	stored := make([]map[string]any, len(entries))
+	for at, cells := range entries {
+		entry := maps.Clone(cells)
+		entry[entryIDKey] = uuid.Must(uuid.NewV7()).String()
+		stored[len(entries)-1-at] = entry
+	}
+	return stored
+}
+
+// isMissingContact reports whether err is a value row naming a contact that no longer exists.
+func isMissingContact(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.ConstraintName == contactReference
+}
+
+// updateEntry replaces the cells of one entry in a contact's repeater list, keeping its id and its place.
+func (s *store) updateEntry(
+	ctx context.Context, contactID uuid.UUID, name string, id uuid.UUID, cells map[string]any,
+) error {
+	tag, err := s.pool.Exec(ctx, updateEntryStatement,
+		contactID, name, id.String(), cells, sdk.TenantOrDefault(ctx))
+	if err != nil {
+		return fmt.Errorf("fields: update entry: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return errNoEntry
+	}
+	return nil
+}
+
+// deleteEntry drops one entry from a contact's repeater list, dropping the field with its last entry.
+func (s *store) deleteEntry(ctx context.Context, contactID uuid.UUID, name string, id uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx, deleteEntryStatement, contactID, name, id.String(), sdk.TenantOrDefault(ctx))
+	if err != nil {
+		return fmt.Errorf("fields: delete entry: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return errNoEntry
 	}
 	return nil
 }

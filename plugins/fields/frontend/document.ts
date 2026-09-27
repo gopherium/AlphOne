@@ -2,6 +2,9 @@
 
 const selectable = /^[a-z][a-zA-Z0-9]*$/
 
+/** valuesOperation names the query reading one contact's field values. */
+export const valuesOperation = 'ContactFieldValues'
+
 /**
  * Returns the query reading the given fields of one contact.
  * @param names - The field names the catalogue holds.
@@ -9,7 +12,7 @@ const selectable = /^[a-z][a-zA-Z0-9]*$/
  */
 export function contactValuesDocument(names: string[]) {
 	const selections = names.filter((name) => selectable.test(name)).join('\n\t\t\t')
-	return `query ContactFieldValues($id: UUID!) {
+	return `query ${valuesOperation}($id: UUID!) {
 		contact(id: $id) {
 			id
 			${selections}

@@ -86,10 +86,13 @@ func TestGraphWritesNumbersWrittenInline(t *testing.T) {
 			`subFields: [{ name: "minutes", label: "Minutes", kind: NUMBER }]) { id } }`,
 		&defined)
 
-	var written struct{ WriteContactFields bool }
+	var written struct {
+		WriteContactFields   bool
+		AddContactFieldEntry any
+	}
 	err := client.Post(
-		`mutation($id: UUID!) { writeContactFields(contactId: $id, `+
-			`values: { loyaltyPoints: 420, visits: [{ minutes: 45 }] }) }`,
+		`mutation($id: UUID!) { writeContactFields(contactId: $id, values: { loyaltyPoints: 420 }) `+
+			`addContactFieldEntry(contactId: $id, field: "visits", entry: { minutes: 45 }) }`,
 		&written, gqlclient.Var("id", contactID.String()))
 
 	if err != nil {
@@ -110,6 +113,25 @@ func TestGraphWritesNumbersWrittenInline(t *testing.T) {
 	}
 	if rows, ok := read.Contact.Visits.([]any); !ok || len(rows) != 1 {
 		t.Errorf("visits = %#v, want the one inline row", read.Contact.Visits)
+	}
+}
+
+func TestGraphRefusesARepeaterWrittenThroughTheValues(t *testing.T) {
+	t.Parallel()
+
+	client, contactID := newValuesClient(t)
+	defineHistory(t, client)
+
+	var written struct{ WriteContactFields bool }
+	err := client.Post(
+		`mutation($id: UUID!, $values: JSON!) { writeContactFields(contactId: $id, values: $values) }`,
+		&written, gqlclient.Var("id", contactID.String()),
+		gqlclient.Var("values", map[string]any{"history": []any{map[string]any{"comment": "First call"}}}))
+
+	for _, held := range []string{`"code":"VALIDATION"`, `"reason":"field_repeater_entries_only"`} {
+		if err == nil || !strings.Contains(err.Error(), held) {
+			t.Errorf("error = %v, want it to carry %s", err, held)
+		}
 	}
 }
 

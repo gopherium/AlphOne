@@ -124,7 +124,7 @@ func bindFieldsCatalogSteps(sc *godog.ScenarioContext) {
 			return worldFrom(ctx).defineField(ctx, name, label, kind)
 		})
 
-	sc.When(`^the operator archives the field "([^"]*)"$`, func(ctx context.Context, name string) error {
+	sc.Step(`^the operator archives the field "([^"]*)"$`, func(ctx context.Context, name string) error {
 		w := worldFrom(ctx)
 		listed, err := w.operation(ctx, fieldsQuery, map[string]any{})
 		if err != nil {

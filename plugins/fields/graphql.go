@@ -170,12 +170,18 @@ var fieldReasons = []struct {
 	{errSubFieldNested, "field_sub_field_nested"},
 	{errSubFieldNameInvalid, "field_sub_field_name_invalid"},
 	{errSubFieldNameTaken, "field_sub_field_name_taken"},
+	{errSubFieldNameReserved, "field_sub_field_name_reserved"},
 	{errNameTaken, "field_name_taken"},
 	{errKindLocked, "field_kind_locked"},
 	{errNoDefinition, "field_not_found"},
 	{errWrongKind, "value_kind_mismatch"},
 	{errNoField, "field_unknown"},
 	{errValuesNotAnObject, "values_not_an_object"},
+	{errNotARepeater, "field_not_a_repeater"},
+	{errEntryEmpty, "field_entry_empty"},
+	{errNoEntry, "field_entry_not_found"},
+	{errEntriesFull, "field_entries_full"},
+	{errRepeaterEntriesOnly, "field_repeater_entries_only"},
 }
 
 // fieldReason returns the stable reason a fields error answers with.

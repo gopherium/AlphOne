@@ -41,7 +41,14 @@ func tableRecords(table *godog.Table) []map[string]any {
 func (w *world) defineWithSubFields(
 	ctx context.Context, name, label, kind string, subFields []map[string]any,
 ) error {
-	answer, err := w.operation(ctx, defineWithSubFieldsMutation, map[string]any{
+	return w.defineWithSubFieldsAs(ctx, w.secret, name, label, kind, subFields)
+}
+
+// defineWithSubFieldsAs declares a field holding the given sub fields as the given secret.
+func (w *world) defineWithSubFieldsAs(
+	ctx context.Context, secret, name, label, kind string, subFields []map[string]any,
+) error {
+	answer, err := w.operationAs(ctx, secret, defineWithSubFieldsMutation, map[string]any{
 		"name": name, "label": label, "kind": kind, "subFields": subFields,
 	})
 	if err != nil {
@@ -77,13 +84,20 @@ func registerFieldsRepeaterSteps(sc *godog.ScenarioContext, t *testing.T) {
 	bindImportSteps(sc)
 	bindRepeaterDefinitionSteps(sc)
 	bindRepeaterRowSteps(sc)
+	bindRepeaterEntrySteps(sc)
 }
 
 // bindRepeaterDefinitionSteps binds the steps that define repeaters and read their sub fields.
 func bindRepeaterDefinitionSteps(sc *godog.ScenarioContext) {
-	sc.Step(`^(?:the operator defines )?the repeater "([^"]*)" labelled "([^"]*)" (?:is defined )?with sub fields:$`,
-		func(ctx context.Context, name, label string, table *godog.Table) error {
-			return worldFrom(ctx).defineWithSubFields(ctx, name, label, "REPEATER", tableRecords(table))
+	sc.Step(`^(?:the operator defines |the tenant "([^"]*)" defines )?the repeater "([^"]*)" labelled "([^"]*)" `+
+		`(?:is defined )?with sub fields:$`,
+		func(ctx context.Context, tenant, name, label string, table *godog.Table) error {
+			w := worldFrom(ctx)
+			secret, err := w.secretFor(tenant)
+			if err != nil {
+				return err
+			}
+			return w.defineWithSubFieldsAs(ctx, secret, name, label, "REPEATER", tableRecords(table))
 		})
 
 	sc.When(`^the operator defines the repeater "([^"]*)" labelled "([^"]*)" with no sub fields$`,
@@ -116,48 +130,27 @@ func bindRepeaterDefinitionSteps(sc *godog.ScenarioContext) {
 			return fmt.Errorf("the catalogue lists no field named %q, answered %s", name, w.answered)
 		})
 
-	sc.Then(`^the definition is refused with the reason "([^"]*)"$`, func(ctx context.Context, reason string) error {
-		w := worldFrom(ctx)
-		var answer graphAnswer
-		if err := json.Unmarshal(w.answered, &answer); err != nil {
-			return fmt.Errorf("decoding %s: %w", w.answered, err)
-		}
-		if len(answer.Errors) == 0 {
-			return fmt.Errorf("the graph accepted the definition, answered %s", w.answered)
-		}
-		if got := answer.Errors[0].Extensions["reason"]; got != reason {
-			return fmt.Errorf("reason = %v, want %s, answered %s", got, reason, w.answered)
-		}
-		return nil
-	})
+	sc.Then(`^the (?:definition|change) is refused with the reason "([^"]*)"$`,
+		func(ctx context.Context, reason string) error {
+			w := worldFrom(ctx)
+			var answer graphAnswer
+			if err := json.Unmarshal(w.answered, &answer); err != nil {
+				return fmt.Errorf("decoding %s: %w", w.answered, err)
+			}
+			if len(answer.Errors) == 0 {
+				return fmt.Errorf("the graph accepted it, answered %s", w.answered)
+			}
+			if got := answer.Errors[0].Extensions["reason"]; got != reason {
+				return fmt.Errorf("reason = %v, want %s, answered %s", got, reason, w.answered)
+			}
+			return nil
+		})
 }
 
-// bindRepeaterRowSteps binds the steps that write and read a repeater's rows.
+// bindRepeaterRowSteps binds the step that writes a whole list of rows through the field values.
 func bindRepeaterRowSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the operator writes the rows into "([^"]*)" of the contact:$`,
 		func(ctx context.Context, name string, table *godog.Table) error {
 			return worldFrom(ctx).writeValue(ctx, name, tableRecords(table))
-		})
-
-	sc.When(`^the operator writes no rows into "([^"]*)" of the contact$`,
-		func(ctx context.Context, name string) error {
-			return worldFrom(ctx).writeValue(ctx, name, []map[string]any{})
-		})
-
-	sc.Then(`^querying the contact for "([^"]*)" answers the rows:$`,
-		func(ctx context.Context, name string, table *godog.Table) error {
-			w := worldFrom(ctx)
-			answered, err := w.readField(ctx, name)
-			if err != nil {
-				return err
-			}
-			if len(answered.Errors) > 0 {
-				return fmt.Errorf("the graph refused the read, answered %s", w.answered)
-			}
-			same, err := sameJSON(answered.Data.Contact[name], tableRecords(table))
-			if err != nil || same {
-				return err
-			}
-			return fmt.Errorf("%s = %#v, answered %s", name, answered.Data.Contact[name], w.answered)
 		})
 }

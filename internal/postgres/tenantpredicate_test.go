@@ -61,11 +61,11 @@ var tenantParameter = regexp.MustCompile(`tenant_id\s*=\s*(\$\d+|@\w+)`)
 // conflictArbiter captures the columns an ON CONFLICT clause arbitrates on.
 var conflictArbiter = regexp.MustCompile(`(?is)ON\s+CONFLICT\s*\(([^)]*)\)`)
 
-// insertedColumns captures the columns an INSERT names for its table.
-var insertedColumns = regexp.MustCompile(`(?is)INSERT\s+INTO\s+\w+\.\w+\s*\(([^)]*)\)`)
+// insertedColumns captures the table an INSERT writes and the columns it names for it.
+var insertedColumns = regexp.MustCompile(`(?is)INSERT\s+INTO\s+\w+\.(\w+)\s*\(([^)]*)\)`)
 
-// tenantSafe reports whether a statement holds its rows to the caller's tenant.
-func tenantSafe(statement string) bool {
+// tenantSafe reports whether a statement holds one table it touches to the caller's tenant.
+func tenantSafe(statement, table string) bool {
 	if arbiter := conflictArbiter.FindStringSubmatch(statement); arbiter != nil &&
 		!strings.Contains(arbiter[1], "tenant_id") {
 		return false
@@ -73,21 +73,18 @@ func tenantSafe(statement string) bool {
 	if tenantParameter.MatchString(statement) {
 		return true
 	}
-	if columns := insertedColumns.FindStringSubmatch(statement); columns != nil {
-		return strings.Contains(columns[1], "tenant_id")
+	if columns := insertedColumns.FindStringSubmatch(statement); columns != nil && columns[1] == table {
+		return strings.Contains(columns[2], "tenant_id")
 	}
 	return false
 }
 
 // unguarded returns the guarded tables a query touches without holding them to the caller's tenant.
 func unguarded(query string, guarded []string) []string {
-	if tenantSafe(query) {
-		return nil
-	}
 	var touched []string
 	for _, table := range guarded {
 		pattern := regexp.MustCompile(`\b(core|plugin_[a-z]+)\.` + table + `\b`)
-		if pattern.MatchString(query) {
+		if pattern.MatchString(query) && !tenantSafe(query, table) {
 			touched = append(touched, table)
 		}
 	}
@@ -102,7 +99,7 @@ func TestTheGateRefusesATenantIdThatHoldsNothingToTheCaller(t *testing.T) {
 			WHERE m.conversation_id = conv.id AND m.tenant_id = conv.tenant_id) x ON TRUE
 		WHERE conv.contact_id = ANY($1)`
 
-	if tenantSafe(joining) {
+	if tenantSafe(joining, "conversations") {
 		t.Error("tenantSafe() admitted a column to column tenant join, want the caller's tenant demanded")
 	}
 }
@@ -114,7 +111,7 @@ func TestTheGateRefusesAConflictArbiterSpanningTenants(t *testing.T) {
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value`
 
-	if tenantSafe(spanning) {
+	if tenantSafe(spanning, "user_settings") {
 		t.Error("tenantSafe() admitted an arbiter spanning tenants, want tenant_id demanded in it")
 	}
 }
@@ -126,7 +123,7 @@ func TestTheGateAdmitsAConflictArbiterCarryingTheTenant(t *testing.T) {
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (tenant_id, channel, identifier) DO NOTHING`
 
-	if !tenantSafe(held) {
+	if !tenantSafe(held, "contact_identities") {
 		t.Error("tenantSafe() refused a tenant composite arbiter, want it admitted")
 	}
 }
@@ -136,8 +133,28 @@ func TestTheGateAdmitsAnInsertStampingItsTenant(t *testing.T) {
 
 	stamping := `INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, $2, $3, $4)`
 
-	if !tenantSafe(stamping) {
+	if !tenantSafe(stamping, "contacts") {
 		t.Error("tenantSafe() refused an insert stamping its tenant, want it admitted")
+	}
+}
+
+// stampingFromAnUnfilteredRead inserts a row stamped with its tenant from a table it reads without the caller's.
+const stampingFromAnUnfilteredRead = `INSERT INTO plugin_fields.contact_values (contact_id, values, tenant_id)
+	SELECT c.id, '{}', c.tenant_id FROM core.contacts AS c WHERE c.id = $1`
+
+func TestTheGateRefusesATableAnInsertOnlyReads(t *testing.T) {
+	t.Parallel()
+
+	if tenantSafe(stampingFromAnUnfilteredRead, "contacts") {
+		t.Error("tenantSafe() admitted a read the insert columns never filter, want the caller's tenant demanded")
+	}
+}
+
+func TestTheGateAdmitsTheTableAnInsertStamps(t *testing.T) {
+	t.Parallel()
+
+	if !tenantSafe(stampingFromAnUnfilteredRead, "contact_values") {
+		t.Error("tenantSafe() refused the table the insert stamps, want it admitted")
 	}
 }
 

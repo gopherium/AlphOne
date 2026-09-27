@@ -78,11 +78,31 @@ func TestEverySubFieldSentinelNamesItsReason(t *testing.T) {
 	t.Parallel()
 
 	want := map[error]string{
-		errSubFieldsRequired:   "field_sub_fields_required",
-		errSubFieldsUnexpected: "field_sub_fields_unexpected",
-		errSubFieldNested:      "field_sub_field_nested",
-		errSubFieldNameInvalid: "field_sub_field_name_invalid",
-		errSubFieldNameTaken:   "field_sub_field_name_taken",
+		errSubFieldsRequired:    "field_sub_fields_required",
+		errSubFieldsUnexpected:  "field_sub_fields_unexpected",
+		errSubFieldNested:       "field_sub_field_nested",
+		errSubFieldNameInvalid:  "field_sub_field_name_invalid",
+		errSubFieldNameTaken:    "field_sub_field_name_taken",
+		errSubFieldNameReserved: "field_sub_field_name_reserved",
+	}
+
+	for sentinel, reason := range want {
+		if got := fieldReason(sentinel); got != reason {
+			t.Errorf("fieldReason(%v) = %q, want %q", sentinel, got, reason)
+		}
+	}
+}
+
+func TestEveryEntrySentinelNamesItsReason(t *testing.T) {
+	t.Parallel()
+
+	want := map[error]string{
+		errNotARepeater: "field_not_a_repeater",
+		errEntryEmpty:   "field_entry_empty",
+		errNoEntry:      "field_entry_not_found",
+		errEntriesFull:  "field_entries_full",
+
+		errRepeaterEntriesOnly: "field_repeater_entries_only",
 	}
 
 	for sentinel, reason := range want {

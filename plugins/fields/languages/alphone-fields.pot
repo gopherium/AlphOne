@@ -7,7 +7,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-fields\n"
 
-msgid "%(label)s %(number)d"
+msgid "%(label)s: %(value)s"
 msgstr ""
 
 msgid "A field name starts lowercase and runs together, like birthDate."
@@ -20,6 +20,12 @@ msgid "A repeater cannot hold another repeater."
 msgstr ""
 
 msgid "A repeater needs at least one sub field."
+msgstr ""
+
+msgid "A repeater takes its entries one at a time."
+msgstr ""
+
+msgid "A sub field cannot be named id. Each entry keeps that name for itself."
 msgstr ""
 
 msgid "A sub field name starts lowercase and runs together, like followUp."
@@ -52,7 +58,25 @@ msgstr ""
 msgid "Archive %(label)s"
 msgstr ""
 
+msgid "Blank entry"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Edit entry"
+msgstr ""
+
+msgid "Edit entry: %(name)s"
+msgstr ""
+
 msgid "Fields"
+msgstr ""
+
+msgid "Fill in at least one part of the entry."
+msgstr ""
+
+msgid "Keep"
 msgstr ""
 
 msgid "Kind"
@@ -62,12 +86,6 @@ msgid "Label"
 msgstr ""
 
 msgid "Loading fields…"
-msgstr ""
-
-msgid "Move entry down"
-msgstr ""
-
-msgid "Move entry up"
 msgstr ""
 
 msgid "Move sub field down"
@@ -91,10 +109,22 @@ msgstr ""
 msgid "Only a repeater holds sub fields."
 msgstr ""
 
+msgid "Remove"
+msgstr ""
+
 msgid "Remove entry"
 msgstr ""
 
+msgid "Remove entry: %(name)s"
+msgstr ""
+
 msgid "Remove sub field"
+msgstr ""
+
+msgid "Remove this entry?"
+msgstr ""
+
+msgid "Save entry"
 msgstr ""
 
 msgid "Save fields"
@@ -107,6 +137,12 @@ msgid "Sub field %(number)d"
 msgstr ""
 
 msgid "Sub fields"
+msgstr ""
+
+msgid "That entry no longer exists."
+msgstr ""
+
+msgid "That field does not keep a list of entries."
 msgstr ""
 
 msgid "That field is not one this contact holds."
@@ -127,6 +163,15 @@ msgstr ""
 msgid "The contact already holds a detail by that name."
 msgstr ""
 
+msgid "The entry could not be added."
+msgstr ""
+
+msgid "The entry could not be removed."
+msgstr ""
+
+msgid "The entry could not be saved."
+msgstr ""
+
 msgid "The field could not be archived."
 msgstr ""
 
@@ -139,11 +184,26 @@ msgstr ""
 msgid "The fields could not be saved."
 msgstr ""
 
+msgid "This list is full. It holds %(max)d entries at most."
+msgstr ""
+
 msgid "Two sub fields of this repeater hold the same name."
 msgstr ""
 
 msgctxt "admin section"
 msgid "Fields"
+msgstr ""
+
+msgctxt "entry cell"
+msgid "No"
+msgstr ""
+
+msgctxt "entry cell"
+msgid "Yes"
+msgstr ""
+
+msgctxt "entry name"
+msgid "%(day)s, %(text)s"
 msgstr ""
 
 msgctxt "field kind"

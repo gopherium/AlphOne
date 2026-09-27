@@ -18,22 +18,28 @@ import (
 // seedContactEmail is the email the demo contact [Plugin.Seed] writes onto holds, for development only.
 const seedContactEmail = "maria.perez@example.com"
 
+// demoHistoryName is the repeater [Plugin.Seed] adds the demo history to, for development only.
+const demoHistoryName = "history"
+
 // demoFields are the definitions [Plugin.Seed] stores, for development only.
 var demoFields = []Definition{
 	{Name: "birthDate", Label: "Birth date", Kind: kindDate},
-	{Name: "history", Label: "History", Kind: kindRepeater, SubFields: []SubField{
+	{Name: demoHistoryName, Label: "History", Kind: kindRepeater, SubFields: []SubField{
 		{Name: "date", Label: "Date", Kind: kindDate},
 		{Name: "comment", Label: "Comment", Kind: kindLongText},
 	}},
 }
 
-// demoValues are the values [Plugin.Seed] writes onto the demo contact, for development only.
+// demoValues are the plain values [Plugin.Seed] writes onto the demo contact, for development only.
 var demoValues = map[string]any{
 	"birthDate": "1990-04-17",
-	"history": []map[string]any{
-		{"date": "2026-09-01", "comment": "First call about the yearly plan."},
-		{"date": "2026-09-10", "comment": "Sent the offer and booked a follow-up call."},
-	},
+}
+
+// demoHistory is the history [Plugin.Seed] adds to the demo contact, oldest first, for development only.
+var demoHistory = []map[string]any{
+	{"date": "2026-09-01", "comment": "First call about the yearly plan."},
+	{"date": "2026-09-10", "comment": "Sent the offer and booked a follow-up call."},
+	{"date": "2026-09-18", "comment": "Follow-up call.\nAsked for a second quote."},
 }
 
 // Seed stores the demo fields and their values on the demo contact.
@@ -65,7 +71,7 @@ func (p *Plugin) seedDefinitions(ctx context.Context) error {
 	return nil
 }
 
-// seedValues writes the demo values the demo contact does not hold yet, when one exists.
+// seedValues writes the demo values the demo contact does not hold yet, the history cut to the cap, when one exists.
 func (p *Plugin) seedValues(ctx context.Context) error {
 	const query = `SELECT contact_id FROM core.contact_identities
 		WHERE channel = 'email' AND identifier = $1 AND tenant_id = $2 ORDER BY created_at, id LIMIT 1`
@@ -85,6 +91,12 @@ func (p *Plugin) seedValues(ctx context.Context) error {
 	for name, value := range demoValues {
 		if _, kept := held[contactID][name]; !kept {
 			missing[name] = value
+		}
+	}
+	if _, kept := held[contactID][demoHistoryName]; !kept {
+		history := demoHistory[max(0, len(demoHistory)-p.entriesMax):]
+		if _, err := p.store.addEntry(ctx, contactID, demoHistoryName, history, p.entriesMax); err != nil {
+			return fmt.Errorf("fields: seed history: %w", err)
 		}
 	}
 	return p.store.writeValues(ctx, contactID, missing)

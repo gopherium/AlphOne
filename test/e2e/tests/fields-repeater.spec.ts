@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { expect, test } from '@playwright/test'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 
 /**
  * Chooses one kind from a kind menu and waits for the menu to close.
@@ -30,10 +30,11 @@ async function addSubField(page: Page, at: number, label: string, kind: string) 
 	await chooseKind(page, row.getByRole('combobox', { name: 'Kind' }), kind)
 }
 
-test('defines a repeater and keeps a contact history in order', async ({ page }) => {
+test('defines a repeater and keeps a contact history one entry at a time', async ({ page }) => {
 	const stamp = Date.now()
 	const label = `History ${stamp}`
 	const contact = `Customer ${stamp}`
+	const sent = operationsSent(page)
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
@@ -56,31 +57,100 @@ test('defines a repeater and keeps a contact history in order', async ({ page })
 
 	const history = page.getByRole('group', { name: label, exact: true })
 	await expect(history.getByText('No entries yet.')).toBeVisible()
-	await page.getByRole('button', { name: `Add an entry to ${label}` }).click()
-	const first = page.getByRole('group', { name: `${label} 1`, exact: true })
-	await first.getByLabel('Date', { exact: true }).fill('2026-09-01')
-	await first.getByLabel('Comment', { exact: true }).fill('First call about the yearly plan.\nAsked for a quote.')
-	await page.getByRole('button', { name: `Add an entry to ${label}` }).click()
-	const second = page.getByRole('group', { name: `${label} 2`, exact: true })
-	await second.getByLabel('Date', { exact: true }).fill('2026-09-10')
-	await second.getByLabel('Comment', { exact: true }).fill('Sent the offer.')
-	await second.getByRole('button', { name: 'Move entry up' }).click()
-	const saved = page.waitForResponse(
-		(response) =>
-			response.url().includes('/api/graphql') &&
-			(response.request().postData() ?? '').includes('WriteContactFields'),
-	)
-	await page.getByRole('button', { name: 'Save fields' }).click()
-	const answer = await saved
-	expect(await answer.text()).toContain('"writeContactFields":true')
+	const form = history.getByRole('form', { name: `Add an entry to ${label}` })
+	await expect(form.getByRole('textbox', { name: 'Comment', exact: true })).toHaveJSProperty('tagName', 'TEXTAREA')
+	await addEntry(page, form, '2026-09-01', 'First call about the yearly plan.\nAsked for a quote.')
+	await addEntry(page, form, '2026-09-10', 'Sent the offer.')
+	await addEntry(page, form, '2026-09-18', 'Follow-up call.')
+	const entries = history.getByRole('listitem')
+	await expect(entries.first()).toHaveAccessibleName('Sep 18, 2026, Follow-up call.')
+
+	const removed = operationAnswer(page, 'DeleteContactFieldEntry')
+	await history.getByRole('button', { name: 'Remove entry: Sep 10, 2026, Sent the offer.' }).click()
+	await history.getByRole('button', { name: 'Remove', exact: true }).click()
+	await removed
+
+	const firstCall = 'Sep 1, 2026, First call about the yearly plan.'
+	await history.getByRole('button', { name: `Edit entry: ${firstCall}` }).click()
+	const editor = history.getByRole('form', { name: `Edit entry: ${firstCall}` })
+	const edited = editor.getByRole('textbox', { name: 'Comment', exact: true })
+	await expect(edited).toHaveJSProperty('tagName', 'TEXTAREA')
+	await edited.fill('First call about the yearly plan.\nAsked for a second quote.')
+	const saved = operationAnswer(page, 'UpdateContactFieldEntry')
+	await editor.getByRole('button', { name: 'Save entry' }).click()
+	await saved
 
 	await page.reload()
-	const kept = page.getByRole('group', { name: `${label} 1`, exact: true })
-	await expect(kept.getByLabel('Date', { exact: true })).toHaveValue('2026-09-10')
-	await expect(kept.getByLabel('Comment', { exact: true })).toHaveValue('Sent the offer.')
-	const moved = page.getByRole('group', { name: `${label} 2`, exact: true })
-	await expect(moved.getByLabel('Date', { exact: true })).toHaveValue('2026-09-01')
-	const comment = moved.getByRole('textbox', { name: 'Comment', exact: true })
-	await expect(comment).toHaveValue('First call about the yearly plan.\nAsked for a quote.')
-	await expect(comment).toHaveJSProperty('tagName', 'TEXTAREA')
+	await expect(entries).toHaveCount(2)
+	await expect(entries.nth(0)).toHaveAccessibleName('Sep 18, 2026, Follow-up call.')
+	await expect(entries.nth(1)).toHaveAccessibleName(firstCall)
+	const body = entries.nth(1).locator('p.godmin-log-list__body')
+	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toBe(
+		'First call about the yearly plan.\nAsked for a second quote.',
+	)
+	const days = history.locator('time')
+	await expect(days).toHaveCount(2)
+	expect(await days.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('datetime')))).toEqual([
+		'2026-09-18',
+		'2026-09-01',
+	])
+	expect(sent).toEqual(
+		expect.arrayContaining(['AddContactFieldEntry', 'DeleteContactFieldEntry', 'UpdateContactFieldEntry']),
+	)
+	expect(sent).not.toContain('WriteContactFields')
 })
+
+/**
+ * Collects the name of every operation the page sends to the graph.
+ * @param page - The page sending the operations.
+ * @returns The operation names, growing as the page sends them.
+ */
+function operationsSent(page: Page): string[] {
+	const names: string[] = []
+	page.on('request', (request) => {
+		const name = operationOf(request)
+		if (name !== '') {
+			names.push(name)
+		}
+	})
+	return names
+}
+
+/**
+ * Waits for the graph to answer the named operation.
+ * @param page - The page sending the operation.
+ * @param operation - The operation name.
+ * @returns The answer, once it arrives.
+ */
+function operationAnswer(page: Page, operation: string) {
+	return page.waitForResponse((response) => operationOf(response.request()) === operation)
+}
+
+/**
+ * Returns the name of the graph operation a request sends.
+ * @param request - The request.
+ * @returns The operation name, empty for a request that sends none.
+ */
+function operationOf(request: Request): string {
+	if (request.method() !== 'POST' || !request.url().includes('/api/graphql')) {
+		return ''
+	}
+	return (request.postDataJSON() as { operationName?: string } | null)?.operationName ?? ''
+}
+
+/**
+ * Adds one entry through a repeater's add form and waits until the form is ready for the next one.
+ * @param page - The page showing the contact.
+ * @param form - The add form.
+ * @param date - The entry's date.
+ * @param comment - The entry's comment.
+ */
+async function addEntry(page: Page, form: Locator, date: string, comment: string) {
+	const text = form.getByLabel('Comment', { exact: true })
+	await form.getByLabel('Date', { exact: true }).fill(date)
+	await text.fill(comment)
+	const stored = operationAnswer(page, 'AddContactFieldEntry')
+	await form.getByRole('button', { name: /^Add an entry to / }).click()
+	await stored
+	await expect(text).toHaveValue('')
+}

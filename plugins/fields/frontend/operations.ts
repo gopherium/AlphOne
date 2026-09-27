@@ -2,6 +2,9 @@
 
 import { graphql } from './gql'
 
+/** catalogueOperation names the query reading the field catalogue. */
+export const catalogueOperation = 'Fields'
+
 export const fieldsQuery = graphql(`
 	query Fields {
 		fields {
@@ -48,5 +51,23 @@ export const archiveFieldMutation = graphql(`
 export const writeContactFieldsMutation = graphql(`
 	mutation WriteContactFields($contactId: UUID!, $values: JSON!) {
 		writeContactFields(contactId: $contactId, values: $values)
+	}
+`)
+
+export const addContactFieldEntryMutation = graphql(`
+	mutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {
+		addContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)
+	}
+`)
+
+export const updateContactFieldEntryMutation = graphql(`
+	mutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {
+		updateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)
+	}
+`)
+
+export const deleteContactFieldEntryMutation = graphql(`
+	mutation DeleteContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!) {
+		deleteContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId)
 	}
 `)

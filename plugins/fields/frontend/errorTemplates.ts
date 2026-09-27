@@ -22,11 +22,17 @@ export function errorTemplates(): Record<string, string> {
 		field_sub_field_nested: __('A repeater cannot hold another repeater.', DOMAIN),
 		field_sub_field_name_invalid: __('A sub field name starts lowercase and runs together, like followUp.', DOMAIN),
 		field_sub_field_name_taken: __('Two sub fields of this repeater hold the same name.', DOMAIN),
+		field_sub_field_name_reserved: __('A sub field cannot be named id. Each entry keeps that name for itself.', DOMAIN),
 		field_name_taken: __('Another field already holds that name.', DOMAIN),
 		field_kind_locked: __('An archived field of that name holds another kind or other sub fields.', DOMAIN),
 		field_not_found: __('That field no longer exists.', DOMAIN),
 		field_unknown: __('That field is not one this contact holds.', DOMAIN),
 		value_kind_mismatch: __('That value does not match the kind the field declares.', DOMAIN),
 		values_not_an_object: __('Send the values as field names to values.', DOMAIN),
+		field_not_a_repeater: __('That field does not keep a list of entries.', DOMAIN),
+		field_entry_empty: __('Fill in at least one part of the entry.', DOMAIN),
+		field_entry_not_found: __('That entry no longer exists.', DOMAIN),
+		field_entries_full: __('This list is full. It holds %(max)d entries at most.', DOMAIN),
+		field_repeater_entries_only: __('A repeater takes its entries one at a time.', DOMAIN),
 	}
 }

@@ -351,6 +351,19 @@ test('two sub fields sharing a label are sent under distinct names', async () =>
 	])
 })
 
+test('a sub field labelled ID is sent under a name other than the one entries keep their id under', async () => {
+	serveFields([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('ID', 'Text')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	expect(defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)).toEqual(['id2'])
+})
+
 test('the sub field kind menu leaves the repeater out', async () => {
 	serveFields([])
 

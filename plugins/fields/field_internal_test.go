@@ -179,6 +179,8 @@ func TestNewDefinitionRefusesSubFieldsItCannotHold(t *testing.T) {
 		"a name held twice": {"REPEATER", []SubField{
 			{Name: "note", Label: "Note", Kind: kindText}, {Name: "note", Label: "Other", Kind: kindText},
 		}, errSubFieldNameTaken},
+		"the name an entry keeps its id under": {"REPEATER",
+			[]SubField{{Name: "id", Label: "ID", Kind: kindText}}, errSubFieldNameReserved},
 		"an unknown kind": {"REPEATER",
 			[]SubField{{Name: "due", Label: "Due", Kind: "TIMESTAMP"}}, errUnknownKind},
 		"a blank label": {"REPEATER",

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strings"
@@ -17,7 +18,59 @@ var (
 	errWrongKind         = errors.New("fields: the value does not match the kind its definition declares")
 	errNoField           = errors.New("fields: no live definition holds that name")
 	errValuesNotAnObject = errors.New("fields: values is an object of field names to values")
+	errEntryEmpty        = errors.New("fields: an entry holds at least one filled cell")
+
+	errRepeaterEntriesOnly = errors.New("fields: a repeater takes its entries one at a time")
 )
+
+// checkEntry returns the storable cells of one repeater entry, refusing unknown keys, wrong kinds and a blank entry.
+func checkEntry(name string, columns []SubField, given any, own string) (map[string]any, error) {
+	cells, ok := given.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s expects an entry", errWrongKind, name)
+	}
+	entry, unknown, err := checkRow(name, columnKinds(columns), withoutOwnID(cells, own))
+	if err != nil {
+		return nil, err
+	}
+	if len(unknown) > 0 {
+		sort.Strings(unknown)
+		return nil, fmt.Errorf("%w: %s", errNoField, strings.Join(unknown, ", "))
+	}
+	dropBlankText(entry)
+	if len(entry) == 0 {
+		return nil, fmt.Errorf("%w: %s", errEntryEmpty, name)
+	}
+	return entry, nil
+}
+
+// withoutOwnID returns the cells with an id cell naming the entry's own id left out.
+func withoutOwnID(cells map[string]any, own string) map[string]any {
+	if own == "" || cells[entryIDKey] != own {
+		return cells
+	}
+	kept := maps.Clone(cells)
+	delete(kept, entryIDKey)
+	return kept
+}
+
+// dropBlankText removes every text cell holding nothing but white space.
+func dropBlankText(entry map[string]any) {
+	for key, value := range entry {
+		if text, isText := value.(string); isText && strings.TrimSpace(text) == "" {
+			delete(entry, key)
+		}
+	}
+}
+
+// columnKinds maps each sub field name to the kind it declares.
+func columnKinds(columns []SubField) map[string]kind {
+	kindsOf := make(map[string]kind, len(columns))
+	for _, column := range columns {
+		kindsOf[column.Name] = column.Kind
+	}
+	return kindsOf
+}
 
 // coerce returns the storable form of a value, refusing one of another kind.
 func coerce(held kind, given any) (any, error) {
@@ -93,23 +146,17 @@ func coerceDate(given any) (any, error) {
 	return text, nil
 }
 
-// checkValues returns the storable values the view allows, refusing unknown keys and wrong kinds.
+// checkValues returns the storable values the view allows, refusing repeaters, unknown keys and wrong kinds.
 func checkValues(live *view, given map[string]any) (map[string]any, error) {
+	if repeaters := repeatersIn(live, given); len(repeaters) > 0 {
+		return nil, fmt.Errorf("%w: %s", errRepeaterEntriesOnly, strings.Join(repeaters, ", "))
+	}
 	var unknown []string
 	checked := make(map[string]any, len(given))
 	for name, value := range given {
 		held, defined := live.kinds[name]
 		if !defined {
 			unknown = append(unknown, name)
-			continue
-		}
-		if held == kindRepeater {
-			rows, stray, err := checkRows(name, live.columns[name], value)
-			if err != nil {
-				return nil, err
-			}
-			unknown = append(unknown, stray...)
-			checked[name] = rows
 			continue
 		}
 		coerced, err := coerce(held, value)
@@ -125,43 +172,20 @@ func checkValues(live *view, given map[string]any) (map[string]any, error) {
 	return checked, nil
 }
 
-// checkRows returns the storable rows of a repeater and the paths of the cells no column holds.
-func checkRows(name string, columns []SubField, given any) (any, []string, error) {
-	if given == nil {
-		return nil, nil, nil
-	}
-	listed, ok := given.([]any)
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: %s expects %s", errWrongKind, name, kindRepeater)
-	}
-	kindsOf := make(map[string]kind, len(columns))
-	for _, column := range columns {
-		kindsOf[column.Name] = column.Kind
-	}
-	var unknown []string
-	rows := make([]map[string]any, 0, len(listed))
-	for at, entry := range listed {
-		row, stray, err := checkRow(fmt.Sprintf("%s[%d]", name, at), kindsOf, entry)
-		if err != nil {
-			return nil, nil, err
-		}
-		unknown = append(unknown, stray...)
-		if len(row) > 0 {
-			rows = append(rows, row)
+// repeatersIn returns the given names the view holds as repeaters, sorted.
+func repeatersIn(live *view, given map[string]any) []string {
+	var named []string
+	for name := range given {
+		if live.kinds[name] == kindRepeater {
+			named = append(named, name)
 		}
 	}
-	if len(rows) == 0 {
-		return nil, unknown, nil
-	}
-	return rows, unknown, nil
+	sort.Strings(named)
+	return named
 }
 
-// checkRow returns the storable cells of one row and the paths of the cells no column holds.
-func checkRow(path string, kindsOf map[string]kind, given any) (map[string]any, []string, error) {
-	cells, ok := given.(map[string]any)
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: %s expects a row", errWrongKind, path)
-	}
+// checkRow returns the storable cells of one entry and the paths of the cells no column holds.
+func checkRow(path string, kindsOf map[string]kind, cells map[string]any) (map[string]any, []string, error) {
 	var unknown []string
 	row := make(map[string]any, len(cells))
 	for key, value := range cells {

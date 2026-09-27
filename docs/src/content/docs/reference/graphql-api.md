@@ -308,7 +308,7 @@ Every error carries a `code` in its `extensions`.
 | `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the account's role holds no capability the field needs |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
-| `CONFLICT` | An identity is already claimed. `ownerContactId` names the owner |
+| `CONFLICT` | The write clashes with what is stored, such as an identity another contact holds or a full list. For an identity, `ownerContactId` names the owner |
 | `RATE_LIMITED` | Too many attempts. `retryAfter` is in seconds |
 | `COMPLEXITY_LIMIT_EXCEEDED` | The query asks for too much, see limits below |
 | `INTERNAL` | AlphOne failed. The message is deliberately bare |
@@ -419,12 +419,18 @@ The stock plugins add their own:
 | `field_sub_field_nested` | | a sub field cannot be a repeater |
 | `field_sub_field_name_invalid` | | a sub field name is camelCase |
 | `field_sub_field_name_taken` | | two sub fields of one repeater share a name |
+| `field_sub_field_name_reserved` | | a sub field is named `id`, which holds each entry's own id |
 | `field_name_taken` | | another definition holds the name |
 | `field_kind_locked` | | an archived definition pins the kind and sub fields |
 | `field_not_found` | | the id names no live definition |
-| `field_unknown` | | no live definition holds the name |
+| `field_unknown` | | no live definition or sub field holds the name |
 | `value_kind_mismatch` | | the value does not match the declared kind |
 | `values_not_an_object` | | values arrive as an object of names |
+| `field_not_a_repeater` | | the field keeps no list of entries |
+| `field_entry_empty` | | every cell of the entry is blank |
+| `field_entry_not_found` | | the id names no entry in that field of the contact |
+| `field_entries_full` | `max` | the list already holds the [most entries](/self-hosting/configuration/#fields-plugin) it may |
+| `field_repeater_entries_only` | | a repeater takes its entries one at a time, never through `writeContactFields` |
 | `message_content_required` | | a message needs text |
 | `conversation_not_found` | | the id names no conversation |
 | `upstream_failed` | | the messaging platform did not accept |
@@ -514,6 +520,7 @@ cannot drift. Point a client at the endpoint, or read
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
+| Fields | `fields`, `Contact.field` | `defineField`, `archiveField`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
 | Version | `version` | |

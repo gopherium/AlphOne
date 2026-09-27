@@ -6,9 +6,11 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,6 +26,16 @@ var pluginStores = []struct {
 		source: filepath.Join("..", "..", "plugins", "fields", "store.go"),
 		schema: "plugin_fields",
 		tables: []string{"definitions", "contact_values"},
+	},
+	{
+		source: filepath.Join("..", "..", "plugins", "fields", "store.go"),
+		schema: "core",
+		tables: []string{"contacts"},
+	},
+	{
+		source: filepath.Join("..", "..", "plugins", "fields", "seed.go"),
+		schema: "core",
+		tables: []string{"contacts", "contact_identities"},
 	},
 	{
 		source: filepath.Join("..", "..", "plugins", "importer", "store.go"),
@@ -68,17 +80,30 @@ func answersBeforeTheTenant(statement string) bool {
 	return false
 }
 
-// sqlLiterals returns every statement a source builds, resolving the consts it names.
+// sqlLiterals returns every statement a source builds, resolving each const in the function that declares it.
 func sqlLiterals(t *testing.T, source string) []string {
 	t.Helper()
 	parsed, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
 	if err != nil {
 		t.Fatalf("parsing %s: %v", source, err)
 	}
-	consts := stringConsts(parsed)
+	shared := stringConsts(parsed, map[string]string{})
 	var held []string
-	ast.Inspect(parsed, func(node ast.Node) bool {
-		if declared, ok := node.(*ast.GenDecl); ok && declared.Tok == token.CONST {
+	for _, declared := range parsed.Decls {
+		consts := shared
+		if function, ok := declared.(*ast.FuncDecl); ok {
+			consts = stringConsts(function, shared)
+		}
+		held = append(held, literalsIn(declared, consts)...)
+	}
+	return held
+}
+
+// literalsIn returns every statement one declaration builds from the given consts.
+func literalsIn(declared ast.Node, consts map[string]string) []string {
+	var held []string
+	ast.Inspect(declared, func(node ast.Node) bool {
+		if constant, ok := node.(*ast.GenDecl); ok && constant.Tok == token.CONST {
 			return false
 		}
 		joined, ok := joinedString(node, consts)
@@ -91,26 +116,32 @@ func sqlLiterals(t *testing.T, source string) []string {
 	return held
 }
 
-// stringConsts returns the text every const in a source spells.
-func stringConsts(parsed *ast.File) map[string]string {
-	held := map[string]string{}
-	ast.Inspect(parsed, func(node ast.Node) bool {
-		declared, ok := node.(*ast.GenDecl)
-		if !ok || declared.Tok != token.CONST {
-			return true
+// stringConsts returns the text every const one scope spells over the consts it inherits, leaving nested functions out.
+func stringConsts(scope ast.Node, inherited map[string]string) map[string]string {
+	held := maps.Clone(inherited)
+	ast.Inspect(scope, func(node ast.Node) bool {
+		if function, ok := node.(*ast.FuncDecl); ok && function != scope {
+			return false
 		}
-		for _, spec := range declared.Specs {
-			valued, ok := spec.(*ast.ValueSpec)
-			if !ok || len(valued.Names) != 1 || len(valued.Values) != 1 {
-				continue
-			}
-			if text, ok := joinedString(valued.Values[0], held); ok {
-				held[valued.Names[0].Name] = text
-			}
+		if declared, ok := node.(*ast.GenDecl); ok && declared.Tok == token.CONST {
+			recordConsts(declared, held)
 		}
 		return true
 	})
 	return held
+}
+
+// recordConsts adds the text every single-valued const of one declaration spells.
+func recordConsts(declared *ast.GenDecl, held map[string]string) {
+	for _, spec := range declared.Specs {
+		valued, ok := spec.(*ast.ValueSpec)
+		if !ok || len(valued.Names) != 1 || len(valued.Values) != 1 {
+			continue
+		}
+		if text, ok := joinedString(valued.Values[0], held); ok {
+			held[valued.Names[0].Name] = text
+		}
+	}
 }
 
 // joinedString returns the text one literal, named const or concatenation of them spells.
@@ -177,6 +208,26 @@ func TestTheWalkerResolvesAStatementBuiltFromAConst(t *testing.T) {
 	t.Errorf("statements = %q, want the const joined with the appended clause", statements)
 }
 
+func TestTheWalkerReadsEachFunctionsOwnConst(t *testing.T) {
+	t.Parallel()
+
+	source := filepath.Join(t.TempDir(), "store.go")
+	held := "package p\n\n" +
+		"func first() string { const statement = `SELECT id FROM plugin_x.first`\n return statement }\n\n" +
+		"func second() string { const statement = `SELECT id FROM plugin_x.second`\n return statement }\n"
+	if err := os.WriteFile(source, []byte(held), 0o600); err != nil {
+		t.Fatalf("writing the source: %v", err)
+	}
+
+	statements := sqlLiterals(t, source)
+
+	for _, table := range []string{"plugin_x.first", "plugin_x.second"} {
+		if !slices.ContainsFunc(statements, func(statement string) bool { return strings.Contains(statement, table) }) {
+			t.Errorf("statements = %q, want the statement reading %s walked", statements, table)
+		}
+	}
+}
+
 func TestEveryPluginStatementFiltersItsTableByTenant(t *testing.T) {
 	t.Parallel()
 
@@ -187,12 +238,12 @@ func TestEveryPluginStatementFiltersItsTableByTenant(t *testing.T) {
 			continue
 		}
 		for _, statement := range statements {
-			if tenantSafe(statement) || answersBeforeTheTenant(statement) {
+			if answersBeforeTheTenant(statement) {
 				continue
 			}
 			for _, table := range held.tables {
 				named := regexp.MustCompile(`\b` + held.schema + `\.` + table + `\b`)
-				if named.MatchString(statement) {
+				if named.MatchString(statement) && !tenantSafe(statement, table) {
 					t.Errorf("%s touches %s.%s without filtering by tenant_id: %s",
 						held.source, held.schema, table, statement)
 				}

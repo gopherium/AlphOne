@@ -25,6 +25,12 @@ database is all an upgrade takes.
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is rejected at startup. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
+## Fields plugin
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_FIELDS_ENTRIES_MAX` | The most entries one repeater field holds on a contact. Defaults to 500. An add past the cap is refused, and AlphOne will not start if the value is not a whole number between 1 and 2147483647. |
+
 ## WhatsApp plugin
 
 All optional. Without them the plugin runs inert: screens exist, but no

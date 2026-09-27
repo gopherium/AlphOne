@@ -26,7 +26,12 @@ var (
 	errSubFieldNested      = errors.New("fields: a sub field cannot be a repeater")
 	errSubFieldNameInvalid = errors.New("fields: a sub field name is camelCase, starting with a lowercase letter")
 	errSubFieldNameTaken   = errors.New("fields: two sub fields of one repeater hold the same name")
+
+	errSubFieldNameReserved = fmt.Errorf("fields: a sub field cannot be named %s", entryIDKey)
 )
+
+// entryIDKey is the key a repeater entry keeps its id under.
+const entryIDKey = "id"
 
 // labelMax caps how long a human label runs.
 const labelMax = 120
@@ -154,6 +159,9 @@ func checkSubFields(held kind, subFields []SubField) ([]SubField, error) {
 func checkSubField(column SubField, taken map[string]bool) (SubField, error) {
 	if !namePattern.MatchString(column.Name) {
 		return SubField{}, errSubFieldNameInvalid
+	}
+	if column.Name == entryIDKey {
+		return SubField{}, errSubFieldNameReserved
 	}
 	if taken[column.Name] {
 		return SubField{}, errSubFieldNameTaken
