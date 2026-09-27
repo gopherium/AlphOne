@@ -37,8 +37,7 @@ filled in.
 ## Fill a field in
 
 Open a contact. The **Fields** section sits beside the tasks, or under them
-on a narrow screen, with one input per field you created. Type, then press
-**Save fields**.
+on a narrow screen. Type into a field, then press **Save fields**.
 
 A Long text field is a box several lines tall. Press Enter to start a new
 line. The text keeps its line breaks when you save.
@@ -66,19 +65,25 @@ the same label get two names, such as `note` and `note2`. A sub field labelled
 The sub fields cannot be changed once the repeater exists. The reason is the
 same as for the kind: old entries would no longer fit.
 
-On a contact, a repeater lists its entries one under the other.
+On a contact, each repeater shows under its own heading. A form to add an
+entry sits on top. The entries follow, the last one added first. Each date in
+the form starts on today's date.
 
-- Press **Add an entry to History**, with your repeater's label in place of
-  History, to add an entry at the end.
-- Use the arrows beside an entry to move it up or down.
-- Press **Remove entry** to take one away.
+- Fill in the form and press **Add an entry to History**, with your
+  repeater's label in place of History. The button stays off until you fill
+  in a part yourself. Spaces alone do not count, and neither does the date
+  the form starts with.
+- Press **Edit entry** to change an entry in place, then **Save entry** or
+  **Cancel**. **Save entry** stays off while every part is blank.
+- Press **Remove entry**, and the row asks **Remove this entry?** Press
+  **Remove** to confirm or **Keep** to leave it.
 
-Then press **Save fields**. Saving stores the whole list, in the order you
-see it. An entry you leave completely empty is dropped when you save.
+Each add, save and removal is stored at once. **Save fields** saves only the
+other fields, and it is hidden when there are none. Each change touches only
+its own entry. If two people edit the same entry, the last save wins.
 
-Saving replaces the list that was stored before. If two people change the
-same list on two open pages, the second save wins and the first person's
-changes are lost.
+A list holds at most 500 entries by default. See
+[Configuration](/self-hosting/configuration/#fields-plugin) to change the cap.
 
 ## Fill a field from a spreadsheet
 
@@ -140,7 +145,7 @@ API tools and AI agents discover it on their own.
 A field belongs to the workspace that created it. Callers in another workspace
 never see it, not in the API and not in introspection.
 
-Writing values goes through one mutation:
+Writing values goes through `writeContactFields`:
 
 ```graphql
 mutation {
@@ -158,28 +163,9 @@ is cleared.
 A `Number` field holds a whole number between -2147483648 and 2147483647.
 Anything outside that is refused, because the API answers it as an `Int`.
 
-A repeater reads and writes as a list of entries. Each entry is an object
-keyed by sub field name, and the API types the whole list as `JSON`:
-
-```graphql
-mutation {
-  writeContactFields(
-    contactId: "0198c000-0000-7000-8000-000000000401"
-    values: {
-      history: [
-        { date: "2026-09-01", comment: "First call about the yearly plan." }
-        { date: "2026-09-10", comment: "Sent the offer." }
-      ]
-    }
-  )
-}
-```
-
-Sending a repeater replaces its whole list. An empty list or `null` clears
-it. Every cell is checked against its sub field's kind, and a refusal names
-the cell by its place in the list, counting from 0, such as
-`history[0].date expects DATE`. A key that no sub field holds is refused the
-same way, such as `history[1].mood`.
+`writeContactFields` refuses any value for a repeater, even `null`, with the
+reason `field_repeater_entries_only`, and stores nothing from that request. A
+repeater takes its entries one at a time, as shown below.
 
 To define a repeater from the API, pass its sub fields to `defineField`:
 
@@ -205,6 +191,70 @@ mutation {
 The API does not make sub field names for you. Send a camelCase name for each
 one, unique inside the repeater. `id` is refused, because each entry keeps its
 own id under that name.
+
+A repeater reads as a list of entries typed `JSON`, the last one added first.
+Each entry is an object keyed by sub field name, with the `id` AlphOne gave
+it. A repeater with no entries reads `null`. Ask for `history` the same way as
+`birthDate`, and the answer looks like this:
+
+```json
+{
+  "data": {
+    "contact": {
+      "history": [
+        {
+          "id": "0198c000-0000-7000-8000-000000000501",
+          "date": "2026-09-10",
+          "comment": "Sent the offer."
+        }
+      ]
+    }
+  }
+}
+```
+
+`addContactFieldEntry` puts one entry at the top of the list:
+
+```graphql
+mutation {
+  addContactFieldEntry(
+    contactId: "0198c000-0000-7000-8000-000000000401"
+    field: "history"
+    entry: { date: "2026-09-10", comment: "Sent the offer." }
+  )
+}
+```
+
+It answers the stored entry with its new `id`. Every cell is checked against
+its sub field's kind, and a refusal names the cell, such as
+`history.date expects DATE`. A key that no sub field holds is refused and
+named too, such as `history.mood`. So is `id`. An entry whose cells are all
+blank is refused with `field_entry_empty`. An add to a full list is refused
+with `field_entries_full`, and its `meta.max` names the cap.
+
+`updateContactFieldEntry` changes the entry that `entryId` names:
+
+```graphql
+mutation {
+  updateContactFieldEntry(
+    contactId: "0198c000-0000-7000-8000-000000000401"
+    field: "history"
+    entryId: "0198c000-0000-7000-8000-000000000501"
+    entry: { date: "2026-09-10", comment: "Sent the offer by email." }
+  )
+}
+```
+
+The entry you send replaces all its cells, so a cell you leave out is dropped.
+The cells get the same checks as an add, but you may send the entry's own `id`
+back. The entry keeps its id and its place, and the answer is the entry as
+stored.
+
+`deleteContactFieldEntry` takes the same `contactId`, `field` and `entryId`,
+and answers `true`. An update or a removal naming an id the list does not
+hold is refused with `field_entry_not_found`. See
+[GraphQL API](/reference/graphql-api/#reasons) for where a refusal carries its
+reason and `meta`.
 
 ## What stays fixed
 

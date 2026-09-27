@@ -29,7 +29,7 @@ database is all an upgrade takes.
 
 | Variable | Purpose |
 | --- | --- |
-| `ALPHONE_FIELDS_ENTRIES_MAX` | The most entries one repeater field holds on a contact. Defaults to 500. An add past the cap is refused, and AlphOne will not start if the value is not a whole number above zero. |
+| `ALPHONE_FIELDS_ENTRIES_MAX` | The most entries one repeater field holds on a contact. Defaults to 500. An add past the cap is refused, and AlphOne will not start if the value is not a whole number between 1 and 2147483647. |
 
 ## WhatsApp plugin
 
