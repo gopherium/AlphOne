@@ -147,32 +147,10 @@ func bindRepeaterDefinitionSteps(sc *godog.ScenarioContext) {
 		})
 }
 
-// bindRepeaterRowSteps binds the steps that write and read a repeater's rows.
+// bindRepeaterRowSteps binds the step that writes a whole list of rows through the field values.
 func bindRepeaterRowSteps(sc *godog.ScenarioContext) {
 	sc.Step(`^the operator writes the rows into "([^"]*)" of the contact:$`,
 		func(ctx context.Context, name string, table *godog.Table) error {
 			return worldFrom(ctx).writeValue(ctx, name, tableRecords(table))
-		})
-
-	sc.When(`^the operator writes no rows into "([^"]*)" of the contact$`,
-		func(ctx context.Context, name string) error {
-			return worldFrom(ctx).writeValue(ctx, name, []map[string]any{})
-		})
-
-	sc.Then(`^querying the contact for "([^"]*)" answers the rows:$`,
-		func(ctx context.Context, name string, table *godog.Table) error {
-			w := worldFrom(ctx)
-			answered, err := w.readField(ctx, name)
-			if err != nil {
-				return err
-			}
-			if len(answered.Errors) > 0 {
-				return fmt.Errorf("the graph refused the read, answered %s", w.answered)
-			}
-			same, err := sameJSON(answered.Data.Contact[name], tableRecords(table))
-			if err != nil || same {
-				return err
-			}
-			return fmt.Errorf("%s = %#v, answered %s", name, answered.Data.Contact[name], w.answered)
 		})
 }

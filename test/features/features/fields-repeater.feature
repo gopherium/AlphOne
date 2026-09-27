@@ -1,8 +1,9 @@
 Feature: A repeater keeps a list of entries on a contact
-  A repeater field holds rows of sub fields, such as a history log where each
-  entry has a date and a comment. The definition names its sub fields, each
-  with a label and a kind, and every written row is checked cell by cell
-  against them.
+  A repeater field holds entries of sub fields, such as a history log where
+  each entry has a date and a comment. The definition names its sub fields,
+  each with a label and a kind. Entries are added, edited and removed one at a
+  time, each checked cell by cell against the sub fields and kept under its
+  own id, newest first.
 
   Background:
     Given a running AlphOne holding a user with an API token
@@ -52,51 +53,6 @@ Feature: A repeater keeps a list of entries on a contact
       | entries | Entries | REPEATER |
     Then the definition is refused with the reason "field_sub_field_nested"
 
-  Scenario: A repeater answers its rows in the order written
-    Given the repeater "history" labelled "History" is defined with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    When the operator writes the rows into "history" of the contact:
-      | date       | comment        |
-      | 2026-09-10 | Sent the offer |
-      | 2026-09-01 | First call     |
-    Then querying the contact for "history" answers the rows:
-      | date       | comment        |
-      | 2026-09-10 | Sent the offer |
-      | 2026-09-01 | First call     |
-
-  Scenario: A row naming an unknown sub field is refused
-    Given the repeater "history" labelled "History" is defined with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    When the operator writes the rows into "history" of the contact:
-      | date       | mood  |
-      | 2026-09-01 | happy |
-    Then the write is refused naming "history[0].mood" as the bad key
-
-  Scenario: A row holding a value of the wrong kind is refused
-    Given the repeater "history" labelled "History" is defined with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    When the operator writes the rows into "history" of the contact:
-      | date       | comment    |
-      | not a date | First call |
-    Then the write is refused for a value of the wrong kind
-
-  Scenario: Writing no rows clears the repeater
-    Given the repeater "history" labelled "History" is defined with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    And the operator writes the rows into "history" of the contact:
-      | date       | comment    |
-      | 2026-09-01 | First call |
-    When the operator writes no rows into "history" of the contact
-    Then the contact "Maria Perez" answers null for the field "history"
-
   Scenario: An archived repeater defined again with other sub fields is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -107,23 +63,6 @@ Feature: A repeater keeps a list of entries on a contact
       | name | label | kind |
       | date | Date  | DATE |
     Then the definition is refused with the reason "field_kind_locked"
-
-  Scenario: An archived repeater defined again with the same sub fields answers its rows
-    Given the repeater "history" labelled "History" is defined with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    And the operator writes the rows into "history" of the contact:
-      | date       | comment    |
-      | 2026-09-01 | First call |
-    When the operator archives the field "history"
-    And the operator defines the repeater "history" labelled "History" with sub fields:
-      | name    | label   | kind     |
-      | date    | Date    | DATE     |
-      | comment | Comment | LONGTEXT |
-    Then querying the contact for "history" answers the rows:
-      | date       | comment    |
-      | 2026-09-01 | First call |
 
   Scenario: Introspection lists a repeater typed JSON
     Given the repeater "history" labelled "History" is defined with sub fields:
@@ -395,7 +334,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: Writing a repeater through the field values is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
