@@ -30,10 +30,11 @@ async function addSubField(page: Page, at: number, label: string, kind: string) 
 	await chooseKind(page, row.getByRole('combobox', { name: 'Kind' }), kind)
 }
 
-test('defines a repeater and keeps a contact history in order', async ({ page }) => {
+test('defines a repeater and keeps a contact history one entry at a time', async ({ page }) => {
 	const stamp = Date.now()
 	const label = `History ${stamp}`
 	const contact = `Customer ${stamp}`
+	const sent = operationsSent(page)
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
@@ -86,7 +87,33 @@ test('defines a repeater and keeps a contact history in order', async ({ page })
 	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toBe(
 		'First call about the yearly plan.\nAsked for a second quote.',
 	)
+	const days = history.locator('time')
+	await expect(days).toHaveCount(2)
+	expect(await days.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('datetime')))).toEqual([
+		'2026-09-18',
+		'2026-09-01',
+	])
+	expect(sent).toEqual(
+		expect.arrayContaining(['AddContactFieldEntry', 'DeleteContactFieldEntry', 'UpdateContactFieldEntry']),
+	)
+	expect(sent).not.toContain('WriteContactFields')
 })
+
+/**
+ * Collects the name of every operation the page sends to the graph.
+ * @param page - The page sending the operations.
+ * @returns The operation names, growing as the page sends them.
+ */
+function operationsSent(page: Page): string[] {
+	const names: string[] = []
+	page.on('request', (request) => {
+		if (request.method() === 'POST' && request.url().includes('/api/graphql')) {
+			const body = request.postDataJSON() as { operationName?: string } | null
+			names.push(body?.operationName ?? '')
+		}
+	})
+	return names
+}
 
 /**
  * Waits for the graph to answer the named operation.
