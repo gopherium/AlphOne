@@ -146,8 +146,11 @@ func coerceDate(given any) (any, error) {
 	return text, nil
 }
 
-// checkValues returns the storable values the view allows, refusing unknown keys, wrong kinds and repeaters.
+// checkValues returns the storable values the view allows, refusing repeaters, unknown keys and wrong kinds.
 func checkValues(live *view, given map[string]any) (map[string]any, error) {
+	if repeaters := repeatersIn(live, given); len(repeaters) > 0 {
+		return nil, fmt.Errorf("%w: %s", errRepeaterEntriesOnly, strings.Join(repeaters, ", "))
+	}
 	var unknown []string
 	checked := make(map[string]any, len(given))
 	for name, value := range given {
@@ -155,9 +158,6 @@ func checkValues(live *view, given map[string]any) (map[string]any, error) {
 		if !defined {
 			unknown = append(unknown, name)
 			continue
-		}
-		if held == kindRepeater {
-			return nil, fmt.Errorf("%w: %s", errRepeaterEntriesOnly, name)
 		}
 		coerced, err := coerce(held, value)
 		if err != nil {
@@ -170,6 +170,18 @@ func checkValues(live *view, given map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("%w: %s", errNoField, strings.Join(unknown, ", "))
 	}
 	return checked, nil
+}
+
+// repeatersIn returns the given names the view holds as repeaters, sorted.
+func repeatersIn(live *view, given map[string]any) []string {
+	var named []string
+	for name := range given {
+		if live.kinds[name] == kindRepeater {
+			named = append(named, name)
+		}
+	}
+	sort.Strings(named)
+	return named
 }
 
 // checkRow returns the storable cells of one entry and the paths of the cells no column holds.

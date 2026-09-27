@@ -257,6 +257,18 @@ func TestCheckValuesRefusesARepeater(t *testing.T) {
 	}
 }
 
+func TestCheckValuesRefusesARepeaterBeforeAWrongKind(t *testing.T) {
+	t.Parallel()
+
+	for range 50 {
+		_, err := checkValues(historyView(), map[string]any{"birthDate": "not a date", "history": nil})
+
+		if !errors.Is(err, errRepeaterEntriesOnly) {
+			t.Fatalf("checkValues() error = %v, want the repeater refused whatever the key order", err)
+		}
+	}
+}
+
 // historyColumnsOf returns the sub fields of the history repeater the value tests hold.
 func historyColumnsOf() []SubField {
 	return historyView().columns["history"]
