@@ -69,12 +69,23 @@ test('defines a repeater and keeps a contact history in order', async ({ page })
 	await history.getByRole('button', { name: 'Remove', exact: true }).click()
 	await removed
 
+	await history.getByRole('button', { name: 'Edit entry: Sep 1, 2026' }).click()
+	const editor = history.getByRole('form', { name: 'Edit entry: Sep 1, 2026' })
+	const edited = editor.getByRole('textbox', { name: 'Comment', exact: true })
+	await expect(edited).toHaveJSProperty('tagName', 'TEXTAREA')
+	await edited.fill('First call about the yearly plan.\nAsked for a second quote.')
+	const saved = operationAnswer(page, 'UpdateContactFieldEntry')
+	await editor.getByRole('button', { name: 'Save entry' }).click()
+	await saved
+
 	await page.reload()
 	await expect(entries).toHaveCount(2)
 	await expect(entries.nth(0)).toHaveAccessibleName('Sep 18, 2026')
 	await expect(entries.nth(1)).toHaveAccessibleName('Sep 1, 2026')
 	const body = entries.nth(1).locator('p.godmin-log-list__body')
-	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toContain('\n')
+	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toBe(
+		'First call about the yearly plan.\nAsked for a second quote.',
+	)
 })
 
 /**
