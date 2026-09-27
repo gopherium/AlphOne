@@ -7,7 +7,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-fields\n"
 
-msgid "%(label)s %(number)d"
+msgid "%(label)s: %(value)s"
 msgstr ""
 
 msgid "A field name starts lowercase and runs together, like birthDate."
@@ -55,10 +55,16 @@ msgstr ""
 msgid "Archive %(label)s"
 msgstr ""
 
+msgid "Blank entry"
+msgstr ""
+
 msgid "Fields"
 msgstr ""
 
 msgid "Fill in at least one part of the entry."
+msgstr ""
+
+msgid "Keep"
 msgstr ""
 
 msgid "Kind"
@@ -68,12 +74,6 @@ msgid "Label"
 msgstr ""
 
 msgid "Loading fields…"
-msgstr ""
-
-msgid "Move entry down"
-msgstr ""
-
-msgid "Move entry up"
 msgstr ""
 
 msgid "Move sub field down"
@@ -97,10 +97,19 @@ msgstr ""
 msgid "Only a repeater holds sub fields."
 msgstr ""
 
+msgid "Remove"
+msgstr ""
+
 msgid "Remove entry"
 msgstr ""
 
+msgid "Remove entry: %(name)s"
+msgstr ""
+
 msgid "Remove sub field"
+msgstr ""
+
+msgid "Remove this entry?"
 msgstr ""
 
 msgid "Save fields"
@@ -139,6 +148,12 @@ msgstr ""
 msgid "The contact already holds a detail by that name."
 msgstr ""
 
+msgid "The entry could not be added."
+msgstr ""
+
+msgid "The entry could not be removed."
+msgstr ""
+
 msgid "The field could not be archived."
 msgstr ""
 
@@ -159,6 +174,14 @@ msgstr ""
 
 msgctxt "admin section"
 msgid "Fields"
+msgstr ""
+
+msgctxt "entry cell"
+msgid "No"
+msgstr ""
+
+msgctxt "entry cell"
+msgid "Yes"
 msgstr ""
 
 msgctxt "field kind"

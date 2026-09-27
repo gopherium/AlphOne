@@ -9,8 +9,8 @@ msgstr ""
 "Language: es\n"
 
 #, fuzzy
-msgid "%(label)s %(number)d"
-msgstr "%(label)s %(number)d"
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
 
 #, fuzzy
 msgid "A field name starts lowercase and runs together, like birthDate."
@@ -73,12 +73,20 @@ msgid "Archive %(label)s"
 msgstr "Archivar %(label)s"
 
 #, fuzzy
+msgid "Blank entry"
+msgstr "Entrada en blanco"
+
+#, fuzzy
 msgid "Fields"
 msgstr "Campos"
 
 #, fuzzy
 msgid "Fill in at least one part of the entry."
 msgstr "Rellena al menos una parte de la entrada."
+
+#, fuzzy
+msgid "Keep"
+msgstr "Conservar"
 
 #, fuzzy
 msgid "Kind"
@@ -91,14 +99,6 @@ msgstr "Etiqueta"
 #, fuzzy
 msgid "Loading fields…"
 msgstr "Cargando los campos…"
-
-#, fuzzy
-msgid "Move entry down"
-msgstr "Bajar la entrada"
-
-#, fuzzy
-msgid "Move entry up"
-msgstr "Subir la entrada"
 
 #, fuzzy
 msgid "Move sub field down"
@@ -129,12 +129,24 @@ msgid "Only a repeater holds sub fields."
 msgstr "Solo un repetidor tiene subcampos."
 
 #, fuzzy
+msgid "Remove"
+msgstr "Quitar"
+
+#, fuzzy
 msgid "Remove entry"
 msgstr "Quitar la entrada"
 
 #, fuzzy
+msgid "Remove entry: %(name)s"
+msgstr "Quitar la entrada: %(name)s"
+
+#, fuzzy
 msgid "Remove sub field"
 msgstr "Quitar el subcampo"
+
+#, fuzzy
+msgid "Remove this entry?"
+msgstr "¿Quitar esta entrada?"
 
 #, fuzzy
 msgid "Save fields"
@@ -185,6 +197,14 @@ msgid "The contact already holds a detail by that name."
 msgstr "El contacto ya tiene un dato con ese nombre."
 
 #, fuzzy
+msgid "The entry could not be added."
+msgstr "No se ha podido añadir la entrada."
+
+#, fuzzy
+msgid "The entry could not be removed."
+msgstr "No se ha podido quitar la entrada."
+
+#, fuzzy
 msgid "The field could not be archived."
 msgstr "No se ha podido archivar el campo."
 
@@ -212,6 +232,16 @@ msgstr "Dos subcampos de este repetidor tienen el mismo nombre."
 msgctxt "admin section"
 msgid "Fields"
 msgstr "Campos"
+
+#, fuzzy
+msgctxt "entry cell"
+msgid "No"
+msgstr "No"
+
+#, fuzzy
+msgctxt "entry cell"
+msgid "Yes"
+msgstr "Sí"
 
 #, fuzzy
 msgctxt "field kind"

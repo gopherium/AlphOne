@@ -2,6 +2,32 @@
 
 import { Checkbox, InputControl, Stack, Text, TextareaControl } from '@alphone/frontend-sdk'
 
+import type { EntryText, SubFieldRow } from './cellText'
+
+/**
+ * Renders one input per sub field of an entry.
+ * @param props - The sub fields, the text of every cell and the change handler.
+ * @returns The cell inputs.
+ */
+export function EntryCells({
+	subFields,
+	draft,
+	onChange,
+}: {
+	subFields: SubFieldRow[]
+	draft: EntryText
+	onChange: (name: string, text: string) => void
+}) {
+	return subFields.map((column) => (
+		<FieldInput
+			key={column.name}
+			field={column}
+			value={draft[column.name]}
+			onChange={(next) => onChange(column.name, next)}
+		/>
+	))
+}
+
 /**
  * Renders one field's input, matched to the kind its definition declares.
  * @param props - The field, its current text and the change handler.
