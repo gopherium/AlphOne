@@ -28,6 +28,16 @@ var pluginStores = []struct {
 		tables: []string{"definitions", "contact_values"},
 	},
 	{
+		source: filepath.Join("..", "..", "plugins", "fields", "store.go"),
+		schema: "core",
+		tables: []string{"contacts"},
+	},
+	{
+		source: filepath.Join("..", "..", "plugins", "fields", "seed.go"),
+		schema: "core",
+		tables: []string{"contacts", "contact_identities"},
+	},
+	{
 		source: filepath.Join("..", "..", "plugins", "importer", "store.go"),
 		schema: "plugin_importer",
 		tables: []string{"imports", "import_rows"},
