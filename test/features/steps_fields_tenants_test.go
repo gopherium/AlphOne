@@ -34,6 +34,8 @@ func registerFieldsTenantsSteps(sc *godog.ScenarioContext, t *testing.T) {
 	bindIntrospectionSteps(sc)
 	bindTenantSteps(sc)
 	bindImportSteps(sc)
+	bindRepeaterDefinitionSteps(sc)
+	bindRepeaterEntrySteps(sc)
 
 	sc.Given(`^the tenant "([^"]*)" defines the field "([^"]*)" labelled "([^"]*)" of kind ([A-Z]+)$`,
 		func(ctx context.Context, tenant, name, label, kind string) error {

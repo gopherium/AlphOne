@@ -147,7 +147,6 @@ Feature: A repeater keeps a list of entries on a contact
       | id   | ID    | TEXT |
     Then the definition is refused with the reason "field_sub_field_name_reserved"
 
-  @wip
   Scenario: Adding an entry stores it with an id
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -161,7 +160,6 @@ Feature: A repeater keeps a list of entries on a contact
       | date       | comment    |
       | 2026-09-01 | First call |
 
-  @wip
   Scenario: Entries answer newest first
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -177,7 +175,6 @@ Feature: A repeater keeps a list of entries on a contact
       | 2026-09-01 | First call     |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: An entry naming an unknown sub field is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -188,7 +185,6 @@ Feature: A repeater keeps a list of entries on a contact
       | 2026-09-01 | happy |
     Then the write is refused naming "history.mood" as the bad key
 
-  @wip
   Scenario: An entry naming its own id on an add is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -196,7 +192,6 @@ Feature: A repeater keeps a list of entries on a contact
     When the operator adds the raw entry {"id": "0199a3c4-0000-7000-8000-000000000001", "comment": "First call"} to "history" of the contact
     Then the write is refused naming "history.id" as the bad key
 
-  @wip
   Scenario: An entry holding a value of the wrong kind is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -207,7 +202,6 @@ Feature: A repeater keeps a list of entries on a contact
       | not a date | First call |
     Then the write is refused for a value of the wrong kind
 
-  @wip
   Scenario Outline: An entry with every cell blank is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -222,7 +216,6 @@ Feature: A repeater keeps a list of entries on a contact
       | {"date": null, "comment": ""} |
       | {"comment": "   "}            |
 
-  @wip
   Scenario: Adding to a field that is not a repeater is refused
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     When the operator adds an entry to "birthDate" of the contact:
@@ -230,7 +223,6 @@ Feature: A repeater keeps a list of entries on a contact
       | 2026-09-01 |
     Then the change is refused with the reason "field_not_a_repeater"
 
-  @wip
   Scenario: Adding to an archived repeater is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -241,7 +233,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call |
     Then the write is refused naming "history" as the bad key
 
-  @wip
   Scenario: Editing an entry changes only its cells and keeps its id and its place
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -260,7 +251,6 @@ Feature: A repeater keeps a list of entries on a contact
       | 2026-09-02 | First call, moved out |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: Editing an entry after another add still changes that entry
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -279,7 +269,6 @@ Feature: A repeater keeps a list of entries on a contact
       | Sent the offer      |
       | First call, amended |
 
-  @wip
   Scenario: An edit that sends the entry's own id back is accepted
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -295,7 +284,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call, amended |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: An edit of the wrong kind is refused and leaves the entry unchanged
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -312,7 +300,6 @@ Feature: A repeater keeps a list of entries on a contact
       | date       | comment    |
       | 2026-09-01 | First call |
 
-  @wip
   Scenario: An edit with every cell blank is refused and leaves the entry unchanged
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -326,7 +313,6 @@ Feature: A repeater keeps a list of entries on a contact
       | comment    |
       | First call |
 
-  @wip
   Scenario: Editing an entry that was removed is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -340,7 +326,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call, amended |
     Then the change is refused with the reason "field_entry_not_found"
 
-  @wip
   Scenario: Deleting an entry drops only that entry
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -357,7 +342,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: Deleting the last entry clears the repeater
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -368,7 +352,6 @@ Feature: A repeater keeps a list of entries on a contact
     When the operator removes the entry "First call" from "history"
     Then the contact "Maria Perez" answers null for the field "history"
 
-  @wip
   Scenario: Deleting an unknown entry is refused
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -382,7 +365,6 @@ Feature: A repeater keeps a list of entries on a contact
       | comment    |
       | First call |
 
-  @wip
   Scenario: Entry ids survive archiving the repeater and defining it again
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |
@@ -399,7 +381,6 @@ Feature: A repeater keeps a list of entries on a contact
       | First call |
     And every entry keeps the id its add answered
 
-  @wip
   Scenario: Saving other fields keeps the entries
     Given the repeater "history" labelled "History" is defined with sub fields:
       | name    | label   | kind     |

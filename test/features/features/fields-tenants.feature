@@ -58,7 +58,6 @@ Feature: Each tenant keeps its own contact fields
     Then the commit answers 1 imported
     And the contact "Maria Perez" answers "1990-04-17" for the field "birthDate"
 
-  @wip
   Scenario: A tenant cannot add an entry to another tenant's contact
     Given a contact named "Maria Perez"
     And the tenant "Acme" defines the repeater "history" labelled "History" with sub fields:
@@ -69,7 +68,6 @@ Feature: Each tenant keeps its own contact fields
       | First call |
     Then the change is refused with the reason "contact_not_found"
 
-  @wip
   Scenario: A tenant cannot edit or remove another tenant's entry
     Given a contact named "Maria Perez"
     And the repeater "history" labelled "History" is defined with sub fields:
