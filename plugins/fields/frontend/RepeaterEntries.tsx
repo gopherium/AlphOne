@@ -134,6 +134,7 @@ function AddEntryForm({
 			<EntryCells
 				subFields={field.subFields}
 				draft={shown}
+				disabled={add.fetching}
 				onChange={(name, text) => setPicked((held) => new Map(held).set(name, text))}
 			/>
 			{add.error && outcomeOf(add.error) !== 'field-gone' ? (

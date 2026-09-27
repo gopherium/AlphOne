@@ -219,6 +219,7 @@ function EntryEditor({
 			<EntryCells
 				subFields={subFields}
 				draft={draft}
+				disabled={locked}
 				onChange={(key, text) => setDraft((held) => ({ ...held, [key]: text }))}
 			/>
 			<Stack direction="row" gap="sm" align="center">

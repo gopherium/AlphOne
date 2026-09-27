@@ -397,6 +397,24 @@ test('Add shows it is busy while the add runs', async () => {
 	await waitFor(() => expect(addButton()).toHaveAttribute('aria-disabled', 'true'))
 })
 
+test('the add form locks its cells while the add runs', async () => {
+	serveCatalogue([visits])
+	serveValues({ visits: null })
+	const adding = hold('AddContactFieldEntry', added)
+
+	renderPanel()
+	const form = await addForm('Visits')
+	await userEvent.type(form.getByLabelText('Note'), 'Paid in cash.')
+	await userEvent.click(addButton('Visits'))
+	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
+
+	expect(form.getByLabelText('Note')).toBeDisabled()
+	expect(form.getByLabelText('Minutes')).toBeDisabled()
+	expect(form.getByRole('checkbox', { name: 'Paid' })).toHaveAttribute('aria-disabled', 'true')
+	adding.release()
+	await waitFor(() => expect(form.getByLabelText('Note')).toBeEnabled())
+})
+
 test('an added entry resets the form to today and shows on top', async () => {
 	serveCatalogue([history])
 	const change = serveChangingValues({ history: [firstCall] })
@@ -958,7 +976,7 @@ test('Enter in a cell during a save in flight sends one update', async () => {
 	expect(updating.called).toHaveBeenCalledOnce()
 })
 
-test('a save in flight disables Save, Cancel and every other row', async () => {
+test('a save in flight locks its cells, Save, Cancel and every other row', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent, firstCall] })
 	const updating = hold('UpdateContactFieldEntry', updated)
@@ -968,6 +986,8 @@ test('a save in flight disables Save, Cancel and every other row', async () => {
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
 
+	expect(editor.getByLabelText('Date')).toBeDisabled()
+	expect(editor.getByLabelText('Comment')).toBeDisabled()
 	expect(editor.getByRole('button', { name: 'Save entry' })).toHaveAttribute('aria-disabled', 'true')
 	expect(editor.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Edit entry: Sep 1, 2026' })).toHaveAttribute('aria-disabled', 'true')
