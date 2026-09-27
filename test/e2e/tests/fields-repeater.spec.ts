@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { expect, test } from '@playwright/test'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 
 /**
  * Chooses one kind from a kind menu and waits for the menu to close.
@@ -108,9 +108,9 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 function operationsSent(page: Page): string[] {
 	const names: string[] = []
 	page.on('request', (request) => {
-		if (request.method() === 'POST' && request.url().includes('/api/graphql')) {
-			const body = request.postDataJSON() as { operationName?: string } | null
-			names.push(body?.operationName ?? '')
+		const name = operationOf(request)
+		if (name !== '') {
+			names.push(name)
 		}
 	})
 	return names
@@ -123,10 +123,19 @@ function operationsSent(page: Page): string[] {
  * @returns The answer, once it arrives.
  */
 function operationAnswer(page: Page, operation: string) {
-	return page.waitForResponse(
-		(response) =>
-			response.url().includes('/api/graphql') && (response.request().postData() ?? '').includes(operation),
-	)
+	return page.waitForResponse((response) => operationOf(response.request()) === operation)
+}
+
+/**
+ * Returns the name of the graph operation a request sends.
+ * @param request - The request.
+ * @returns The operation name, empty for a request that sends none.
+ */
+function operationOf(request: Request): string {
+	if (request.method() !== 'POST' || !request.url().includes('/api/graphql')) {
+		return ''
+	}
+	return (request.postDataJSON() as { operationName?: string } | null)?.operationName ?? ''
 }
 
 /**
