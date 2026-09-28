@@ -33,6 +33,11 @@ const birthDate = {
 	subFields: [],
 }
 
+/**
+ * Renders the Fields screen inside its graph and query providers.
+ * @param graph - The graph client the screen reads through.
+ * @returns The render result.
+ */
 function renderScreen(graph = fakeGraphClient().graph) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 	return render(
@@ -44,6 +49,12 @@ function renderScreen(graph = fakeGraphClient().graph) {
 	)
 }
 
+/**
+ * Answers the Fields screen catalogue with the given fields and reserved names.
+ * @param live - The live fields.
+ * @param archived - The archived fields.
+ * @param reserved - The names the server refuses.
+ */
 function serveFieldCatalogue(live: unknown[], archived: unknown[] = [], reserved: string[] = RESERVED) {
 	server.use(
 		graphql.query('FieldCatalogue', () =>
@@ -52,6 +63,11 @@ function serveFieldCatalogue(live: unknown[], archived: unknown[] = [], reserved
 	)
 }
 
+/**
+ * Answers every define with the given field and records the variables it was sent.
+ * @param answer - The field the define answers.
+ * @returns The recorder of the variables.
+ */
 function captureDefine(answer: unknown = birthDate) {
 	const defined = vi.fn()
 	server.use(
@@ -63,11 +79,20 @@ function captureDefine(answer: unknown = birthDate) {
 	return defined
 }
 
+/**
+ * Types a label into the add form and presses Add field.
+ * @param label - The label to type.
+ */
 async function defineLabelled(label: string) {
 	await userEvent.type(await screen.findByLabelText('Label'), label)
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 }
 
+/**
+ * Returns the name the only define sent.
+ * @param defined - The recorder of the define variables.
+ * @returns The name, once the define was sent.
+ */
 async function sentName(defined: ReturnType<typeof vi.fn>) {
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
 	return defined.mock.calls[0][0].name
@@ -259,6 +284,7 @@ test('a second visit reads the catalogue from the server again', async () => {
 	await waitFor(() => expect(reads).toBe(2))
 })
 
+/** Defines Birth date from the add form of an empty catalogue. */
 async function submitField() {
 	await screen.findByText(/No fields yet/i)
 	await defineLabelled('Birth date')
@@ -513,6 +539,7 @@ const history = {
 	],
 }
 
+/** Starts a repeater labelled History in the add form of an empty catalogue. */
 async function startRepeater() {
 	await screen.findByText(/No fields yet/i)
 	await userEvent.type(await screen.findByLabelText('Label'), 'History')
@@ -520,6 +547,11 @@ async function startRepeater() {
 	await userEvent.click(await screen.findByRole('option', { name: 'Repeater' }))
 }
 
+/**
+ * Adds one sub field to the repeater the add form holds.
+ * @param label - The sub field label.
+ * @param kind - The kind option to choose.
+ */
 async function addSubField(label: string, kind: string) {
 	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
 	const rows = screen.getAllByRole('group', { name: /^Sub field \d+$/ })
