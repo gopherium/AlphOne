@@ -25,9 +25,14 @@ import {
 import { useState } from 'react'
 
 import { fieldsIcon } from './icon'
-import type { FieldKind } from './gql/graphql'
+import type { FieldCatalogueQuery, FieldKind } from './gql/graphql'
 import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
-import { archiveFieldMutation, catalogueOperation, defineFieldMutation, fieldsQuery } from './operations'
+import {
+	archiveFieldMutation,
+	defineFieldMutation,
+	fieldCatalogueOperation,
+	fieldCatalogueQuery,
+} from './operations'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {
@@ -51,12 +56,18 @@ interface DraftSubField {
 	kind: FieldKind
 }
 
+/** KnownNames are every stored field and the names the server refuses, which a new field's name steps past. */
+interface KnownNames {
+	every: FieldRow[]
+	reserved: string[]
+}
+
 /**
  * Renders the catalogue of contact fields an operator defines.
  * @returns The fields screen.
  */
 export function FieldsScreen() {
-	const [catalogue] = useGraphQuery({ query: fieldsQuery })
+	const [catalogue] = useGraphQuery({ query: fieldCatalogueQuery, requestPolicy: 'cache-and-network' })
 	const reload = useCatalogueRefresh()
 
 	if (catalogue.fetching && !catalogue.data) {
@@ -73,20 +84,33 @@ export function FieldsScreen() {
 			</PageScreen>
 		)
 	}
-	const fields = (catalogue.data?.fields ?? []) as FieldRow[]
+	const rows = catalogueRows(catalogue.data)
 	return (
 		<PageScreen title={__('Fields', 'alphone-fields')}>
 			<Stack direction="column" gap="lg">
-				<FieldList fields={fields} onChanged={reload} />
+				<FieldList fields={rows.live} onChanged={reload} />
 				<Stack direction="column" gap="sm">
 					<Text variant="heading-sm" render={<h2 />}>
 						{__('Add a field', 'alphone-fields')}
 					</Text>
-					<AddFieldForm onAdded={reload} />
+					<AddFieldForm known={rows} onAdded={reload} />
 				</Stack>
 			</Stack>
 		</PageScreen>
 	)
+}
+
+/**
+ * Returns the live fields, every stored field and the reserved names a catalogue answer holds.
+ * @param data - The catalogue answer, absent while none has arrived.
+ * @returns The rows, each list empty when the answer lacks it.
+ */
+function catalogueRows(data: FieldCatalogueQuery | undefined): KnownNames & { live: FieldRow[] } {
+	return {
+		live: (data?.fields ?? []) as FieldRow[],
+		every: (data?.every ?? []) as FieldRow[],
+		reserved: data?.reservedFieldNames ?? [],
+	}
 }
 
 /**
@@ -96,7 +120,7 @@ export function FieldsScreen() {
 function useCatalogueRefresh() {
 	const graph = useGraph()
 	return () => {
-		graph.refetch([catalogueOperation])
+		graph.refetch([fieldCatalogueOperation])
 	}
 }
 
@@ -225,13 +249,22 @@ function namedSubFields(drafts: DraftSubField[]) {
 }
 
 /**
- * Renders the form defining one new field.
- * @param props - The reload run after a definition lands.
+ * Returns the name a new field takes from its label.
+ * @param label - The label of the new field.
+ * @param known - Every stored field and the names the server refuses.
+ * @returns The name, numbered past every name already taken.
+ */
+function fieldName(label: string, known: KnownNames) {
+	return keyFromLabel(label, { style: 'camel', taken: [...known.reserved, ...known.every.map((row) => row.name)] })
+}
+
+/**
+ * Renders the form defining one new field, naming it from its label.
+ * @param props - The names a new field steps past and the reload run after a definition lands.
  * @returns The add field form.
  */
-function AddFieldForm({ onAdded }: { onAdded: () => void }) {
+function AddFieldForm({ known, onAdded }: { known: KnownNames; onAdded: () => void }) {
 	const [label, setLabel] = useState('')
-	const [name, setName] = useState('')
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
 	const kinds = kindItems()
@@ -244,10 +277,9 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 			onSubmit={(event) => {
 				event.preventDefault()
 				const sent = repeater ? namedSubFields(subFields) : undefined
-				void define({ name, label, kind, subFields: sent }).then((result) => {
+				void define({ name: fieldName(label, known), label, kind, subFields: sent }).then((result) => {
 					if (!result.error) {
 						setLabel('')
-						setName('')
 						setSubFields([])
 						onAdded()
 					}
@@ -264,12 +296,6 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 				autoComplete="off"
 				value={label}
 				onChange={(event) => setLabel(event.target.value)}
-			/>
-			<InputControl
-				label={__('Name', 'alphone-fields')}
-				autoComplete="off"
-				value={name}
-				onChange={(event) => setName(event.target.value)}
 			/>
 			<SelectControl
 				label={__('Kind', 'alphone-fields')}

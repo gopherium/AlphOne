@@ -14,6 +14,11 @@ import { expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
 
+const RESERVED = [
+	'constructor', 'createdAt', 'field', 'hasOwnProperty', 'id', 'identities', 'isPrototypeOf',
+	'name', 'propertyIsEnumerable', 'tasks', 'toLocaleString', 'toString', 'valueOf', 'whatsAppConversations',
+]
+
 const birthDate = {
 	__typename: 'FieldDefinition',
 	id: '0198c000-0000-7000-8000-000000000501',
@@ -23,9 +28,8 @@ const birthDate = {
 	subFields: [],
 }
 
-function renderScreen() {
+function renderScreen(graph = fakeGraphClient().graph) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	const { graph } = fakeGraphClient()
 	return render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
@@ -35,14 +39,37 @@ function renderScreen() {
 	)
 }
 
-function serveFields(fields: unknown[]) {
+function serveFieldCatalogue(live: unknown[], archived: unknown[] = [], reserved: string[] = RESERVED) {
 	server.use(
-		graphql.query('Fields', () => HttpResponse.json({ data: { fields } })),
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: live, every: [...live, ...archived], reservedFieldNames: reserved } }),
+		),
 	)
 }
 
+function captureDefine(answer: unknown = birthDate) {
+	const defined = vi.fn()
+	server.use(
+		graphql.mutation('DefineField', async ({ variables }) => {
+			defined(variables)
+			return HttpResponse.json({ data: { defineField: answer } })
+		}),
+	)
+	return defined
+}
+
+async function defineLabelled(label: string) {
+	await userEvent.type(await screen.findByLabelText('Label'), label)
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+}
+
+async function sentName(defined: ReturnType<typeof vi.fn>) {
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	return defined.mock.calls[0][0].name
+}
+
 test('the catalogue lists every defined field in a table', async () => {
-	serveFields([birthDate])
+	serveFieldCatalogue([birthDate])
 
 	renderScreen()
 
@@ -58,7 +85,7 @@ test('the catalogue lists every defined field in a table', async () => {
 })
 
 test('an empty catalogue invites the first field', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 
 	renderScreen()
 
@@ -67,7 +94,7 @@ test('an empty catalogue invites the first field', async () => {
 
 test('a failed read is reported', async () => {
 	server.use(
-		graphql.query('Fields', () =>
+		graphql.query('FieldCatalogue', () =>
 			HttpResponse.json({ errors: [{ message: 'boom' }] }),
 		),
 	)
@@ -77,21 +104,22 @@ test('a failed read is reported', async () => {
 	expect(await screen.findByRole('alert')).toBeInTheDocument()
 })
 
-test('defining a field sends its name, label and kind', async () => {
-	serveFields([])
-	const defined = vi.fn()
-	server.use(
-		graphql.mutation('DefineField', async ({ variables }) => {
-			defined(variables)
-			return HttpResponse.json({ data: { defineField: birthDate } })
-		}),
-	)
+test('the add form asks for no name', async () => {
+	serveFieldCatalogue([])
 
 	renderScreen()
 	await screen.findByText(/No fields yet/i)
-	await userEvent.type(await screen.findByLabelText('Label'), 'Birth date')
-	await userEvent.type(screen.getByLabelText('Name'), 'birthDate')
-	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	expect(screen.getByLabelText('Label')).toBeInTheDocument()
+	expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+})
+
+test('defining a field sends the name its label makes', async () => {
+	serveFieldCatalogue([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Birth date')
 
 	await waitFor(() =>
 		expect(defined).toHaveBeenCalledWith({
@@ -102,15 +130,101 @@ test('defining a field sends its name, label and kind', async () => {
 	)
 })
 
+test('numbers a name a live field holds', async () => {
+	serveFieldCatalogue([{ ...birthDate, label: 'Date of birth' }])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Birth date')
+
+	expect(await sentName(defined)).toBe('birthDate2')
+})
+
+test('numbers a name an archived field holds', async () => {
+	serveFieldCatalogue([], [birthDate])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Birth date')
+
+	expect(await sentName(defined)).toBe('birthDate2')
+})
+
+test('steps past a name the contact already has', async () => {
+	serveFieldCatalogue([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Name')
+
+	expect(await sentName(defined)).toBe('name2')
+})
+
+test('steps past a name every object has', async () => {
+	serveFieldCatalogue([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Constructor')
+
+	expect(await sentName(defined)).toBe('constructor2')
+})
+
+test('steps past the names the server lists', async () => {
+	serveFieldCatalogue([], [], ['birthDate'])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Birth date')
+
+	expect(await sentName(defined)).toBe('birthDate2')
+})
+
+test('names a label with no letters or digits field2', async () => {
+	serveFieldCatalogue([])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('???')
+
+	expect(await sentName(defined)).toBe('field2')
+})
+
+test('numbers a label ending in a digit straight after it', async () => {
+	serveFieldCatalogue([{ ...birthDate, name: 'address2', label: 'Second address', kind: 'TEXT' }])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled('Address 2')
+
+	expect(await sentName(defined)).toBe('address22')
+})
+
+test('a second visit reads the catalogue from the server again', async () => {
+	let reads = 0
+	server.use(
+		graphql.query('FieldCatalogue', () => {
+			reads += 1
+			return HttpResponse.json({ data: { fields: [], every: [], reservedFieldNames: RESERVED } })
+		}),
+	)
+	const { graph } = fakeGraphClient()
+
+	const first = renderScreen(graph)
+	await screen.findByText(/No fields yet/i)
+	first.unmount()
+	renderScreen(graph)
+
+	await waitFor(() => expect(reads).toBe(2))
+})
+
 async function submitField() {
 	await screen.findByText(/No fields yet/i)
-	await userEvent.type(await screen.findByLabelText('Label'), 'Birth date')
-	await userEvent.type(screen.getByLabelText('Name'), 'birthDate')
-	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+	await defineLabelled('Birth date')
 }
 
 test('a taken name is reported word for word', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 	server.use(
 		graphql.mutation('DefineField', () =>
 			HttpResponse.json({
@@ -131,19 +245,12 @@ test('a taken name is reported word for word', async () => {
 })
 
 test('the chosen kind is sent with the definition', async () => {
-	serveFields([])
-	const defined = vi.fn()
-	server.use(
-		graphql.mutation('DefineField', async ({ variables }) => {
-			defined(variables)
-			return HttpResponse.json({ data: { defineField: birthDate } })
-		}),
-	)
+	serveFieldCatalogue([])
+	const defined = captureDefine()
 
 	renderScreen()
 	await screen.findByText(/No fields yet/i)
 	await userEvent.type(await screen.findByLabelText('Label'), 'Birth date')
-	await userEvent.type(screen.getByLabelText('Name'), 'birthDate')
 	await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }))
 	await userEvent.click(await screen.findByRole('option', { name: 'Date' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
@@ -158,7 +265,7 @@ test('the chosen kind is sent with the definition', async () => {
 })
 
 test('marks the kind the reader chose as the selected option', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 	renderScreen()
 	await screen.findByText(/No fields yet/i)
 
@@ -173,7 +280,9 @@ test('marks the kind the reader chose as the selected option', async () => {
 test('a defined field appears in the catalogue without a reload', async () => {
 	let served: unknown[] = []
 	server.use(
-		graphql.query('Fields', () => HttpResponse.json({ data: { fields: served } })),
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } }),
+		),
 		graphql.mutation('DefineField', () => {
 			served = [birthDate]
 			return HttpResponse.json({ data: { defineField: birthDate } })
@@ -188,15 +297,18 @@ test('a defined field appears in the catalogue without a reload', async () => {
 })
 
 test('an answer carrying no catalogue reads as empty', async () => {
-	server.use(graphql.query('Fields', () => HttpResponse.json({ data: {} })))
+	server.use(graphql.query('FieldCatalogue', () => HttpResponse.json({ data: {} })))
+	const defined = captureDefine()
 
 	renderScreen()
-
 	expect(await screen.findByText(/No fields yet/i)).toBeInTheDocument()
+	await defineLabelled('Birth date')
+
+	expect(await sentName(defined)).toBe('birthDate')
 })
 
 test('a failed archive is reported', async () => {
-	serveFields([birthDate])
+	serveFieldCatalogue([birthDate])
 	server.use(
 		graphql.mutation('ArchiveField', () =>
 			HttpResponse.json({
@@ -216,7 +328,7 @@ test('a failed archive is reported', async () => {
 })
 
 test('a validation error is reported word for word', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 	server.use(
 		graphql.mutation('DefineField', () =>
 			HttpResponse.json({
@@ -248,21 +360,9 @@ const history = {
 	],
 }
 
-function captureDefine() {
-	const defined = vi.fn()
-	server.use(
-		graphql.mutation('DefineField', async ({ variables }) => {
-			defined(variables)
-			return HttpResponse.json({ data: { defineField: history } })
-		}),
-	)
-	return defined
-}
-
 async function startRepeater() {
 	await screen.findByText(/No fields yet/i)
 	await userEvent.type(await screen.findByLabelText('Label'), 'History')
-	await userEvent.type(screen.getByLabelText('Name'), 'history')
 	await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }))
 	await userEvent.click(await screen.findByRole('option', { name: 'Repeater' }))
 }
@@ -277,7 +377,7 @@ async function addSubField(label: string, kind: string) {
 }
 
 test('the catalogue shows a repeater beside the labels of its sub fields', async () => {
-	serveFields([history])
+	serveFieldCatalogue([history])
 
 	renderScreen()
 
@@ -288,7 +388,7 @@ test('the catalogue shows a repeater beside the labels of its sub fields', async
 })
 
 test('a field holding no sub fields shows its kind alone', async () => {
-	serveFields([birthDate])
+	serveFieldCatalogue([birthDate])
 
 	renderScreen()
 
@@ -298,7 +398,7 @@ test('a field holding no sub fields shows its kind alone', async () => {
 })
 
 test('only the repeater kind asks for sub fields', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 
 	renderScreen()
 	await screen.findByText(/No fields yet/i)
@@ -311,8 +411,8 @@ test('only the repeater kind asks for sub fields', async () => {
 })
 
 test('defining a repeater sends sub fields named from their labels', async () => {
-	serveFields([])
-	const defined = captureDefine()
+	serveFieldCatalogue([])
+	const defined = captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
@@ -335,8 +435,8 @@ test('defining a repeater sends sub fields named from their labels', async () =>
 })
 
 test('two sub fields sharing a label are sent under distinct names', async () => {
-	serveFields([])
-	const defined = captureDefine()
+	serveFieldCatalogue([])
+	const defined = captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
@@ -352,8 +452,8 @@ test('two sub fields sharing a label are sent under distinct names', async () =>
 })
 
 test('a sub field labelled ID is sent under a name other than the one entries keep their id under', async () => {
-	serveFields([])
-	const defined = captureDefine()
+	serveFieldCatalogue([])
+	const defined = captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
@@ -365,7 +465,7 @@ test('a sub field labelled ID is sent under a name other than the one entries ke
 })
 
 test('the sub field kind menu leaves the repeater out', async () => {
-	serveFields([])
+	serveFieldCatalogue([])
 
 	renderScreen()
 	await startRepeater()
@@ -378,8 +478,8 @@ test('the sub field kind menu leaves the repeater out', async () => {
 })
 
 test('a field moved off the repeater kind sends no sub fields', async () => {
-	serveFields([])
-	const defined = captureDefine()
+	serveFieldCatalogue([])
+	const defined = captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
@@ -394,8 +494,8 @@ test('a field moved off the repeater kind sends no sub fields', async () => {
 })
 
 test('a defined repeater clears its sub fields for the next one', async () => {
-	serveFields([])
-	captureDefine()
+	serveFieldCatalogue([])
+	captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
@@ -407,7 +507,7 @@ test('a defined repeater clears its sub fields for the next one', async () => {
 })
 
 test('archiving a field sends its id', async () => {
-	serveFields([birthDate])
+	serveFieldCatalogue([birthDate])
 	const archived = vi.fn()
 	server.use(
 		graphql.mutation('ArchiveField', async ({ variables }) => {
