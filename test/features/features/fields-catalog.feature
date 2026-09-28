@@ -21,7 +21,6 @@ Feature: An operator shapes the field catalogue
     When the operator defines the field "name" labelled "Name" of kind TEXT
     Then the definition is refused for a reserved name
 
-  @wip
   Scenario Outline: A name every JavaScript object holds is refused
     When the operator defines the field "<name>" labelled "Points" of kind NUMBER
     Then the definition is refused with the reason "field_name_reserved"
