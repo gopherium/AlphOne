@@ -327,21 +327,23 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
 			) : null}
-			<InputControl
-				label={__('Label', 'alphone-fields')}
-				autoComplete="off"
-				value={label}
-				onChange={(event) => {
-					setLabel(event.target.value)
-					setNotice((held) => (held === 'label' ? null : held))
-				}}
-			/>
-			<SelectControl
-				label={__('Kind', 'alphone-fields')}
-				items={kinds}
-				value={kinds.find((option) => option.value === kind)}
-				onValueChange={(item) => setKind(kindOf(item).value)}
-			/>
+			<div className="godmin-form__row">
+				<InputControl
+					label={__('Label', 'alphone-fields')}
+					autoComplete="off"
+					value={label}
+					onChange={(event) => {
+						setLabel(event.target.value)
+						setNotice((held) => (held === 'label' ? null : held))
+					}}
+				/>
+				<SelectControl
+					label={__('Kind', 'alphone-fields')}
+					items={kinds}
+					value={kinds.find((option) => option.value === kind)}
+					onValueChange={(item) => setKind(kindOf(item).value)}
+				/>
+			</div>
 			{repeater ? <SubFieldRows rows={subFields} onChange={setSubFields} /> : null}
 			<Button type="submit" loading={defined.fetching}>
 				{__('Add field', 'alphone-fields')}

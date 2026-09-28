@@ -691,6 +691,30 @@ test('a defined repeater clears its sub fields for the next one', async () => {
 	expect(screen.queryByRole('group', { name: 'Sub field 1' })).not.toBeInTheDocument()
 })
 
+test('lays the label and the kind on one form row', async () => {
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.error()))
+
+	renderScreen()
+	await startRepeater()
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+	const notice = await screen.findByRole('alert')
+
+	const label = screen.getAllByLabelText('Label')[0]
+	const kind = screen.getAllByRole('combobox', { name: 'Kind' })[0]
+	const row = label.closest('.godmin-form__row') as HTMLElement
+	expect(row).not.toBeNull()
+	expect(row.parentElement).toHaveClass('godmin-form')
+	expect(row.children).toHaveLength(2)
+	expect(row.children[0]).toContainElement(label)
+	expect(row.children[1]).toContainElement(kind)
+	expect(notice).toHaveTextContent('The field could not be defined.')
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+	expect(screen.getByRole('group', { name: 'Sub field 1' }).closest('.godmin-form__row')).toBeNull()
+	expect(screen.getByRole('button', { name: 'Add field' }).closest('.godmin-form__row')).toBeNull()
+})
+
 test('archiving a field sends its id', async () => {
 	serveFieldCatalogue([birthDate])
 	const archived = vi.fn()
