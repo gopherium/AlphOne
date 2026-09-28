@@ -63,7 +63,9 @@ export {
 	comment,
 	inbox,
 	menu,
+	pencil,
 	people,
+	trash,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export {
@@ -78,6 +80,7 @@ export {
 	Page as PageScreen,
 	PageTitle,
 	RepeatRows,
+	SectionTitle,
 } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
