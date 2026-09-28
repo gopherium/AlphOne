@@ -66,7 +66,6 @@ Feature: An operator shapes the field catalogue
     Then the catalogue does not list "birthDate"
     And the catalogue lists "birthDate" among archived definitions
 
-  @wip
   Scenario: Defining an archived field again answers the field it brings back
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the operator archives the field "birthDate"
