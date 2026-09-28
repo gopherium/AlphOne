@@ -15,6 +15,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  */
 type Documents = {
     "\n\tquery Fields {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": typeof types.FieldsDocument,
+    "\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n": typeof types.FieldCatalogueDocument,
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": typeof types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": typeof types.ArchiveFieldDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": typeof types.WriteContactFieldsDocument,
@@ -24,6 +25,7 @@ type Documents = {
 };
 const documents: Documents = {
     "\n\tquery Fields {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": types.FieldsDocument,
+    "\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n": types.FieldCatalogueDocument,
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": types.ArchiveFieldDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": types.WriteContactFieldsDocument,
@@ -50,6 +52,10 @@ export function graphql(source: string): unknown;
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tquery Fields {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Fields {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n"): (typeof documents)["\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
