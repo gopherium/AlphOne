@@ -222,6 +222,19 @@ test('names each row by its day and its first line, its first line or its first 
 	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}` })).toBeInTheDocument()
 })
 
+test('shows the entry actions as icons that keep their spoken names', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+
+	renderPanel()
+
+	for (const action of ['Edit entry', 'Remove entry']) {
+		const button = await screen.findByRole('button', { name: `${action}: ${firstCallName}` })
+		expect(button.textContent).toBe('')
+		expect(button.querySelector('svg')).not.toBeNull()
+	}
+})
+
 test('tells apart two entries of one day by their first line', async () => {
 	serveCatalogue([history])
 	serveValues({

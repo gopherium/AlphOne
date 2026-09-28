@@ -64,9 +64,6 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-msgid "Edit entry"
-msgstr ""
-
 msgid "Edit entry: %(name)s"
 msgstr ""
 
@@ -107,9 +104,6 @@ msgid "Only a repeater holds sub fields."
 msgstr ""
 
 msgid "Remove"
-msgstr ""
-
-msgid "Remove entry"
 msgstr ""
 
 msgid "Remove entry: %(name)s"

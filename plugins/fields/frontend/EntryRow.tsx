@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, LogItem, LogTime, Stack, Text, __, sprintf } from '@alphone/frontend-sdk'
+import {
+	Button,
+	IconButton,
+	LogItem,
+	LogTime,
+	Stack,
+	Text,
+	__,
+	pencil,
+	sprintf,
+	trash,
+} from '@alphone/frontend-sdk'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
@@ -112,28 +123,26 @@ function RowActions({
 }) {
 	return (
 		<>
-			<Button
+			<IconButton
 				ref={editRef}
+				icon={pencil}
 				variant="minimal"
 				tone="neutral"
 				size="compact"
 				disabled={locked}
-				aria-label={sprintf(__('Edit entry: %(name)s', 'alphone-fields'), { name })}
+				label={sprintf(__('Edit entry: %(name)s', 'alphone-fields'), { name })}
 				onClick={onEdit}
-			>
-				{__('Edit entry', 'alphone-fields')}
-			</Button>
-			<Button
+			/>
+			<IconButton
 				ref={removeRef}
+				icon={trash}
 				variant="minimal"
 				tone="neutral"
 				size="compact"
 				disabled={locked}
-				aria-label={sprintf(__('Remove entry: %(name)s', 'alphone-fields'), { name })}
+				label={sprintf(__('Remove entry: %(name)s', 'alphone-fields'), { name })}
 				onClick={onRemove}
-			>
-				{__('Remove entry', 'alphone-fields')}
-			</Button>
+			/>
 		</>
 	)
 }
