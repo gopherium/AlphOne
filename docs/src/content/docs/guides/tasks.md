@@ -18,13 +18,14 @@ they are assigned to, and the day list only shows your own.
 
 ## Adding work
 
-The field above the list adds a task to the day on screen. Type a title
-and press Enter. That is the fast path, meant for capturing work while
-you are on the phone.
+The **Task title** field above the list adds a task to the day on screen.
+Type a title and press Enter. That is the fast path, meant for capturing
+work while you are on the phone.
 
-**New task** opens the full form, where a task also gets a due date, a
-priority and an optional contact. Search for the person by name and pick
-them, and the task is linked to them from both sides.
+The **New task** button at the top of the screen opens the full form,
+where a task also gets a due date, a priority and an optional contact.
+Search for the person by name and pick them, and the task is linked to
+them from both sides.
 
 ## Completing
 

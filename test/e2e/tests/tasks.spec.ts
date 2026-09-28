@@ -11,7 +11,7 @@ const doneGroup = /^Done \(\d+\)$/
  * @param title - The title of the task to add.
  */
 async function quickAdd(page: Page, title: string) {
-	await page.getByRole('textbox', { name: 'New task' }).fill(title)
+	await page.getByRole('textbox', { name: 'Task title' }).fill(title)
 	await page.getByRole('button', { name: 'Add task' }).click()
 	await expect(page.getByRole('listitem', { name: title })).toBeVisible()
 }
@@ -109,7 +109,7 @@ test('adds a task from a contact and links it back', async ({ page }) => {
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
 
-	await page.getByRole('textbox', { name: 'New task for this contact' }).fill(title)
+	await page.getByRole('textbox', { name: 'Task title' }).fill(title)
 	await page.getByRole('button', { name: 'Add task' }).click()
 
 	const contactTasks = page.getByRole('list', { name: 'Contact tasks' })
@@ -137,7 +137,7 @@ test('adds a task from a contact on a chosen day', async ({ page }) => {
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
 
-	await page.getByRole('textbox', { name: 'New task for this contact' }).fill(title)
+	await page.getByRole('textbox', { name: 'Task title' }).fill(title)
 	await page.getByLabel('Due date', { exact: true }).fill(due)
 	await page.getByRole('button', { name: 'Add task' }).click()
 

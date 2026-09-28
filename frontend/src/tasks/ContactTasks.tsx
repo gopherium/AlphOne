@@ -97,7 +97,7 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 	return (
 		<>
 			<form
-				className="godmin-form alphone-tasks__add--contact"
+				className="godmin-form godmin-form--inline alphone-tasks__add--contact"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
@@ -105,9 +105,8 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 			>
 				<div className="godmin-form__row">
 					<InputControl
-						label={__('New task for this contact', 'alphone')}
-						hideLabelFromVision
-						placeholder={__('Add a task for this contact', 'alphone')}
+						className="godmin-form__grow"
+						label={__('Task title', 'alphone')}
 						value={title}
 						onChange={(event) => setTitle(event.target.value)}
 					/>

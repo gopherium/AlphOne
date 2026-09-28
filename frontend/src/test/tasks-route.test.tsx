@@ -153,7 +153,7 @@ test('shows the add button busy and still refuses a second submit', async () => 
 	server.use(graphql.mutation('CreateTask', () => new Promise(() => {})))
 	renderAt('/tasks')
 	await screen.findByRole('heading', { level: 1, name: 'Tasks' })
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Call Maria Perez')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Call Maria Perez')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
@@ -252,13 +252,13 @@ test('adds a task from the quick add field', async () => {
 	await screen.findByText('Call the supplier')
 
 	await userEvent.type(
-		screen.getByRole('textbox', { name: 'New task' }),
+		screen.getByRole('textbox', { name: 'Task title' }),
 		'Order more boxes',
 	)
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('Order more boxes')).toBeInTheDocument()
-	expect(screen.getByRole('textbox', { name: 'New task' })).toHaveValue('')
+	expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue('')
 })
 
 test('does not add a task without a title', async () => {
@@ -279,7 +279,7 @@ test('lays the task title and Add task on one form row', async () => {
 	)
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
-	const title = screen.getByRole('textbox', { name: 'New task' })
+	const title = screen.getByRole('textbox', { name: 'Task title' })
 	const add = screen.getByRole('button', { name: 'Add task' })
 
 	const row = title.closest('.godmin-form__row')
@@ -297,6 +297,35 @@ test('lays the task title and Add task on one form row', async () => {
 
 	const notice = await screen.findByText('The task could not be added.')
 	expect(notice.closest('.godmin-form__row')).toBeNull()
+})
+
+test('lets the quick add form fill its column as one row', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const form = screen.getByRole('textbox', { name: 'Task title' }).closest('form')
+	expect(form).toHaveClass('godmin-form', 'godmin-form--inline')
+})
+
+test('gives the task title the widest share of the form row', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const row = title.closest('.godmin-form__row') as Element
+
+	expect(row.querySelectorAll('.godmin-form__grow')).toHaveLength(1)
+	const grown = title.closest('.godmin-form__grow')
+	expect(grown).not.toBeNull()
+	expect(grown?.parentElement).toBe(row)
+})
+
+test('names the task title with a visible label and no placeholder', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const label = screen.getByText('Task title', { selector: 'label' })
+	expect(label.closest('[data-visually-hidden]')).toBeNull()
+	expect(screen.getByRole('textbox', { name: 'Task title' })).not.toHaveAttribute('placeholder')
 })
 
 test('shows an empty state when the day has no tasks', async () => {
@@ -430,7 +459,7 @@ test('reports when a task cannot be added', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
@@ -445,7 +474,7 @@ test('reports a generic message when adding fails otherwise', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
@@ -731,7 +760,7 @@ test('drops the session when adding is unauthorized', async () => {
 	const client = renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())

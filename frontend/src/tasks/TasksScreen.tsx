@@ -110,7 +110,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<form
-				className="godmin-form"
+				className="godmin-form godmin-form--inline"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
@@ -118,9 +118,8 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			>
 				<div className="godmin-form__row">
 					<InputControl
-						label={__('New task', 'alphone')}
-						hideLabelFromVision
-						placeholder={__('Add a task', 'alphone')}
+						className="godmin-form__grow"
+						label={__('Task title', 'alphone')}
 						value={title}
 						onChange={(event) => setTitle(event.target.value)}
 					/>
