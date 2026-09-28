@@ -716,6 +716,63 @@ test('lays the label and the kind on one form row', async () => {
 	expect(screen.getByRole('button', { name: 'Add field' }).closest('.godmin-form__row')).toBeNull()
 })
 
+test('lays a sub field label and kind on one row beside a trash icon that removes it', async () => {
+	serveFieldCatalogue([])
+
+	renderScreen()
+	await startRepeater()
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+
+	const group = screen.getByRole('group', { name: 'Sub field 1' })
+	const label = within(group).getByLabelText('Label')
+	const kind = within(group).getByRole('combobox', { name: 'Kind' })
+	const row = label.closest('.godmin-form__row') as HTMLElement
+	expect(row).not.toBeNull()
+	expect(group).toContainElement(row)
+	expect(row.children).toHaveLength(2)
+	expect(row.children[0]).toContainElement(label)
+	expect(row.children[1]).toContainElement(kind)
+	const remove = within(group).getByRole('button', { name: 'Remove sub field' })
+	expect(remove.textContent).toBe('')
+	expect(remove.querySelector('svg')).not.toBeNull()
+	expect(remove.closest('.godmin-rows__line')).toContainElement(row)
+
+	await userEvent.click(remove)
+
+	expect(screen.queryByRole('group', { name: 'Sub field 1' })).not.toBeInTheDocument()
+	expect(screen.getByText('No sub fields yet.')).toBeInTheDocument()
+})
+
+test('fills the page with the add form and gives every label the extra room over its kind', async () => {
+	serveFieldCatalogue([])
+
+	renderScreen()
+	await startRepeater()
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+
+	const label = screen.getAllByLabelText('Label')[0]
+	const row = label.closest('.godmin-form__row') as HTMLElement
+	expect(row.closest('form')).toHaveClass('godmin-form', 'godmin-form--inline')
+	const grown = row.querySelectorAll('.godmin-form__grow')
+	expect(grown).toHaveLength(1)
+	expect(grown[0].parentElement).toBe(row)
+	expect(grown[0]).toContainElement(label)
+	const groups = screen.getAllByRole('group', { name: /^Sub field \d+$/ })
+	expect(groups).toHaveLength(2)
+	for (const group of groups) {
+		const subLabel = within(group).getByLabelText('Label')
+		const kind = within(group).getByRole('combobox', { name: 'Kind' })
+		const subRow = subLabel.closest('.godmin-form__row') as HTMLElement
+		const subGrown = subRow.querySelectorAll('.godmin-form__grow')
+		expect(subGrown).toHaveLength(1)
+		expect(subGrown[0].parentElement).toBe(subRow)
+		expect(subGrown[0]).toContainElement(subLabel)
+		expect(subRow.children[1]).toContainElement(kind)
+		expect(subRow.children[1]).not.toHaveClass('godmin-form__grow')
+	}
+})
+
 test('sets the Add a field and Sub fields headings a size above the field labels', async () => {
 	serveFieldCatalogue([])
 

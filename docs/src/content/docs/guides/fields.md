@@ -68,6 +68,10 @@ Press **Add sub field** once for every part an entry holds, and give each part
 a label and a kind. For a history, that is `Date` as a Date and `Comment` as a
 Long text.
 
+Each sub field sits on one line, with its label and kind side by side. On a
+narrow screen the line wraps. The arrows at the end of the line move it up or
+down. The trash icon, named **Remove sub field**, takes it out of the list.
+
 A sub field can be any kind except Repeater, so a repeater never holds another
 repeater. AlphOne names a sub field from its label too, so
 `Follow-up comment` becomes `followUpComment`. Two sub fields with the same

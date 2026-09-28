@@ -295,7 +295,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				if (labelHeld(label, known.live)) {
@@ -328,6 +328,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 			) : null}
 			<div className="godmin-form__row">
 				<InputControl
+					className="godmin-form__grow"
 					label={__('Label', 'alphone-fields')}
 					autoComplete="off"
 					value={label}
@@ -373,8 +374,9 @@ function SubFieldRows({
 				onChange={onChange}
 				blank={(): DraftSubField => ({ label: '', kind: 'TEXT' })}
 				renderRow={(row, update) => (
-					<>
+					<div className="godmin-form__row">
 						<InputControl
+							className="godmin-form__grow"
 							label={__('Label', 'alphone-fields')}
 							autoComplete="off"
 							value={row.label}
@@ -386,7 +388,7 @@ function SubFieldRows({
 							value={kinds.find((option) => option.value === row.kind)}
 							onValueChange={(item) => update({ ...row, kind: kindOf(item).value })}
 						/>
-					</>
+					</div>
 				)}
 				rowLabel={(at) => sprintf(__('Sub field %(number)d', 'alphone-fields'), { number: at + 1 })}
 				labels={{
