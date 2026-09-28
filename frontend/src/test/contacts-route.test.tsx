@@ -64,6 +64,28 @@ function detailFor(id: string, name: string, identities: IdentityRow[]) {
 	}
 }
 
+/**
+ * Returns the direct children of the form row that holds the named button.
+ * @param button - The name of the row's submit button.
+ * @returns The row's children, in order.
+ */
+function formRowChildren(button: string) {
+	const row = screen.getByRole('button', { name: button }).parentElement
+	expect(row).toHaveClass('godmin-form__row')
+	expect(row?.parentElement).toHaveClass('godmin-form')
+	return [...(row as HTMLElement).children]
+}
+
+/**
+ * Expects one row child to hold both the labelled control and its label.
+ * @param child - The direct child of the form row.
+ * @param label - The text of the control's label.
+ */
+function expectFieldIn(child: Element | undefined, label: string) {
+	expect(child).toContainElement(screen.getByLabelText(label))
+	expect(child).toContainElement(screen.getByText(label))
+}
+
 let listQueries: string[] = []
 
 beforeEach(() => {
@@ -479,6 +501,29 @@ test('reports a generic message when the identity add fails otherwise', async ()
 	)
 })
 
+test('lays the channel, value, label and Add identity on one form row', async () => {
+	server.use(
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	const notice = await screen.findByRole('alert')
+
+	const add = screen.getByRole('button', { name: 'Add identity' })
+	const cells = formRowChildren('Add identity')
+	expect(cells).toHaveLength(4)
+	expectFieldIn(cells[0], 'Channel')
+	expectFieldIn(cells[1], 'Value')
+	expectFieldIn(cells[2], 'Label')
+	expect(cells[3]).toBe(add)
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+	expect(notice.closest('form')).toContainElement(add)
+})
+
 test('drops the session when the identity add is unauthorized', async () => {
 	server.use(
 		graphql.mutation('AddContactIdentity', () =>
@@ -595,6 +640,28 @@ test('renames a contact', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
 	).toBeInTheDocument()
+})
+
+test('lays the name and Save on one form row', async () => {
+	server.use(
+		graphql.mutation('RenameContact', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'bad gateway' }] }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	const text = await screen.findByText('The contact could not be renamed.')
+	const notice = text.closest('[role="alert"]') as HTMLElement
+
+	const save = screen.getByRole('button', { name: 'Save' })
+	const cells = formRowChildren('Save')
+	expect(cells).toHaveLength(2)
+	expectFieldIn(cells[0], 'Name')
+	expect(cells[1]).toBe(save)
+	expect(notice).toBeInTheDocument()
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+	expect(notice.closest('form')).toContainElement(save)
 })
 
 test('reports invalid contact details on rename', async () => {

@@ -195,29 +195,31 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 				void submitIdentity()
 			}}
 		>
-			<SelectControl
-				label={__('Channel', 'alphone')}
-				items={channels}
-				value={channels.find((option) => option.value === channel)}
-				onValueChange={(item) => setChannel(channelItemOf(item).value)}
-			/>
-			<InputControl
-				label={__('Value', 'alphone')}
-				value={identifier}
-				onChange={(event) => setIdentifier(event.target.value)}
-			/>
-			<InputControl
-				label={__('Label', 'alphone')}
-				value={label}
-				onChange={(event) => setLabel(event.target.value)}
-			/>
-			<Button
-				type="submit"
-				disabled={identifier.trim() === '' || add.fetching}
-				loading={add.fetching}
-			>
-				{__('Add identity', 'alphone')}
-			</Button>
+			<div className="godmin-form__row">
+				<SelectControl
+					label={__('Channel', 'alphone')}
+					items={channels}
+					value={channels.find((option) => option.value === channel)}
+					onValueChange={(item) => setChannel(channelItemOf(item).value)}
+				/>
+				<InputControl
+					label={__('Value', 'alphone')}
+					value={identifier}
+					onChange={(event) => setIdentifier(event.target.value)}
+				/>
+				<InputControl
+					label={__('Label', 'alphone')}
+					value={label}
+					onChange={(event) => setLabel(event.target.value)}
+				/>
+				<Button
+					type="submit"
+					disabled={identifier.trim() === '' || add.fetching}
+					loading={add.fetching}
+				>
+					{__('Add identity', 'alphone')}
+				</Button>
+			</div>
 			{add.error ? (
 				<ErrorNotice>
 					{validationMessage(identityError(add.error), __('The identity could not be added.', 'alphone'))}
@@ -250,18 +252,20 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 				void submitRename()
 			}}
 		>
-			<InputControl
-				label={__('Name', 'alphone')}
-				value={name}
-				onChange={(event) => setName(event.target.value)}
-			/>
-			<Button
-				type="submit"
-				disabled={name.trim() === '' || rename.fetching}
-				loading={rename.fetching}
-			>
-				{__('Save', 'alphone')}
-			</Button>
+			<div className="godmin-form__row">
+				<InputControl
+					label={__('Name', 'alphone')}
+					value={name}
+					onChange={(event) => setName(event.target.value)}
+				/>
+				<Button
+					type="submit"
+					disabled={name.trim() === '' || rename.fetching}
+					loading={rename.fetching}
+				>
+					{__('Save', 'alphone')}
+				</Button>
+			</div>
 			{rename.error ? (
 				<ErrorNotice>
 					{validationMessage(graphError(rename.error), __('The contact could not be renamed.', 'alphone'))}
