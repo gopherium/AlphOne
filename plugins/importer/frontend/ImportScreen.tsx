@@ -6,8 +6,8 @@ import {
 	LoadingRows,
 	LoadingScreen,
 	PageScreen,
+	SectionTitle,
 	SelectControl,
-	Text,
 	__,
 	graphError,
 	sprintf,
@@ -61,9 +61,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 	return (
 		<PageScreen title={stored.filename}>
 			<MappingForm stored={stored} fields={importFields} />
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Rows', 'alphone-importer')}
-			</Text>
+			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
 			<Suspense fallback={<LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />}>
 				<RowsTable stored={stored} rows={stored.rows} />
 			</Suspense>
