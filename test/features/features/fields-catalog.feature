@@ -36,7 +36,6 @@ Feature: An operator shapes the field catalogue
       | toString             |
       | valueOf              |
 
-  @wip
   Scenario: The catalogue lists every name a field cannot take
     When the operator asks which names a field cannot take
     Then the names a field cannot take are:
