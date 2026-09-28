@@ -278,7 +278,7 @@ function labelHeld(label: string, live: FieldRow[]) {
 
 /**
  * Renders the form defining one new field, naming it from its label.
- * @param props - The names a new field steps past and the reload run after every answer.
+ * @param props - The names a new field steps past and the reload run after every answer the server gives.
  * @returns The add field form.
  */
 function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
@@ -303,7 +303,9 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 				const name = fieldName(label, known, refused)
 				const sent = repeater ? namedSubFields(subFields) : undefined
 				void define({ name, label, kind, subFields: sent }).then((result) => {
-					onAnswered()
+					if (!result.error?.networkError) {
+						onAnswered()
+					}
 					if (!result.error) {
 						setLabel('')
 						setSubFields([])

@@ -343,6 +343,19 @@ test('a refused name is numbered on the next press', async () => {
 	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate2'])
 })
 
+test('a define lost on the way keeps the form and its draft', async () => {
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.error()))
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await defineLabelled('Anniversary')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be defined.')
+	expect(graph.refetch).not.toHaveBeenCalled()
+	expect(screen.getByLabelText('Label')).toHaveValue('Anniversary')
+})
+
 test('the chosen kind is sent with the definition', async () => {
 	serveFieldCatalogue([])
 	const defined = captureDefine()
