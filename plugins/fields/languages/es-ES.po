@@ -21,6 +21,10 @@ msgid "A field needs a label."
 msgstr "El campo necesita una etiqueta."
 
 #, fuzzy
+msgid "A field with that label already exists."
+msgstr "Ya existe un campo con esa etiqueta."
+
+#, fuzzy
 msgid "A repeater cannot hold another repeater."
 msgstr "Un repetidor no puede contener otro repetidor."
 

@@ -57,8 +57,9 @@ interface DraftSubField {
 	kind: FieldKind
 }
 
-/** KnownNames are every stored field and the names the server refuses, which a new field's name steps past. */
+/** KnownNames are the live fields, every stored field and the names the server refuses. */
 interface KnownNames {
+	live: FieldRow[]
 	every: FieldRow[]
 	reserved: string[]
 }
@@ -109,7 +110,7 @@ export function FieldsScreen() {
  * @param data - The catalogue answer, absent while none has arrived.
  * @returns The rows, each list empty when the answer lacks it.
  */
-function catalogueRows(data: FieldCatalogueQuery | undefined): KnownNames & { live: FieldRow[] } {
+function catalogueRows(data: FieldCatalogueQuery | undefined): KnownNames {
 	return {
 		live: (data?.fields ?? []) as FieldRow[],
 		every: (data?.every ?? []) as FieldRow[],
@@ -265,12 +266,24 @@ function fieldName(label: string, known: KnownNames, refused: readonly string[])
 }
 
 /**
+ * Reports whether a live field already carries a label, ignoring case and outer spaces.
+ * @param label - The label typed.
+ * @param live - The live fields.
+ * @returns True when a live field carries it.
+ */
+function labelHeld(label: string, live: FieldRow[]) {
+	const typed = label.trim().toLowerCase()
+	return live.some((row) => row.label.trim().toLowerCase() === typed)
+}
+
+/**
  * Renders the form defining one new field, naming it from its label.
  * @param props - The names a new field steps past and the reload run after every answer.
  * @returns The add field form.
  */
 function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
 	const [label, setLabel] = useState('')
+	const [labelTaken, setLabelTaken] = useState(false)
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
 	const [refused, setRefused] = useState<readonly string[]>([])
@@ -283,6 +296,10 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
+				if (labelHeld(label, known.live)) {
+					setLabelTaken(true)
+					return
+				}
 				const name = fieldName(label, known, refused)
 				const sent = repeater ? namedSubFields(subFields) : undefined
 				void define({ name, label, kind, subFields: sent }).then((result) => {
@@ -296,7 +313,10 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 				})
 			}}
 		>
-			{defined.error ? (
+			{labelTaken ? (
+				<ErrorNotice>{__('A field with that label already exists.', 'alphone-fields')}</ErrorNotice>
+			) : null}
+			{defined.error && !labelTaken ? (
 				<ErrorNotice>
 					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
@@ -305,7 +325,10 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 				label={__('Label', 'alphone-fields')}
 				autoComplete="off"
 				value={label}
-				onChange={(event) => setLabel(event.target.value)}
+				onChange={(event) => {
+					setLabel(event.target.value)
+					setLabelTaken(false)
+				}}
 			/>
 			<SelectControl
 				label={__('Kind', 'alphone-fields')}

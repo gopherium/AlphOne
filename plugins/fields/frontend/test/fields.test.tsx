@@ -155,6 +155,42 @@ test('numbers a name an archived field holds', async () => {
 	expect(await sentName(defined)).toBe('birthDate2')
 })
 
+test('refuses a label a live field already has', async () => {
+	serveFieldCatalogue([birthDate])
+	const defined = captureDefine()
+
+	renderScreen()
+	await defineLabelled(' birth DATE ')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('A field with that label already exists.')
+	expect(defined).not.toHaveBeenCalled()
+})
+
+test('a refused label replaces the notice of an earlier failure', async () => {
+	serveFieldCatalogue([birthDate])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))))
+
+	renderScreen()
+	await defineLabelled('Anniversary')
+	await screen.findByRole('alert')
+	await userEvent.clear(screen.getByLabelText('Label'))
+	await defineLabelled('Birth date')
+
+	expect(await screen.findByText('A field with that label already exists.')).toBeInTheDocument()
+	expect(screen.getAllByRole('alert')).toHaveLength(1)
+})
+
+test('typing another label clears the label notice', async () => {
+	serveFieldCatalogue([birthDate])
+
+	renderScreen()
+	await defineLabelled('Birth date')
+	await screen.findByText('A field with that label already exists.')
+	await userEvent.type(screen.getByLabelText('Label'), 's')
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('steps past a name the contact already has', async () => {
 	serveFieldCatalogue([])
 	const defined = captureDefine()

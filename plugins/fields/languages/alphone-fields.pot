@@ -16,6 +16,9 @@ msgstr ""
 msgid "A field needs a label."
 msgstr ""
 
+msgid "A field with that label already exists."
+msgstr ""
+
 msgid "A repeater cannot hold another repeater."
 msgstr ""
 
