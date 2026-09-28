@@ -14,11 +14,14 @@ import {
 	trash,
 	validationMessage,
 } from '../index'
+import { textClasses } from '../testing'
 
 test('hands plugins a section title a size above the field labels', () => {
 	render(<SectionTitle>Fields</SectionTitle>)
 
-	expect(screen.getByRole('heading', { level: 2, name: 'Fields' })).toBeInTheDocument()
+	const heading = screen.getByRole('heading', { level: 2, name: 'Fields' })
+	expect([...heading.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
+	expect([...heading.classList].sort()).not.toEqual(textClasses('heading-sm').sort())
 })
 
 test('hands plugins the pencil and trash icons', () => {

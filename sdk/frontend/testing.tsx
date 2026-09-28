@@ -18,6 +18,8 @@ import {
 	useRouterState,
 } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
+import { Text } from '@wordpress/ui'
+import type { ComponentProps } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
@@ -119,6 +121,18 @@ export function fakeGraphClient(): FakeGraph {
 				}
 			}),
 	}
+}
+
+/**
+ * Returns the classes a Text renders at the given variant.
+ * @param variant - The text variant to sample.
+ * @returns The class names, in order.
+ */
+export function textClasses(variant: ComponentProps<typeof Text>['variant']): string[] {
+	const { container, unmount } = render(<Text variant={variant} />)
+	const classes = [...(container.firstElementChild as Element).classList]
+	unmount()
+	return classes
 }
 
 /**
