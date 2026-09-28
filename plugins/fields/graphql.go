@@ -5,6 +5,8 @@ package fields
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -26,6 +28,13 @@ type QueryResolvers struct {
 // QueryResolvers returns the plugin's Query resolver set.
 func (p *Plugin) QueryResolvers() QueryResolvers {
 	return QueryResolvers{plugin: p}
+}
+
+// ReservedFieldNames lists the names a field cannot take, sorted.
+func (q QueryResolvers) ReservedFieldNames(_ context.Context) ([]string, error) {
+	names := slices.AppendSeq(slices.Collect(maps.Keys(reservedNames)), maps.Keys(inheritedNames))
+	slices.Sort(names)
+	return names, nil
 }
 
 // MutationResolvers serves the plugin's Mutation fields.

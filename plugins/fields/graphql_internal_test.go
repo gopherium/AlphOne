@@ -16,6 +16,20 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+func TestReservedFieldNamesListsEveryReservedAndInheritedName(t *testing.T) {
+	t.Parallel()
+
+	names, err := (QueryResolvers{}).ReservedFieldNames(t.Context())
+
+	want := []string{
+		"constructor", "createdAt", "field", "hasOwnProperty", "id", "identities", "isPrototypeOf",
+		"name", "propertyIsEnumerable", "tasks", "toLocaleString", "toString", "valueOf", "whatsAppConversations",
+	}
+	if err != nil || !reflect.DeepEqual(names, want) {
+		t.Errorf("ReservedFieldNames() = %v, %v, want %v", names, err, want)
+	}
+}
+
 func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 	t.Parallel()
 
