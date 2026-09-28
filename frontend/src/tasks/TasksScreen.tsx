@@ -110,26 +110,28 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<form
-				className="alphone-tasks__add"
+				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
 				}}
 			>
-				<InputControl
-					label={__('New task', 'alphone')}
-					hideLabelFromVision
-					placeholder={__('Add a task', 'alphone')}
-					value={title}
-					onChange={(event) => setTitle(event.target.value)}
-				/>
-				<Button
-					type="submit"
-					disabled={title.trim() === '' || add.fetching}
-					loading={add.fetching}
-				>
-					{__('Add task', 'alphone')}
-				</Button>
+				<div className="godmin-form__row">
+					<InputControl
+						label={__('New task', 'alphone')}
+						hideLabelFromVision
+						placeholder={__('Add a task', 'alphone')}
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+					<Button
+						type="submit"
+						disabled={title.trim() === '' || add.fetching}
+						loading={add.fetching}
+					>
+						{__('Add task', 'alphone')}
+					</Button>
+				</div>
 			</form>
 			{add.error ? (
 				<ErrorNotice>

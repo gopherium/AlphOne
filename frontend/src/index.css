@@ -363,16 +363,6 @@
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 
-.alphone-tasks__add {
-	display: flex;
-	align-items: flex-end;
-	gap: var(--wpds-dimension-gap-sm);
-}
-
-.alphone-tasks__add--contact {
-	flex-wrap: wrap;
-}
-
 .alphone-tasks__list {
 	list-style: none;
 	margin: 0;

@@ -233,6 +233,37 @@ test('keeps Add task off while the due date is empty', async () => {
 	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
 })
 
+test('lays the task title, the due date and Add task on one form row', async () => {
+	server.use(
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const title = screen.getByRole('textbox', { name: 'New task for this contact' })
+	const due = screen.getByLabelText('Due date')
+	const add = screen.getByRole('button', { name: 'Add task' })
+
+	const row = title.closest('.godmin-form__row')
+	expect(row).not.toBeNull()
+	expect(row?.parentElement).toHaveClass('godmin-form')
+	const cells = [...(row as Element).children]
+	expect(cells).toHaveLength(3)
+	const titleCell = cells.find((cell) => cell.contains(title))
+	const dueCell = cells.find((cell) => cell.contains(due))
+	expect(titleCell).toBeDefined()
+	expect(dueCell).toBeDefined()
+	expect(titleCell).not.toBe(dueCell)
+	expect(add.parentElement).toBe(row)
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(add)
+
+	const notice = await screen.findByText('The task could not be added.')
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+})
+
 test('starts the next task on today after an add', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })

@@ -271,6 +271,34 @@ test('does not add a task without a title', async () => {
 	)
 })
 
+test('lays the task title and Add task on one form row', async () => {
+	server.use(
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'New task' })
+	const add = screen.getByRole('button', { name: 'Add task' })
+
+	const row = title.closest('.godmin-form__row')
+	expect(row).not.toBeNull()
+	expect(row?.parentElement).toHaveClass('godmin-form')
+	const cells = [...(row as Element).children]
+	expect(cells).toHaveLength(2)
+	const titleCell = cells.find((cell) => cell.contains(title))
+	expect(titleCell).toBeDefined()
+	expect(titleCell).not.toBe(add)
+	expect(add.parentElement).toBe(row)
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(add)
+
+	const notice = await screen.findByText('The task could not be added.')
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+})
+
 test('shows an empty state when the day has no tasks', async () => {
 	server.use(
 		graphql.query('DayTasks', () => HttpResponse.json({ data: { tasks: taskPage([]) } })),
