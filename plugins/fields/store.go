@@ -31,8 +31,8 @@ type store struct {
 	pool *pgxpool.Pool
 }
 
-// define stores a definition, reviving an archived one of the same shape, and clears values under a name defined anew.
-func (s *store) define(ctx context.Context, definition Definition) error {
+// define stores a definition, reviving an archived one of the same shape, and answers the id the stored row keeps.
+func (s *store) define(ctx context.Context, definition Definition) (uuid.UUID, error) {
 	const statement = `WITH stored AS (
 			INSERT INTO plugin_fields.definitions
 				(id, name, label, kind, created_at, tenant_id, sub_fields)
@@ -45,25 +45,26 @@ func (s *store) define(ctx context.Context, definition Definition) error {
 					= jsonb_path_query_array(EXCLUDED.sub_fields, '$[*].name')
 				AND jsonb_path_query_array(plugin_fields.definitions.sub_fields, '$[*].kind')
 					= jsonb_path_query_array(EXCLUDED.sub_fields, '$[*].kind')
-			RETURNING 1
+			RETURNING id
 		), swept AS (
 			UPDATE plugin_fields.contact_values SET values = values - $2::text
 			WHERE tenant_id = $6 AND values ? $2::text
 				AND EXISTS (SELECT 1 FROM stored)
 				AND NOT EXISTS (SELECT 1 FROM plugin_fields.definitions WHERE tenant_id = $6 AND name = $2)
 		)
-		SELECT count(*) FROM stored`
-	var stored int
-	if err := s.pool.QueryRow(ctx, statement,
+		SELECT id FROM stored`
+	var stored uuid.UUID
+	err := s.pool.QueryRow(ctx, statement,
 		definition.ID, definition.Name, definition.Label, string(definition.Kind),
 		definition.CreatedAt, sdk.TenantOrDefault(ctx),
-		append([]SubField{}, definition.SubFields...)).Scan(&stored); err != nil {
-		return fmt.Errorf("fields: define definition: %w", err)
+		append([]SubField{}, definition.SubFields...)).Scan(&stored)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, s.errorFor(ctx, definition)
 	}
-	if stored == 0 {
-		return s.errorFor(ctx, definition)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("fields: define definition: %w", err)
 	}
-	return nil
+	return stored, nil
 }
 
 // errorFor reports why a definition the store refused could not be written.

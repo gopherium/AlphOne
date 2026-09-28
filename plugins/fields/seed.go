@@ -64,7 +64,7 @@ func (p *Plugin) seedDefinitions(ctx context.Context) error {
 		}
 		demo.ID = uuid.Must(uuid.NewV7())
 		demo.CreatedAt = time.Now().UTC()
-		if err := p.store.define(ctx, demo); err != nil {
+		if _, err := p.store.define(ctx, demo); err != nil {
 			return err
 		}
 	}

@@ -91,7 +91,7 @@ test('renders core and plugin reasons from one merged map', () => {
 	const merged = appErrorTemplates()
 
 	expect(merged.contact_name_required).toBe('A contact needs a name.')
-	expect(merged.field_name_taken).toBe('Another field already holds that name.')
+	expect(merged.field_name_taken).toBe('The field list just changed. Press Add field again.')
 	expect(merged.import_not_found).toBe('That import no longer exists.')
 	expect(merged.message_content_required).toBe('Write something to send.')
 })

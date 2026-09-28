@@ -5,6 +5,8 @@ package fields
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -26,6 +28,13 @@ type QueryResolvers struct {
 // QueryResolvers returns the plugin's Query resolver set.
 func (p *Plugin) QueryResolvers() QueryResolvers {
 	return QueryResolvers{plugin: p}
+}
+
+// ReservedFieldNames lists the names a field cannot take, sorted.
+func (q QueryResolvers) ReservedFieldNames(_ context.Context) ([]string, error) {
+	names := slices.AppendSeq(slices.Collect(maps.Keys(reservedNames)), maps.Keys(inheritedNames))
+	slices.Sort(names)
+	return names, nil
 }
 
 // MutationResolvers serves the plugin's Mutation fields.
@@ -92,12 +101,14 @@ func (m MutationResolvers) DefineField(
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
-	if err := m.plugin.store.define(ctx, definition); err != nil {
+	stored, err := m.plugin.store.define(ctx, definition)
+	if err != nil {
 		if errors.Is(err, errNameTaken) || errors.Is(err, errKindLocked) {
 			return nil, sdk.GraphError{Code: "CONFLICT", Reason: fieldReason(err), Err: err}
 		}
 		return nil, err
 	}
+	definition.ID = stored
 	m.plugin.catalog.forget(ctx)
 	return toGraphDefinition(definition), nil
 }

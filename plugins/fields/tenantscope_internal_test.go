@@ -29,7 +29,7 @@ func definedField(t *testing.T, p *Plugin, ctx context.Context, name string) {
 	held := Definition{
 		ID: uuid.Must(uuid.NewV7()), Name: name, Label: name, Kind: "TEXT", CreatedAt: time.Now(),
 	}
-	if err := p.store.define(ctx, held); err != nil {
+	if _, err := p.store.define(ctx, held); err != nil {
 		t.Fatalf("defining %s: %v", name, err)
 	}
 }
@@ -61,7 +61,7 @@ func TestArchivingStaysInsideItsTenant(t *testing.T) {
 		ID: uuid.Must(uuid.NewV7()), Name: "birthday", Label: "Birthday",
 		Kind: "TEXT", CreatedAt: time.Now(),
 	}
-	if err := p.store.define(acme, held); err != nil {
+	if _, err := p.store.define(acme, held); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 

@@ -46,7 +46,7 @@ func TestStoreRoundTripsADefinition(t *testing.T) {
 	p := newMigratedPlugin(t)
 	definition := defined(t, "birthDate", "DATE")
 
-	if err := p.store.define(t.Context(), definition); err != nil {
+	if _, err := p.store.define(t.Context(), definition); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 
@@ -69,11 +69,11 @@ func TestStoreRefusesADuplicateName(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 
-	err := p.store.define(t.Context(), defined(t, "birthDate", "TEXT"))
+	_, err := p.store.define(t.Context(), defined(t, "birthDate", "TEXT"))
 
 	if !errors.Is(err, errNameTaken) {
 		t.Errorf("error = %v, want errNameTaken", err)
@@ -85,14 +85,14 @@ func TestStoreRevivesAnArchivedDefinition(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	original := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), original); err != nil {
+	if _, err := p.store.define(t.Context(), original); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), original.ID); err != nil {
 		t.Fatalf("archive() error = %v, want nil", err)
 	}
 
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want the archived definition revived", err)
 	}
 
@@ -105,6 +105,38 @@ func TestStoreRevivesAnArchivedDefinition(t *testing.T) {
 	}
 	if live[0].ID != original.ID {
 		t.Errorf("id = %s, want the original %s kept so stored values stay reachable", live[0].ID, original.ID)
+	}
+}
+
+func TestStoreDefineAnswersTheIDOfARevivedDefinition(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	original := defined(t, "birthDate", "DATE")
+	if _, err := p.store.define(t.Context(), original); err != nil {
+		t.Fatalf("define() error = %v, want nil", err)
+	}
+	if err := p.store.archive(t.Context(), original.ID); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	id, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE"))
+
+	if err != nil || id != original.ID {
+		t.Errorf("define() = %s, %v, want the original id %s", id, err, original.ID)
+	}
+}
+
+func TestStoreDefineAnswersTheIDOfANewDefinition(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	definition := defined(t, "birthDate", "DATE")
+
+	id, err := p.store.define(t.Context(), definition)
+
+	if err != nil || id != definition.ID {
+		t.Errorf("define() = %s, %v, want the new id %s", id, err, definition.ID)
 	}
 }
 
@@ -123,7 +155,7 @@ func TestStoreClearsStrayValuesWhenATenantFirstDefinesANameAnotherTenantHolds(t 
 		t.Fatalf("writeValues() elsewhere error = %v, want nil", err)
 	}
 
-	if err := p.store.define(acme, defined(t, "shoeSize", "NUMBER")); err != nil {
+	if _, err := p.store.define(acme, defined(t, "shoeSize", "NUMBER")); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 
@@ -141,7 +173,7 @@ func TestStoreKeepsTheValuesOfARevivedDefinition(t *testing.T) {
 	p := newMigratedPlugin(t)
 	contactID := seedContact(t, p, "Maria Perez")
 	original := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), original); err != nil {
+	if _, err := p.store.define(t.Context(), original); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthDate": "1990-04-17"}); err != nil {
@@ -151,7 +183,7 @@ func TestStoreKeepsTheValuesOfARevivedDefinition(t *testing.T) {
 		t.Fatalf("archive() error = %v, want nil", err)
 	}
 
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want the archived definition revived", err)
 	}
 
@@ -203,7 +235,10 @@ func TestStoreKeepsALiveValueWhenARacingDefineIsRefused(t *testing.T) {
 	}
 	second := defined(t, "loyalty", "TEXT")
 	done := make(chan error, 1)
-	go func() { done <- p.store.define(context.Background(), second) }()
+	go func() {
+		_, err := p.store.define(context.Background(), second)
+		done <- err
+	}()
 
 	awaitLockedDefine(t, p)
 	if err := racing.Commit(t.Context()); err != nil {
@@ -223,14 +258,14 @@ func TestStoreClearsNothingWhenItRefusesADefinition(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	contactID := seedContact(t, p, "Maria Perez")
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.writeValues(t.Context(), contactID, map[string]any{"birthDate": "1990-04-17"}); err != nil {
 		t.Fatalf("writeValues() error = %v, want nil", err)
 	}
 
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); !errors.Is(err, errNameTaken) {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); !errors.Is(err, errNameTaken) {
 		t.Fatalf("define() error = %v, want errNameTaken", err)
 	}
 
@@ -244,14 +279,14 @@ func TestStoreRefusesRevivingUnderADifferentKind(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	original := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), original); err != nil {
+	if _, err := p.store.define(t.Context(), original); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), original.ID); err != nil {
 		t.Fatalf("archive() error = %v, want nil", err)
 	}
 
-	err := p.store.define(t.Context(), defined(t, "birthDate", "TEXT"))
+	_, err := p.store.define(t.Context(), defined(t, "birthDate", "TEXT"))
 
 	if !errors.Is(err, errKindLocked) {
 		t.Errorf("error = %v, want errKindLocked", err)
@@ -283,7 +318,7 @@ var historyColumns = []SubField{
 func archivedRepeater(t *testing.T, p *Plugin) Definition {
 	t.Helper()
 	original := historyOf(historyColumns...)
-	if err := p.store.define(t.Context(), original); err != nil {
+	if _, err := p.store.define(t.Context(), original); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), original.ID); err != nil {
@@ -297,7 +332,7 @@ func TestStoreRoundTripsARepeatersSubFieldsInOrder(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 
-	if err := p.store.define(t.Context(), historyOf(historyColumns...)); err != nil {
+	if _, err := p.store.define(t.Context(), historyOf(historyColumns...)); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 
@@ -320,7 +355,7 @@ func TestStoreRevivesARepeaterHoldingTheSameSubFields(t *testing.T) {
 		{Name: "comment", Label: "Note", Kind: kindLongText},
 	}
 
-	if err := p.store.define(t.Context(), historyOf(relabelled...)); err != nil {
+	if _, err := p.store.define(t.Context(), historyOf(relabelled...)); err != nil {
 		t.Fatalf("define() error = %v, want the archived repeater revived", err)
 	}
 
@@ -354,7 +389,7 @@ func TestStoreRefusesRevivingARepeaterUnderOtherSubFields(t *testing.T) {
 			p := newMigratedPlugin(t)
 			archivedRepeater(t, p)
 
-			err := p.store.define(t.Context(), historyOf(subFields...))
+			_, err := p.store.define(t.Context(), historyOf(subFields...))
 
 			if !errors.Is(err, errKindLocked) {
 				t.Errorf("error = %v, want errKindLocked", err)
@@ -378,7 +413,7 @@ func TestStoreRefusesSubFieldsOnlyARepeaterMayHold(t *testing.T) {
 
 			p := newMigratedPlugin(t)
 
-			err := p.store.define(t.Context(), definition)
+			_, err := p.store.define(t.Context(), definition)
 
 			var refused *pgconn.PgError
 			if !errors.As(err, &refused) || refused.Code != checkViolation {
@@ -393,7 +428,7 @@ func TestStoreArchiveHidesADefinitionFromTheLiveListing(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	definition := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), definition); err != nil {
+	if _, err := p.store.define(t.Context(), definition); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 
@@ -434,7 +469,7 @@ func TestStoreArchiveIsIdempotentOnALiveRow(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	definition := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), definition); err != nil {
+	if _, err := p.store.define(t.Context(), definition); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), definition.ID); err != nil {
@@ -468,7 +503,7 @@ func TestStoreListsDefinitionsByCreation(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	for _, name := range []string{"alpha", "beta", "gamma"} {
-		if err := p.store.define(t.Context(), defined(t, name, "TEXT")); err != nil {
+		if _, err := p.store.define(t.Context(), defined(t, name, "TEXT")); err != nil {
 			t.Fatalf("define(%q) error = %v, want nil", name, err)
 		}
 	}

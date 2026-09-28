@@ -86,7 +86,6 @@ test('maps a spreadsheet column onto a field an operator defined', async ({ page
 	await page.getByRole('link', { name: 'Fields' }).click()
 	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
 	await page.getByLabel('Label').fill(fieldLabel)
-	await page.getByLabel('Name').fill(field)
 	await page.getByRole('combobox', { name: 'Kind' }).click()
 	await page.getByRole('listbox').getByRole('option', { name: 'Date', exact: true }).click()
 	await page.getByRole('button', { name: 'Add field' }).click()

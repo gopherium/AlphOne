@@ -20,6 +20,9 @@ import (
 // entryIDsVersion is the migration that gives every stored repeater entry an id.
 const entryIDsVersion = 6
 
+// inheritedNamesVersion is the migration that moves every definition off a name every JavaScript object inherits.
+const inheritedNamesVersion = 7
+
 // fieldsProvider returns a goose provider over the plugin's migrations and its own version table.
 func fieldsProvider(t *testing.T, db *sql.DB) *goose.Provider {
 	t.Helper()
@@ -220,6 +223,197 @@ func TestEntryIDsMigrationRestoresTheStoredListsGoingDown(t *testing.T) {
 
 	if held := heldValues(t, db, maria); !reflect.DeepEqual(held, decoded(t, storedHistory)) {
 		t.Errorf("values = %#v, want the lists back oldest first with no ids", held)
+	}
+}
+
+// beforeInheritedNames returns a plugin and its database rolled back to the schema before inherited names move.
+func beforeInheritedNames(t *testing.T) (*Plugin, *sql.DB, *goose.Provider) {
+	t.Helper()
+	p := newMigratedPlugin(t)
+	db := stdlib.OpenDBFromPool(p.pool)
+	t.Cleanup(func() { _ = db.Close() })
+	provider := fieldsProvider(t, db)
+	if _, err := provider.DownTo(t.Context(), inheritedNamesVersion-1); err != nil {
+		t.Fatalf("rolling back to the schema before inherited names move: %v", err)
+	}
+	return p, db, provider
+}
+
+// definitionsIn returns whether each definition a tenant holds is archived, by name.
+func definitionsIn(t *testing.T, db *sql.DB, tenant uuid.UUID) map[string]bool {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(),
+		"SELECT name, archived_at IS NOT NULL FROM plugin_fields.definitions WHERE tenant_id = $1", tenant)
+	if err != nil {
+		t.Fatalf("reading the definitions: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	held := map[string]bool{}
+	for rows.Next() {
+		var name string
+		var archived bool
+		if err := rows.Scan(&name, &archived); err != nil {
+			t.Fatalf("scanning a definition: %v", err)
+		}
+		held[name] = archived
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("reading the definitions: %v", err)
+	}
+	return held
+}
+
+// moveInheritedNames applies the migration that moves definitions off inherited names.
+func moveInheritedNames(t *testing.T, provider *goose.Provider) {
+	t.Helper()
+	if _, err := provider.UpTo(t.Context(), inheritedNamesVersion); err != nil {
+		t.Fatalf("moving inherited names: %v", err)
+	}
+}
+
+func TestInheritedNamesMigrationMovesAFieldAndItsValues(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "constructor", "NUMBER", "[]", false)
+	storedDefinition(t, db, home, "nickname", "TEXT", "[]", false)
+	maria := contactHolding(t, db, home, `{"constructor": 5, "nickname": "Mari"}`)
+
+	moveInheritedNames(t, provider)
+
+	want := map[string]bool{"constructor2": false, "nickname": false}
+	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, want) {
+		t.Errorf("definitions = %v, want constructor moved to constructor2", held)
+	}
+	if held := heldValues(t, db, maria); !reflect.DeepEqual(held, decoded(t, `{"constructor2": 5, "nickname": "Mari"}`)) {
+		t.Errorf("values = %#v, want the value moved with its field", held)
+	}
+}
+
+func TestInheritedNamesMigrationStepsPastANameTheWorkspaceHolds(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "constructor", "NUMBER", "[]", false)
+	storedDefinition(t, db, home, "constructor2", "TEXT", "[]", false)
+	maria := contactHolding(t, db, home, `{"constructor": 5, "constructor2": "Kept"}`)
+
+	moveInheritedNames(t, provider)
+
+	want := map[string]bool{"constructor2": false, "constructor3": false}
+	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, want) {
+		t.Errorf("definitions = %v, want constructor moved past the held constructor2", held)
+	}
+	moved := decoded(t, `{"constructor2": "Kept", "constructor3": 5}`)
+	if held := heldValues(t, db, maria); !reflect.DeepEqual(held, moved) {
+		t.Errorf("values = %#v, want the moved value under constructor3 and constructor2 kept", held)
+	}
+}
+
+func TestInheritedNamesMigrationNumbersEachWorkspaceOnItsOwn(t *testing.T) {
+	t.Parallel()
+
+	p, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	acme := sdk.TenantOrDefault(inTenant(t, p))
+	storedDefinition(t, db, home, "valueOf", "NUMBER", "[]", false)
+	storedDefinition(t, db, home, "valueOf2", "NUMBER", "[]", false)
+	storedDefinition(t, db, acme, "valueOf", "NUMBER", "[]", false)
+
+	moveInheritedNames(t, provider)
+
+	want := map[string]bool{"valueOf2": false, "valueOf3": false}
+	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, want) {
+		t.Errorf("home definitions = %v, want valueOf moved to valueOf3", held)
+	}
+	if held := definitionsIn(t, db, acme); !reflect.DeepEqual(held, map[string]bool{"valueOf2": false}) {
+		t.Errorf("acme definitions = %v, want valueOf moved to valueOf2", held)
+	}
+}
+
+func TestInheritedNamesMigrationMovesArchivedFieldsToo(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "toString", "TEXT", "[]", true)
+	storedDefinition(t, db, home, "hasOwnProperty", "BOOLEAN", "[]", false)
+	maria := contactHolding(t, db, home, `{"toString": "a", "hasOwnProperty": true}`)
+
+	moveInheritedNames(t, provider)
+
+	want := map[string]bool{"toString2": true, "hasOwnProperty2": false}
+	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, want) {
+		t.Errorf("definitions = %v, want both moved, the archived one still archived", held)
+	}
+	moved := decoded(t, `{"toString2": "a", "hasOwnProperty2": true}`)
+	if held := heldValues(t, db, maria); !reflect.DeepEqual(held, moved) {
+		t.Errorf("values = %#v, want both values moved with their fields", held)
+	}
+}
+
+// valuesVersion returns the row version of one contact's values row.
+func valuesVersion(t *testing.T, db *sql.DB, contactID uuid.UUID) string {
+	t.Helper()
+	var version string
+	if err := db.QueryRowContext(t.Context(),
+		"SELECT xmin::text FROM plugin_fields.contact_values WHERE contact_id = $1", contactID).Scan(&version); err != nil {
+		t.Fatalf("reading the row version: %v", err)
+	}
+	return version
+}
+
+func TestInheritedNamesMigrationLeavesRowsWithoutTheNamesUnwritten(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "valueOf", "NUMBER", "[]", false)
+	rosa := contactHolding(t, db, home, `{"nickname": "Rosa"}`)
+	before := valuesVersion(t, db, rosa)
+
+	moveInheritedNames(t, provider)
+
+	if after := valuesVersion(t, db, rosa); after != before {
+		t.Errorf("row version = %s, want %s, the row holds no moved name", after, before)
+	}
+}
+
+func TestInheritedNamesMigrationClearsStrayValuesUnderTheNewName(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "constructor", "NUMBER", "[]", false)
+	stray := contactHolding(t, db, home, `{"constructor2": "Left behind", "nickname": "Rosa"}`)
+
+	moveInheritedNames(t, provider)
+
+	if held := heldValues(t, db, stray); !reflect.DeepEqual(held, decoded(t, `{"nickname": "Rosa"}`)) {
+		t.Errorf("values = %#v, want the stray constructor2 value cleared", held)
+	}
+}
+
+func TestInheritedNamesMigrationLeavesOtherFieldsAlone(t *testing.T) {
+	t.Parallel()
+
+	p, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	acme := sdk.TenantOrDefault(inTenant(t, p))
+	storedDefinition(t, db, home, "nickname", "TEXT", "[]", false)
+	storedDefinition(t, db, acme, "constructor", "NUMBER", "[]", false)
+	literal := `{"nickname": "Rosa", "constructor2": "Kept"}`
+	rosa := contactHolding(t, db, home, literal)
+
+	moveInheritedNames(t, provider)
+
+	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, map[string]bool{"nickname": false}) {
+		t.Errorf("definitions = %v, want the home workspace untouched", held)
+	}
+	if held := heldValues(t, db, rosa); !reflect.DeepEqual(held, decoded(t, literal)) {
+		t.Errorf("values = %#v, want the home values left as stored", held)
 	}
 }
 

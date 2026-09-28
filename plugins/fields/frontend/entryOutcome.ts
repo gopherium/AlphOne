@@ -26,11 +26,11 @@ const REFETCHES = new Map<string, readonly string[]>([
 ])
 
 /**
- * Returns the reason a refused entry call answered with.
+ * Returns the reason a refused call answered with.
  * @param error - The failure the call answered with.
  * @returns The reason, or an empty string.
  */
-function reasonOf(error: GraphFailure): string {
+export function reasonOf(error: GraphFailure): string {
 	const reason = graphExtensions(error).reason
 	return typeof reason === 'string' ? reason : ''
 }

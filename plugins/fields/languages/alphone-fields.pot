@@ -16,6 +16,9 @@ msgstr ""
 msgid "A field needs a label."
 msgstr ""
 
+msgid "A field with that label already exists."
+msgstr ""
+
 msgid "A repeater cannot hold another repeater."
 msgstr ""
 
@@ -31,6 +34,9 @@ msgstr ""
 msgid "A sub field name starts lowercase and runs together, like followUp."
 msgstr ""
 
+msgid "API name"
+msgstr ""
+
 msgid "Add a field"
 msgstr ""
 
@@ -44,12 +50,6 @@ msgid "Add field"
 msgstr ""
 
 msgid "Add sub field"
-msgstr ""
-
-msgid "An archived field of that name holds another kind or other sub fields."
-msgstr ""
-
-msgid "Another field already holds that name."
 msgstr ""
 
 msgid "Archive"
@@ -92,9 +92,6 @@ msgid "Move sub field down"
 msgstr ""
 
 msgid "Move sub field up"
-msgstr ""
-
-msgid "Name"
 msgstr ""
 
 msgid "No entries yet."
@@ -176,6 +173,9 @@ msgid "The field could not be archived."
 msgstr ""
 
 msgid "The field could not be defined."
+msgstr ""
+
+msgid "The field list just changed. Press Add field again."
 msgstr ""
 
 msgid "The fields could not be loaded."

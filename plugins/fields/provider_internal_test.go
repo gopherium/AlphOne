@@ -39,7 +39,7 @@ func storedValues(t *testing.T, p *Plugin, ctx context.Context, contactID uuid.U
 // define stores a definition and forgets the catalogue view it changes.
 func define(t *testing.T, p *Plugin, definition Definition) {
 	t.Helper()
-	if err := p.store.define(t.Context(), definition); err != nil {
+	if _, err := p.store.define(t.Context(), definition); err != nil {
 		t.Fatalf("define(%q) error = %v, want nil", definition.Name, err)
 	}
 	p.catalog.forget(t.Context())

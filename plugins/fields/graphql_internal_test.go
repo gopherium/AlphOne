@@ -16,6 +16,20 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+func TestReservedFieldNamesListsEveryReservedAndInheritedName(t *testing.T) {
+	t.Parallel()
+
+	names, err := (QueryResolvers{}).ReservedFieldNames(t.Context())
+
+	want := []string{
+		"constructor", "createdAt", "field", "hasOwnProperty", "id", "identities", "isPrototypeOf",
+		"name", "propertyIsEnumerable", "tasks", "toLocaleString", "toString", "valueOf", "whatsAppConversations",
+	}
+	if err != nil || !reflect.DeepEqual(names, want) {
+		t.Errorf("ReservedFieldNames() = %v, %v, want %v", names, err, want)
+	}
+}
+
 func TestDefineFieldNamesTheReasonItRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +175,7 @@ func TestStoreReportsAClosedPool(t *testing.T) {
 
 	p := newClosedPlugin(t)
 
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err == nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err == nil {
 		t.Error("create() error = nil, want the closed pool reported")
 	}
 	if err := p.store.archive(t.Context(), uuid.Must(uuid.NewV7())); err == nil {
@@ -269,7 +283,7 @@ func TestFieldsListsArchivedDefinitionsOnRequest(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	stored := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), stored); err != nil {
+	if _, err := p.store.define(t.Context(), stored); err != nil {
 		t.Fatalf("create() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), stored.ID); err != nil {

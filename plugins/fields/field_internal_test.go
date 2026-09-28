@@ -116,6 +116,21 @@ func TestNewDefinitionRefusesAReservedName(t *testing.T) {
 	}
 }
 
+func TestNewDefinitionRefusesANameEveryObjectInherits(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"constructor", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable",
+		"toLocaleString", "toString", "valueOf",
+	} {
+		_, err := newDefinition(name, "Points", "NUMBER", nil)
+
+		if !errors.Is(err, errReservedName) {
+			t.Errorf("newDefinition(%q) error = %v, want errReservedName", name, err)
+		}
+	}
+}
+
 func TestNewDefinitionRefusesALabelBeyondTheCap(t *testing.T) {
 	t.Parallel()
 

@@ -129,22 +129,6 @@ func bindRepeaterDefinitionSteps(sc *godog.ScenarioContext) {
 			}
 			return fmt.Errorf("the catalogue lists no field named %q, answered %s", name, w.answered)
 		})
-
-	sc.Then(`^the (?:definition|change) is refused with the reason "([^"]*)"$`,
-		func(ctx context.Context, reason string) error {
-			w := worldFrom(ctx)
-			var answer graphAnswer
-			if err := json.Unmarshal(w.answered, &answer); err != nil {
-				return fmt.Errorf("decoding %s: %w", w.answered, err)
-			}
-			if len(answer.Errors) == 0 {
-				return fmt.Errorf("the graph accepted it, answered %s", w.answered)
-			}
-			if got := answer.Errors[0].Extensions["reason"]; got != reason {
-				return fmt.Errorf("reason = %v, want %s, answered %s", got, reason, w.answered)
-			}
-			return nil
-		})
 }
 
 // bindRepeaterRowSteps binds the step that writes a whole list of rows through the field values.

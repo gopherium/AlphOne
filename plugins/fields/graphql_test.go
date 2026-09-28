@@ -5,6 +5,7 @@ package fields_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -168,8 +169,21 @@ func TestGraphRefusesANameTheSchemaOwns(t *testing.T) {
 	var created struct{ DefineField definition }
 	err := client.Post(`mutation { defineField(name: "name", label: "Name", kind: TEXT) { id } }`, &created)
 
-	if err == nil || !strings.Contains(err.Error(), "already a field") {
+	if err == nil || !strings.Contains(err.Error(), "the name is reserved") {
 		t.Errorf("error = %v, want the reserved name refused", err)
+	}
+}
+
+func TestGraphRefusesANameEveryObjectInherits(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+
+	var created struct{ DefineField definition }
+	err := client.Post(`mutation { defineField(name: "constructor", label: "Points", kind: NUMBER) { id } }`, &created)
+
+	if err == nil || !strings.Contains(err.Error(), "the name is reserved") {
+		t.Errorf("error = %v, want the inherited name refused", err)
 	}
 }
 
@@ -185,6 +199,42 @@ func TestGraphRefusesADuplicateName(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "holds that name") {
 		t.Errorf("error = %v, want the duplicate refused", err)
+	}
+}
+
+func TestGraphReservesEveryFieldTheContactTypeHolds(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	var answer struct{ ReservedFieldNames []string }
+	client.MustPost(`{ reservedFieldNames }`, &answer)
+
+	contact := graphres.ExecutableSchema(nil).Schema().Types["Contact"]
+	if contact == nil || len(contact.Fields) == 0 {
+		t.Fatal("the compiled schema holds no Contact fields")
+	}
+	for _, field := range contact.Fields {
+		if !strings.HasPrefix(field.Name, "__") && !slices.Contains(answer.ReservedFieldNames, field.Name) {
+			t.Errorf("reservedFieldNames lacks %q, a field the Contact type holds", field.Name)
+		}
+	}
+}
+
+func TestGraphAnswersTheIDOfARevivedField(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	const define = `mutation { defineField(name: "birthDate", label: "Birth date", kind: DATE) { id } }`
+	var first, revived struct{ DefineField definition }
+	client.MustPost(define, &first)
+	var archived struct{ ArchiveField bool }
+	client.MustPost(`mutation($id: UUID!) { archiveField(id: $id) }`, &archived,
+		gqlclient.Var("id", first.DefineField.ID))
+
+	client.MustPost(define, &revived)
+
+	if revived.DefineField.ID != first.DefineField.ID {
+		t.Errorf("revived id = %s, want the id the field kept, %s", revived.DefineField.ID, first.DefineField.ID)
 	}
 }
 

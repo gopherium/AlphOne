@@ -21,6 +21,37 @@ export const fieldsQuery = graphql(`
 	}
 `)
 
+/** fieldCatalogueOperation names the query the Fields screen reads its catalogue with. */
+export const fieldCatalogueOperation = 'FieldCatalogue'
+
+export const fieldCatalogueQuery = graphql(`
+	query FieldCatalogue {
+		fields {
+			id
+			name
+			label
+			kind
+			subFields {
+				name
+				label
+				kind
+			}
+		}
+		every: fields(includeArchived: true) {
+			id
+			name
+			label
+			kind
+			subFields {
+				name
+				label
+				kind
+			}
+		}
+		reservedFieldNames
+	}
+`)
+
 export const defineFieldMutation = graphql(`
 	mutation DefineField(
 		$name: String!

@@ -21,6 +21,10 @@ msgid "A field needs a label."
 msgstr "El campo necesita una etiqueta."
 
 #, fuzzy
+msgid "A field with that label already exists."
+msgstr "Ya existe un campo con esa etiqueta."
+
+#, fuzzy
 msgid "A repeater cannot hold another repeater."
 msgstr "Un repetidor no puede contener otro repetidor."
 
@@ -41,6 +45,10 @@ msgid "A sub field name starts lowercase and runs together, like followUp."
 msgstr "El nombre de un subcampo empieza por minúscula y va todo junto, como followUp."
 
 #, fuzzy
+msgid "API name"
+msgstr "Nombre en la API"
+
+#, fuzzy
 msgid "Add a field"
 msgstr "Añadir un campo"
 
@@ -59,14 +67,6 @@ msgstr "Añadir campo"
 #, fuzzy
 msgid "Add sub field"
 msgstr "Añadir subcampo"
-
-#, fuzzy
-msgid "An archived field of that name holds another kind or other sub fields."
-msgstr "Un campo archivado con ese nombre tiene otro tipo u otros subcampos."
-
-#, fuzzy
-msgid "Another field already holds that name."
-msgstr "Ya hay otro campo con ese nombre."
 
 #, fuzzy
 msgid "Archive"
@@ -123,10 +123,6 @@ msgstr "Bajar el subcampo"
 #, fuzzy
 msgid "Move sub field up"
 msgstr "Subir el subcampo"
-
-#, fuzzy
-msgid "Name"
-msgstr "Nombre"
 
 #, fuzzy
 msgid "No entries yet."
@@ -235,6 +231,10 @@ msgstr "No se ha podido archivar el campo."
 #, fuzzy
 msgid "The field could not be defined."
 msgstr "No se ha podido definir el campo."
+
+#, fuzzy
+msgid "The field list just changed. Press Add field again."
+msgstr "La lista de campos acaba de cambiar. Pulsa Añadir campo otra vez."
 
 #, fuzzy
 msgid "The fields could not be loaded."

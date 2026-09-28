@@ -24,10 +24,16 @@ import {
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
+import { reasonOf } from './entryOutcome'
 import { fieldsIcon } from './icon'
-import type { FieldKind } from './gql/graphql'
+import type { FieldCatalogueQuery, FieldKind } from './gql/graphql'
 import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
-import { archiveFieldMutation, catalogueOperation, defineFieldMutation, fieldsQuery } from './operations'
+import {
+	archiveFieldMutation,
+	defineFieldMutation,
+	fieldCatalogueOperation,
+	fieldCatalogueQuery,
+} from './operations'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {
@@ -51,12 +57,25 @@ interface DraftSubField {
 	kind: FieldKind
 }
 
+/** KnownNames are the live fields, every stored field and the names the server refuses. */
+interface KnownNames {
+	live: FieldRow[]
+	every: FieldRow[]
+	reserved: string[]
+}
+
+/** FormNotice is the notice the add form shows: a label a live field holds, the last define refusal, or none. */
+type FormNotice = 'label' | 'define' | null
+
+/** RACED are the reasons a define answers when another field took its name first. */
+const RACED = new Set(['field_name_taken', 'field_kind_locked'])
+
 /**
  * Renders the catalogue of contact fields an operator defines.
  * @returns The fields screen.
  */
 export function FieldsScreen() {
-	const [catalogue] = useGraphQuery({ query: fieldsQuery })
+	const [catalogue] = useGraphQuery({ query: fieldCatalogueQuery, requestPolicy: 'cache-and-network' })
 	const reload = useCatalogueRefresh()
 
 	if (catalogue.fetching && !catalogue.data) {
@@ -73,20 +92,33 @@ export function FieldsScreen() {
 			</PageScreen>
 		)
 	}
-	const fields = (catalogue.data?.fields ?? []) as FieldRow[]
+	const rows = catalogueRows(catalogue.data)
 	return (
 		<PageScreen title={__('Fields', 'alphone-fields')}>
 			<Stack direction="column" gap="lg">
-				<FieldList fields={fields} onChanged={reload} />
+				<FieldList fields={rows.live} onChanged={reload} />
 				<Stack direction="column" gap="sm">
 					<Text variant="heading-sm" render={<h2 />}>
 						{__('Add a field', 'alphone-fields')}
 					</Text>
-					<AddFieldForm onAdded={reload} />
+					<AddFieldForm known={rows} onAnswered={reload} />
 				</Stack>
 			</Stack>
 		</PageScreen>
 	)
+}
+
+/**
+ * Returns the live fields, every stored field and the reserved names a catalogue answer holds.
+ * @param data - The catalogue answer, absent while none has arrived.
+ * @returns The rows, each list empty when the answer lacks it.
+ */
+function catalogueRows(data: FieldCatalogueQuery | undefined): KnownNames {
+	return {
+		live: (data?.fields ?? []) as FieldRow[],
+		every: (data?.every ?? []) as FieldRow[],
+		reserved: data?.reservedFieldNames ?? [],
+	}
 }
 
 /**
@@ -96,7 +128,7 @@ export function FieldsScreen() {
 function useCatalogueRefresh() {
 	const graph = useGraph()
 	return () => {
-		graph.refetch([catalogueOperation])
+		graph.refetch([fieldCatalogueOperation])
 	}
 }
 
@@ -136,7 +168,7 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 					<thead>
 						<tr>
 							<th scope="col">{__('Label', 'alphone-fields')}</th>
-							<th scope="col">{__('Name', 'alphone-fields')}</th>
+							<th scope="col">{__('API name', 'alphone-fields')}</th>
 							<th scope="col">{__('Kind', 'alphone-fields')}</th>
 							<th scope="col" className="godmin-table__actions" />
 						</tr>
@@ -225,15 +257,39 @@ function namedSubFields(drafts: DraftSubField[]) {
 }
 
 /**
- * Renders the form defining one new field.
- * @param props - The reload run after a definition lands.
+ * Returns the name a new field takes from its label.
+ * @param label - The label of the new field.
+ * @param known - Every stored field and the names the server refuses.
+ * @param refused - The names the server refused as taken on this visit.
+ * @returns The name, numbered past every name already taken.
+ */
+function fieldName(label: string, known: KnownNames, refused: readonly string[]) {
+	const stored = known.every.map((row) => row.name)
+	return keyFromLabel(label, { style: 'camel', taken: [...known.reserved, ...refused, ...stored] })
+}
+
+/**
+ * Reports whether a live field already carries a label, ignoring case and outer spaces.
+ * @param label - The label typed.
+ * @param live - The live fields.
+ * @returns True when a live field carries it.
+ */
+function labelHeld(label: string, live: FieldRow[]) {
+	const typed = label.trim().toLowerCase()
+	return live.some((row) => row.label.trim().toLowerCase() === typed)
+}
+
+/**
+ * Renders the form defining one new field, naming it from its label.
+ * @param props - The names a new field steps past and the reload run after every answer the server gives.
  * @returns The add field form.
  */
-function AddFieldForm({ onAdded }: { onAdded: () => void }) {
+function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
 	const [label, setLabel] = useState('')
-	const [name, setName] = useState('')
+	const [notice, setNotice] = useState<FormNotice>(null)
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
+	const [refused, setRefused] = useState<readonly string[]>([])
 	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
 	const repeater = kind === 'REPEATER'
@@ -243,18 +299,30 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
+				if (labelHeld(label, known.live)) {
+					setNotice('label')
+					return
+				}
+				const name = fieldName(label, known, refused)
 				const sent = repeater ? namedSubFields(subFields) : undefined
 				void define({ name, label, kind, subFields: sent }).then((result) => {
+					if (!result.error?.networkError) {
+						onAnswered()
+					}
+					setNotice(result.error ? 'define' : null)
 					if (!result.error) {
 						setLabel('')
-						setName('')
 						setSubFields([])
-						onAdded()
+					} else if (RACED.has(reasonOf(result.error))) {
+						setRefused((held) => [...held, name])
 					}
 				})
 			}}
 		>
-			{defined.error ? (
+			{notice === 'label' ? (
+				<ErrorNotice>{__('A field with that label already exists.', 'alphone-fields')}</ErrorNotice>
+			) : null}
+			{notice === 'define' && defined.error ? (
 				<ErrorNotice>
 					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
@@ -263,13 +331,10 @@ function AddFieldForm({ onAdded }: { onAdded: () => void }) {
 				label={__('Label', 'alphone-fields')}
 				autoComplete="off"
 				value={label}
-				onChange={(event) => setLabel(event.target.value)}
-			/>
-			<InputControl
-				label={__('Name', 'alphone-fields')}
-				autoComplete="off"
-				value={name}
-				onChange={(event) => setName(event.target.value)}
+				onChange={(event) => {
+					setLabel(event.target.value)
+					setNotice((held) => (held === 'label' ? null : held))
+				}}
 			/>
 			<SelectControl
 				label={__('Kind', 'alphone-fields')}

@@ -40,7 +40,6 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 	await page.getByRole('link', { name: 'Fields' }).click()
 	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
 	await page.getByLabel('Label', { exact: true }).fill(label)
-	await page.getByLabel('Name', { exact: true }).fill(`history${stamp}`)
 	await chooseKind(page, page.getByRole('combobox', { name: 'Kind' }), 'Repeater')
 	await addSubField(page, 1, 'Date', 'Date')
 	await addSubField(page, 2, 'Comment', 'Long text')
@@ -48,6 +47,7 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 	const defined = page.getByRole('region', { name: 'Fields' }).getByRole('row').filter({ hasText: label })
 	await expect(defined).toContainText('Repeater')
 	await expect(defined).toContainText('Date, Comment')
+	await expect(defined).toContainText(`history${stamp}`)
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('link', { name: 'New contact' }).click()
