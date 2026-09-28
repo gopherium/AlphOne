@@ -80,7 +80,7 @@ test('the catalogue lists every defined field in a table', async () => {
 	expect(cells[1]).toHaveTextContent('birthDate')
 	expect(cells[2]).toHaveTextContent('Date')
 	expect(within(table).getByRole('columnheader', { name: 'Label' })).toBeInTheDocument()
-	expect(within(table).getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
+	expect(within(table).getByRole('columnheader', { name: 'API name' })).toBeInTheDocument()
 	expect(within(table).getByRole('columnheader', { name: 'Kind' })).toBeInTheDocument()
 })
 

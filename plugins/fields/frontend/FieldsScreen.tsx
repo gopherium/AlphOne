@@ -160,7 +160,7 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 					<thead>
 						<tr>
 							<th scope="col">{__('Label', 'alphone-fields')}</th>
-							<th scope="col">{__('Name', 'alphone-fields')}</th>
+							<th scope="col">{__('API name', 'alphone-fields')}</th>
 							<th scope="col">{__('Kind', 'alphone-fields')}</th>
 							<th scope="col" className="godmin-table__actions" />
 						</tr>

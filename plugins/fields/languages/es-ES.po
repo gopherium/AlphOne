@@ -41,6 +41,10 @@ msgid "A sub field name starts lowercase and runs together, like followUp."
 msgstr "El nombre de un subcampo empieza por minúscula y va todo junto, como followUp."
 
 #, fuzzy
+msgid "API name"
+msgstr "Nombre en la API"
+
+#, fuzzy
 msgid "Add a field"
 msgstr "Añadir un campo"
 
@@ -123,10 +127,6 @@ msgstr "Bajar el subcampo"
 #, fuzzy
 msgid "Move sub field up"
 msgstr "Subir el subcampo"
-
-#, fuzzy
-msgid "Name"
-msgstr "Nombre"
 
 #, fuzzy
 msgid "No entries yet."
