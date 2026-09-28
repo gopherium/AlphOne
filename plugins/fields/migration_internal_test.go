@@ -340,12 +340,17 @@ func TestInheritedNamesMigrationMovesArchivedFieldsToo(t *testing.T) {
 	home := sdk.TenantOrDefault(t.Context())
 	storedDefinition(t, db, home, "toString", "TEXT", "[]", true)
 	storedDefinition(t, db, home, "hasOwnProperty", "BOOLEAN", "[]", false)
+	maria := contactHolding(t, db, home, `{"toString": "a", "hasOwnProperty": true}`)
 
 	moveInheritedNames(t, provider)
 
 	want := map[string]bool{"toString2": true, "hasOwnProperty2": false}
 	if held := definitionsIn(t, db, home); !reflect.DeepEqual(held, want) {
 		t.Errorf("definitions = %v, want both moved, the archived one still archived", held)
+	}
+	moved := decoded(t, `{"toString2": "a", "hasOwnProperty2": true}`)
+	if held := heldValues(t, db, maria); !reflect.DeepEqual(held, moved) {
+		t.Errorf("values = %#v, want both values moved with their fields", held)
 	}
 }
 
