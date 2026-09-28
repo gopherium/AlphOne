@@ -19,7 +19,7 @@ var (
 	errUnknownKind   = errors.New("fields: unknown kind")
 	errBlankLabel    = errors.New("fields: a label carries text")
 	errLabelTooLong  = fmt.Errorf("fields: a label runs to %d characters", labelMax)
-	errReservedName  = errors.New("fields: the name is already a field of the type")
+	errReservedName  = errors.New("fields: the name is reserved")
 
 	errSubFieldsRequired   = errors.New("fields: a repeater holds at least one sub field")
 	errSubFieldsUnexpected = errors.New("fields: only a repeater holds sub fields")
@@ -64,6 +64,12 @@ var kinds = map[kind]string{
 // namePattern matches the camelCase names a definition accepts.
 var namePattern = regexp.MustCompile(`^[a-z][a-zA-Z0-9]*$`)
 
+// inheritedNames lists the camelCase members every JavaScript object inherits.
+var inheritedNames = map[string]bool{
+	"constructor": true, "hasOwnProperty": true, "isPrototypeOf": true, "propertyIsEnumerable": true,
+	"toLocaleString": true, "toString": true, "valueOf": true,
+}
+
 // scalar reports the GraphQL scalar the kind answers with.
 func (k kind) scalar() string {
 	return kinds[k]
@@ -94,7 +100,7 @@ func newDefinition(
 	if !namePattern.MatchString(name) {
 		return Definition{}, errMalformedName
 	}
-	if reserved[name] {
+	if reserved[name] || inheritedNames[name] {
 		return Definition{}, errReservedName
 	}
 	held := kind(declared)

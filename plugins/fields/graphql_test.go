@@ -168,8 +168,21 @@ func TestGraphRefusesANameTheSchemaOwns(t *testing.T) {
 	var created struct{ DefineField definition }
 	err := client.Post(`mutation { defineField(name: "name", label: "Name", kind: TEXT) { id } }`, &created)
 
-	if err == nil || !strings.Contains(err.Error(), "already a field") {
+	if err == nil || !strings.Contains(err.Error(), "the name is reserved") {
 		t.Errorf("error = %v, want the reserved name refused", err)
+	}
+}
+
+func TestGraphRefusesANameEveryObjectInherits(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+
+	var created struct{ DefineField definition }
+	err := client.Post(`mutation { defineField(name: "constructor", label: "Points", kind: NUMBER) { id } }`, &created)
+
+	if err == nil || !strings.Contains(err.Error(), "the name is reserved") {
+		t.Errorf("error = %v, want the inherited name refused", err)
 	}
 }
 
