@@ -199,6 +199,7 @@ type Query {
 	apiTokens: [ApiToken!]! @scope(area: "tokens", write: false)
 	webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
 	fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
+	reservedFieldNames: [String!]! @scope(area: "fields", write: false)
 	imports: [ImportJob!]! @scope(area: "imports", write: false)
 	importJob(id: UUID!): ImportJob @scope(area: "imports", write: false)
 	importFields: [ImportField!]! @scope(area: "imports", write: false)
