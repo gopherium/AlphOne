@@ -24,6 +24,7 @@ import {
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
+import { reasonOf } from './entryOutcome'
 import { fieldsIcon } from './icon'
 import type { FieldCatalogueQuery, FieldKind } from './gql/graphql'
 import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
@@ -62,6 +63,9 @@ interface KnownNames {
 	reserved: string[]
 }
 
+/** RACED are the reasons a define answers when another field took its name first. */
+const RACED = new Set(['field_name_taken', 'field_kind_locked'])
+
 /**
  * Renders the catalogue of contact fields an operator defines.
  * @returns The fields screen.
@@ -93,7 +97,7 @@ export function FieldsScreen() {
 					<Text variant="heading-sm" render={<h2 />}>
 						{__('Add a field', 'alphone-fields')}
 					</Text>
-					<AddFieldForm known={rows} onAdded={reload} />
+					<AddFieldForm known={rows} onAnswered={reload} />
 				</Stack>
 			</Stack>
 		</PageScreen>
@@ -252,21 +256,24 @@ function namedSubFields(drafts: DraftSubField[]) {
  * Returns the name a new field takes from its label.
  * @param label - The label of the new field.
  * @param known - Every stored field and the names the server refuses.
+ * @param refused - The names the server refused as taken on this visit.
  * @returns The name, numbered past every name already taken.
  */
-function fieldName(label: string, known: KnownNames) {
-	return keyFromLabel(label, { style: 'camel', taken: [...known.reserved, ...known.every.map((row) => row.name)] })
+function fieldName(label: string, known: KnownNames, refused: readonly string[]) {
+	const stored = known.every.map((row) => row.name)
+	return keyFromLabel(label, { style: 'camel', taken: [...known.reserved, ...refused, ...stored] })
 }
 
 /**
  * Renders the form defining one new field, naming it from its label.
- * @param props - The names a new field steps past and the reload run after a definition lands.
+ * @param props - The names a new field steps past and the reload run after every answer.
  * @returns The add field form.
  */
-function AddFieldForm({ known, onAdded }: { known: KnownNames; onAdded: () => void }) {
+function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
 	const [label, setLabel] = useState('')
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
+	const [refused, setRefused] = useState<readonly string[]>([])
 	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
 	const repeater = kind === 'REPEATER'
@@ -276,12 +283,15 @@ function AddFieldForm({ known, onAdded }: { known: KnownNames; onAdded: () => vo
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
+				const name = fieldName(label, known, refused)
 				const sent = repeater ? namedSubFields(subFields) : undefined
-				void define({ name: fieldName(label, known), label, kind, subFields: sent }).then((result) => {
+				void define({ name, label, kind, subFields: sent }).then((result) => {
+					onAnswered()
 					if (!result.error) {
 						setLabel('')
 						setSubFields([])
-						onAdded()
+					} else if (RACED.has(reasonOf(result.error))) {
+						setRefused((held) => [...held, name])
 					}
 				})
 			}}

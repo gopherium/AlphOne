@@ -65,14 +65,6 @@ msgid "Add sub field"
 msgstr "Añadir subcampo"
 
 #, fuzzy
-msgid "An archived field of that name holds another kind or other sub fields."
-msgstr "Un campo archivado con ese nombre tiene otro tipo u otros subcampos."
-
-#, fuzzy
-msgid "Another field already holds that name."
-msgstr "Ya hay otro campo con ese nombre."
-
-#, fuzzy
 msgid "Archive"
 msgstr "Archivar"
 
@@ -235,6 +227,10 @@ msgstr "No se ha podido archivar el campo."
 #, fuzzy
 msgid "The field could not be defined."
 msgstr "No se ha podido definir el campo."
+
+#, fuzzy
+msgid "The field list just changed. Press Add field again."
+msgstr "La lista de campos acaba de cambiar. Pulsa Añadir campo otra vez."
 
 #, fuzzy
 msgid "The fields could not be loaded."

@@ -49,12 +49,6 @@ msgstr ""
 msgid "Add sub field"
 msgstr ""
 
-msgid "An archived field of that name holds another kind or other sub fields."
-msgstr ""
-
-msgid "Another field already holds that name."
-msgstr ""
-
 msgid "Archive"
 msgstr ""
 
@@ -176,6 +170,9 @@ msgid "The field could not be archived."
 msgstr ""
 
 msgid "The field could not be defined."
+msgstr ""
+
+msgid "The field list just changed. Press Add field again."
 msgstr ""
 
 msgid "The fields could not be loaded."

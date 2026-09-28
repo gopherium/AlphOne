@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider } from '@alphone/frontend-sdk'
+import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
 import {
 	HttpResponse,
 	fakeGraphClient,
@@ -10,9 +10,14 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
+import { refusal, speakTemplates } from './harness'
+
+afterEach(() => {
+	configureErrorText({ templates: () => ({}), fallback: () => '' })
+})
 
 const RESERVED = [
 	'constructor', 'createdAt', 'field', 'hasOwnProperty', 'id', 'identities', 'isPrototypeOf',
@@ -242,6 +247,64 @@ test('a taken name is reported word for word', async () => {
 	await submitField()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/holds that name/)
+})
+
+test('a name taken meanwhile asks to press Add field again', async () => {
+	speakTemplates()
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))))
+
+	renderScreen()
+	await submitField()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. Press Add field again.')
+})
+
+test('an archived field holding the name asks to press Add field again', async () => {
+	speakTemplates()
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('CONFLICT', 'field_kind_locked'))))
+
+	renderScreen()
+	await submitField()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. Press Add field again.')
+})
+
+test('the catalogue is read again after a refused define', async () => {
+	let reads = 0
+	server.use(
+		graphql.query('FieldCatalogue', () => {
+			reads += 1
+			return HttpResponse.json({ data: { fields: [], every: [], reservedFieldNames: RESERVED } })
+		}),
+		graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))),
+	)
+
+	renderScreen()
+	await submitField()
+	await screen.findByRole('alert')
+
+	await waitFor(() => expect(reads).toBe(2))
+})
+
+test('a refused name is numbered on the next press', async () => {
+	serveFieldCatalogue([])
+	const defined = vi.fn()
+	server.use(
+		graphql.mutation('DefineField', async ({ variables }) => {
+			defined(variables)
+			return HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))
+		}),
+	)
+
+	renderScreen()
+	await submitField()
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
+	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate2'])
 })
 
 test('the chosen kind is sent with the definition', async () => {
