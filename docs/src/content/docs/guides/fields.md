@@ -10,14 +10,9 @@ running AlphOne, without a restart or a new version.
 
 ## Add a field
 
-Open **Fields** and fill in three things.
+Open **Fields** and fill in two things.
 
-**Label** is the text people see on screen, such as `Birth date`. Change it
-whenever you like.
-
-**Name** is what the API calls the field, such as `birthDate`. It starts with
-a lowercase letter and holds only letters and digits. Pick it carefully,
-because it cannot be changed later.
+**Label** is the text people see on screen, such as `Birth date`.
 
 **Kind** says what the field holds. Seven kinds are available.
 
@@ -31,8 +26,25 @@ because it cannot be changed later.
 | Choice | A short line, kept apart from Text so a later release can add a fixed option list |
 | Repeater | A list of entries that share the same parts, such as a contact history |
 
-Save, and the field exists. Open any contact and it is there, waiting to be
-filled in.
+Press **Add field**, and the field exists. Open any contact and it is there,
+waiting to be filled in.
+
+AlphOne makes the field's name from its label, so `Birth date` becomes
+`birthDate`. The API uses that name, and the field list shows it under
+**API name**. If another field already has that name, even an archived one,
+the new name gets the next free number, such as `birthDate2`. The number goes
+straight after the name, so `Address 2` becomes `address22` when `address2`
+is taken. The name cannot be changed later.
+
+If a field in the list already has the label, the screen says so and adds
+nothing. Case and spaces at either end do not matter, so `birth date` counts
+as `Birth date`.
+
+A few names are reserved, such as `name`, `tasks` and `constructor`. A label
+that makes one of them gets a number too, so `Name` becomes `name2`. A label
+with no Latin letters or digits, such as `???` or one written in Cyrillic, is
+named after the word `field`. That name is reserved too, so it becomes
+`field2`.
 
 ## Fill a field in
 
@@ -57,10 +69,10 @@ a label and a kind. For a history, that is `Date` as a Date and `Comment` as a
 Long text.
 
 A sub field can be any kind except Repeater, so a repeater never holds another
-repeater. You do not type a name for a sub field. AlphOne makes one from its
-label, so `Follow-up comment` becomes `followUpComment`. Two sub fields with
-the same label get two names, such as `note` and `note2`. A sub field labelled
-`ID` becomes `id2`, because each entry keeps its own id under `id`.
+repeater. AlphOne names a sub field from its label too, so
+`Follow-up comment` becomes `followUpComment`. Two sub fields with the same
+label get two names, such as `note` and `note2`. A sub field labelled `ID`
+becomes `id2`, because each entry keeps its own id under `id`.
 
 The sub fields cannot be changed once the repeater exists. The reason is the
 same as for the kind: old entries would no longer fit.
@@ -91,6 +103,10 @@ You do not have to type every value in by hand. When you import a CSV or an
 Excel file, your fields sit in the mapping dropdown beside Name, Email and
 Phone. Point a column at one and the values arrive with the contacts.
 
+A field named `email` or `phone` stays out of the dropdown, because Email and
+Phone already use those names. The labels `Email` and `Phone` make exactly
+those names, so choose a longer label, such as `Email consent`.
+
 The kind is checked before anything is stored. A row whose cell does not fit
 its field fails, the reason names the field and its kind, and no contact is
 created for that row. Fix the spreadsheet and import it again.
@@ -120,15 +136,16 @@ leave old values that no longer fit.
 Press **Archive** beside a field. It disappears from the contact screen and
 from the API straight away.
 
-Archiving does not delete anything. The values stay in the database. If you
-create the field again later, with the same name and the same kind, the old
-values come back. A repeater also needs the same sub fields, in the same
-order and with the same names and kinds, or AlphOne refuses it.
+Archiving does not delete anything. The values stay in the database, and the
+archived field keeps its name. So a new field with the same label gets a
+numbered name and starts empty. Only the API can bring the old field back with
+its values. See [Using your fields from the API](#using-your-fields-from-the-api).
 
 ## Using your fields from the API
 
 A field you create becomes a real field on `Contact` in the GraphQL API, under
-the name you chose. So after adding `birthDate` you can ask for it directly:
+its API name. So after adding `Birth date` you can ask for `birthDate`
+directly:
 
 ```graphql
 query {
