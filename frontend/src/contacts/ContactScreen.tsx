@@ -3,8 +3,11 @@
 import {
 	Button,
 	ErrorNotice,
+	IconButton,
 	InputControl,
 	LoadingScreen,
+	LogItem,
+	LogList,
 	PageScreen,
 	SectionTitle,
 	SelectControl,
@@ -14,12 +17,13 @@ import {
 	graphError,
 	sprintf,
 	graphExtensions,
+	trash,
 	useConnection,
 	useGraph,
 	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
@@ -60,6 +64,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		variables: { id: contactId, first: contactTasksPageSize },
 		select: (data) => data.contact?.tasks,
 	})
+	const identitiesHeading = useId()
 	const contact = detail.data?.contact
 
 	if (detail.isPending) {
@@ -85,8 +90,8 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			}
 		>
 			<RenameForm key={contact.name} contact={contact} />
-			<SectionTitle>{__('Identities', 'alphone')}</SectionTitle>
-			<IdentityList contact={contact} />
+			<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>
+			<IdentityList contact={contact} labelledBy={identitiesHeading} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
 		</PageScreen>
@@ -118,10 +123,30 @@ function useContactRefresh() {
 }
 
 /**
- * Renders the contact's identities, or a placeholder when none exist.
+ * Returns the name the channel select shows for a channel, or the channel itself when the select offers none.
+ * @param channel - The channel an identity belongs to.
+ * @returns The channel name to show.
+ */
+function channelName(channel: string): string {
+	return channelItems().find((item) => item.value === channel)?.label ?? channel
+}
+
+/**
+ * Returns the line one identity shows: its channel name, its identifier and any label.
+ * @param identity - The identity to describe.
+ * @returns The identity line.
+ */
+function identityText(identity: ContactDetail['identities'][number]): string {
+	const text = `${channelName(identity.channel)}: ${identity.identifier}`
+	return identity.displayName === '' ? text : `${text} (${identity.displayName})`
+}
+
+/**
+ * Renders the contact's identities as a log list, each with its trash at the row end, or a placeholder when none exist.
+ * @param props - The contact and the id of the heading that names the list.
  * @returns The identity list.
  */
-function IdentityList({ contact }: { contact: ContactDetail }) {
+function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelledBy: string }) {
 	const settled = useContactRefresh()
 	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
 	const removeIdentity = async (identityId: string) => {
@@ -136,26 +161,26 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 	}
 	return (
 		<>
-			<ul className="alphone-contacts__identities">
+			<LogList aria-labelledby={labelledBy}>
 				{contact.identities.map((identity) => (
-					<li key={identity.id}>
-						<Text>
-							{identity.displayName === ''
-								? `${identity.channel}: ${identity.identifier}`
-								: `${identity.channel}: ${identity.identifier} (${identity.displayName})`}
-						</Text>
-						<Button
-							variant="minimal"
-							size="small"
-							aria-label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-							loading={remove.fetching}
-							onClick={() => void removeIdentity(identity.id)}
-						>
-							{__('Remove', 'alphone')}
-						</Button>
-					</li>
+					<LogItem
+						key={identity.id}
+						aria-label={identityText(identity)}
+						label={<Text>{identityText(identity)}</Text>}
+						actions={
+							<IconButton
+								icon={trash}
+								variant="minimal"
+								tone="neutral"
+								size="compact"
+								label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
+								loading={remove.fetching}
+								onClick={() => void removeIdentity(identity.id)}
+							/>
+						}
+					/>
 				))}
-			</ul>
+			</LogList>
 			{remove.error ? (
 				<ErrorNotice>{__('The identity could not be removed.', 'alphone')}</ErrorNotice>
 			) : null}
@@ -188,7 +213,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				void submitIdentity()
@@ -245,7 +270,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				void submitRename()

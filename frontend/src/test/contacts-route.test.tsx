@@ -296,6 +296,30 @@ test('drops the session when the create is unauthorized', async () => {
 	)
 })
 
+test('lays the name and Create contact on one form row at the readable width', async () => {
+	server.use(
+		graphql.mutation('CreateContact', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt('/contacts/new')
+	await userEvent.type(await screen.findByLabelText('Name'), 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
+	const text = await screen.findByText('The contact could not be created.')
+	const notice = text.closest('[role="alert"]') as HTMLElement
+
+	const create = screen.getByRole('button', { name: 'Create contact' })
+	const cells = formRowChildren('Create contact')
+	expect(cells).toHaveLength(2)
+	expectFieldIn(cells[0], 'Name')
+	expect(cells[1]).toBe(create)
+	expect(create.closest('form')).toHaveClass('godmin-form')
+	expect(create.closest('form')).not.toHaveClass('godmin-form--inline')
+	expect(notice).toBeInTheDocument()
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+	expect(notice.closest('form')).toContainElement(create)
+})
+
 test('shows the contact detail with its identities', async () => {
 	renderAt(`/contacts/${anaID}`)
 
@@ -305,6 +329,27 @@ test('shows the contact detail with its identities', async () => {
 	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
 	expect(screen.getByText('whatsapp: 184467236')).toBeInTheDocument()
 	expect(screen.getByText('Created Jul 6, 2026')).toBeInTheDocument()
+})
+
+test('names each identity channel by its name instead of its key', async () => {
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					contact: detailFor(String(variables.id), 'Maria Perez', [
+						{ id: identityID1, channel: 'email', identifier: 'maria.perez@example.com', display_name: 'Maria Perez' },
+						{ id: identityID2, channel: 'phone', identifier: '184467235', display_name: '' },
+					]),
+				},
+			}),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Maria Perez' })
+
+	expect(screen.getByText('Email: maria.perez@example.com (Maria Perez)')).toBeInTheDocument()
+	expect(screen.getByText('Phone: 184467235')).toBeInTheDocument()
+	expect(screen.queryByText(/^(email|phone):/)).not.toBeInTheDocument()
 })
 
 test('sets the creation date beside the contact work', async () => {
@@ -367,7 +412,7 @@ test('adds an email identity to the contact', async () => {
 	await userEvent.type(screen.getByLabelText('Label'), 'Work')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByText('email: maria@example.com (Work)')).toBeInTheDocument()
+	expect(await screen.findByText('Email: maria@example.com (Work)')).toBeInTheDocument()
 	expect(posted).toEqual({
 		channel: 'email',
 		identifier: ' Maria@Example.COM ',
@@ -410,7 +455,7 @@ test('adds a phone identity through the channel select', async () => {
 	await userEvent.type(screen.getByLabelText('Value'), '+184 467 235')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByText('phone: +184467235')).toBeInTheDocument()
+	expect(await screen.findByText('Phone: +184467235')).toBeInTheDocument()
 	expect(posted).toMatchObject({ channel: 'phone', identifier: '+184 467 235' })
 })
 
@@ -591,10 +636,12 @@ test('removes an identity', async () => {
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
+	expect(screen.getByText('Email: maria@example.com')).toBeInTheDocument()
+
 	await userEvent.click(screen.getByRole('button', { name: 'Remove maria@example.com' }))
 
 	await waitFor(() =>
-		expect(screen.queryByText('email: maria@example.com')).not.toBeInTheDocument(),
+		expect(screen.queryByText('Email: maria@example.com')).not.toBeInTheDocument(),
 	)
 	expect(deleted).toBe(identityID2)
 	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
@@ -614,6 +661,36 @@ test('reports a failed removal', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The identity could not be removed.',
 	)
+})
+
+test('shows each identity remove as an icon named after its identifier', async () => {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	const remove = screen.getByRole('button', { name: 'Remove 184467235' })
+	expect(remove.textContent).toBe('')
+	expect(remove.querySelector('svg')).not.toBeNull()
+})
+
+test('lists each identity in the bordered log list with its trash at the row end', async () => {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	const list = screen.getByRole('list', { name: 'Identities' })
+	expect(list).toHaveClass('godmin-log-list')
+	expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+	for (const [text, identifier] of [
+		['whatsapp: 184467235 (Ana G)', '184467235'],
+		['whatsapp: 184467236', '184467236'],
+	]) {
+		const item = within(list).getByRole('listitem', { name: text })
+		const line = within(item).getByText(text)
+		const remove = within(item).getByRole('button', { name: `Remove ${identifier}` })
+		expect(line.closest('.godmin-log-list__label')).not.toBeNull()
+		expect(remove.closest('.godmin-log-list__actions')).not.toBeNull()
+		expect(line).not.toContainElement(remove)
+		expect(line.closest('.godmin-log-list__header')).toContainElement(remove)
+	}
 })
 
 test('renames a contact', async () => {
@@ -673,6 +750,18 @@ test('lays the name and Save on one form row', async () => {
 	expect(notice).toBeInTheDocument()
 	expect(notice.closest('.godmin-form__row')).toBeNull()
 	expect(notice.closest('form')).toContainElement(save)
+})
+
+test('fills the column with the rename and add identity forms', async () => {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	for (const button of ['Save', 'Add identity']) {
+		expect(screen.getByRole('button', { name: button }).closest('form')).toHaveClass(
+			'godmin-form',
+			'godmin-form--inline',
+		)
+	}
 })
 
 test('reports invalid contact details on rename', async () => {

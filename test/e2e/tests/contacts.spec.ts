@@ -23,7 +23,7 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await page.getByLabel('Value', { exact: true }).fill(email)
 	await page.getByLabel('Label', { exact: true }).fill('Work')
 	await page.getByRole('button', { name: 'Add identity' }).click()
-	await expect(page.getByText(`email: ${email} (Work)`)).toBeVisible()
+	await expect(page.getByText(`Email: ${email} (Work)`)).toBeVisible()
 
 	await page.getByRole('button', { name: `Remove ${email}` }).click()
 	await expect(page.getByText('No identities yet.')).toBeVisible()
