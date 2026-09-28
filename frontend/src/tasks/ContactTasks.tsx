@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
+	SectionTitle,
 	Text,
 	__,
 	validationMessage,
@@ -57,9 +58,7 @@ export function ContactTasks({
 
 	return (
 		<div className="alphone-tasks__contact-block">
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Tasks', 'alphone')}
-			</Text>
+			<SectionTitle>{__('Tasks', 'alphone')}</SectionTitle>
 			<AddContactTaskForm contactId={contactId} onAdded={settled} />
 			{change.error || push.error ? (
 				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>

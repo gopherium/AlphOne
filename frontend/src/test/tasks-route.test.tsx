@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Button } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -583,6 +583,16 @@ test('shows overdue work above the day, with its original due date', async () =>
 	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
 	expect(within(row).getByText(dueLabel(yesterday))).toBeInTheDocument()
 	expect(overdueBefore).toContain(today)
+})
+
+test('sets the overdue heading a size above the field labels', async () => {
+	const large = textClasses('heading-lg')
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }]
+
+	renderAt('/tasks')
+
+	const heading = await screen.findByRole('heading', { level: 2, name: 'Overdue' })
+	expect([...heading.classList]).toEqual(expect.arrayContaining(large))
 })
 
 test('keeps overdue work out of other days', async () => {

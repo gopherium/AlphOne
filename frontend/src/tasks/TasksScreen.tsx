@@ -10,8 +10,8 @@ import {
 	LoadMore,
 	ErrorNotice,
 	PageScreen,
+	SectionTitle,
 	Stack,
-	Text,
 	__,
 	chevronLeft,
 	chevronRight,
@@ -206,9 +206,7 @@ function OverdueSection({
 	}
 	return (
 		<Stack direction="column" gap="sm" className="alphone-tasks__overdue">
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Overdue', 'alphone')}
-			</Text>
+			<SectionTitle>{__('Overdue', 'alphone')}</SectionTitle>
 			<TaskList label={__('Overdue tasks', 'alphone')} tasks={rows} controls={controls} showDueDate />
 			<LoadMore query={tasks}>{__('Load more overdue', 'alphone')}</LoadMore>
 		</Stack>

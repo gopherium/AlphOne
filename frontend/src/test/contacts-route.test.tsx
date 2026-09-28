@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -314,6 +314,17 @@ test('sets the creation date beside the contact work', async () => {
 	expect(created.closest('.godmin-page__aside')).not.toBeNull()
 	expect(screen.getByRole('heading', { name: 'Identities' }).closest('.godmin-page__main')).not.toBeNull()
 	expect(screen.getByRole('heading', { name: 'Tasks' }).closest('.godmin-page__main')).not.toBeNull()
+})
+
+test('sets the section headings a size above the field labels', async () => {
+	const large = textClasses('heading-lg')
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { level: 1, name: 'Ana García' })
+
+	const identities = screen.getByRole('heading', { level: 2, name: 'Identities' })
+	const tasks = screen.getByRole('heading', { level: 2, name: 'Tasks' })
+	expect([...identities.classList]).toEqual(expect.arrayContaining(large))
+	expect([...tasks.classList]).toEqual(expect.arrayContaining(large))
 })
 
 test('adds an email identity to the contact', async () => {

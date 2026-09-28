@@ -6,6 +6,7 @@ import {
 	InputControl,
 	LoadingScreen,
 	PageScreen,
+	SectionTitle,
 	SelectControl,
 	Text,
 	ValidationError,
@@ -84,9 +85,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			}
 		>
 			<RenameForm key={contact.name} contact={contact} />
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Identities', 'alphone')}
-			</Text>
+			<SectionTitle>{__('Identities', 'alphone')}</SectionTitle>
 			<IdentityList contact={contact} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
