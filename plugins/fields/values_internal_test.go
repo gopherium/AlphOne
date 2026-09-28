@@ -61,7 +61,7 @@ func TestWriteContactFieldsReportsAStoreFailure(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err != nil {
 		t.Fatalf("define() error = %v, want nil", err)
 	}
 

@@ -92,12 +92,14 @@ func (m MutationResolvers) DefineField(
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Reason: fieldReason(err), Err: err}
 	}
-	if err := m.plugin.store.define(ctx, definition); err != nil {
+	stored, err := m.plugin.store.define(ctx, definition)
+	if err != nil {
 		if errors.Is(err, errNameTaken) || errors.Is(err, errKindLocked) {
 			return nil, sdk.GraphError{Code: "CONFLICT", Reason: fieldReason(err), Err: err}
 		}
 		return nil, err
 	}
+	definition.ID = stored
 	m.plugin.catalog.forget(ctx)
 	return toGraphDefinition(definition), nil
 }

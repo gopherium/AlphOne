@@ -241,7 +241,7 @@ func TestEntryMutationsCheckTheCallersOwnFields(t *testing.T) {
 	_, adding := resolvers.AddContactFieldEntry(acme, contactID, "history", map[string]any{"comment": "call"})
 	wantRefusal(t, adding, "VALIDATION", "field_unknown")
 
-	if err := p.store.define(acme, historyOf(historyColumns...)); err != nil {
+	if _, err := p.store.define(acme, historyOf(historyColumns...)); err != nil {
 		t.Fatalf("define() in Acme error = %v, want nil", err)
 	}
 	p.catalog.forget(acme)

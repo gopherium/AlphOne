@@ -201,6 +201,24 @@ func TestGraphRefusesADuplicateName(t *testing.T) {
 	}
 }
 
+func TestGraphAnswersTheIDOfARevivedField(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	const define = `mutation { defineField(name: "birthDate", label: "Birth date", kind: DATE) { id } }`
+	var first, revived struct{ DefineField definition }
+	client.MustPost(define, &first)
+	var archived struct{ ArchiveField bool }
+	client.MustPost(`mutation($id: UUID!) { archiveField(id: $id) }`, &archived,
+		gqlclient.Var("id", first.DefineField.ID))
+
+	client.MustPost(define, &revived)
+
+	if revived.DefineField.ID != first.DefineField.ID {
+		t.Errorf("revived id = %s, want the id the field kept, %s", revived.DefineField.ID, first.DefineField.ID)
+	}
+}
+
 func TestGraphArchivesAField(t *testing.T) {
 	t.Parallel()
 

@@ -161,7 +161,7 @@ func TestStoreReportsAClosedPool(t *testing.T) {
 
 	p := newClosedPlugin(t)
 
-	if err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err == nil {
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "DATE")); err == nil {
 		t.Error("create() error = nil, want the closed pool reported")
 	}
 	if err := p.store.archive(t.Context(), uuid.Must(uuid.NewV7())); err == nil {
@@ -269,7 +269,7 @@ func TestFieldsListsArchivedDefinitionsOnRequest(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	stored := defined(t, "birthDate", "DATE")
-	if err := p.store.define(t.Context(), stored); err != nil {
+	if _, err := p.store.define(t.Context(), stored); err != nil {
 		t.Fatalf("create() error = %v, want nil", err)
 	}
 	if err := p.store.archive(t.Context(), stored.ID); err != nil {
