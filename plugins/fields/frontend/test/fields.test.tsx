@@ -324,23 +324,49 @@ test('the catalogue is read again after a refused define', async () => {
 	await waitFor(() => expect(reads).toBe(2))
 })
 
-test('a refused name is numbered on the next press', async () => {
+test.each(['field_name_taken', 'field_kind_locked'])(
+	'a name refused with %s is numbered on the next press',
+	async (reason) => {
+		serveFieldCatalogue([])
+		const defined = vi.fn()
+		server.use(
+			graphql.mutation('DefineField', async ({ variables }) => {
+				defined(variables)
+				return HttpResponse.json(refusal('CONFLICT', reason))
+			}),
+		)
+
+		renderScreen()
+		await submitField()
+		await screen.findByRole('alert')
+		await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+		await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
+		expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate2'])
+	},
+)
+
+test('a refusal that is not a race sends the same name again', async () => {
 	serveFieldCatalogue([])
 	const defined = vi.fn()
 	server.use(
 		graphql.mutation('DefineField', async ({ variables }) => {
 			defined(variables)
-			return HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))
+			return HttpResponse.json(
+				defined.mock.calls.length === 1
+					? refusal('VALIDATION', 'field_label_too_long')
+					: { data: { defineField: birthDate } },
+			)
 		}),
 	)
 
 	renderScreen()
 	await submitField()
-	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
+	await screen.findByRole('alert')
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
-	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate2'])
+	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate'])
 })
 
 test('a define lost on the way keeps the form and its draft', async () => {
