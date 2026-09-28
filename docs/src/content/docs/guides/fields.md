@@ -188,9 +188,25 @@ mutation {
 }
 ```
 
-The API does not make sub field names for you. Send a camelCase name for each
-one, unique inside the repeater. `id` is refused, because each entry keeps its
-own id under that name.
+The API does not make names for you. `defineField` takes a `name` such as
+`birthDate`. It starts with a lowercase letter and uses only a to z, A to Z
+and 0 to 9. Each sub field needs such a name too, unique inside its repeater.
+`id` is refused for a sub field, because each entry keeps its own id under
+that name.
+
+`reservedFieldNames` lists the names no field can take. They are the fields
+`Contact` is built with, such as `name` and `tasks`, and the names every
+JavaScript object has, such as `constructor` and `toString`. Such a name is
+refused with `field_name_reserved`. Upgrading AlphOne moves a field stored
+under one of the JavaScript names to the next free name, such as
+`constructor2`, with its values.
+
+`fields(includeArchived: true)` also lists archived fields, each with its
+`archivedAt`, so you can find the name to send. Calling `defineField` with an
+archived field's name brings that field back with its values and the label
+you send. The kind must match, and for a repeater so must the sub field names
+and kinds, in the same order. Otherwise the call is refused with
+`field_kind_locked`. The answer carries the field's old id.
 
 A repeater reads as a list of entries typed `JSON`, the last one added first.
 Each entry is an object keyed by sub field name, with the `id` AlphOne gave

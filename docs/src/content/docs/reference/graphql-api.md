@@ -413,7 +413,7 @@ The stock plugins add their own:
 | `field_label_required` | | a field needs a label |
 | `field_label_too_long` | | the label is past the cap |
 | `field_kind_unknown` | | the kind is not one the plugin knows |
-| `field_name_reserved` | | the name is already a column of the type |
+| `field_name_reserved` | | the name is one `reservedFieldNames` lists |
 | `field_sub_fields_required` | | a repeater needs at least one sub field |
 | `field_sub_fields_unexpected` | | only a repeater holds sub fields |
 | `field_sub_field_nested` | | a sub field cannot be a repeater |
@@ -520,7 +520,7 @@ cannot drift. Point a client at the endpoint, or read
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
-| Fields | `fields`, `Contact.field` | `defineField`, `archiveField`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
+| Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
 | Version | `version` | |
