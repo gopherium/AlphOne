@@ -5,6 +5,7 @@ package fields_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -198,6 +199,24 @@ func TestGraphRefusesADuplicateName(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "holds that name") {
 		t.Errorf("error = %v, want the duplicate refused", err)
+	}
+}
+
+func TestGraphReservesEveryFieldTheContactTypeHolds(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	var answer struct{ ReservedFieldNames []string }
+	client.MustPost(`{ reservedFieldNames }`, &answer)
+
+	contact := graphres.ExecutableSchema(nil).Schema().Types["Contact"]
+	if contact == nil || len(contact.Fields) == 0 {
+		t.Fatal("the compiled schema holds no Contact fields")
+	}
+	for _, field := range contact.Fields {
+		if !strings.HasPrefix(field.Name, "__") && !slices.Contains(answer.ReservedFieldNames, field.Name) {
+			t.Errorf("reservedFieldNames lacks %q, a field the Contact type holds", field.Name)
+		}
 	}
 }
 
