@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	LogList,
+	SectionTitle,
 	Stack,
 	Text,
 	__,
@@ -46,9 +47,9 @@ export function RepeaterEntries({
 
 	return (
 		<Stack direction="column" gap="sm" role="group" aria-labelledby={heading}>
-			<Text variant="heading-sm" render={<h3 />} id={heading}>
+			<SectionTitle level={3} id={heading}>
 				{field.label}
-			</Text>
+			</SectionTitle>
 			<AddEntryForm
 				contactId={contactId}
 				field={field}

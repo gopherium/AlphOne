@@ -9,6 +9,7 @@ import {
 	LoadingRows,
 	PageScreen,
 	RepeatRows,
+	SectionTitle,
 	SelectControl,
 	Stack,
 	Text,
@@ -98,9 +99,7 @@ export function FieldsScreen() {
 			<Stack direction="column" gap="lg">
 				<FieldList fields={rows.live} onChanged={reload} />
 				<Stack direction="column" gap="sm">
-					<Text variant="heading-sm" render={<h2 />}>
-						{__('Add a field', 'alphone-fields')}
-					</Text>
+					<SectionTitle>{__('Add a field', 'alphone-fields')}</SectionTitle>
 					<AddFieldForm known={rows} onAnswered={reload} />
 				</Stack>
 			</Stack>
@@ -368,9 +367,7 @@ function SubFieldRows({
 
 	return (
 		<Stack direction="column" gap="sm">
-			<Text variant="heading-sm" render={<h3 />}>
-				{__('Sub fields', 'alphone-fields')}
-			</Text>
+			<SectionTitle level={3}>{__('Sub fields', 'alphone-fields')}</SectionTitle>
 			<RepeatRows
 				rows={rows}
 				onChange={onChange}

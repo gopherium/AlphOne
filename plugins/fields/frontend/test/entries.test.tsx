@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { configureErrorText } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -233,6 +233,18 @@ test('shows the entry actions as icons that keep their spoken names', async () =
 		expect(button.textContent).toBe('')
 		expect(button.querySelector('svg')).not.toBeNull()
 	}
+})
+
+test('sets the Fields heading and a repeater heading a size above the field labels', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+
+	renderPanel()
+
+	const repeater = await screen.findByRole('heading', { level: 3, name: 'History' })
+	const fields = screen.getByRole('heading', { level: 2, name: 'Fields' })
+	expect([...fields.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
+	expect([...repeater.classList]).toEqual(expect.arrayContaining(textClasses('heading-md')))
 })
 
 test('tells apart two entries of one day by their first line', async () => {

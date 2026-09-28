@@ -6,6 +6,7 @@ import {
 	fakeGraphClient,
 	graphql,
 	server,
+	textClasses,
 } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -713,6 +714,18 @@ test('lays the label and the kind on one form row', async () => {
 	expect(notice.closest('.godmin-form__row')).toBeNull()
 	expect(screen.getByRole('group', { name: 'Sub field 1' }).closest('.godmin-form__row')).toBeNull()
 	expect(screen.getByRole('button', { name: 'Add field' }).closest('.godmin-form__row')).toBeNull()
+})
+
+test('sets the Add a field and Sub fields headings a size above the field labels', async () => {
+	serveFieldCatalogue([])
+
+	renderScreen()
+	await startRepeater()
+
+	const add = screen.getByRole('heading', { level: 2, name: 'Add a field' })
+	const sub = screen.getByRole('heading', { level: 3, name: 'Sub fields' })
+	expect([...add.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
+	expect([...sub.classList]).toEqual(expect.arrayContaining(textClasses('heading-md')))
 })
 
 test('archiving a field sends its id', async () => {
