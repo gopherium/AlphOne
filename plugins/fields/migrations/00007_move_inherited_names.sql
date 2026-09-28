@@ -23,7 +23,12 @@ SET values = v.values
         SELECT jsonb_object_agg(m.moved, v.values -> m.inherited) FROM inherited_moves AS m
         WHERE m.tenant_id = v.tenant_id AND v.values ? m.inherited
     ), '{}'::jsonb)
-WHERE v.tenant_id IN (SELECT m.tenant_id FROM inherited_moves AS m);
+WHERE v.tenant_id IN (SELECT m.tenant_id FROM inherited_moves AS m)
+    AND v.values ?| ARRAY(
+        SELECT m.moved FROM inherited_moves AS m WHERE m.tenant_id = v.tenant_id
+        UNION ALL
+        SELECT m.inherited FROM inherited_moves AS m WHERE m.tenant_id = v.tenant_id
+    );
 
 UPDATE plugin_fields.definitions AS d
 SET name = m.moved

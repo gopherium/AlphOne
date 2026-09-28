@@ -349,6 +349,33 @@ func TestInheritedNamesMigrationMovesArchivedFieldsToo(t *testing.T) {
 	}
 }
 
+// valuesVersion returns the row version of one contact's values row.
+func valuesVersion(t *testing.T, db *sql.DB, contactID uuid.UUID) string {
+	t.Helper()
+	var version string
+	if err := db.QueryRowContext(t.Context(),
+		"SELECT xmin::text FROM plugin_fields.contact_values WHERE contact_id = $1", contactID).Scan(&version); err != nil {
+		t.Fatalf("reading the row version: %v", err)
+	}
+	return version
+}
+
+func TestInheritedNamesMigrationLeavesRowsWithoutTheNamesUnwritten(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := beforeInheritedNames(t)
+	home := sdk.TenantOrDefault(t.Context())
+	storedDefinition(t, db, home, "valueOf", "NUMBER", "[]", false)
+	rosa := contactHolding(t, db, home, `{"nickname": "Rosa"}`)
+	before := valuesVersion(t, db, rosa)
+
+	moveInheritedNames(t, provider)
+
+	if after := valuesVersion(t, db, rosa); after != before {
+		t.Errorf("row version = %s, want %s, the row holds no moved name", after, before)
+	}
+}
+
 func TestInheritedNamesMigrationClearsStrayValuesUnderTheNewName(t *testing.T) {
 	t.Parallel()
 
