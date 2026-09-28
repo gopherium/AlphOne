@@ -356,6 +356,21 @@ test('a define lost on the way keeps the form and its draft', async () => {
 	expect(screen.getByLabelText('Label')).toHaveValue('Anniversary')
 })
 
+test('a refused label drops an earlier failure for good', async () => {
+	serveFieldCatalogue([birthDate])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))))
+
+	renderScreen()
+	await defineLabelled('Anniversary')
+	await screen.findByRole('alert')
+	await userEvent.clear(screen.getByLabelText('Label'))
+	await defineLabelled('Birth date')
+	await screen.findByText('A field with that label already exists.')
+	await userEvent.type(screen.getByLabelText('Label'), 's')
+
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('the chosen kind is sent with the definition', async () => {
 	serveFieldCatalogue([])
 	const defined = captureDefine()

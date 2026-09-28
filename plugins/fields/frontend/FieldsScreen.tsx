@@ -64,6 +64,9 @@ interface KnownNames {
 	reserved: string[]
 }
 
+/** FormNotice is the notice the add form shows: a label a live field holds, the last define refusal, or none. */
+type FormNotice = 'label' | 'define' | null
+
 /** RACED are the reasons a define answers when another field took its name first. */
 const RACED = new Set(['field_name_taken', 'field_kind_locked'])
 
@@ -283,7 +286,7 @@ function labelHeld(label: string, live: FieldRow[]) {
  */
 function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
 	const [label, setLabel] = useState('')
-	const [labelTaken, setLabelTaken] = useState(false)
+	const [notice, setNotice] = useState<FormNotice>(null)
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
 	const [refused, setRefused] = useState<readonly string[]>([])
@@ -297,7 +300,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 			onSubmit={(event) => {
 				event.preventDefault()
 				if (labelHeld(label, known.live)) {
-					setLabelTaken(true)
+					setNotice('label')
 					return
 				}
 				const name = fieldName(label, known, refused)
@@ -306,6 +309,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 					if (!result.error?.networkError) {
 						onAnswered()
 					}
+					setNotice(result.error ? 'define' : null)
 					if (!result.error) {
 						setLabel('')
 						setSubFields([])
@@ -315,10 +319,10 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 				})
 			}}
 		>
-			{labelTaken ? (
+			{notice === 'label' ? (
 				<ErrorNotice>{__('A field with that label already exists.', 'alphone-fields')}</ErrorNotice>
 			) : null}
-			{defined.error && !labelTaken ? (
+			{notice === 'define' && defined.error ? (
 				<ErrorNotice>
 					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
@@ -329,7 +333,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 				value={label}
 				onChange={(event) => {
 					setLabel(event.target.value)
-					setLabelTaken(false)
+					setNotice((held) => (held === 'label' ? null : held))
 				}}
 			/>
 			<SelectControl
