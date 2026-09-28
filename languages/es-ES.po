@@ -47,14 +47,8 @@ msgstr "Tokens de API"
 msgid "Actions"
 msgstr "Acciones"
 
-msgid "Add a task"
-msgstr "Añadir una tarea"
-
 msgid "Add a task above, or open a contact and create one from their page."
 msgstr "Añade una tarea arriba, o abre un contacto y crea una desde su página."
-
-msgid "Add a task for this contact"
-msgstr "Añadir una tarea para este contacto"
 
 msgid "Add identity"
 msgstr "Añadir identidad"
@@ -302,10 +296,6 @@ msgid "New task"
 msgstr "Tarea nueva"
 
 #, fuzzy
-msgid "New task for this contact"
-msgstr "Tarea nueva para este contacto"
-
-#, fuzzy
 msgid "New token"
 msgstr "Token nuevo"
 
@@ -377,10 +367,6 @@ msgid "Reading the languages"
 msgstr "Leyendo los idiomas"
 
 #, fuzzy
-msgid "Remove"
-msgstr "Quitar"
-
-#, fuzzy
 msgid "Remove %(identifier)s"
 msgstr "Quitar %(identifier)s"
 
@@ -444,6 +430,10 @@ msgstr "Estado"
 #, fuzzy
 msgid "Task"
 msgstr "Tarea"
+
+#, fuzzy
+msgid "Task title"
+msgstr "Título de la tarea"
 
 #, fuzzy
 msgid "Tasks"
