@@ -3,7 +3,8 @@
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test } from 'vitest'
+import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
+import { afterEach, beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
@@ -87,6 +88,10 @@ function expectFieldIn(child: Element | undefined, label: string) {
 }
 
 let listQueries: string[] = []
+
+afterEach(() => {
+	resetLocaleData(undefined, 'alphone-whatsapp')
+})
 
 beforeEach(() => {
 	listQueries = []
@@ -326,8 +331,8 @@ test('shows the contact detail with its identities', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Ana García' }),
 	).toBeInTheDocument()
-	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
-	expect(screen.getByText('whatsapp: 184467236')).toBeInTheDocument()
+	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(screen.getByText('WhatsApp: 184467236')).toBeInTheDocument()
 	expect(screen.getByText('Created Jul 6, 2026')).toBeInTheDocument()
 })
 
@@ -350,6 +355,31 @@ test('names each identity channel by its name instead of its key', async () => {
 	expect(screen.getByText('Email: maria.perez@example.com (Maria Perez)')).toBeInTheDocument()
 	expect(screen.getByText('Phone: 184467235')).toBeInTheDocument()
 	expect(screen.queryByText(/^(email|phone):/)).not.toBeInTheDocument()
+})
+
+test('names a plugin channel in the language the page shows', async () => {
+	setLocaleData({ 'contact channel\u0004WhatsApp': ['Chat app'] }, 'alphone-whatsapp')
+	renderAt(`/contacts/${anaID}`)
+
+	expect(await screen.findByText('Chat app: 184467236')).toBeInTheDocument()
+})
+
+test('shows a channel that no one names by its key', async () => {
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					contact: detailFor(String(variables.id), 'Maria Perez', [
+						{ id: identityID1, channel: 'telegram', identifier: '184467235', display_name: '' },
+					]),
+				},
+			}),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Maria Perez' })
+
+	expect(screen.getByText('telegram: 184467235')).toBeInTheDocument()
 })
 
 test('sets the creation date beside the contact work', async () => {
@@ -644,7 +674,7 @@ test('removes an identity', async () => {
 		expect(screen.queryByText('Email: maria@example.com')).not.toBeInTheDocument(),
 	)
 	expect(deleted).toBe(identityID2)
-	expect(screen.getByText('whatsapp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
 })
 
 test('reports a failed removal', async () => {
@@ -680,8 +710,8 @@ test('lists each identity in the bordered log list with its trash at the row end
 	expect(list).toHaveClass('godmin-log-list')
 	expect(within(list).getAllByRole('listitem')).toHaveLength(2)
 	for (const [text, identifier] of [
-		['whatsapp: 184467235 (Ana G)', '184467235'],
-		['whatsapp: 184467236', '184467236'],
+		['WhatsApp: 184467235 (Ana G)', '184467235'],
+		['WhatsApp: 184467236', '184467236'],
 	]) {
 		const item = within(list).getByRole('listitem', { name: text })
 		const line = within(item).getByText(text)
