@@ -156,8 +156,8 @@ importers:
         specifier: workspace:*
         version: link:../plugins/whatsapp/frontend
       '@gopherium/godmin':
-        specifier: 0.11.0
-        version: 0.11.0(dcf93bb2df0535b72c5d2768136b7099)
+        specifier: 0.12.0
+        version: 0.12.0(dcf93bb2df0535b72c5d2768136b7099)
       '@gopherium/gottext':
         specifier: 0.5.1
         version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
@@ -346,8 +346,8 @@ importers:
   sdk/frontend:
     dependencies:
       '@gopherium/godmin':
-        specifier: 0.11.0
-        version: 0.11.0(dcf93bb2df0535b72c5d2768136b7099)
+        specifier: 0.12.0
+        version: 0.12.0(dcf93bb2df0535b72c5d2768136b7099)
       '@gopherium/gottext':
         specifier: 0.5.1
         version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
@@ -1028,8 +1028,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@gopherium/godmin@0.11.0':
-    resolution: {integrity: sha512-vSlqfHLahbjPArW1uKOb0rh8nMwD7jUrEo7i+boxkXAI0KiNXh/8kBMisgBUdTPkNHM3hIe3dQ3VeZ4VBQUp0Q==}
+  '@gopherium/godmin@0.12.0':
+    resolution: {integrity: sha512-DGUXdq8MnLVjTFYU1D+0aEm8bKB3U6UR6g/ykAO7fVHCEUnKfXiiBwYgjYF/Q5ngXdjbUmU3WD664sdAaGbJYA==}
     peerDependencies:
       '@tanstack/react-router': ^1.170.0
       '@testing-library/react': ^16.3.2
@@ -5690,7 +5690,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@gopherium/godmin@0.11.0(dcf93bb2df0535b72c5d2768136b7099)':
+  '@gopherium/godmin@0.12.0(dcf93bb2df0535b72c5d2768136b7099)':
     dependencies:
       '@wordpress/style-runtime': 0.11.0
       '@wordpress/theme': 2.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(stylelint@17.15.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.1)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
