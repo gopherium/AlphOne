@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,12 +29,19 @@ const defaultTokenLifetime = 90 * 24 * time.Hour
 // dateLayout formats the dates the token subcommands print.
 const dateLayout = "2006-01-02"
 
+// tokenUsage is the line the token subcommand prints when asked how to run it.
+const tokenUsage = "usage: alphone token create|list|revoke [flags], pass -h after the verb for its flags"
+
 // token creates, lists, and revokes the API tokens of one user.
 func token(ctx context.Context, getenv func(string) string, args []string, stdout io.Writer) error {
-	if len(args) == 0 {
-		return errors.New("token: want one of create, list, revoke")
+	if len(args) == 0 || slices.Contains([]string{"help", "-h", "-help", "--help"}, args[0]) {
+		_, err := fmt.Fprintln(stdout, tokenUsage)
+		return err
 	}
 	verb := args[0]
+	if !slices.Contains([]string{"create", "list", "revoke"}, verb) {
+		return fmt.Errorf("token: unknown command %q, want create, list or revoke", verb)
+	}
 	opts, err := parseTokenFlags(verb, args[1:], stdout)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
@@ -142,11 +150,8 @@ func runTokenVerb(
 		return createToken(ctx, tokens, userID, opts, stdout)
 	case "list":
 		return listTokens(ctx, tokens, userID, stdout)
-	case "revoke":
-		return revokeToken(ctx, tokens, userID, opts.id, stdout)
-	default:
-		return fmt.Errorf("token: unknown command %q", verb)
 	}
+	return revokeToken(ctx, tokens, userID, opts.id, stdout)
 }
 
 // createToken mints a token and prints its secret for the only time.
