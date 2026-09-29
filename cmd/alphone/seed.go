@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"time"
@@ -32,6 +33,29 @@ const (
 	seedMemberEmail   = "maria@example.com"
 	seedMemberName    = "Maria Perez"
 )
+
+// seedUsage is the help the seed subcommand prints.
+const seedUsage = `Usage:
+  alphone seed
+
+Stores the demo data. It takes no flags or arguments.`
+
+// seedCommand runs the seed subcommand, refusing any flag or argument before it touches the database.
+func seedCommand(ctx context.Context, getenv func(string) string, args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("seed", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	err := flags.Parse(args)
+	switch {
+	case errors.Is(err, flag.ErrHelp):
+		_, err := fmt.Fprintln(stdout, seedUsage)
+		return err
+	case err != nil:
+		return fmt.Errorf("seed: %w", err)
+	case len(args) > 0:
+		return errors.New("seed takes no arguments")
+	}
+	return seed(ctx, getenv, stdout)
+}
 
 // seed migrates the database and stores the demo data set.
 func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) error {

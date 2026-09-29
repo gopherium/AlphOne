@@ -370,16 +370,17 @@ func TestTokenRevokeRemovesTheToken(t *testing.T) {
 	}
 }
 
-func TestTokenRejectsAnUnknownVerb(t *testing.T) {
+func TestTokenRejectsAnUnknownVerbBeforeTouchingTheDatabase(t *testing.T) {
 	t.Parallel()
 
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
-	seedTokenUser(t, getenv)
+	for _, args := range [][]string{{"sniff", "-email", "admin@example.com"}, {"sniff", "-h"}} {
+		var stdout strings.Builder
+		err := token(t.Context(), testGetenv(map[string]string{}), args, &stdout)
 
-	err := token(t.Context(), getenv, []string{"sniff", "-email", "admin@example.com"}, io.Discard)
-
-	if err == nil || !strings.Contains(err.Error(), "unknown command") {
-		t.Errorf("token() error = %v, want an unknown verb reported", err)
+		want := `token: unknown command "sniff", want create, list or revoke`
+		if err == nil || err.Error() != want || stdout.Len() != 0 {
+			t.Errorf("token(%q) = %v with stdout %q, want %q and nothing printed", args, err, stdout.String(), want)
+		}
 	}
 }
 
@@ -407,13 +408,17 @@ func TestTokenRejectsAnUnparsableRevokeID(t *testing.T) {
 	}
 }
 
-func TestTokenWithoutAVerb(t *testing.T) {
+func TestTokenPrintsItsUsageWhenAskedOrGivenNoVerb(t *testing.T) {
 	t.Parallel()
 
-	err := token(t.Context(), testGetenv(map[string]string{}), nil, io.Discard)
+	for _, args := range [][]string{nil, {"-h"}, {"-help"}, {"--help"}, {"help"}} {
+		var stdout strings.Builder
+		err := token(t.Context(), testGetenv(map[string]string{}), args, &stdout)
 
-	if err == nil {
-		t.Error("token() error = nil, want the missing verb reported")
+		want := "usage: alphone token create|list|revoke [flags], pass -h after the verb for its flags\n"
+		if err != nil || stdout.String() != want {
+			t.Errorf("token(%q) = %v with stdout %q, want nil and %q", args, err, stdout.String(), want)
+		}
 	}
 }
 
