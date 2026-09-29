@@ -145,3 +145,7 @@ msgstr ""
 msgctxt "admin section"
 msgid "WhatsApp"
 msgstr ""
+
+msgctxt "contact channel"
+msgid "WhatsApp"
+msgstr ""

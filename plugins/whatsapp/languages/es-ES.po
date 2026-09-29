@@ -142,6 +142,11 @@ msgid "WhatsApp"
 msgstr "WhatsApp"
 
 #, fuzzy
+msgctxt "contact channel"
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+#, fuzzy
 msgid "%(name)s (unavailable)"
 msgstr "%(name)s (no disponible)"
 
