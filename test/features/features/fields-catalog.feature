@@ -65,9 +65,60 @@ Feature: An operator shapes the field catalogue
     Then the catalogue does not list "birthDate"
     And the catalogue lists "birthDate" among archived definitions
 
-  Scenario: Defining an archived field again answers the field it brings back
+  @wip
+  Scenario: Defining an archived field again answers the field it brings back and lists it last
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
+    And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
     And the operator archives the field "birthDate"
     When the operator defines the field "birthDate" labelled "Date of birth" of kind DATE
     Then the definition answers the id the catalogue lists for "birthDate"
     And the catalogue lists "birthDate" with label "Date of birth" and kind DATE
+    And the catalogue lists the fields in order:
+      | name      |
+      | shoeSize  |
+      | birthDate |
+
+  @wip
+  Scenario: The operator orders the fields
+    Given the field "birthDate" labelled "Birth date" of kind DATE is defined
+    And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
+    And the field "nickname" labelled "Nickname" of kind TEXT is defined
+    When the operator orders the fields:
+      | name      |
+      | nickname  |
+      | birthDate |
+      | shoeSize  |
+    Then the order is accepted
+    And the catalogue lists the fields in order:
+      | name      |
+      | nickname  |
+      | birthDate |
+      | shoeSize  |
+
+  @wip
+  Scenario: A new field goes to the end of the order
+    Given the field "birthDate" labelled "Birth date" of kind DATE is defined
+    And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
+    And the operator orders the fields:
+      | name      |
+      | shoeSize  |
+      | birthDate |
+    When the operator defines the field "nickname" labelled "Nickname" of kind TEXT
+    Then the catalogue lists the fields in order:
+      | name      |
+      | shoeSize  |
+      | birthDate |
+      | nickname  |
+
+  @wip
+  Scenario: An order that leaves a field out is refused
+    Given the field "birthDate" labelled "Birth date" of kind DATE is defined
+    And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
+    When the operator orders the fields:
+      | name     |
+      | shoeSize |
+    Then the change is refused with the reason "field_order_incomplete"
+    And the catalogue lists the fields in order:
+      | name      |
+      | birthDate |
+      | shoeSize  |

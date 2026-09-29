@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -312,6 +313,18 @@ func bindImportSteps(sc *godog.ScenarioContext) {
 			return nil
 		})
 
+	sc.Then(`^the mapping registry lists in order:$`, func(ctx context.Context, table *godog.Table) error {
+		w := worldFrom(ctx)
+		names, err := w.registryNames(ctx)
+		if err != nil {
+			return err
+		}
+		if want := tableColumn(table); !slices.Equal(names, want) {
+			return fmt.Errorf("registry = %v, want %v, answered %s", names, want, w.answered)
+		}
+		return nil
+	})
+
 	sc.Then(`^the mapping registry does not list "([^"]*)"$`, func(ctx context.Context, name string) error {
 		w := worldFrom(ctx)
 		listed, err := w.readRegistry(ctx)
@@ -390,8 +403,8 @@ func bindImportSteps(sc *godog.ScenarioContext) {
 	})
 }
 
-// readRegistry reads the mappable registry into a set of names.
-func (w *world) readRegistry(ctx context.Context) (map[string]bool, error) {
+// registryNames reads the names of the mappable registry in the order it lists them.
+func (w *world) registryNames(ctx context.Context) ([]string, error) {
 	answer, err := w.importOperation(ctx, registryQuery, nil)
 	if err != nil {
 		return nil, err
@@ -399,9 +412,22 @@ func (w *world) readRegistry(ctx context.Context) (map[string]bool, error) {
 	if len(answer.Errors) > 0 {
 		return nil, fmt.Errorf("the registry was refused, answered %s", w.answered)
 	}
-	listed := make(map[string]bool, len(answer.Data.ImportFields))
+	names := make([]string, 0, len(answer.Data.ImportFields))
 	for _, field := range answer.Data.ImportFields {
-		listed[field.Name] = true
+		names = append(names, field.Name)
+	}
+	return names, nil
+}
+
+// readRegistry reads the mappable registry into a set of names.
+func (w *world) readRegistry(ctx context.Context) (map[string]bool, error) {
+	names, err := w.registryNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	listed := make(map[string]bool, len(names))
+	for _, name := range names {
+		listed[name] = true
 	}
 	return listed, nil
 }
