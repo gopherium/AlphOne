@@ -18,12 +18,13 @@ import (
 
 // Store errors.
 var (
-	errNameTaken    = errors.New("fields: another definition holds that name")
-	errNoDefinition = errors.New("fields: no live definition holds that id")
-	errKindLocked   = errors.New("fields: the archived definition of that name holds another kind or other sub fields")
-	errNoContact    = errors.New("fields: the caller's tenant holds no contact of that id")
-	errEntriesFull  = errors.New("fields: the repeater has no room for the entries given")
-	errNoEntry      = errors.New("fields: no entry of that id is in that contact's field")
+	errNameTaken       = errors.New("fields: another definition holds that name")
+	errNoDefinition    = errors.New("fields: no live definition holds that id")
+	errKindLocked      = errors.New("fields: the archived definition of that name holds another kind or other sub fields")
+	errNoContact       = errors.New("fields: the caller's tenant holds no contact of that id")
+	errEntriesFull     = errors.New("fields: the repeater has no room for the entries given")
+	errNoEntry         = errors.New("fields: no entry of that id is in that contact's field")
+	errOrderIncomplete = errors.New("fields: the order does not name each live field exactly once")
 )
 
 // store reads and writes the definition catalogue.
@@ -38,7 +39,8 @@ func (s *store) define(ctx context.Context, definition Definition) (uuid.UUID, e
 				(id, name, label, kind, created_at, tenant_id, sub_fields)
 			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
 			ON CONFLICT (tenant_id, name) DO UPDATE
-				SET archived_at = NULL, label = EXCLUDED.label, sub_fields = EXCLUDED.sub_fields
+				SET archived_at = NULL, label = EXCLUDED.label, sub_fields = EXCLUDED.sub_fields,
+					position = nextval('plugin_fields.definitions_position_seq')
 			WHERE plugin_fields.definitions.archived_at IS NOT NULL
 				AND plugin_fields.definitions.kind = EXCLUDED.kind
 				AND jsonb_path_query_array(plugin_fields.definitions.sub_fields, '$[*].name')
@@ -99,15 +101,61 @@ func (s *store) archive(ctx context.Context, id uuid.UUID) error {
 func (s *store) liveDefinitions(ctx context.Context) ([]Definition, error) {
 	const query = `SELECT id, name, label, kind, sub_fields, archived_at, created_at
 		FROM plugin_fields.definitions
-		WHERE archived_at IS NULL AND tenant_id = $1 ORDER BY created_at, id`
+		WHERE archived_at IS NULL AND tenant_id = $1 ORDER BY position, id`
 	return s.query(ctx, query)
 }
 
-// allDefinitions lists every definition, archived ones included.
+// allDefinitions lists every definition, the live ones first in their order and the archived ones after.
 func (s *store) allDefinitions(ctx context.Context) ([]Definition, error) {
 	const query = `SELECT id, name, label, kind, sub_fields, archived_at, created_at
-		FROM plugin_fields.definitions WHERE tenant_id = $1 ORDER BY created_at, id`
+		FROM plugin_fields.definitions WHERE tenant_id = $1 ORDER BY archived_at IS NOT NULL, position, id`
 	return s.query(ctx, query)
+}
+
+// lockLiveStatement locks the tenant's live definitions by id and answers their ids.
+const lockLiveStatement = `SELECT array_agg(id) FROM (
+		SELECT id FROM plugin_fields.definitions
+		WHERE tenant_id = $1 AND archived_at IS NULL ORDER BY id FOR UPDATE
+	) AS locked`
+
+// orderStatement sets the position of each named definition to its place in the list.
+const orderStatement = `UPDATE plugin_fields.definitions AS d SET position = o.n
+	FROM unnest($2::uuid[]) WITH ORDINALITY AS o (id, n)
+	WHERE d.id = o.id AND d.tenant_id = $1`
+
+// order sets live positions from ids, refusing a missing or repeated id or an archived, unknown or other tenant's id.
+func (s *store) order(ctx context.Context, ids []uuid.UUID) error {
+	tenant := sdk.TenantOrDefault(ctx)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var held []uuid.UUID
+		if err := tx.QueryRow(ctx, lockLiveStatement, tenant).Scan(&held); err != nil {
+			return err
+		}
+		if !namesEachOnce(ids, held) {
+			return errOrderIncomplete
+		}
+		_, err := tx.Exec(ctx, orderStatement, tenant, ids)
+		return err
+	})
+	if err != nil && !errors.Is(err, errOrderIncomplete) {
+		return fmt.Errorf("fields: order definitions: %w", err)
+	}
+	return err
+}
+
+// namesEachOnce reports whether given names every held id exactly once and nothing else.
+func namesEachOnce(given, held []uuid.UUID) bool {
+	left := make(map[uuid.UUID]bool, len(held))
+	for _, id := range held {
+		left[id] = true
+	}
+	for _, id := range given {
+		if !left[id] {
+			return false
+		}
+		delete(left, id)
+	}
+	return len(left) == 0
 }
 
 // writeValues merges values into a contact's field values, dropping the keys written null.

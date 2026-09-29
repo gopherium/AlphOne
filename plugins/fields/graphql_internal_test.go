@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -184,6 +185,9 @@ func TestStoreReportsAClosedPool(t *testing.T) {
 	if _, err := p.store.liveDefinitions(t.Context()); err == nil {
 		t.Error("liveDefinitions() error = nil, want the closed pool reported")
 	}
+	if err := p.store.order(t.Context(), nil); err == nil || errors.Is(err, errOrderIncomplete) {
+		t.Errorf("order() error = %v, want the closed pool reported", err)
+	}
 }
 
 func TestResolversReportAClosedPool(t *testing.T) {
@@ -200,6 +204,44 @@ func TestResolversReportAClosedPool(t *testing.T) {
 	}
 	if _, err := (MutationResolvers{plugin: p}).ArchiveField(t.Context(), uuid.Must(uuid.NewV7())); err == nil {
 		t.Error("ArchiveField() error = nil, want the closed pool reported")
+	}
+	if _, err := (MutationResolvers{plugin: p}).OrderFields(t.Context(), nil); err == nil {
+		t.Error("OrderFields() error = nil, want the closed pool reported")
+	}
+}
+
+func TestOrderFieldsNamesTheReasonItRefuses(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	definedIDs(t, p, t.Context(), "birthDate")
+
+	_, err := (MutationResolvers{plugin: p}).OrderFields(t.Context(), nil)
+
+	var raised sdk.GraphError
+	if !errors.As(err, &raised) || raised.Code != "CONFLICT" || raised.Reason != "field_order_incomplete" {
+		t.Errorf("error = %v, want the incomplete order named a conflict", err)
+	}
+}
+
+func TestOrderingRenewsTheCallersFields(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize")
+	mustView(t, p.catalog, t.Context())
+
+	ordered, err := (MutationResolvers{plugin: p}).OrderFields(t.Context(), []uuid.UUID{ids[1], ids[0]})
+	if err != nil || !ordered {
+		t.Fatalf("OrderFields() = %t, %v, want the order stored", ordered, err)
+	}
+
+	var names []string
+	for _, field := range mustView(t, p.catalog, t.Context()).fields {
+		names = append(names, field.Name)
+	}
+	if !slices.Equal(names, []string{"shoeSize", "birthDate"}) {
+		t.Errorf("the caller's fields = %v, want the new order served", names)
 	}
 }
 

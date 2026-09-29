@@ -26,6 +26,7 @@ export function errorTemplates(): Record<string, string> {
 		field_name_taken: __('The field list just changed. Press Add field again.', DOMAIN),
 		field_kind_locked: __('The field list just changed. Press Add field again.', DOMAIN),
 		field_not_found: __('That field no longer exists.', DOMAIN),
+		field_order_incomplete: __('The field list just changed. The new order was not saved.', DOMAIN),
 		field_unknown: __('That field is not one this contact holds.', DOMAIN),
 		value_kind_mismatch: __('That value does not match the kind the field declares.', DOMAIN),
 		values_not_an_object: __('Send the values as field names to values.', DOMAIN),

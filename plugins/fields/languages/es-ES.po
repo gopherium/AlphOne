@@ -229,6 +229,10 @@ msgid "The field list just changed. Press Add field again."
 msgstr "La lista de campos acaba de cambiar. Pulsa Añadir campo otra vez."
 
 #, fuzzy
+msgid "The field list just changed. The new order was not saved."
+msgstr "La lista de campos acaba de cambiar. No se ha guardado el nuevo orden."
+
+#, fuzzy
 msgid "The fields could not be loaded."
 msgstr "No se han podido cargar los campos."
 

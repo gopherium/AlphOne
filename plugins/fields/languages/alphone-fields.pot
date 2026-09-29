@@ -172,6 +172,9 @@ msgstr ""
 msgid "The field list just changed. Press Add field again."
 msgstr ""
 
+msgid "The field list just changed. The new order was not saved."
+msgstr ""
+
 msgid "The fields could not be loaded."
 msgstr ""
 

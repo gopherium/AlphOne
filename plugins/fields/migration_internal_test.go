@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -23,6 +25,9 @@ const entryIDsVersion = 6
 // inheritedNamesVersion is the migration that moves every definition off a name every JavaScript object inherits.
 const inheritedNamesVersion = 7
 
+// fieldPositionsVersion is the migration that gives every definition a stored place in the order.
+const fieldPositionsVersion = 8
+
 // fieldsProvider returns a goose provider over the plugin's migrations and its own version table.
 func fieldsProvider(t *testing.T, db *sql.DB) *goose.Provider {
 	t.Helper()
@@ -37,17 +42,23 @@ func fieldsProvider(t *testing.T, db *sql.DB) *goose.Provider {
 	return provider
 }
 
-// beforeEntryIDs returns a plugin and its database rolled back to the schema before entry ids.
-func beforeEntryIDs(t *testing.T) (*Plugin, *sql.DB, *goose.Provider) {
+// rolledBackBefore returns a plugin and its database rolled back to the schema before the given migration.
+func rolledBackBefore(t *testing.T, version int64) (*Plugin, *sql.DB, *goose.Provider) {
 	t.Helper()
 	p := newMigratedPlugin(t)
 	db := stdlib.OpenDBFromPool(p.pool)
 	t.Cleanup(func() { _ = db.Close() })
 	provider := fieldsProvider(t, db)
-	if _, err := provider.DownTo(t.Context(), entryIDsVersion-1); err != nil {
-		t.Fatalf("rolling back to the schema before entry ids: %v", err)
+	if _, err := provider.DownTo(t.Context(), version-1); err != nil {
+		t.Fatalf("rolling back to the schema before migration %d: %v", version, err)
 	}
 	return p, db, provider
+}
+
+// beforeEntryIDs returns a plugin and its database rolled back to the schema before entry ids.
+func beforeEntryIDs(t *testing.T) (*Plugin, *sql.DB, *goose.Provider) {
+	t.Helper()
+	return rolledBackBefore(t, entryIDsVersion)
 }
 
 // storedDefinition stores one definition row in a tenant as the schema before entry ids holds it.
@@ -229,14 +240,7 @@ func TestEntryIDsMigrationRestoresTheStoredListsGoingDown(t *testing.T) {
 // beforeInheritedNames returns a plugin and its database rolled back to the schema before inherited names move.
 func beforeInheritedNames(t *testing.T) (*Plugin, *sql.DB, *goose.Provider) {
 	t.Helper()
-	p := newMigratedPlugin(t)
-	db := stdlib.OpenDBFromPool(p.pool)
-	t.Cleanup(func() { _ = db.Close() })
-	provider := fieldsProvider(t, db)
-	if _, err := provider.DownTo(t.Context(), inheritedNamesVersion-1); err != nil {
-		t.Fatalf("rolling back to the schema before inherited names move: %v", err)
-	}
-	return p, db, provider
+	return rolledBackBefore(t, inheritedNamesVersion)
 }
 
 // definitionsIn returns whether each definition a tenant holds is archived, by name.
@@ -429,4 +433,117 @@ func TestEntryIDsMigrationStopsAtASubFieldNamedID(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "definitions_sub_fields_no_id") {
 		t.Errorf("UpTo() error = %v, want the sub field named id to stop the migration", err)
 	}
+}
+
+// definedAt stores one live text definition in a tenant as created at the given time.
+func definedAt(t *testing.T, db *sql.DB, tenant uuid.UUID, name string, createdAt time.Time) {
+	t.Helper()
+	if _, err := db.ExecContext(t.Context(),
+		`INSERT INTO plugin_fields.definitions (id, name, label, kind, created_at, tenant_id)
+		VALUES ($1, $2, $2, 'TEXT', $3, $4)`, uuid.Must(uuid.NewV7()), name, createdAt, tenant); err != nil {
+		t.Fatalf("storing the definition %s: %v", name, err)
+	}
+}
+
+// namesByPosition returns the names of a tenant's definitions in the order their stored positions give.
+func namesByPosition(t *testing.T, db *sql.DB, tenant uuid.UUID) []string {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(),
+		"SELECT name FROM plugin_fields.definitions WHERE tenant_id = $1 ORDER BY position", tenant)
+	if err != nil {
+		t.Fatalf("reading the positions: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scanning a name: %v", err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("reading the positions: %v", err)
+	}
+	return names
+}
+
+// placeFields applies the migration that gives every definition a stored position.
+func placeFields(t *testing.T, provider *goose.Provider) {
+	t.Helper()
+	if _, err := provider.UpTo(t.Context(), fieldPositionsVersion); err != nil {
+		t.Fatalf("placing the fields: %v", err)
+	}
+}
+
+func TestFieldPositionsMigrationKeepsTheCreationOrderOfEachWorkspace(t *testing.T) {
+	t.Parallel()
+
+	p, db, provider := rolledBackBefore(t, fieldPositionsVersion)
+	home := sdk.TenantOrDefault(t.Context())
+	acme := sdk.TenantOrDefault(inTenant(t, p))
+	now := time.Now()
+	definedAt(t, db, home, "shoeSize", now.Add(-time.Minute))
+	definedAt(t, db, acme, "nickname", now.Add(-2*time.Minute))
+	definedAt(t, db, home, "birthDate", now.Add(-3*time.Minute))
+	definedAt(t, db, acme, "loyalty", now)
+
+	placeFields(t, provider)
+
+	if held := namesByPosition(t, db, home); !slices.Equal(held, []string{"birthDate", "shoeSize"}) {
+		t.Errorf("home order = %v, want the oldest definition first", held)
+	}
+	if held := namesByPosition(t, db, acme); !slices.Equal(held, []string{"nickname", "loyalty"}) {
+		t.Errorf("acme order = %v, want the oldest definition first", held)
+	}
+}
+
+func TestFieldPositionsMigrationPlacesALaterDefinitionLast(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := rolledBackBefore(t, fieldPositionsVersion)
+	home := sdk.TenantOrDefault(t.Context())
+	now := time.Now()
+	definedAt(t, db, home, "birthDate", now)
+	definedAt(t, db, home, "shoeSize", now.Add(-time.Minute))
+	placeFields(t, provider)
+
+	storedDefinition(t, db, home, "nickname", "TEXT", "[]", false)
+
+	if held := namesByPosition(t, db, home); !slices.Equal(held, []string{"shoeSize", "birthDate", "nickname"}) {
+		t.Errorf("order = %v, want the definition stored after the migration last", held)
+	}
+}
+
+// positionsHeld reports whether the definitions table holds the position column and its sequence.
+func positionsHeld(t *testing.T, db *sql.DB) (bool, bool) {
+	t.Helper()
+	var column, sequence bool
+	if err := db.QueryRowContext(t.Context(), `SELECT
+		EXISTS (SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'plugin_fields' AND table_name = 'definitions' AND column_name = 'position'),
+		to_regclass('plugin_fields.definitions_position_seq') IS NOT NULL`).Scan(&column, &sequence); err != nil {
+		t.Fatalf("reading the schema: %v", err)
+	}
+	return column, sequence
+}
+
+func TestFieldPositionsMigrationGoesDownAndUpAgain(t *testing.T) {
+	t.Parallel()
+
+	_, db, provider := rolledBackBefore(t, fieldPositionsVersion)
+	definedAt(t, db, sdk.TenantOrDefault(t.Context()), "birthDate", time.Now())
+	placeFields(t, provider)
+	if column, sequence := positionsHeld(t, db); !column || !sequence {
+		t.Fatalf("column = %t, sequence = %t after the migration, want both held", column, sequence)
+	}
+
+	if _, err := provider.DownTo(t.Context(), fieldPositionsVersion-1); err != nil {
+		t.Fatalf("rolling the positions back: %v", err)
+	}
+
+	if column, sequence := positionsHeld(t, db); column || sequence {
+		t.Errorf("column = %t, sequence = %t after rolling back, want both gone", column, sequence)
+	}
+	placeFields(t, provider)
 }
