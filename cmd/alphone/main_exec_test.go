@@ -170,10 +170,11 @@ func TestMainBinarySeedHelpSeedsNothing(t *testing.T) {
 	t.Parallel()
 
 	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary, "seed", "-h")
 	cmd.Dir = t.TempDir()
-	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -183,6 +184,10 @@ func TestMainBinarySeedHelpSeedsNothing(t *testing.T) {
 
 	if strings.Contains(stdout.String(), "password1234") || !strings.Contains(stdout.String(), "alphone seed") {
 		t.Errorf("stdout = %q, want the seed help and no demo credentials", stdout.String())
+	}
+	pool := testPool(t, databaseURL)
+	if contacts, tasks := countRows(t, pool, "core.contacts"), countRows(t, pool, "core.tasks"); contacts+tasks != 0 {
+		t.Errorf("rows after seed -h = %d contacts and %d tasks, want none", contacts, tasks)
 	}
 }
 

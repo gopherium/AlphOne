@@ -268,6 +268,19 @@ func TestSeedCommandPrintsItsHelpWithoutSeeding(t *testing.T) {
 	}
 }
 
+func TestSeedCommandSeedsWhenGivenNoArguments(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)})
+	var stdout strings.Builder
+
+	err := seedCommand(t.Context(), getenv, nil, &stdout)
+
+	if err != nil || !strings.Contains(stdout.String(), "seeded demo data") {
+		t.Errorf("seedCommand() = %v with stdout %q, want nil and the demo data seeded", err, stdout.String())
+	}
+}
+
 func TestSeedCommandRefusesAnyArgumentBeforeTouchingTheDatabase(t *testing.T) {
 	t.Parallel()
 
