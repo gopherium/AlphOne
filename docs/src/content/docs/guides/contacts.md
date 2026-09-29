@@ -44,6 +44,10 @@ A contact's detail page lists its identities: the per-channel handles
 that link conversations to the contact, such as a WhatsApp phone number.
 Identities are created automatically by channels and cannot be edited.
 
+Each line shows the channel and then the handle, such as
+`Email: maria@example.com`. To remove an identity, click the trash icon
+at the end of its line.
+
 ## The contact page
 
 A contact's page has two columns. The left one holds the name, the

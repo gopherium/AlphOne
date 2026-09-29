@@ -47,18 +47,20 @@ export function NewContactScreen({
 					void submit()
 				}}
 			>
-				<InputControl
-					label={__('Name', 'alphone')}
-					value={name}
-					onChange={(event) => setName(event.target.value)}
-				/>
-				<Button
-					type="submit"
-					disabled={name.trim() === '' || create.fetching}
-					loading={create.fetching}
-				>
-					{__('Create contact', 'alphone')}
-				</Button>
+				<div className="godmin-form__row">
+					<InputControl
+						label={__('Name', 'alphone')}
+						value={name}
+						onChange={(event) => setName(event.target.value)}
+					/>
+					<Button
+						type="submit"
+						disabled={name.trim() === '' || create.fetching}
+						loading={create.fetching}
+					>
+						{__('Create contact', 'alphone')}
+					</Button>
+				</div>
 				{create.error ? (
 					<ErrorNotice>
 						{validationMessage(graphError(create.error), __('The contact could not be created.', 'alphone'))}

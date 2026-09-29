@@ -9,6 +9,7 @@ import {
 	LoadingRows,
 	PageScreen,
 	RepeatRows,
+	SectionTitle,
 	SelectControl,
 	Stack,
 	Text,
@@ -98,9 +99,7 @@ export function FieldsScreen() {
 			<Stack direction="column" gap="lg">
 				<FieldList fields={rows.live} onChanged={reload} />
 				<Stack direction="column" gap="sm">
-					<Text variant="heading-sm" render={<h2 />}>
-						{__('Add a field', 'alphone-fields')}
-					</Text>
+					<SectionTitle>{__('Add a field', 'alphone-fields')}</SectionTitle>
 					<AddFieldForm known={rows} onAnswered={reload} />
 				</Stack>
 			</Stack>
@@ -296,7 +295,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				if (labelHeld(label, known.live)) {
@@ -327,21 +326,24 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
 				</ErrorNotice>
 			) : null}
-			<InputControl
-				label={__('Label', 'alphone-fields')}
-				autoComplete="off"
-				value={label}
-				onChange={(event) => {
-					setLabel(event.target.value)
-					setNotice((held) => (held === 'label' ? null : held))
-				}}
-			/>
-			<SelectControl
-				label={__('Kind', 'alphone-fields')}
-				items={kinds}
-				value={kinds.find((option) => option.value === kind)}
-				onValueChange={(item) => setKind(kindOf(item).value)}
-			/>
+			<div className="godmin-form__row">
+				<InputControl
+					className="godmin-form__grow"
+					label={__('Label', 'alphone-fields')}
+					autoComplete="off"
+					value={label}
+					onChange={(event) => {
+						setLabel(event.target.value)
+						setNotice((held) => (held === 'label' ? null : held))
+					}}
+				/>
+				<SelectControl
+					label={__('Kind', 'alphone-fields')}
+					items={kinds}
+					value={kinds.find((option) => option.value === kind)}
+					onValueChange={(item) => setKind(kindOf(item).value)}
+				/>
+			</div>
 			{repeater ? <SubFieldRows rows={subFields} onChange={setSubFields} /> : null}
 			<Button type="submit" loading={defined.fetching}>
 				{__('Add field', 'alphone-fields')}
@@ -366,16 +368,15 @@ function SubFieldRows({
 
 	return (
 		<Stack direction="column" gap="sm">
-			<Text variant="heading-sm" render={<h3 />}>
-				{__('Sub fields', 'alphone-fields')}
-			</Text>
+			<SectionTitle level={3}>{__('Sub fields', 'alphone-fields')}</SectionTitle>
 			<RepeatRows
 				rows={rows}
 				onChange={onChange}
 				blank={(): DraftSubField => ({ label: '', kind: 'TEXT' })}
 				renderRow={(row, update) => (
-					<>
+					<div className="godmin-form__row">
 						<InputControl
+							className="godmin-form__grow"
 							label={__('Label', 'alphone-fields')}
 							autoComplete="off"
 							value={row.label}
@@ -387,7 +388,7 @@ function SubFieldRows({
 							value={kinds.find((option) => option.value === row.kind)}
 							onValueChange={(item) => update({ ...row, kind: kindOf(item).value })}
 						/>
-					</>
+					</div>
 				)}
 				rowLabel={(at) => sprintf(__('Sub field %(number)d', 'alphone-fields'), { number: at + 1 })}
 				labels={{

@@ -188,7 +188,7 @@ test('adds a task for the contact due today', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	await waitFor(() => expect(created).toHaveLength(1))
@@ -211,7 +211,7 @@ test('adds a task for the contact due on the chosen day', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
 	const due = screen.getByLabelText('Due date')
 	await userEvent.clear(due)
 	await userEvent.type(due, chosen)
@@ -227,17 +227,78 @@ test('keeps Add task off while the due date is empty', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
 	await userEvent.clear(screen.getByLabelText('Due date'))
 
 	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('lays the task title, the due date and Add task on one form row', async () => {
+	server.use(
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const due = screen.getByLabelText('Due date')
+	const add = screen.getByRole('button', { name: 'Add task' })
+
+	const row = title.closest('.godmin-form__row')
+	expect(row).not.toBeNull()
+	expect(row?.parentElement).toHaveClass('godmin-form')
+	const cells = [...(row as Element).children]
+	expect(cells).toHaveLength(3)
+	const titleCell = cells.find((cell) => cell.contains(title))
+	const dueCell = cells.find((cell) => cell.contains(due))
+	expect(titleCell).toBeDefined()
+	expect(dueCell).toBeDefined()
+	expect(titleCell).not.toBe(dueCell)
+	expect(add.parentElement).toBe(row)
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(add)
+
+	const notice = await screen.findByText('The task could not be added.')
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+})
+
+test('lets the contact task form fill its column as one row', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	const form = screen.getByRole('textbox', { name: 'Task title' }).closest('form')
+	expect(form).toHaveClass('godmin-form', 'godmin-form--inline', 'alphone-tasks__add--contact')
+})
+
+test('gives the contact task title the widest share of the form row', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const row = title.closest('.godmin-form__row') as Element
+
+	expect(row.querySelectorAll('.godmin-form__grow')).toHaveLength(1)
+	const grown = title.closest('.godmin-form__grow')
+	expect(grown).not.toBeNull()
+	expect(grown?.parentElement).toBe(row)
+	expect(screen.getByLabelText('Due date').closest('.godmin-form__grow')).toBeNull()
+})
+
+test('names the contact task title with a visible label and no placeholder', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	const label = screen.getByText('Task title', { selector: 'label' })
+	expect(label.closest('[data-visually-hidden]')).toBeNull()
+	expect(screen.getByRole('textbox', { name: 'Task title' })).not.toHaveAttribute('placeholder')
 })
 
 test('starts the next task on today after an add', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'Send the invoice')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
 	const due = screen.getByLabelText('Due date')
 	await userEvent.clear(due)
 	await userEvent.type(due, localDate(3))
@@ -302,7 +363,7 @@ test('reports when a contact task cannot be added', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
@@ -347,7 +408,7 @@ test('reports a generic message when adding fails otherwise', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task for this contact' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()

@@ -6,6 +6,7 @@ import {
 	fakeGraphClient,
 	graphql,
 	server,
+	textClasses,
 } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -99,6 +100,13 @@ test('the screen names the file it is mapping', async () => {
 	renderScreen()
 
 	expect(await screen.findByRole('heading', { name: 'contacts.csv' })).toBeInTheDocument()
+})
+
+test('the screen sets the Rows heading a size above the field labels', async () => {
+	renderScreen()
+
+	const heading = await screen.findByRole('heading', { level: 2, name: 'Rows' })
+	expect([...heading.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
 })
 
 test(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Button } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -153,7 +153,7 @@ test('shows the add button busy and still refuses a second submit', async () => 
 	server.use(graphql.mutation('CreateTask', () => new Promise(() => {})))
 	renderAt('/tasks')
 	await screen.findByRole('heading', { level: 1, name: 'Tasks' })
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Call Maria Perez')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Call Maria Perez')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
@@ -252,13 +252,13 @@ test('adds a task from the quick add field', async () => {
 	await screen.findByText('Call the supplier')
 
 	await userEvent.type(
-		screen.getByRole('textbox', { name: 'New task' }),
+		screen.getByRole('textbox', { name: 'Task title' }),
 		'Order more boxes',
 	)
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('Order more boxes')).toBeInTheDocument()
-	expect(screen.getByRole('textbox', { name: 'New task' })).toHaveValue('')
+	expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue('')
 })
 
 test('does not add a task without a title', async () => {
@@ -269,6 +269,63 @@ test('does not add a task without a title', async () => {
 		'aria-disabled',
 		'true',
 	)
+})
+
+test('lays the task title and Add task on one form row', async () => {
+	server.use(
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const add = screen.getByRole('button', { name: 'Add task' })
+
+	const row = title.closest('.godmin-form__row')
+	expect(row).not.toBeNull()
+	expect(row?.parentElement).toHaveClass('godmin-form')
+	const cells = [...(row as Element).children]
+	expect(cells).toHaveLength(2)
+	const titleCell = cells.find((cell) => cell.contains(title))
+	expect(titleCell).toBeDefined()
+	expect(titleCell).not.toBe(add)
+	expect(add.parentElement).toBe(row)
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(add)
+
+	const notice = await screen.findByText('The task could not be added.')
+	expect(notice.closest('.godmin-form__row')).toBeNull()
+})
+
+test('lets the quick add form fill its column as one row', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const form = screen.getByRole('textbox', { name: 'Task title' }).closest('form')
+	expect(form).toHaveClass('godmin-form', 'godmin-form--inline')
+})
+
+test('gives the task title the widest share of the form row', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const row = title.closest('.godmin-form__row') as Element
+
+	expect(row.querySelectorAll('.godmin-form__grow')).toHaveLength(1)
+	const grown = title.closest('.godmin-form__grow')
+	expect(grown).not.toBeNull()
+	expect(grown?.parentElement).toBe(row)
+})
+
+test('names the task title with a visible label and no placeholder', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	const label = screen.getByText('Task title', { selector: 'label' })
+	expect(label.closest('[data-visually-hidden]')).toBeNull()
+	expect(screen.getByRole('textbox', { name: 'Task title' })).not.toHaveAttribute('placeholder')
 })
 
 test('shows an empty state when the day has no tasks', async () => {
@@ -402,7 +459,7 @@ test('reports when a task cannot be added', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
@@ -417,7 +474,7 @@ test('reports a generic message when adding fails otherwise', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
@@ -557,6 +614,16 @@ test('shows overdue work above the day, with its original due date', async () =>
 	expect(overdueBefore).toContain(today)
 })
 
+test('sets the overdue heading a size above the field labels', async () => {
+	const large = textClasses('heading-lg')
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }]
+
+	renderAt('/tasks')
+
+	const heading = await screen.findByRole('heading', { level: 2, name: 'Overdue' })
+	expect([...heading.classList]).toEqual(expect.arrayContaining(large))
+})
+
 test('keeps overdue work out of other days', async () => {
 	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }]
 
@@ -693,7 +760,7 @@ test('drops the session when adding is unauthorized', async () => {
 	const client = renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'X')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())

@@ -30,7 +30,7 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(page.getByRole('heading', { name: known })).toBeVisible()
 	await page.getByLabel('Value').fill(knownEmail)
 	await page.getByRole('button', { name: 'Add identity' }).click()
-	await expect(page.getByText(`email: ${knownEmail}`)).toBeVisible()
+	await expect(page.getByText(`Email: ${knownEmail}`)).toBeVisible()
 
 	await page.getByRole('link', { name: 'Import' }).click()
 	await expect(page.getByRole('heading', { name: 'Import' })).toBeVisible()

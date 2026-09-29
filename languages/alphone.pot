@@ -49,13 +49,7 @@ msgstr ""
 msgid "Activation link"
 msgstr ""
 
-msgid "Add a task"
-msgstr ""
-
 msgid "Add a task above, or open a contact and create one from their page."
-msgstr ""
-
-msgid "Add a task for this contact"
 msgstr ""
 
 msgid "Add identity"
@@ -259,9 +253,6 @@ msgstr ""
 msgid "New task"
 msgstr ""
 
-msgid "New task for this contact"
-msgstr ""
-
 msgid "New token"
 msgstr ""
 
@@ -322,9 +313,6 @@ msgstr ""
 msgid "Reading the languages"
 msgstr ""
 
-msgid "Remove"
-msgstr ""
-
 msgid "Remove %(identifier)s"
 msgstr ""
 
@@ -383,6 +371,9 @@ msgid "Status"
 msgstr ""
 
 msgid "Task"
+msgstr ""
+
+msgid "Task title"
 msgstr ""
 
 msgid "Tasks"

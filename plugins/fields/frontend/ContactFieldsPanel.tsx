@@ -5,8 +5,8 @@ import {
 	Button,
 	ErrorNotice,
 	LoadingRows,
+	SectionTitle,
 	Stack,
-	Text,
 	graphError,
 	useGraph,
 	useGraphMutation,
@@ -74,9 +74,9 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 
 	return (
 		<Stack direction="column" gap="sm">
-			<Text variant="heading-sm" id={heading} render={<h2 tabIndex={-1} />}>
+			<SectionTitle id={heading} tabIndex={-1}>
 				{__('Fields', 'alphone-fields')}
-			</Text>
+			</SectionTitle>
 			{gone !== '' && <ErrorNotice>{gone}</ErrorNotice>}
 			{body}
 		</Stack>

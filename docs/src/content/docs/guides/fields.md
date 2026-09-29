@@ -68,6 +68,10 @@ Press **Add sub field** once for every part an entry holds, and give each part
 a label and a kind. For a history, that is `Date` as a Date and `Comment` as a
 Long text.
 
+Each sub field sits on one line, with its label and kind side by side. On a
+narrow screen the line wraps. The arrows at the end of the line move it up or
+down. The trash icon, named **Remove sub field**, takes it out of the list.
+
 A sub field can be any kind except Repeater, so a repeater never holds another
 repeater. AlphOne names a sub field from its label too, so
 `Follow-up comment` becomes `followUpComment`. Two sub fields with the same
@@ -85,9 +89,10 @@ the form starts on today's date.
   repeater's label in place of History. The button stays off until you fill
   in a part yourself. Spaces alone do not count, and neither does the date
   the form starts with.
-- Press **Edit entry** to change an entry in place, then **Save entry** or
-  **Cancel**. **Save entry** stays off while every part is blank.
-- Press **Remove entry**, and the row asks **Remove this entry?** Press
+- Press the pencil beside an entry's date to change the entry in place, then
+  **Save entry** or **Cancel**. **Save entry** stays off while every part is
+  blank.
+- Press the trash icon, and the row asks **Remove this entry?** Press
   **Remove** to confirm or **Keep** to leave it.
 
 Each add, save and removal is stored at once. **Save fields** saves only the

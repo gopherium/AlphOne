@@ -10,8 +10,8 @@ import {
 	LoadMore,
 	ErrorNotice,
 	PageScreen,
+	SectionTitle,
 	Stack,
-	Text,
 	__,
 	chevronLeft,
 	chevronRight,
@@ -110,26 +110,27 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<form
-				className="alphone-tasks__add"
+				className="godmin-form godmin-form--inline"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
 				}}
 			>
-				<InputControl
-					label={__('New task', 'alphone')}
-					hideLabelFromVision
-					placeholder={__('Add a task', 'alphone')}
-					value={title}
-					onChange={(event) => setTitle(event.target.value)}
-				/>
-				<Button
-					type="submit"
-					disabled={title.trim() === '' || add.fetching}
-					loading={add.fetching}
-				>
-					{__('Add task', 'alphone')}
-				</Button>
+				<div className="godmin-form__row">
+					<InputControl
+						className="godmin-form__grow"
+						label={__('Task title', 'alphone')}
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+					<Button
+						type="submit"
+						disabled={title.trim() === '' || add.fetching}
+						loading={add.fetching}
+					>
+						{__('Add task', 'alphone')}
+					</Button>
+				</div>
 			</form>
 			{add.error ? (
 				<ErrorNotice>
@@ -204,9 +205,7 @@ function OverdueSection({
 	}
 	return (
 		<Stack direction="column" gap="sm" className="alphone-tasks__overdue">
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Overdue', 'alphone')}
-			</Text>
+			<SectionTitle>{__('Overdue', 'alphone')}</SectionTitle>
 			<TaskList label={__('Overdue tasks', 'alphone')} tasks={rows} controls={controls} showDueDate />
 			<LoadMore query={tasks}>{__('Load more overdue', 'alphone')}</LoadMore>
 		</Stack>

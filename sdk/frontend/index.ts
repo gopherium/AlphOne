@@ -29,11 +29,17 @@ export interface PluginLocale {
 	load: (locale: string) => Promise<Catalog | undefined>
 }
 
+export interface ChannelName {
+	value: string
+	label: string
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
+	channels?: ChannelName[]
 	locale?: PluginLocale
 	errorTemplates?: () => Record<string, string>
 }
@@ -63,7 +69,9 @@ export {
 	comment,
 	inbox,
 	menu,
+	pencil,
 	people,
+	trash,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export {
@@ -78,6 +86,7 @@ export {
 	Page as PageScreen,
 	PageTitle,
 	RepeatRows,
+	SectionTitle,
 } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'

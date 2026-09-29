@@ -85,10 +85,6 @@ msgid "Cancel"
 msgstr "Cancelar"
 
 #, fuzzy
-msgid "Edit entry"
-msgstr "Editar la entrada"
-
-#, fuzzy
 msgid "Edit entry: %(name)s"
 msgstr "Editar la entrada: %(name)s"
 
@@ -143,10 +139,6 @@ msgstr "Solo un repetidor tiene subcampos."
 #, fuzzy
 msgid "Remove"
 msgstr "Quitar"
-
-#, fuzzy
-msgid "Remove entry"
-msgstr "Quitar la entrada"
 
 #, fuzzy
 msgid "Remove entry: %(name)s"

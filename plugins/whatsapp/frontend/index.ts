@@ -23,6 +23,12 @@ export const plugin: FrontendPlugin = {
 		to: '/whatsapp',
 		icon: whatsappIcon,
 	}],
+	channels: [{
+		value: 'whatsapp',
+		get label() {
+			return _x('WhatsApp', 'contact channel', 'alphone-whatsapp')
+		},
+	}],
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 	errorTemplates,
 }

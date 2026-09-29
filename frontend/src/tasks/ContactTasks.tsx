@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
+	SectionTitle,
 	Text,
 	__,
 	validationMessage,
@@ -57,9 +58,7 @@ export function ContactTasks({
 
 	return (
 		<div className="alphone-tasks__contact-block">
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Tasks', 'alphone')}
-			</Text>
+			<SectionTitle>{__('Tasks', 'alphone')}</SectionTitle>
 			<AddContactTaskForm contactId={contactId} onAdded={settled} />
 			{change.error || push.error ? (
 				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
@@ -98,32 +97,33 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 	return (
 		<>
 			<form
-				className="alphone-tasks__add alphone-tasks__add--contact"
+				className="godmin-form godmin-form--inline alphone-tasks__add--contact"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submitAdd()
 				}}
 			>
-				<InputControl
-					label={__('New task for this contact', 'alphone')}
-					hideLabelFromVision
-					placeholder={__('Add a task for this contact', 'alphone')}
-					value={title}
-					onChange={(event) => setTitle(event.target.value)}
-				/>
-				<InputControl
-					label={__('Due date', 'alphone')}
-					type="date"
-					value={dueOn}
-					onChange={(event) => setPicked(event.target.value)}
-				/>
-				<Button
-					type="submit"
-					disabled={title.trim() === '' || !isValidDate(dueOn) || add.fetching}
-					loading={add.fetching}
-				>
-					{__('Add task', 'alphone')}
-				</Button>
+				<div className="godmin-form__row">
+					<InputControl
+						className="godmin-form__grow"
+						label={__('Task title', 'alphone')}
+						value={title}
+						onChange={(event) => setTitle(event.target.value)}
+					/>
+					<InputControl
+						label={__('Due date', 'alphone')}
+						type="date"
+						value={dueOn}
+						onChange={(event) => setPicked(event.target.value)}
+					/>
+					<Button
+						type="submit"
+						disabled={title.trim() === '' || !isValidDate(dueOn) || add.fetching}
+						loading={add.fetching}
+					>
+						{__('Add task', 'alphone')}
+					</Button>
+				</div>
 			</form>
 			{add.error ? (
 				<ErrorNotice>

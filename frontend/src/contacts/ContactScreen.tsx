@@ -3,9 +3,13 @@
 import {
 	Button,
 	ErrorNotice,
+	IconButton,
 	InputControl,
 	LoadingScreen,
+	LogItem,
+	LogList,
 	PageScreen,
+	SectionTitle,
 	SelectControl,
 	Text,
 	ValidationError,
@@ -13,12 +17,13 @@ import {
 	graphError,
 	sprintf,
 	graphExtensions,
+	trash,
 	useConnection,
 	useGraph,
 	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
@@ -33,6 +38,7 @@ import {
 } from './operations'
 
 const contactPanels = plugins.flatMap((plugin) => plugin.contactPanels ?? [])
+const pluginChannels = plugins.flatMap((plugin) => plugin.channels ?? [])
 const contactTasksPageSize = 50
 const contactDetailOperation = 'ContactDetail'
 
@@ -59,6 +65,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		variables: { id: contactId, first: contactTasksPageSize },
 		select: (data) => data.contact?.tasks,
 	})
+	const identitiesHeading = useId()
 	const contact = detail.data?.contact
 
 	if (detail.isPending) {
@@ -84,10 +91,8 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			}
 		>
 			<RenameForm key={contact.name} contact={contact} />
-			<Text variant="heading-sm" render={<h2 />}>
-				{__('Identities', 'alphone')}
-			</Text>
-			<IdentityList contact={contact} />
+			<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>
+			<IdentityList contact={contact} labelledBy={identitiesHeading} />
 			<AddIdentityForm contact={contact} />
 			<ContactTasks contactId={contact.id} tasks={detail} />
 		</PageScreen>
@@ -119,10 +124,30 @@ function useContactRefresh() {
 }
 
 /**
- * Renders the contact's identities, or a placeholder when none exist.
+ * Returns the name the channel select or a plugin gives a channel, or the channel itself when none does.
+ * @param channel - The channel an identity belongs to.
+ * @returns The channel name to show.
+ */
+function channelName(channel: string): string {
+	return [...channelItems(), ...pluginChannels].find((item) => item.value === channel)?.label ?? channel
+}
+
+/**
+ * Returns the line one identity shows: its channel name, its identifier and any label.
+ * @param identity - The identity to describe.
+ * @returns The identity line.
+ */
+function identityText(identity: ContactDetail['identities'][number]): string {
+	const text = `${channelName(identity.channel)}: ${identity.identifier}`
+	return identity.displayName === '' ? text : `${text} (${identity.displayName})`
+}
+
+/**
+ * Renders the contact's identities as a log list, each with its trash at the row end, or a placeholder when none exist.
+ * @param props - The contact and the id of the heading that names the list.
  * @returns The identity list.
  */
-function IdentityList({ contact }: { contact: ContactDetail }) {
+function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelledBy: string }) {
 	const settled = useContactRefresh()
 	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
 	const removeIdentity = async (identityId: string) => {
@@ -137,26 +162,26 @@ function IdentityList({ contact }: { contact: ContactDetail }) {
 	}
 	return (
 		<>
-			<ul className="alphone-contacts__identities">
+			<LogList aria-labelledby={labelledBy}>
 				{contact.identities.map((identity) => (
-					<li key={identity.id}>
-						<Text>
-							{identity.displayName === ''
-								? `${identity.channel}: ${identity.identifier}`
-								: `${identity.channel}: ${identity.identifier} (${identity.displayName})`}
-						</Text>
-						<Button
-							variant="minimal"
-							size="small"
-							aria-label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-							loading={remove.fetching}
-							onClick={() => void removeIdentity(identity.id)}
-						>
-							{__('Remove', 'alphone')}
-						</Button>
-					</li>
+					<LogItem
+						key={identity.id}
+						aria-label={identityText(identity)}
+						label={<Text>{identityText(identity)}</Text>}
+						actions={
+							<IconButton
+								icon={trash}
+								variant="minimal"
+								tone="neutral"
+								size="compact"
+								label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
+								loading={remove.fetching}
+								onClick={() => void removeIdentity(identity.id)}
+							/>
+						}
+					/>
 				))}
-			</ul>
+			</LogList>
 			{remove.error ? (
 				<ErrorNotice>{__('The identity could not be removed.', 'alphone')}</ErrorNotice>
 			) : null}
@@ -189,35 +214,37 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				void submitIdentity()
 			}}
 		>
-			<SelectControl
-				label={__('Channel', 'alphone')}
-				items={channels}
-				value={channels.find((option) => option.value === channel)}
-				onValueChange={(item) => setChannel(channelItemOf(item).value)}
-			/>
-			<InputControl
-				label={__('Value', 'alphone')}
-				value={identifier}
-				onChange={(event) => setIdentifier(event.target.value)}
-			/>
-			<InputControl
-				label={__('Label', 'alphone')}
-				value={label}
-				onChange={(event) => setLabel(event.target.value)}
-			/>
-			<Button
-				type="submit"
-				disabled={identifier.trim() === '' || add.fetching}
-				loading={add.fetching}
-			>
-				{__('Add identity', 'alphone')}
-			</Button>
+			<div className="godmin-form__row">
+				<SelectControl
+					label={__('Channel', 'alphone')}
+					items={channels}
+					value={channels.find((option) => option.value === channel)}
+					onValueChange={(item) => setChannel(channelItemOf(item).value)}
+				/>
+				<InputControl
+					label={__('Value', 'alphone')}
+					value={identifier}
+					onChange={(event) => setIdentifier(event.target.value)}
+				/>
+				<InputControl
+					label={__('Label', 'alphone')}
+					value={label}
+					onChange={(event) => setLabel(event.target.value)}
+				/>
+				<Button
+					type="submit"
+					disabled={identifier.trim() === '' || add.fetching}
+					loading={add.fetching}
+				>
+					{__('Add identity', 'alphone')}
+				</Button>
+			</div>
 			{add.error ? (
 				<ErrorNotice>
 					{validationMessage(identityError(add.error), __('The identity could not be added.', 'alphone'))}
@@ -244,24 +271,26 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
-			className="godmin-form"
+			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
 				void submitRename()
 			}}
 		>
-			<InputControl
-				label={__('Name', 'alphone')}
-				value={name}
-				onChange={(event) => setName(event.target.value)}
-			/>
-			<Button
-				type="submit"
-				disabled={name.trim() === '' || rename.fetching}
-				loading={rename.fetching}
-			>
-				{__('Save', 'alphone')}
-			</Button>
+			<div className="godmin-form__row">
+				<InputControl
+					label={__('Name', 'alphone')}
+					value={name}
+					onChange={(event) => setName(event.target.value)}
+				/>
+				<Button
+					type="submit"
+					disabled={name.trim() === '' || rename.fetching}
+					loading={rename.fetching}
+				>
+					{__('Save', 'alphone')}
+				</Button>
+			</div>
 			{rename.error ? (
 				<ErrorNotice>
 					{validationMessage(graphError(rename.error), __('The contact could not be renamed.', 'alphone'))}
