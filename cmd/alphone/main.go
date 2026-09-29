@@ -65,7 +65,7 @@ func dispatch(ctx context.Context, args []string, plugins func(sdk.Deps) ([]sdk.
 	case "token":
 		return token(ctx, os.Getenv, args[1:], os.Stdout)
 	case "seed":
-		return seed(ctx, os.Getenv, os.Stdout)
+		return seedCommand(ctx, os.Getenv, args[1:], os.Stdout)
 	case "help", "-h", "--help":
 		_, err := fmt.Fprintln(os.Stdout, usage)
 		return err

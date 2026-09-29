@@ -166,6 +166,26 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 	}
 }
 
+func TestMainBinarySeedHelpSeedsNothing(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "seed", "-h")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("seed -h: %v, stderr: %s", err, stderr.String())
+	}
+
+	if strings.Contains(stdout.String(), "password1234") || !strings.Contains(stdout.String(), "alphone seed") {
+		t.Errorf("stdout = %q, want the seed help and no demo credentials", stdout.String())
+	}
+}
+
 func TestMainBinarySeedStoresDemoData(t *testing.T) {
 	t.Parallel()
 
