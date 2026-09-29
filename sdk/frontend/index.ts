@@ -29,11 +29,17 @@ export interface PluginLocale {
 	load: (locale: string) => Promise<Catalog | undefined>
 }
 
+export interface ChannelName {
+	value: string
+	label: string
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
+	channels?: ChannelName[]
 	locale?: PluginLocale
 	errorTemplates?: () => Record<string, string>
 }
