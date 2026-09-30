@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@alphone/frontend-sdk": "workspace:*",
-    "@tanstack/react-query": "^5.102.8",
-    "@tanstack/react-router": "^1.170.36",
+    "@tanstack/react-query": "^5.103.2",
+    "@tanstack/react-router": "^1.170.40",
     "graphql": "^17.0.2",
     "react": "^19.3.0"
   },
