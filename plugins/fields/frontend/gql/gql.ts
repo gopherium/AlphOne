@@ -18,6 +18,7 @@ type Documents = {
     "\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n": typeof types.FieldCatalogueDocument,
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": typeof types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": typeof types.ArchiveFieldDocument,
+    "\n\tmutation OrderFields($ids: [UUID!]!) {\n\t\torderFields(ids: $ids)\n\t}\n": typeof types.OrderFieldsDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": typeof types.WriteContactFieldsDocument,
     "\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n": typeof types.AddContactFieldEntryDocument,
     "\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n": typeof types.UpdateContactFieldEntryDocument,
@@ -28,6 +29,7 @@ const documents: Documents = {
     "\n\tquery FieldCatalogue {\n\t\tfields {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\tevery: fields(includeArchived: true) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t\treservedFieldNames\n\t}\n": types.FieldCatalogueDocument,
     "\n\tmutation DefineField(\n\t\t$name: String!\n\t\t$label: String!\n\t\t$kind: FieldKind!\n\t\t$subFields: [FieldSubFieldInput!]\n\t) {\n\t\tdefineField(name: $name, label: $label, kind: $kind, subFields: $subFields) {\n\t\t\tid\n\t\t\tname\n\t\t\tlabel\n\t\t\tkind\n\t\t\tsubFields {\n\t\t\t\tname\n\t\t\t\tlabel\n\t\t\t\tkind\n\t\t\t}\n\t\t}\n\t}\n": types.DefineFieldDocument,
     "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n": types.ArchiveFieldDocument,
+    "\n\tmutation OrderFields($ids: [UUID!]!) {\n\t\torderFields(ids: $ids)\n\t}\n": types.OrderFieldsDocument,
     "\n\tmutation WriteContactFields($contactId: UUID!, $values: JSON!) {\n\t\twriteContactFields(contactId: $contactId, values: $values)\n\t}\n": types.WriteContactFieldsDocument,
     "\n\tmutation AddContactFieldEntry($contactId: UUID!, $field: String!, $entry: JSON!) {\n\t\taddContactFieldEntry(contactId: $contactId, field: $field, entry: $entry)\n\t}\n": types.AddContactFieldEntryDocument,
     "\n\tmutation UpdateContactFieldEntry($contactId: UUID!, $field: String!, $entryId: UUID!, $entry: JSON!) {\n\t\tupdateContactFieldEntry(contactId: $contactId, field: $field, entryId: $entryId, entry: $entry)\n\t}\n": types.UpdateContactFieldEntryDocument,
@@ -64,6 +66,10 @@ export function graphql(source: "\n\tmutation DefineField(\n\t\t$name: String!\n
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n"): (typeof documents)["\n\tmutation ArchiveField($id: UUID!) {\n\t\tarchiveField(id: $id)\n\t}\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation OrderFields($ids: [UUID!]!) {\n\t\torderFields(ids: $ids)\n\t}\n"): (typeof documents)["\n\tmutation OrderFields($ids: [UUID!]!) {\n\t\torderFields(ids: $ids)\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
