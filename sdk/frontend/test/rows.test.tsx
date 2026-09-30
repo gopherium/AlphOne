@@ -2,9 +2,19 @@
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
-import { RepeatRows, TextareaControl, keyFromLabel } from '../index'
+import { RepeatRows, RowControls, TextareaControl, keyFromLabel } from '../index'
+import type { RowLabels } from '../index'
+
+/** labels are the words the notes editor shows. */
+const labels: RowLabels = {
+	add: 'Add entry',
+	empty: 'No entries yet.',
+	moveUp: 'Move entry up',
+	moveDown: 'Move entry down',
+	remove: 'Remove entry',
+}
 
 /** Holds a list of notes the SDK rows editor edits, each in a textarea. */
 function Notes() {
@@ -22,13 +32,7 @@ function Notes() {
 				/>
 			)}
 			rowLabel={(at) => `Entry ${at + 1}`}
-			labels={{
-				add: 'Add entry',
-				empty: 'No entries yet.',
-				moveUp: 'Move entry up',
-				moveDown: 'Move entry down',
-				remove: 'Remove entry',
-			}}
+			labels={labels}
 		/>
 	)
 }
@@ -43,6 +47,19 @@ test('hands plugins a rows editor whose rows edit in a textarea', () => {
 
 	expect(note.tagName).toBe('TEXTAREA')
 	expect(screen.getByRole('textbox', { name: 'Note 1' })).toHaveValue('First call')
+})
+
+test('hands plugins the controls that move one row and take it away', () => {
+	const moved = vi.fn()
+	const removed = vi.fn()
+
+	render(<RowControls at={0} count={2} labels={labels} onMove={moved} onRemove={removed} />)
+	fireEvent.click(screen.getByRole('button', { name: 'Move entry down' }))
+	fireEvent.click(screen.getByRole('button', { name: 'Remove entry' }))
+
+	expect(screen.getByRole('button', { name: 'Move entry up' })).toHaveAttribute('aria-disabled', 'true')
+	expect(moved).toHaveBeenCalledWith(1)
+	expect(removed).toHaveBeenCalledTimes(1)
 })
 
 test('hands plugins a key made from a label', () => {

@@ -77,6 +77,10 @@ msgid "Archive %(label)s"
 msgstr "Archivar %(label)s"
 
 #, fuzzy
+msgid "Archive this field?"
+msgstr "¿Archivar este campo?"
+
+#, fuzzy
 msgid "Blank entry"
 msgstr "Entrada en blanco"
 
@@ -111,6 +115,14 @@ msgstr "Etiqueta"
 #, fuzzy
 msgid "Loading fields…"
 msgstr "Cargando los campos…"
+
+#, fuzzy
+msgid "Move %(label)s down"
+msgstr "Bajar %(label)s"
+
+#, fuzzy
+msgid "Move %(label)s up"
+msgstr "Subir %(label)s"
 
 #, fuzzy
 msgid "Move sub field down"
@@ -229,8 +241,16 @@ msgid "The field list just changed. Press Add field again."
 msgstr "La lista de campos acaba de cambiar. Pulsa Añadir campo otra vez."
 
 #, fuzzy
+msgid "The field list just changed. The new order was not saved."
+msgstr "La lista de campos acaba de cambiar. No se ha guardado el nuevo orden."
+
+#, fuzzy
 msgid "The fields could not be loaded."
 msgstr "No se han podido cargar los campos."
+
+#, fuzzy
+msgid "The fields could not be ordered."
+msgstr "No se han podido ordenar los campos."
 
 #, fuzzy
 msgid "The fields could not be saved."

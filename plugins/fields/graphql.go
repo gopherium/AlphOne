@@ -166,6 +166,18 @@ func (m MutationResolvers) ArchiveField(ctx context.Context, id uuid.UUID) (bool
 	return true, nil
 }
 
+// OrderFields sets the order of the caller's live fields and forgets the caller's catalogue view.
+func (m MutationResolvers) OrderFields(ctx context.Context, ids []uuid.UUID) (bool, error) {
+	if err := m.plugin.store.order(ctx, ids); err != nil {
+		if errors.Is(err, errOrderIncomplete) {
+			return false, sdk.GraphError{Code: "CONFLICT", Reason: fieldReason(err), Err: err}
+		}
+		return false, err
+	}
+	m.plugin.catalog.forget(ctx)
+	return true, nil
+}
+
 // fieldReasons names the stable reason each fields sentinel answers with.
 var fieldReasons = []struct {
 	sentinel error
@@ -185,6 +197,7 @@ var fieldReasons = []struct {
 	{errNameTaken, "field_name_taken"},
 	{errKindLocked, "field_kind_locked"},
 	{errNoDefinition, "field_not_found"},
+	{errOrderIncomplete, "field_order_incomplete"},
 	{errWrongKind, "value_kind_mismatch"},
 	{errNoField, "field_unknown"},
 	{errValuesNotAnObject, "values_not_an_object"},

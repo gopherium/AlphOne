@@ -42,6 +42,7 @@ extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition!
     @scope(area: "fields", write: true)
   archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+  orderFields(ids: [UUID!]!): Boolean! @scope(area: "fields", write: true)
   writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
   addContactFieldEntry(contactId: UUID!, field: String!, entry: JSON!): JSON! @scope(area: "contacts", write: true)
   updateContactFieldEntry(contactId: UUID!, field: String!, entryId: UUID!, entry: JSON!): JSON!

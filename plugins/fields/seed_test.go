@@ -82,8 +82,8 @@ func TestSeedRevivesAnArchivedDemoField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("liveDefinitions() error = %v, want nil", err)
 	}
-	if len(live) != 2 || live[0].Name != "birthDate" {
-		t.Errorf("live = %+v, want the archived demo field revived", live)
+	if names := namesOf(live); !slices.Equal(names, []string{"history", "birthDate"}) {
+		t.Errorf("live = %v, want the archived demo field revived at the end", names)
 	}
 }
 

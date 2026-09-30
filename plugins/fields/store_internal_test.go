@@ -3,6 +3,7 @@
 package fields
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -498,7 +499,292 @@ func TestStoreReportsRowsItCannotRead(t *testing.T) {
 	}
 }
 
-func TestStoreListsDefinitionsByCreation(t *testing.T) {
+// definedIDs stores one live text definition per name in the tenant the context serves and returns their ids in order.
+func definedIDs(t *testing.T, p *Plugin, ctx context.Context, names ...string) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, 0, len(names))
+	for _, name := range names {
+		held := defined(t, name, "TEXT")
+		if _, err := p.store.define(ctx, held); err != nil {
+			t.Fatalf("define(%q) error = %v, want nil", name, err)
+		}
+		ids = append(ids, held.ID)
+	}
+	return ids
+}
+
+// namesOf returns the names of the given definitions in the order they come.
+func namesOf(definitions []Definition) []string {
+	names := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		names = append(names, definition.Name)
+	}
+	return names
+}
+
+// listedNames returns the names the live and the full listing of the context's tenant give, in order.
+func listedNames(t *testing.T, p *Plugin, ctx context.Context) ([]string, []string) {
+	t.Helper()
+	live, err := p.store.liveDefinitions(ctx)
+	if err != nil {
+		t.Fatalf("liveDefinitions() error = %v, want nil", err)
+	}
+	every, err := p.store.allDefinitions(ctx)
+	if err != nil {
+		t.Fatalf("allDefinitions() error = %v, want nil", err)
+	}
+	return namesOf(live), namesOf(every)
+}
+
+func TestStoreListsARevivedDefinitionLast(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize")
+	if err := p.store.archive(t.Context(), ids[0]); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if _, err := p.store.define(t.Context(), defined(t, "birthDate", "TEXT")); err != nil {
+		t.Fatalf("define() error = %v, want the archived definition revived", err)
+	}
+
+	live, every := listedNames(t, p, t.Context())
+	if want := []string{"shoeSize", "birthDate"}; !slices.Equal(live, want) || !slices.Equal(every, want) {
+		t.Errorf("live = %v, all = %v, want %v with the revived definition last", live, every, want)
+	}
+}
+
+func TestStoreOrdersTheLiveDefinitions(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize", "nickname")
+
+	if err := p.store.order(t.Context(), []uuid.UUID{ids[2], ids[0], ids[1]}); err != nil {
+		t.Fatalf("order() error = %v, want nil", err)
+	}
+
+	live, every := listedNames(t, p, t.Context())
+	if want := []string{"nickname", "birthDate", "shoeSize"}; !slices.Equal(live, want) || !slices.Equal(every, want) {
+		t.Errorf("live = %v, all = %v, want %v", live, every, want)
+	}
+}
+
+func TestStoreListsANewDefinitionAfterTheOrderedOnes(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize")
+	if err := p.store.order(t.Context(), []uuid.UUID{ids[1], ids[0]}); err != nil {
+		t.Fatalf("order() error = %v, want nil", err)
+	}
+
+	definedIDs(t, p, t.Context(), "nickname")
+
+	if live, _ := listedNames(t, p, t.Context()); !slices.Equal(live, []string{"shoeSize", "birthDate", "nickname"}) {
+		t.Errorf("live = %v, want the new definition last", live)
+	}
+}
+
+func TestStoreOrderLeavesTheArchivedDefinitionsOut(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize", "nickname")
+	if err := p.store.archive(t.Context(), ids[1]); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if err := p.store.order(t.Context(), []uuid.UUID{ids[2], ids[0]}); err != nil {
+		t.Fatalf("order() error = %v, want the live definitions ordered", err)
+	}
+
+	if live, _ := listedNames(t, p, t.Context()); !slices.Equal(live, []string{"nickname", "birthDate"}) {
+		t.Errorf("live = %v, want the live definitions in the given order", live)
+	}
+}
+
+func TestStoreOrderAcceptsAnEmptyListWhenNoDefinitionIsLive(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate")
+	if err := p.store.archive(t.Context(), ids[0]); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if err := p.store.order(t.Context(), nil); err != nil {
+		t.Errorf("order() error = %v, want the archived definition left out of an empty order", err)
+	}
+}
+
+func TestStoreOrderRefusesAListThatDoesNotNameEachLiveDefinitionOnce(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]func(t *testing.T, p *Plugin, live []uuid.UUID) []uuid.UUID{
+		"a missing id": func(_ *testing.T, _ *Plugin, live []uuid.UUID) []uuid.UUID {
+			return live[1:]
+		},
+		"a duplicate id": func(_ *testing.T, _ *Plugin, live []uuid.UUID) []uuid.UUID {
+			return slices.Concat(live, live[:1])
+		},
+		"a duplicate in place of another id": func(_ *testing.T, _ *Plugin, live []uuid.UUID) []uuid.UUID {
+			return []uuid.UUID{live[0], live[0]}
+		},
+		"an archived id": func(t *testing.T, p *Plugin, live []uuid.UUID) []uuid.UUID {
+			archived := definedIDs(t, p, t.Context(), "nickname")
+			if err := p.store.archive(t.Context(), archived[0]); err != nil {
+				t.Fatalf("archive() error = %v, want nil", err)
+			}
+			return slices.Concat(live, archived)
+		},
+		"an unknown id": func(_ *testing.T, _ *Plugin, live []uuid.UUID) []uuid.UUID {
+			return slices.Concat(live, []uuid.UUID{uuid.Must(uuid.NewV7())})
+		},
+		"another tenant's id": func(t *testing.T, p *Plugin, live []uuid.UUID) []uuid.UUID {
+			return slices.Concat(live, definedIDs(t, p, inTenant(t, p), "nickname"))
+		},
+	}
+	for name, listed := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			p := newMigratedPlugin(t)
+			live := definedIDs(t, p, t.Context(), "birthDate", "shoeSize")
+			given := listed(t, p, []uuid.UUID{live[1], live[0]})
+
+			err := p.store.order(t.Context(), given)
+
+			if !errors.Is(err, errOrderIncomplete) {
+				t.Errorf("order() error = %v, want errOrderIncomplete", err)
+			}
+			if held, _ := listedNames(t, p, t.Context()); !slices.Equal(held, []string{"birthDate", "shoeSize"}) {
+				t.Errorf("live = %v, want the refused order to leave the positions alone", held)
+			}
+		})
+	}
+}
+
+func TestStoreOrderWaitsOnARacingArchiveAndRefusesTheArchivedID(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize")
+	racing := holding(t, p, "UPDATE plugin_fields.definitions SET archived_at = now() WHERE id = $1", ids[0])
+	done := make(chan error, 1)
+	go func() { done <- p.store.order(context.Background(), []uuid.UUID{ids[1], ids[0]}) }()
+
+	awaitLocked(t, p, lockLiveStatement)
+	if err := racing.Commit(t.Context()); err != nil {
+		t.Fatalf("committing the racing archive: %v", err)
+	}
+
+	if err := <-done; !errors.Is(err, errOrderIncomplete) {
+		t.Errorf("order() error = %v, want the definition archived meanwhile refused", err)
+	}
+}
+
+// byID returns the ids sorted the way Postgres compares uuids, byte by byte.
+func byID(ids []uuid.UUID) []uuid.UUID {
+	sorted := slices.Clone(ids)
+	slices.SortFunc(sorted, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	return sorted
+}
+
+// lockedRow reports whether a transaction holds a row lock on the definition of the given id.
+func lockedRow(t *testing.T, p *Plugin, id uuid.UUID) bool {
+	t.Helper()
+	const probe = `SELECT count(*) FROM (
+			SELECT id FROM plugin_fields.definitions WHERE id = $1 FOR UPDATE SKIP LOCKED
+		) AS free`
+	var free int
+	if err := p.pool.QueryRow(t.Context(), probe, id).Scan(&free); err != nil {
+		t.Fatalf("probing the lock on %s: %v", id, err)
+	}
+	return free == 0
+}
+
+func TestStoreOrderLocksTheLiveDefinitionsByID(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := byID(definedIDs(t, p, t.Context(), "birthDate", "shoeSize"))
+	if err := p.store.order(t.Context(), []uuid.UUID{ids[1], ids[0]}); err != nil {
+		t.Fatalf("order() error = %v, want nil", err)
+	}
+	racing := holding(t, p, "SELECT id FROM plugin_fields.definitions WHERE id = $1 FOR UPDATE", ids[1])
+	done := make(chan error, 1)
+	go func() { done <- p.store.order(context.Background(), ids) }()
+
+	awaitLocked(t, p, lockLiveStatement)
+	held := lockedRow(t, p, ids[0])
+	if err := racing.Commit(t.Context()); err != nil {
+		t.Fatalf("committing the racing lock: %v", err)
+	}
+
+	if err := <-done; err != nil {
+		t.Fatalf("order() error = %v, want nil", err)
+	}
+	if !held {
+		t.Error("the lower id was free while the order waited on the higher one, want the rows locked by id")
+	}
+}
+
+func TestStoreListsTheArchivedDefinitionsAfterTheLiveOnes(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	ids := definedIDs(t, p, t.Context(), "birthDate", "shoeSize", "nickname", "jobTitle")
+	if err := p.store.archive(t.Context(), ids[0]); err != nil {
+		t.Fatalf("archive() error = %v, want nil", err)
+	}
+
+	if err := p.store.order(t.Context(), []uuid.UUID{ids[3], ids[2], ids[1]}); err != nil {
+		t.Fatalf("order() error = %v, want nil", err)
+	}
+
+	_, every := listedNames(t, p, t.Context())
+	if want := []string{"jobTitle", "nickname", "shoeSize", "birthDate"}; !slices.Equal(every, want) {
+		t.Errorf("all = %v, want %v with the archived definition after the live ones", every, want)
+	}
+}
+
+// droppedColumn returns a plugin whose definitions table lacks the named column.
+func droppedColumn(t *testing.T, column string) *Plugin {
+	t.Helper()
+	p := newMigratedPlugin(t)
+	if _, err := p.pool.Exec(t.Context(), "ALTER TABLE plugin_fields.definitions DROP COLUMN "+column); err != nil {
+		t.Fatalf("dropping the column %s: %v", column, err)
+	}
+	return p
+}
+
+func TestStoreOrderReportsDefinitionsItCannotLock(t *testing.T) {
+	t.Parallel()
+
+	p := droppedColumn(t, "archived_at")
+
+	err := p.store.order(t.Context(), nil)
+
+	if err == nil || !strings.Contains(err.Error(), "order definitions") || !strings.Contains(err.Error(), "archived_at") {
+		t.Errorf("order() error = %v, want the failed lock reported", err)
+	}
+}
+
+func TestStoreOrderReportsPositionsItCannotWrite(t *testing.T) {
+	t.Parallel()
+
+	p := droppedColumn(t, "position")
+
+	err := p.store.order(t.Context(), nil)
+
+	if err == nil || !strings.Contains(err.Error(), "order definitions") || !strings.Contains(err.Error(), "position") {
+		t.Errorf("order() error = %v, want the failed write reported", err)
+	}
+}
+
+func TestStoreListsNewDefinitionsInTheOrderDefined(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
@@ -515,7 +801,7 @@ func TestStoreListsDefinitionsByCreation(t *testing.T) {
 	}
 	for i, want := range []string{"alpha", "beta", "gamma"} {
 		if held[i].Name != want {
-			t.Errorf("definition %d = %q, want %q in creation order", i, held[i].Name, want)
+			t.Errorf("definition %d = %q, want %q in the order defined", i, held[i].Name, want)
 		}
 	}
 }

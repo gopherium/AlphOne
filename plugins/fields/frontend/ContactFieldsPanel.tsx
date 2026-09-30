@@ -84,9 +84,9 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 }
 
 /**
- * Renders the form for the plain fields, then one section per repeater.
+ * Renders the fields in the order the server lists them: a form per run of plain fields, a card per repeater.
  * @param props - The contact, its fields, the values the graph answered and the report of a repeater gone.
- * @returns The plain fields form and the repeater sections.
+ * @returns The forms and the repeater cards.
  */
 function StoredFields({
 	contactId,
@@ -99,69 +99,126 @@ function StoredFields({
 	stored: Record<string, unknown>
 	onGone: GoneHandler
 }) {
-	const others = fields.filter((field) => field.kind !== 'REPEATER')
-	const repeaters = fields.filter((field) => field.kind === 'REPEATER')
+	const edits = useFieldEdits(contactId, fields)
 	return (
 		<>
-			{others.length > 0 && <FieldsForm contactId={contactId} fields={others} stored={stored} />}
-			{repeaters.map((field) => (
-				<RepeaterEntries
-					key={field.id}
-					contactId={contactId}
-					field={field}
-					stored={stored[field.name]}
-					onGone={onGone}
-				/>
-			))}
+			{fieldRuns(fields).map((run) => {
+				const [first] = run
+				return first.kind === 'REPEATER' ? (
+					<RepeaterEntries
+						key={first.id}
+						contactId={contactId}
+						field={first}
+						stored={stored[first.name]}
+						onGone={onGone}
+					/>
+				) : (
+					<FieldsForm key={first.id} fields={run} stored={stored} edits={edits} />
+				)
+			})}
 		</>
 	)
 }
 
 /**
- * Renders the form editing the stored values of one contact's plain fields.
- * @param props - The contact, the plain fields it holds values for and the values the graph answered.
- * @returns The value form.
+ * Splits the fields, kept in order, into runs: each repeater alone and each stretch of plain fields together.
+ * @param fields - The fields in the order the server lists them.
+ * @returns The runs, each holding at least one field.
  */
-function FieldsForm({
-	contactId,
-	fields,
-	stored,
-}: {
-	contactId: string
-	fields: FieldRow[]
-	stored: Record<string, unknown>
-}) {
+function fieldRuns(fields: FieldRow[]) {
+	const runs: FieldRow[][] = []
+	for (const field of fields) {
+		const last = runs.at(-1)
+		if (last && field.kind !== 'REPEATER' && last[0].kind !== 'REPEATER') {
+			last.push(field)
+		} else {
+			runs.push([field])
+		}
+	}
+	return runs
+}
+
+/**
+ * Holds the unsaved edits of every plain field of one contact, and the save that writes them all at once.
+ * @param contactId - The contact the values belong to.
+ * @param fields - The fields of the contact.
+ * @returns The edits, what records one, the save, the run pressed last, whether it runs and the last failure.
+ */
+function useFieldEdits(contactId: string, fields: FieldRow[]) {
 	const [edited, setEdited] = useState<Record<string, string>>({})
+	const [pressedRun, setPressedRun] = useState('')
 	const [written, write] = useGraphMutation(writeContactFieldsMutation)
 	const graph = useGraph()
+	const save = (run: string) => {
+		setPressedRun(run)
+		void write({ contactId, values: writable(fields, edited) }).then((result) => {
+			if (!result.error) {
+				setEdited((held) => unsent(held, edited))
+				graph.refetch([valuesOperation])
+			}
+		})
+	}
+	return {
+		edited,
+		edit: (name: string, text: string) => setEdited((held) => ({ ...held, [name]: text })),
+		save,
+		pressedRun,
+		saving: written.fetching,
+		failure: written.error,
+	}
+}
 
+/**
+ * Returns the edits made or changed since a write was sent.
+ * @param held - The edits on screen when the write is answered.
+ * @param sent - The edits on screen when the write was sent.
+ * @returns The edits still unsaved.
+ */
+function unsent(held: Record<string, string>, sent: Record<string, string>) {
+	return Object.fromEntries(Object.entries(held).filter(([name, text]) => sent[name] !== text))
+}
+
+/** FieldEdits are the unsaved edits every form of a contact shares, and the save that writes them. */
+type FieldEdits = ReturnType<typeof useFieldEdits>
+
+/**
+ * Renders the form editing one run of a contact's plain fields, its Save fields on once the run is edited.
+ * @param props - The run of plain fields, the values the graph answered and the edits every form shares.
+ * @returns The value form, with the notice of a failed save pressed in it.
+ */
+function FieldsForm({
+	fields,
+	stored,
+	edits,
+}: {
+	fields: FieldRow[]
+	stored: Record<string, unknown>
+	edits: FieldEdits
+}) {
+	const changed = fields.some((field) => field.name in edits.edited)
+	const pressed = fields.some((field) => field.id === edits.pressedRun)
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void write({ contactId, values: writable(fields, edited) }).then((result) => {
-					if (!result.error) {
-						setEdited({})
-						graph.refetch([valuesOperation])
-					}
-				})
+				edits.save(fields[0].id)
 			}}
 		>
-			{written.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(written.error), __('The fields could not be saved.', 'alphone-fields'))}
-				</ErrorNotice>
-			) : null}
 			{fields.map((field) => (
 				<FieldInput
 					key={field.id}
 					field={field}
-					value={edited[field.name] ?? textOf(stored[field.name])}
-					onChange={(next) => setEdited({ ...edited, [field.name]: next })}
+					value={edits.edited[field.name] ?? textOf(stored[field.name])}
+					onChange={(next) => edits.edit(field.name, next)}
 				/>
 			))}
-			<Button type="submit" loading={written.fetching}>
+			{edits.failure && pressed ? (
+				<ErrorNotice>
+					{validationMessage(graphError(edits.failure), __('The fields could not be saved.', 'alphone-fields'))}
+				</ErrorNotice>
+			) : null}
+			<Button type="submit" disabled={!changed || edits.saving} loading={edits.saving && pressed}>
 				{__('Save fields', 'alphone-fields')}
 			</Button>
 		</form>
@@ -170,7 +227,7 @@ function FieldsForm({
 
 /**
  * Returns the edited values in the form the write mutation takes.
- * @param fields - The plain fields the form renders.
+ * @param fields - The fields of the contact.
  * @param edited - The text the operator typed, by field name.
  * @returns The values keyed by field name, the untouched fields left out.
  */

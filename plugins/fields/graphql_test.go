@@ -264,6 +264,54 @@ func TestGraphArchivesAField(t *testing.T) {
 	}
 }
 
+// orderFields is the mutation that sets the order of every live field.
+const orderFields = `mutation($ids: [UUID!]!) { orderFields(ids: $ids) }`
+
+// defineText declares one text field through the graph and returns its id.
+func defineText(t *testing.T, client *gqlclient.Client, name string) string {
+	t.Helper()
+	var created struct{ DefineField definition }
+	client.MustPost(`mutation($name: String!) { defineField(name: $name, label: "Label", kind: TEXT) { id } }`,
+		&created, gqlclient.Var("name", name))
+	return created.DefineField.ID
+}
+
+func TestGraphOrdersTheFields(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	birthDate := defineText(t, client, "birthDate")
+	shoeSize := defineText(t, client, "shoeSize")
+
+	var ordered struct{ OrderFields bool }
+	client.MustPost(orderFields, &ordered, gqlclient.Var("ids", []string{shoeSize, birthDate}))
+
+	var listed struct{ Fields []definition }
+	client.MustPost(`{ fields { name } }`, &listed)
+	if !ordered.OrderFields || len(listed.Fields) != 2 || listed.Fields[0].Name != "shoeSize" {
+		t.Errorf("orderFields = %t, fields = %+v, want shoeSize listed first", ordered.OrderFields, listed.Fields)
+	}
+}
+
+func TestGraphRefusesAnOrderThatLeavesAFieldOut(t *testing.T) {
+	t.Parallel()
+
+	client := newFieldsClient(t)
+	birthDate := defineText(t, client, "birthDate")
+	defineText(t, client, "shoeSize")
+
+	var ordered struct{ OrderFields bool }
+	err := client.Post(orderFields, &ordered, gqlclient.Var("ids", []string{birthDate}))
+
+	if err == nil || !strings.Contains(err.Error(), `"reason":"field_order_incomplete"`) ||
+		!strings.Contains(err.Error(), `"code":"CONFLICT"`) {
+		t.Errorf("error = %v, want the incomplete order refused as a conflict", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "the order does not name each live field exactly once") {
+		t.Errorf("error = %v, want a message that says what went wrong", err)
+	}
+}
+
 func TestGraphRefusesArchivingAnUnknownField(t *testing.T) {
 	t.Parallel()
 

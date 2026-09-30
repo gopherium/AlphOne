@@ -47,6 +47,7 @@ export interface FrontendPlugin {
 export {
 	Badge,
 	Button,
+	Card,
 	Checkbox,
 	Collapsible,
 	Drawer,
@@ -86,8 +87,10 @@ export {
 	Page as PageScreen,
 	PageTitle,
 	RepeatRows,
+	RowControls,
 	SectionTitle,
 } from '@gopherium/godmin'
+export type { RowLabels } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'

@@ -198,6 +198,7 @@ type ComplexityRoot struct {
 		Invite                  func(childComplexity int, email string, name string, role *string) int
 		Login                   func(childComplexity int, email string, password string) int
 		Logout                  func(childComplexity int) int
+		OrderFields             func(childComplexity int, ids []uuid.UUID) int
 		RenameContact           func(childComplexity int, id uuid.UUID, name string) int
 		RequestPasswordReset    func(childComplexity int, email string) int
 		ResendInvite            func(childComplexity int, email string) int
@@ -363,6 +364,7 @@ type MutationResolver interface {
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
+	OrderFields(ctx context.Context, ids []uuid.UUID) (bool, error)
 	WriteContactFields(ctx context.Context, contactID uuid.UUID, values interface{}) (bool, error)
 	AddContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entry interface{}) (interface{}, error)
 	UpdateContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID, entry interface{}) (interface{}, error)
@@ -1118,6 +1120,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.Logout(childComplexity), true
+	case "Mutation.orderFields":
+		if e.ComplexityRoot.Mutation.OrderFields == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_orderFields_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.OrderFields(childComplexity, args["ids"].([]uuid.UUID)), true
 	case "Mutation.renameContact":
 		if e.ComplexityRoot.Mutation.RenameContact == nil {
 			break
@@ -1931,6 +1944,7 @@ extend type Mutation {
   defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition!
     @scope(area: "fields", write: true)
   archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
+  orderFields(ids: [UUID!]!): Boolean! @scope(area: "fields", write: true)
   writeContactFields(contactId: UUID!, values: JSON!): Boolean! @scope(area: "contacts", write: true)
   addContactFieldEntry(contactId: UUID!, field: String!, entry: JSON!): JSON! @scope(area: "contacts", write: true)
   updateContactFieldEntry(contactId: UUID!, field: String!, entryId: UUID!, entry: JSON!): JSON!
@@ -3068,6 +3082,20 @@ func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["password"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_orderFields_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]uuid.UUID, error) {
+			return ec.unmarshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -6435,6 +6463,50 @@ func (ec *executionContext) fieldContext_Mutation_archiveField(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_archiveField_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_orderFields(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_orderFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().OrderFields(ctx, fc.Args["ids"].([]uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_orderFields(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_orderFields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11698,6 +11770,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "orderFields":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_orderFields(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "writeContactFields":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_writeContactFields(ctx, field)
@@ -14060,6 +14139,35 @@ func (ec *executionContext) marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx context.Context, v any) ([]uuid.UUID, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]uuid.UUID, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx context.Context, sel ast.SelectionSet, v []uuid.UUID) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNUpdateTaskInput2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐUpdateTaskInput(ctx context.Context, v any) (model.UpdateTaskInput, error) {

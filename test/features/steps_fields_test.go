@@ -48,6 +48,7 @@ type graphAnswer struct {
 			SubFields  []map[string]any `json:"subFields"`
 		} `json:"fields"`
 		ReservedFieldNames []string `json:"reservedFieldNames"`
+		OrderFields        bool     `json:"orderFields"`
 	} `json:"data"`
 	Errors []struct {
 		Message    string         `json:"message"`
@@ -224,6 +225,7 @@ func bindFieldsCatalogSteps(sc *godog.ScenarioContext) {
 		})
 
 	bindReservedNameSteps(sc)
+	bindFieldOrderSteps(sc)
 }
 
 // bindReservedNameSteps binds the steps that read the names a field cannot take and the id a define answers.

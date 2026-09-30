@@ -58,6 +58,9 @@ msgstr ""
 msgid "Archive %(label)s"
 msgstr ""
 
+msgid "Archive this field?"
+msgstr ""
+
 msgid "Blank entry"
 msgstr ""
 
@@ -83,6 +86,12 @@ msgid "Label"
 msgstr ""
 
 msgid "Loading fields…"
+msgstr ""
+
+msgid "Move %(label)s down"
+msgstr ""
+
+msgid "Move %(label)s up"
 msgstr ""
 
 msgid "Move sub field down"
@@ -172,7 +181,13 @@ msgstr ""
 msgid "The field list just changed. Press Add field again."
 msgstr ""
 
+msgid "The field list just changed. The new order was not saved."
+msgstr ""
+
 msgid "The fields could not be loaded."
+msgstr ""
+
+msgid "The fields could not be ordered."
 msgstr ""
 
 msgid "The fields could not be saved."

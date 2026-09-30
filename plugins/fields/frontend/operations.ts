@@ -79,6 +79,12 @@ export const archiveFieldMutation = graphql(`
 	}
 `)
 
+export const orderFieldsMutation = graphql(`
+	mutation OrderFields($ids: [UUID!]!) {
+		orderFields(ids: $ids)
+	}
+`)
+
 export const writeContactFieldsMutation = graphql(`
 	mutation WriteContactFields($contactId: UUID!, $values: JSON!) {
 		writeContactFields(contactId: $contactId, values: $values)

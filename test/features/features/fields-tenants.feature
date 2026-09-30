@@ -43,6 +43,21 @@ Feature: Each tenant keeps its own contact fields
     When an anonymous caller asks a contact for the field "birthDat"
     Then the answer does not name "birthDate"
 
+  Scenario: A tenant cannot order another tenant's fields
+    Given the field "birthDate" labelled "Birth date" of kind DATE is defined
+    And the field "nickname" labelled "Nickname" of kind TEXT is defined
+    And the tenant "Acme" defines the field "shoeSize" labelled "Shoe size" of kind TEXT
+    When the tenant "Acme" orders the fields:
+      | name      |
+      | shoeSize  |
+      | nickname  |
+      | birthDate |
+    Then the change is refused with the reason "field_order_incomplete"
+    And the catalogue lists the fields in order:
+      | name      |
+      | birthDate |
+      | nickname  |
+
   Scenario: The import mapping offers only the caller's own fields
     Given the tenant "Acme" defines the field "shoeSize" labelled "Shoe size" of kind TEXT
     When the operator defines the field "birthDate" labelled "Birth date" of kind DATE
