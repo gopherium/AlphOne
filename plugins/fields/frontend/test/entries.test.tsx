@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { configureErrorText } from '@alphone/frontend-sdk'
+import { Card, configureErrorText } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentType } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import {
@@ -247,6 +248,35 @@ test('sets the Fields heading and a repeater heading a size above the field labe
 	expect([...repeater.classList]).toEqual(expect.arrayContaining(textClasses('heading-md')))
 })
 
+/**
+ * Returns the classes the given part of a card renders with.
+ * @param Part - The card part to sample.
+ * @returns The class names, in order.
+ */
+function cardClasses(Part: ComponentType) {
+	const { container, unmount } = render(<Part />)
+	const classes = [...(container.firstElementChild as Element).classList]
+	unmount()
+	return classes
+}
+
+test('frames a repeater in a card, its name in the header and its add form and entries in the content', async () => {
+	serveCatalogue([history, jobTitle])
+	serveValues({ history: [firstCall], jobTitle: null })
+
+	renderPanel()
+
+	const card = await screen.findByRole('group', { name: 'History' })
+	const [header, content] = [...card.children]
+	expect([...card.classList]).toEqual(expect.arrayContaining(cardClasses(Card.Root)))
+	expect([...header.classList]).toEqual(expect.arrayContaining(cardClasses(Card.Header)))
+	expect([...content.classList]).toEqual(expect.arrayContaining(cardClasses(Card.Content)))
+	expect(header).toContainElement(within(card).getByRole('heading', { level: 3, name: 'History' }))
+	expect(content).toContainElement(screen.getByRole('form', { name: 'Add an entry to History' }))
+	expect(content).toContainElement(screen.getByRole('listitem', { name: firstCallName }))
+	expect(card).not.toContainElement(screen.getByLabelText('Job title'))
+})
+
 test('tells apart two entries of one day by their first line', async () => {
 	serveCatalogue([history])
 	serveValues({
@@ -374,6 +404,24 @@ test('adding sends only that entry, never the field values', async () => {
 			entry: { date: today, comment: 'Called back.\nAgreed on a date.' },
 		}),
 	)
+	expect(written).not.toHaveBeenCalled()
+})
+
+test('a field value typed and not saved stays on screen after an entry is added', async () => {
+	serveCatalogue([jobTitle, history])
+	const store = serveChangingValues({ jobTitle: null, history: null })
+	capture('AddContactFieldEntry', added)
+	const written = captureWrite()
+
+	renderPanel()
+	await userEvent.type(await screen.findByLabelText('Job title'), 'Rear Admiral')
+	store({ jobTitle: null, history: [firstCall] })
+	await userEvent.type((await addForm()).getByLabelText('Comment'), 'Called back.')
+	await userEvent.click(addButton())
+
+	expect(await screen.findByText(firstCall.comment)).toBeInTheDocument()
+	expect(screen.getByLabelText('Job title')).toHaveValue('Rear Admiral')
+	expect(screen.getByRole('button', { name: 'Save fields' })).not.toHaveAttribute('aria-disabled', 'true')
 	expect(written).not.toHaveBeenCalled()
 })
 
@@ -657,7 +705,9 @@ test('Remove asks first and puts focus on Keep', async () => {
 	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
 
 	const item = within(screen.getByRole('listitem', { name: firstCallName }))
-	expect(item.getByRole('group', { name: 'Remove this entry?' })).toBeInTheDocument()
+	const group = item.getByRole('group', { name: 'Remove this entry?' })
+	expect(group.style.flexDirection).toBe('row')
+	expect(group.style.flexWrap).toBe('wrap')
 	expect(item.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
 	expect(item.getByRole('button', { name: 'Keep' })).toHaveFocus()
 	expect(removing).not.toHaveBeenCalled()
@@ -701,6 +751,7 @@ test('a removal in flight disables its own row and every other row', async () =>
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
 
 	expect(screen.getByRole('button', { name: 'Remove' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Remove' }).className).toMatch(/is-loading/)
 	expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}` })).toHaveAttribute(
 		'aria-disabled',

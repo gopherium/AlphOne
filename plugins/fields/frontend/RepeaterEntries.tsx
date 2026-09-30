@@ -2,6 +2,7 @@
 
 import {
 	Button,
+	Card,
 	ErrorNotice,
 	LogList,
 	SectionTitle,
@@ -26,9 +27,9 @@ import { useEntryActions } from './useEntryActions'
 import type { GoneHandler } from './useEntryActions'
 
 /**
- * Renders one repeater of a contact: its heading, one add form and its entries, newest first.
+ * Renders one repeater of a contact as a card: its heading in the header, one add form and its entries, newest first.
  * @param props - The contact, the repeater, its stored value and the report of a repeater gone.
- * @returns The repeater section.
+ * @returns The repeater card.
  */
 export function RepeaterEntries({
 	contactId,
@@ -46,34 +47,40 @@ export function RepeaterEntries({
 	const actions = useEntryActions({ contactId, field, entries, onGone })
 
 	return (
-		<Stack direction="column" gap="sm" role="group" aria-labelledby={heading}>
-			<SectionTitle level={3} id={heading}>
-				{field.label}
-			</SectionTitle>
-			<AddEntryForm
-				contactId={contactId}
-				field={field}
-				focusCount={actions.addFocus}
-				onAdded={actions.added}
-				onGone={onGone}
-			/>
-			{actions.failure !== '' && <ErrorNotice>{actions.failure}</ErrorNotice>}
-			{entries.length === 0 ? (
-				<Text role="status">{__('No entries yet.', 'alphone-fields')}</Text>
-			) : (
-				<LogList aria-labelledby={heading}>
-					{entries.map((entry) => (
-						<EntryRow
-							key={entry.id}
-							entry={entry}
-							subFields={field.subFields}
-							row={actions.rowOf(entry.id)}
-							on={actions.on}
-						/>
-					))}
-				</LogList>
-			)}
-		</Stack>
+		<Card.Root role="group" aria-labelledby={heading}>
+			<Card.Header>
+				<SectionTitle level={3} id={heading}>
+					{field.label}
+				</SectionTitle>
+			</Card.Header>
+			<Card.Content>
+				<Stack direction="column" gap="sm">
+					<AddEntryForm
+						contactId={contactId}
+						field={field}
+						focusCount={actions.addFocus}
+						onAdded={actions.added}
+						onGone={onGone}
+					/>
+					{actions.failure !== '' && <ErrorNotice>{actions.failure}</ErrorNotice>}
+					{entries.length === 0 ? (
+						<Text role="status">{__('No entries yet.', 'alphone-fields')}</Text>
+					) : (
+						<LogList aria-labelledby={heading}>
+							{entries.map((entry) => (
+								<EntryRow
+									key={entry.id}
+									entry={entry}
+									subFields={field.subFields}
+									row={actions.rowOf(entry.id)}
+									on={actions.on}
+								/>
+							))}
+						</LogList>
+					)}
+				</Stack>
+			</Card.Content>
+		</Card.Root>
 	)
 }
 
