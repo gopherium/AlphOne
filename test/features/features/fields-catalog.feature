@@ -65,7 +65,6 @@ Feature: An operator shapes the field catalogue
     Then the catalogue does not list "birthDate"
     And the catalogue lists "birthDate" among archived definitions
 
-  @wip
   Scenario: Defining an archived field again answers the field it brings back and lists it last
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
@@ -78,7 +77,6 @@ Feature: An operator shapes the field catalogue
       | shoeSize  |
       | birthDate |
 
-  @wip
   Scenario: The operator orders the fields
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
@@ -95,7 +93,6 @@ Feature: An operator shapes the field catalogue
       | birthDate |
       | shoeSize  |
 
-  @wip
   Scenario: A new field goes to the end of the order
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined
@@ -110,7 +107,6 @@ Feature: An operator shapes the field catalogue
       | birthDate |
       | nickname  |
 
-  @wip
   Scenario: An order that leaves a field out is refused
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined

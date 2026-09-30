@@ -11,7 +11,6 @@ Feature: A spreadsheet fills the fields
     When the operator defines the field "birthDate" labelled "Birth date" of kind DATE
     Then the mapping registry lists "birthDate" labelled "Birth date" beside the core columns
 
-  @wip
   Scenario: The mapping registry follows the order of the fields
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "shoeSize" labelled "Shoe size" of kind TEXT is defined

@@ -43,7 +43,6 @@ Feature: Each tenant keeps its own contact fields
     When an anonymous caller asks a contact for the field "birthDat"
     Then the answer does not name "birthDate"
 
-  @wip
   Scenario: A tenant cannot order another tenant's fields
     Given the field "birthDate" labelled "Birth date" of kind DATE is defined
     And the field "nickname" labelled "Nickname" of kind TEXT is defined
