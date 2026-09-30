@@ -49,7 +49,13 @@ named after the word `field`. That name is reserved too, so it becomes
 ## Fill a field in
 
 Open a contact. The **Fields** section sits beside the tasks, or under them
-on a narrow screen. Type into a field, then press **Save fields**.
+on a narrow screen. Type into a field, then press **Save fields**. The button
+stays greyed out until you change a field.
+
+When a contact has repeaters, they split the other fields into groups, and each
+group gets its own **Save fields** button under it. A button turns on once you
+change a field in its own group, and it saves every field you changed on that
+contact, wherever it sits on the page.
 
 A Long text field is a box several lines tall. Press Enter to start a new
 line. The text keeps its line breaks when you save.
@@ -81,9 +87,9 @@ becomes `id2`, because each entry keeps its own id under `id`.
 The sub fields cannot be changed once the repeater exists. The reason is the
 same as for the kind: old entries would no longer fit.
 
-On a contact, each repeater shows under its own heading. A form to add an
-entry sits on top. The entries follow, the last one added first. Each date in
-the form starts on today's date.
+On a contact, each repeater sits in its own box, with its label as the
+heading. A form to add an entry sits on top. The entries follow, the last one
+added first. Each date in the form starts on today's date.
 
 - Fill in the form and press **Add an entry to History**, with your
   repeater's label in place of History. The button stays off until you fill
@@ -95,9 +101,10 @@ the form starts on today's date.
 - Press the trash icon, and the row asks **Remove this entry?** Press
   **Remove** to confirm or **Keep** to leave it.
 
-Each add, save and removal is stored at once. **Save fields** saves only the
-other fields, and it is hidden when there are none. Each change touches only
-its own entry. If two people edit the same entry, the last save wins.
+Each add, save and removal is stored at once. **Save fields** never saves a
+repeater, and a contact whose fields are all repeaters has no **Save fields**
+button. Each change touches only its own entry. If two people edit the same
+entry, the last save wins.
 
 A list holds at most 500 entries by default. See
 [Configuration](/self-hosting/configuration/#fields-plugin) to change the cap.
@@ -106,7 +113,8 @@ A list holds at most 500 entries by default. See
 
 You do not have to type every value in by hand. When you import a CSV or an
 Excel file, your fields sit in the mapping dropdown beside Name, Email and
-Phone. Point a column at one and the values arrive with the contacts.
+Phone. They come after those three, in the order set on the **Fields** screen.
+Point a column at one and the values arrive with the contacts.
 
 A field named `email` or `phone` stays out of the dropdown, because Email and
 Phone already use those names. The labels `Email` and `Phone` make exactly
@@ -131,20 +139,52 @@ keeps an import from quietly overwriting work.
 
 AlphOne refuses a value that does not match the kind. A `Date` field will not
 accept `not a date`, and a `Number` field will not accept `4.5`, because whole
-numbers are what it holds. You see the reason on screen and nothing is stored.
+numbers are what it holds. You see the reason in the group whose
+**Save fields** you pressed, and nothing is stored.
 
 This is why the kind cannot be changed after a field exists. Changing it would
 leave old values that no longer fit.
 
+## Put the fields in order
+
+The list on the **Fields** screen shows your fields in order. A new field goes
+to the end. Until you move one, the fields stay in the order you added them.
+
+Each row ends with three icons. The up arrow moves the field one place up, and
+the down arrow moves it one place down. For a field labelled `Birth date` they
+are named **Move Birth date up** and **Move Birth date down**. The up arrow is
+off on the first row, and the down arrow is off on the last. The trash icon
+asks before it archives the field, as the next section explains.
+
+The list changes as soon as you press an arrow, and the new order is saved for
+everyone in your workspace. If the save fails, the fields go back to where
+they were and the screen says **The fields could not be ordered.** If someone
+added or archived a field after you opened the screen, the move is refused
+with **The field list just changed. The new order was not saved.** The list
+then shows the fields as they are now, so move the field again.
+
+The contact page shows your fields in this order, repeaters too. The mapping
+dropdown of an import and `fields` in the API use the same order. A repeater
+moves as a whole. Its sub fields keep the order you gave them when you made it.
+
 ## Archive a field you no longer need
 
-Press **Archive** beside a field. It disappears from the contact screen and
-from the API straight away.
+Press the trash icon at the end of the field's row. For a field labelled
+`Birth date` it is named **Archive Birth date**. Nothing is archived yet. The
+row asks **Archive this field?** Press **Archive** to confirm, or **Keep** to
+leave the field as it is. The question starts on **Keep**, so pressing Enter
+by mistake keeps the field.
 
-Archiving does not delete anything. The values stay in the database, and the
-archived field keeps its name. So a new field with the same label gets a
-numbered name and starts empty. Only the API can bring the old field back with
-its values. See [Using your fields from the API](#using-your-fields-from-the-api).
+Once you confirm, the field disappears from the contact screen and from the
+API. If the archive fails, the screen says so and the trash icon comes back,
+so you can try again.
+
+Archiving does not delete anything, even though the icon is a trash can. The
+values stay in the database, and the archived field keeps its name. So a new
+field with the same label gets a numbered name and starts empty. Only the API
+can bring the old field back with its values, and it comes back at the end of
+the list, like a new field. See
+[Using your fields from the API](#using-your-fields-from-the-api).
 
 ## Using your fields from the API
 
@@ -226,9 +266,34 @@ under one of the JavaScript names to the next free name, such as
 `fields(includeArchived: true)` also lists archived fields, each with its
 `archivedAt`, so you can find the name to send. Calling `defineField` with an
 archived field's name brings that field back with its values and the label
-you send. The kind must match, and for a repeater so must the sub field names
-and kinds, in the same order. Otherwise the call is refused with
-`field_kind_locked`. The answer carries the field's old id.
+you send. It goes to the end of the list, like a new field. The kind must
+match, and for a repeater so must the sub field names and kinds, in the same
+order. Otherwise the call is refused with `field_kind_locked`. The answer
+carries the field's old id.
+
+`fields` lists the fields in the order set on the **Fields** screen. With
+`includeArchived: true`, the archived fields come after the others.
+
+`orderFields` sets the order from the API. Send the id of every field that is
+not archived, in the order you want:
+
+```graphql
+mutation {
+  orderFields(
+    ids: [
+      "0198c000-0000-7000-8000-000000000302"
+      "0198c000-0000-7000-8000-000000000301"
+    ]
+  )
+}
+```
+
+It answers `true`. The list must name every field in your workspace that is
+not archived, each one exactly once. A list that leaves a field out, names one
+twice, or holds an id that is archived, unknown or from another workspace is
+refused with `field_order_incomplete`, and the order stays as it was. That way
+an order built from an old copy of the list is never saved over a field
+someone added or archived since. Read `fields` again and send the whole list.
 
 A repeater reads as a list of entries typed `JSON`, the last one added first.
 Each entry is an object keyed by sub field name, with the `id` AlphOne gave

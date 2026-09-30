@@ -423,6 +423,7 @@ The stock plugins add their own:
 | `field_name_taken` | | another definition holds the name |
 | `field_kind_locked` | | an archived definition pins the kind and sub fields |
 | `field_not_found` | | the id names no live definition |
+| `field_order_incomplete` | | the ids are not exactly the live definitions, each named once |
 | `field_unknown` | | no live definition or sub field holds the name |
 | `value_kind_mismatch` | | the value does not match the declared kind |
 | `values_not_an_object` | | values arrive as an object of names |
@@ -520,7 +521,7 @@ cannot drift. Point a client at the endpoint, or read
 | Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
-| Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
+| Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
 | Version | `version` | |
