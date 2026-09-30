@@ -9,12 +9,20 @@ import {
 	textClasses,
 } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
-import { refusal, speakTemplates } from './harness'
+import { capture, hold, refusal, speakTemplates } from './harness'
+
+/** scrolled records every scroll into view an element asks for. */
+const scrolled = vi.fn()
+
+beforeEach(() => {
+	scrolled.mockClear()
+	Element.prototype.scrollIntoView = scrolled
+})
 
 afterEach(() => {
 	configureErrorText({ templates: () => ({}), fallback: () => '' })
@@ -108,11 +116,10 @@ test('the catalogue lists every defined field in a table', async () => {
 	const row = within(table).getAllByRole('row')[1]
 	const cells = within(row).getAllByRole('cell')
 	expect(cells[0]).toHaveTextContent('Birth date')
-	expect(cells[1]).toHaveTextContent('birthDate')
-	expect(cells[2]).toHaveTextContent('Date')
-	expect(within(table).getByRole('columnheader', { name: 'Label' })).toBeInTheDocument()
-	expect(within(table).getByRole('columnheader', { name: 'API name' })).toBeInTheDocument()
-	expect(within(table).getByRole('columnheader', { name: 'Kind' })).toBeInTheDocument()
+	expect(cells[1]).toHaveTextContent(/^Date$/)
+	expect(cells[2]).toHaveTextContent('birthDate')
+	const headers = within(table).getAllByRole('columnheader')
+	expect(headers.map((header) => header.textContent)).toEqual(['Label', 'Kind', 'API name', ''])
 })
 
 test('an empty catalogue invites the first field', async () => {
@@ -487,20 +494,35 @@ test('an answer carrying no catalogue reads as empty', async () => {
 	expect(await sentName(defined)).toBe('birthDate')
 })
 
+/** notFound is the answer of an archive naming no live field. */
+const notFound = {
+	errors: [{ message: 'fields: no live definition holds that id', extensions: { code: 'NOT_FOUND' } }],
+}
+
+/**
+ * Presses the trash of the named field, then Archive in the question it asks.
+ * @param label - The label of the field.
+ */
+async function archiveField(label: string) {
+	await userEvent.click(await screen.findByRole('button', { name: `Archive ${label}` }))
+	await userEvent.click(screen.getByRole('button', { name: 'Archive' }))
+}
+
+/**
+ * Returns the table row showing the named field.
+ * @param label - The label of the field.
+ * @returns The row.
+ */
+function rowOf(label: string) {
+	return screen.getByText(label).closest('tr') as HTMLElement
+}
+
 test('a failed archive is reported', async () => {
 	serveFieldCatalogue([birthDate])
-	server.use(
-		graphql.mutation('ArchiveField', () =>
-			HttpResponse.json({
-				errors: [
-					{ message: 'fields: no live definition holds that id', extensions: { code: 'NOT_FOUND' } },
-				],
-			}),
-		),
-	)
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json(notFound)))
 
 	renderScreen()
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await archiveField('Birth date')
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The field could not be archived.',
@@ -569,8 +591,8 @@ test('the catalogue shows a repeater beside the labels of its sub fields', async
 
 	const table = await screen.findByRole('table')
 	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
-	expect(cells[2]).toHaveTextContent('Repeater')
-	expect(cells[2]).toHaveTextContent('Date, Comment')
+	expect(cells[1]).toHaveTextContent('Repeater')
+	expect(cells[1]).toHaveTextContent('Date, Comment')
 })
 
 test('a field holding no sub fields shows its kind alone', async () => {
@@ -580,7 +602,7 @@ test('a field holding no sub fields shows its kind alone', async () => {
 
 	const table = await screen.findByRole('table')
 	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
-	expect(cells[2]).toHaveTextContent(/^Date$/)
+	expect(cells[1]).toHaveTextContent(/^Date$/)
 })
 
 test('only the repeater kind asks for sub fields', async () => {
@@ -796,7 +818,675 @@ test('archiving a field sends its id', async () => {
 	)
 
 	renderScreen()
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await archiveField('Birth date')
 
 	await waitFor(() => expect(archived).toHaveBeenCalledWith({ id: birthDate.id }))
+})
+
+const shoeSize = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000502',
+	name: 'shoeSize',
+	label: 'Shoe size',
+	kind: 'NUMBER',
+	subFields: [],
+}
+
+const nickname = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000503',
+	name: 'nickname',
+	label: 'Nickname',
+	kind: 'TEXT',
+	subFields: [],
+}
+
+const hatSize = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000504',
+	name: 'hatSize',
+	label: 'Hat size',
+	kind: 'TEXT',
+	subFields: [],
+}
+
+const faxNumber = {
+	__typename: 'FieldDefinition',
+	id: '0198c000-0000-7000-8000-000000000505',
+	name: 'faxNumber',
+	label: 'Fax number',
+	kind: 'TEXT',
+	subFields: [],
+}
+
+/** accepted is the answer of an order the server saved. */
+const accepted = { data: { orderFields: true } }
+
+/**
+ * Returns the labels of the catalogue rows in the order the table shows them.
+ * @returns The labels, top row first.
+ */
+async function shownLabels() {
+	const table = await screen.findByRole('table')
+	return within(table)
+		.getAllByRole('row')
+		.slice(1)
+		.map((row) => within(row).getAllByRole('cell')[0].textContent)
+}
+
+/**
+ * Serves the catalogue from a store that orders, archives and defines fields, holding every order until released.
+ * @param live - The live fields in their stored order.
+ * @returns The recorder of the orders, their release, the count of catalogue reads and a setter of the live fields.
+ */
+function serveFieldStore(live: (typeof birthDate)[]) {
+	let served = live
+	let reads = 0
+	const ordered = vi.fn()
+	let release = () => {}
+	const released = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', () => {
+			reads += 1
+			return HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } })
+		}),
+		graphql.mutation('OrderFields', async ({ variables }) => {
+			ordered(variables)
+			await released
+			served = served
+				.filter((field) => variables.ids.includes(field.id))
+				.sort((one, other) => variables.ids.indexOf(one.id) - variables.ids.indexOf(other.id))
+			return HttpResponse.json(accepted)
+		}),
+		graphql.mutation('ArchiveField', ({ variables }) => {
+			served = served.filter((field) => field.id !== variables.id)
+			return HttpResponse.json({ data: { archiveField: true } })
+		}),
+		graphql.mutation('DefineField', () => {
+			served = [...served, hatSize]
+			return HttpResponse.json({ data: { defineField: hatSize } })
+		}),
+	)
+	return {
+		ordered,
+		release: () => release(),
+		reads: () => reads,
+		serve: (fields: (typeof birthDate)[]) => {
+			served = fields
+		},
+	}
+}
+
+/** Lets every request the screen started reach the server. */
+async function settle() {
+	await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+}
+
+test('each field row carries arrows that move it and a trash icon that asks to archive it', async () => {
+	serveFieldCatalogue([birthDate])
+
+	renderScreen()
+
+	const archive = await screen.findByRole('button', { name: 'Archive Birth date' })
+	expect(archive.textContent).toBe('')
+	expect(archive.querySelector('svg')).not.toBeNull()
+	expect(screen.getByRole('button', { name: 'Move Birth date up' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Move Birth date down' })).toBeInTheDocument()
+	expect(screen.queryByText('Archive')).not.toBeInTheDocument()
+})
+
+test('the trash asks first and puts focus on Keep', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const archived = capture('ArchiveField', { data: { archiveField: true } })
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+
+	const row = within(rowOf('Birth date'))
+	expect(row.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
+	expect(row.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
+	expect(row.getByRole('button', { name: 'Keep' })).toHaveFocus()
+	expect(row.queryByRole('button', { name: 'Archive Birth date' })).not.toBeInTheDocument()
+	expect(row.queryByRole('button', { name: 'Move Birth date down' })).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
+	const group = row.getByRole('group', { name: 'Archive this field?' })
+	const [question, buttons] = [...group.children] as HTMLElement[]
+	expect(group.style.flexDirection).toBe('column')
+	expect(question).toHaveTextContent(/^Archive this field\?$/)
+	expect(buttons.style.flexDirection).toBe('row')
+	expect(buttons.style.flexWrap).toBe('nowrap')
+	expect(buttons).toContainElement(row.getByRole('button', { name: 'Archive' }))
+	expect(buttons).toContainElement(row.getByRole('button', { name: 'Keep' }))
+	await settle()
+	expect(archived).not.toHaveBeenCalled()
+})
+
+test('a trash pressed while another row asks moves the question to its row and puts focus on its Keep', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const archived = capture('ArchiveField', { data: { archiveField: true } })
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Archive Shoe size' }))
+
+	expect(screen.getAllByRole('group', { name: 'Archive this field?' })).toHaveLength(1)
+	const shoe = within(rowOf('Shoe size'))
+	expect(shoe.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
+	expect(shoe.getByRole('button', { name: 'Keep' })).toHaveFocus()
+	expect(within(rowOf('Birth date')).getByRole('button', { name: 'Archive Birth date' })).toBeInTheDocument()
+	await settle()
+	expect(archived).not.toHaveBeenCalled()
+})
+
+test('Keep leaves the field and puts focus back on its trash', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const archived = capture('ArchiveField', { data: { archiveField: true } })
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+
+	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Archive Birth date' })).toHaveFocus()
+	expect(screen.getByRole('button', { name: 'Move Birth date down' })).toBeInTheDocument()
+	await settle()
+	expect(archived).not.toHaveBeenCalled()
+})
+
+test.each([
+	['lost on the way', () => HttpResponse.error()],
+	['refused', () => HttpResponse.json(notFound)],
+])('an archive %s closes the question and puts focus back on the trash', async (_, answer) => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	server.use(graphql.mutation('ArchiveField', answer))
+
+	renderScreen()
+	await archiveField('Birth date')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
+	const trash = screen.getByRole('button', { name: 'Archive Birth date' })
+	await waitFor(() => expect(trash).toHaveFocus())
+	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a failed archive leaves focus where the reader moved it', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const archiving = hold('ArchiveField', notFound)
+
+	renderScreen()
+	await archiveField('Birth date')
+	await waitFor(() => expect(archiving.called).toHaveBeenCalledOnce())
+	const label = screen.getByLabelText('Label')
+	await userEvent.click(label)
+	archiving.release()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	await settle()
+	expect(label).toHaveFocus()
+})
+
+test('the arrows at the ends of the list are marked disabled and send nothing', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const ordered = capture('OrderFields', accepted)
+
+	renderScreen()
+	const top = await screen.findByRole('button', { name: 'Move Birth date up' })
+	const bottom = screen.getByRole('button', { name: 'Move Shoe size down' })
+	expect(top).toHaveAttribute('aria-disabled', 'true')
+	expect(bottom).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Move Birth date down' })).not.toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Move Shoe size up' })).not.toHaveAttribute('aria-disabled', 'true')
+	await userEvent.click(top)
+	await userEvent.click(bottom)
+	await userEvent.click(screen.getByRole('button', { name: 'Move Shoe size up' }))
+
+	await waitFor(() => expect(ordered).toHaveBeenCalledTimes(1))
+	expect(ordered).toHaveBeenCalledWith({ ids: [shoeSize.id, birthDate.id] })
+})
+
+test('a move shows the new order at once and sends only the live fields in it', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname], [faxNumber])
+	const ordered = hold('OrderFields', accepted)
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Nickname up' }))
+
+	expect(await shownLabels()).toEqual(['Birth date', 'Nickname', 'Shoe size'])
+	await waitFor(() => expect(ordered.called).toHaveBeenCalledTimes(1))
+	expect(ordered.called).toHaveBeenCalledWith({ ids: [birthDate.id, nickname.id, shoeSize.id] })
+	ordered.release()
+})
+
+test('a move while an order is unanswered waits for its answer, sends the latest order, then reads once', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Move Birth date down' }))
+	expect(await shownLabels()).toEqual(['Shoe size', 'Nickname', 'Birth date'])
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(1))
+	await settle()
+
+	expect(store.ordered).toHaveBeenCalledTimes(1)
+	expect(store.ordered).toHaveBeenCalledWith({ ids: [shoeSize.id, birthDate.id, nickname.id] })
+	store.release()
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenLastCalledWith({ ids: [shoeSize.id, nickname.id, birthDate.id] })
+	await waitFor(() => expect(store.reads()).toBe(2))
+	await settle()
+	expect(store.reads()).toBe(2)
+	expect(graph.refetch).toHaveBeenCalledTimes(1)
+	expect(await shownLabels()).toEqual(['Shoe size', 'Nickname', 'Birth date'])
+})
+
+test('a move pressed as an order answer lands sends the order it shows', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient()
+	const refetch = vi.mocked(graph.refetch)
+	const read = refetch.getMockImplementation() as typeof graph.refetch
+	refetch.mockImplementationOnce((operations) => {
+		read(operations)
+		screen.getByRole('button', { name: 'Move Birth date down' }).click()
+	})
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(1))
+	store.release()
+
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenLastCalledWith({ ids: [shoeSize.id, nickname.id, birthDate.id] })
+	await waitFor(() => expect(store.reads()).toBe(3))
+	await settle()
+	expect(await shownLabels()).toEqual(['Shoe size', 'Nickname', 'Birth date'])
+})
+
+test('a refused order drops the moves made while it was unanswered and shows the fields as they are', async () => {
+	speakTemplates()
+	let served = [birthDate, shoeSize, nickname]
+	server.use(
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } }),
+		),
+	)
+	const refused = hold('OrderFields', refusal('CONFLICT', 'field_order_incomplete'))
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Move Birth date down' }))
+	expect(await shownLabels()).toEqual(['Shoe size', 'Nickname', 'Birth date'])
+	served = [birthDate, shoeSize, nickname, hatSize]
+	refused.release()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. The new order was not saved.')
+	expect(await screen.findByRole('button', { name: 'Archive Hat size' })).toBeInTheDocument()
+	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size', 'Nickname', 'Hat size'])
+	await settle()
+	expect(refused.called).toHaveBeenCalledTimes(1)
+	expect(graph.refetch).toHaveBeenCalledTimes(1)
+})
+
+test('an order lost after an earlier one was saved keeps the order the earlier one saved', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	const ordered = vi.fn()
+	let answerFirst = () => {}
+	const first = new Promise<void>((resolve) => {
+		answerFirst = resolve
+	})
+	server.use(
+		graphql.mutation('OrderFields', async ({ variables }) => {
+			ordered(variables)
+			if (ordered.mock.calls.length > 1) {
+				return HttpResponse.error()
+			}
+			await first
+			return HttpResponse.json(accepted)
+		}),
+	)
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Move Birth date down' }))
+	await waitFor(() => expect(ordered).toHaveBeenCalledTimes(1))
+	answerFirst()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Nickname'])
+	expect(ordered).toHaveBeenCalledTimes(2)
+	await userEvent.click(screen.getByRole('button', { name: 'Move Nickname up' }))
+	await waitFor(() => expect(ordered).toHaveBeenCalledTimes(3))
+	await settle()
+	expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Nickname'])
+	expect(graph.refetch).not.toHaveBeenCalled()
+})
+
+test('a field archived while an order is unanswered leaves the list and the next order', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Nickname up' }))
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+
+	expect(await shownLabels()).toEqual(['Birth date', 'Nickname'])
+	await userEvent.click(screen.getByRole('button', { name: 'Move Nickname up' }))
+	store.release()
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenLastCalledWith({ ids: [nickname.id, birthDate.id] })
+})
+
+test('a field defined while an order is unanswered joins the end of the order on screen', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await defineLabelled('Hat size')
+
+	expect(await screen.findByRole('button', { name: 'Archive Hat size' })).toBeInTheDocument()
+	expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Nickname', 'Hat size'])
+	store.release()
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenLastCalledWith({ ids: [shoeSize.id, birthDate.id, nickname.id, hatSize.id] })
+})
+
+test('a saved order reads the catalogue again and shows what the server answers', async () => {
+	let served = [birthDate, shoeSize]
+	server.use(
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } }),
+		),
+		graphql.mutation('OrderFields', () => {
+			served = [nickname, shoeSize, birthDate]
+			return HttpResponse.json(accepted)
+		}),
+	)
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+
+	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue']))
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Nickname', 'Shoe size', 'Birth date']))
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a failed order puts the rows back and says so', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	server.use(graphql.mutation('OrderFields', () => HttpResponse.json({ errors: [{ message: 'boom' }] })))
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
+})
+
+test('a refused order says it was not saved and shows the server order at once', async () => {
+	speakTemplates()
+	const reads = vi.fn()
+	let releaseRead = () => {}
+	const reread = new Promise<void>((resolve) => {
+		releaseRead = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', async () => {
+			reads()
+			if (reads.mock.calls.length > 1) {
+				await reread
+			}
+			const served = [birthDate, shoeSize]
+			return HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } })
+		}),
+		graphql.mutation('OrderFields', () => HttpResponse.json(refusal('CONFLICT', 'field_order_incomplete'))),
+	)
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'The field list just changed. The new order was not saved.',
+	)
+	await waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
+	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
+	releaseRead()
+})
+
+test('a refused order reads the catalogue again', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	server.use(graphql.mutation('OrderFields', () => HttpResponse.json(refusal('CONFLICT', 'field_order_incomplete'))))
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await screen.findByRole('alert')
+
+	expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue'])
+})
+
+test('an order lost on the way puts the rows back without reading the catalogue again', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	server.use(graphql.mutation('OrderFields', () => HttpResponse.error()))
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
+	expect(graph.refetch).not.toHaveBeenCalled()
+})
+
+test('the pressed arrow keeps focus and scrolls into view as its row moves', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const ordered = hold('OrderFields', accepted)
+
+	renderScreen()
+	const down = await screen.findByRole('button', { name: 'Move Birth date down' })
+	await userEvent.click(down)
+
+	expect(await shownLabels()).toEqual(['Shoe size', 'Birth date'])
+	expect(down).toHaveFocus()
+	expect(scrolled).toHaveBeenCalledTimes(1)
+	expect(scrolled.mock.contexts[0]).toBe(down)
+	expect(scrolled).toHaveBeenCalledWith({ block: 'nearest' })
+	ordered.release()
+})
+
+test('focus outside the list stays put and scrolls nothing as the rows change', async () => {
+	let served = [birthDate]
+	server.use(
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } }),
+		),
+		graphql.mutation('DefineField', () => {
+			served = [shoeSize, birthDate]
+			return HttpResponse.json({ data: { defineField: shoeSize } })
+		}),
+	)
+
+	renderScreen()
+	await defineLabelled('Shoe size')
+
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Shoe size', 'Birth date']))
+	expect(screen.getByRole('button', { name: 'Add field' })).toHaveFocus()
+	expect(scrolled).not.toHaveBeenCalled()
+})
+
+test('a second press on Archive before the archive is answered sends nothing more', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	const archived = vi.fn()
+	let answer = () => {}
+	const answered = new Promise<void>((resolve) => {
+		answer = resolve
+	})
+	server.use(
+		graphql.mutation('ArchiveField', async ({ variables }) => {
+			archived(variables)
+			if (archived.mock.calls.length > 1) {
+				return HttpResponse.json(notFound)
+			}
+			await answered
+			return HttpResponse.json({ data: { archiveField: true } })
+		}),
+	)
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	const confirm = screen.getByRole('button', { name: 'Archive' })
+	await userEvent.click(confirm)
+	await userEvent.click(confirm)
+	await waitFor(() => expect(archived).toHaveBeenCalledTimes(1))
+	expect(confirm).toHaveAttribute('aria-disabled', 'true')
+	expect(confirm.className).toMatch(/is-loading/)
+	expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveAttribute('aria-disabled', 'true')
+	await settle()
+	answer()
+
+	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue']))
+	await settle()
+	expect(archived).toHaveBeenCalledTimes(1)
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('the archive question stays open and locked until the read drops the row', async () => {
+	let served = [birthDate, shoeSize, nickname]
+	let gated = false
+	let releaseRead = () => {}
+	const reread = new Promise<void>((resolve) => {
+		releaseRead = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', async () => {
+			if (gated) {
+				await reread
+			}
+			return HttpResponse.json({ data: { fields: served, every: served, reservedFieldNames: RESERVED } })
+		}),
+		graphql.mutation('ArchiveField', ({ variables }) => {
+			served = served.filter((field) => field.id !== variables.id)
+			gated = true
+			return HttpResponse.json({ data: { archiveField: true } })
+		}),
+	)
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue']))
+	await settle()
+
+	const row = within(rowOf('Shoe size'))
+	expect(row.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
+	expect(row.getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	expect(row.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
+	releaseRead()
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveFocus())
+})
+
+test('an archive lost on the way can be confirmed again', async () => {
+	serveFieldCatalogue([birthDate])
+	const archived = vi.fn()
+	server.use(
+		graphql.mutation('ArchiveField', ({ variables }) => {
+			archived(variables)
+			return HttpResponse.error()
+		}),
+	)
+
+	renderScreen()
+	await archiveField('Birth date')
+	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	await archiveField('Birth date')
+
+	await waitFor(() => expect(archived).toHaveBeenCalledTimes(2))
+})
+
+test.each([
+	['the next row', 'Shoe size', 'Archive Nickname'],
+	['the row above when the last row goes', 'Nickname', 'Archive Shoe size'],
+])('after an archive focus moves to the trash of %s', async (_, archived, next) => {
+	serveFieldStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	await archiveField(archived)
+	await waitFor(() => expect(screen.queryByText(archived)).not.toBeInTheDocument())
+
+	const trash = screen.getByRole('button', { name: next })
+	expect(trash).toHaveFocus()
+	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a row a read drops hands focus to the same arrow in the next row', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	const down = await screen.findByRole('button', { name: 'Move Shoe size down' })
+	act(() => down.focus())
+	store.serve([birthDate, nickname])
+	act(() => graph.refetch(['FieldCatalogue']))
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+
+	expect(screen.getByRole('button', { name: 'Move Nickname down' })).toHaveFocus()
+})
+
+test('after the last field is archived focus moves to the list region', async () => {
+	serveFieldStore([birthDate])
+
+	renderScreen()
+	await archiveField('Birth date')
+
+	expect(await screen.findByText(/No fields yet/i)).toBeInTheDocument()
+	const region = screen.getByRole('region', { name: 'Fields' })
+	expect(region).toHaveFocus()
+	expect(region).toHaveAttribute('tabindex', '-1')
+})
+
+test('a field brought back after the reader archived it shows again', async () => {
+	const store = serveFieldStore([birthDate, shoeSize])
+
+	renderScreen()
+	await archiveField('Birth date')
+	await waitFor(() => expect(screen.queryByText('Birth date')).not.toBeInTheDocument())
+	store.serve([shoeSize, birthDate])
+	await defineLabelled('Hat size')
+
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Hat size']))
+})
+
+test('a field that leaves and comes back after Keep leaves focus where the reader is', async () => {
+	const store = serveFieldStore([birthDate, shoeSize])
+	const { graph } = fakeGraphClient()
+
+	renderScreen(graph)
+	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+	store.serve([shoeSize])
+	act(() => graph.refetch(['FieldCatalogue']))
+	await waitFor(() => expect(screen.queryByText('Birth date')).not.toBeInTheDocument())
+	store.serve([shoeSize, birthDate])
+	await defineLabelled('Hat size')
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Hat size']))
+	await settle()
+
+	expect(screen.getByRole('button', { name: 'Add field' })).toHaveFocus()
+})
+
+test('a list holding fields is one tab stop so a keyboard can scroll it', async () => {
+	serveFieldCatalogue([birthDate])
+
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Birth date' })
+
+	expect(screen.getByRole('region', { name: 'Fields' })).toHaveAttribute('tabindex', '0')
 })

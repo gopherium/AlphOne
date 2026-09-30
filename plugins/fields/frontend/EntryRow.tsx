@@ -12,12 +12,13 @@ import {
 	sprintf,
 	trash,
 } from '@alphone/frontend-sdk'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
 import { entryText } from './cellText'
 import type { EntryText, SubFieldRow } from './cellText'
 import { EntryCells } from './cells'
+import { ConfirmActions } from './ConfirmActions'
 import { entryName, entryParts, isBlank } from './entries'
 import type { StoredEntry } from './entries'
 import { focusFirstControl } from './focus'
@@ -74,7 +75,12 @@ export function EntryRow({
 			actions={
 				row.mode === 'confirm' ? (
 					<ConfirmActions
-						row={row}
+						labels={{
+							question: __('Remove this entry?', 'alphone-fields'),
+							confirm: __('Remove', 'alphone-fields'),
+						}}
+						locked={row.locked}
+						pending={row.pending}
 						keepRef={keepRef}
 						onConfirm={() => void on.confirm(entry.id)}
 						onKeep={() => on.keep(entry.id)}
@@ -144,45 +150,6 @@ function RowActions({
 				onClick={onRemove}
 			/>
 		</>
-	)
-}
-
-/**
- * Renders the question that confirms a removal, with its Remove and Keep buttons.
- * @param props - How the row shows, the Keep button's ref and the two actions.
- * @returns The confirm group.
- */
-function ConfirmActions({
-	row,
-	keepRef,
-	onConfirm,
-	onKeep,
-}: {
-	row: RowState
-	keepRef: RefObject<HTMLButtonElement | null>
-	onConfirm: () => void
-	onKeep: () => void
-}) {
-	const question = useId()
-	return (
-		<Stack direction="row" gap="xs" align="center" wrap="wrap" role="group" aria-labelledby={question}>
-			<Text id={question} variant="body-sm">
-				{__('Remove this entry?', 'alphone-fields')}
-			</Text>
-			<Button
-				variant="minimal"
-				tone="neutral"
-				size="compact"
-				disabled={row.locked}
-				loading={row.pending}
-				onClick={onConfirm}
-			>
-				{__('Remove', 'alphone-fields')}
-			</Button>
-			<Button ref={keepRef} variant="minimal" tone="neutral" size="compact" disabled={row.locked} onClick={onKeep}>
-				{__('Keep', 'alphone-fields')}
-			</Button>
-		</Stack>
 	)
 }
 
