@@ -256,6 +256,34 @@ func TestImportStateAndOutcomeAreConstrained(t *testing.T) {
 	}
 }
 
+func TestImportRowReasonHoldsACodeBesideItsValues(t *testing.T) {
+	t.Parallel()
+
+	pool := newMigratedDatabase(t)
+	_, rowID, _ := seedImport(t, pool)
+	shapes := []struct {
+		name   string
+		reason string
+	}{
+		{"an empty object", `{}`},
+		{"a code without values", `{"code":"row_incomplete"}`},
+		{"values without a code", `{"meta":{}}`},
+		{"a code that is not a name", `{"code":"Row Incomplete","meta":{}}`},
+		{"values that are not an object", `{"code":"row_incomplete","meta":[]}`},
+		{"a string", `"the row carries no name or no contact detail"`},
+		{"an array", `[1]`},
+	}
+
+	for _, shape := range shapes {
+		_, err := pool.Exec(t.Context(),
+			"UPDATE plugin_importer.import_rows SET reason = $2::jsonb WHERE id = $1", rowID, shape.reason)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.ConstraintName != "import_rows_reason_shape" {
+			t.Errorf("storing %s: %v, want the reason shape check to stop it", shape.name, err)
+		}
+	}
+}
+
 func TestImporterReferencesOnlyItselfAndCore(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +326,7 @@ func TestMigrateOwnsItsGooseVersionTable(t *testing.T) {
 	).Scan(&latestVersion); err != nil {
 		t.Fatalf("reading the version table: %v", err)
 	}
-	if latestVersion != 2 {
+	if latestVersion != 4 {
 		t.Errorf("latest version = %d, want the plugin's own migration count", latestVersion)
 	}
 }

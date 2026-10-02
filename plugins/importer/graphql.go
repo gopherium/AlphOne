@@ -76,9 +76,17 @@ func toGraphRow(staged stagedRow) *model.ImportRow {
 		Position:  staged.Position,
 		Cells:     staged.Cells,
 		Outcome:   staged.Outcome,
-		Reason:    staged.Reason,
+		Reason:    graphReason(staged.Reason),
 		ContactID: staged.ContactID,
 	}
+}
+
+// graphReason maps a stored row reason onto its graph model, nil when the row carries none.
+func graphReason(reason *rowReason) *model.ImportRowReason {
+	if reason == nil {
+		return nil
+	}
+	return &model.ImportRowReason{Code: reason.Code, Meta: reason.Meta}
 }
 
 // loadImportJob returns the stored import behind id or its classified absence.

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -32,7 +31,7 @@ type draft struct {
 // settlement is the outcome one staged row settles into.
 type settlement struct {
 	outcome   string
-	reason    string
+	reason    rowReason
 	contactID *uuid.UUID
 }
 
@@ -52,10 +51,13 @@ func (p *Plugin) commitRows(
 	return nil
 }
 
-// commitRow settles one staged row, recording details the host refuses as a failure.
+// commitRow settles one staged row, recording an unreadable row and details the host refuses as a failure.
 func (p *Plugin) commitRow(
 	ctx context.Context, staged stagedRow, assigned mapping, known registry,
 ) error {
+	if staged.Reason.unreadable() {
+		return p.store.settleRow(ctx, staged.ID, settlement{outcome: outcomeFailed})
+	}
 	settled, err := p.settle(ctx, draftOf(staged.Cells, assigned), known)
 	if errors.Is(err, sdk.ErrInvalidContact) {
 		settled, err = refused(), nil
@@ -68,16 +70,13 @@ func (p *Plugin) commitRow(
 
 // refused returns the settlement of a row whose details the host would not store.
 func refused() settlement {
-	return settlement{
-		outcome: outcomeFailed,
-		reason:  "the row holds a name or a contact detail AlphOne cannot use",
-	}
+	return settlement{outcome: outcomeFailed, reason: newReason(reasonContactInvalid, nil)}
 }
 
 // settle turns one drafted contact into the outcome its row records.
 func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlement, error) {
 	if !d.usable() {
-		return settlement{outcome: outcomeFailed, reason: "the row carries no name or no contact detail"}, nil
+		return settlement{outcome: outcomeFailed, reason: newReason(reasonIncomplete, nil)}, nil
 	}
 	grouped, err := known.group(d.texts)
 	if err != nil {
@@ -101,22 +100,7 @@ func (p *Plugin) settle(ctx context.Context, d draft, known registry) (settlemen
 
 // refusedText returns the settlement of a row carrying a value no field accepts.
 func refusedText(err error) settlement {
-	return settlement{outcome: outcomeFailed, reason: errorDetail(err)}
-}
-
-// errorDetail returns the half of an error naming what the row got wrong.
-func errorDetail(err error) string {
-	var wrapped interface{ Unwrap() []error }
-	if errors.As(err, &wrapped) {
-		for _, held := range wrapped.Unwrap() {
-			if !errors.Is(held, sdk.ErrInvalidFieldText) {
-				return held.Error()
-			}
-		}
-	}
-	return strings.TrimSpace(strings.ReplaceAll(
-		strings.ReplaceAll(err.Error(), sdk.ErrInvalidFieldText.Error()+": ", ""),
-		sdk.ErrInvalidFieldText.Error(), ""))
+	return settlement{outcome: outcomeFailed, reason: fieldTextReason(err)}
 }
 
 // usable reports whether the draft carries enough to become a contact.
@@ -160,7 +144,7 @@ func skipped(owner sdk.Contact) settlement {
 	id := owner.ID
 	return settlement{
 		outcome:   outcomeSkipped,
-		reason:    "the contact detail already belongs to " + owner.Name,
+		reason:    identityTakenReason(owner.Name),
 		contactID: &id,
 	}
 }

@@ -16,7 +16,7 @@ import (
 // pluginTypeAllowlist names the deliberate exceptions to the plugin prefix rule.
 var pluginTypeAllowlist = map[string][]string{
 	"importer": {
-		"ImportJob", "ImportRow", "ImportField", "ImportContact",
+		"ImportJob", "ImportRow", "ImportRowReason", "ImportField", "ImportContact",
 		"ImportAssignment", "ImportAssignmentInput", "ImportCommitPayload",
 	},
 	"fields": {"FieldDefinition", "FieldKind"},
