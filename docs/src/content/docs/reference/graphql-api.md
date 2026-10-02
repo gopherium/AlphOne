@@ -320,6 +320,30 @@ the same range as `first`. `offset` skips that many contacts, so the next page
 starts at `offset` plus `limit`, and the last page is the one where that sum
 reaches `total`. The identities of every contact on a page load in one read.
 
+## Admin settings
+
+`adminSettings` answers the settings the admin screens read once when they
+start.
+
+```graphql
+query {
+  adminSettings {
+    toastMilliseconds listPageSizes listPageSize contactPageCap formatLocale
+  }
+}
+```
+
+| Field | What it holds | Set with |
+| ----- | ------------- | -------- |
+| `toastMilliseconds` | How long a confirmation toast stays, 6000 by default | `ALPHONE_TOAST_DURATION` |
+| `listPageSizes` | The page sizes a list offers, 10, 20, 50 and 100 by default | `ALPHONE_LIST_PAGE_SIZES` |
+| `listPageSize` | The page size a list opens on, 20 by default | `ALPHONE_LIST_PAGE_SIZE` |
+| `contactPageCap` | The most contacts one `contactPage` answers, 200 by default | `ALPHONE_GRAPH_PAGE_CAP` |
+| `formatLocale` | The locale the screens write dates, times, numbers and money in, `es-ES` by default | `ALPHONE_FORMAT_LOCALE` |
+
+Dates in the data stay ISO 8601, such as `2026-09-30`, in every query,
+mutation and event.
+
 ## Writing
 
 ```graphql
@@ -577,6 +601,7 @@ cannot drift. Point a client at the endpoint, or read
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
+| Admin settings | `adminSettings` | |
 | Version | `version` | |
 
 Subscriptions are `coreEvent`, `whatsAppConversationEvent` and
