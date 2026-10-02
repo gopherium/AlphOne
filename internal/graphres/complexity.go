@@ -3,17 +3,32 @@
 package graphres
 
 import (
+	"context"
 	"time"
 
+	"github.com/99designs/gqlgen/complexity"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
+	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/validator/rules"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/graph/model"
 )
 
 // ComplexityLimit caps the priced cost of one operation.
 const ComplexityLimit = 2500
+
+// oneFieldRow reads one field of one row through the contact page, the cheapest row a core list prices.
+const oneFieldRow = `{ contactPage(limit: 1) { items { id } } }`
+
+// LargestPricedPage returns the most rows a core list page holds while one field a row stays within ComplexityLimit.
+func LargestPricedPage() int {
+	schema := ExecutableSchema(nil)
+	query := gqlparser.MustLoadQueryWithRules(schema.Schema(), oneFieldRow, rules.NewDefaultRules())
+	return ComplexityLimit / complexity.Calculate(context.Background(), schema, query.Operations[0], nil)
+}
 
 // pageCost resolves a page size argument into a row multiplier, a missing or empty one priced as the unsized page.
 func pageCost(first *int, unsized int) int {
@@ -55,6 +70,11 @@ func ExecutableSchemaOver(root graph.ResolverRoot, schema *ast.Schema) graphql.E
 	unsized := pagingOf(root).size()
 	cfg.Complexity.Query.Contacts = func(child int, _ *string, first *int, _ *string) int {
 		return pageCost(first, unsized) * child
+	}
+	cfg.Complexity.Query.ContactPage = func(
+		child int, _ *string, _ []string, _ model.ContactOrderBy, _ model.SortOrder, limit, _ *int,
+	) int {
+		return pageCost(limit, unsized) * child
 	}
 	cfg.Complexity.Query.Tasks = func(child int, _, _ *time.Time, _ *uuid.UUID, _ *string, first *int, _ *string) int {
 		return pageCost(first, unsized) * child

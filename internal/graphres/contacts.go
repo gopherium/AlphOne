@@ -81,6 +81,47 @@ func (r *Resolver) contactConnection(ctx context.Context, rows []contact.Contact
 	return &model.ContactConnection{Edges: edges, PageInfo: pageInfo}
 }
 
+// pageOffset resolves the offset argument of a page, a missing or negative one starting at the first row.
+func pageOffset(asked *int) int {
+	if asked == nil {
+		return 0
+	}
+	return max(0, *asked)
+}
+
+// ContactPage serves one offset page of the contact directory with the total it pages through.
+func (q QueryResolvers) ContactPage(
+	ctx context.Context, search *string, channels []string, orderBy model.ContactOrderBy, order model.SortOrder,
+	limit, offset *int,
+) (*model.ContactPage, error) {
+	size, err := q.root.Paging.pageSize("limit", limit)
+	if err != nil {
+		return nil, err
+	}
+	term := stringOf(search)
+	filter := contact.Filter{Query: term, Digits: digitsOf(term), Channels: channels}
+	page := contact.Page{
+		ByCreated:  orderBy == model.ContactOrderByCreatedAt,
+		Descending: order == model.SortOrderDesc,
+		Limit:      size,
+		Offset:     pageOffset(offset),
+	}
+	rows, err := q.root.Contacts.PageContacts(ctx, filter, page)
+	if err != nil {
+		return nil, err
+	}
+	total, err := q.root.Contacts.CountContacts(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*model.Contact, len(rows))
+	for i, row := range rows {
+		q.root.primeContact(ctx, row)
+		items[i] = toContact(row)
+	}
+	return &model.ContactPage{Items: items, Total: total, Limit: page.Limit}, nil
+}
+
 // Contact returns one contact by id.
 func (q QueryResolvers) Contact(ctx context.Context, id uuid.UUID) (*model.Contact, error) {
 	row, err := q.root.Contacts.Get(ctx, id)

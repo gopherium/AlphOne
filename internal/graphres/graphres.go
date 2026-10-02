@@ -31,6 +31,8 @@ type ContactStore interface {
 	ListContacts(
 		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 	) ([]contact.Contact, error)
+	PageContacts(ctx context.Context, filter contact.Filter, page contact.Page) ([]contact.Contact, error)
+	CountContacts(ctx context.Context, filter contact.Filter) (int, error)
 	ListContactIdentities(ctx context.Context, contactIDs []uuid.UUID) ([]contact.Identity, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error)
 	Create(ctx context.Context, c contact.Contact) error

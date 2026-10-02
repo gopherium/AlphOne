@@ -105,6 +105,10 @@ func unsizedAndSized() map[string][2]string {
 			`{ contacts { edges { node { id } } } }`,
 			`{ contacts(first: 200) { edges { node { id } } } }`,
 		},
+		"contact page": {
+			`{ contactPage { items { id } } }`,
+			`{ contactPage(limit: 200) { items { id } } }`,
+		},
 		"tasks": {
 			`{ tasks(date: "2026-08-06") { edges { node { id } } } }`,
 			`{ tasks(date: "2026-08-06", first: 200) { edges { node { id } } } }`,
@@ -127,6 +131,33 @@ func TestAnUnsizedListIsPricedAtTheConfiguredPage(t *testing.T) {
 		unsized, sized := costUnder(t, schema, reads[0]), costUnder(t, schema, reads[1])
 		if unsized != sized {
 			t.Errorf("%s unsized costs %d, want the 200 row page's %d", name, unsized, sized)
+		}
+	}
+}
+
+// leanRowReads pairs each core list read naming rows with the same read asking one field a row.
+func leanRowReads(rows int) map[string]string {
+	return map[string]string{
+		"contact page":  fmt.Sprintf(`{ contactPage(limit: %d) { items { id } } }`, rows),
+		"contact names": fmt.Sprintf(`{ contactPage(limit: %d) { items { __typename } } }`, rows),
+		"contacts":      fmt.Sprintf(`{ contacts(first: %d) { edges { cursor } } }`, rows),
+		"tasks":         fmt.Sprintf(`{ tasks(date: "2026-08-06", first: %d) { edges { cursor } } }`, rows),
+		"contact tasks": fmt.Sprintf(
+			`{ contact(id: "00000000-0000-0000-0000-000000000001") { tasks(first: %d) { edges { cursor } } } }`, rows),
+	}
+}
+
+func TestTheLargestPricedPageIsTheMostRowsAOneFieldReadFitsUnderTheCap(t *testing.T) {
+	t.Parallel()
+
+	largest := graphres.LargestPricedPage()
+
+	if cost := operationCost(t, leanRowReads(largest)["contact page"]); cost > graphres.ComplexityLimit {
+		t.Errorf("one field of %d contact rows costs %d, want within the cap %d", largest, cost, graphres.ComplexityLimit)
+	}
+	for name, doc := range leanRowReads(largest + 1) {
+		if cost := operationCost(t, doc); cost <= graphres.ComplexityLimit {
+			t.Errorf("%s over %d rows costs %d, want past the cap %d", name, largest+1, cost, graphres.ComplexityLimit)
 		}
 	}
 }

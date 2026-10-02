@@ -23,8 +23,27 @@ type ContactConnection {
   pageInfo: PageInfo!
 }
 
+type ContactPage {
+  items: [Contact!]!
+  total: Int!
+  limit: Int!
+}
+
+enum ContactOrderBy {
+  NAME
+  CREATED_AT
+}
+
 extend type Query {
   contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
+  contactPage(
+    q: String
+    channels: [String!]
+    orderBy: ContactOrderBy! = NAME
+    order: SortOrder! = ASC
+    limit: Int
+    offset: Int
+  ): ContactPage! @scope(area: "contacts", write: false)
   contact(id: UUID!): Contact @scope(area: "contacts", write: false)
 }
 
