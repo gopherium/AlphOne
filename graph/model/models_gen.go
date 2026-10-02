@@ -12,6 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type AdminSettings struct {
+	ToastMilliseconds int    `json:"toastMilliseconds"`
+	ListPageSizes     []int  `json:"listPageSizes"`
+	ListPageSize      int    `json:"listPageSize"`
+	ContactPageCap    int    `json:"contactPageCap"`
+	FormatLocale      string `json:"formatLocale"`
+}
+
 type APIToken struct {
 	ID         uuid.UUID  `json:"id"`
 	Name       string     `json:"name"`

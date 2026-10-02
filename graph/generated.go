@@ -45,6 +45,14 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AdminSettings struct {
+		ContactPageCap    func(childComplexity int) int
+		FormatLocale      func(childComplexity int) int
+		ListPageSize      func(childComplexity int) int
+		ListPageSizes     func(childComplexity int) int
+		ToastMilliseconds func(childComplexity int) int
+	}
+
 	ApiToken struct {
 		CreatedAt  func(childComplexity int) int
 		ExpiresAt  func(childComplexity int) int
@@ -221,6 +229,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		APITokens             func(childComplexity int) int
+		AdminSettings         func(childComplexity int) int
 		Contact               func(childComplexity int, id uuid.UUID) int
 		Contacts              func(childComplexity int, q *string, first *int, after *string) int
 		Fields                func(childComplexity int, includeArchived *bool) int
@@ -379,6 +388,7 @@ type QueryResolver interface {
 	Tenant(ctx context.Context) (*model.Tenant, error)
 	Locale(ctx context.Context) (string, error)
 	SupportedLocales(ctx context.Context) ([]string, error)
+	AdminSettings(ctx context.Context) (*model.AdminSettings, error)
 	Me(ctx context.Context) (*model.Identity, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Contacts(ctx context.Context, q *string, first *int, after *string) (*model.ContactConnection, error)
@@ -425,6 +435,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AdminSettings.contactPageCap":
+		if e.ComplexityRoot.AdminSettings.ContactPageCap == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.ContactPageCap(childComplexity), true
+	case "AdminSettings.formatLocale":
+		if e.ComplexityRoot.AdminSettings.FormatLocale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.FormatLocale(childComplexity), true
+	case "AdminSettings.listPageSize":
+		if e.ComplexityRoot.AdminSettings.ListPageSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.ListPageSize(childComplexity), true
+	case "AdminSettings.listPageSizes":
+		if e.ComplexityRoot.AdminSettings.ListPageSizes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.ListPageSizes(childComplexity), true
+	case "AdminSettings.toastMilliseconds":
+		if e.ComplexityRoot.AdminSettings.ToastMilliseconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.ToastMilliseconds(childComplexity), true
 
 	case "ApiToken.createdAt":
 		if e.ComplexityRoot.ApiToken.CreatedAt == nil {
@@ -1284,6 +1325,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.APITokens(childComplexity), true
+	case "Query.adminSettings":
+		if e.ComplexityRoot.Query.AdminSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AdminSettings(childComplexity), true
 	case "Query.contact":
 		if e.ComplexityRoot.Query.Contact == nil {
 			break
@@ -2078,6 +2125,22 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // childFields_* functions provide shared child field context lookups.
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
+
+func (ec *executionContext) childFields_AdminSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "toastMilliseconds":
+		return ec.fieldContext_AdminSettings_toastMilliseconds(ctx, field)
+	case "listPageSizes":
+		return ec.fieldContext_AdminSettings_listPageSizes(ctx, field)
+	case "listPageSize":
+		return ec.fieldContext_AdminSettings_listPageSize(ctx, field)
+	case "contactPageCap":
+		return ec.fieldContext_AdminSettings_contactPageCap(ctx, field)
+	case "formatLocale":
+		return ec.fieldContext_AdminSettings_formatLocale(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AdminSettings", field.Name)
+}
 
 func (ec *executionContext) childFields_ApiToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
@@ -3602,6 +3665,121 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ***************************** args.gotpl *****************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _AdminSettings_toastMilliseconds(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_toastMilliseconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToastMilliseconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_toastMilliseconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSettings_listPageSizes(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_listPageSizes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ListPageSizes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []int) graphql.Marshaler {
+			return ec.marshalNInt2ᚕintᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_listPageSizes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSettings_listPageSize(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_listPageSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ListPageSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_listPageSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSettings_contactPageCap(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_contactPageCap(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContactPageCap, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_contactPageCap(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSettings_formatLocale(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_formatLocale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FormatLocale, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_formatLocale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type String does not have child fields"))
+}
 
 func (ec *executionContext) _ApiToken_id(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -7076,6 +7254,38 @@ func (ec *executionContext) fieldContext_Query_supportedLocales(_ context.Contex
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Query_adminSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_adminSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AdminSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminSettings) graphql.Marshaler {
+			return ec.marshalNAdminSettings2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAdminSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_adminSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AdminSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10358,6 +10568,64 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 
 // region    **************************** object.gotpl ****************************
 
+var adminSettingsImplementors = []string{"AdminSettings"}
+
+func (ec *executionContext) _AdminSettings(ctx context.Context, sel ast.SelectionSet, obj *model.AdminSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminSettings")
+		case "toastMilliseconds":
+			out.Values[i] = ec._AdminSettings_toastMilliseconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "listPageSizes":
+			out.Values[i] = ec._AdminSettings_listPageSizes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "listPageSize":
+			out.Values[i] = ec._AdminSettings_listPageSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contactPageCap":
+			out.Values[i] = ec._AdminSettings_contactPageCap(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "formatLocale":
+			out.Values[i] = ec._AdminSettings_formatLocale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var apiTokenImplementors = []string{"ApiToken"}
 
 func (ec *executionContext) _ApiToken(ctx context.Context, sel ast.SelectionSet, obj *model.APIToken) graphql.Marshaler {
@@ -12015,6 +12283,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "me":
 			field := field
 
@@ -13447,6 +13737,20 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAdminSettings2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAdminSettings(ctx context.Context, sel ast.SelectionSet, v model.AdminSettings) graphql.Marshaler {
+	return ec._AdminSettings(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminSettings2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAdminSettings(ctx context.Context, sel ast.SelectionSet, v *model.AdminSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNApiToken2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.APIToken) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -13950,6 +14254,35 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNInt2ᚕintᚄ(ctx context.Context, v any) ([]int, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]int, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNInt2int(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNInt2ᚕintᚄ(ctx context.Context, sel ast.SelectionSet, v []int) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNInt2int(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNInvitePayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐInvitePayload(ctx context.Context, sel ast.SelectionSet, v model.InvitePayload) graphql.Marshaler {
