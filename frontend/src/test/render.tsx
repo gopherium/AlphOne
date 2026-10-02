@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
-import { HttpResponse, adminSession, graphql, http, server } from '@alphone/frontend-sdk/testing'
+import { Button, GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
+import {
+	HttpResponse,
+	adminSession,
+	buttonClasses,
+	graphql,
+	http,
+	server,
+} from '@alphone/frontend-sdk/testing'
 import { configureAuthTransport, createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
 import type { User } from '@gopherium/react-auth'
 import { seedSession } from '@gopherium/react-auth/testing'
@@ -13,7 +20,37 @@ import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
 import { createAppRouter } from '../router'
 
+export { buttonClasses }
+
 configureAuthTransport(graphAuthTransport)
+
+/**
+ * Returns the class tokens the design system adds to a compact button.
+ * @returns The tokens a compact button carries and a default one does not.
+ */
+export function compactClasses(): string[] {
+	const roomy = new Set(buttonClasses('solid'))
+	return buttonClasses('solid', 'compact').filter((token) => !roomy.has(token))
+}
+
+/**
+ * Returns the class tokens the design system adds to a loading button.
+ * @returns The tokens a busy button carries and an idle one does not.
+ */
+export function busyClasses(): string[] {
+	const { container, unmount } = render(
+		<>
+			<Button id="idle">idle</Button>
+			<Button id="busy" loading>
+				busy
+			</Button>
+		</>,
+	)
+	const idle = new Set((container.querySelector('#idle') as Element).classList)
+	const busy = [...(container.querySelector('#busy') as Element).classList]
+	unmount()
+	return busy.filter((token) => !idle.has(token))
+}
 
 /**
  * Serves the core event subscription from a stream the test pushes frames into.
