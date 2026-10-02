@@ -12,9 +12,20 @@ const emptyTaskPage = {
 	pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
 }
 
+/** adminSettings are the settings every screen reads before a test says otherwise. */
+const adminSettings = {
+	__typename: 'AdminSettings',
+	toastMilliseconds: 6000,
+	listPageSizes: [10, 20, 50, 100],
+	listPageSize: 20,
+	contactPageCap: 200,
+	formatLocale: 'es-ES',
+}
+
 beforeEach(() => {
 	server.use(
 		graphql.query('DayTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),
 		graphql.query('OverdueTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),
+		graphql.query('AdminSettings', () => HttpResponse.json({ data: { adminSettings } })),
 	)
 })
