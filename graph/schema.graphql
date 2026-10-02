@@ -1,5 +1,12 @@
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capability: String) on FIELD_DEFINITION
+type AdminSettings {
+	toastMilliseconds: Int!
+	listPageSizes: [Int!]!
+	listPageSize: Int!
+	contactPageCap: Int!
+	formatLocale: String!
+}
 type ApiToken {
 	id: UUID!
 	name: String!
@@ -39,6 +46,15 @@ input ContactIdentityInput {
 	channel: String!
 	identifier: String!
 	displayName: String
+}
+enum ContactOrderBy {
+	NAME
+	CREATED_AT
+}
+type ContactPage {
+	items: [Contact!]!
+	total: Int!
+	limit: Int!
 }
 input CreateTaskInput {
 	title: String!
@@ -191,9 +207,11 @@ type Query {
 	tenant: Tenant! @scope(area: "meta", write: false)
 	locale: String! @scope(area: "meta", write: false)
 	supportedLocales: [String!]! @scope(area: "meta", write: false)
+	adminSettings: AdminSettings! @scope(area: "meta", write: false)
 	me: Identity! @scope(area: "auth", write: false)
 	users: [User!]! @scope(area: "users", write: false)
 	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
+	contactPage(q: String, channels: [String!], orderBy: ContactOrderBy! = NAME, order: SortOrder! = ASC, limit: Int, offset: Int): ContactPage! @scope(area: "contacts", write: false)
 	contact(id: UUID!): Contact @scope(area: "contacts", write: false)
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection! @scope(area: "tasks", write: false)
 	task(id: UUID!): Task @scope(area: "tasks", write: false)
@@ -206,6 +224,10 @@ type Query {
 	importFields: [ImportField!]! @scope(area: "imports", write: false)
 	whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
 	whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
+}
+enum SortOrder {
+	ASC
+	DESC
 }
 type Subscription {
 	coreEvent: String! @scope(area: "events", write: false)

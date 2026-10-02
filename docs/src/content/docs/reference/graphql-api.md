@@ -262,10 +262,87 @@ query($before: Date!, $first: Int!, $after: String) {
 
 Pass `endCursor` back as `after` for the next page, and stop when
 `hasNextPage` is false. Treat a cursor as opaque, it is only meaningful to the
-field that issued it. `first` accepts 1 to 200 and defaults to 50.
+field that issued it. `first` accepts 1 to 200 and defaults to 50. The operator
+can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
+`ALPHONE_GRAPH_PAGE_CAP`, and a size outside them answers
+`first_out_of_range` naming the range.
 
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
 none or two answers `VALIDATION`.
+
+### Pages with a total
+
+A screen that numbers its pages reads `contactPage` instead of `contacts`. It
+answers one page of contacts, how many contacts match in all, and the size of
+the page.
+
+```graphql
+query($q: String, $offset: Int) {
+  contactPage(
+    q: $q
+    channels: ["whatsapp"]
+    orderBy: CREATED_AT
+    order: DESC
+    limit: 20
+    offset: $offset
+  ) {
+    items { id name createdAt identities { channel } }
+    total
+    limit
+  }
+}
+```
+
+```json
+{
+  "data": {
+    "contactPage": {
+      "items": [
+        {
+          "id": "0198d000-0000-7000-8000-000000000002",
+          "name": "Maria Perez",
+          "createdAt": "2026-09-30T09:00:00Z",
+          "identities": [{ "channel": "whatsapp" }]
+        }
+      ],
+      "total": 1,
+      "limit": 20
+    }
+  }
+}
+```
+
+`q` searches the way `contacts` does, by name, by identity name and by the
+digits of an identifier. `channels` keeps the contacts reachable on any of the
+channels it names. `orderBy` takes `NAME` or `CREATED_AT`, `order` takes `ASC`
+or `DESC`, and together they default to the name from A to Z. `limit` follows
+the same range as `first`. `offset` skips that many contacts, so the next page
+starts at `offset` plus `limit`, and the last page is the one where that sum
+reaches `total`. The identities of every contact on a page load in one read.
+
+## Admin settings
+
+`adminSettings` answers the settings the admin screens read once when they
+start.
+
+```graphql
+query {
+  adminSettings {
+    toastMilliseconds listPageSizes listPageSize contactPageCap formatLocale
+  }
+}
+```
+
+| Field | What it holds | Set with |
+| ----- | ------------- | -------- |
+| `toastMilliseconds` | How long a confirmation toast stays, 6000 by default | `ALPHONE_TOAST_DURATION` |
+| `listPageSizes` | The page sizes a list offers, 10, 20, 50 and 100 by default | `ALPHONE_LIST_PAGE_SIZES` |
+| `listPageSize` | The page size a list opens on, 20 by default | `ALPHONE_LIST_PAGE_SIZE` |
+| `contactPageCap` | The most contacts one `contactPage` answers, 200 by default | `ALPHONE_GRAPH_PAGE_CAP` |
+| `formatLocale` | The locale the screens write dates, times, numbers and money in, `es-ES` by default | `ALPHONE_FORMAT_LOCALE` |
+
+Dates in the data stay ISO 8601, such as `2026-09-30`, in every query,
+mutation and event.
 
 ## Writing
 
@@ -518,12 +595,13 @@ cannot drift. Point a client at the endpoint, or read
 | Session | `me` | `login`, `logout` |
 | Locale | `locale`, `supportedLocales` | `setLocale` |
 | Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
-| Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
+| Contacts | `contacts`, `contactPage`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
+| Admin settings | `adminSettings` | |
 | Version | `version` | |
 
 Subscriptions are `coreEvent`, `whatsAppConversationEvent` and

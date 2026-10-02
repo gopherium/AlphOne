@@ -31,7 +31,9 @@ type ContactStore interface {
 	ListContacts(
 		ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 	) ([]contact.Contact, error)
-	ListContactIdentities(ctx context.Context, contactID uuid.UUID) ([]contact.Identity, error)
+	PageContacts(ctx context.Context, filter contact.Filter, page contact.Page) ([]contact.Contact, error)
+	CountContacts(ctx context.Context, filter contact.Filter) (int, error)
+	ListContactIdentities(ctx context.Context, contactIDs []uuid.UUID) ([]contact.Identity, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error)
 	Create(ctx context.Context, c contact.Contact) error
 	CreateContactWithIdentities(ctx context.Context, c contact.Contact, identities []contact.Identity) error
@@ -213,6 +215,10 @@ type Resolver struct {
 	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
+	// Paging bounds the pages the core lists answer.
+	Paging Paging
+	// Screens carries the settings the admin screens read once.
+	Screens Screens
 }
 
 // publish announces an event in the caller's tenant unless no publisher is wired.

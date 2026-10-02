@@ -19,9 +19,22 @@ type PageInfo {
   endCursor: String
 }
 
+enum SortOrder {
+  ASC
+  DESC
+}
+
 type Tenant {
   id: UUID!
   name: String!
+}
+
+type AdminSettings {
+  toastMilliseconds: Int!
+  listPageSizes: [Int!]!
+  listPageSize: Int!
+  contactPageCap: Int!
+  formatLocale: String!
 }
 
 type Query {
@@ -29,6 +42,7 @@ type Query {
   tenant: Tenant! @scope(area: "meta", write: false)
   locale: String! @scope(area: "meta", write: false)
   supportedLocales: [String!]! @scope(area: "meta", write: false)
+  adminSettings: AdminSettings! @scope(area: "meta", write: false)
 }
 
 extend type Mutation {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -227,7 +228,7 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	addr, secret := servedSeededBinary(t, databaseURL)
 
 	read := postGraph(t, addr, secret,
-		`{"query":"{ contacts(first: 50) { edges { node { name birthDate } } } }"}`)
+		`{"query":"{ contacts(q: \"Grace Hopper\", first: 50) { edges { node { name birthDate } } } }"}`)
 
 	if read.Data.Contacts == nil {
 		t.Fatal("the read answered no contacts, want the seeded demo import")
@@ -264,7 +265,7 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	addr, secret := servedSeededBinary(t, databaseURL)
 
 	read := postGraph(t, addr, secret,
-		`{"query":"{ contacts(first: 50) { edges { node { name birthDate history } } } }"}`)
+		`{"query":"{ contacts(q: \"Maria Perez\", first: 50) { edges { node { name birthDate history } } } }"}`)
 
 	if read.Data.Contacts == nil {
 		t.Fatal("the read answered no contacts, want the seeded demo contact")
@@ -310,6 +311,42 @@ func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	asked := postGraph(t, addr, secret, `{"query":"{ locale }"}`)
 	if asked.Data.Locale != "es-ES" {
 		t.Errorf("locale = %q, want the stored choice back from the real binary", asked.Data.Locale)
+	}
+}
+
+func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	var stderr bytes.Buffer
+	seedCmd := exec.Command(binary, "seed")
+	seedCmd.Dir = t.TempDir()
+	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	seedCmd.Stderr = &stderr
+	if err := seedCmd.Run(); err != nil {
+		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
+	}
+	addr, secret := servedSeededBinary(t, databaseURL,
+		"ALPHONE_GRAPH_PAGE_CAP=150",
+		"ALPHONE_TOAST_DURATION=9s",
+		"ALPHONE_LIST_PAGE_SIZES=5,15",
+		"ALPHONE_LIST_PAGE_SIZE=15",
+		"ALPHONE_FORMAT_LOCALE=de-DE",
+	)
+
+	read := postGraph(t, addr, secret,
+		`{"query":"{ adminSettings { toastMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`)
+
+	held := read.Data.AdminSettings
+	if held.ToastMilliseconds != 9000 || held.ListPageSize != 15 || held.ContactPageCap != 150 {
+		t.Errorf("admin settings = %+v, want the toast time, opening page and cap the environment names", held)
+	}
+	if held.FormatLocale != "de-DE" {
+		t.Errorf("formatLocale = %q, want the locale the environment names", held.FormatLocale)
+	}
+	if !slices.Equal(held.ListPageSizes, []int{5, 15}) {
+		t.Errorf("listPageSizes = %v, want the sizes the environment names", held.ListPageSizes)
 	}
 }
 
@@ -416,8 +453,15 @@ type graphAnswer struct {
 				Node map[string]any `json:"node"`
 			} `json:"edges"`
 		} `json:"contacts"`
-		SetLocale string `json:"setLocale"`
-		Locale    string `json:"locale"`
+		SetLocale     string `json:"setLocale"`
+		Locale        string `json:"locale"`
+		AdminSettings struct {
+			ToastMilliseconds int    `json:"toastMilliseconds"`
+			ListPageSizes     []int  `json:"listPageSizes"`
+			ListPageSize      int    `json:"listPageSize"`
+			ContactPageCap    int    `json:"contactPageCap"`
+			FormatLocale      string `json:"formatLocale"`
+		} `json:"adminSettings"`
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`
@@ -530,8 +574,8 @@ func servedBinary(t *testing.T, databaseURL string) (string, string) {
 	return servedSeededBinary(t, databaseURL)
 }
 
-// servedSeededBinary starts the real binary on a database already holding the admin.
-func servedSeededBinary(t *testing.T, databaseURL string) (string, string) {
+// servedSeededBinary starts the real binary on a database already holding the admin, adding extra to its environment.
+func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (string, string) {
 	t.Helper()
 	binary, env := coverBinary(t)
 	var minted bytes.Buffer
@@ -551,6 +595,7 @@ func servedSeededBinary(t *testing.T, databaseURL string) (string, string) {
 		"ALPHONE_WHATSAPP_VERIFY_TOKEN=e2e-secret",
 		"ALPHONE_WHATSAPP_APP_SECRET=e2e-app-secret",
 	)
+	serve.Env = append(serve.Env, extra...)
 	if err := serve.Start(); err != nil {
 		t.Fatalf("starting alphone: %v", err)
 	}

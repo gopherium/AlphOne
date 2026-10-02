@@ -88,14 +88,7 @@ func registerContactSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return err
 	})
 
-	sc.Given(`^a contact "([^"]*)" reachable on ([a-z]+) as "([^"]*)"$`,
-		func(ctx context.Context, name, channel, identifier string) error {
-			w := worldFrom(ctx)
-			if _, err := w.seedContact(ctx, name); err != nil {
-				return err
-			}
-			return w.seedIdentity(ctx, channel, identifier)
-		})
+	bindReachableContactStep(sc)
 
 	sc.When(`^the agent calls find_contacts with query "([^"]*)"$`,
 		func(ctx context.Context, query string) error {
@@ -183,6 +176,18 @@ func registerContactSteps(sc *godog.ScenarioContext, t *testing.T) {
 		}
 		return nil
 	})
+}
+
+// bindReachableContactStep binds the step storing a contact that owns one channel identity.
+func bindReachableContactStep(sc *godog.ScenarioContext) {
+	sc.Given(`^a contact "([^"]*)" reachable on ([a-z]+) as "([^"]*)"$`,
+		func(ctx context.Context, name, channel, identifier string) error {
+			w := worldFrom(ctx)
+			if _, err := w.seedContact(ctx, name); err != nil {
+				return err
+			}
+			return w.seedIdentity(ctx, channel, identifier)
+		})
 }
 
 // assertOpenWork checks whether a listed contact is marked as holding work.

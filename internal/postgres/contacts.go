@@ -83,6 +83,44 @@ func (s *ContactStore) ListContacts(
 	return contacts, nil
 }
 
+// PageContacts returns one offset page of the contacts filter matches, in the page's order.
+func (s *ContactStore) PageContacts(
+	ctx context.Context, filter contact.Filter, page contact.Page,
+) ([]contact.Contact, error) {
+	rows, err := s.queries.PageContacts(ctx, db.PageContactsParams{
+		TenantID:   sdk.TenantOrDefault(ctx),
+		Query:      filter.Query,
+		Digits:     filter.Digits,
+		Channels:   filter.Channels,
+		ByCreated:  page.ByCreated,
+		Descending: page.Descending,
+		RowOffset:  int64(page.Offset),
+		RowLimit:   int64(page.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres: page contacts: %w", err)
+	}
+	contacts := make([]contact.Contact, len(rows))
+	for i, row := range rows {
+		contacts[i] = contact.Contact{ID: row.ID, Name: row.Name, CreatedAt: row.CreatedAt}
+	}
+	return contacts, nil
+}
+
+// CountContacts returns how many contacts filter matches.
+func (s *ContactStore) CountContacts(ctx context.Context, filter contact.Filter) (int, error) {
+	total, err := s.queries.CountContacts(ctx, db.CountContactsParams{
+		TenantID: sdk.TenantOrDefault(ctx),
+		Query:    filter.Query,
+		Digits:   filter.Digits,
+		Channels: filter.Channels,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("postgres: count contacts: %w", err)
+	}
+	return int(total), nil
+}
+
 // ListByIDs returns the contacts with the given ids in no promised order.
 func (s *ContactStore) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
 	rows, err := s.queries.ListContactsByIDs(ctx, db.ListContactsByIDsParams{

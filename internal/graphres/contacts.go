@@ -17,26 +17,6 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// errInvalidFirst reports a page size outside the accepted range.
-var errInvalidFirst = errors.New("graph: first must be between 1 and 200")
-
-// defaultPageSize and maxPageSize bound a connection page.
-const (
-	defaultPageSize = 50
-	maxPageSize     = 200
-)
-
-// pageSize resolves the first argument into a page size.
-func pageSize(first *int) (int, error) {
-	if first == nil {
-		return defaultPageSize, nil
-	}
-	if *first < 1 || *first > maxPageSize {
-		return 0, errInvalidFirst
-	}
-	return *first, nil
-}
-
 // stringOf dereferences an optional string argument.
 func stringOf(raw *string) string {
 	if raw == nil {
@@ -65,7 +45,7 @@ func toContact(c contact.Contact) *model.Contact {
 func (q QueryResolvers) Contacts(
 	ctx context.Context, search *string, first *int, after *string,
 ) (*model.ContactConnection, error) {
-	limit, err := pageSize(first)
+	limit, err := q.root.Paging.pageSize("first", first)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +79,47 @@ func (r *Resolver) contactConnection(ctx context.Context, rows []contact.Contact
 		pageInfo.EndCursor = &edges[len(edges)-1].Cursor
 	}
 	return &model.ContactConnection{Edges: edges, PageInfo: pageInfo}
+}
+
+// pageOffset resolves the offset argument of a page, a missing or negative one starting at the first row.
+func pageOffset(asked *int) int {
+	if asked == nil {
+		return 0
+	}
+	return max(0, *asked)
+}
+
+// ContactPage serves one offset page of the contact directory with the total it pages through.
+func (q QueryResolvers) ContactPage(
+	ctx context.Context, search *string, channels []string, orderBy model.ContactOrderBy, order model.SortOrder,
+	limit, offset *int,
+) (*model.ContactPage, error) {
+	size, err := q.root.Paging.pageSize("limit", limit)
+	if err != nil {
+		return nil, err
+	}
+	term := stringOf(search)
+	filter := contact.Filter{Query: term, Digits: digitsOf(term), Channels: channels}
+	page := contact.Page{
+		ByCreated:  orderBy == model.ContactOrderByCreatedAt,
+		Descending: order == model.SortOrderDesc,
+		Limit:      size,
+		Offset:     pageOffset(offset),
+	}
+	rows, err := q.root.Contacts.PageContacts(ctx, filter, page)
+	if err != nil {
+		return nil, err
+	}
+	total, err := q.root.Contacts.CountContacts(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*model.Contact, len(rows))
+	for i, row := range rows {
+		q.root.primeContact(ctx, row)
+		items[i] = toContact(row)
+	}
+	return &model.ContactPage{Items: items, Total: total, Limit: page.Limit}, nil
 }
 
 // Contact returns one contact by id.
@@ -136,9 +157,9 @@ func toIdentity(row contact.Identity) *model.ContactIdentity {
 	}
 }
 
-// Identities resolves a contact's identities.
+// Identities resolves a contact's identities through the request loader.
 func (c ContactResolvers) Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error) {
-	rows, err := c.root.Contacts.ListContactIdentities(ctx, obj.ID)
+	rows, err := c.root.loadIdentities(ctx, obj.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +270,7 @@ func (m MutationResolvers) DeleteContactIdentity(
 func (c ContactResolvers) Tasks(
 	ctx context.Context, obj *model.Contact, status *string, first *int, after *string,
 ) (*model.TaskConnection, error) {
-	st, page, limit, err := taskPageArgs(status, first, after)
+	st, page, limit, err := c.root.taskPageArgs(status, first, after)
 	if err != nil {
 		return nil, err
 	}

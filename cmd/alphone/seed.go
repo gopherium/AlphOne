@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -121,7 +122,41 @@ func seedUsers(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error)
 		}
 		created[login.email] = made
 	}
+	if err := seedStatuses(ctx, users, demoStatuses()); err != nil {
+		return nil, err
+	}
 	return created, nil
+}
+
+// demoStatus is one account the seeder ensures to show a status other than active.
+type demoStatus struct {
+	email    string
+	name     string
+	disabled bool
+}
+
+// demoStatuses names the accounts that show the invited and disabled statuses in the users list.
+func demoStatuses() []demoStatus {
+	return []demoStatus{
+		{email: "invited@example.com", name: "Ana Lopez"},
+		{email: "disabled@example.com", name: "Luis Garcia", disabled: true},
+	}
+}
+
+// seedStatuses stores each account as a member awaiting activation, the disabled ones barred, keeping older ones.
+func seedStatuses(ctx context.Context, users gouncer.Store, demos []demoStatus) error {
+	for _, demo := range demos {
+		account, err := gouncer.NewInvitedUser(demo.email, demo.name)
+		if err != nil {
+			return fmt.Errorf("seed account %s: %w", demo.email, err)
+		}
+		account.Role = role.Member.String()
+		account.Disabled = demo.disabled
+		if err := users.CreateUser(ctx, account); err != nil && !errors.Is(err, gouncer.ErrEmailTaken) {
+			return fmt.Errorf("seed account %s: %w", demo.email, err)
+		}
+	}
+	return nil
 }
 
 // reportLogins names every demo account, saying which ones this run created.
@@ -136,29 +171,56 @@ func reportLogins(stdout io.Writer, created map[string]bool) {
 	}
 }
 
-// demoContact is one contact the seeder ensures, found by its email.
+// demoContact is one contact the seeder ensures, found by its identity.
 type demoContact struct {
-	email string
-	name  string
+	channel    contact.Channel
+	identifier string
+	name       string
 }
+
+// Names the synthetic directory contacts are composed from.
+var (
+	directoryFirstNames = []string{"Alice", "Ben", "Chloe", "Daniel", "Emma", "Felix", "Hannah", "Isaac"}
+	directorySurnames   = []string{"Baker", "Carter", "Fisher", "Hughes", "Morgan", "Parker", "Turner", "Walker"}
+)
 
 // demoContacts names every contact the seeder ensures, in creation order.
 func demoContacts() []demoContact {
-	return []demoContact{
-		{email: "ada@example.com", name: "Ada Lovelace"},
-		{email: "maria.perez@example.com", name: "Maria Perez"},
-	}
+	return append([]demoContact{
+		{channel: "email", identifier: "ada@example.com", name: "Ada Lovelace"},
+		{channel: "email", identifier: "maria.perez@example.com", name: "Maria Perez"},
+	}, directoryContacts()...)
 }
 
-// seedContacts stores the demo contacts and returns each one's id by email.
+// directoryContacts returns the synthetic contacts that fill several pages of the contact list.
+func directoryContacts() []demoContact {
+	contacts := make([]demoContact, 0, len(directoryFirstNames)*len(directorySurnames))
+	for _, surname := range directorySurnames {
+		for _, firstName := range directoryFirstNames {
+			held := demoContact{
+				channel:    "email",
+				identifier: strings.ToLower(firstName+"."+surname) + "@example.com",
+				name:       firstName + " " + surname,
+			}
+			if len(contacts)%2 == 1 {
+				held.channel, held.identifier = "phone", fmt.Sprintf("+1202555%04d", 100+len(contacts))
+			}
+			contacts = append(contacts, held)
+		}
+	}
+	return contacts
+}
+
+// seedContacts stores the demo contacts and returns each one's id by identifier.
 func seedContacts(ctx context.Context, resolver *contact.Resolver) (map[string]uuid.UUID, error) {
-	ids := make(map[string]uuid.UUID, len(demoContacts()))
-	for _, demo := range demoContacts() {
-		stored, err := resolver.Resolve(ctx, "email", demo.email, demo.name)
+	demos := demoContacts()
+	ids := make(map[string]uuid.UUID, len(demos))
+	for _, demo := range demos {
+		stored, err := resolver.Resolve(ctx, demo.channel, demo.identifier, demo.name)
 		if err != nil {
 			return nil, fmt.Errorf("seed contact: %w", err)
 		}
-		ids[demo.email] = stored.ID
+		ids[demo.identifier] = stored.ID
 	}
 	return ids, nil
 }

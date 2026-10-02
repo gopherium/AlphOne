@@ -136,6 +136,40 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 	return items, nil
 }
 
+const countContacts = `-- name: CountContacts :one
+SELECT count(*)
+FROM core.contacts c
+WHERE c.tenant_id = $1
+    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%'
+        OR EXISTS (
+            SELECT 1 FROM core.contact_identities i
+            WHERE i.contact_id = c.id AND i.tenant_id = $1
+                AND (i.display_name ILIKE '%' || $2 || '%'
+                    OR ($3::text <> '' AND i.identifier LIKE '%' || $3 || '%'))))
+    AND (coalesce(cardinality($4::text[]), 0) = 0 OR EXISTS (
+        SELECT 1 FROM core.contact_identities r
+        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($4::text[])))
+`
+
+type CountContactsParams struct {
+	TenantID uuid.UUID
+	Query    string
+	Digits   string
+	Channels []string
+}
+
+func (q *Queries) CountContacts(ctx context.Context, arg CountContactsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countContacts,
+		arg.TenantID,
+		arg.Query,
+		arg.Digits,
+		arg.Channels,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAPIToken = `-- name: CreateAPIToken :exec
 INSERT INTO core.api_tokens
     (id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id)
@@ -516,17 +550,17 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, arg ListAPITokensFor
 const listContactIdentities = `-- name: ListContactIdentities :many
 SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1 AND tenant_id = $2
-ORDER BY channel, identifier
+WHERE contact_id = ANY ($1::uuid[]) AND tenant_id = $2
+ORDER BY contact_id, channel, identifier
 `
 
 type ListContactIdentitiesParams struct {
-	ContactID uuid.UUID
-	TenantID  uuid.UUID
+	ContactIds []uuid.UUID
+	TenantID   uuid.UUID
 }
 
 func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]CoreContactIdentity, error) {
-	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactID, arg.TenantID)
+	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactIds, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -898,6 +932,74 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListW
 			&i.Url,
 			&i.Events,
 			&i.Secret,
+			&i.CreatedAt,
+			&i.TenantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pageContacts = `-- name: PageContacts :many
+SELECT c.id, c.name, c.created_at, c.tenant_id
+FROM core.contacts c
+WHERE c.tenant_id = $1
+    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%'
+        OR EXISTS (
+            SELECT 1 FROM core.contact_identities i
+            WHERE i.contact_id = c.id AND i.tenant_id = $1
+                AND (i.display_name ILIKE '%' || $2 || '%'
+                    OR ($3::text <> '' AND i.identifier LIKE '%' || $3 || '%'))))
+    AND (coalesce(cardinality($4::text[]), 0) = 0 OR EXISTS (
+        SELECT 1 FROM core.contact_identities r
+        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($4::text[])))
+ORDER BY
+    CASE WHEN NOT $5::boolean AND NOT $6::boolean THEN c.name END,
+    CASE WHEN NOT $5::boolean AND $6::boolean THEN c.name END DESC,
+    CASE WHEN $5::boolean AND NOT $6::boolean THEN c.created_at END,
+    CASE WHEN $5::boolean AND $6::boolean THEN c.created_at END DESC,
+    CASE WHEN $6::boolean THEN c.id END DESC,
+    c.id
+LIMIT $8::bigint OFFSET $7::bigint
+`
+
+type PageContactsParams struct {
+	TenantID   uuid.UUID
+	Query      string
+	Digits     string
+	Channels   []string
+	ByCreated  bool
+	Descending bool
+	RowOffset  int64
+	RowLimit   int64
+}
+
+func (q *Queries) PageContacts(ctx context.Context, arg PageContactsParams) ([]CoreContact, error) {
+	rows, err := q.db.Query(ctx, pageContacts,
+		arg.TenantID,
+		arg.Query,
+		arg.Digits,
+		arg.Channels,
+		arg.ByCreated,
+		arg.Descending,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreContact
+	for rows.Next() {
+		var i CoreContact
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
 			&i.CreatedAt,
 			&i.TenantID,
 		); err != nil {
