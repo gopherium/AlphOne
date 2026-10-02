@@ -443,10 +443,16 @@ type stubContactStore struct {
 	identityBatches [][]uuid.UUID
 	identities      map[uuid.UUID][]contact.Identity
 	listedLimit     int
+	pageRows        []contact.Contact
+	pagedFilter     contact.Filter
+	pagedPage       contact.Page
+	total           int
 	listErr         error
 	listByIDsErr    error
 	identitiesErr   error
 	addIdentityErr  error
+	pageErr         error
+	countErr        error
 }
 
 // Get returns the fixed contact the id names, or a not found error.
@@ -482,6 +488,19 @@ func (s *stubContactStore) ListContactIdentities(
 		held = append(held, s.identities[id]...)
 	}
 	return held, nil
+}
+
+// PageContacts records the filter and page and returns the configured page error, or the fixed page rows.
+func (s *stubContactStore) PageContacts(
+	_ context.Context, filter contact.Filter, page contact.Page,
+) ([]contact.Contact, error) {
+	s.pagedFilter, s.pagedPage = filter, page
+	return s.pageRows, s.pageErr
+}
+
+// CountContacts returns the configured count error, or the fixed total.
+func (s *stubContactStore) CountContacts(_ context.Context, _ contact.Filter) (int, error) {
+	return s.total, s.countErr
 }
 
 // ListByIDs records the batch and returns the known contacts among the ids.

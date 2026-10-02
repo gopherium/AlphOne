@@ -47,6 +47,18 @@ func (f *fakeContactStore) ListContactIdentities(
 	return held, nil
 }
 
+// PageContacts answers an empty page.
+func (f *fakeContactStore) PageContacts(
+	_ context.Context, _ contact.Filter, _ contact.Page,
+) ([]contact.Contact, error) {
+	return nil, nil
+}
+
+// CountContacts counts every stored contact.
+func (f *fakeContactStore) CountContacts(_ context.Context, _ contact.Filter) (int, error) {
+	return len(f.contacts), nil
+}
+
 // ListByIDs returns the stored contacts the given identifiers name.
 func (f *fakeContactStore) ListByIDs(_ context.Context, ids []uuid.UUID) ([]contact.Contact, error) {
 	var found []contact.Contact
