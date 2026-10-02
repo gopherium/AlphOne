@@ -241,6 +241,81 @@ func TestCheckValuesNamesTheKindItRefused(t *testing.T) {
 	}
 }
 
+// namedError reads the valueError an error carries, failing the test when it carries none.
+func namedError(t *testing.T, err error) valueError {
+	t.Helper()
+	var named valueError
+	if !errors.As(err, &named) {
+		t.Fatalf("checkValues() error = %v, want a valueError naming its fields", err)
+	}
+	return named
+}
+
+func TestCheckValuesNamesTheFieldAndKindAValueDoesNotFit(t *testing.T) {
+	t.Parallel()
+
+	live := viewOver(map[string]kind{"birthDate": kindDate}, nil)
+
+	_, err := checkValues(live, map[string]any{"birthDate": "not a date"})
+
+	named := namedError(t, err)
+	if !reflect.DeepEqual(named.names, []string{"birthDate"}) || named.kind != kindDate {
+		t.Errorf("named = %v of kind %q, want [birthDate] of kind DATE", named.names, named.kind)
+	}
+	want := "fields: the value does not match the kind its definition declares: birthDate expects DATE"
+	if err.Error() != want || !errors.Is(err, errWrongKind) {
+		t.Errorf("error = %q, want %q matching errWrongKind", err, want)
+	}
+}
+
+func TestCheckValuesNamesTheFieldThatSortsFirstWhenTwoValuesDoNotFit(t *testing.T) {
+	t.Parallel()
+
+	live := viewOver(map[string]kind{"birthDate": kindDate, "anniversary": kindDate}, nil)
+
+	for range 50 {
+		_, err := checkValues(live, map[string]any{"birthDate": "not a date", "anniversary": "nor this"})
+
+		if named := namedError(t, err); !reflect.DeepEqual(named.names, []string{"anniversary"}) {
+			t.Fatalf("named = %v, want [anniversary] whatever the key order", named.names)
+		}
+	}
+}
+
+func TestCheckValuesNamesEveryUndefinedFieldSorted(t *testing.T) {
+	t.Parallel()
+
+	live := viewOver(map[string]kind{"birthDate": kindDate}, nil)
+
+	_, err := checkValues(live, map[string]any{
+		"neverDefined": "x", "birthDate": "1990-04-17", "alsoUndefined": "y",
+	})
+
+	named := namedError(t, err)
+	if !reflect.DeepEqual(named.names, []string{"alsoUndefined", "neverDefined"}) || named.kind != "" {
+		t.Errorf("named = %v of kind %q, want both undefined names sorted and no kind", named.names, named.kind)
+	}
+	if !errors.Is(err, errNoField) || !strings.HasSuffix(err.Error(), "alsoUndefined, neverDefined") {
+		t.Errorf("error = %v, want errNoField naming both, sorted", err)
+	}
+}
+
+func TestCheckValuesNamesTheRepeatersItWillNotTake(t *testing.T) {
+	t.Parallel()
+
+	live := viewOver(map[string]kind{"visits": kindRepeater, "history": kindRepeater}, nil)
+
+	_, err := checkValues(live, map[string]any{"visits": nil, "history": nil})
+
+	named := namedError(t, err)
+	if !reflect.DeepEqual(named.names, []string{"history", "visits"}) || named.kind != "" {
+		t.Errorf("named = %v of kind %q, want both repeaters sorted and no kind", named.names, named.kind)
+	}
+	if !errors.Is(err, errRepeaterEntriesOnly) {
+		t.Errorf("error = %v, want errRepeaterEntriesOnly", err)
+	}
+}
+
 func TestCheckValuesRefusesARepeater(t *testing.T) {
 	t.Parallel()
 

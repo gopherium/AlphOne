@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -395,6 +396,62 @@ func TestCheckContactFieldTextsRefusesWithoutWriting(t *testing.T) {
 	}
 	if len(held) != 0 {
 		t.Errorf("values = %#v, want the check to store nothing", held)
+	}
+}
+
+func TestCheckContactFieldTextsNamesTheFieldAndKindAsData(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	define(t, p, labelled(t, "birthDate", "Birth date", "DATE"))
+
+	err := p.CheckContactFieldTexts(t.Context(), map[string]string{"birthDate": "not a date"})
+
+	var named sdk.FieldTextError
+	if !errors.As(err, &named) {
+		t.Fatalf("error = %v, want an sdk.FieldTextError", err)
+	}
+	if named.Reason != sdk.FieldTextKindMismatch || !reflect.DeepEqual(named.Fields, []string{"birthDate"}) ||
+		named.Kind != "DATE" {
+		t.Errorf("named = %+v, want value_kind_mismatch naming [birthDate] of kind DATE", named)
+	}
+	if !errors.Is(err, sdk.ErrInvalidFieldText) || !errors.Is(err, errWrongKind) {
+		t.Errorf("error = %v, want it to match sdk.ErrInvalidFieldText and errWrongKind", err)
+	}
+}
+
+func TestCheckContactFieldTextsNamesUndefinedFieldsAsData(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+
+	err := p.CheckContactFieldTexts(t.Context(), map[string]string{"shoeSize": "44", "neverDefined": "x"})
+
+	var named sdk.FieldTextError
+	if !errors.As(err, &named) {
+		t.Fatalf("error = %v, want an sdk.FieldTextError", err)
+	}
+	if named.Reason != sdk.FieldTextFieldUnknown ||
+		!reflect.DeepEqual(named.Fields, []string{"neverDefined", "shoeSize"}) || named.Kind != "" {
+		t.Errorf("named = %+v, want field_unknown naming both fields sorted and no kind", named)
+	}
+	if !errors.Is(err, errNoField) {
+		t.Errorf("error = %v, want it to match errNoField", err)
+	}
+}
+
+func TestCheckContactFieldTextsKeepsTheMessageItAnsweredBefore(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	define(t, p, labelled(t, "birthDate", "Birth date", "DATE"))
+
+	err := p.CheckContactFieldTexts(t.Context(), map[string]string{"birthDate": "not a date"})
+
+	want := "sdk: invalid field text: fields: the value does not match the kind its definition declares: " +
+		"birthDate expects DATE"
+	if err == nil || err.Error() != want {
+		t.Errorf("error = %v, want %q", err, want)
 	}
 }
 

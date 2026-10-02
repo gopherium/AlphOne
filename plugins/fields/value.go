@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -146,28 +147,51 @@ func coerceDate(given any) (any, error) {
 	return text, nil
 }
 
+// valueError is a value check error beside the fields it names and the kind of the one named field.
+type valueError struct {
+	err   error
+	names []string
+	kind  kind
+}
+
+// Error returns the check error text.
+func (e valueError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap returns the check error.
+func (e valueError) Unwrap() error {
+	return e.err
+}
+
 // checkValues returns the storable values the view allows, refusing repeaters, unknown keys and wrong kinds.
 func checkValues(live *view, given map[string]any) (map[string]any, error) {
 	if repeaters := repeatersIn(live, given); len(repeaters) > 0 {
-		return nil, fmt.Errorf("%w: %s", errRepeaterEntriesOnly, strings.Join(repeaters, ", "))
+		return nil, valueError{
+			err:   fmt.Errorf("%w: %s", errRepeaterEntriesOnly, strings.Join(repeaters, ", ")),
+			names: repeaters,
+		}
 	}
 	var unknown []string
 	checked := make(map[string]any, len(given))
-	for name, value := range given {
+	for _, name := range slices.Sorted(maps.Keys(given)) {
 		held, defined := live.kinds[name]
 		if !defined {
 			unknown = append(unknown, name)
 			continue
 		}
-		coerced, err := coerce(held, value)
+		coerced, err := coerce(held, given[name])
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s expects %s", errWrongKind, name, held)
+			return nil, valueError{
+				err:   fmt.Errorf("%w: %s expects %s", errWrongKind, name, held),
+				names: []string{name},
+				kind:  held,
+			}
 		}
 		checked[name] = coerced
 	}
 	if len(unknown) > 0 {
-		sort.Strings(unknown)
-		return nil, fmt.Errorf("%w: %s", errNoField, strings.Join(unknown, ", "))
+		return nil, valueError{err: fmt.Errorf("%w: %s", errNoField, strings.Join(unknown, ", ")), names: unknown}
 	}
 	return checked, nil
 }
