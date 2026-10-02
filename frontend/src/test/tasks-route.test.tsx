@@ -173,6 +173,16 @@ test('serves the tasks screen at /tasks', async () => {
 	expect(screen.getByText('Send the quote')).toBeInTheDocument()
 })
 
+test('draws every header button compact, as a WordPress page header does', async () => {
+	renderAt(`/tasks?date=${tomorrow}`)
+
+	const add = await screen.findByRole('link', { name: 'New task' })
+	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
+	for (const name of ['Previous day', 'Today', 'Next day']) {
+		expect([...screen.getByRole('button', { name }).classList]).toEqual(expect.arrayContaining(compactClasses()))
+	}
+})
+
 test('asks the backend for today', async () => {
 	renderAt('/tasks')
 

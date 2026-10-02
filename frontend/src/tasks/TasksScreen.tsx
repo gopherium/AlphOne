@@ -80,7 +80,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			actions={
 				<>
 					<DayNavigation date={date} today={today} />
-					<Button variant="solid" render={<Link to="/tasks/new" search={{ date }} />}>
+					<Button variant="solid" size="compact" render={<Link to="/tasks/new" search={{ date }} />}>
 						{__('New task', 'alphone')}
 					</Button>
 				</>
@@ -133,6 +133,7 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 				label={__('Previous day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
+				size="compact"
 				nativeButton={false}
 				render={<Link to="/tasks" search={{ date: shiftDate(date, -1) }} />}
 			/>
@@ -152,6 +153,7 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 				label={__('Next day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
+				size="compact"
 				nativeButton={false}
 				render={<Link to="/tasks" search={{ date: shiftDate(date, 1) }} />}
 			/>
