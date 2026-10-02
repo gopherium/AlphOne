@@ -695,6 +695,24 @@ test('spins only the remove button pressed', async () => {
 	expect(screen.getByRole('button', { name: 'Remove 184467236' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
+test('keeps a remove button spinning while its own removal waits and another one finishes', async () => {
+	server.use(
+		graphql.mutation('DeleteContactIdentity', ({ variables }) =>
+			variables.identityId === identityID1
+				? new Promise(() => {})
+				: HttpResponse.json({ data: { deleteContactIdentity: true } }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467236' }))
+
+	expect(await screen.findByText('Identity removed.')).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('reports a failed removal', async () => {
 	server.use(
 		graphql.mutation('DeleteContactIdentity', () =>

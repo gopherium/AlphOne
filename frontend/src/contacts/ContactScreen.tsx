@@ -151,12 +151,12 @@ function identityText(identity: ContactDetail['identities'][number]): string {
 function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelledBy: string }) {
 	const settled = useContactRefresh()
 	const toaster = useToaster()
-	const [removing, setRemoving] = useState('')
+	const [removing, setRemoving] = useState<readonly string[]>([])
 	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
 	const removeIdentity = async (identityId: string) => {
-		setRemoving(identityId)
+		setRemoving((pending) => [...pending, identityId])
 		const result = await runRemove({ contactId: contact.id, identityId })
-		setRemoving('')
+		setRemoving((pending) => pending.filter((id) => id !== identityId))
 		if (result.data) {
 			toaster.show(__('Identity removed.', 'alphone'))
 			settled()
@@ -181,7 +181,7 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
 								tone="neutral"
 								size="compact"
 								label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-								loading={removing === identity.id}
+								loading={removing.includes(identity.id)}
 								onClick={() => void removeIdentity(identity.id)}
 							/>
 						}
