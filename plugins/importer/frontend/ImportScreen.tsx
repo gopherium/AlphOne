@@ -22,6 +22,7 @@ import {
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Suspense, lazy, useState } from 'react'
 
+import { fieldLabeller } from './fieldLabels'
 import type { ImportDetailQuery } from './gql/graphql'
 import {
 	importCommitMutation,
@@ -192,9 +193,10 @@ function ColumnSelect({
 	chosen: string
 	onChoose: (field: string) => void
 }) {
+	const labelOf = fieldLabeller(fields)
 	const items = [
 		{ value: unmapped, label: __('Not imported', 'alphone-importer') },
-		...fields.map((field) => ({ value: field.name, label: field.label })),
+		...fields.map((field) => ({ value: field.name, label: labelOf(field.name) })),
 	]
 	return (
 		<SelectControl
