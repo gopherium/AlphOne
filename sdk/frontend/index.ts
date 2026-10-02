@@ -65,11 +65,14 @@ export {
 	VisuallyHidden,
 } from '@wordpress/ui'
 export {
+	check,
 	chevronLeft,
 	chevronRight,
 	comment,
 	inbox,
+	key,
 	menu,
+	notAllowed,
 	pencil,
 	people,
 	trash,
@@ -77,6 +80,7 @@ export {
 export { ThemeProvider } from '@wordpress/theme'
 export {
 	ErrorNotice,
+	InitialsAvatar,
 	keyFromLabel,
 	LoadingRows,
 	LoadingScreen,
@@ -85,6 +89,8 @@ export {
 	LogList,
 	LogTime,
 	Page as PageScreen,
+	PageTab,
+	PageTabs,
 	PageTitle,
 	RepeatRows,
 	RowControls,
