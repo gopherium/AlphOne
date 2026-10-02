@@ -80,6 +80,11 @@ export function errorTemplates(): Record<string, string> {
 }
 ```
 
+A reason a server stores as data, such as the reason on each import row,
+renders through `reasonText` from the SDK with its own template map. Keep
+that map out of `errorTemplates`, so no plugin overwrites another plugin's
+codes.
+
 ## Never wrap these
 
 Class names, test ids, route paths, GraphQL field names, reason codes,
