@@ -71,9 +71,9 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(rows.getByText('Failed', { exact: true }).first()).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
-	await expect(page.getByRole('link', { name: wanted })).toBeVisible()
-	await expect(page.getByRole('link', { name: known })).toHaveCount(1)
+	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
+	await expect(page.getByRole('row').filter({ hasText: wanted })).toHaveCount(1)
+	await expect(page.getByRole('row').filter({ hasText: known })).toHaveCount(1)
 })
 
 test('maps a spreadsheet column onto a field an operator defined', async ({ page }) => {
@@ -112,8 +112,8 @@ test('maps a spreadsheet column onto a field an operator defined', async ({ page
 	).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
-	await page.getByRole('link', { name: wanted }).click()
+	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
+	await page.getByRole('link', { name: wanted }).first().click()
 	await expect(page.getByRole('heading', { name: wanted })).toBeVisible()
 	await expect(page.getByLabel(fieldLabel)).toHaveValue('2026-03-01')
 })
