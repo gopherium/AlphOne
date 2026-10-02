@@ -160,6 +160,10 @@ func TestImportFields(t *testing.T) {
 	runFeature(t, "features/import-fields.feature", initializeImportFields(t))
 }
 
+func TestImportRowReasons(t *testing.T) {
+	runFeature(t, "features/import-row-reasons.feature", initializeImportFields(t))
+}
+
 func TestTokens(t *testing.T) {
 	runFeature(t, "features/tokens.feature", initializeTokens(t))
 }

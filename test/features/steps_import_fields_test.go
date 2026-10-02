@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ const commitMutation = `mutation($id: UUID!) {
 
 // importJobQuery reads one import's state and rows back.
 const importJobQuery = `query($id: UUID!) {
-	importJob(id: $id) { state rows { outcome reason } }
+	importJob(id: $id) { state rows { outcome reason { code meta } } }
 }`
 
 // registryQuery reads the mappable registry.
@@ -62,8 +63,11 @@ type importAnswer struct {
 		ImportJob *struct {
 			State string `json:"state"`
 			Rows  []struct {
-				Outcome string  `json:"outcome"`
-				Reason  *string `json:"reason"`
+				Outcome string `json:"outcome"`
+				Reason  *struct {
+					Code string         `json:"code"`
+					Meta map[string]any `json:"meta"`
+				} `json:"reason"`
 			} `json:"rows"`
 		} `json:"importJob"`
 		ImportFields []struct {
@@ -271,25 +275,9 @@ func bindImportSteps(sc *godog.ScenarioContext) {
 		return nil
 	})
 
-	sc.Then(`^a row settles failed naming "([^"]*)" and kind ([A-Z]+)$`,
-		func(ctx context.Context, field, kind string) error {
-			w := worldFrom(ctx)
-			answer, err := w.importOperation(ctx, importJobQuery, map[string]any{"id": w.lastImport.String()})
-			if err != nil {
-				return err
-			}
-			if answer.Data.ImportJob == nil {
-				return fmt.Errorf("the import is gone, answered %s", w.answered)
-			}
-			for _, row := range answer.Data.ImportJob.Rows {
-				if row.Outcome != "failed" || row.Reason == nil {
-					continue
-				}
-				if strings.Contains(*row.Reason, field) && strings.Contains(*row.Reason, kind) {
-					return nil
-				}
-			}
-			return fmt.Errorf("no failed row names %q and %s, answered %s", field, kind, w.answered)
+	sc.Then(`^a row settles (imported|skipped|failed) with the reason "([^"]*)" and the meta:$`,
+		func(ctx context.Context, outcome, code string, meta *godog.DocString) error {
+			return worldFrom(ctx).rowSettledWith(ctx, outcome, code, meta.Content)
 		})
 
 	sc.Then(`^the mapping registry lists "([^"]*)" labelled "([^"]*)" beside the core columns$`,
@@ -401,6 +389,28 @@ func bindImportSteps(sc *godog.ScenarioContext) {
 		}
 		return nil
 	})
+}
+
+// rowSettledWith reports whether a row of the last import settled with the outcome, the code and the meta given.
+func (w *world) rowSettledWith(ctx context.Context, outcome, code, metaJSON string) error {
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(metaJSON), &meta); err != nil {
+		return fmt.Errorf("decoding the expected meta %s: %w", metaJSON, err)
+	}
+	answer, err := w.importOperation(ctx, importJobQuery, map[string]any{"id": w.lastImport.String()})
+	if err != nil {
+		return err
+	}
+	if answer.Data.ImportJob == nil {
+		return fmt.Errorf("the import is gone, answered %s", w.answered)
+	}
+	for _, row := range answer.Data.ImportJob.Rows {
+		if row.Outcome == outcome && row.Reason != nil && row.Reason.Code == code &&
+			reflect.DeepEqual(row.Reason.Meta, meta) {
+			return nil
+		}
+	}
+	return fmt.Errorf("no %s row carries the reason %q with the meta %s, answered %s", outcome, code, metaJSON, w.answered)
 }
 
 // registryNames reads the names of the mappable registry in the order it lists them.
