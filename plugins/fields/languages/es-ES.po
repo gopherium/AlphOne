@@ -177,8 +177,8 @@ msgid "Send the values as field names to values."
 msgstr "Envía los valores como pares de nombre de campo y valor."
 
 #, fuzzy
-msgid "Sub field %(number)d"
-msgstr "Subcampo %(number)d"
+msgid "Sub field %(number)s"
+msgstr "Subcampo %(number)s"
 
 #, fuzzy
 msgid "Sub fields"
@@ -257,8 +257,8 @@ msgid "The fields could not be saved."
 msgstr "No se han podido guardar los campos."
 
 #, fuzzy
-msgid "This list is full. It holds %(max)d entries at most."
-msgstr "Esta lista está llena. Guarda como mucho %(max)d entradas."
+msgid "This list is full. It holds %(max)s entries at most."
+msgstr "Esta lista está llena. Guarda como mucho %(max)s entradas."
 
 #, fuzzy
 msgid "Two sub fields of this repeater hold the same name."

@@ -74,13 +74,13 @@ export const offerSent = { id: ID2, date: '2026-09-10', comment: 'Sent the offer
 export const followUp = { id: ID3, date: '2026-09-18', comment: 'Follow-up call.\nAsked for a second quote.' }
 
 /** firstCallName is the name the row of firstCall is announced by. */
-export const firstCallName = 'Sep 1, 2026, First call about the yearly plan.'
+export const firstCallName = '01/09/2026, First call about the yearly plan.'
 
 /** offerSentName is the name the row of offerSent is announced by. */
-export const offerSentName = 'Sep 10, 2026, Sent the offer and booked a follow-up call.'
+export const offerSentName = '10/09/2026, Sent the offer and booked a follow-up call.'
 
 /** followUpName is the name the row of followUp is announced by. */
-export const followUpName = 'Sep 18, 2026, Follow-up call.'
+export const followUpName = '18/09/2026, Follow-up call.'
 
 /**
  * Renders the fields panel of the test contact inside its graph and query providers.

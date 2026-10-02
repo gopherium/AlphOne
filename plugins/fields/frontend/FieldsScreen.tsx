@@ -15,7 +15,8 @@ import {
 	Stack,
 	Text,
 	__,
-	displayLocale,
+	formatList,
+	formatNumber,
 	graphError,
 	keyFromLabel,
 	sprintf,
@@ -521,9 +522,7 @@ function kindLabel(kind: string) {
  * @returns The joined labels.
  */
 function labelList(subFields: SubFieldRow[]) {
-	return new Intl.ListFormat(displayLocale(), { type: 'unit' }).format(
-		subFields.map((column) => column.label),
-	)
+	return formatList(subFields.map((column) => column.label))
 }
 
 /**
@@ -675,7 +674,7 @@ function SubFieldRows({
 						/>
 					</div>
 				)}
-				rowLabel={(at) => sprintf(__('Sub field %(number)d', 'alphone-fields'), { number: at + 1 })}
+				rowLabel={(at) => sprintf(__('Sub field %(number)s', 'alphone-fields'), { number: formatNumber(at + 1) })}
 				labels={{
 					add: __('Add sub field', 'alphone-fields'),
 					empty: __('No sub fields yet.', 'alphone-fields'),
