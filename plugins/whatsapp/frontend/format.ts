@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, formatDate, sprintf } from '@alphone/frontend-sdk'
+import { __, formatDate, formatNumber, formatTime, sprintf } from '@alphone/frontend-sdk'
 
 /**
  * Formats a moment as its local calendar date.
@@ -15,21 +15,10 @@ export function formatDay(at: Date): string {
 }
 
 /**
- * Formats a moment as a zero-padded 24-hour local clock time.
- * @param at - The moment to format.
- * @returns The time in HH:MM form.
- */
-export function formatTime(at: Date): string {
-	const hours = String(at.getHours()).padStart(2, '0')
-	const minutes = String(at.getMinutes()).padStart(2, '0')
-	return `${hours}:${minutes}`
-}
-
-/**
  * Labels a moment's calendar day for display, relative to the current moment.
  * @param at - The moment to label.
  * @param now - The current moment, anchoring Today and Yesterday.
- * @returns Today, Yesterday, or a date such as Jul 6, 2026.
+ * @returns Today, Yesterday, or a date such as 06/07/2026.
  */
 export function formatDayLabel(at: Date, now: Date): string {
 	if (formatDay(at) === formatDay(now)) {
@@ -39,7 +28,7 @@ export function formatDayLabel(at: Date, now: Date): string {
 	if (formatDay(at) === formatDay(yesterday)) {
 		return __('Yesterday', 'alphone-whatsapp')
 	}
-	return formatDate(at, { month: 'short', day: 'numeric', year: 'numeric' })
+	return formatDate(at)
 }
 
 /**
@@ -49,12 +38,13 @@ export function formatDayLabel(at: Date, now: Date): string {
  */
 export function formatFileSize(bytes: number): string {
 	if (bytes < 1024) {
-		return sprintf(__('%(size)d B', 'alphone-whatsapp'), { size: bytes })
+		return sprintf(__('%(size)s B', 'alphone-whatsapp'), { size: formatNumber(bytes) })
 	}
 	if (bytes < 1024 * 1024) {
-		return sprintf(__('%(size)d KB', 'alphone-whatsapp'), { size: Math.round(bytes / 1024) })
+		return sprintf(__('%(size)s KB', 'alphone-whatsapp'), { size: formatNumber(Math.round(bytes / 1024)) })
 	}
-	return sprintf(__('%(size)s MB', 'alphone-whatsapp'), { size: (bytes / (1024 * 1024)).toFixed(1) })
+	const megabytes = formatNumber(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+	return sprintf(__('%(size)s MB', 'alphone-whatsapp'), { size: megabytes })
 }
 
 /**
@@ -62,7 +52,7 @@ export function formatFileSize(bytes: number): string {
  * the activity happened today, the labelled day otherwise.
  * @param at - The moment of the last activity.
  * @param now - The current moment, deciding whether the activity is today's.
- * @returns The time in HH:MM form for today's activity, else the day label.
+ * @returns The time, such as 09:05, for today's activity, else the day label.
  */
 export function formatListTime(at: Date, now: Date): string {
 	if (formatDay(at) === formatDay(now)) {
