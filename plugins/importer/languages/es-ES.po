@@ -37,8 +37,8 @@ msgid "Choose what each column holds before committing."
 msgstr "Elige qué contiene cada columna antes de confirmar."
 
 #, fuzzy
-msgid "Column %(number)d"
-msgstr "Columna %(number)d"
+msgid "Column %(number)s"
+msgstr "Columna %(number)s"
 
 #, fuzzy
 msgid "Commit"
@@ -123,6 +123,10 @@ msgstr "Guardar la asignación"
 #, fuzzy
 msgid "Search imports…"
 msgstr "Buscar importaciones…"
+
+#, fuzzy
+msgid "Search rows…"
+msgstr "Buscar filas…"
 
 #, fuzzy
 msgid "Started"

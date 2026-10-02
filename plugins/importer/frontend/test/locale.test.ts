@@ -92,12 +92,14 @@ test('reads the imports list chrome in Spanish', async () => {
 			'Search imports…',
 			'No imports found.',
 			'Upload a CSV or Excel file to start one.',
+			'Search rows…',
 		),
 	).toEqual([
 		'Importa contactos desde archivos CSV y Excel.',
 		'Buscar importaciones…',
 		'No se ha encontrado ninguna importación.',
 		'Sube un archivo CSV o Excel para empezar una.',
+		'Buscar filas…',
 	])
 })
 

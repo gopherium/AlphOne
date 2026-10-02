@@ -28,7 +28,7 @@ msgstr ""
 msgid "Choose what each column holds before committing."
 msgstr ""
 
-msgid "Column %(number)d"
+msgid "Column %(number)s"
 msgstr ""
 
 msgid "Commit"
@@ -92,6 +92,9 @@ msgid "Save mapping"
 msgstr ""
 
 msgid "Search imports…"
+msgstr ""
+
+msgid "Search rows…"
 msgstr ""
 
 msgid "Started"
