@@ -442,6 +442,7 @@ type stubContactStore struct {
 	batches         [][]uuid.UUID
 	identityBatches [][]uuid.UUID
 	identities      map[uuid.UUID][]contact.Identity
+	listedLimit     int
 	listErr         error
 	listByIDsErr    error
 	identitiesErr   error
@@ -457,10 +458,11 @@ func (s *stubContactStore) Get(_ context.Context, id uuid.UUID) (contact.Contact
 	return c, nil
 }
 
-// ListContacts returns the configured list error, or no contacts at all.
+// ListContacts records the row limit and returns the configured list error, or no contacts at all.
 func (s *stubContactStore) ListContacts(
-	_ context.Context, _, _, _ string, _ uuid.UUID, _ int,
+	_ context.Context, _, _, _ string, _ uuid.UUID, limit int,
 ) ([]contact.Contact, error) {
+	s.listedLimit = limit
 	if s.listErr != nil {
 		return nil, s.listErr
 	}

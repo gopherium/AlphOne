@@ -3,20 +3,28 @@
 package graphres_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/99designs/gqlgen/complexity"
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/validator/rules"
 
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/graphres"
 )
 
 // operationCost computes the priced complexity of a query document.
 func operationCost(t *testing.T, doc string) int {
 	t.Helper()
-	schema := graphres.ExecutableSchema(composedRoot(t, &graphres.Resolver{}))
+	return costUnder(t, graphres.ExecutableSchema(composedRoot(t, &graphres.Resolver{})), doc)
+}
+
+// costUnder computes the priced complexity of a query document over schema.
+func costUnder(t *testing.T, schema graphql.ExecutableSchema, doc string) int {
+	t.Helper()
 	query, err := gqlparser.LoadQueryWithRules(schema.Schema(), doc, rules.NewDefaultRules())
 	if err != nil {
 		t.Fatalf("parsing document: %v", err)
@@ -86,6 +94,64 @@ func TestRealScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 		}
 		if cost == 0 {
 			t.Errorf("%s costs 0, the pricing is not engaged", name)
+		}
+	}
+}
+
+// unsizedAndSized pairs each core list read naming no size with the same read naming 200 rows.
+func unsizedAndSized() map[string][2]string {
+	return map[string][2]string{
+		"contacts": {
+			`{ contacts { edges { node { id } } } }`,
+			`{ contacts(first: 200) { edges { node { id } } } }`,
+		},
+		"tasks": {
+			`{ tasks(date: "2026-08-06") { edges { node { id } } } }`,
+			`{ tasks(date: "2026-08-06", first: 200) { edges { node { id } } } }`,
+		},
+		"contact tasks": {
+			`{ contact(id: "00000000-0000-0000-0000-000000000001") { tasks { edges { node { id } } } } }`,
+			`{ contact(id: "00000000-0000-0000-0000-000000000001") { tasks(first: 200) { edges { node { id } } } } }`,
+		},
+	}
+}
+
+func TestAnUnsizedListIsPricedAtTheConfiguredPage(t *testing.T) {
+	t.Parallel()
+
+	schema := graphres.ExecutableSchema(composedRoot(t, &graphres.Resolver{
+		Paging: graphres.Paging{Size: 200, Cap: 200},
+	}))
+
+	for name, reads := range unsizedAndSized() {
+		unsized, sized := costUnder(t, schema, reads[0]), costUnder(t, schema, reads[1])
+		if unsized != sized {
+			t.Errorf("%s unsized costs %d, want the 200 row page's %d", name, unsized, sized)
+		}
+	}
+}
+
+// unboundedRoot is a resolver root whose query set names no page bounds.
+type unboundedRoot struct {
+	graph.ResolverRoot
+}
+
+// Query returns no query set.
+func (unboundedRoot) Query() graph.QueryResolver {
+	return nil
+}
+
+func TestAnUnsizedListOverARootNamingNoBoundsIsPricedAtTheDefaultPage(t *testing.T) {
+	t.Parallel()
+
+	for name, root := range map[string]graph.ResolverRoot{"no root": nil, "a root naming no bounds": unboundedRoot{}} {
+		schema := graphres.ExecutableSchema(root)
+
+		unsized := costUnder(t, schema, `{ contacts { edges { node { id } } } }`)
+		sized := costUnder(t, schema, fmt.Sprintf(`{ contacts(first: %d) { edges { node { id } } } }`,
+			graphres.DefaultPageSize))
+		if unsized != sized {
+			t.Errorf("%s prices unsized at %d, want the default page's %d", name, unsized, sized)
 		}
 	}
 }

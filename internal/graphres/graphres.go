@@ -213,6 +213,10 @@ type Resolver struct {
 	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
+	// Paging bounds the pages the core lists answer.
+	Paging Paging
+	// Screens carries the settings the admin screens read once.
+	Screens Screens
 }
 
 // publish announces an event in the caller's tenant unless no publisher is wired.
