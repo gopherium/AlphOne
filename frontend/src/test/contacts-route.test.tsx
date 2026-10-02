@@ -247,6 +247,7 @@ test('creates a contact and opens its detail', async () => {
 		await screen.findByRole('heading', { name: 'New Ltd' }),
 	).toBeInTheDocument()
 	expect(screen.getByText('No identities yet.')).toBeInTheDocument()
+	expect(screen.getByText('Contact added.')).toBeInTheDocument()
 })
 
 test('reports invalid contact details on create', async () => {
@@ -280,6 +281,7 @@ test('reports a generic message when the create fails otherwise', async () => {
 	expect(
 		await screen.findByText('The contact could not be created.'),
 	).toBeInTheDocument()
+	expect(screen.queryByText('Contact added.')).not.toBeInTheDocument()
 })
 
 test('drops the session when the create is unauthorized', async () => {
@@ -449,6 +451,7 @@ test('adds an email identity to the contact', async () => {
 		displayName: 'Work',
 	})
 	expect(screen.getByLabelText('Value')).toHaveValue('')
+	expect(screen.getByText('Identity added.')).toBeInTheDocument()
 })
 
 test('adds a phone identity through the channel select', async () => {
@@ -585,6 +588,7 @@ test('reports a generic message when the identity add fails otherwise', async ()
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The identity could not be added.',
 	)
+	expect(screen.queryByText('Identity added.')).not.toBeInTheDocument()
 })
 
 test('lays the channel, value, label and Add identity on one form row', async () => {
@@ -675,6 +679,7 @@ test('removes an identity', async () => {
 	)
 	expect(deleted).toBe(identityID2)
 	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
 })
 
 test('reports a failed removal', async () => {
@@ -691,6 +696,7 @@ test('reports a failed removal', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The identity could not be removed.',
 	)
+	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
 })
 
 test('shows each identity remove as an icon named after its identifier', async () => {
@@ -758,6 +764,7 @@ test('renames a contact', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
 	).toBeInTheDocument()
+	expect(screen.getByText('Contact renamed.')).toBeInTheDocument()
 })
 
 test('lays the name and Save on one form row', async () => {
@@ -827,6 +834,7 @@ test('reports a generic message when the rename fails otherwise', async () => {
 	expect(
 		await screen.findByText('The contact could not be renamed.'),
 	).toBeInTheDocument()
+	expect(screen.queryByText('Contact renamed.')).not.toBeInTheDocument()
 })
 
 test('surfaces the backend message for unreadable rename rejections', async () => {

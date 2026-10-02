@@ -8,6 +8,7 @@ import {
 	__,
 	graphError,
 	useGraphMutation,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
@@ -29,11 +30,13 @@ export function NewContactScreen({
 }: {
 	onCreated: (created: CreatedContact) => void
 }) {
+	const toaster = useToaster()
 	const [name, setName] = useState('')
 	const [create, runCreate] = useGraphMutation(createContactMutation)
 	const submit = async () => {
 		const result = await runCreate({ name })
 		if (result.data) {
+			toaster.show(__('Contact added.', 'alphone'))
 			onCreated(result.data.createContact)
 		}
 	}
