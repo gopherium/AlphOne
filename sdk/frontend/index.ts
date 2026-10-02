@@ -101,6 +101,8 @@ export type { GraphClient } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'
 export type { ConnectionPage, ConnectionResult } from './useConnection'
+export { useAdminSettings } from './adminSettings'
+export type { AdminSettings, AdminSettingsRead } from './adminSettings'
 export {
 	useQuery as useGraphQuery,
 	useMutation as useGraphMutation,

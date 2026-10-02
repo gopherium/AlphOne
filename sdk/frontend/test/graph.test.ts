@@ -339,9 +339,25 @@ const createWebhookMutation = gql`
 	}
 `
 
+const adminSettingsQuery = gql`
+	query AdminSettings {
+		adminSettings {
+			toastMilliseconds
+			listPageSizes
+		}
+	}
+`
+
 test('keys every embedded type the graph returns without warning', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 	server.use(
+		graphql.query('AdminSettings', () =>
+			HttpResponse.json({
+				data: {
+					adminSettings: { __typename: 'AdminSettings', toastMilliseconds: 6000, listPageSizes: [10, 20] },
+				},
+			}),
+		),
 		graphql.query('ImportJob', () =>
 			HttpResponse.json({
 				data: {
@@ -456,6 +472,7 @@ test('keys every embedded type the graph returns without warning', async () => {
 		await graph.client
 			.mutation(createWebhookMutation, { url: 'https://example.com/hook', events: ['task.created'] })
 			.toPromise(),
+		await graph.client.query(adminSettingsQuery, {}).toPromise(),
 	]
 
 	for (const result of results) {
