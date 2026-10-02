@@ -25,13 +25,12 @@ func isMissingContact(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation
 }
 
-// ListContactIdentities returns the contact's identities ordered by channel
-// and identifier.
+// ListContactIdentities returns the identities of the given contacts, each ordered by channel and identifier.
 func (s *ContactStore) ListContactIdentities(
-	ctx context.Context, contactID uuid.UUID,
+	ctx context.Context, contactIDs []uuid.UUID,
 ) ([]contact.Identity, error) {
 	rows, err := s.queries.ListContactIdentities(ctx, db.ListContactIdentitiesParams{
-		ContactID: contactID, TenantID: sdk.TenantOrDefault(ctx),
+		ContactIds: contactIDs, TenantID: sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list contact identities: %w", err)
