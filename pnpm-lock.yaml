@@ -156,8 +156,8 @@ importers:
         specifier: workspace:*
         version: link:../plugins/whatsapp/frontend
       '@gopherium/godmin':
-        specifier: 0.13.0
-        version: 0.13.0(ed348dfabab8bf6af423d3a73e453466)
+        specifier: 0.14.0
+        version: 0.14.0(6307896099c52546c37b38500c4f7a6d)
       '@gopherium/gottext':
         specifier: 0.5.1
         version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
@@ -346,8 +346,8 @@ importers:
   sdk/frontend:
     dependencies:
       '@gopherium/godmin':
-        specifier: 0.13.0
-        version: 0.13.0(ed348dfabab8bf6af423d3a73e453466)
+        specifier: 0.14.0
+        version: 0.14.0(6307896099c52546c37b38500c4f7a6d)
       '@gopherium/gottext':
         specifier: 0.5.1
         version: 0.5.1(@wordpress/i18n@6.28.0)(gettext-extractor@4.0.6)
@@ -1031,11 +1031,12 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@gopherium/godmin@0.13.0':
-    resolution: {integrity: sha512-NpZZvob6xg5m9RXb00cHhGBPqgYgGioAzoKKg3nf+VsqIplOAj798NEHnXHG13NYF5yvnYjr9HiFA3SuyOWvvw==}
+  '@gopherium/godmin@0.14.0':
+    resolution: {integrity: sha512-1FHUqQzCUznkfCuLyHwTZdQg8LiGJR/e4kK4SQmF1fVhDFYowfvHLNCUzv5s9SYkEjat66xAYjpJcIrE2c7ANg==}
     peerDependencies:
       '@tanstack/react-router': ^1.170.0
       '@testing-library/react': ^16.3.2
+      '@wordpress/a11y': '>=4.55.0 <5.0.0'
       '@wordpress/icons': '>=16.0.0 <17.0.0'
       '@wordpress/style-runtime': '>=0.11.0 <0.12.0'
       '@wordpress/theme': '>=2.1.0 <3.0.0'
@@ -5694,8 +5695,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@gopherium/godmin@0.13.0(ed348dfabab8bf6af423d3a73e453466)':
+  '@gopherium/godmin@0.14.0(6307896099c52546c37b38500c4f7a6d)':
     dependencies:
+      '@wordpress/a11y': 4.55.0
       '@wordpress/icons': 16.0.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@wordpress/style-runtime': 0.11.0
       '@wordpress/theme': 2.1.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.26)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(stylelint@17.15.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.2.2(@types/node@26.5.1)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
