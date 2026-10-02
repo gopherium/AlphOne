@@ -36,11 +36,15 @@ func newFakeContactStore() *fakeContactStore {
 	}
 }
 
-// ListContactIdentities returns the identities stored under the named contact.
+// ListContactIdentities returns the identities stored under the named contacts.
 func (f *fakeContactStore) ListContactIdentities(
-	_ context.Context, contactID uuid.UUID,
+	_ context.Context, contactIDs []uuid.UUID,
 ) ([]contact.Identity, error) {
-	return f.identities[contactID], nil
+	var held []contact.Identity
+	for _, id := range contactIDs {
+		held = append(held, f.identities[id]...)
+	}
+	return held, nil
 }
 
 // ListByIDs returns the stored contacts the given identifiers name.

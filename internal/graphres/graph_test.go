@@ -438,12 +438,14 @@ func TestContactQueryErrorPaths(t *testing.T) {
 
 // stubContactStore counts batch loads over a fixed contact set.
 type stubContactStore struct {
-	contacts       map[uuid.UUID]contact.Contact
-	batches        [][]uuid.UUID
-	listErr        error
-	listByIDsErr   error
-	identitiesErr  error
-	addIdentityErr error
+	contacts        map[uuid.UUID]contact.Contact
+	batches         [][]uuid.UUID
+	identityBatches [][]uuid.UUID
+	identities      map[uuid.UUID][]contact.Identity
+	listErr         error
+	listByIDsErr    error
+	identitiesErr   error
+	addIdentityErr  error
 }
 
 // Get returns the fixed contact the id names, or a not found error.
@@ -465,12 +467,19 @@ func (s *stubContactStore) ListContacts(
 	return nil, nil
 }
 
-// ListContactIdentities returns the configured identities error, or no identities at all.
-func (s *stubContactStore) ListContactIdentities(_ context.Context, _ uuid.UUID) ([]contact.Identity, error) {
+// ListContactIdentities records the batch and returns the configured identities error, or the held identities.
+func (s *stubContactStore) ListContactIdentities(
+	_ context.Context, contactIDs []uuid.UUID,
+) ([]contact.Identity, error) {
+	s.identityBatches = append(s.identityBatches, contactIDs)
 	if s.identitiesErr != nil {
 		return nil, s.identitiesErr
 	}
-	return nil, nil
+	var held []contact.Identity
+	for _, id := range contactIDs {
+		held = append(held, s.identities[id]...)
+	}
+	return held, nil
 }
 
 // ListByIDs records the batch and returns the known contacts among the ids.

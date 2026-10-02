@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/credential"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
@@ -295,6 +296,64 @@ func TestIdentityAddAndDelete(t *testing.T) {
 	}
 	if got := firstErrorCode(t, gone.Errors); got != "NOT_FOUND" {
 		t.Errorf("deleted twice code = %q, want NOT_FOUND", got)
+	}
+}
+
+// identitiesRead is a contact read listing its identifiers.
+type identitiesRead struct {
+	Identities []struct {
+		Identifier string `json:"identifier"`
+	} `json:"identities"`
+}
+
+// mustAddIdentity stores an email identity for the contact and returns it.
+func mustAddIdentity(t *testing.T, store *postgres.ContactStore, contactID uuid.UUID, email string) contact.Identity {
+	t.Helper()
+	identity, err := contact.NewWritableIdentity(contactID, contact.Channel("email"), email, "")
+	if err != nil {
+		t.Fatalf("NewWritableIdentity(%q) error = %v, want nil", email, err)
+	}
+	if err := store.AddIdentity(t.Context(), identity); err != nil {
+		t.Fatalf("AddIdentity(%q) error = %v, want nil", email, err)
+	}
+	return identity
+}
+
+func TestAnIdentityWriteShowsInALaterReadOfTheSameDocument(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	gaining := mustSeedContact(t, h.contacts, "Maria Perez")
+	losing := mustSeedContact(t, h.contacts, "Ada Lovelace")
+	removable := mustAddIdentity(t, h.contacts, losing.ID, "ada@example.com")
+
+	writes := map[string]struct {
+		read   contact.Contact
+		write  string
+		before int
+		after  int
+	}{
+		"an added identity": {gaining, fmt.Sprintf(`addContactIdentity(contactId: %q,
+			identity: {channel: "email", identifier: "maria@example.com"}) { id }`, gaining.ID), 0, 1},
+		"a removed identity": {losing, fmt.Sprintf(`deleteContactIdentity(contactId: %q, identityId: %q)`,
+			losing.ID, removable.ID), 1, 0},
+	}
+	for name, tt := range writes {
+		var answer struct {
+			Before  identitiesRead `json:"before"`
+			Written any            `json:"written"`
+			After   identitiesRead `json:"after"`
+		}
+		h.client.MustPost(fmt.Sprintf(`mutation {
+			before: renameContact(id: %[1]q, name: %[2]q) { identities { identifier } }
+			written: %[3]s
+			after: renameContact(id: %[1]q, name: %[2]q) { identities { identifier } }
+		}`, tt.read.ID, tt.read.Name, tt.write), &answer)
+
+		if len(answer.Before.Identities) != tt.before || len(answer.After.Identities) != tt.after {
+			t.Errorf("%s reads %d identities before and %d after, want %d then %d", name,
+				len(answer.Before.Identities), len(answer.After.Identities), tt.before, tt.after)
+		}
 	}
 }
 
