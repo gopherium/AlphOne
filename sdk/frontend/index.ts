@@ -106,6 +106,7 @@ export type { ConnectionPage, ConnectionResult } from './useConnection'
 export { listSearch, openOnTap, useListView } from './listView'
 export type { ListDefaults, ListSearch, ListView } from './listView'
 export { useAdminSettings } from './adminSettings'
+export { FormatLocaleGate } from './FormatLocaleGate'
 export type { AdminSettings, AdminSettingsRead } from './adminSettings'
 export {
 	useQuery as useGraphQuery,
@@ -116,5 +117,14 @@ export type { CombinedError as GraphFailure } from 'urql'
 export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useGraphEvents, useGraphStream } from './stream'
 export { __, _n, _nx, _x, sprintf } from '@wordpress/i18n'
-export { displayLocale, formatDate, globCatalogs, rememberLocale } from '@gopherium/gottext'
+export { displayLocale, globCatalogs, rememberLocale } from '@gopherium/gottext'
+export {
+	formatDate,
+	formatList,
+	formatMoney,
+	formatNumber,
+	formatTime,
+	formatWeekday,
+	rememberFormatLocale,
+} from './format'
 export type { Catalog } from '@gopherium/gottext'
