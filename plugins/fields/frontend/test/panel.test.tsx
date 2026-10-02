@@ -39,9 +39,9 @@ test('a defined field renders with its stored value', async () => {
 test('a contact with no defined fields renders nothing', async () => {
 	serveCatalogue([])
 
-	const { container } = renderPanel()
+	const { slot } = renderPanel()
 
-	await waitFor(() => expect(container).toBeEmptyDOMElement())
+	await waitFor(() => expect(slot).toBeEmptyDOMElement())
 })
 
 test('a defined field with no value renders empty', async () => {
@@ -74,6 +74,7 @@ test('saving sends the edited value under its field name', async () => {
 			values: { birthDate: '1990-04-17' },
 		}),
 	)
+	expect(await screen.findByText('Fields saved.')).toBeInTheDocument()
 })
 
 test('a refused save is reported', async () => {
@@ -97,6 +98,7 @@ test('a refused save is reported', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/expects DATE/)
+	expect(screen.queryByText('Fields saved.')).not.toBeInTheDocument()
 })
 
 const loyaltyPoints = {
@@ -531,8 +533,8 @@ test('a failed catalogue read leaves the contact screen alone', async () => {
 		graphql.query('Fields', () => HttpResponse.json({ errors: [{ message: 'boom' }] })),
 	)
 
-	const { container } = renderPanel()
+	const { slot } = renderPanel()
 
-	await waitFor(() => expect(container).toBeEmptyDOMElement())
+	await waitFor(() => expect(slot).toBeEmptyDOMElement())
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })

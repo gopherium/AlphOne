@@ -93,8 +93,32 @@ msgid "Edit entry: %(name)s"
 msgstr "Editar la entrada: %(name)s"
 
 #, fuzzy
+msgid "Entry added."
+msgstr "Entrada añadida."
+
+#, fuzzy
+msgid "Entry removed."
+msgstr "Entrada quitada."
+
+#, fuzzy
+msgid "Entry saved."
+msgstr "Entrada guardada."
+
+#, fuzzy
+msgid "Field added."
+msgstr "Campo añadido."
+
+#, fuzzy
+msgid "Field archived."
+msgstr "Campo archivado."
+
+#, fuzzy
 msgid "Fields"
 msgstr "Campos"
+
+#, fuzzy
+msgid "Fields saved."
+msgstr "Campos guardados."
 
 #, fuzzy
 msgid "Fill in at least one part of the entry."

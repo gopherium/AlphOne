@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
+import { configureErrorText, rememberFormatLocale } from '@alphone/frontend-sdk'
 import {
 	HttpResponse,
 	fakeGraphClient,
@@ -8,13 +8,12 @@ import {
 	server,
 	textClasses,
 } from '@alphone/frontend-sdk/testing'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
-import { capture, hold, refusal, speakTemplates } from './harness'
+import { capture, hold, refusal, renderHosted, speakTemplates } from './harness'
 
 /** scrolled records every scroll into view an element asks for. */
 const scrolled = vi.fn()
@@ -43,19 +42,12 @@ const birthDate = {
 }
 
 /**
- * Renders the Fields screen inside its graph and query providers.
+ * Renders the Fields screen inside its graph and query providers, below a toaster.
  * @param graph - The graph client the screen reads through.
  * @returns The render result.
  */
 function renderScreen(graph = fakeGraphClient().graph) {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	return render(
-		<QueryClientProvider client={client}>
-			<GraphProvider graph={graph}>
-				<FieldsScreen />
-			</GraphProvider>
-		</QueryClientProvider>,
-	)
+	return renderHosted(<FieldsScreen />, graph)
 }
 
 /**
@@ -166,6 +158,7 @@ test('defining a field sends the name its label makes', async () => {
 			kind: 'TEXT',
 		}),
 	)
+	expect(await screen.findByText('Field added.')).toBeInTheDocument()
 })
 
 test('numbers a name a live field holds', async () => {
@@ -328,6 +321,7 @@ test('a name taken meanwhile asks to press Add field again', async () => {
 	await submitField()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. Press Add field again.')
+	expect(screen.queryByText('Field added.')).not.toBeInTheDocument()
 })
 
 test('an archived field holding the name asks to press Add field again', async () => {
@@ -414,6 +408,7 @@ test('a define lost on the way keeps the form and its draft', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be defined.')
 	expect(graph.refetch).not.toHaveBeenCalled()
 	expect(screen.getByLabelText('Label')).toHaveValue('Anniversary')
+	expect(screen.queryByText('Field added.')).not.toBeInTheDocument()
 })
 
 test('a refused label drops an earlier failure for good', async () => {
@@ -527,6 +522,7 @@ test('a failed archive is reported', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The field could not be archived.',
 	)
+	expect(screen.queryByText('Field archived.')).not.toBeInTheDocument()
 })
 
 test('a validation error is reported word for word', async () => {
@@ -670,6 +666,17 @@ test('a sub field labelled ID is sent under a name other than the one entries ke
 
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
 	expect(defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)).toEqual(['id2'])
+})
+
+test('a sub field is numbered in the format locale', async () => {
+	rememberFormatLocale('es-ES-u-nu-deva')
+	serveFieldCatalogue([])
+
+	renderScreen()
+	await startRepeater()
+	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
+
+	expect(screen.getByRole('group', { name: 'Sub field १' })).toBeInTheDocument()
 })
 
 test('the sub field kind menu leaves the repeater out', async () => {
@@ -821,6 +828,7 @@ test('archiving a field sends its id', async () => {
 	await archiveField('Birth date')
 
 	await waitFor(() => expect(archived).toHaveBeenCalledWith({ id: birthDate.id }))
+	expect(await screen.findByText('Field archived.')).toBeInTheDocument()
 })
 
 const shoeSize = {
@@ -1317,6 +1325,7 @@ test('focus outside the list stays put and scrolls nothing as the rows change', 
 	await waitFor(async () => expect(await shownLabels()).toEqual(['Shoe size', 'Birth date']))
 	expect(screen.getByRole('button', { name: 'Add field' })).toHaveFocus()
 	expect(scrolled).not.toHaveBeenCalled()
+	expect(screen.getByText('Field added.')).toBeInTheDocument()
 })
 
 test('a second press on Archive before the archive is answered sends nothing more', async () => {
@@ -1424,6 +1433,7 @@ test.each([
 	const trash = screen.getByRole('button', { name: next })
 	expect(trash).toHaveFocus()
 	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByText('Field archived.')).toBeInTheDocument()
 })
 
 test('a row a read drops hands focus to the same arrow in the next row', async () => {
@@ -1450,6 +1460,7 @@ test('after the last field is archived focus moves to the list region', async ()
 	const region = screen.getByRole('region', { name: 'Fields' })
 	expect(region).toHaveFocus()
 	expect(region).toHaveAttribute('tabindex', '-1')
+	expect(screen.getByText('Field archived.')).toBeInTheDocument()
 })
 
 test('a field brought back after the reader archived it shows again', async () => {

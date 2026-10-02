@@ -550,6 +550,7 @@ test('an added entry resets the form to today and shows on top', async () => {
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(form.getByLabelText('Date')).toHaveValue(today)
 	expect(form.getByLabelText('Comment')).toHaveValue('')
+	expect(screen.getByText('Entry added.')).toBeInTheDocument()
 })
 
 test('an add returns focus to the first cell', async () => {
@@ -563,6 +564,7 @@ test('an add returns focus to the first cell', async () => {
 	await userEvent.click(addButton())
 
 	await waitFor(() => expect(form.getByLabelText('Date')).toHaveFocus())
+	expect(screen.getByText('Entry added.')).toBeInTheDocument()
 })
 
 test('an add answered while a removal is confirmed leaves focus on Keep', async () => {
@@ -667,6 +669,7 @@ test('an add that fails otherwise shows the fallback', async () => {
 	await userEvent.click(addButton())
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be added.')
+	expect(screen.queryByText('Entry added.')).not.toBeInTheDocument()
 })
 
 test('Enter in the add form adds the entry and never sends the field values', async () => {
@@ -739,6 +742,7 @@ test('confirming a removal sends the entry id and reads the list again', async (
 		expect(removing).toHaveBeenCalledWith({ contactId: contactID, field: 'history', entryId: ID1 }),
 	)
 	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues']))
+	expect(await screen.findByText('Entry removed.')).toBeInTheDocument()
 })
 
 test('a removal in flight disables its own row and every other row', async () => {
@@ -785,6 +789,7 @@ test('a removal moves focus to the next entry', async () => {
 	await removeEntry(offerSentName)
 
 	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
+	expect(screen.getByText('Entry removed.')).toBeInTheDocument()
 })
 
 test('removing the oldest entry moves focus to the one above it', async () => {
@@ -870,6 +875,7 @@ test('a refused removal keeps the entry usable', async () => {
 	const kept = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(kept).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(kept).toHaveFocus())
+	expect(screen.queryByText('Entry removed.')).not.toBeInTheDocument()
 })
 
 test('a second removal clears the last failure while it runs', async () => {
@@ -1193,6 +1199,7 @@ test('a saved entry closes the editor, reads the list again and puts focus on Ed
 	await waitFor(() => expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	await waitFor(() => expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveFocus())
+	expect(screen.getByText('Entry saved.')).toBeInTheDocument()
 })
 
 test('a refused save keeps the editor and its draft', async () => {
@@ -1225,6 +1232,7 @@ test('a save answered as not found says so and passes focus on', async () => {
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
+	expect(screen.queryByText('Entry saved.')).not.toBeInTheDocument()
 })
 
 test('a save to a repeater archived elsewhere reads the catalogue again', async () => {
@@ -1254,6 +1262,7 @@ test('a save that fails otherwise shows the fallback', async () => {
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+	expect(screen.queryByText('Entry saved.')).not.toBeInTheDocument()
 })
 
 test('Cancel clears the failure of a refused save', async () => {

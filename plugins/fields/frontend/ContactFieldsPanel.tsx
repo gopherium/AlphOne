@@ -11,6 +11,7 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useId, useState } from 'react'
@@ -149,11 +150,13 @@ function useFieldEdits(contactId: string, fields: FieldRow[]) {
 	const [pressedRun, setPressedRun] = useState('')
 	const [written, write] = useGraphMutation(writeContactFieldsMutation)
 	const graph = useGraph()
+	const toaster = useToaster()
 	const save = (run: string) => {
 		setPressedRun(run)
 		void write({ contactId, values: writable(fields, edited) }).then((result) => {
 			if (!result.error) {
 				setEdited((held) => unsent(held, edited))
+				toaster.show(__('Fields saved.', 'alphone-fields'))
 				graph.refetch([valuesOperation])
 			}
 		})
