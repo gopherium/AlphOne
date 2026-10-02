@@ -10,10 +10,10 @@ msgstr ""
 msgid "%(name)s (unavailable)"
 msgstr ""
 
-msgid "%(size)d B"
+msgid "%(size)s B"
 msgstr ""
 
-msgid "%(size)d KB"
+msgid "%(size)s KB"
 msgstr ""
 
 msgid "%(size)s MB"

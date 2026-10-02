@@ -110,10 +110,10 @@ test('lists the conversation messages, oldest first', async () => {
 	const contents = screen
 		.getAllByRole('listitem')
 		.map((item) => item.textContent)
-	expect(contents[0]).toContain('Jul 6, 2026')
+	expect(contents[0]).toContain('06/07/2026')
 	expect(contents[1]).toContain('Hi, is the order ready?')
 	expect(contents[2]).toContain('I can pick it up after 5pm.')
-	expect(screen.getByText('Jul 6, 2026').closest('time')).toHaveAttribute(
+	expect(screen.getByText('06/07/2026').closest('time')).toHaveAttribute(
 		'datetime',
 		'2026-07-06',
 	)
@@ -183,7 +183,7 @@ test('sends a reply and shows it in the thread', async () => {
 
 	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
 	expect(screen.getByText('Message sent')).toBeInTheDocument()
-	expect(screen.getByText('Jul 7, 2026')).toBeInTheDocument()
+	expect(screen.getByText('07/07/2026')).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
 })
 

@@ -10,6 +10,7 @@ import {
 	Stack,
 	Text,
 	VisuallyHidden,
+	formatTime,
 	graphExtensions,
 	sprintf,
 	useGraphMutation,
@@ -19,7 +20,7 @@ import {
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { formatDay, formatDayLabel, formatFileSize, formatTime } from './format'
+import { formatDay, formatDayLabel, formatFileSize } from './format'
 import { useMediaBlob } from './media'
 import type { ThreadMessageFragment } from './gql/graphql'
 import {
