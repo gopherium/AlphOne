@@ -270,6 +270,56 @@ can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
 none or two answers `VALIDATION`.
 
+### Pages with a total
+
+A screen that numbers its pages reads `contactPage` instead of `contacts`. It
+answers one page of contacts, how many contacts match in all, and the size of
+the page.
+
+```graphql
+query($q: String, $offset: Int) {
+  contactPage(
+    q: $q
+    channels: ["whatsapp"]
+    orderBy: CREATED_AT
+    order: DESC
+    limit: 20
+    offset: $offset
+  ) {
+    items { id name createdAt identities { channel } }
+    total
+    limit
+  }
+}
+```
+
+```json
+{
+  "data": {
+    "contactPage": {
+      "items": [
+        {
+          "id": "0198d000-0000-7000-8000-000000000002",
+          "name": "Maria Perez",
+          "createdAt": "2026-09-30T09:00:00Z",
+          "identities": [{ "channel": "whatsapp" }]
+        }
+      ],
+      "total": 1,
+      "limit": 20
+    }
+  }
+}
+```
+
+`q` searches the way `contacts` does, by name, by identity name and by the
+digits of an identifier. `channels` keeps the contacts reachable on any of the
+channels it names. `orderBy` takes `NAME` or `CREATED_AT`, `order` takes `ASC`
+or `DESC`, and together they default to the name from A to Z. `limit` follows
+the same range as `first`. `offset` skips that many contacts, so the next page
+starts at `offset` plus `limit`, and the last page is the one where that sum
+reaches `total`. The identities of every contact on a page load in one read.
+
 ## Writing
 
 ```graphql
@@ -521,7 +571,7 @@ cannot drift. Point a client at the endpoint, or read
 | Session | `me` | `login`, `logout` |
 | Locale | `locale`, `supportedLocales` | `setLocale` |
 | Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
-| Contacts | `contacts`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
+| Contacts | `contacts`, `contactPage`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
