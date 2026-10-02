@@ -147,6 +147,75 @@ func TestSeedStandsAMemberBesideTheAdmin(t *testing.T) {
 	}
 }
 
+func TestSeedShowsEveryAccountStatusOnce(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	for range 2 {
+		if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+			t.Fatalf("seed() error = %v, want nil", err)
+		}
+	}
+
+	pool := testPool(t, databaseURL)
+	users := authkitpg.NewUserStore(pool)
+	tests := map[string]struct {
+		email     string
+		confirmed bool
+		disabled  bool
+	}{
+		"active":   {email: seedAdminEmail, confirmed: true},
+		"invited":  {email: "invited@example.com"},
+		"disabled": {email: "disabled@example.com", disabled: true},
+	}
+	for status, want := range tests {
+		held, err := users.UserByEmail(t.Context(), want.email)
+		if err != nil {
+			t.Errorf("%s account %s: UserByEmail() error = %v, want it seeded", status, want.email, err)
+			continue
+		}
+		if held.Confirmed != want.confirmed || held.Disabled != want.disabled {
+			t.Errorf("%s account confirmed %v, disabled %v, want %v, %v",
+				status, held.Confirmed, held.Disabled, want.confirmed, want.disabled)
+		}
+	}
+	if held := countRows(t, pool, "auth.users"); held != 4 {
+		t.Errorf("accounts after two runs = %d, want 4", held)
+	}
+}
+
+func TestSeedReportsAStatusAccountItCannotStore(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	if err := authkitpg.Migrate(t.Context(), databaseURL); err != nil {
+		t.Fatalf("migrating the auth schema: %v", err)
+	}
+	pool := testPool(t, databaseURL)
+	if _, err := pool.Exec(t.Context(),
+		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (email <> 'invited@example.com')"); err != nil {
+		t.Fatalf("refusing the invited account: %v", err)
+	}
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	err := seed(t.Context(), getenv, &strings.Builder{})
+
+	if err == nil || !strings.Contains(err.Error(), "invited@example.com") {
+		t.Fatalf("seed() error = %v, want the unstored invited account reported", err)
+	}
+}
+
+func TestSeedStatusesReportsAnAccountItCannotBuild(t *testing.T) {
+	t.Parallel()
+
+	err := seedStatuses(t.Context(), testkit.NewStore(), []demoStatus{{email: "not an address", name: "Ana Lopez"}})
+
+	if err == nil || !strings.Contains(err.Error(), "not an address") {
+		t.Fatalf("seedStatuses() error = %v, want the malformed account reported", err)
+	}
+}
+
 func TestSeedGivesTheMemberADayOfItsOwn(t *testing.T) {
 	t.Parallel()
 

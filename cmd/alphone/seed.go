@@ -122,7 +122,41 @@ func seedUsers(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error)
 		}
 		created[login.email] = made
 	}
+	if err := seedStatuses(ctx, users, demoStatuses()); err != nil {
+		return nil, err
+	}
 	return created, nil
+}
+
+// demoStatus is one account the seeder ensures to show a status other than active.
+type demoStatus struct {
+	email    string
+	name     string
+	disabled bool
+}
+
+// demoStatuses names the accounts that show the invited and disabled statuses in the users list.
+func demoStatuses() []demoStatus {
+	return []demoStatus{
+		{email: "invited@example.com", name: "Ana Lopez"},
+		{email: "disabled@example.com", name: "Luis Garcia", disabled: true},
+	}
+}
+
+// seedStatuses stores each account as a member awaiting activation, the disabled ones barred, keeping older ones.
+func seedStatuses(ctx context.Context, users gouncer.Store, demos []demoStatus) error {
+	for _, demo := range demos {
+		account, err := gouncer.NewInvitedUser(demo.email, demo.name)
+		if err != nil {
+			return fmt.Errorf("seed account %s: %w", demo.email, err)
+		}
+		account.Role = role.Member.String()
+		account.Disabled = demo.disabled
+		if err := users.CreateUser(ctx, account); err != nil && !errors.Is(err, gouncer.ErrEmailTaken) {
+			return fmt.Errorf("seed account %s: %w", demo.email, err)
+		}
+	}
+	return nil
 }
 
 // reportLogins names every demo account, saying which ones this run created.
