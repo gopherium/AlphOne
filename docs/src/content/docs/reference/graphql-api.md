@@ -262,7 +262,10 @@ query($before: Date!, $first: Int!, $after: String) {
 
 Pass `endCursor` back as `after` for the next page, and stop when
 `hasNextPage` is false. Treat a cursor as opaque, it is only meaningful to the
-field that issued it. `first` accepts 1 to 200 and defaults to 50.
+field that issued it. `first` accepts 1 to 200 and defaults to 50. The operator
+can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
+`ALPHONE_GRAPH_PAGE_CAP`, and a size outside them answers
+`first_out_of_range` naming the range.
 
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
 none or two answers `VALIDATION`.
