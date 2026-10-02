@@ -4,8 +4,10 @@ import '@testing-library/jest-dom/vitest'
 import { Toaster } from '@gopherium/godmin'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
 import {
+	HttpResponse,
 	installTestEnvironment as installAuthTestEnvironment,
 	defaultUser,
+	server,
 } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -19,8 +21,9 @@ import {
 	useRouterState,
 } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
-import { Text } from '@wordpress/ui'
-import type { ComponentProps } from 'react'
+import { Badge, Button, Text } from '@wordpress/ui'
+import { graphql } from 'msw'
+import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
@@ -30,6 +33,8 @@ import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
+export { setViewport } from '@gopherium/godmin/testing'
+export { resetLocaleData, setLocaleData } from '@wordpress/i18n'
 export { delay, graphql } from 'msw'
 
 /** adminSession is the canned signed-in account holding the admin role. */
@@ -125,15 +130,74 @@ export function fakeGraphClient(): FakeGraph {
 }
 
 /**
+ * Returns the classes the outer element of a rendered tree carries.
+ * @param tree - The tree to sample.
+ * @returns The class names, in order.
+ */
+function classesOf(tree: ReactElement): string[] {
+	const { container, unmount } = render(tree)
+	const classes = [...(container.firstElementChild as Element).classList]
+	unmount()
+	return classes
+}
+
+/**
  * Returns the classes a Text renders at the given variant.
  * @param variant - The text variant to sample.
  * @returns The class names, in order.
  */
 export function textClasses(variant: ComponentProps<typeof Text>['variant']): string[] {
-	const { container, unmount } = render(<Text variant={variant} />)
-	const classes = [...(container.firstElementChild as Element).classList]
-	unmount()
-	return classes
+	return classesOf(<Text variant={variant} />)
+}
+
+/**
+ * Returns the classes a Badge renders at the given intent.
+ * @param intent - The badge intent to sample.
+ * @returns The class names, in order.
+ */
+export function badgeClasses(intent: ComponentProps<typeof Badge>['intent']): string[] {
+	return classesOf(<Badge intent={intent}>probe</Badge>)
+}
+
+/**
+ * Returns the classes a Button renders at the given variant and size.
+ * @param variant - The button variant to sample.
+ * @param size - The button size, the default one when absent.
+ * @returns The class names, in order.
+ */
+export function buttonClasses(
+	variant: ComponentProps<typeof Button>['variant'],
+	size?: ComponentProps<typeof Button>['size'],
+): string[] {
+	return classesOf(
+		<Button variant={variant} size={size}>
+			probe
+		</Button>,
+	)
+}
+
+/**
+ * Serves admin settings whose page sizes are small enough to page a short list.
+ * @param sizes - The page sizes a list offers.
+ * @param size - The page size a list opens on.
+ */
+export function paging(sizes: number[], size: number) {
+	server.use(
+		graphql.query('AdminSettings', () =>
+			HttpResponse.json({
+				data: {
+					adminSettings: {
+						__typename: 'AdminSettings',
+						toastMilliseconds: 6000,
+						listPageSizes: sizes,
+						listPageSize: size,
+						contactPageCap: 200,
+						formatLocale: 'es-ES',
+					},
+				},
+			}),
+		),
+	)
 }
 
 /**
