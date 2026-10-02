@@ -155,6 +155,38 @@ and hides itself once every page is loaded.
 <LoadMore query={invoices}>Load more</LoadMore>
 ```
 
+## Dates, times, numbers and money
+
+Write every date, time, number and amount with the SDK formatters, never
+with `toLocaleString` or a locale of your own. They follow the locale the
+operator names in `ALPHONE_FORMAT_LOCALE`, whatever language the reader
+picked, so every screen agrees.
+
+```tsx
+import {
+	formatDate,
+	formatList,
+	formatMoney,
+	formatNumber,
+	formatTime,
+	formatWeekday,
+} from '@alphone/frontend-sdk'
+
+formatDate(invoice.issuedOn)
+formatTime(message.sentAt)
+formatNumber(invoice.lines)
+formatMoney(invoice.total, 'EUR')
+formatWeekday(invoice.issuedOn)
+formatList(['Birth date', 'Shoe size'])
+```
+
+With the default locale these read 30/09/2026, 09:05, 1.234 and
+1.234,56 €. `formatWeekday` names the day in the reader's language, for a
+heading such as Wednesday, 30/09/2026. `formatList` joins words the way the
+reader's language writes a list, such as Birth date, Shoe size. Keep dates
+ISO in your queries, mutations and events, and format them only where a
+reader sees them.
+
 ## Failures in forms
 
 `validationMessage` shows a backend validation message verbatim and

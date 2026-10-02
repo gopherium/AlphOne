@@ -22,19 +22,24 @@ never from anywhere else, so the whole application shares one
 translation runtime.
 
 ```tsx
-import { __, _x, sprintf } from '@alphone/frontend-sdk'
+import { __, _x, formatNumber, sprintf } from '@alphone/frontend-sdk'
 
 __('Add contact', 'alphone')
-sprintf(__('A name runs to %(max)d characters at most.', 'alphone'), { max })
-_x('Status', 'account status', 'alphone')
+sprintf(__('A name runs to %(max)s characters at most.', 'alphone'), {
+	max: formatNumber(max),
+})
+_x('Disabled', 'user status', 'alphone')
 ```
 
 Use `__` for ordinary text. Use `sprintf` around it when a value goes
-inside. A placeholder is named, like `%(max)d`, so a translator can move
-it to wherever their language needs it. The letter says what fills the
-hole, `d` for a number and `s` for text. Use `_x` when one English word
-means two different things, which is covered below. The kit also exports
-`_n` for wording that changes with a count, which no string needs yet.
+inside. A placeholder is named, like `%(max)s`, so a translator can move
+it to wherever their language needs it. Every placeholder takes text,
+so a number goes in already written by `formatNumber`, and a date by
+`formatDate`, the same way WordPress hands `number_format_i18n` to its
+strings. That is how 1234 reads as 1.234 whatever the language. A test
+fails when a message holds a bare number placeholder such as `%d`. Use
+`_x` when one English word means two different things, which is covered
+below. The kit also exports `_n` for wording that changes with a count.
 
 ## Name your own domain
 
@@ -98,12 +103,14 @@ reaches it.
 
 ## When one word means two things
 
-English reuses words that other languages separate. Status means one
-thing for an account and another for a message. Give each use a context
-and translators will see them as separate entries.
+English reuses words that other languages separate. Disabled says one
+thing about a user and another about a button, and a language whose
+words agree with the noun they describe has to know which one it is.
+Give each use a context and translators will see them as separate
+entries.
 
 ```tsx
-_x('Status', 'account status', 'alphone')
+_x('Disabled', 'user status', 'alphone')
 _x('WhatsApp', 'admin section', 'alphone-whatsapp')
 ```
 
