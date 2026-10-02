@@ -217,6 +217,27 @@ test('a list keeps the columns and density a reader picked while it stays open, 
 	expect(router.state.location.search).toEqual({})
 })
 
+test('a phone keeps the fields the list names for it after a reader picked table columns', async () => {
+	renderProbe('/people', (view) => ({ ...view, fields: ['email'] }), { ...defaults, phoneFields: ['status'] })
+	fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+	await screen.findByText(/"fields":\["email"\]/)
+
+	act(() => setViewport({ matches: true }))
+
+	expect(await shown('view')).toMatchObject({ type: 'list', fields: ['status'] })
+})
+
+test('a table shows the columns a reader picked again once the phone layout is left', async () => {
+	renderProbe('/people', (view) => ({ ...view, fields: ['email'] }), { ...defaults, phoneFields: ['status'] })
+	fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+	await screen.findByText(/"fields":\["email"\]/)
+
+	act(() => setViewport({ matches: true }))
+	act(() => setViewport({ matches: false }))
+
+	expect(await shown('view')).toMatchObject({ type: 'table', fields: ['email'] })
+})
+
 test('a phone lays a list out as a list, not a table', async () => {
 	setViewport({ matches: true })
 	renderProbe('/people')

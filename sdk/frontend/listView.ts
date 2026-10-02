@@ -74,6 +74,9 @@ const phoneQuery = `(max-width: ${DENSE_BREAKPOINT - 1}px)`
 /** addressed names the parts of a view the address or the viewport decides. */
 const addressed = new Set(['type', 'search', 'filters', 'sort', 'page', 'perPage'])
 
+/** noShapes is the shape each layout holds before a reader changes one. */
+const noShapes: Record<ListLayout, ListShape> = { table: {}, list: {} }
+
 /**
  * Returns the part of a view the address leaves out.
  * @param view - The view the list shows.
@@ -245,12 +248,12 @@ export function useListView(defaults: ListDefaults): ListView {
 	const navigate = useNavigate()
 	const phone = useMediaQuery(phoneQuery)
 	const layout: ListLayout = phone ? 'list' : 'table'
-	const [shape, setShape] = useState<ListShape>({})
+	const [shapes, setShapes] = useState(noShapes)
 	const selection = useSelection(layout)
 	return {
-		view: viewOf(listSearch(raw), defaults, shape, layout),
+		view: viewOf(listSearch(raw), defaults, shapes[layout], layout),
 		onChangeView: (view) => {
-			setShape(shapeOf(view))
+			setShapes((held) => ({ ...held, [layout]: shapeOf(view) }))
 			void navigate({ to: '.', search: searchOf(view, defaults), replace: true })
 		},
 		defaultLayouts: phone ? { list: {} } : { table: {} },
