@@ -14,7 +14,7 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 
 	await provisionUser(page, browser, { email, name, password })
 
-	await page.goto('/users')
+	await page.goto(`/users?search=${encodeURIComponent(email)}`)
 
 	const row = page.getByRole('row').filter({ hasText: email })
 	await expect(row.getByText('Active')).toBeVisible()
@@ -30,7 +30,9 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 	await victimPage.getByRole('button', { name: 'Log in' }).click()
 	await expect(victimPage.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
-	await page.getByRole('button', { name: `Disable ${name}` }).click()
+	await row.getByRole('button', { name: 'Actions' }).click()
+	await page.getByRole('menuitem', { name: 'Disable' }).click()
+	await expect(page.locator('.godmin-toasts').getByText('User disabled.')).toBeVisible()
 	await expect(row.getByText('Disabled')).toBeVisible()
 
 	await victimPage.reload()

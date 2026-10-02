@@ -13,9 +13,9 @@ test('a member reads the account list without managing it', async ({ page, brows
 
 	await provisionUser(page, browser, { email, name, password })
 
-	await page.goto('/users')
+	await page.goto(`/users?search=${encodeURIComponent(email)}`)
 	const created = page.getByRole('row').filter({ hasText: email })
-	await expect(created.getByRole('combobox', { name: `Role of ${name}` })).toBeVisible()
+	await expect(created.getByRole('button', { name: 'Actions' })).toBeVisible()
 
 	const member = await browser.newContext({
 		baseURL,
@@ -28,14 +28,14 @@ test('a member reads the account list without managing it', async ({ page, brows
 	await memberPage.getByRole('button', { name: 'Log in' }).click()
 	await expect(memberPage.getByRole('heading', { name: 'Tasks' })).toBeVisible()
 
-	await memberPage.goto('/users')
+	await memberPage.goto(`/users?search=${encodeURIComponent(email)}`)
 
 	const listed = memberPage.getByRole('row').filter({ hasText: email })
 	await expect(listed).toBeVisible()
 	await expect(listed.getByRole('cell', { name: 'Member', exact: true })).toBeVisible()
 	await expect(memberPage.getByRole('link', { name: 'New user' })).toBeHidden()
-	await expect(memberPage.getByRole('button', { name: /^Disable / })).toBeHidden()
-	await expect(memberPage.getByRole('combobox', { name: /^Role of / })).toBeHidden()
+	await expect(memberPage.getByRole('button', { name: 'Actions' })).toHaveCount(0)
+	await expect(memberPage.getByRole('checkbox')).toHaveCount(0)
 
 	await member.close()
 })
