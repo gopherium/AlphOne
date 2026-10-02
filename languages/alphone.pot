@@ -670,6 +670,38 @@ msgctxt "task priority"
 msgid "Normal"
 msgstr ""
 
+msgctxt "token area"
+msgid "contacts"
+msgstr ""
+
+msgctxt "token area"
+msgid "events"
+msgstr ""
+
+msgctxt "token area"
+msgid "fields"
+msgstr ""
+
+msgctxt "token area"
+msgid "imports"
+msgstr ""
+
+msgctxt "token area"
+msgid "meta"
+msgstr ""
+
+msgctxt "token area"
+msgid "tasks"
+msgstr ""
+
+msgctxt "token area"
+msgid "users"
+msgstr ""
+
+msgctxt "token area"
+msgid "webhooks"
+msgstr ""
+
 msgctxt "token expiry"
 msgid "Expired"
 msgstr ""

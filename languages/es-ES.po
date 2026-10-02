@@ -875,3 +875,43 @@ msgstr "Token revocado."
 msgctxt "day heading"
 msgid "%(weekday)s, %(date)s"
 msgstr "%(weekday)s, %(date)s"
+
+#, fuzzy
+msgctxt "token area"
+msgid "contacts"
+msgstr "contactos"
+
+#, fuzzy
+msgctxt "token area"
+msgid "events"
+msgstr "eventos"
+
+#, fuzzy
+msgctxt "token area"
+msgid "fields"
+msgstr "campos"
+
+#, fuzzy
+msgctxt "token area"
+msgid "imports"
+msgstr "importaciones"
+
+#, fuzzy
+msgctxt "token area"
+msgid "meta"
+msgstr "metadatos"
+
+#, fuzzy
+msgctxt "token area"
+msgid "tasks"
+msgstr "tareas"
+
+#, fuzzy
+msgctxt "token area"
+msgid "users"
+msgstr "usuarios"
+
+#, fuzzy
+msgctxt "token area"
+msgid "webhooks"
+msgstr "webhooks"
