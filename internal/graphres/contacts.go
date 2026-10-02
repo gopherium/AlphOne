@@ -17,26 +17,6 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// errInvalidFirst reports a page size outside the accepted range.
-var errInvalidFirst = errors.New("graph: first must be between 1 and 200")
-
-// defaultPageSize and maxPageSize bound a connection page.
-const (
-	defaultPageSize = 50
-	maxPageSize     = 200
-)
-
-// pageSize resolves the first argument into a page size.
-func pageSize(first *int) (int, error) {
-	if first == nil {
-		return defaultPageSize, nil
-	}
-	if *first < 1 || *first > maxPageSize {
-		return 0, errInvalidFirst
-	}
-	return *first, nil
-}
-
 // stringOf dereferences an optional string argument.
 func stringOf(raw *string) string {
 	if raw == nil {
@@ -65,7 +45,7 @@ func toContact(c contact.Contact) *model.Contact {
 func (q QueryResolvers) Contacts(
 	ctx context.Context, search *string, first *int, after *string,
 ) (*model.ContactConnection, error) {
-	limit, err := pageSize(first)
+	limit, err := q.root.Paging.pageSize("first", first)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +229,7 @@ func (m MutationResolvers) DeleteContactIdentity(
 func (c ContactResolvers) Tasks(
 	ctx context.Context, obj *model.Contact, status *string, first *int, after *string,
 ) (*model.TaskConnection, error) {
-	st, page, limit, err := taskPageArgs(status, first, after)
+	st, page, limit, err := c.root.taskPageArgs(status, first, after)
 	if err != nil {
 		return nil, err
 	}

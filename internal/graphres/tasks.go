@@ -37,8 +37,8 @@ func listStatus(status *string) (string, error) {
 }
 
 // taskPageArgs resolves the shared task listing arguments into a page.
-func taskPageArgs(status *string, first *int, after *string) (string, task.Page, int, error) {
-	limit, err := pageSize(first)
+func (r *Resolver) taskPageArgs(status *string, first *int, after *string) (string, task.Page, int, error) {
+	limit, err := r.Paging.pageSize("first", first)
 	if err != nil {
 		return "", task.Page{}, 0, err
 	}
@@ -107,7 +107,7 @@ func (q QueryResolvers) Tasks(
 	first *int,
 	after *string,
 ) (*model.TaskConnection, error) {
-	st, page, limit, err := taskPageArgs(status, first, after)
+	st, page, limit, err := q.root.taskPageArgs(status, first, after)
 	if err != nil {
 		return nil, err
 	}
