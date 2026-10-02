@@ -29,7 +29,11 @@ export function InvoicesScreen() {
 			title="Invoices"
 			subtitle="Everything billed this month"
 			actions={
-				<Button variant="solid" render={<Link to="/invoices/new" />}>
+				<Button
+					variant="solid"
+					size="compact"
+					render={<Link to="/invoices/new" />}
+				>
 					New invoice
 				</Button>
 			}
@@ -42,6 +46,48 @@ export function InvoicesScreen() {
 
 `subtitle` and `actions` are optional. The page spans the full canvas
 width, so a screen with one action and a screen with four still line up.
+
+Give every button in `actions` the compact size, `size="compact"`. It
+is 32px tall, like the buttons of a WordPress page header, and the
+title and its subtitle stay where every other page puts them.
+
+When one page has sections that each need their own address, give it
+tabs. The Users page does this: the Users tab lists the accounts and
+the API tokens tab lists the tokens. Both screens keep the title Users
+and pass the same tabs, and each one marks its own tab as current:
+
+```tsx
+import { PageScreen, PageTab, PageTabs } from '@alphone/frontend-sdk'
+import { Link } from '@tanstack/react-router'
+
+<PageScreen
+	title="Invoices"
+	tabs={
+		<PageTabs label="Invoice sections">
+			<PageTab
+				render={<Link to="/invoices" activeOptions={{ exact: true }} />}
+				current
+			>
+				Invoices
+			</PageTab>
+			<PageTab
+				render={
+					<Link to="/invoices/reminders" activeOptions={{ exact: true }} />
+				}
+			>
+				Reminders
+			</PageTab>
+		</PageTabs>
+	}
+>
+	<InvoiceRows />
+</PageScreen>
+```
+
+Each screen keeps its own subtitle and its own buttons, so the title
+stays the same while the sentence under it and the button beside it
+follow the tab. `activeOptions={{ exact: true }}` keeps the router from
+marking the first tab as current on the second tab's address.
 
 Pass `aside` to show a second column beside the content, for details that
 sit next to the main work. On a wide page it starts 320px wide. On a narrow
@@ -56,9 +102,9 @@ button belongs at the bottom of the form, not in the header.
 
 Your screen renders in two shells without doing anything. On a wide
 viewport it sits beside the navigation rail. Below 1024px the rail
-becomes a drawer behind a menu button, and below 640px the canvas meets
-the screen edges and pads tighter. Build one screen and check it at both
-sizes.
+becomes a drawer behind a menu button. Below 782px the canvas meets the
+screen edges, as a WordPress page does on a tablet, and below 640px it
+pads tighter. Build one screen and check it at each of these sizes.
 
 ## Who is signed in
 
