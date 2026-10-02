@@ -133,7 +133,7 @@ msgstr ""
 msgid "Send the values as field names to values."
 msgstr ""
 
-msgid "Sub field %(number)d"
+msgid "Sub field %(number)s"
 msgstr ""
 
 msgid "Sub fields"
@@ -193,7 +193,7 @@ msgstr ""
 msgid "The fields could not be saved."
 msgstr ""
 
-msgid "This list is full. It holds %(max)d entries at most."
+msgid "This list is full. It holds %(max)s entries at most."
 msgstr ""
 
 msgid "Two sub fields of this repeater hold the same name."

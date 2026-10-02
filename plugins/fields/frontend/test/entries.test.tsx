@@ -131,7 +131,7 @@ test('shows the first date as a muted time above the text', async () => {
 	const item = await screen.findByRole('listitem', { name: offerSentName })
 	const time = item.querySelector('time')
 	expect(time).toHaveAttribute('datetime', '2026-09-10')
-	expect(time).toHaveTextContent('Sep 10, 2026')
+	expect(time).toHaveTextContent('10/09/2026')
 	expect(item.querySelector('p.godmin-log-list__body')?.textContent).toBe(offerSent.comment)
 })
 
@@ -153,7 +153,7 @@ test('shows other cells as label and value lines in sub field order', async () =
 				id: ID1,
 				date: '2026-09-10',
 				note: 'Paid in cash.',
-				minutes: 45,
+				minutes: 1234.5,
 				paid: true,
 				channel: 'Phone',
 				followUpOn: '2026-10-01',
@@ -163,13 +163,13 @@ test('shows other cells as label and value lines in sub field order', async () =
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026, Paid in cash.' })
+	const item = await screen.findByRole('listitem', { name: '10/09/2026, Paid in cash.' })
 	expect([...item.querySelectorAll('p')].map((line) => line.textContent)).toEqual([
 		'Paid in cash.',
-		'Minutes: 45',
+		'Minutes: 1.234,5',
 		'Paid: Yes',
 		'Channel: Phone',
-		'Follow up on: Oct 1, 2026',
+		'Follow up on: 01/10/2026',
 	])
 })
 
@@ -288,9 +288,9 @@ test('tells apart two entries of one day by their first line', async () => {
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 27, 2026, Called back.', 'Sep 27, 2026, Sent the offer.'])
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Called back.' })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Sent the offer.' })).toBeInTheDocument()
+	expect(await itemNames()).toEqual(['27/09/2026, Called back.', '27/09/2026, Sent the offer.'])
+	expect(screen.getByRole('button', { name: 'Remove entry: 27/09/2026, Called back.' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove entry: 27/09/2026, Sent the offer.' })).toBeInTheDocument()
 })
 
 test('names an entry holding a day and only details by the day and its first detail', async () => {
@@ -299,7 +299,7 @@ test('names an entry holding a day and only details by the day and its first det
 
 	renderPanel()
 
-	expect(await itemNames('Visits')).toEqual(['Sep 10, 2026, Minutes: 45'])
+	expect(await itemNames('Visits')).toEqual(['10/09/2026, Minutes: 45'])
 })
 
 test('names an entry holding only a day by that day', async () => {
@@ -308,7 +308,7 @@ test('names an entry holding only a day by that day', async () => {
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 10, 2026'])
+	expect(await itemNames()).toEqual(['10/09/2026'])
 })
 
 test('shows the day an entry names to a reader west of UTC', async () => {
@@ -319,7 +319,7 @@ test('shows the day an entry names to a reader west of UTC', async () => {
 	renderPanel()
 
 	const item = await screen.findByRole('listitem', { name: offerSentName })
-	expect(item.querySelector('time')).toHaveTextContent('Sep 10, 2026')
+	expect(item.querySelector('time')).toHaveTextContent('10/09/2026')
 })
 
 test('no entries invites the first one', async () => {
@@ -602,13 +602,13 @@ test('a full list names its most entries and reads the list again', async () => 
 	speakTemplates()
 	serveCatalogue([history])
 	serveValues({ history: null })
-	capture('AddContactFieldEntry', refusal('CONFLICT', 'field_entries_full', { max: 500 }))
+	capture('AddContactFieldEntry', refusal('CONFLICT', 'field_entries_full', { max: 1500 }))
 
 	const { graph } = renderPanel()
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('This list is full. It holds 500 entries at most.')
+	expect(await screen.findByRole('alert')).toHaveTextContent('This list is full. It holds 1.500 entries at most.')
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 })
 
@@ -1032,7 +1032,7 @@ test('an entry holding only a second date is named by that detail line', async (
 
 	renderPanel()
 
-	expect(await itemNames('Visits')).toEqual(['Follow up on: Oct 1, 2026'])
+	expect(await itemNames('Visits')).toEqual(['Follow up on: 01/10/2026'])
 })
 
 test('an entry whose text starts on blank lines is named by its first line of words', async () => {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, _x, formatDate, sprintf } from '@alphone/frontend-sdk'
+import { __, _x, formatDate, formatNumber, sprintf } from '@alphone/frontend-sdk'
 
 import { entryText, typedValue } from './cellText'
 import type { EntryText, SubFieldRow } from './cellText'
@@ -27,8 +27,8 @@ interface EntryParts {
 	lines: { key: string; text: string }[]
 }
 
-/** DAY_STYLE is how a row shows a calendar day. */
-const DAY_STYLE: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }
+/** NUMBER_STYLE is how a row shows a number, to every decimal it holds. */
+const NUMBER_STYLE: Intl.NumberFormatOptions = { maximumFractionDigits: 20 }
 
 /** BODY_KINDS are the kinds whose cells make up a row's text. */
 const BODY_KINDS = new Set(['TEXT', 'LONGTEXT'])
@@ -176,7 +176,7 @@ function detailLine(column: SubFieldRow, text: string): string {
  * Returns a cell's text as a reader sees it.
  * @param kind - The kind the sub field declares.
  * @param text - The cell's text.
- * @returns Yes or No for a boolean, a shown day for a date, the text otherwise.
+ * @returns Yes or No for a boolean, a shown day for a date, a shown number for a number, the text otherwise.
  */
 function cellValue(kind: string, text: string): string {
 	if (kind === 'BOOLEAN') {
@@ -184,6 +184,9 @@ function cellValue(kind: string, text: string): string {
 	}
 	if (kind === 'DATE') {
 		return dayText(text)
+	}
+	if (kind === 'NUMBER') {
+		return formatNumber(Number(text), NUMBER_STYLE)
 	}
 	return text
 }
@@ -194,5 +197,5 @@ function cellValue(kind: string, text: string): string {
  * @returns The shown day.
  */
 function dayText(day: string): string {
-	return formatDate(day, DAY_STYLE)
+	return formatDate(day)
 }
