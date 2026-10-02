@@ -112,6 +112,11 @@ func initializeMail(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerMailSteps(sc, t) }
 }
 
+// initializeContactPage registers the contact page steps.
+func initializeContactPage(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerContactPageSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -170,4 +175,8 @@ func TestRoles(t *testing.T) {
 
 func TestMail(t *testing.T) {
 	runFeature(t, "features/mail.feature", initializeMail(t))
+}
+
+func TestContactPage(t *testing.T) {
+	runFeature(t, "features/contact-page.feature", initializeContactPage(t))
 }
