@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
+import { createAppRouter } from '../router'
 import { renderAt } from './render'
 
 const createdID = '0198c000-0000-7000-8000-000000000301'
@@ -156,6 +157,83 @@ test('links the new task to a contact found by search', async () => {
 
 	await waitFor(() => expect(created).toHaveLength(1))
 	expect(created[0]).toMatchObject({ contact_id: contactID })
+})
+
+/**
+ * Serves the contact the address names by its name.
+ * @param answer - The contact the query answers, or null when none is found.
+ * @returns The contacts the query was asked for.
+ */
+function namingContact(answer: { id: string; name: string } | null) {
+	const asked: string[] = []
+	server.use(
+		graphql.query('ContactName', ({ variables }) => {
+			asked.push(String(variables.id))
+			return HttpResponse.json({
+				data: { contact: answer === null ? null : { __typename: 'Contact', ...answer } },
+			})
+		}),
+	)
+	return asked
+}
+
+test('links the new task to the contact the address names', async () => {
+	const asked = namingContact({ id: contactID, name: 'Maria Perez' })
+	renderAt(`/tasks/new?contactId=${contactID}`)
+	await userEvent.type(await screen.findByLabelText('Title'), 'Call her back')
+
+	expect(await screen.findByRole('button', { name: 'Remove Maria Perez' })).toBeInTheDocument()
+	expect(screen.queryByLabelText('Link a contact')).not.toBeInTheDocument()
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({ contact_id: contactID })
+	expect(asked).toEqual([contactID])
+})
+
+test('lets the reader drop the contact the address names and pick another', async () => {
+	namingContact({ id: '0198c000-0000-7000-8000-000000000303', name: 'Ana Lopez' })
+	renderAt('/tasks/new?contactId=0198c000-0000-7000-8000-000000000303')
+	await userEvent.type(await screen.findByLabelText('Title'), 'Call her back')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Remove Ana Lopez' }))
+	await userEvent.type(screen.getByLabelText('Link a contact'), 'maria')
+	await userEvent.click(await screen.findByRole('button', { name: 'Maria Perez' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({ contact_id: contactID })
+})
+
+test('offers the contact search when the contact the address names is gone', async () => {
+	const asked = namingContact(null)
+	renderAt(`/tasks/new?contactId=${contactID}`)
+
+	await waitFor(() => expect(asked).toEqual([contactID]))
+	expect(await screen.findByLabelText('Link a contact')).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument()
+})
+
+test('asks for no contact when the address names none', async () => {
+	const asked = namingContact({ id: contactID, name: 'Maria Perez' })
+	renderAt('/tasks/new')
+
+	await screen.findByLabelText('Link a contact')
+	expect(asked).toEqual([])
+})
+
+test('keeps in the new task address only a day and a contact written as text', () => {
+	const { validateSearch } = createAppRouter().routesById['/tasks/new'].options
+
+	const kept = (validateSearch as (raw: Record<string, unknown>) => unknown)({
+		date: '2026-08-10',
+		contactId: contactID,
+		tab: 'other',
+	})
+	const dropped = (validateSearch as (raw: Record<string, unknown>) => unknown)({ date: 7, contactId: 302 })
+
+	expect(kept).toEqual({ date: '2026-08-10', contactId: contactID })
+	expect(dropped).toEqual({})
 })
 
 test('drops a linked contact before creating', async () => {

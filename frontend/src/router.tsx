@@ -15,6 +15,7 @@ import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
+import { newTaskSearch } from './tasks/newTaskSearch'
 import { NewTokenRoute, NewUserRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
@@ -40,8 +41,7 @@ const tasksRoute = createRoute({
 const newTaskRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/tasks/new',
-	validateSearch: (search: Record<string, unknown>): { date?: string } =>
-		typeof search.date === 'string' ? { date: search.date } : {},
+	validateSearch: newTaskSearch,
 	component: NewTaskRoute,
 })
 
