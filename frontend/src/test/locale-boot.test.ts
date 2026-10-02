@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { LIST_CHROME_DOMAIN } from '@gopherium/godmin'
 import { displayLocale } from '@gopherium/gottext'
 import { resetLocale } from '@gopherium/gottext/testing'
+import { __ } from '@wordpress/i18n'
 import { afterEach, expect, test } from 'vitest'
 
 import { fetchLocale } from '../i18n/api'
@@ -61,17 +63,25 @@ test('names the domain AlphOne strings answer under', () => {
 	expect(DOMAIN).toBe('alphone')
 })
 
-test('reads its own domain first and the react-auth pair last', () => {
+test('reads its own domain first and the brick domains last', () => {
 	const domains = localeEntries().map((entry) => entry.domain)
 
 	expect(domains[0]).toBe(DOMAIN)
-	expect(domains.at(-1)).toBe('gopherium-react-auth')
+	expect(domains.slice(-2)).toEqual(['gopherium-react-auth', LIST_CHROME_DOMAIN])
+})
+
+test('puts the list chrome in the language the graph resolves', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+
+	await startAppLocale()
+
+	expect(__('Add filter')).toBe('Añadir filtro')
 })
 
 test('reads every domain a compiled-in plugin declares, in registration order', () => {
 	const domains = localeEntries().map((entry) => entry.domain)
 
-	expect(domains.slice(1, -1)).toEqual(declaredEntries(plugins).map((entry) => entry.domain))
+	expect(domains.slice(1, -2)).toEqual(declaredEntries(plugins).map((entry) => entry.domain))
 	expect(domains).toEqual(expect.arrayContaining(['alphone-fields', 'alphone-importer', 'alphone-whatsapp']))
 })
 
