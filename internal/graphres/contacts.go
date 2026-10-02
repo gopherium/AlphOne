@@ -136,9 +136,9 @@ func toIdentity(row contact.Identity) *model.ContactIdentity {
 	}
 }
 
-// Identities resolves a contact's identities.
+// Identities resolves a contact's identities through the request loader.
 func (c ContactResolvers) Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error) {
-	rows, err := c.root.Contacts.ListContactIdentities(ctx, obj.ID)
+	rows, err := c.root.loadIdentities(ctx, obj.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -66,6 +66,47 @@ func (r *Resolver) loadContact(ctx context.Context, id uuid.UUID) (contact.Conta
 	return loader.Load(ctx, id)
 }
 
+// identityLoaderKey keys the core identity loader in the request scope.
+type identityLoaderKey struct{}
+
+// identityLoader returns the request's uncached identity loader, building it once.
+func (r *Resolver) identityLoader(ctx context.Context) (*dataloadgen.Loader[uuid.UUID, []contact.Identity], error) {
+	return sdk.ScopedValue(ctx, identityLoaderKey{}, func() *dataloadgen.Loader[uuid.UUID, []contact.Identity] {
+		return dataloadgen.NewLoader(r.fetchIdentities,
+			dataloadgen.WithWait(cmp.Or(r.BatchWait, time.Millisecond)), dataloadgen.WithoutCache())
+	})
+}
+
+// fetchIdentities loads the identities of a batch of contacts, one list per id.
+func (r *Resolver) fetchIdentities(ctx context.Context, ids []uuid.UUID) ([][]contact.Identity, []error) {
+	results := make([][]contact.Identity, len(ids))
+	errs := make([]error, len(ids))
+	rows, err := r.Contacts.ListContactIdentities(ctx, ids)
+	if err != nil {
+		for i := range errs {
+			errs[i] = err
+		}
+		return results, errs
+	}
+	held := make(map[uuid.UUID][]contact.Identity, len(ids))
+	for _, row := range rows {
+		held[row.ContactID] = append(held[row.ContactID], row)
+	}
+	for i, id := range ids {
+		results[i] = held[id]
+	}
+	return results, errs
+}
+
+// loadIdentities returns one contact's identities through the request loader.
+func (r *Resolver) loadIdentities(ctx context.Context, id uuid.UUID) ([]contact.Identity, error) {
+	loader, err := r.identityLoader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return loader.Load(ctx, id)
+}
+
 // primeContact seeds the request loader with an already fetched row.
 func (r *Resolver) primeContact(ctx context.Context, c contact.Contact) {
 	loader, err := r.contactLoader(ctx)
