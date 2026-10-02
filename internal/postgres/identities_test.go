@@ -131,7 +131,7 @@ func TestContactStoreAddIdentityAttachesToAnExistingContact(t *testing.T) {
 		t.Fatalf("AddIdentity() error = %v, want nil", err)
 	}
 
-	identities, err := store.ListContactIdentities(t.Context(), maria.ID)
+	identities, err := store.ListContactIdentities(t.Context(), []uuid.UUID{maria.ID})
 	if err != nil {
 		t.Fatalf("ListContactIdentities() error = %v, want nil", err)
 	}
@@ -179,7 +179,7 @@ func TestContactStoreAddIdentityNamesTheOwnerOnConflict(t *testing.T) {
 	if exists.OwnerID != maria.ID {
 		t.Errorf("IdentityExistsError.OwnerID = %s, want the owner %s", exists.OwnerID, maria.ID)
 	}
-	identities, err := store.ListContactIdentities(t.Context(), john.ID)
+	identities, err := store.ListContactIdentities(t.Context(), []uuid.UUID{john.ID})
 	if err != nil {
 		t.Fatalf("ListContactIdentities() error = %v, want nil", err)
 	}
@@ -225,7 +225,7 @@ func TestContactStoreDeleteIdentity(t *testing.T) {
 		t.Fatalf("DeleteIdentity() error = %v, want nil", err)
 	}
 
-	identities, err := store.ListContactIdentities(t.Context(), maria.ID)
+	identities, err := store.ListContactIdentities(t.Context(), []uuid.UUID{maria.ID})
 	if err != nil {
 		t.Fatalf("ListContactIdentities() error = %v, want nil", err)
 	}
@@ -253,7 +253,7 @@ func TestContactStoreCreateContactWithIdentitiesCommitsAllOrNothing(t *testing.T
 			t.Fatalf("CreateContactWithIdentities() error = %v, want nil", err)
 		}
 
-		stored, err := store.ListContactIdentities(t.Context(), maria.ID)
+		stored, err := store.ListContactIdentities(t.Context(), []uuid.UUID{maria.ID})
 		if err != nil {
 			t.Fatalf("ListContactIdentities() error = %v, want nil", err)
 		}

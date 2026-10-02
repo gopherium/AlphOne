@@ -30,8 +30,8 @@ RETURNING id, name, created_at, tenant_id;
 -- name: ListContactIdentities :many
 SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1 AND tenant_id = @tenant_id
-ORDER BY channel, identifier;
+WHERE contact_id = ANY (@contact_ids::uuid[]) AND tenant_id = @tenant_id
+ORDER BY contact_id, channel, identifier;
 
 -- name: GetIdentity :one
 SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id

@@ -516,17 +516,17 @@ func (q *Queries) ListAPITokensForUser(ctx context.Context, arg ListAPITokensFor
 const listContactIdentities = `-- name: ListContactIdentities :many
 SELECT id, contact_id, channel, identifier, display_name, created_at, tenant_id
 FROM core.contact_identities
-WHERE contact_id = $1 AND tenant_id = $2
-ORDER BY channel, identifier
+WHERE contact_id = ANY ($1::uuid[]) AND tenant_id = $2
+ORDER BY contact_id, channel, identifier
 `
 
 type ListContactIdentitiesParams struct {
-	ContactID uuid.UUID
-	TenantID  uuid.UUID
+	ContactIds []uuid.UUID
+	TenantID   uuid.UUID
 }
 
 func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]CoreContactIdentity, error) {
-	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactID, arg.TenantID)
+	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactIds, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
