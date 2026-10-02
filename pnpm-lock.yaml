@@ -432,6 +432,9 @@ importers:
       '@types/smtp-server':
         specifier: ^3.5.13
         version: 3.5.13
+      graphql:
+        specifier: ^17.0.2
+        version: 17.0.2
       smtp-server:
         specifier: ^3.19.12
         version: 3.19.12
