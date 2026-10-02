@@ -145,10 +145,5 @@ export function uploadChosen(files: FileList | null, upload: (file: File) => voi
  * @returns The formatted day.
  */
 export function formatStarted(started: Date): string {
-	return formatDate(started, {
-		day: 'numeric',
-		month: 'short',
-		year: 'numeric',
-		timeZone: 'UTC',
-	})
+	return formatDate(started)
 }
