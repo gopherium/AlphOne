@@ -734,3 +734,7 @@ msgstr "Invitada"
 #, fuzzy
 msgid "v%(version)s"
 msgstr "v%(version)s"
+
+#, fuzzy
+msgid "Dismiss"
+msgstr "Descartar"
