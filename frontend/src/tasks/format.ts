@@ -45,6 +45,15 @@ export function movedMessage(date: string): string {
 }
 
 /**
+ * Returns the toast raised once a task took a new status.
+ * @param status - The status the task took.
+ * @returns Task completed. for a done task, Task reopened. for an open one.
+ */
+export function statusMessage(status: string): string {
+	return status === 'done' ? __('Task completed.', 'alphone') : __('Task reopened.', 'alphone')
+}
+
+/**
  * Reports whether a string is a calendar date the task API accepts.
  * @param date - The candidate date.
  * @returns True when the string is a real YYYY-MM-DD date.

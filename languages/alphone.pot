@@ -388,7 +388,19 @@ msgstr ""
 msgid "Task"
 msgstr ""
 
+msgid "Task added."
+msgstr ""
+
+msgid "Task completed."
+msgstr ""
+
 msgid "Task moved to %(date)s."
+msgstr ""
+
+msgid "Task reopened."
+msgstr ""
+
+msgid "Task saved."
 msgstr ""
 
 msgid "Task title"
@@ -512,6 +524,9 @@ msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
 msgstr ""
 
 msgid "Try a different search, or add one with New contact."
+msgstr ""
+
+msgid "Undo"
 msgstr ""
 
 msgid "Users"

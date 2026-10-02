@@ -103,6 +103,7 @@ test('renames a task', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Call the supplier back' }),
 	).toBeInTheDocument()
+	expect(screen.getByText('Task saved.')).toBeInTheDocument()
 })
 
 test('reschedules a task from the date field', async () => {
@@ -143,11 +144,14 @@ test('completes and reopens a task from its detail', async () => {
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ status: 'done' })
+	expect(await screen.findByText('Task completed.')).toBeInTheDocument()
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Reopen' }))
 
 	await waitFor(() => expect(patched).toHaveLength(2))
 	expect(patched[1]).toMatchObject({ status: 'open' })
+	expect(await screen.findByText('Task reopened.')).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 })
 
 test('links a task to the contact it belongs to', async () => {
@@ -250,6 +254,7 @@ test('reports a generic message when a save fails otherwise', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(await screen.findByText('The task could not be saved.')).toBeInTheDocument()
+	expect(screen.queryByText('Task saved.')).not.toBeInTheDocument()
 })
 
 test('reports when completing from the detail fails', async () => {
@@ -263,6 +268,7 @@ test('reports when completing from the detail fails', async () => {
 	await userEvent.click(await screen.findByRole('button', { name: 'Complete' }))
 
 	expect(await screen.findByText('The task could not be saved.')).toBeInTheDocument()
+	expect(screen.queryByText('Task completed.')).not.toBeInTheDocument()
 })
 
 test('drops the session when the task detail is unauthorized', async () => {

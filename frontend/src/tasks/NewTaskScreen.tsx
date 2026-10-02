@@ -12,6 +12,7 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
@@ -42,6 +43,7 @@ export function NewTaskScreen({
 	onCreated: (created: { id: string }) => void
 }) {
 	const graph = useGraph()
+	const toaster = useToaster()
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
 	const [priority, setPriority] = useState(0)
@@ -57,6 +59,7 @@ export function NewTaskScreen({
 			},
 		})
 		if (result.data) {
+			toaster.show(__('Task added.', 'alphone'))
 			graph.refetch(['DayTasks', 'OverdueTasks'])
 			onCreated(result.data.createTask.task)
 		}

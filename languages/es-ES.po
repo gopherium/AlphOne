@@ -756,8 +756,28 @@ msgid "Identity removed."
 msgstr "Identidad quitada."
 
 #, fuzzy
+msgid "Task added."
+msgstr "Tarea añadida."
+
+#, fuzzy
+msgid "Task completed."
+msgstr "Tarea completada."
+
+#, fuzzy
 msgid "Task moved to %(date)s."
 msgstr "Tarea movida al %(date)s."
+
+#, fuzzy
+msgid "Task reopened."
+msgstr "Tarea reabierta."
+
+#, fuzzy
+msgid "Task saved."
+msgstr "Tarea guardada."
+
+#, fuzzy
+msgid "Undo"
+msgstr "Deshacer"
 
 #, fuzzy
 msgctxt "day heading"
