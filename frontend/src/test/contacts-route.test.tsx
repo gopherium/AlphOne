@@ -682,6 +682,19 @@ test('removes an identity', async () => {
 	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
 })
 
+test('spins only the remove button pressed', async () => {
+	server.use(graphql.mutation('DeleteContactIdentity', () => new Promise(() => {})))
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true'),
+	)
+	expect(screen.getByRole('button', { name: 'Remove 184467236' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
 test('reports a failed removal', async () => {
 	server.use(
 		graphql.mutation('DeleteContactIdentity', () =>
@@ -697,6 +710,7 @@ test('reports a failed removal', async () => {
 		'The identity could not be removed.',
 	)
 	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('shows each identity remove as an icon named after its identifier', async () => {
