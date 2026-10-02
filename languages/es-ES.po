@@ -44,9 +44,6 @@ msgstr "Un año"
 msgid "API tokens"
 msgstr "Tokens de API"
 
-msgid "Actions"
-msgstr "Acciones"
-
 msgid "Add a task above, or open a contact and create one from their page."
 msgstr "Añade una tarea arriba, o abre un contacto y crea una desde su página."
 
@@ -256,14 +253,6 @@ msgid "Loading task…"
 msgstr "Cargando la tarea…"
 
 #, fuzzy
-msgid "Loading tokens…"
-msgstr "Cargando los tokens…"
-
-#, fuzzy
-msgid "Loading users…"
-msgstr "Cargando los usuarios…"
-
-#, fuzzy
 msgid "Name"
 msgstr "Nombre"
 
@@ -277,10 +266,6 @@ msgstr "No caduca nunca"
 #, fuzzy
 msgid "Never used"
 msgstr "Sin usar"
-
-#, fuzzy
-msgid "New API token"
-msgstr "Token de API nuevo"
 
 #, fuzzy
 msgid "New contact"
@@ -376,14 +361,6 @@ msgstr "Reabrir"
 #, fuzzy
 msgid "Revoke"
 msgstr "Revocar"
-
-#, fuzzy
-msgid "Revoke %(name)s"
-msgstr "Revocar %(name)s"
-
-#, fuzzy
-msgid "Revoke failed."
-msgstr "No se ha podido revocar."
 
 #, fuzzy
 msgid "Role"
@@ -835,6 +812,10 @@ msgid "User enabled."
 msgstr "Usuario reactivado."
 
 #, fuzzy
+msgid "Manage the tokens your programs sign in with."
+msgstr "Gestiona los tokens con los que entran tus programas."
+
+#, fuzzy
 msgid "Manage who can sign in and what they can do."
 msgstr "Gestiona quién puede entrar y qué puede hacer."
 
@@ -845,6 +826,50 @@ msgstr "Secciones de usuarios"
 #, fuzzy
 msgid "Avatar"
 msgstr "Avatar"
+
+#, fuzzy
+msgid "%s token could not be revoked."
+msgid_plural "%s tokens could not be revoked."
+msgstr[0] "No se ha podido revocar %s token."
+msgstr[1] "No se han podido revocar %s tokens."
+
+#, fuzzy
+msgid "%s token revoked."
+msgid_plural "%s tokens revoked."
+msgstr[0] "%s token revocado."
+msgstr[1] "%s tokens revocados."
+
+#, fuzzy
+msgid "No tokens found."
+msgstr "No se ha encontrado ningún token."
+
+#, fuzzy
+msgid "Revoke %s token? Anything using it stops working at once."
+msgid_plural "Revoke %s tokens? Anything using them stops working at once."
+msgstr[0] "¿Revocar %s token? Todo lo que lo use dejará de funcionar al momento."
+msgstr[1] "¿Revocar %s tokens? Todo lo que los use dejará de funcionar al momento."
+
+#, fuzzy
+msgid "Revoke the token %(name)s? Anything using it stops working at once."
+msgstr "¿Revocar el token %(name)s? Todo lo que lo use dejará de funcionar al momento."
+
+#, fuzzy
+msgid "Revoke token"
+msgid_plural "Revoke tokens"
+msgstr[0] "Revocar token"
+msgstr[1] "Revocar tokens"
+
+#, fuzzy
+msgid "Search tokens…"
+msgstr "Buscar tokens…"
+
+#, fuzzy
+msgid "The token could not be revoked."
+msgstr "No se ha podido revocar el token."
+
+#, fuzzy
+msgid "Token revoked."
+msgstr "Token revocado."
 
 #, fuzzy
 msgctxt "day heading"

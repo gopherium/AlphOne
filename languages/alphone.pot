@@ -7,6 +7,16 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone\n"
 
+msgid "%s token could not be revoked."
+msgid_plural "%s tokens could not be revoked."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s token revoked."
+msgid_plural "%s tokens revoked."
+msgstr[0] ""
+msgstr[1] ""
+
 msgid "%s user could not be disabled."
 msgid_plural "%s users could not be disabled."
 msgstr[0] ""
@@ -61,9 +71,6 @@ msgid "A year"
 msgstr ""
 
 msgid "API tokens"
-msgstr ""
-
-msgid "Actions"
 msgstr ""
 
 msgid "Activation link"
@@ -264,10 +271,10 @@ msgstr ""
 msgid "Loading task…"
 msgstr ""
 
-msgid "Loading tokens…"
+msgid "Loading…"
 msgstr ""
 
-msgid "Loading…"
+msgid "Manage the tokens your programs sign in with."
 msgstr ""
 
 msgid "Manage who can sign in and what they can do."
@@ -283,9 +290,6 @@ msgid "Never expires"
 msgstr ""
 
 msgid "Never used"
-msgstr ""
-
-msgid "New API token"
 msgstr ""
 
 msgid "New contact"
@@ -319,6 +323,9 @@ msgid "No open tasks."
 msgstr ""
 
 msgid "No role"
+msgstr ""
+
+msgid "No tokens found."
 msgstr ""
 
 msgid "No users found."
@@ -372,11 +379,18 @@ msgstr ""
 msgid "Revoke"
 msgstr ""
 
-msgid "Revoke %(name)s"
+msgid "Revoke %s token? Anything using it stops working at once."
+msgid_plural "Revoke %s tokens? Anything using them stops working at once."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Revoke the token %(name)s? Anything using it stops working at once."
 msgstr ""
 
-msgid "Revoke failed."
-msgstr ""
+msgid "Revoke token"
+msgid_plural "Revoke tokens"
+msgstr[0] ""
+msgstr[1] ""
 
 msgid "Role"
 msgstr ""
@@ -391,6 +405,9 @@ msgid "Scopes"
 msgstr ""
 
 msgid "Search contacts"
+msgstr ""
+
+msgid "Search tokens…"
 msgstr ""
 
 msgid "Search users…"
@@ -537,6 +554,9 @@ msgstr ""
 msgid "The token could not be created."
 msgstr ""
 
+msgid "The token could not be revoked."
+msgstr ""
+
 msgid "The user could not be disabled."
 msgstr ""
 
@@ -556,6 +576,9 @@ msgid "Title"
 msgstr ""
 
 msgid "Today"
+msgstr ""
+
+msgid "Token revoked."
 msgstr ""
 
 msgid "Tokens could not be loaded."

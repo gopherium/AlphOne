@@ -60,7 +60,7 @@ beforeEach(servingNoTokens)
 test('serves the new token screen at /users/tokens/new', async () => {
 	renderAt('/users/tokens/new')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'New API token' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
 })
 
 test('refuses to mint until a name and an area are given', async () => {
@@ -136,6 +136,7 @@ test('shows the secret once and warns it is never shown again', async () => {
 	expect(await screen.findByText(secret)).toBeInTheDocument()
 	expect(screen.getByText(/never shown again/)).toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: 'Create token' })).not.toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
 })
 
 test('copies the secret to the clipboard', async () => {
