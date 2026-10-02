@@ -134,12 +134,13 @@ type commitCounts struct {
 	Failed   int `db:"failed_count"`
 }
 
-// claimForCommit moves an import into committing and returns its mapping.
+// claimForCommit moves a mapped import into committing and returns its mapping, leaving an unmapped one ready.
 func (s *store) claimForCommit(ctx context.Context, id uuid.UUID) (mapping, error) {
 	var claimed mapping
 	var state string
 	err := s.pool.QueryRow(ctx,
-		`UPDATE plugin_importer.imports SET state = $2
+		`UPDATE plugin_importer.imports
+		SET state = CASE WHEN mapping = '{}'::jsonb THEN $3 ELSE $2 END
 		WHERE id = $1 AND state IN ($2, $3) AND tenant_id = $4
 		RETURNING mapping, state`,
 		id, stateCommitting, stateReady, sdk.TenantOrDefault(ctx)).Scan(&claimed, &state)
