@@ -18,6 +18,42 @@ WHERE c.tenant_id = @tenant_id
 ORDER BY c.name, c.id
 LIMIT @row_limit;
 
+-- name: PageContacts :many
+SELECT c.id, c.name, c.created_at, c.tenant_id
+FROM core.contacts c
+WHERE c.tenant_id = @tenant_id
+    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
+        OR EXISTS (
+            SELECT 1 FROM core.contact_identities i
+            WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
+                AND (i.display_name ILIKE '%' || @query || '%'
+                    OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
+    AND (coalesce(cardinality(@channels::text[]), 0) = 0 OR EXISTS (
+        SELECT 1 FROM core.contact_identities r
+        WHERE r.contact_id = c.id AND r.tenant_id = @tenant_id AND r.channel = ANY (@channels::text[])))
+ORDER BY
+    CASE WHEN NOT @by_created::boolean AND NOT @descending::boolean THEN c.name END,
+    CASE WHEN NOT @by_created::boolean AND @descending::boolean THEN c.name END DESC,
+    CASE WHEN @by_created::boolean AND NOT @descending::boolean THEN c.created_at END,
+    CASE WHEN @by_created::boolean AND @descending::boolean THEN c.created_at END DESC,
+    CASE WHEN @descending::boolean THEN c.id END DESC,
+    c.id
+LIMIT @row_limit::bigint OFFSET @row_offset::bigint;
+
+-- name: CountContacts :one
+SELECT count(*)
+FROM core.contacts c
+WHERE c.tenant_id = @tenant_id
+    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
+        OR EXISTS (
+            SELECT 1 FROM core.contact_identities i
+            WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
+                AND (i.display_name ILIKE '%' || @query || '%'
+                    OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
+    AND (coalesce(cardinality(@channels::text[]), 0) = 0 OR EXISTS (
+        SELECT 1 FROM core.contact_identities r
+        WHERE r.contact_id = c.id AND r.tenant_id = @tenant_id AND r.channel = ANY (@channels::text[])));
+
 -- name: GetContact :one
 SELECT id, name, created_at, tenant_id
 FROM core.contacts
