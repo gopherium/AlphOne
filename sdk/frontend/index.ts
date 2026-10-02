@@ -89,8 +89,10 @@ export {
 	RepeatRows,
 	RowControls,
 	SectionTitle,
+	Toaster,
+	useToaster,
 } from '@gopherium/godmin'
-export type { RowLabels } from '@gopherium/godmin'
+export type { RowLabels, ToastAction, ToasterHandle } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'
