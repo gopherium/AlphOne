@@ -655,9 +655,9 @@ test('renders a refused answer from the template its reason names', async () => 
 	expect(graphError(result.error)?.message).toBe('Escribe un nombre.')
 })
 
-test('fills a template from the data the answer carries', async () => {
+test('fills a template from the numbers the answer carries, written in the format locale', async () => {
 	configureErrorText({
-		templates: () => ({ first_out_of_range: 'Pide entre %(min)d y %(max)d cada vez.' }),
+		templates: () => ({ first_out_of_range: 'Pide entre %(min)s y %(max)s cada vez.' }),
 		fallback: () => 'Algo salio mal.',
 	})
 	server.use(
@@ -665,11 +665,11 @@ test('fills a template from the data the answer carries', async () => {
 			HttpResponse.json({
 				data: null,
 				errors: [{
-					message: 'graph: first must be between 1 and 200',
+					message: 'graph: first must be between 1 and 1250',
 					extensions: {
 						code: 'VALIDATION',
 						reason: 'first_out_of_range',
-						meta: { min: 1, max: 200 },
+						meta: { min: 1, max: 1250 },
 					},
 				}],
 			})),
@@ -678,7 +678,29 @@ test('fills a template from the data the answer carries', async () => {
 
 	const result = await graph.client.query(versionQuery, {}).toPromise()
 
-	expect(graphError(result.error)?.message).toBe('Pide entre 1 y 200 cada vez.')
+	expect(graphError(result.error)?.message).toBe('Pide entre 1 y 1.250 cada vez.')
+})
+
+test('fills a template from the text the answer carries as it came', async () => {
+	configureErrorText({
+		templates: () => ({ scope_missing: 'Este token no alcanza %(scope)s.' }),
+		fallback: () => 'Algo salio mal.',
+	})
+	server.use(
+		graphql.query('Version', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'graph: the token does not reach contacts:write',
+					extensions: { code: 'FORBIDDEN', reason: 'scope_missing', meta: { scope: 'contacts:write' } },
+				}],
+			})),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('Este token no alcanza contacts:write.')
 })
 
 test('speaks the server message for a reason no template holds', async () => {
