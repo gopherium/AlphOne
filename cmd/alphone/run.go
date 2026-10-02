@@ -138,6 +138,8 @@ func run(
 		ResetLimiter:  ratelimit.NewLimiter(resetBudget(settings)),
 		ResetCooldown: ratelimit.NewLimiter(resetCooldownBudget(settings)),
 		Logger:        logger,
+		Paging:        settings.lists.paging,
+		Screens:       settings.lists.screens,
 	}, registered)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -294,6 +296,7 @@ type runConfig struct {
 	inviteTTL      time.Duration
 	reset          resetSettings
 	tenants        tenantSettings
+	lists          listSettings
 }
 
 // tenantSettings bounds the per-tenant state plugins and the graph keep in memory.
@@ -537,6 +540,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	lists, err := loadListSettings(getenv)
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
@@ -548,6 +555,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		inviteTTL:      inviteTTL,
 		reset:          reset,
 		tenants:        tenants,
+		lists:          lists,
 	}, nil
 }
 
