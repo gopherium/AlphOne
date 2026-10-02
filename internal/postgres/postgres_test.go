@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -94,6 +95,25 @@ func TestMigrationsCreateContactsNameIndex(t *testing.T) {
 
 	if count != 1 {
 		t.Fatalf("contacts_name_id_idx count = %d, want 1", count)
+	}
+}
+
+func TestMigrationsIndexTheContactsByTenantAndCreationTime(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+
+	var definition string
+	err := db.QueryRow(
+		`SELECT indexdef FROM pg_indexes
+		WHERE schemaname = 'core' AND tablename = 'contacts' AND indexname = 'contacts_tenant_created_id_idx'`,
+	).Scan(&definition)
+	if err != nil {
+		t.Fatalf("reading contacts_tenant_created_id_idx: %v", err)
+	}
+
+	if !strings.HasSuffix(definition, "(tenant_id, created_at, id)") {
+		t.Errorf("index definition = %q, want tenant, created time and id", definition)
 	}
 }
 
