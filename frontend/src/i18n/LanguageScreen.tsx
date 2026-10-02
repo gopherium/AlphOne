@@ -24,7 +24,7 @@ import { setLocaleMutation, supportedLocalesQuery } from './localeOperations'
  */
 export function LanguageScreen() {
 	const [asked] = useGraphQuery({ query: supportedLocalesQuery })
-	const [, runSetLocale] = useGraphMutation(setLocaleMutation)
+	const [written, runSetLocale] = useGraphMutation(setLocaleMutation)
 	const [chosen, setChosen] = useState(displayLocale())
 	const [saved, setSaved] = useState(false)
 	const [notice, setNotice] = useState('')
@@ -66,7 +66,9 @@ export function LanguageScreen() {
 					items={offered}
 					onValueChange={(item) => item?.value != null && choose(item.value)}
 				/>
-				<Button onClick={() => void submit()}>{__('Save', 'alphone')}</Button>
+				<Button loading={written.fetching} onClick={() => void submit()}>
+					{__('Save', 'alphone')}
+				</Button>
 				{saved && <Text role="status">{__('The language changes when the page next loads.', 'alphone')}</Text>}
 				{notice !== '' && <ErrorNotice>{notice}</ErrorNotice>}
 			</Stack>

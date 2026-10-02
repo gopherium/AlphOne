@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
-import { renderAt } from './render'
+import { busyClasses, renderAt } from './render'
 
 beforeEach(() => {
 	server.use(
@@ -39,6 +39,21 @@ test('stores the chosen locale and confirms the change', async () => {
 
 	expect(await screen.findByRole('status')).toHaveTextContent('The language changes when the page next loads.')
 	expect(stored).toBe('es-ES')
+})
+
+test('shows the save button busy while the choice is on its way', async () => {
+	const busy = busyClasses()
+	expect(busy.length).toBeGreaterThan(0)
+	server.use(graphql.mutation('SetLocale', () => new Promise(() => {})))
+	renderAt('/language')
+
+	await userEvent.click(await screen.findByRole('combobox', { name: 'Language' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'es-ES' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	const save = screen.getByRole('button', { name: 'Save' })
+	await waitFor(() => expect([...save.classList]).toEqual(expect.arrayContaining(busy)))
+	expect(save).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('reports a refused choice rather than failing quietly', async () => {
