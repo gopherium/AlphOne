@@ -25,6 +25,17 @@ database is all an upgrade takes.
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is rejected at startup. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
+## Lists, toasts and formats
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_GRAPH_PAGE_SIZE` | Rows a core graph list (`contacts`, `tasks`, `contactPage`) answers when the caller names no size. Defaults to 50. AlphOne will not start if the value is not a positive whole number or is above `ALPHONE_GRAPH_PAGE_CAP`. |
+| `ALPHONE_GRAPH_PAGE_CAP` | The most rows one core graph list answers. Defaults to 200. A request for more is refused, and AlphOne will not start if the value is not a positive whole number or is above 1250. Reading even one field of each row costs 2 a row, so 1250 rows is the largest page that fits the query cost limit of 2500. A wider read of a large page can still be refused by that limit, see [Limits](/reference/graphql-api/#limits). |
+| `ALPHONE_TOAST_DURATION` | How long a confirmation toast stays on screen, written as a duration such as `6s` or `1500ms`. Defaults to `6s`. AlphOne will not start unless the value is whole milliseconds from `1ms` to `2147483647ms`. |
+| `ALPHONE_LIST_PAGE_SIZES` | The page sizes a list screen offers, comma separated. Defaults to `10,20,50,100`. AlphOne will not start unless each size is a positive whole number, listed once from the smallest up, and none is above `ALPHONE_GRAPH_PAGE_CAP`. |
+| `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. AlphOne will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
+| `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. AlphOne will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
+
 ## Fields plugin
 
 | Variable | Purpose |
