@@ -128,7 +128,7 @@ test('adds a task from a contact on a chosen day', async ({ page }) => {
 	const chosen = new Date()
 	chosen.setDate(chosen.getDate() + 3)
 	const due = chosen.toLocaleDateString('en-CA')
-	const label = `Due ${chosen.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+	const label = `Due ${due.split('-').reverse().join('/')}`
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Contacts' }).click()
