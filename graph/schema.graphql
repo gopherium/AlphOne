@@ -47,6 +47,15 @@ input ContactIdentityInput {
 	identifier: String!
 	displayName: String
 }
+enum ContactOrderBy {
+	NAME
+	CREATED_AT
+}
+type ContactPage {
+	items: [Contact!]!
+	total: Int!
+	limit: Int!
+}
 input CreateTaskInput {
 	title: String!
 	dueOn: Date!
@@ -202,6 +211,7 @@ type Query {
 	me: Identity! @scope(area: "auth", write: false)
 	users: [User!]! @scope(area: "users", write: false)
 	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
+	contactPage(q: String, channels: [String!], orderBy: ContactOrderBy! = NAME, order: SortOrder! = ASC, limit: Int, offset: Int): ContactPage! @scope(area: "contacts", write: false)
 	contact(id: UUID!): Contact @scope(area: "contacts", write: false)
 	tasks(date: Date, dueBefore: Date, contactId: UUID, status: String, first: Int, after: String): TaskConnection! @scope(area: "tasks", write: false)
 	task(id: UUID!): Task @scope(area: "tasks", write: false)
@@ -214,6 +224,10 @@ type Query {
 	importFields: [ImportField!]! @scope(area: "imports", write: false)
 	whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
 	whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
+}
+enum SortOrder {
+	ASC
+	DESC
 }
 type Subscription {
 	coreEvent: String! @scope(area: "events", write: false)

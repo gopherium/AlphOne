@@ -67,6 +67,12 @@ type ContactIdentityInput struct {
 	DisplayName *string `json:"displayName,omitempty"`
 }
 
+type ContactPage struct {
+	Items []*Contact `json:"items"`
+	Total int        `json:"total"`
+	Limit int        `json:"limit"`
+}
+
 type CreateTaskInput struct {
 	Title         string     `json:"title"`
 	DueOn         time.Time  `json:"dueOn"`
@@ -279,6 +285,61 @@ type WhatsAppMessage struct {
 	Media        *WhatsAppMedia `json:"media,omitempty"`
 }
 
+type ContactOrderBy string
+
+const (
+	ContactOrderByName      ContactOrderBy = "NAME"
+	ContactOrderByCreatedAt ContactOrderBy = "CREATED_AT"
+)
+
+var AllContactOrderBy = []ContactOrderBy{
+	ContactOrderByName,
+	ContactOrderByCreatedAt,
+}
+
+func (e ContactOrderBy) IsValid() bool {
+	switch e {
+	case ContactOrderByName, ContactOrderByCreatedAt:
+		return true
+	}
+	return false
+}
+
+func (e ContactOrderBy) String() string {
+	return string(e)
+}
+
+func (e *ContactOrderBy) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ContactOrderBy(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ContactOrderBy", str)
+	}
+	return nil
+}
+
+func (e ContactOrderBy) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ContactOrderBy) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ContactOrderBy) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type FieldKind string
 
 const (
@@ -339,6 +400,61 @@ func (e *FieldKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e FieldKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SortOrder string
+
+const (
+	SortOrderAsc  SortOrder = "ASC"
+	SortOrderDesc SortOrder = "DESC"
+)
+
+var AllSortOrder = []SortOrder{
+	SortOrderAsc,
+	SortOrderDesc,
+}
+
+func (e SortOrder) IsValid() bool {
+	switch e {
+	case SortOrderAsc, SortOrderDesc:
+		return true
+	}
+	return false
+}
+
+func (e SortOrder) String() string {
+	return string(e)
+}
+
+func (e *SortOrder) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SortOrder(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SortOrder", str)
+	}
+	return nil
+}
+
+func (e SortOrder) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SortOrder) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SortOrder) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
