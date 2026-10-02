@@ -23,6 +23,15 @@ function dueLabel(iso: string) {
 	return `Due ${iso.split('-').reverse().join('/')}`
 }
 
+/**
+ * Returns the toast a postpone to the given day raises.
+ * @param iso - The day the task moved to as YYYY-MM-DD.
+ * @returns The toast text.
+ */
+function movedToast(iso: string) {
+	return `Task moved to ${iso.split('-').reverse().join('/')}.`
+}
+
 const today = localDate(0)
 const tomorrow = localDate(1)
 
@@ -170,6 +179,20 @@ test('completes a task from the contact page', async () => {
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ id: callID, status: 'done' })
+	expect(await screen.findByText('Task completed.')).toBeInTheDocument()
+})
+
+test('undoes a completion on the contact page from its toast', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const row = screen.getByRole('listitem', { name: 'Call her back' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
+	await screen.findByText('Task completed.')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => expect(patched).toHaveLength(2))
+	expect(patched[1]).toMatchObject({ id: callID, status: 'open' })
 })
 
 test('pushes a task to tomorrow from the contact page', async () => {
@@ -181,6 +204,20 @@ test('pushes a task to tomorrow from the contact page', async () => {
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toMatchObject({ id: callID, due_on: tomorrow })
+	expect(await screen.findByText(movedToast(tomorrow))).toBeInTheDocument()
+})
+
+test('undoes a postpone on the contact page from its toast', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const row = screen.getByRole('listitem', { name: 'Call her back' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
+	await screen.findByText(movedToast(tomorrow))
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => expect(patched).toHaveLength(2))
+	expect(patched[1]).toMatchObject({ id: callID, due_on: today })
 })
 
 test('adds a task for the contact due today', async () => {
@@ -197,6 +234,7 @@ test('adds a task for the contact due today', async () => {
 		due_on: today,
 	})
 	expect(await screen.findByText('Send the invoice')).toBeInTheDocument()
+	expect(screen.getByText('Task added.')).toBeInTheDocument()
 })
 
 test('starts a new contact task on today', async () => {
@@ -411,6 +449,7 @@ test('reports a generic message when adding fails otherwise', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
 })
 
 test('reports when a contact task cannot be updated', async () => {
@@ -426,6 +465,7 @@ test('reports when a contact task cannot be updated', async () => {
 	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(screen.queryByText(movedToast(tomorrow))).not.toBeInTheDocument()
 })
 
 test('drops the session when the contact detail is unauthorized', async () => {

@@ -7,16 +7,18 @@ import {
 	SectionTitle,
 	Text,
 	__,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { graphError, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
-import { isValidDate, isoDate, laterDate, shiftDate } from './format'
-import { createTaskMutation, updateTaskMutation } from './operations'
+import { isValidDate, isoDate } from './format'
+import { createTaskMutation } from './operations'
 import { TaskList } from './TaskList'
 import type { RowControls, ListedTask } from './TaskList'
+import { useRowControls } from './useRowControls'
 
 /** contactDetailOperation names the document a contact's tasks arrive in. */
 const contactDetailOperation = 'ContactDetail'
@@ -32,45 +34,16 @@ export function ContactTasks({
 	contactId: string
 	tasks: ConnectionResult<ListedTask>
 }) {
-	const today = isoDate(new Date())
 	const graph = useGraph()
-	const [pendingID, setPendingID] = useState('')
-	const [change, runChange] = useGraphMutation(updateTaskMutation)
-	const [push, runPush] = useGraphMutation(updateTaskMutation)
 	const settled = () => graph.refetch([contactDetailOperation])
-	const completeTask = async (task: ListedTask) => {
-		setPendingID(task.id)
-		const result = await runChange({ id: task.id, input: { status: 'done' } })
-		setPendingID('')
-		if (result.data) {
-			settled()
-		}
-	}
-	const pushTask = async (task: ListedTask) => {
-		const result = await runPush({
-			id: task.id,
-			input: { dueOn: shiftDate(laterDate(task.dueOn, today), 1) },
-		})
-		if (result.data) {
-			settled()
-		}
-	}
+	const { controls, failed } = useRowControls(isoDate(new Date()), settled)
 
 	return (
 		<div className="alphone-tasks__contact-block">
 			<SectionTitle>{__('Tasks', 'alphone')}</SectionTitle>
 			<AddContactTaskForm contactId={contactId} onAdded={settled} />
-			{change.error || push.error ? (
-				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
-			) : null}
-			<ContactTaskList
-				tasks={tasks}
-				controls={{
-					onChange: (task) => void completeTask(task),
-					onPush: (task) => void pushTask(task),
-					pendingID,
-				}}
-			/>
+			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
+			<ContactTaskList tasks={tasks} controls={controls} />
 		</div>
 	)
 }
@@ -81,6 +54,7 @@ export function ContactTasks({
  * @returns The add task form and its error.
  */
 function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded: () => void }) {
+	const toaster = useToaster()
 	const [title, setTitle] = useState('')
 	const [picked, setPicked] = useState<string | null>(null)
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
@@ -90,6 +64,7 @@ function AddContactTaskForm({ contactId, onAdded }: { contactId: string; onAdded
 		if (result.data) {
 			setTitle('')
 			setPicked(null)
+			toaster.show(__('Task added.', 'alphone'))
 			onAdded()
 		}
 	}
