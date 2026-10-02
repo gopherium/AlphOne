@@ -14,6 +14,7 @@ import {
 	Text,
 	ValidationError,
 	__,
+	formatDate,
 	graphError,
 	sprintf,
 	graphExtensions,
@@ -30,7 +31,6 @@ import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
 import { ContactPanels } from './ContactPanels'
 import { channelItemOf, channelItems } from './channel'
-import { formatCreated } from './format'
 import {
 	addContactIdentityMutation,
 	contactDetailQuery,
@@ -85,7 +85,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 			aside={
 				<>
 					<Text className="alphone-contacts__created">
-						{sprintf(__('Created %(date)s', 'alphone'), { date: formatCreated(new Date(contact.createdAt)) })}
+						{sprintf(__('Created %(date)s', 'alphone'), { date: formatDate(contact.createdAt) })}
 					</Text>
 					<ContactPanels contactId={contact.id} panels={contactPanels} />
 				</>

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { rememberFormatLocale } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, installTestEnvironment, server } from '@alphone/frontend-sdk/testing'
 import { beforeEach } from 'vitest'
 
@@ -23,6 +24,7 @@ const adminSettings = {
 }
 
 beforeEach(() => {
+	rememberFormatLocale(adminSettings.formatLocale)
 	server.use(
 		graphql.query('DayTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),
 		graphql.query('OverdueTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),

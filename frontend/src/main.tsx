@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, Text, __, createGraphClient } from '@alphone/frontend-sdk'
+import { FormatLocaleGate, GraphProvider, Text, __, createGraphClient } from '@alphone/frontend-sdk'
 import { AdminRoot } from '@gopherium/godmin'
 import {
 	AuthGate,
@@ -49,7 +49,9 @@ createRoot(document.getElementById('root')!).render(
 								loading={<BootLoading />}
 								error={<Text role="alert">{__('Something went wrong.', 'alphone')}</Text>}
 							>
+								<FormatLocaleGate loading={<BootLoading />}>
 									<RouterProvider router={router} />
+								</FormatLocaleGate>
 							</AuthGate>
 						</AppToaster>
 					) : (

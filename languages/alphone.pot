@@ -19,16 +19,16 @@ msgstr ""
 msgid "A lifetime is zero days or more."
 msgstr ""
 
-msgid "A lifetime runs to %(maxDays)d days at most."
+msgid "A lifetime runs to %(maxDays)s days at most."
 msgstr ""
 
-msgid "A name runs to %(max)d characters at most."
+msgid "A name runs to %(max)s characters at most."
 msgstr ""
 
-msgid "A password runs to %(max)d characters at most."
+msgid "A password runs to %(max)s characters at most."
 msgstr ""
 
-msgid "A password runs to %(min)d characters at least."
+msgid "A password runs to %(min)s characters at least."
 msgstr ""
 
 msgid "A task needs a title."
@@ -88,7 +88,7 @@ msgstr ""
 msgid "Areas"
 msgstr ""
 
-msgid "Ask for between %(min)d and %(max)d at a time."
+msgid "Ask for between %(min)s and %(max)s at a time."
 msgstr ""
 
 msgid "Ask for tasks by one filter at a time."
@@ -388,6 +388,9 @@ msgstr ""
 msgid "Task"
 msgstr ""
 
+msgid "Task moved to %(date)s."
+msgstr ""
+
 msgid "Task title"
 msgstr ""
 
@@ -505,7 +508,7 @@ msgstr ""
 msgid "Tokens could not be loaded."
 msgstr ""
 
-msgid "Too many attempts. Wait %(retryAfter)d seconds and try again."
+msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
 msgstr ""
 
 msgid "Try a different search, or add one with New contact."
@@ -577,6 +580,10 @@ msgstr ""
 
 msgctxt "contact channel"
 msgid "Phone"
+msgstr ""
+
+msgctxt "day heading"
+msgid "%(weekday)s, %(date)s"
 msgstr ""
 
 msgctxt "task priority"
