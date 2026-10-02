@@ -15,6 +15,7 @@ import {
 	__,
 	chevronLeft,
 	chevronRight,
+	formatNumber,
 	inbox,
 	sprintf,
 	validationMessage,
@@ -277,7 +278,7 @@ function DoneGroup({
 				render={
 					<Button variant="minimal" tone="neutral" size="compact">
 						{sprintf(__('Done (%(count)s)', 'alphone'), {
-							count: `${rows.length}${tasks.hasNextPage ? '+' : ''}`,
+							count: `${formatNumber(rows.length)}${tasks.hasNextPage ? '+' : ''}`,
 						})}
 					</Button>
 				}

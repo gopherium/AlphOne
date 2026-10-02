@@ -20,8 +20,7 @@ function localDate(offsetDays: number) {
 }
 
 function dueLabel(iso: string) {
-	const [year, month, day] = iso.split('-').map(Number)
-	return `Due ${new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+	return `Due ${iso.split('-').reverse().join('/')}`
 }
 
 const today = localDate(0)

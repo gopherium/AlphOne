@@ -335,7 +335,7 @@ test('shows the contact detail with its identities', async () => {
 	).toBeInTheDocument()
 	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
 	expect(screen.getByText('WhatsApp: 184467236')).toBeInTheDocument()
-	expect(screen.getByText('Created Jul 6, 2026')).toBeInTheDocument()
+	expect(screen.getByText('Created 06/07/2026')).toBeInTheDocument()
 })
 
 test('names each identity channel by its name instead of its key', async () => {
@@ -387,7 +387,7 @@ test('shows a channel that no one names by its key', async () => {
 test('sets the creation date beside the contact work', async () => {
 	renderAt(`/contacts/${anaID}`)
 
-	const created = await screen.findByText('Created Jul 6, 2026')
+	const created = await screen.findByText('Created 06/07/2026')
 	expect(created.closest('.godmin-page__aside')).not.toBeNull()
 	expect(screen.getByRole('heading', { name: 'Identities' }).closest('.godmin-page__main')).not.toBeNull()
 	expect(screen.getByRole('heading', { name: 'Tasks' }).closest('.godmin-page__main')).not.toBeNull()

@@ -20,17 +20,17 @@ msgstr "Un contacto necesita un nombre."
 msgid "A lifetime is zero days or more."
 msgstr "Una duración es de cero días o más."
 
-msgid "A lifetime runs to %(maxDays)d days at most."
-msgstr "Una duración llega como mucho a %(maxDays)d días."
+msgid "A lifetime runs to %(maxDays)s days at most."
+msgstr "Una duración llega como mucho a %(maxDays)s días."
 
-msgid "A name runs to %(max)d characters at most."
-msgstr "Un nombre tiene como mucho %(max)d caracteres."
+msgid "A name runs to %(max)s characters at most."
+msgstr "Un nombre tiene como mucho %(max)s caracteres."
 
-msgid "A password runs to %(max)d characters at most."
-msgstr "Una contraseña tiene como mucho %(max)d caracteres."
+msgid "A password runs to %(max)s characters at most."
+msgstr "Una contraseña tiene como mucho %(max)s caracteres."
 
-msgid "A password runs to %(min)d characters at least."
-msgstr "Una contraseña tiene al menos %(min)d caracteres."
+msgid "A password runs to %(min)s characters at least."
+msgstr "Una contraseña tiene al menos %(min)s caracteres."
 
 msgid "A task needs a title."
 msgstr "Una tarea necesita un título."
@@ -95,8 +95,8 @@ msgid "Areas"
 msgstr "Áreas"
 
 #, fuzzy
-msgid "Ask for between %(min)d and %(max)d at a time."
-msgstr "Pide entre %(min)d y %(max)d a la vez."
+msgid "Ask for between %(min)s and %(max)s at a time."
+msgstr "Pide entre %(min)s y %(max)s a la vez."
 
 #, fuzzy
 msgid "Ask for tasks by one filter at a time."
@@ -579,12 +579,8 @@ msgid "Tokens could not be loaded."
 msgstr "No se han podido cargar los tokens."
 
 #, fuzzy
-msgid "Too many attempts. Wait %(retryAfter)d seconds and try again."
-msgstr "Demasiados intentos. Espera %(retryAfter)d segundos e inténtalo de nuevo."
-
-#, fuzzy
-msgid "Try a different search, or add one with New contact."
-msgstr "Prueba otra búsqueda, o añade uno con Contacto nuevo."
+msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
+msgstr "Demasiados intentos. Espera %(retryAfter)s segundos e inténtalo de nuevo."
 
 msgid "Users"
 msgstr "Usuarios"
@@ -754,3 +750,12 @@ msgstr "Identidad añadida."
 #, fuzzy
 msgid "Identity removed."
 msgstr "Identidad quitada."
+
+#, fuzzy
+msgid "Task moved to %(date)s."
+msgstr "Tarea movida al %(date)s."
+
+#, fuzzy
+msgctxt "day heading"
+msgid "%(weekday)s, %(date)s"
+msgstr "%(weekday)s, %(date)s"

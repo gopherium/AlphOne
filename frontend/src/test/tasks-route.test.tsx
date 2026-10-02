@@ -1,32 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button } from '@alphone/frontend-sdk'
+import { rememberFormatLocale } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { liveStream, renderAt } from './render'
-
-/**
- * Returns the class tokens the design system adds to a loading button.
- * @returns The tokens a busy button carries and an idle one does not.
- */
-function busyClasses(): string[] {
-	const { container, unmount } = render(
-		<>
-			<Button id="idle">idle</Button>
-			<Button id="busy" loading>
-				busy
-			</Button>
-		</>,
-	)
-	const idle = new Set((container.querySelector('#idle') as Element).classList)
-	const busy = [...(container.querySelector('#busy') as Element).classList]
-	unmount()
-	return busy.filter((token) => !idle.has(token))
-}
+import { busyClasses, buttonClasses, compactClasses, liveStream, renderAt } from './render'
 
 const callID = '0198c000-0000-7000-8000-000000000101'
 const quoteID = '0198c000-0000-7000-8000-000000000102'
@@ -43,8 +24,7 @@ function localDate(offsetDays: number) {
 }
 
 function dueLabel(iso: string) {
-	const [year, month, day] = iso.split('-').map(Number)
-	return `Due ${new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+	return `Due ${iso.split('-').reverse().join('/')}`
 }
 
 const today = localDate(0)
@@ -358,7 +338,8 @@ test('loads more tasks through the cursor', async () => {
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
 
-test('shows open work even when finished tasks fill the first page', async () => {
+test('shows open work even when finished tasks fill the first page, counting them in the format locale', async () => {
+	rememberFormatLocale('es-ES-u-nu-deva')
 	const finished = [
 		taskRow(doneID, 'Book the courier', 'done'),
 		taskRow(oldID, 'File the customs form', 'done'),
@@ -378,7 +359,7 @@ test('shows open work even when finished tasks fill the first page', async () =>
 	renderAt('/tasks')
 
 	expect(await screen.findByText('Reply to the imported enquiry')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Done (2)' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Done (२)' })).toBeInTheDocument()
 })
 
 test('keeps the day usable when the done group cannot be loaded', async () => {
