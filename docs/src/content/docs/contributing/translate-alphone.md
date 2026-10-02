@@ -52,7 +52,7 @@ pick.
 ## Things worth knowing before you start
 
 **Placeholders must survive.** Some strings carry a marker like
-`%(name)s` or `%(max)d`. These are holes the software fills in with a
+`%(name)s` or `%(count)s`. These are holes the software fills in with a
 name or a number. Copy every marker into your translation exactly as it
 appears. You may move a marker to wherever your language needs it, and
 you should when word order differs. You may never rename one, drop one
