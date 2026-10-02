@@ -14,8 +14,8 @@ const assets = join(dist, 'assets')
 // entryCeiling bounds the JavaScript every visitor downloads before first paint, in bytes.
 const entryCeiling = 1240 * 1024
 
-// previewCeiling bounds the lazy chunk only the import preview downloads.
-const previewCeiling = 1900 * 1024
+// listCeiling bounds the lazy chunk every DataViews screen shares.
+const listCeiling = 1900 * 1024
 
 /**
  * Returns the built asset whose name starts with the given prefix.
@@ -44,12 +44,20 @@ function eagerScripts(): string[] {
 	return referenced
 }
 
-test('the entry bundle stays free of the import preview', () => {
-	const entry = chunk('index-', '.js')
+/**
+ * Returns every built script that carries DataViews.
+ * @returns The asset file names.
+ */
+function dataViewsChunks(): string[] {
+	return readdirSync(assets)
+		.filter((name) => name.endsWith('.js'))
+		.filter((name) => readFileSync(join(assets, name), 'utf8').includes('DataViews'))
+}
 
-	const source = readFileSync(join(assets, entry), 'utf8')
-
-	expect(source).not.toContain('DataViews')
+test('nothing loaded before first paint carries DataViews', () => {
+	for (const name of eagerScripts()) {
+		expect(readFileSync(join(assets, name), 'utf8'), name).not.toContain('DataViews')
+	}
 })
 
 test('everything loaded before first paint stays under the entry ceiling', () => {
@@ -68,9 +76,28 @@ test('the entry bundle stays free of the test mocks', () => {
 	expect(source).not.toContain('[MSW]')
 })
 
-test('the import preview stays behind its own chunk', () => {
-	const preview = chunk('RowsTable-', '.js')
+test('DataViews lives in one lazy chunk under its ceiling', () => {
+	const found = dataViewsChunks()
 
-	expect(statSync(join(assets, preview)).size).toBeLessThan(previewCeiling)
-	expect(readFileSync(join(assets, preview), 'utf8')).toContain('DataViews')
+	expect(found, 'one chunk carries DataViews').toHaveLength(1)
+	expect(eagerScripts()).not.toContain(found[0])
+	expect(statSync(join(assets, found[0])).size).toBeLessThan(listCeiling)
+})
+
+test('the users list, the tokens list, the imports list and the import preview each load DataViews on demand', () => {
+	const [shared] = dataViewsChunks()
+
+	for (const screen of ['UsersScreen-', 'TokensScreen-', 'ImportsScreen-', 'RowsTable-']) {
+		const lazy = chunk(screen, '.js')
+		expect(eagerScripts()).not.toContain(lazy)
+		expect(readFileSync(join(assets, lazy), 'utf8'), lazy).toContain(shared)
+	}
+})
+
+test('the contacts list loads DataViews on demand', () => {
+	const [shared] = dataViewsChunks()
+	const lazy = chunk('ContactsScreen-', '.js')
+
+	expect(eagerScripts()).not.toContain(lazy)
+	expect(readFileSync(join(assets, lazy), 'utf8'), lazy).toContain(shared)
 })

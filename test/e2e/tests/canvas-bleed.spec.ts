@@ -57,6 +57,6 @@ test('a normal screen keeps the canvas padding', async ({ page }) => {
 
 	const geometry = await canvasGeometry(page)
 
-	expect(geometry.paddingTop).toBe('24px')
+	expect(geometry.paddingTop).toBe('16px')
 	expect(geometry.paddingLeft).toBe('24px')
 })

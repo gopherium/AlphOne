@@ -75,6 +75,7 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		`/contacts/${contactID}`,
 		'/users',
 		'/users/new',
+		'/users/tokens',
 		'/whatsapp',
 		`/whatsapp/conversations/${conversationID}`,
 		'/import',
