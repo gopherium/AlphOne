@@ -228,7 +228,7 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	addr, secret := servedSeededBinary(t, databaseURL)
 
 	read := postGraph(t, addr, secret,
-		`{"query":"{ contacts(first: 50) { edges { node { name birthDate } } } }"}`)
+		`{"query":"{ contacts(q: \"Grace Hopper\", first: 50) { edges { node { name birthDate } } } }"}`)
 
 	if read.Data.Contacts == nil {
 		t.Fatal("the read answered no contacts, want the seeded demo import")
@@ -265,7 +265,7 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	addr, secret := servedSeededBinary(t, databaseURL)
 
 	read := postGraph(t, addr, secret,
-		`{"query":"{ contacts(first: 50) { edges { node { name birthDate history } } } }"}`)
+		`{"query":"{ contacts(q: \"Maria Perez\", first: 50) { edges { node { name birthDate history } } } }"}`)
 
 	if read.Data.Contacts == nil {
 		t.Fatal("the read answered no contacts, want the seeded demo contact")

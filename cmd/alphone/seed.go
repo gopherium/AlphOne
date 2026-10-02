@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -136,29 +137,56 @@ func reportLogins(stdout io.Writer, created map[string]bool) {
 	}
 }
 
-// demoContact is one contact the seeder ensures, found by its email.
+// demoContact is one contact the seeder ensures, found by its identity.
 type demoContact struct {
-	email string
-	name  string
+	channel    contact.Channel
+	identifier string
+	name       string
 }
+
+// Names the synthetic directory contacts are composed from.
+var (
+	directoryFirstNames = []string{"Alice", "Ben", "Chloe", "Daniel", "Emma", "Felix", "Hannah", "Isaac"}
+	directorySurnames   = []string{"Baker", "Carter", "Fisher", "Hughes", "Morgan", "Parker", "Turner", "Walker"}
+)
 
 // demoContacts names every contact the seeder ensures, in creation order.
 func demoContacts() []demoContact {
-	return []demoContact{
-		{email: "ada@example.com", name: "Ada Lovelace"},
-		{email: "maria.perez@example.com", name: "Maria Perez"},
-	}
+	return append([]demoContact{
+		{channel: "email", identifier: "ada@example.com", name: "Ada Lovelace"},
+		{channel: "email", identifier: "maria.perez@example.com", name: "Maria Perez"},
+	}, directoryContacts()...)
 }
 
-// seedContacts stores the demo contacts and returns each one's id by email.
+// directoryContacts returns the synthetic contacts that fill several pages of the contact list.
+func directoryContacts() []demoContact {
+	contacts := make([]demoContact, 0, len(directoryFirstNames)*len(directorySurnames))
+	for _, surname := range directorySurnames {
+		for _, firstName := range directoryFirstNames {
+			held := demoContact{
+				channel:    "email",
+				identifier: strings.ToLower(firstName+"."+surname) + "@example.com",
+				name:       firstName + " " + surname,
+			}
+			if len(contacts)%2 == 1 {
+				held.channel, held.identifier = "phone", fmt.Sprintf("+1202555%04d", 100+len(contacts))
+			}
+			contacts = append(contacts, held)
+		}
+	}
+	return contacts
+}
+
+// seedContacts stores the demo contacts and returns each one's id by identifier.
 func seedContacts(ctx context.Context, resolver *contact.Resolver) (map[string]uuid.UUID, error) {
-	ids := make(map[string]uuid.UUID, len(demoContacts()))
-	for _, demo := range demoContacts() {
-		stored, err := resolver.Resolve(ctx, "email", demo.email, demo.name)
+	demos := demoContacts()
+	ids := make(map[string]uuid.UUID, len(demos))
+	for _, demo := range demos {
+		stored, err := resolver.Resolve(ctx, demo.channel, demo.identifier, demo.name)
 		if err != nil {
 			return nil, fmt.Errorf("seed contact: %w", err)
 		}
-		ids[demo.email] = stored.ID
+		ids[demo.identifier] = stored.ID
 	}
 	return ids, nil
 }
