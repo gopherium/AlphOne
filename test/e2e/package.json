@@ -12,6 +12,7 @@
     "@playwright/test": "1.63.0",
     "@types/node": "^26.5.1",
     "@types/smtp-server": "^3.5.13",
+    "graphql": "^17.0.2",
     "smtp-server": "^3.19.12"
   }
 }
