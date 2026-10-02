@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { sprintf } from '@alphone/frontend-sdk'
 import { expect, test } from 'vitest'
 
 import { plugin } from '../index'
@@ -50,4 +51,14 @@ test('reads the imports list chrome in Spanish', async () => {
 		'No se ha encontrado ninguna importación.',
 		'Sube un archivo CSV o Excel para empezar una.',
 	])
+})
+
+test('says in Spanish what an import did with no word agreeing with a count', async () => {
+	const msgid = 'Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed.'
+	const catalog = await plugin.locale?.load('es-ES')
+	const [finished] = (catalog?.[msgid] ?? []) as (typeof msgid)[]
+
+	expect(sprintf(finished, { imported: '1.234', skipped: '0', failed: '2' })).toBe(
+		'Importación terminada. Importadas: 1.234. Omitidas: 0. Fallidas: 2.',
+	)
 })

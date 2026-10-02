@@ -1,34 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider } from '@alphone/frontend-sdk'
-import {
-	HttpResponse,
-	fakeGraphClient,
-	graphql,
-	server,
-	textClasses,
-} from '@alphone/frontend-sdk/testing'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { ImportScreen } from '../ImportScreen'
 import { handlers, importID } from '../handlers'
+import { plugin } from '../index'
+import { inSpanish, renderHosted } from './harness'
 
 /**
- * Renders the import screen for the fixture import.
+ * Renders the import screen for the fixture import, below a toaster.
  */
 function renderScreen() {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	const { graph } = fakeGraphClient()
-	render(
-		<QueryClientProvider client={client}>
-			<GraphProvider graph={graph}>
-				<ImportScreen importId={importID} />
-			</GraphProvider>
-		</QueryClientProvider>,
-	)
+	renderHosted(<ImportScreen importId={importID} />)
 }
 
 /**
@@ -96,6 +82,15 @@ test('keeps the page chrome while the import is on its way', async () => {
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
+test('heads the loading page with the name the menu gives the section, in Spanish too', async () => {
+	await inSpanish()
+	server.use(graphql.query('ImportDetail', () => new Promise(() => {})))
+	renderScreen()
+
+	const heading = await screen.findByRole('heading', { level: 1 })
+	expect([heading.textContent, plugin.nav[0].label]).toEqual(['Importar', 'Importar'])
+})
+
 test('the screen names the file it is mapping', async () => {
 	renderScreen()
 
@@ -134,6 +129,7 @@ test(
 		await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
 
 		await waitFor(() => expect(saved).toEqual([{ column: 0, field: 'name' }]))
+		expect(await screen.findByText('Mapping saved.')).toBeInTheDocument()
 	},
 	20000,
 )
@@ -159,9 +155,10 @@ test('a refused mapping is reported', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'no assignment claims the required field "name"',
 	)
+	expect(screen.queryByText('Mapping saved.')).not.toBeInTheDocument()
 })
 
-test('the commit turns the rows into contacts', async () => {
+test('the commit turns the rows into contacts and says what it did with them', async () => {
 	let committed: unknown = null
 	server.use(
 		graphql.mutation('ImportCommit', ({ variables }) => {
@@ -171,8 +168,8 @@ test('the commit turns the rows into contacts', async () => {
 					importCommit: {
 						__typename: 'ImportCommitPayload',
 						id: importID,
-						imported: 2,
-						skipped: 0,
+						imported: 1234,
+						skipped: 1,
 						failed: 0,
 					},
 				},
@@ -184,6 +181,7 @@ test('the commit turns the rows into contacts', async () => {
 	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
 
 	await waitFor(() => expect(committed).toBe(importID))
+	expect(await screen.findByText('Import finished: 1.234 imported, 1 skipped, 0 failed.')).toBeInTheDocument()
 })
 
 test('a refused commit is reported', async () => {
@@ -205,6 +203,98 @@ test('a refused commit is reported', async () => {
 	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('the import carries no mapping yet')
+	expect(screen.queryByText(/^Import finished/)).not.toBeInTheDocument()
+})
+
+/**
+ * Serves an error for the named mutation.
+ * @param operation - The mutation the server refuses.
+ * @param message - The reason the server gives.
+ */
+function refusing(operation: string, message: string) {
+	server.use(
+		graphql.mutation(operation, () =>
+			HttpResponse.json({ data: null, errors: [{ message, extensions: { code: 'VALIDATION' } }] }),
+		),
+	)
+}
+
+test(
+	'a mapping that saves takes away the refused commit before it',
+	async () => {
+		refusing('ImportCommit', 'the import carries no mapping yet')
+		server.use(
+			graphql.mutation('ImportSetMapping', () =>
+				HttpResponse.json({
+					data: {
+						importSetMapping: {
+							__typename: 'ImportJob',
+							id: importID,
+							state: 'ready',
+							mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+						},
+					},
+				}),
+			),
+		)
+		await renderSettled()
+		await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
+		await screen.findByRole('alert')
+
+		await chooseField('Name', 'Name')
+		await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+
+		expect(await screen.findByText('Mapping saved.')).toBeInTheDocument()
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	},
+	20000,
+)
+
+test('a commit that runs takes away the refused mapping before it', async () => {
+	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+	server.use(
+		graphql.mutation('ImportCommit', () =>
+			HttpResponse.json({
+				data: {
+					importCommit: { __typename: 'ImportCommitPayload', id: importID, imported: 2, skipped: 0, failed: 0 },
+				},
+			}),
+		),
+	)
+	await renderSettled()
+	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
+	await screen.findByRole('alert')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Commit' }))
+
+	expect(await screen.findByText('Import finished: 2 imported, 0 skipped, 0 failed.')).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a mapping on its way already takes away the refused commit before it', async () => {
+	refusing('ImportCommit', 'the import carries no mapping yet')
+	server.use(graphql.mutation('ImportSetMapping', () => new Promise(() => {})))
+	await renderSettled()
+	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
+	await screen.findByRole('alert')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+
+	await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Save mapping' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a commit on its way already takes away the refused mapping before it', async () => {
+	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+	server.use(graphql.mutation('ImportCommit', () => new Promise(() => {})))
+	await renderSettled()
+	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
+	await screen.findByRole('alert')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Commit' }))
+
+	await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Commit' })).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('a committed import accepts neither a mapping nor another commit', async () => {
