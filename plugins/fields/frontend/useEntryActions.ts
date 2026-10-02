@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
+import { __, useGraph, useGraphMutation, useToaster } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
@@ -73,6 +73,7 @@ export function useEntryActions({
 	const [, runUpdate] = useGraphMutation(updateContactFieldEntryMutation)
 	const [, runDelete] = useGraphMutation(deleteContactFieldEntryMutation)
 	const graph = useGraph()
+	const toaster = useToaster()
 
 	const focusAdd = () => setAddFocus((count) => count + 1)
 
@@ -133,6 +134,7 @@ export function useEntryActions({
 				fallback: __('The entry could not be saved.', 'alphone-fields'),
 				done: () => {
 					setOpen(null)
+					toaster.show(__('Entry saved.', 'alphone-fields'))
 					whenFocusStayed(from, () => setRowFocus({ id, on: 'first' }))
 				},
 				refused: () => {},
@@ -155,7 +157,10 @@ export function useEntryActions({
 			setPendingID('')
 			settle(id, from, result.error, {
 				fallback: __('The entry could not be removed.', 'alphone-fields'),
-				done: () => leave(id, from),
+				done: () => {
+					toaster.show(__('Entry removed.', 'alphone-fields'))
+					leave(id, from)
+				},
 				refused: () => {
 					setOpen(null)
 					whenFocusStayed(from, () => setRowFocus({ id, on: 'remove' }))

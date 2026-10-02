@@ -70,7 +70,25 @@ msgstr ""
 msgid "Edit entry: %(name)s"
 msgstr ""
 
+msgid "Entry added."
+msgstr ""
+
+msgid "Entry removed."
+msgstr ""
+
+msgid "Entry saved."
+msgstr ""
+
+msgid "Field added."
+msgstr ""
+
+msgid "Field archived."
+msgstr ""
+
 msgid "Fields"
+msgstr ""
+
+msgid "Fields saved."
 msgstr ""
 
 msgid "Fill in at least one part of the entry."
