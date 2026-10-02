@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
-import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
+import { ContactRoute, NewContactRoute } from './contactRoutes'
 import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
@@ -54,7 +54,8 @@ const taskRoute = createRoute({
 const contactsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/contacts',
-	component: ContactsRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./contacts/ContactsScreen'), 'ContactsScreen'),
 })
 
 const newContactRoute = createRoute({

@@ -82,6 +82,9 @@ msgstr ""
 msgid "Add identity"
 msgstr ""
 
+msgid "Add one with New contact."
+msgstr ""
+
 msgid "Add one with New token."
 msgstr ""
 
@@ -131,6 +134,9 @@ msgid "Change role"
 msgstr ""
 
 msgid "Channel"
+msgstr ""
+
+msgid "Channels"
 msgstr ""
 
 msgid "Choose at least one area the token reaches."
@@ -226,6 +232,9 @@ msgstr ""
 msgid "Identities"
 msgstr ""
 
+msgid "Identity"
+msgstr ""
+
 msgid "Identity added."
 msgstr ""
 
@@ -259,9 +268,6 @@ msgstr ""
 msgid "Load more tasks"
 msgstr ""
 
-msgid "Loading contacts…"
-msgstr ""
-
 msgid "Loading contact…"
 msgstr ""
 
@@ -272,6 +278,9 @@ msgid "Loading task…"
 msgstr ""
 
 msgid "Loading…"
+msgstr ""
+
+msgid "Manage the people you work with and how to reach them."
 msgstr ""
 
 msgid "Manage the tokens your programs sign in with."
@@ -311,6 +320,9 @@ msgid "No API tokens yet."
 msgstr ""
 
 msgid "No contacts found."
+msgstr ""
+
+msgid "No contacts yet."
 msgstr ""
 
 msgid "No identities yet."
@@ -370,6 +382,12 @@ msgstr ""
 msgid "Remove %(name)s"
 msgstr ""
 
+msgid "Rename"
+msgstr ""
+
+msgid "Rename contact"
+msgstr ""
+
 msgid "Reopen"
 msgstr ""
 
@@ -404,7 +422,7 @@ msgstr ""
 msgid "Scopes"
 msgstr ""
 
-msgid "Search contacts"
+msgid "Search contacts…"
 msgstr ""
 
 msgid "Search tokens…"
@@ -585,9 +603,6 @@ msgid "Tokens could not be loaded."
 msgstr ""
 
 msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
-msgstr ""
-
-msgid "Try a different search, or add one with New contact."
 msgstr ""
 
 msgid "Undo"

@@ -30,8 +30,7 @@ import { useId, useState } from 'react'
 import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
 import { ContactPanels } from './ContactPanels'
-import { channelItemOf, channelItems } from './channel'
-import { formatCreated } from './format'
+import { channelItemOf, channelItems, channelName } from './channel'
 import {
 	addContactIdentityMutation,
 	contactDetailQuery,
@@ -40,7 +39,6 @@ import {
 } from './operations'
 
 const contactPanels = plugins.flatMap((plugin) => plugin.contactPanels ?? [])
-const pluginChannels = plugins.flatMap((plugin) => plugin.channels ?? [])
 const contactTasksPageSize = 50
 const contactDetailOperation = 'ContactDetail'
 
@@ -123,15 +121,6 @@ function useContactRefresh() {
 	return () => {
 		graph.refetch([contactDetailOperation])
 	}
-}
-
-/**
- * Returns the name the channel select or a plugin gives a channel, or the channel itself when none does.
- * @param channel - The channel an identity belongs to.
- * @returns The channel name to show.
- */
-function channelName(channel: string): string {
-	return [...channelItems(), ...pluginChannels].find((item) => item.value === channel)?.label ?? channel
 }
 
 /**
