@@ -21,6 +21,7 @@ import {
 	useConnection,
 	useGraph,
 	useGraphMutation,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { useId, useState } from 'react'
@@ -149,10 +150,15 @@ function identityText(identity: ContactDetail['identities'][number]): string {
  */
 function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelledBy: string }) {
 	const settled = useContactRefresh()
+	const toaster = useToaster()
+	const [removing, setRemoving] = useState<readonly string[]>([])
 	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
 	const removeIdentity = async (identityId: string) => {
+		setRemoving((pending) => [...pending, identityId])
 		const result = await runRemove({ contactId: contact.id, identityId })
+		setRemoving((pending) => pending.filter((id) => id !== identityId))
 		if (result.data) {
+			toaster.show(__('Identity removed.', 'alphone'))
 			settled()
 		}
 	}
@@ -175,7 +181,7 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
 								tone="neutral"
 								size="compact"
 								label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-								loading={remove.fetching}
+								loading={removing.includes(identity.id)}
 								onClick={() => void removeIdentity(identity.id)}
 							/>
 						}
@@ -195,6 +201,7 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
  */
 function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
+	const toaster = useToaster()
 	const [channel, setChannel] = useState('email')
 	const [identifier, setIdentifier] = useState('')
 	const [label, setLabel] = useState('')
@@ -208,6 +215,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 		if (result.data) {
 			setIdentifier('')
 			setLabel('')
+			toaster.show(__('Identity added.', 'alphone'))
 			settled()
 		}
 	}
@@ -260,11 +268,13 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
  */
 function RenameForm({ contact }: { contact: ContactDetail }) {
 	const settled = useContactRefresh()
+	const toaster = useToaster()
 	const [name, setName] = useState(contact.name)
 	const [rename, runRename] = useGraphMutation(renameContactMutation)
 	const submitRename = async () => {
 		const result = await runRename({ id: contact.id, name })
 		if (result.data) {
+			toaster.show(__('Contact renamed.', 'alphone'))
 			settled()
 		}
 	}

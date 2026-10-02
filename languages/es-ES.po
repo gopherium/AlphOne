@@ -734,3 +734,23 @@ msgstr "Invitada"
 #, fuzzy
 msgid "v%(version)s"
 msgstr "v%(version)s"
+
+#, fuzzy
+msgid "Contact added."
+msgstr "Contacto añadido."
+
+#, fuzzy
+msgid "Contact renamed."
+msgstr "Contacto renombrado."
+
+#, fuzzy
+msgid "Dismiss"
+msgstr "Descartar"
+
+#, fuzzy
+msgid "Identity added."
+msgstr "Identidad añadida."
+
+#, fuzzy
+msgid "Identity removed."
+msgstr "Identidad quitada."

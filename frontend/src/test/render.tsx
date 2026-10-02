@@ -9,6 +9,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
 
+import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
 import { createAppRouter } from '../router'
 
@@ -53,7 +54,7 @@ export function liveStream() {
 }
 
 /**
- * Renders the app at one route with a seeded session.
+ * Renders the app at one route with a seeded session, below the app toaster.
  * @param path - The route the memory history starts on.
  * @param user - The signed-in account, or null for an anonymous caller.
  * @param version - The version the graph answers, or null to make it fail.
@@ -84,7 +85,9 @@ export function renderAt(
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
-				<RouterProvider router={router} />
+				<AppToaster>
+					<RouterProvider router={router} />
+				</AppToaster>
 			</GraphProvider>
 		</QueryClientProvider>,
 	)

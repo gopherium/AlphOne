@@ -247,6 +247,7 @@ test('creates a contact and opens its detail', async () => {
 		await screen.findByRole('heading', { name: 'New Ltd' }),
 	).toBeInTheDocument()
 	expect(screen.getByText('No identities yet.')).toBeInTheDocument()
+	expect(screen.getByText('Contact added.')).toBeInTheDocument()
 })
 
 test('reports invalid contact details on create', async () => {
@@ -280,6 +281,7 @@ test('reports a generic message when the create fails otherwise', async () => {
 	expect(
 		await screen.findByText('The contact could not be created.'),
 	).toBeInTheDocument()
+	expect(screen.queryByText('Contact added.')).not.toBeInTheDocument()
 })
 
 test('drops the session when the create is unauthorized', async () => {
@@ -449,6 +451,7 @@ test('adds an email identity to the contact', async () => {
 		displayName: 'Work',
 	})
 	expect(screen.getByLabelText('Value')).toHaveValue('')
+	expect(screen.getByText('Identity added.')).toBeInTheDocument()
 })
 
 test('adds a phone identity through the channel select', async () => {
@@ -585,6 +588,7 @@ test('reports a generic message when the identity add fails otherwise', async ()
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The identity could not be added.',
 	)
+	expect(screen.queryByText('Identity added.')).not.toBeInTheDocument()
 })
 
 test('lays the channel, value, label and Add identity on one form row', async () => {
@@ -675,6 +679,38 @@ test('removes an identity', async () => {
 	)
 	expect(deleted).toBe(identityID2)
 	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
+})
+
+test('spins only the remove button pressed', async () => {
+	server.use(graphql.mutation('DeleteContactIdentity', () => new Promise(() => {})))
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true'),
+	)
+	expect(screen.getByRole('button', { name: 'Remove 184467236' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('keeps a remove button spinning while its own removal waits and another one finishes', async () => {
+	server.use(
+		graphql.mutation('DeleteContactIdentity', ({ variables }) =>
+			variables.identityId === identityID1
+				? new Promise(() => {})
+				: HttpResponse.json({ data: { deleteContactIdentity: true } }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467236' }))
+
+	expect(await screen.findByText('Identity removed.')).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('reports a failed removal', async () => {
@@ -691,6 +727,8 @@ test('reports a failed removal', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The identity could not be removed.',
 	)
+	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('shows each identity remove as an icon named after its identifier', async () => {
@@ -758,6 +796,7 @@ test('renames a contact', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
 	).toBeInTheDocument()
+	expect(screen.getByText('Contact renamed.')).toBeInTheDocument()
 })
 
 test('lays the name and Save on one form row', async () => {
@@ -827,6 +866,7 @@ test('reports a generic message when the rename fails otherwise', async () => {
 	expect(
 		await screen.findByText('The contact could not be renamed.'),
 	).toBeInTheDocument()
+	expect(screen.queryByText('Contact renamed.')).not.toBeInTheDocument()
 })
 
 test('surfaces the backend message for unreadable rename rejections', async () => {

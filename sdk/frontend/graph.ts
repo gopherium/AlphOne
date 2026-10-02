@@ -213,6 +213,7 @@ export function graphRetryExchange(): Exchange {
 export function graphCacheExchange(): Exchange {
 	return cacheExchange({
 		keys: {
+			AdminSettings: () => null,
 			CreateTaskPayload: () => null,
 			CreateWebhookPayload: () => null,
 			ImportCommitPayload: () => null,

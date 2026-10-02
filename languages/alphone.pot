@@ -112,6 +112,12 @@ msgstr ""
 msgid "Contact"
 msgstr ""
 
+msgid "Contact added."
+msgstr ""
+
+msgid "Contact renamed."
+msgstr ""
+
 msgid "Contact tasks"
 msgstr ""
 
@@ -154,6 +160,9 @@ msgstr ""
 msgid "Disable %(name)s"
 msgstr ""
 
+msgid "Dismiss"
+msgstr ""
+
 msgid "Done"
 msgstr ""
 
@@ -182,6 +191,12 @@ msgid "Expires"
 msgstr ""
 
 msgid "Identities"
+msgstr ""
+
+msgid "Identity added."
+msgstr ""
+
+msgid "Identity removed."
 msgstr ""
 
 msgid "Invitation sent."

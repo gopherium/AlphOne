@@ -3,5 +3,6 @@
 import '@wordpress/components/build-style/style.css'
 import '@wordpress/dataviews/build-style/style.css'
 
-export { DataForm, DataViews } from '@wordpress/dataviews'
-export type { Action, Field, Filter, SortDirection, View } from '@wordpress/dataviews'
+export { DataForm, DataViews, filterSortAndPaginate } from '@wordpress/dataviews'
+export type { Action, Field, Filter, RenderModalProps, SortDirection, View } from '@wordpress/dataviews'
+export { useEnableWpCompatOverlaySlot } from '@wordpress/ui'
