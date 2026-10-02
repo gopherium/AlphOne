@@ -167,12 +167,17 @@ type ImportJob struct {
 }
 
 type ImportRow struct {
-	ID        uuid.UUID  `json:"id"`
-	Position  int        `json:"position"`
-	Cells     []string   `json:"cells"`
-	Outcome   string     `json:"outcome"`
-	Reason    *string    `json:"reason,omitempty"`
-	ContactID *uuid.UUID `json:"contactId,omitempty"`
+	ID        uuid.UUID        `json:"id"`
+	Position  int              `json:"position"`
+	Cells     []string         `json:"cells"`
+	Outcome   string           `json:"outcome"`
+	Reason    *ImportRowReason `json:"reason,omitempty"`
+	ContactID *uuid.UUID       `json:"contactId,omitempty"`
+}
+
+type ImportRowReason struct {
+	Code string `json:"code"`
+	Meta any    `json:"meta"`
 }
 
 type InvitePayload struct {
