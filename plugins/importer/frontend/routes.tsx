@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { createRoute, useParams } from '@tanstack/react-router'
+import { listSearch } from '@alphone/frontend-sdk'
+import { createRoute, lazyRouteComponent, useParams } from '@tanstack/react-router'
 import type { AnyRoute } from '@tanstack/react-router'
 
 import { ImportScreen } from './ImportScreen'
-import { ImportsScreen } from './ImportsScreen'
 
 /**
  * Renders the import named in the route path.
@@ -24,7 +24,8 @@ export function routes(parent: AnyRoute): AnyRoute[] {
 	const importsRoute = createRoute({
 		getParentRoute: () => parent,
 		path: '/import',
-		component: ImportsScreen,
+		validateSearch: listSearch,
+		component: lazyRouteComponent(() => import('./ImportsScreen'), 'ImportsScreen'),
 	})
 	const importRoute = createRoute({
 		getParentRoute: () => parent,

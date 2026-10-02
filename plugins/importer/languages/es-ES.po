@@ -13,8 +13,8 @@ msgid "AlphOne could not read that file as a CSV or a spreadsheet."
 msgstr "AlphOne no ha podido leer ese archivo como CSV ni como hoja de cálculo."
 
 #, fuzzy
-msgid "Choose a CSV or Excel file to start one."
-msgstr "Elige un archivo CSV o Excel para empezar una."
+msgid "Bring contacts in from CSV and Excel files."
+msgstr "Importa contactos desde archivos CSV y Excel."
 
 #, fuzzy
 msgid "Choose what each column holds before committing."
@@ -37,8 +37,8 @@ msgid "File"
 msgstr "Archivo"
 
 #, fuzzy
-msgid "Import"
-msgstr "Importar"
+msgid "File uploaded."
+msgstr "Archivo subido."
 
 #, fuzzy
 msgid "Imports"
@@ -61,12 +61,20 @@ msgid "Loading the preview…"
 msgstr "Cargando la vista previa…"
 
 #, fuzzy
+msgid "No imports found."
+msgstr "No se ha encontrado ninguna importación."
+
+#, fuzzy
 msgid "No imports yet."
 msgstr "Todavía no hay ninguna importación."
 
 #, fuzzy
 msgid "Not imported"
 msgstr "No importada"
+
+#, fuzzy
+msgid "Open"
+msgstr "Abrir"
 
 #, fuzzy
 msgid "Outcome"
@@ -89,6 +97,10 @@ msgid "Save mapping"
 msgstr "Guardar la asignación"
 
 #, fuzzy
+msgid "Search imports…"
+msgstr "Buscar importaciones…"
+
+#, fuzzy
 msgid "Started"
 msgstr "Iniciada"
 
@@ -105,8 +117,8 @@ msgid "The file could not be imported."
 msgstr "No se ha podido importar el archivo."
 
 #, fuzzy
-msgid "The file runs past %(maxBytes)d bytes."
-msgstr "El archivo pasa de %(maxBytes)d bytes."
+msgid "The file runs past %(maxBytes)s bytes."
+msgstr "El archivo pasa de %(maxBytes)s bytes."
 
 #, fuzzy
 msgid "The import could not be committed."
@@ -133,6 +145,13 @@ msgid "This import was committed already."
 msgstr "Esta importación ya se ha confirmado."
 
 #, fuzzy
+msgid "Upload"
+msgstr "Subir"
+
+#, fuzzy
+msgid "Upload a CSV or Excel file to start one."
+msgstr "Sube un archivo CSV o Excel para empezar una."
+
 msgctxt "admin section"
 msgid "Import"
 msgstr "Importar"
@@ -151,6 +170,21 @@ msgstr "Importadas"
 msgctxt "import count"
 msgid "Skipped"
 msgstr "Omitidas"
+
+#, fuzzy
+msgctxt "import state"
+msgid "Imported"
+msgstr "Importada"
+
+#, fuzzy
+msgctxt "import state"
+msgid "Importing"
+msgstr "En curso"
+
+#, fuzzy
+msgctxt "import state"
+msgid "Ready"
+msgstr "Lista"
 
 #, fuzzy
 msgctxt "row outcome"
