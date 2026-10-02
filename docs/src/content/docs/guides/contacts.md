@@ -20,16 +20,40 @@ fixing them is the point of the next section.
 You can also add a contact by hand with the **New contact** button, for
 people you want in the CRM before they ever message you.
 
+## The contact list
+
+The list shows one row per contact: its initials, its name with its first
+identity under it, a badge for every channel it can be reached on, and the
+date it was created. Click a name to open the contact. On a phone the rows
+stack instead, and a tap on a row opens it.
+
+The list opens with the newest contacts first. To sort another way, open
+the menu on the **Name** or **Created** column heading and pick an order,
+or choose **Sort by** under the gear button.
+
+The list shows one page at a time. Move between pages at the bottom of the
+list, and choose how many contacts a page holds under the gear button.
+The search, the filters, the sort and the page stay in the address, so the
+browser's Back button brings you back to the same place.
+
 ## Renaming
 
-Open a contact and edit the name field. The new name applies everywhere
+Open the actions menu at the end of a contact's row and choose
+**Rename**. Type the new name and press **Rename**. You can also open the
+contact and edit the name field there. The new name applies everywhere
 immediately, including past conversations in the WhatsApp inbox, because
 conversations reference the contact rather than copying its name.
 
 Renaming is how you clean up number-named contacts: search for the
-number, open the contact, give it the person's real name.
+number, then rename the contact to the person's real name.
 
-## Searching
+## Adding a task
+
+The same actions menu offers **Add task**. It opens the New task form with
+the contact already linked, so the task shows on the contact's page once
+you create it.
+
+## Searching and filtering
 
 The search box on the contact list matches three things:
 
@@ -37,6 +61,9 @@ The search box on the contact list matches three things:
 - the **profile name** a channel reported for them
 - their **phone number**, by any fragment, regardless of how you type
   it: searching `+34 612 34` finds a number stored as `34612…`
+
+The filter button beside the search box narrows the list to the contacts
+reached on the channels you pick, such as Email or WhatsApp.
 
 ## Identities
 
