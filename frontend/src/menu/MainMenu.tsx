@@ -74,7 +74,7 @@ function reaches(session: Session | null, item: NavItem): boolean {
 export function MainMenu() {
 	const session = useSession()
 	return (
-		<Stack direction="column" gap="xs">
+		<Stack direction="column">
 			{coreNav
 				.filter((item) => reaches(session, item))
 				.map((item) => (
