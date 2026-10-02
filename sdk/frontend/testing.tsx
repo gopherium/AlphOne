@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import '@testing-library/jest-dom/vitest'
+import { Toaster } from '@gopherium/godmin'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
 import {
 	installTestEnvironment as installAuthTestEnvironment,
@@ -145,7 +146,7 @@ export function installTestEnvironment() {
 }
 
 /**
- * Renders the given frontend plugin mounted at a specific route path.
+ * Renders the given frontend plugin mounted at a specific route path, below a toaster.
  * @param plugin - The frontend plugin whose nav and routes are mounted.
  * @param path - The initial router path to render at.
  * @returns The fake graph client the mounted plugin consumes.
@@ -198,7 +199,9 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string): FakeGraph 
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>
-				<RouterProvider router={router} />
+				<Toaster>
+					<RouterProvider router={router} />
+				</Toaster>
 			</GraphProvider>
 		</QueryClientProvider>,
 	)
