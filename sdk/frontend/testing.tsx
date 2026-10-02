@@ -19,8 +19,8 @@ import {
 	useRouterState,
 } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
-import { Text } from '@wordpress/ui'
-import type { ComponentProps } from 'react'
+import { Button, Text } from '@wordpress/ui'
+import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
@@ -125,15 +125,41 @@ export function fakeGraphClient(): FakeGraph {
 }
 
 /**
+ * Returns the classes the outer element of a rendered tree carries.
+ * @param tree - The tree to sample.
+ * @returns The class names, in order.
+ */
+function classesOf(tree: ReactElement): string[] {
+	const { container, unmount } = render(tree)
+	const classes = [...(container.firstElementChild as Element).classList]
+	unmount()
+	return classes
+}
+
+/**
  * Returns the classes a Text renders at the given variant.
  * @param variant - The text variant to sample.
  * @returns The class names, in order.
  */
 export function textClasses(variant: ComponentProps<typeof Text>['variant']): string[] {
-	const { container, unmount } = render(<Text variant={variant} />)
-	const classes = [...(container.firstElementChild as Element).classList]
-	unmount()
-	return classes
+	return classesOf(<Text variant={variant} />)
+}
+
+/**
+ * Returns the classes a Button renders at the given variant and size.
+ * @param variant - The button variant to sample.
+ * @param size - The button size, the default one when absent.
+ * @returns The class names, in order.
+ */
+export function buttonClasses(
+	variant: ComponentProps<typeof Button>['variant'],
+	size?: ComponentProps<typeof Button>['size'],
+): string[] {
+	return classesOf(
+		<Button variant={variant} size={size}>
+			probe
+		</Button>,
+	)
 }
 
 /**
