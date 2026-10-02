@@ -57,6 +57,9 @@ test('listSearch drops filters that are not a list', () => {
 /** Changes a shown view into the one a test writes. */
 type change = (view: ListView['view']) => ListView['view']
 
+/** kept is the search a probe route keeps: the list search beside the tab a screen may hold. */
+type kept = ReturnType<typeof listSearch> & { tab?: unknown }
+
 /**
  * Renders the view the address holds, and a button writing the changed one.
  * @param props - The change the button writes.
@@ -84,14 +87,20 @@ function Probe({ next, opening }: { next: change; opening: ListDefaults }) {
  * @param path - The address the memory history starts on.
  * @param next - The change the probe writes when asked.
  * @param opening - What the list opens on.
+ * @param validate - The search the route keeps from the address.
  * @returns The router the probe renders under.
  */
-function renderProbe(path: string, next: change = (view) => view, opening: ListDefaults = defaults) {
+function renderProbe(
+	path: string,
+	next: change = (view) => view,
+	opening: ListDefaults = defaults,
+	validate: (raw: Record<string, unknown>) => kept = listSearch,
+) {
 	const rootRoute = createRootRoute()
 	const peopleRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: '/people',
-		validateSearch: listSearch,
+		validateSearch: validate,
 		component: () => <Probe next={next} opening={opening} />,
 	})
 	const router = createRouter({
@@ -215,6 +224,34 @@ test('a list keeps the columns and density a reader picked while it stays open, 
 	await screen.findByText(/compact/)
 	expect(await shown('view')).toMatchObject({ fields: ['email'], layout: { density: 'compact' } })
 	expect(router.state.location.search).toEqual({})
+})
+
+/**
+ * Keeps the list search beside the tab a screen holds in its address.
+ * @param raw - The search the router parsed from the address.
+ * @returns The list search and the tab.
+ */
+function withTab(raw: Record<string, unknown>): kept {
+	return { ...listSearch(raw), tab: raw.tab }
+}
+
+test('a changed view keeps the address choices that are not the list own', async () => {
+	const router = renderProbe('/people?tab=other', (view) => ({ ...view, search: 'maria' }), defaults, withTab)
+
+	fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+
+	await screen.findByText(/maria/)
+	expect(router.state.location.search).toEqual({ tab: 'other', search: 'maria' })
+})
+
+test('a view back at its defaults leaves only the choices that are not the list own', async () => {
+	const router = renderProbe('/people?tab=other&page=2', (view) => ({ ...view, page: 1 }), defaults, withTab)
+	await screen.findByText(/"page":2/)
+
+	fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+
+	await screen.findByText(/"page":1/)
+	expect(router.state.location.search).toEqual({ tab: 'other' })
 })
 
 test('a phone keeps the fields the list names for it after a reader picked table columns', async () => {

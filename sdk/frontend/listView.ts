@@ -74,6 +74,9 @@ const phoneQuery = `(max-width: ${DENSE_BREAKPOINT - 1}px)`
 /** addressed names the parts of a view the address or the viewport decides. */
 const addressed = new Set(['type', 'search', 'filters', 'sort', 'page', 'perPage'])
 
+/** listKeys names the address keys a list view owns. */
+const listKeys = new Set(['search', 'page', 'perPage', 'sort', 'order', 'filters'])
+
 /** noShapes is the shape each layout holds before a reader changes one. */
 const noShapes: Record<ListLayout, ListShape> = { table: {}, list: {} }
 
@@ -224,6 +227,15 @@ function searchOf(view: View, defaults: ListDefaults): ListSearch {
 }
 
 /**
+ * Returns the address search without the keys a list view owns.
+ * @param held - The search the address holds.
+ * @returns The choices of the screen around the list.
+ */
+function besideList(held: Record<string, unknown>): Record<string, unknown> {
+	return Object.fromEntries(Object.entries(held).filter(([key]) => !listKeys.has(key)))
+}
+
+/**
  * Holds the rows ticked in a table, none in a phone list, and drops them when the layout flips.
  * @param layout - The layout the viewport takes.
  * @returns The selection beside the control that changes it.
@@ -254,7 +266,11 @@ export function useListView(defaults: ListDefaults): ListView {
 		view: viewOf(listSearch(raw), defaults, shapes[layout], layout),
 		onChangeView: (view) => {
 			setShapes((held) => ({ ...held, [layout]: shapeOf(view) }))
-			void navigate({ to: '.', search: searchOf(view, defaults), replace: true })
+			void navigate({
+				to: '.',
+				search: (held: Record<string, unknown>) => ({ ...besideList(held), ...searchOf(view, defaults) }),
+				replace: true,
+			})
 		},
 		defaultLayouts: phone ? { list: {} } : { table: {} },
 		...selection,
