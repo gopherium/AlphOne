@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/gouncer/authkit/testkit"
 
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 )
@@ -87,7 +88,7 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [7]int{7, 7, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{71, 7, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -95,6 +96,30 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 		"SELECT count(*) FROM core.contacts WHERE name = 'Ada Lovelace'").Scan(&adas)
 	if err != nil || adas != 1 {
 		t.Errorf("Ada Lovelace contacts = %d (err %v), want 1", adas, err)
+	}
+}
+
+func TestSeedFillsSeveralContactPagesOnSeveralChannels(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+
+	pool := testPool(t, databaseURL)
+	if held := countRows(t, pool, "core.contacts"); held < 3*graphres.DefaultListPageSize {
+		t.Errorf("contacts = %d, want at least three pages of %d", held, graphres.DefaultListPageSize)
+	}
+	var channels int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(DISTINCT channel) FROM core.contact_identities").Scan(&channels); err != nil {
+		t.Fatalf("counting the channels: %v", err)
+	}
+	if channels < 3 {
+		t.Errorf("channels = %d, want contacts reachable on email, phone and whatsapp", channels)
 	}
 }
 
@@ -401,7 +426,7 @@ func TestSeedIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [7]int{7, 7, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{71, 7, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.String(), "admin@example.com already exists") {
