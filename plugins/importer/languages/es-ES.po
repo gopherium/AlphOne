@@ -135,7 +135,7 @@ msgstr "Esta importación ya se ha confirmado."
 #, fuzzy
 msgctxt "admin section"
 msgid "Import"
-msgstr "Importación"
+msgstr "Importar"
 
 #, fuzzy
 msgctxt "import count"
