@@ -758,3 +758,40 @@ test('speaks the fallback when a stored reason lacks a value its template names'
 	expect(reasonText({ code: 'identity_taken_by', meta: {} }, templates, 'identity_taken_by')).toBe('identity_taken_by')
 	expect(reasonText({ code: 'identity_taken_by', meta: null }, templates, 'identity_taken_by')).toBe('identity_taken_by')
 })
+
+const contactPageQuery = gql`
+	query ContactPage($limit: Int) {
+		contactPage(limit: $limit) {
+			items {
+				id
+				name
+			}
+			total
+			limit
+		}
+	}
+`
+
+test('keeps a page of contacts embedded in its query without warning', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	server.use(
+		graphql.query('ContactPage', () =>
+			HttpResponse.json({
+				data: {
+					contactPage: {
+						__typename: 'ContactPage',
+						items: [{ __typename: 'Contact', id: 'id-maria', name: 'Maria Perez' }],
+						total: 1,
+						limit: 20,
+					},
+				},
+			}),
+		),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(contactPageQuery, { limit: 20 }).toPromise()
+
+	expect(result.data?.contactPage.total).toBe(1)
+	expect(warn.mock.calls.flat().join('\n')).not.toContain('ContactPage')
+})
