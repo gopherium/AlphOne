@@ -177,9 +177,6 @@ msgstr "Creado el %(date)s"
 msgid "Disable"
 msgstr "Desactivar"
 
-msgid "Disable %(name)s"
-msgstr "Desactivar a %(name)s"
-
 #, fuzzy
 msgid "Done (%(count)s)"
 msgstr "Hechas (%(count)s)"
@@ -199,11 +196,9 @@ msgstr "Fecha de vencimiento"
 msgid "Email"
 msgstr "Correo electrónico"
 
+#, fuzzy
 msgid "Enable"
-msgstr "Activar"
-
-msgid "Enable %(name)s"
-msgstr "Activar a %(name)s"
+msgstr "Reactivar"
 
 #, fuzzy
 msgid "Expires"
@@ -393,10 +388,6 @@ msgstr "No se ha podido revocar."
 #, fuzzy
 msgid "Role"
 msgstr "Rol"
-
-#, fuzzy
-msgid "Role of %(name)s"
-msgstr "Rol de %(name)s"
 
 msgid "Save"
 msgstr "Guardar"
@@ -625,14 +616,14 @@ msgid "Your role does not allow %(capability)s."
 msgstr "Tu rol no permite %(capability)s."
 
 #, fuzzy
-msgctxt "account status"
+msgctxt "user status"
 msgid "Active"
-msgstr "Activa"
+msgstr "Activo"
 
 #, fuzzy
-msgctxt "account status"
+msgctxt "user status"
 msgid "Disabled"
-msgstr "Desactivada"
+msgstr "Desactivado"
 
 #, fuzzy
 msgctxt "admin section"
@@ -707,25 +698,21 @@ msgid "Resend invitation"
 msgstr "Reenviar invitación"
 
 #, fuzzy
-msgid "Resend invitation to %(name)s"
-msgstr "Reenviar invitación a %(name)s"
-
-#, fuzzy
 msgid "Send invitation"
 msgstr "Enviar invitación"
 
 #, fuzzy
 msgid "The invitation could not be sent."
-msgstr "No se pudo enviar la invitación."
+msgstr "No se ha podido enviar la invitación."
 
 #, fuzzy
 msgid "This link is no longer valid. Ask for a new one."
 msgstr "Este enlace ya no es válido. Pide uno nuevo."
 
 #, fuzzy
-msgctxt "account status"
+msgctxt "user status"
 msgid "Invited"
-msgstr "Invitada"
+msgstr "Invitado"
 
 #, fuzzy
 msgid "v%(version)s"
@@ -774,6 +761,90 @@ msgstr "Tarea guardada."
 #, fuzzy
 msgid "Undo"
 msgstr "Deshacer"
+
+#, fuzzy
+msgid "%s user could not be disabled."
+msgid_plural "%s users could not be disabled."
+msgstr[0] "No se ha podido desactivar %s usuario."
+msgstr[1] "No se han podido desactivar %s usuarios."
+
+#, fuzzy
+msgid "%s user could not be enabled."
+msgid_plural "%s users could not be enabled."
+msgstr[0] "No se ha podido reactivar %s usuario."
+msgstr[1] "No se han podido reactivar %s usuarios."
+
+#, fuzzy
+msgid "%s user disabled."
+msgid_plural "%s users disabled."
+msgstr[0] "%s usuario desactivado."
+msgstr[1] "%s usuarios desactivados."
+
+#, fuzzy
+msgid "%s user enabled."
+msgid_plural "%s users enabled."
+msgstr[0] "%s usuario reactivado."
+msgstr[1] "%s usuarios reactivados."
+
+#, fuzzy
+msgid "Cancel"
+msgstr "Cancelar"
+
+#, fuzzy
+msgid "Change role"
+msgstr "Cambiar el rol"
+
+#, fuzzy
+msgid "Choose the role of %(name)s."
+msgstr "Elige el rol de %(name)s."
+
+#, fuzzy
+msgid "No users found."
+msgstr "No se ha encontrado ningún usuario."
+
+#, fuzzy
+msgid "Role changed."
+msgstr "Rol cambiado."
+
+#, fuzzy
+msgid "Search users…"
+msgstr "Buscar usuarios…"
+
+#, fuzzy
+msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
+msgstr "¿Enviar una invitación nueva a %(name)s (%(email)s)? El enlace anterior dejará de funcionar."
+
+#, fuzzy
+msgid "The role could not be changed."
+msgstr "No se ha podido cambiar el rol."
+
+#, fuzzy
+msgid "The user could not be disabled."
+msgstr "No se ha podido desactivar el usuario."
+
+#, fuzzy
+msgid "The user could not be enabled."
+msgstr "No se ha podido reactivar el usuario."
+
+#, fuzzy
+msgid "User disabled."
+msgstr "Usuario desactivado."
+
+#, fuzzy
+msgid "User enabled."
+msgstr "Usuario reactivado."
+
+#, fuzzy
+msgid "Manage who can sign in and what they can do."
+msgstr "Gestiona quién puede entrar y qué puede hacer."
+
+#, fuzzy
+msgid "User sections"
+msgstr "Secciones de usuarios"
+
+#, fuzzy
+msgid "Avatar"
+msgstr "Avatar"
 
 #, fuzzy
 msgctxt "day heading"
