@@ -87,15 +87,18 @@ func run(
 		Events:         pluginPublisher{publisher: events},
 		Getenv:         getenv,
 	})
+	host := pluginkit.NewHost(registered...)
 	if err != nil {
-		return fmt.Errorf("register plugins: %w", err)
+		return errors.Join(
+			fmt.Errorf("register plugins: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	if err := declareRoles(role.Default, registered); err != nil {
-		return fmt.Errorf("declare plugin roles: %w", err)
+		return errors.Join(
+			fmt.Errorf("declare plugin roles: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	mailSender, mailer, err := buildMail(settings.mail, logger)
 	if err != nil {
-		return err
+		return errors.Join(err, gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	tenants := postgres.NewTenantStore(pool)
 	wireFieldProviders(registered)
@@ -103,7 +106,6 @@ func run(
 	wireTenantGate(registered, tenantGateBridge{tenants: tenants, grace: settings.machineGrace})
 	wireMailSenderFrom(registered, mailSender)
 
-	host := pluginkit.NewHost(registered...)
 	if err := host.Start(ctx, settings.serving.StopGrace); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}
