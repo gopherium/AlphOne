@@ -32,6 +32,7 @@ linters:
           allow:
             - $gostd
             - github.com/google/uuid
+            - github.com/gopherium/framework/gonsole
             - github.com/gopherium/framework/pluginkit
         plugins-never-import-internal:
           list-mode: lax

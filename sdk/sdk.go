@@ -61,6 +61,8 @@ type Deps struct {
 	Contacts       ContactDirectory
 	Getenv         func(string) string
 	Events         Publisher
+	// Env reads the settings under the program prefix, each value trimmed.
+	Env Env
 }
 
 // Publisher announces a plugin's own events to the host.
