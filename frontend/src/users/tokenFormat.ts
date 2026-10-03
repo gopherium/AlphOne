@@ -16,6 +16,24 @@ export const grantableAreas = [
 ] as const
 
 /**
+ * Returns the name each grantable area reads under in a sentence, read fresh so the loaded catalogue answers.
+ * @returns The names, keyed by area.
+ */
+export function areaLabels(): Record<(typeof grantableAreas)[number], string> {
+	return {
+		contacts: _x('contacts', 'token area', 'alphone'),
+		events: _x('events', 'token area', 'alphone'),
+		fields: _x('fields', 'token area', 'alphone'),
+		imports: _x('imports', 'token area', 'alphone'),
+		meta: _x('meta', 'token area', 'alphone'),
+		tasks: _x('tasks', 'token area', 'alphone'),
+		users: _x('users', 'token area', 'alphone'),
+		webhooks: _x('webhooks', 'token area', 'alphone'),
+		whatsapp: 'WhatsApp',
+	}
+}
+
+/**
  * Returns the lifetimes the mint form offers, read fresh so the loaded catalogue answers.
  * @returns The choices, in menu order.
  */

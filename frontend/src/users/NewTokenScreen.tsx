@@ -16,6 +16,7 @@ import {
 import { useState } from 'react'
 
 import {
+	areaLabels,
 	defaultLifetime,
 	grantableAreas,
 	lifetimeChoices,
@@ -43,18 +44,20 @@ function scopesOf(grants: Grants): string[] {
  */
 function GrantBox({
 	area,
+	areaLabel,
 	access,
 	grants,
 	onGrant,
 }: {
 	area: string
+	areaLabel: string
 	access: 'read' | 'write'
 	grants: Grants
 	onGrant: (grants: Grants) => void
 }) {
 	const label = sprintf(
 		access === 'read' ? __('Read %(area)s', 'alphone') : __('Write %(area)s', 'alphone'),
-		{ area },
+		{ area: areaLabel },
 	)
 	return (
 		<label>
@@ -110,6 +113,7 @@ export function NewTokenScreen() {
 	const [secret, setSecret] = useState<string | null>(null)
 	const [mint, runMint] = useGraphMutation(apiTokenCreateMutation)
 	const scopes = scopesOf(grants)
+	const labels = areaLabels()
 	const submit = async () => {
 		const result = await runMint({ name, scopes, ttlDays: lifetimeDays(lifetime) })
 		if (result.data) {
@@ -142,8 +146,20 @@ export function NewTokenScreen() {
 					<legend>{__('Areas', 'alphone')}</legend>
 					{grantableAreas.map((area) => (
 						<Stack key={area} direction="row" gap="sm">
-							<GrantBox area={area} access="read" grants={grants} onGrant={setGrants} />
-							<GrantBox area={area} access="write" grants={grants} onGrant={setGrants} />
+							<GrantBox
+								area={area}
+								areaLabel={labels[area]}
+								access="read"
+								grants={grants}
+								onGrant={setGrants}
+							/>
+							<GrantBox
+								area={area}
+								areaLabel={labels[area]}
+								access="write"
+								grants={grants}
+								onGrant={setGrants}
+							/>
 						</Stack>
 					))}
 				</fieldset>
