@@ -33,17 +33,14 @@ async function chooseField(page: Page, column: string, field: string) {
 }
 
 /**
- * Measures how far a table runs past the box that scrolls it sideways.
- * @param table - The table to measure.
+ * Measures how far the table in a region runs past the region's right edge.
+ * @param region - The region holding the table.
  * @returns The hidden width in pixels, zero when the table fits.
  */
-async function hiddenWidth(table: Locator): Promise<number> {
-	return table.evaluate((element) => {
-		let box = element.parentElement
-		while (box !== null && !['auto', 'scroll'].includes(getComputedStyle(box).overflowX)) {
-			box = box.parentElement
-		}
-		return box === null ? 0 : box.scrollWidth - box.clientWidth
+async function overrun(region: Locator): Promise<number> {
+	return region.evaluate((element) => {
+		const right = element.querySelector('table')?.getBoundingClientRect().right ?? Number.POSITIVE_INFINITY
+		return Math.max(0, Math.round(right - element.getBoundingClientRect().right))
 	})
 }
 
@@ -132,7 +129,7 @@ test('wraps a long row reason so the rows table fits a laptop screen', async ({ 
 
 	const rows = page.getByRole('region', { name: 'Rows' })
 	await expect(rows.getByText(`${owner} already holds an address in this row.`)).toBeVisible()
-	expect(await hiddenWidth(rows.getByRole('table'))).toBe(0)
+	expect(await overrun(rows)).toBe(0)
 })
 
 test('maps a spreadsheet column onto a field an operator defined', async ({ page }) => {
