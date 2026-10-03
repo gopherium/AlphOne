@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gopherium/pluginkit"
+	"github.com/gopherium/framework/pluginkit"
 )
 
 // ErrInvalidContact reports contact details the host refuses to store.
