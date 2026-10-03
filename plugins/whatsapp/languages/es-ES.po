@@ -9,12 +9,12 @@ msgstr ""
 "Language: es\n"
 
 #, fuzzy
-msgid "%(size)d B"
-msgstr "%(size)d B"
+msgid "%(size)s B"
+msgstr "%(size)s B"
 
 #, fuzzy
-msgid "%(size)d KB"
-msgstr "%(size)d KB"
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
 
 #, fuzzy
 msgid "%(size)s MB"

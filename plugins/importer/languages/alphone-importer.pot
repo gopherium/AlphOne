@@ -79,7 +79,7 @@ msgstr ""
 msgid "The file could not be imported."
 msgstr ""
 
-msgid "The file runs past %(maxBytes)d bytes."
+msgid "The file runs past %(maxBytes)s bytes."
 msgstr ""
 
 msgid "The import could not be committed."

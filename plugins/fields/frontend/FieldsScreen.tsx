@@ -15,13 +15,15 @@ import {
 	Stack,
 	Text,
 	__,
-	displayLocale,
+	formatList,
+	formatNumber,
 	graphError,
 	keyFromLabel,
 	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
@@ -247,6 +249,7 @@ function FailureNotice({ failure, fallback }: { failure: GraphFailure | undefine
  * @returns How each row's trash shows, the actions and the failure of the last archive answered.
  */
 function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
+	const toaster = useToaster()
 	const [archived, archive] = useGraphMutation(archiveFieldMutation)
 	const [question, setQuestion] = useState<ArchiveQuestion | null>(null)
 	const [focus, setFocus] = useState<TrashFocus | null>(null)
@@ -272,6 +275,8 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
 				if (result.error) {
 					setQuestion(null)
 					whenFocusStayed(from, () => setFocus({ id, on: 'trash' }))
+				} else {
+					toaster.show(__('Field archived.', 'alphone-fields'))
 				}
 				onChanged()
 			})
@@ -521,9 +526,7 @@ function kindLabel(kind: string) {
  * @returns The joined labels.
  */
 function labelList(subFields: SubFieldRow[]) {
-	return new Intl.ListFormat(displayLocale(), { type: 'unit' }).format(
-		subFields.map((column) => column.label),
-	)
+	return formatList(subFields.map((column) => column.label))
 }
 
 /**
@@ -569,6 +572,7 @@ function labelHeld(label: string, live: FieldRow[]) {
  * @returns The add field form.
  */
 function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
+	const toaster = useToaster()
 	const [label, setLabel] = useState('')
 	const [notice, setNotice] = useState<FormNotice>(null)
 	const [kind, setKind] = useState<FieldKind>('TEXT')
@@ -597,6 +601,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 					if (!result.error) {
 						setLabel('')
 						setSubFields([])
+						toaster.show(__('Field added.', 'alphone-fields'))
 					} else if (RACED.has(reasonOf(result.error))) {
 						setRefused((held) => [...held, name])
 					}
@@ -675,7 +680,7 @@ function SubFieldRows({
 						/>
 					</div>
 				)}
-				rowLabel={(at) => sprintf(__('Sub field %(number)d', 'alphone-fields'), { number: at + 1 })}
+				rowLabel={(at) => sprintf(__('Sub field %(number)s', 'alphone-fields'), { number: formatNumber(at + 1) })}
 				labels={{
 					add: __('Add sub field', 'alphone-fields'),
 					empty: __('No sub fields yet.', 'alphone-fields'),

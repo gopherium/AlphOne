@@ -4,32 +4,27 @@ import { resetLocale } from '@gopherium/gottext/testing'
 import { rememberLocale } from '@gopherium/gottext'
 import { afterEach, expect, test } from 'vitest'
 
-import { formatCreated } from '../contacts/format'
-import { formatDay, formatDue } from '../tasks/format'
+import { formatDay, formatDue, movedMessage } from '../tasks/format'
 
 afterEach(() => {
 	resetLocale()
 })
 
-test('shows a creation date in the locale the interface stands in', () => {
-	const at = new Date(2026, 6, 6)
-
+test('names the weekday of a day heading in the interface language beside its date in the format locale', () => {
 	rememberLocale('en-US')
-	const english = formatCreated(at)
+	const english = formatDay('2026-07-30')
 	rememberLocale('es-ES')
 
-	expect(formatCreated(at)).not.toBe(english)
-	expect(english).toBe('Jul 6, 2026')
+	expect(english).toBe('Thursday, 30/07/2026')
+	expect(formatDay('2026-07-30')).toBe('jueves, 30/07/2026')
 })
 
-test('shows a day heading in the locale the interface stands in', () => {
-	rememberLocale('es-ES')
-
-	expect(formatDay('2026-07-30')).toContain('jul')
-})
-
-test('shows a due label in the locale the interface stands in', () => {
+test('shows a due label with its date in the format locale whatever the interface language', () => {
 	rememberLocale('en-US')
 
-	expect(formatDue('2026-07-30')).toBe('Due Jul 30')
+	expect(formatDue('2026-07-30')).toBe('Due 30/07/2026')
+})
+
+test('names the day a task moved to in the format locale', () => {
+	expect(movedMessage('2026-10-01')).toBe('Task moved to 01/10/2026.')
 })

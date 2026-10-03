@@ -1,32 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button } from '@alphone/frontend-sdk'
+import { rememberFormatLocale } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { liveStream, renderAt } from './render'
-
-/**
- * Returns the class tokens the design system adds to a loading button.
- * @returns The tokens a busy button carries and an idle one does not.
- */
-function busyClasses(): string[] {
-	const { container, unmount } = render(
-		<>
-			<Button id="idle">idle</Button>
-			<Button id="busy" loading>
-				busy
-			</Button>
-		</>,
-	)
-	const idle = new Set((container.querySelector('#idle') as Element).classList)
-	const busy = [...(container.querySelector('#busy') as Element).classList]
-	unmount()
-	return busy.filter((token) => !idle.has(token))
-}
+import { busyClasses, buttonClasses, compactClasses, liveStream, renderAt } from './render'
 
 const callID = '0198c000-0000-7000-8000-000000000101'
 const quoteID = '0198c000-0000-7000-8000-000000000102'
@@ -43,8 +24,16 @@ function localDate(offsetDays: number) {
 }
 
 function dueLabel(iso: string) {
-	const [year, month, day] = iso.split('-').map(Number)
-	return `Due ${new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+	return `Due ${iso.split('-').reverse().join('/')}`
+}
+
+/**
+ * Returns the toast a postpone to the given day raises.
+ * @param iso - The day the task moved to as YYYY-MM-DD.
+ * @returns The toast text.
+ */
+function movedToast(iso: string) {
+	return `Task moved to ${iso.split('-').reverse().join('/')}.`
 }
 
 const today = localDate(0)
@@ -116,8 +105,9 @@ beforeEach(() => {
 			})
 		}),
 		graphql.query('OverdueTasks', ({ variables }) => {
-			overdueBefore.push(String(variables.dueBefore))
-			return HttpResponse.json({ data: { tasks: taskPage(overdue) } })
+			const dueBefore = String(variables.dueBefore)
+			overdueBefore.push(dueBefore)
+			return HttpResponse.json({ data: { tasks: taskPage(overdue.filter((row) => row.due_on < dueBefore)) } })
 		}),
 		graphql.mutation('UpdateTask', ({ variables }) => {
 			const input = variables.input as { status?: string; dueOn?: string }
@@ -133,7 +123,7 @@ beforeEach(() => {
 				due_on: input.dueOn ?? stored.due_on,
 			}
 			tasks = tasks.map((row) => (row.id === updated.id ? updated : row))
-			overdue = overdue.filter((row) => row.id !== updated.id || input.dueOn === undefined)
+			overdue = overdue.map((row) => (row.id === updated.id ? updated : row))
 			return HttpResponse.json({ data: { updateTask: taskNode(updated) } })
 		}),
 		graphql.mutation('CreateTask', ({ variables }) => {
@@ -183,6 +173,16 @@ test('serves the tasks screen at /tasks', async () => {
 	expect(screen.getByText('Send the quote')).toBeInTheDocument()
 })
 
+test('draws every header button compact, as a WordPress page header does', async () => {
+	renderAt(`/tasks?date=${tomorrow}`)
+
+	const add = await screen.findByRole('link', { name: 'New task' })
+	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
+	for (const name of ['Previous day', 'Today', 'Next day']) {
+		expect([...screen.getByRole('button', { name }).classList]).toEqual(expect.arrayContaining(compactClasses()))
+	}
+})
+
 test('asks the backend for today', async () => {
 	renderAt('/tasks')
 
@@ -222,6 +222,24 @@ test('completes a task and moves it into the done group', async () => {
 	)
 	const open = screen.getByRole('list', { name: 'Open tasks' })
 	expect(within(open).queryByText('Call the supplier')).not.toBeInTheDocument()
+	expect(screen.getByText('Task completed.')).toBeInTheDocument()
+})
+
+test('undoes a completion from its toast', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
+	await screen.findByText('Task completed.')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => expect(patched).toHaveLength(2))
+	expect(patched[1]).toEqual({ id: callID, body: { status: 'open', due_on: undefined } })
+	await waitFor(() => {
+		const open = screen.getByRole('list', { name: 'Open tasks' })
+		expect(within(open).getByText('Call the supplier')).toBeInTheDocument()
+	})
 })
 
 test('reopens a done task', async () => {
@@ -236,6 +254,38 @@ test('reopens a done task', async () => {
 		const open = screen.getByRole('list', { name: 'Open tasks' })
 		expect(within(open).getByText('Book the courier')).toBeInTheDocument()
 	})
+	expect(screen.getByText('Task reopened.')).toBeInTheDocument()
+})
+
+test('undoes a reopen from its toast', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	await userEvent.click(screen.getByRole('button', { name: 'Done (1)' }))
+	const row = await screen.findByRole('listitem', { name: 'Book the courier' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Reopen' }))
+	await screen.findByText('Task reopened.')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => expect(patched).toHaveLength(2))
+	expect(patched[1]).toEqual({ id: doneID, body: { status: 'done', due_on: undefined } })
+})
+
+test('shows a failed undo in the notice of the screen', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
+	await screen.findByText('Task completed.')
+	server.use(
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The task could not be updated.')
 })
 
 test('marks a raised priority on the row', async () => {
@@ -259,6 +309,7 @@ test('adds a task from the quick add field', async () => {
 
 	expect(await screen.findByText('Order more boxes')).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue('')
+	expect(screen.getByText('Task added.')).toBeInTheDocument()
 })
 
 test('does not add a task without a title', async () => {
@@ -358,7 +409,8 @@ test('loads more tasks through the cursor', async () => {
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
 
-test('shows open work even when finished tasks fill the first page', async () => {
+test('shows open work even when finished tasks fill the first page, counting them in the format locale', async () => {
+	rememberFormatLocale('es-ES-u-nu-deva')
 	const finished = [
 		taskRow(doneID, 'Book the courier', 'done'),
 		taskRow(oldID, 'File the customs form', 'done'),
@@ -378,7 +430,7 @@ test('shows open work even when finished tasks fill the first page', async () =>
 	renderAt('/tasks')
 
 	expect(await screen.findByText('Reply to the imported enquiry')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Done (2)' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Done (२)' })).toBeInTheDocument()
 })
 
 test('keeps the day usable when the done group cannot be loaded', async () => {
@@ -478,6 +530,7 @@ test('reports a generic message when adding fails otherwise', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
 })
 
 test('reports when a task cannot be updated', async () => {
@@ -493,6 +546,7 @@ test('reports when a task cannot be updated', async () => {
 	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(screen.queryByText('Task completed.')).not.toBeInTheDocument()
 })
 
 test('reports the backend message when an update is rejected', async () => {
@@ -650,6 +704,24 @@ test('pushes a task to tomorrow', async () => {
 
 	await waitFor(() => expect(patched).toHaveLength(1))
 	expect(patched[0]).toEqual({ id: callID, body: { due_on: tomorrow } })
+	expect(await screen.findByText(movedToast(tomorrow))).toBeInTheDocument()
+})
+
+test('undoes a postpone from its toast with the day the task held', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: localDate(-5) }]
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
+	await screen.findByText(movedToast(tomorrow))
+	await waitFor(() => expect(screen.queryByRole('listitem', { name: 'Chase the invoice' })).not.toBeInTheDocument())
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => {
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+		expect(screen.getByRole('listitem', { name: 'Chase the invoice' })).toBeInTheDocument()
+	})
+	expect(patched[1]).toEqual({ id: oldID, body: { due_on: localDate(-5) } })
 })
 
 test('pushes an overdue task to tomorrow rather than to the day after it was due', async () => {
@@ -798,4 +870,5 @@ test('leaves the day alone when pushing a task fails', async () => {
 
 	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
 	expect(screen.getByText('Call the supplier')).toBeInTheDocument()
+	expect(screen.queryByText(movedToast(tomorrow))).not.toBeInTheDocument()
 })

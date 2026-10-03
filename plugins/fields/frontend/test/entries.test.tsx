@@ -131,7 +131,7 @@ test('shows the first date as a muted time above the text', async () => {
 	const item = await screen.findByRole('listitem', { name: offerSentName })
 	const time = item.querySelector('time')
 	expect(time).toHaveAttribute('datetime', '2026-09-10')
-	expect(time).toHaveTextContent('Sep 10, 2026')
+	expect(time).toHaveTextContent('10/09/2026')
 	expect(item.querySelector('p.godmin-log-list__body')?.textContent).toBe(offerSent.comment)
 })
 
@@ -153,7 +153,7 @@ test('shows other cells as label and value lines in sub field order', async () =
 				id: ID1,
 				date: '2026-09-10',
 				note: 'Paid in cash.',
-				minutes: 45,
+				minutes: 1234.5,
 				paid: true,
 				channel: 'Phone',
 				followUpOn: '2026-10-01',
@@ -163,13 +163,13 @@ test('shows other cells as label and value lines in sub field order', async () =
 
 	renderPanel()
 
-	const item = await screen.findByRole('listitem', { name: 'Sep 10, 2026, Paid in cash.' })
+	const item = await screen.findByRole('listitem', { name: '10/09/2026, Paid in cash.' })
 	expect([...item.querySelectorAll('p')].map((line) => line.textContent)).toEqual([
 		'Paid in cash.',
-		'Minutes: 45',
+		'Minutes: 1.234,5',
 		'Paid: Yes',
 		'Channel: Phone',
-		'Follow up on: Oct 1, 2026',
+		'Follow up on: 01/10/2026',
 	])
 })
 
@@ -288,9 +288,9 @@ test('tells apart two entries of one day by their first line', async () => {
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 27, 2026, Called back.', 'Sep 27, 2026, Sent the offer.'])
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Called back.' })).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove entry: Sep 27, 2026, Sent the offer.' })).toBeInTheDocument()
+	expect(await itemNames()).toEqual(['27/09/2026, Called back.', '27/09/2026, Sent the offer.'])
+	expect(screen.getByRole('button', { name: 'Remove entry: 27/09/2026, Called back.' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Remove entry: 27/09/2026, Sent the offer.' })).toBeInTheDocument()
 })
 
 test('names an entry holding a day and only details by the day and its first detail', async () => {
@@ -299,7 +299,7 @@ test('names an entry holding a day and only details by the day and its first det
 
 	renderPanel()
 
-	expect(await itemNames('Visits')).toEqual(['Sep 10, 2026, Minutes: 45'])
+	expect(await itemNames('Visits')).toEqual(['10/09/2026, Minutes: 45'])
 })
 
 test('names an entry holding only a day by that day', async () => {
@@ -308,7 +308,7 @@ test('names an entry holding only a day by that day', async () => {
 
 	renderPanel()
 
-	expect(await itemNames()).toEqual(['Sep 10, 2026'])
+	expect(await itemNames()).toEqual(['10/09/2026'])
 })
 
 test('shows the day an entry names to a reader west of UTC', async () => {
@@ -319,7 +319,7 @@ test('shows the day an entry names to a reader west of UTC', async () => {
 	renderPanel()
 
 	const item = await screen.findByRole('listitem', { name: offerSentName })
-	expect(item.querySelector('time')).toHaveTextContent('Sep 10, 2026')
+	expect(item.querySelector('time')).toHaveTextContent('10/09/2026')
 })
 
 test('no entries invites the first one', async () => {
@@ -550,6 +550,7 @@ test('an added entry resets the form to today and shows on top', async () => {
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(form.getByLabelText('Date')).toHaveValue(today)
 	expect(form.getByLabelText('Comment')).toHaveValue('')
+	expect(screen.getByText('Entry added.')).toBeInTheDocument()
 })
 
 test('an add returns focus to the first cell', async () => {
@@ -563,6 +564,7 @@ test('an add returns focus to the first cell', async () => {
 	await userEvent.click(addButton())
 
 	await waitFor(() => expect(form.getByLabelText('Date')).toHaveFocus())
+	expect(screen.getByText('Entry added.')).toBeInTheDocument()
 })
 
 test('an add answered while a removal is confirmed leaves focus on Keep', async () => {
@@ -602,13 +604,13 @@ test('a full list names its most entries and reads the list again', async () => 
 	speakTemplates()
 	serveCatalogue([history])
 	serveValues({ history: null })
-	capture('AddContactFieldEntry', refusal('CONFLICT', 'field_entries_full', { max: 500 }))
+	capture('AddContactFieldEntry', refusal('CONFLICT', 'field_entries_full', { max: 1500 }))
 
 	const { graph } = renderPanel()
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('This list is full. It holds 500 entries at most.')
+	expect(await screen.findByRole('alert')).toHaveTextContent('This list is full. It holds 1.500 entries at most.')
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 })
 
@@ -667,6 +669,7 @@ test('an add that fails otherwise shows the fallback', async () => {
 	await userEvent.click(addButton())
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be added.')
+	expect(screen.queryByText('Entry added.')).not.toBeInTheDocument()
 })
 
 test('Enter in the add form adds the entry and never sends the field values', async () => {
@@ -739,6 +742,7 @@ test('confirming a removal sends the entry id and reads the list again', async (
 		expect(removing).toHaveBeenCalledWith({ contactId: contactID, field: 'history', entryId: ID1 }),
 	)
 	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues']))
+	expect(await screen.findByText('Entry removed.')).toBeInTheDocument()
 })
 
 test('a removal in flight disables its own row and every other row', async () => {
@@ -785,6 +789,7 @@ test('a removal moves focus to the next entry', async () => {
 	await removeEntry(offerSentName)
 
 	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
+	expect(screen.getByText('Entry removed.')).toBeInTheDocument()
 })
 
 test('removing the oldest entry moves focus to the one above it', async () => {
@@ -870,6 +875,7 @@ test('a refused removal keeps the entry usable', async () => {
 	const kept = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(kept).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(kept).toHaveFocus())
+	expect(screen.queryByText('Entry removed.')).not.toBeInTheDocument()
 })
 
 test('a second removal clears the last failure while it runs', async () => {
@@ -1032,7 +1038,7 @@ test('an entry holding only a second date is named by that detail line', async (
 
 	renderPanel()
 
-	expect(await itemNames('Visits')).toEqual(['Follow up on: Oct 1, 2026'])
+	expect(await itemNames('Visits')).toEqual(['Follow up on: 01/10/2026'])
 })
 
 test('an entry whose text starts on blank lines is named by its first line of words', async () => {
@@ -1193,6 +1199,7 @@ test('a saved entry closes the editor, reads the list again and puts focus on Ed
 	await waitFor(() => expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	await waitFor(() => expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveFocus())
+	expect(screen.getByText('Entry saved.')).toBeInTheDocument()
 })
 
 test('a refused save keeps the editor and its draft', async () => {
@@ -1225,6 +1232,7 @@ test('a save answered as not found says so and passes focus on', async () => {
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
+	expect(screen.queryByText('Entry saved.')).not.toBeInTheDocument()
 })
 
 test('a save to a repeater archived elsewhere reads the catalogue again', async () => {
@@ -1254,6 +1262,7 @@ test('a save that fails otherwise shows the fallback', async () => {
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+	expect(screen.queryByText('Entry saved.')).not.toBeInTheDocument()
 })
 
 test('Cancel clears the failure of a refused save', async () => {

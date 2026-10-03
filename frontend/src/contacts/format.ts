@@ -5,8 +5,8 @@ import { formatDate } from '@alphone/frontend-sdk'
 /**
  * Formats a contact's creation moment for display.
  * @param at - The creation moment.
- * @returns A date such as Jul 6, 2026.
+ * @returns A date such as 06/07/2026.
  */
 export function formatCreated(at: Date): string {
-	return formatDate(at, { month: 'short', day: 'numeric', year: 'numeric' })
+	return formatDate(at)
 }

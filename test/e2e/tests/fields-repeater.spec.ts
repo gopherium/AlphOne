@@ -63,14 +63,14 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 	await addEntry(page, form, '2026-09-10', 'Sent the offer.')
 	await addEntry(page, form, '2026-09-18', 'Follow-up call.')
 	const entries = history.getByRole('listitem')
-	await expect(entries.first()).toHaveAccessibleName('Sep 18, 2026, Follow-up call.')
+	await expect(entries.first()).toHaveAccessibleName('18/09/2026, Follow-up call.')
 
 	const removed = operationAnswer(page, 'DeleteContactFieldEntry')
-	await history.getByRole('button', { name: 'Remove entry: Sep 10, 2026, Sent the offer.' }).click()
+	await history.getByRole('button', { name: 'Remove entry: 10/09/2026, Sent the offer.' }).click()
 	await history.getByRole('button', { name: 'Remove', exact: true }).click()
 	await removed
 
-	const firstCall = 'Sep 1, 2026, First call about the yearly plan.'
+	const firstCall = '01/09/2026, First call about the yearly plan.'
 	await history.getByRole('button', { name: `Edit entry: ${firstCall}` }).click()
 	const editor = history.getByRole('form', { name: `Edit entry: ${firstCall}` })
 	const edited = editor.getByRole('textbox', { name: 'Comment', exact: true })
@@ -82,7 +82,7 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 
 	await page.reload()
 	await expect(entries).toHaveCount(2)
-	await expect(entries.nth(0)).toHaveAccessibleName('Sep 18, 2026, Follow-up call.')
+	await expect(entries.nth(0)).toHaveAccessibleName('18/09/2026, Follow-up call.')
 	await expect(entries.nth(1)).toHaveAccessibleName(firstCall)
 	const body = entries.nth(1).locator('p.godmin-log-list__body')
 	expect(await body.evaluate((node) => (node as HTMLElement).innerText)).toBe(

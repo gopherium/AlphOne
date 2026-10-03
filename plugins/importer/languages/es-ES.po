@@ -105,8 +105,8 @@ msgid "The file could not be imported."
 msgstr "No se ha podido importar el archivo."
 
 #, fuzzy
-msgid "The file runs past %(maxBytes)d bytes."
-msgstr "El archivo pasa de %(maxBytes)d bytes."
+msgid "The file runs past %(maxBytes)s bytes."
+msgstr "El archivo pasa de %(maxBytes)s bytes."
 
 #, fuzzy
 msgid "The import could not be committed."

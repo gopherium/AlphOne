@@ -12,12 +12,13 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { isValidDate } from './format'
+import { isValidDate, statusMessage } from './format'
 import { taskDetailQuery, updateTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -84,17 +85,21 @@ function ContactLink({ contact }: { contact: { id: string; name: string } }) {
  */
 function TaskForm({ task }: { task: DetailedTask }) {
 	const graph = useGraph()
+	const toaster = useToaster()
 	const [title, setTitle] = useState(task.title)
 	const [dueOn, setDueOn] = useState(task.dueOn)
 	const [priority, setPriority] = useState(task.priority)
 	const [save, runSave] = useGraphMutation(updateTaskMutation)
 	const [toggle, runToggle] = useGraphMutation(updateTaskMutation)
+	const status = task.status === 'done' ? 'open' : 'done'
 	const runUpdate = async (
 		run: typeof runSave,
 		input: { title?: string; dueOn?: string; priority?: number; status?: string },
+		message: string,
 	) => {
 		const result = await run({ id: task.id, input })
 		if (result.data) {
+			toaster.show(message)
 			graph.refetch(taskOperations)
 		}
 	}
@@ -104,7 +109,7 @@ function TaskForm({ task }: { task: DetailedTask }) {
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void runUpdate(runSave, { title, dueOn, priority })
+				void runUpdate(runSave, { title, dueOn, priority }, __('Task saved.', 'alphone'))
 			}}
 		>
 			<InputControl label={__('Title', 'alphone')} value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -126,9 +131,7 @@ function TaskForm({ task }: { task: DetailedTask }) {
 				<Button
 					variant="outline"
 					loading={toggle.fetching}
-					onClick={() =>
-						void runUpdate(runToggle, { status: task.status === 'done' ? 'open' : 'done' })
-					}
+					onClick={() => void runUpdate(runToggle, { status }, statusMessage(status))}
 				>
 					{task.status === 'done' ? __('Reopen', 'alphone') : __('Complete', 'alphone')}
 				</Button>

@@ -15,8 +15,10 @@ import {
 	__,
 	chevronLeft,
 	chevronRight,
+	formatNumber,
 	inbox,
 	sprintf,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import { graphError, useConnection, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
@@ -24,10 +26,11 @@ import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { formatDay, laterDate, shiftDate } from './format'
-import { createTaskMutation, dayTasksQuery, overdueTasksQuery, updateTaskMutation } from './operations'
+import { formatDay, shiftDate } from './format'
+import { createTaskMutation, dayTasksQuery, overdueTasksQuery } from './operations'
 import { TaskList } from './TaskList'
 import type { ListedTask, RowControls } from './TaskList'
+import { useRowControls } from './useRowControls'
 
 const tasksPageSize = 50
 
@@ -57,42 +60,17 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		select: (data) => data.tasks,
 		pause: date !== today,
 	})
+	const toaster = useToaster()
 	const [title, setTitle] = useState('')
-	const [pendingID, setPendingID] = useState('')
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
-	const [change, runChange] = useGraphMutation(updateTaskMutation)
-	const [push, runPush] = useGraphMutation(updateTaskMutation)
+	const { controls, failed } = useRowControls(today)
 	const submitAdd = async () => {
 		const result = await runAdd({ input: { title, dueOn: date } })
 		if (result.data) {
 			setTitle('')
+			toaster.show(__('Task added.', 'alphone'))
 			graph.refetch(taskOperations)
 		}
-	}
-	const changeStatus = async (task: ListedTask) => {
-		setPendingID(task.id)
-		const result = await runChange({
-			id: task.id,
-			input: { status: task.status === 'done' ? 'open' : 'done' },
-		})
-		setPendingID('')
-		if (result.data) {
-			graph.refetch(taskOperations)
-		}
-	}
-	const pushTask = async (task: ListedTask) => {
-		const result = await runPush({
-			id: task.id,
-			input: { dueOn: shiftDate(laterDate(task.dueOn, today), 1) },
-		})
-		if (result.data) {
-			graph.refetch(taskOperations)
-		}
-	}
-	const controls: RowControls = {
-		onChange: (task) => void changeStatus(task),
-		onPush: (task) => void pushTask(task),
-		pendingID,
 	}
 
 	return (
@@ -102,7 +80,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			actions={
 				<>
 					<DayNavigation date={date} today={today} />
-					<Button variant="solid" render={<Link to="/tasks/new" search={{ date }} />}>
+					<Button variant="solid" size="compact" render={<Link to="/tasks/new" search={{ date }} />}>
 						{__('New task', 'alphone')}
 					</Button>
 				</>
@@ -137,9 +115,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 					{validationMessage(graphError(add.error), __('The task could not be added.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
-			{change.error || push.error ? (
-				<ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice>
-			) : null}
+			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</PageScreen>
 	)
@@ -157,6 +133,7 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 				label={__('Previous day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
+				size="compact"
 				nativeButton={false}
 				render={<Link to="/tasks" search={{ date: shiftDate(date, -1) }} />}
 			/>
@@ -176,6 +153,7 @@ function DayNavigation({ date, today }: { date: string; today: string }) {
 				label={__('Next day', 'alphone')}
 				variant="minimal"
 				tone="neutral"
+				size="compact"
 				nativeButton={false}
 				render={<Link to="/tasks" search={{ date: shiftDate(date, 1) }} />}
 			/>
@@ -277,7 +255,7 @@ function DoneGroup({
 				render={
 					<Button variant="minimal" tone="neutral" size="compact">
 						{sprintf(__('Done (%(count)s)', 'alphone'), {
-							count: `${rows.length}${tasks.hasNextPage ? '+' : ''}`,
+							count: `${formatNumber(rows.length)}${tasks.hasNextPage ? '+' : ''}`,
 						})}
 					</Button>
 				}

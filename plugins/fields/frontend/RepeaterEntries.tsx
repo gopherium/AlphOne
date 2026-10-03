@@ -12,6 +12,7 @@ import {
 	sprintf,
 	useGraph,
 	useGraphMutation,
+	useToaster,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -105,6 +106,7 @@ function AddEntryForm({
 	const [picked, setPicked] = useState<ReadonlyMap<string, string>>(() => new Map())
 	const [add, runAdd] = useGraphMutation(addContactFieldEntryMutation)
 	const graph = useGraph()
+	const toaster = useToaster()
 	const formRef = useRef<HTMLFormElement>(null)
 	const shown = draftCells(field.subFields, picked, localDay(new Date()))
 	const label = sprintf(__('Add an entry to %(label)s', 'alphone-fields'), { label: field.label })
@@ -123,6 +125,7 @@ function AddEntryForm({
 		const outcome = outcomeOf(result.error)
 		if (outcome === 'done') {
 			setPicked(new Map())
+			toaster.show(__('Entry added.', 'alphone-fields'))
 			onAdded(from)
 		} else if (outcome === 'field-gone') {
 			onGone(entryMessage(result.error as GraphFailure, fallback), from)

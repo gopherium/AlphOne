@@ -58,7 +58,7 @@ test('shows every token with its scopes and dates', async () => {
 
 	const row = await screen.findByRole('row', { name: /n8n production/ })
 	expect(within(row).getByText('contacts:read tasks:write')).toBeInTheDocument()
-	expect(within(row).getByText('Nov 4, 2026')).toBeInTheDocument()
+	expect(within(row).getByText('04/11/2026')).toBeInTheDocument()
 })
 
 test('says plainly when a token never expires', async () => {

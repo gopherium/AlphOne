@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
+import { GraphProvider, Toaster, configureErrorText } from '@alphone/frontend-sdk'
+import type { GraphClient } from '@alphone/frontend-sdk'
 import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { vi } from 'vitest'
 
 import { ContactFieldsPanel } from '../ContactFieldsPanel'
@@ -74,30 +76,49 @@ export const offerSent = { id: ID2, date: '2026-09-10', comment: 'Sent the offer
 export const followUp = { id: ID3, date: '2026-09-18', comment: 'Follow-up call.\nAsked for a second quote.' }
 
 /** firstCallName is the name the row of firstCall is announced by. */
-export const firstCallName = 'Sep 1, 2026, First call about the yearly plan.'
+export const firstCallName = '01/09/2026, First call about the yearly plan.'
 
 /** offerSentName is the name the row of offerSent is announced by. */
-export const offerSentName = 'Sep 10, 2026, Sent the offer and booked a follow-up call.'
+export const offerSentName = '10/09/2026, Sent the offer and booked a follow-up call.'
 
 /** followUpName is the name the row of followUp is announced by. */
-export const followUpName = 'Sep 18, 2026, Follow-up call.'
+export const followUpName = '18/09/2026, Follow-up call.'
 
 /**
- * Renders the fields panel of the test contact inside its graph and query providers.
- * @returns The render result, the graph client and a switch to another contact.
+ * Renders a tree of the plugin inside its query and graph providers, below a toaster.
+ * @param tree - The tree to render.
+ * @param graph - The graph client the tree reads through.
+ * @returns The render result, the graph client and a rerender that keeps the providers.
  */
-export function renderPanel() {
+export function renderHosted(tree: ReactNode, graph: GraphClient = fakeGraphClient().graph) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	const { graph } = fakeGraphClient()
-	const shown = (id: string) => (
+	const hosted = (inner: ReactNode) => (
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
-				<ContactFieldsPanel contactId={id} />
+				<Toaster>{inner}</Toaster>
 			</GraphProvider>
 		</QueryClientProvider>
 	)
-	const rendered = render(shown(contactID))
-	return { ...rendered, graph, showContact: (id: string) => rendered.rerender(shown(id)) }
+	const rendered = render(hosted(tree))
+	return { ...rendered, graph, rehost: (inner: ReactNode) => rendered.rerender(hosted(inner)) }
+}
+
+/**
+ * Renders the fields panel of the test contact in a slot of its own, beside the toaster.
+ * @returns The render result, the slot the panel renders in, the graph client and a switch to another contact.
+ */
+export function renderPanel() {
+	const shown = (id: string) => (
+		<div data-testid="panel-slot">
+			<ContactFieldsPanel contactId={id} />
+		</div>
+	)
+	const rendered = renderHosted(shown(contactID))
+	return {
+		...rendered,
+		slot: rendered.getByTestId('panel-slot'),
+		showContact: (id: string) => rendered.rehost(shown(id)),
+	}
 }
 
 /**

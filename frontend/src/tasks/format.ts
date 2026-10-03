@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, formatDate, sprintf } from '@alphone/frontend-sdk'
+import { __, _x, formatDate, formatWeekday, sprintf } from '@alphone/frontend-sdk'
 
 /**
  * Formats a date as the YYYY-MM-DD the task API expects, in local time.
@@ -17,21 +17,40 @@ export function isoDate(at: Date): string {
 /**
  * Formats a task due date for the day heading.
  * @param date - The due date as YYYY-MM-DD.
- * @returns A heading such as Thursday, Jul 30.
+ * @returns A heading such as Thursday, 30/07/2026.
  */
 export function formatDay(date: string): string {
-	return formatDate(parseDate(date), { weekday: 'long', month: 'short', day: 'numeric' })
+	return sprintf(_x('%(weekday)s, %(date)s', 'day heading', 'alphone'), {
+		weekday: formatWeekday(date),
+		date: formatDate(date),
+	})
 }
 
 /**
  * Formats a task due date for a row.
  * @param date - The due date as YYYY-MM-DD.
- * @returns A label such as Due Jul 30.
+ * @returns A label such as Due 30/07/2026.
  */
 export function formatDue(date: string): string {
-	return sprintf(__('Due %(date)s', 'alphone'), {
-		date: formatDate(parseDate(date), { month: 'short', day: 'numeric' }),
-	})
+	return sprintf(__('Due %(date)s', 'alphone'), { date: formatDate(date) })
+}
+
+/**
+ * Returns the toast a task list raises once a task moved to a new day.
+ * @param date - The new due date as YYYY-MM-DD.
+ * @returns A message such as Task moved to 30/07/2026.
+ */
+export function movedMessage(date: string): string {
+	return sprintf(__('Task moved to %(date)s.', 'alphone'), { date: formatDate(date) })
+}
+
+/**
+ * Returns the toast raised once a task took a new status.
+ * @param status - The status the task took.
+ * @returns Task completed. for a done task, Task reopened. for an open one.
+ */
+export function statusMessage(status: string): string {
+	return status === 'done' ? __('Task completed.', 'alphone') : __('Task reopened.', 'alphone')
 }
 
 /**

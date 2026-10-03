@@ -11,6 +11,7 @@ import type { CombinedError, Exchange, Operation } from 'urql'
 import { pipe, tap } from 'wonka'
 
 import { ValidationError } from './errors'
+import { formatNumber } from './format'
 
 /** The graph endpoint every operation is posted to. */
 const graphEndpoint = '/api/graphql'
@@ -68,6 +69,20 @@ export function configureErrorText(chosen: ErrorCopy): void {
 }
 
 /**
+ * Returns the data an answer carries, every number written in the format locale.
+ * @param meta - The data the answer carries, of any shape.
+ * @returns The data a template is filled from, or undefined when the answer carries no object.
+ */
+function writtenMeta(meta: unknown): Record<string, unknown> | undefined {
+	if (typeof meta !== 'object' || meta === null) {
+		return undefined
+	}
+	return Object.fromEntries(
+		Object.entries(meta).map(([name, value]) => [name, typeof value === 'number' ? formatNumber(value) : value]),
+	)
+}
+
+/**
  * Returns what a reader is shown for a refused answer, in their own language.
  * @param error - The failure a graph operation answered with.
  * @returns The message to show.
@@ -76,12 +91,11 @@ function spokenMessage(error: CombinedError): string {
 	const answered = error.graphQLErrors[0]
 	const extensions = (answered?.extensions ?? {}) as Record<string, unknown>
 	const reason = extensions.reason
-	const meta = extensions.meta
 	return errorText(
 		{
 			message: answered?.message ?? error.message,
 			code: typeof reason === 'string' ? reason : undefined,
-			meta: typeof meta === 'object' && meta !== null ? (meta as Record<string, unknown>) : undefined,
+			meta: writtenMeta(extensions.meta),
 		},
 		copy.templates(),
 		copy.fallback(),

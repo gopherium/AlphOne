@@ -320,7 +320,7 @@ test('renders a failed document as a chip without a link', async () => {
 
 	renderThread()
 
-	expect(await screen.findByText('📄 contract.pdf (40.0 MB) (unavailable)')).toBeInTheDocument()
+	expect(await screen.findByText('📄 contract.pdf (40,0 MB) (unavailable)')).toBeInTheDocument()
 	expect(screen.queryByRole('link')).not.toBeInTheDocument()
 	expect(screen.getByText('the contract')).toBeInTheDocument()
 })

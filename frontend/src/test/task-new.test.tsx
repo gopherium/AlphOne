@@ -118,6 +118,7 @@ test('creates a task and opens its detail', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Order more boxes' }),
 	).toBeInTheDocument()
+	expect(screen.getByText('Task added.')).toBeInTheDocument()
 })
 
 test('creates a task on a day chosen in the form', async () => {
@@ -241,6 +242,7 @@ test('reports a generic message when creation fails otherwise', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
 
 	expect(await screen.findByText('The task could not be created.')).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
 })
 
 test('drops the session when creation is unauthorized', async () => {
