@@ -28,7 +28,7 @@ __('Add contact', 'alphone')
 sprintf(__('A name runs to %(max)s characters at most.', 'alphone'), {
 	max: formatNumber(max),
 })
-_x('Status', 'account status', 'alphone')
+_x('Disabled', 'user status', 'alphone')
 ```
 
 Use `__` for ordinary text. Use `sprintf` around it when a value goes
@@ -97,12 +97,14 @@ reaches it.
 
 ## When one word means two things
 
-English reuses words that other languages separate. Status means one
-thing for an account and another for a message. Give each use a context
-and translators will see them as separate entries.
+English reuses words that other languages separate. Disabled says one
+thing about a user and another about a button, and a language whose
+words agree with the noun they describe has to know which one it is.
+Give each use a context and translators will see them as separate
+entries.
 
 ```tsx
-_x('Status', 'account status', 'alphone')
+_x('Disabled', 'user status', 'alphone')
 _x('WhatsApp', 'admin section', 'alphone-whatsapp')
 ```
 
