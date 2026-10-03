@@ -712,3 +712,40 @@ test('speaks the server message for a reason no template holds', async () => {
 
 	expect(graphError(result.error)?.message).toBe('a message from the future')
 })
+
+const contactPageQuery = gql`
+	query ContactPage($limit: Int) {
+		contactPage(limit: $limit) {
+			items {
+				id
+				name
+			}
+			total
+			limit
+		}
+	}
+`
+
+test('keeps a page of contacts embedded in its query without warning', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	server.use(
+		graphql.query('ContactPage', () =>
+			HttpResponse.json({
+				data: {
+					contactPage: {
+						__typename: 'ContactPage',
+						items: [{ __typename: 'Contact', id: 'id-maria', name: 'Maria Perez' }],
+						total: 1,
+						limit: 20,
+					},
+				},
+			}),
+		),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(contactPageQuery, { limit: 20 }).toPromise()
+
+	expect(result.data?.contactPage.total).toBe(1)
+	expect(warn.mock.calls.flat().join('\n')).not.toContain('ContactPage')
+})

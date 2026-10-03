@@ -228,6 +228,7 @@ export function graphCacheExchange(): Exchange {
 	return cacheExchange({
 		keys: {
 			AdminSettings: () => null,
+			ContactPage: () => null,
 			CreateTaskPayload: () => null,
 			CreateWebhookPayload: () => null,
 			ImportCommitPayload: () => null,
