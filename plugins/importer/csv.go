@@ -28,13 +28,14 @@ type csvParser struct{}
 
 // parse reads data as delimiter separated text.
 func (csvParser) parse(data []byte) (sheet, error) {
-	body, delimiter := delimiterOf(bytes.TrimPrefix(data, utf8BOM))
+	unmarked := bytes.TrimPrefix(data, utf8BOM)
+	body, delimiter := delimiterOf(unmarked)
 	reader := newCSVReader(body, delimiter)
 	columns, err := reader.Read()
 	if err != nil {
 		return sheet{}, fmt.Errorf("the header row is unreadable: %w", err)
 	}
-	rows, err := readCSVRows(reader, len(columns))
+	rows, err := readCSVRows(reader, len(columns), bytes.Count(unmarked[:len(unmarked)-len(body)], newline))
 	if err != nil {
 		return sheet{}, err
 	}
@@ -42,14 +43,14 @@ func (csvParser) parse(data []byte) (sheet, error) {
 }
 
 // readCSVRows reads the data rows, recording a malformed record rather than stopping.
-func readCSVRows(reader *csv.Reader, width int) ([]row, error) {
+func readCSVRows(reader *csv.Reader, width, linesBefore int) ([]row, error) {
 	rows := make([]row, 0, initialRowCapacity)
 	for len(rows) <= maxRows {
 		cells, err := reader.Read()
 		if errors.Is(err, io.EOF) {
 			return rows, nil
 		}
-		rows = append(rows, alignRow(cells, width, err))
+		rows = append(rows, alignRow(cells, width, err, linesBefore))
 	}
 	return nil, errTooManyRows
 }

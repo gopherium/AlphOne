@@ -13,7 +13,7 @@ interface SchemaChange {
  * belongs here once its consumers move in the same change and no client
  * outside this repository reads the field.
  */
-const approved = new Set(['Mutation.createUser'])
+const approved = new Set(['Mutation.createUser', 'ImportRow.reason'])
 
 /**
  * Answers the detected changes with every approved removal marked not breaking.

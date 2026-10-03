@@ -57,7 +57,7 @@ type stagedRow struct {
 	Position  int        `db:"position"`
 	Cells     []string   `db:"cells"`
 	Outcome   string     `db:"outcome"`
-	Reason    *string    `db:"reason"`
+	Reason    *rowReason `db:"reason"`
 	ContactID *uuid.UUID `db:"contact_id"`
 }
 
@@ -289,12 +289,4 @@ func insertRows(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, rows []row) err
 		}
 	}
 	return nil
-}
-
-// optionalReason returns the note a row carries, or nil when it needed no repair.
-func optionalReason(reason string) *string {
-	if reason == "" {
-		return nil
-	}
-	return &reason
 }

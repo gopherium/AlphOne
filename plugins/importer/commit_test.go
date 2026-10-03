@@ -312,6 +312,7 @@ func TestCommitSkipsARowClaimedWhileTheImportRuns(t *testing.T) {
 	if owner == nil || *owner != claimed.ID {
 		t.Errorf("owner = %v, want the contact that claimed it %v", owner, claimed.ID)
 	}
+	wantReason(t, reasonOf(t, pool, id, 1), "identity_taken_by", map[string]any{"ownerName": "Maria Perez"})
 }
 
 func TestCommitFinishesOnlyThePendingRowsOnAResume(t *testing.T) {
@@ -419,14 +420,77 @@ func TestCommitFailsOnlyTheRowTheHostRefuses(t *testing.T) {
 	if imported != 1 || failed != 1 {
 		t.Errorf("counts = %d imported, %d failed, want 1, 1", imported, failed)
 	}
-	var reason *string
+	wantReason(t, reasonOf(t, pool, id, 2), "contact_details_invalid", map[string]any{})
+}
+
+func TestCommitNamesTheContactHoldingASkippedRowsAddress(t *testing.T) {
+	t.Parallel()
+
+	p, pool, contacts, _ := newCommittingPlugin(t)
+	owner := contacts.seed("Maria Perez", "maria@example.com")
+	id := uploadNamed(t, p, "known.csv", "Name,Email\nM. Perez,maria@example.com\n")
+	mapNameAndEmail(t, p, id)
+
+	mustCommit(t, p, id)
+
+	wantReason(t, reasonOf(t, pool, id, 1), "identity_taken_by", map[string]any{"ownerName": "Maria Perez"})
+	var linked *uuid.UUID
 	if err := pool.QueryRow(t.Context(),
-		"SELECT reason FROM plugin_importer.import_rows WHERE import_id = $1 AND position = 2", id,
-	).Scan(&reason); err != nil {
-		t.Fatalf("reading the refused row: %v", err)
+		"SELECT contact_id FROM plugin_importer.import_rows WHERE import_id = $1 AND position = 1", id,
+	).Scan(&linked); err != nil {
+		t.Fatalf("reading the skipped row: %v", err)
 	}
-	if reason == nil || *reason == "" {
-		t.Errorf("refused row reason = %v, want a reason naming the unusable detail", reason)
+	if linked == nil || *linked != owner.ID {
+		t.Errorf("skipped row links to %v, want the contact holding the address %v", linked, owner.ID)
+	}
+}
+
+func TestCommitKeepsTheNoteOfAShortRowItImports(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	id := uploadNamed(t, p, "short.csv", "Name,Email,Phone\nMaria Perez,maria@example.com\n")
+	mapNameAndEmail(t, p, id)
+
+	mustCommit(t, p, id)
+
+	if outcomes := outcomesOf(t, pool, id); slices.Compare(outcomes, []string{"imported"}) != 0 {
+		t.Errorf("outcomes = %v, want the short row imported", outcomes)
+	}
+	wantReason(t, reasonOf(t, pool, id, 1), "row_cell_count_mismatch",
+		map[string]any{"cells": float64(2), "columns": float64(3)})
+}
+
+func TestCommitReplacesTheNoteOfAShortRowThatFails(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	id := uploadNamed(t, p, "short.csv", "Name,Email,Phone\nMaria Perez\n")
+	mapNameAndEmail(t, p, id)
+
+	mustCommit(t, p, id)
+
+	if outcomes := outcomesOf(t, pool, id); slices.Compare(outcomes, []string{"failed"}) != 0 {
+		t.Errorf("outcomes = %v, want the row without an address failed", outcomes)
+	}
+	wantReason(t, reasonOf(t, pool, id, 1), "row_incomplete", map[string]any{})
+}
+
+func TestCommitFailsAMalformedRowKeepingItsNote(t *testing.T) {
+	t.Parallel()
+
+	p, pool, contacts, _ := newCommittingPlugin(t)
+	id := uploadNamed(t, p, "quoted.csv", "Name,Email\nMaria \"Mari\" Perez,maria@example.com\n")
+	mapNameAndEmail(t, p, id)
+
+	committed := mustCommit(t, p, id)
+
+	if committed.Failed != 1 || committed.Imported != 0 {
+		t.Errorf("counts = %d failed, %d imported, want 1 and 0", committed.Failed, committed.Imported)
+	}
+	wantReason(t, reasonOf(t, pool, id, 1), "row_quote_misplaced", map[string]any{"line": float64(2)})
+	if contacts.creates != 0 {
+		t.Errorf("creates = %d, want no contact for a row the reader could not read", contacts.creates)
 	}
 }
 

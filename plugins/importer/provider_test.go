@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -51,17 +52,23 @@ func (f *fieldProvider) LiveContactFields(context.Context) ([]sdk.ContactField, 
 	return f.fields, nil
 }
 
-// CheckContactFieldTexts refuses a name the provider does not serve or a settable text.
+// CheckContactFieldTexts refuses a name the provider does not serve or a settable text, naming the fault as data.
 func (f *fieldProvider) CheckContactFieldTexts(_ context.Context, values map[string]string) error {
 	if f.checkErr != nil {
 		return f.checkErr
 	}
 	for name, text := range values {
 		if !f.holds(name) {
-			return fmt.Errorf("%w: no live field holds %s", sdk.ErrInvalidFieldText, name)
+			return sdk.FieldTextError{
+				Reason: sdk.FieldTextFieldUnknown, Fields: []string{name},
+				Err: fmt.Errorf("no live field holds %s", name),
+			}
 		}
 		if kind, refused := f.refuse[text]; refused {
-			return fmt.Errorf("%w: %s expects %s", sdk.ErrInvalidFieldText, name, kind)
+			return sdk.FieldTextError{
+				Reason: sdk.FieldTextKindMismatch, Fields: []string{name}, Kind: kind,
+				Err: fmt.Errorf("%s expects %s", name, kind),
+			}
 		}
 	}
 	return nil
@@ -157,19 +164,31 @@ func stateOf(t *testing.T, pool *pgxpool.Pool, importID uuid.UUID) string {
 	return state
 }
 
-// reasonOf returns the reason one staged row settled with.
-func reasonOf(t *testing.T, pool *pgxpool.Pool, importID uuid.UUID, position int) string {
+// storedReason is a row reason as the database holds it, its code beside the values it names.
+type storedReason struct {
+	Code string         `json:"code"`
+	Meta map[string]any `json:"meta"`
+}
+
+// reasonOf returns the reason one staged row settled with, nil when it carries none.
+func reasonOf(t *testing.T, pool *pgxpool.Pool, importID uuid.UUID, position int) *storedReason {
 	t.Helper()
-	var reason *string
+	var reason *storedReason
 	if err := pool.QueryRow(t.Context(),
 		"SELECT reason FROM plugin_importer.import_rows WHERE import_id = $1 AND position = $2",
 		importID, position).Scan(&reason); err != nil {
 		t.Fatalf("reading the row reason: %v", err)
 	}
-	if reason == nil {
-		return ""
+	return reason
+}
+
+// wantReason fails the test unless the row reason carries the given code and values.
+func wantReason(t *testing.T, got *storedReason, code string, meta map[string]any) {
+	t.Helper()
+	want := &storedReason{Code: code, Meta: meta}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("reason = %+v, want %+v", got, want)
 	}
-	return *reason
 }
 
 // registryNames lists the names the mappable registry answers with, in order.
@@ -358,12 +377,7 @@ func TestCommitFailsARowWhoseFieldTextIsRefused(t *testing.T) {
 	if contacts.creates != 0 {
 		t.Errorf("creates = %d, want the contact never created", contacts.creates)
 	}
-	reason := reasonOf(t, pool, id, 1)
-	for _, want := range []string{"birthDate", "DATE"} {
-		if !strings.Contains(reason, want) {
-			t.Errorf("reason = %q, want it to name %q", reason, want)
-		}
-	}
+	wantReason(t, reasonOf(t, pool, id, 1), "value_kind_mismatch", map[string]any{"field": "birthDate", "kind": "DATE"})
 }
 
 func TestCommitWritesNothingForASkippedRow(t *testing.T) {
@@ -507,9 +521,7 @@ func TestCommitFailsAResumedRowWhoseFieldVanished(t *testing.T) {
 	if contacts.creates != 0 {
 		t.Errorf("creates = %d, want no contact for a row naming a vanished field", contacts.creates)
 	}
-	if reason := reasonOf(t, pool, id, 1); !strings.Contains(reason, "birthDate") {
-		t.Errorf("reason = %q, want it to name the vanished field", reason)
-	}
+	wantReason(t, reasonOf(t, pool, id, 1), "field_unknown", map[string]any{"fields": []any{"birthDate"}})
 }
 
 func TestSetMappingReportsAProviderFailure(t *testing.T) {
@@ -525,18 +537,38 @@ func TestSetMappingReportsAProviderFailure(t *testing.T) {
 	}
 }
 
-func TestRefusedRowReasonsCarryNoSentinelText(t *testing.T) {
+func TestRefusedRowReasonsAreCodes(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]func(*fieldProvider){
-		"a text of another kind":     func(f *fieldProvider) { f.refuse["1990-04-17"] = "DATE" },
-		"a field no provider serves": func(f *fieldProvider) { f.fields = nil },
-		"a provider naming the field first": func(f *fieldProvider) {
-			f.checkErr = fmt.Errorf("birthDate expects DATE: %w", sdk.ErrInvalidFieldText)
+	tests := map[string]struct {
+		arrange func(*fieldProvider)
+		code    string
+		meta    map[string]any
+	}{
+		"a text of another kind": {
+			func(f *fieldProvider) { f.refuse["1990-04-17"] = "DATE" },
+			"value_kind_mismatch", map[string]any{"field": "birthDate", "kind": "DATE"},
+		},
+		"a field no provider serves": {
+			func(f *fieldProvider) { f.fields = nil },
+			"field_unknown", map[string]any{"fields": []any{"birthDate"}},
+		},
+		"a provider wrapping the plain sentinel": {
+			func(f *fieldProvider) { f.checkErr = fmt.Errorf("birthDate expects DATE: %w", sdk.ErrInvalidFieldText) },
+			"field_text_refused", map[string]any{},
+		},
+		"a provider naming a reason the importer does not read": {
+			func(f *fieldProvider) {
+				f.checkErr = sdk.FieldTextError{
+					Reason: "field_repeater_entries_only", Fields: []string{"birthDate"},
+					Err: errors.New("birthDate takes its entries one at a time"),
+				}
+			},
+			"field_text_refused", map[string]any{},
 		},
 	}
 
-	for name, arrange := range tests {
+	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -550,17 +582,11 @@ func TestRefusedRowReasonsCarryNoSentinelText(t *testing.T) {
 				"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", id); err != nil {
 				t.Fatalf("resuming the import: %v", err)
 			}
-			arrange(provider)
+			tc.arrange(provider)
 
 			mustCommit(t, p, id)
 
-			reason := reasonOf(t, pool, id, 1)
-			if strings.Contains(reason, sdk.ErrInvalidFieldText.Error()) {
-				t.Errorf("reason = %q, want no sentinel text shown to an operator", reason)
-			}
-			if !strings.Contains(reason, "birthDate") {
-				t.Errorf("reason = %q, want it to name the field", reason)
-			}
+			wantReason(t, reasonOf(t, pool, id, 1), tc.code, tc.meta)
 		})
 	}
 }

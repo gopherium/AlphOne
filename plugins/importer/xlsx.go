@@ -78,7 +78,7 @@ func readWorksheetRows(rows *excelize.Rows, width int) ([]row, error) {
 		if len(data) >= maxRows {
 			return nil, errTooManyRows
 		}
-		data = append(data, alignRow(cells, width, err))
+		data = append(data, alignRow(cells, width, err, 0))
 	}
 	return data, rows.Error()
 }
