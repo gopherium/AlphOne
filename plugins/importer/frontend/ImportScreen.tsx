@@ -22,6 +22,7 @@ import {
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Suspense, lazy, useState } from 'react'
 
+import { columnLabel } from './column'
 import { fieldLabeller } from './fieldLabels'
 import type { ImportDetailQuery } from './gql/graphql'
 import {
@@ -36,7 +37,7 @@ const RowsTable = lazy(() => import('./RowsTable'))
 export type StoredImport = NonNullable<ImportDetailQuery['importJob']>
 
 /** ImportField is one target field as the detail document selects it. */
-type ImportField = ImportDetailQuery['importFields'][number]
+export type ImportField = ImportDetailQuery['importFields'][number]
 
 // unmapped is the select value a column carries until a field is chosen.
 const unmapped = 'not-imported'
@@ -67,7 +68,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 			<MappingForm stored={stored} fields={importFields} />
 			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
 			<Suspense fallback={<LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />}>
-				<RowsTable stored={stored} rows={stored.rows} />
+				<RowsTable stored={stored} rows={stored.rows} fields={importFields} />
 			</Suspense>
 		</PageScreen>
 	)
@@ -200,7 +201,7 @@ function ColumnSelect({
 	]
 	return (
 		<SelectControl
-			label={column === '' ? sprintf(__('Column %(number)d', 'alphone-importer'), { number: index + 1 }) : column}
+			label={column === '' ? columnLabel(index) : column}
 			items={items}
 			value={chosenItem(items, chosen)}
 			onValueChange={(item) => onChoose(chosenValue(item))}
