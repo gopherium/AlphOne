@@ -350,12 +350,12 @@
 	overflow-wrap: anywhere;
 }
 
-.alphone-contacts__search {
-	max-width: 320px;
-}
-
 .alphone-contacts__created {
 	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.alphone-contacts__channel {
+	white-space: nowrap;
 }
 
 .alphone-tasks__list {

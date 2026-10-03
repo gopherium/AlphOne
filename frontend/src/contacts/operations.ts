@@ -78,6 +78,32 @@ export const contactNameQuery = graphql(`
 	}
 `)
 
+export const contactPageQuery = graphql(`
+	query ContactPage(
+		$q: String
+		$channels: [String!]
+		$orderBy: ContactOrderBy!
+		$order: SortOrder!
+		$limit: Int
+		$offset: Int
+	) {
+		contactPage(q: $q, channels: $channels, orderBy: $orderBy, order: $order, limit: $limit, offset: $offset) {
+			items {
+				id
+				name
+				createdAt
+				identities {
+					id
+					channel
+					identifier
+				}
+			}
+			total
+			limit
+		}
+	}
+`)
+
 export const contactsQuery = graphql(`
 	query Contacts($q: String, $first: Int, $after: String) {
 		contacts(q: $q, first: $first, after: $after) {

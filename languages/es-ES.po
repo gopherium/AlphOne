@@ -237,10 +237,6 @@ msgid "Load more tasks"
 msgstr "Cargar más tareas"
 
 #, fuzzy
-msgid "Loading contacts…"
-msgstr "Cargando los contactos…"
-
-#, fuzzy
 msgid "Loading contact…"
 msgstr "Cargando el contacto…"
 
@@ -372,10 +368,6 @@ msgstr "Guardar"
 #, fuzzy
 msgid "Scopes"
 msgstr "Ámbitos"
-
-#, fuzzy
-msgid "Search contacts"
-msgstr "Buscar contactos"
 
 #, fuzzy
 msgid "Sign in to go on."
@@ -549,10 +541,6 @@ msgstr "No se han podido cargar los tokens."
 #, fuzzy
 msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
 msgstr "Demasiados intentos. Espera %(retryAfter)s segundos e inténtalo de nuevo."
-
-#, fuzzy
-msgid "Try a different search, or add one with New contact."
-msgstr "Prueba otra búsqueda, o añade uno con Contacto nuevo."
 
 msgid "Users"
 msgstr "Usuarios"
@@ -919,3 +907,35 @@ msgstr "usuarios"
 msgctxt "token area"
 msgid "webhooks"
 msgstr "webhooks"
+
+#, fuzzy
+msgid "Add one with New contact."
+msgstr "Añade uno con Contacto nuevo."
+
+#, fuzzy
+msgid "Channels"
+msgstr "Canales"
+
+#, fuzzy
+msgid "Identity"
+msgstr "Identidad"
+
+#, fuzzy
+msgid "Manage the people you work with and how to reach them."
+msgstr "Gestiona las personas con las que trabajas y cómo contactar con ellas."
+
+#, fuzzy
+msgid "No contacts yet."
+msgstr "Todavía no hay contactos."
+
+#, fuzzy
+msgid "Rename"
+msgstr "Renombrar"
+
+#, fuzzy
+msgid "Rename contact"
+msgstr "Renombrar el contacto"
+
+#, fuzzy
+msgid "Search contacts…"
+msgstr "Buscar contactos…"
