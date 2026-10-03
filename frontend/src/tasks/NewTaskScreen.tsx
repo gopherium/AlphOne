@@ -17,7 +17,7 @@ import {
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
-import { contactsQuery } from '../contacts/operations'
+import { contactNameQuery, contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { isValidDate } from './format'
 import { createTaskMutation } from './operations'
@@ -32,14 +32,33 @@ interface PickableContact {
 }
 
 /**
+ * Holds the contact a new task links to, starting on the one the address names once it arrives.
+ * @param contactId - The contact the address names, none when absent.
+ * @returns The linked contact beside the setter the picker calls.
+ */
+function usePickedContact(
+	contactId: string | undefined,
+): [PickableContact | null, (contact: PickableContact | null) => void] {
+	const [named] = useGraphQuery({
+		query: contactNameQuery,
+		variables: { id: contactId ?? '' },
+		pause: contactId === undefined,
+	})
+	const [picked, setPicked] = useState<PickableContact | null>()
+	return [picked === undefined ? (named.data?.contact ?? null) : picked, setPicked]
+}
+
+/**
  * Renders the full new-task form.
  * @returns The creation screen.
  */
 export function NewTaskScreen({
 	date,
+	contactId,
 	onCreated,
 }: {
 	date: string
+	contactId?: string
 	onCreated: (created: { id: string }) => void
 }) {
 	const graph = useGraph()
@@ -47,7 +66,7 @@ export function NewTaskScreen({
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
 	const [priority, setPriority] = useState(0)
-	const [contact, setContact] = useState<PickableContact | null>(null)
+	const [contact, setContact] = usePickedContact(contactId)
 	const [create, runCreate] = useGraphMutation(createTaskMutation)
 	const submit = async () => {
 		const result = await runCreate({

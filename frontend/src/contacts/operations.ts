@@ -69,6 +69,15 @@ export const contactDetailQuery = graphql(`
 	}
 `)
 
+export const contactNameQuery = graphql(`
+	query ContactName($id: UUID!) {
+		contact(id: $id) {
+			id
+			name
+		}
+	}
+`)
+
 export const contactsQuery = graphql(`
 	query Contacts($q: String, $first: Int, $after: String) {
 		contacts(q: $q, first: $first, after: $after) {

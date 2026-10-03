@@ -38,11 +38,12 @@ export function TasksRoute() {
  * @returns The new task route element.
  */
 export function NewTaskRoute() {
-	const { date } = newTaskRouteApi.useSearch()
+	const { date, contactId } = newTaskRouteApi.useSearch()
 	const navigate = useNavigate()
 	return (
 		<NewTaskScreen
 			date={dayOrToday(date, isoDate(new Date()))}
+			contactId={contactId}
 			onCreated={(created) =>
 				void navigate({ to: '/tasks/$taskId', params: { taskId: created.id } })
 			}
