@@ -4,72 +4,49 @@ import {
 	Button,
 	EmptyState,
 	ErrorNotice,
-	LoadingRows,
 	PageScreen,
-	Stack,
-	Text,
-	VisuallyHidden,
 	__,
-	people,
-	sprintf,
-	useGraphMutation,
+	key,
+	useAdminSettings,
 	useGraphQuery,
+	useListView,
 } from '@alphone/frontend-sdk'
+import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
 import { Link } from '@tanstack/react-router'
+import { useCallback, useMemo, useState } from 'react'
 
-import { formatCreated } from '../contacts/format'
-import { formatExpiry, formatLastUsed } from './tokenFormat'
-import { apiTokenRevokeMutation, apiTokensQuery } from './tokenOperations'
+import { UserTabs } from './UserTabs'
+import { useTokenActions } from './tokenActions'
+import { tokenFields } from './tokenFields'
+import type { ApiToken } from './tokenFields'
+import { apiTokensQuery } from './tokenOperations'
 
-/** ApiTokenRow is one token as the listing shows it. */
-interface ApiTokenRow {
-	id: string
-	name: string
-	scopes: readonly string[]
-	createdAt: string
-	lastUsedAt?: string | null
-	expiresAt?: string | null
-}
+/** noTokens stands in for the list until the tokens arrive. */
+const noTokens: ApiToken[] = []
 
 /**
- * Renders one token row with its scopes, dates, and revoke control.
- * @returns The table row element.
+ * Renders what the list shows when no token is on it.
+ * @param props - Whether tokens exist that the view narrowed away.
+ * @returns The empty state.
  */
-function TokenRow({ token, onRevoked }: { token: ApiTokenRow; onRevoked: () => void }) {
-	const [revoke, runRevoke] = useGraphMutation(apiTokenRevokeMutation)
-	const submit = async () => {
-		const result = await runRevoke({ id: token.id })
-		if (result.data) {
-			onRevoked()
-		}
-	}
-
+function TokensEmpty({ narrowed }: { narrowed: boolean }) {
 	return (
-		<tr>
-			<td>{token.name}</td>
-			<td>{token.scopes.join(' ')}</td>
-			<td>{formatCreated(new Date(token.createdAt))}</td>
-			<td>{formatLastUsed(token.lastUsedAt)}</td>
-			<td>{formatExpiry(token.expiresAt, new Date())}</td>
-			<td className="godmin-table__actions">
-				<Stack direction="column" gap="xs">
-					<Button
-						variant="outline"
-						aria-label={sprintf(__('Revoke %(name)s', 'alphone'), { name: token.name })}
-						loading={revoke.fetching}
-						onClick={() => void submit()}
-					>
-						{__('Revoke', 'alphone')}
-					</Button>
-					{revoke.error ? <Text role="alert">{__('Revoke failed.', 'alphone')}</Text> : null}
-				</Stack>
-			</td>
-		</tr>
+		<EmptyState.Root className="godmin-empty">
+			<EmptyState.Icon icon={key} />
+			{narrowed ? (
+				<EmptyState.Title>{__('No tokens found.', 'alphone')}</EmptyState.Title>
+			) : (
+				<>
+					<EmptyState.Title>{__('No API tokens yet.', 'alphone')}</EmptyState.Title>
+					<EmptyState.Description>{__('Add one with New token.', 'alphone')}</EmptyState.Description>
+				</>
+			)}
+		</EmptyState.Root>
 	)
 }
 
 /**
- * Renders the caller's own API tokens with their scopes, dates, and revoke controls.
+ * Renders the caller's own API tokens as a list to search, filter, sort and page, each one revocable.
  * @returns The tokens screen.
  */
 export function TokensScreen() {
@@ -77,79 +54,54 @@ export function TokensScreen() {
 		query: apiTokensQuery,
 		requestPolicy: 'cache-and-network',
 	})
+	const { settings, failed } = useAdminSettings()
+	const list = useListView({
+		fields: ['created', 'lastUsed', 'expires'],
+		titleField: 'name',
+		descriptionField: 'scopes',
+		sort: { field: 'created', direction: 'desc' },
+		perPage: settings?.listPageSize,
+	})
+	const [failure, setFailure] = useState<string>()
+	const reload = useCallback(() => refetch({ requestPolicy: 'network-only' }), [refetch])
+	const actions = useTokenActions(setFailure, reload)
+	const tokens = result.data?.apiTokens ?? noTokens
+	const fields = useMemo(() => tokenFields(tokens), [tokens])
+	const shown = filterSortAndPaginate(tokens, list.view, fields)
+	const sizing = list.view.perPage === undefined && !failed
 
 	return (
 		<PageScreen
-			title={__('API tokens', 'alphone')}
+			title={__('Users', 'alphone')}
+			subtitle={__('Manage the tokens your programs sign in with.', 'alphone')}
 			actions={
-				<Button variant="solid" render={<Link to="/users/tokens/new" />}>
+				<Button variant="solid" size="compact" render={<Link to="/users/tokens/new" />}>
 					{__('New token', 'alphone')}
 				</Button>
 			}
+			tabs={<UserTabs current="tokens" />}
+			list
 		>
-			<TokenRows
-				tokens={result.data?.apiTokens}
-				failed={result.error !== undefined}
-				onRevoked={() => refetch({ requestPolicy: 'network-only' })}
-			/>
+			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
+			{result.error ? (
+				<ErrorNotice>{__('Tokens could not be loaded.', 'alphone')}</ErrorNotice>
+			) : (
+				<DataViews<ApiToken>
+					data={shown.data}
+					paginationInfo={shown.paginationInfo}
+					fields={fields}
+					view={list.view}
+					onChangeView={list.onChangeView}
+					defaultLayouts={list.defaultLayouts}
+					selection={list.selection}
+					onChangeSelection={list.onChangeSelection}
+					actions={actions}
+					isLoading={result.data === undefined || sizing}
+					searchLabel={__('Search tokens…', 'alphone')}
+					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
+					empty={<TokensEmpty narrowed={tokens.length > 0} />}
+				/>
+			)}
 		</PageScreen>
-	)
-}
-
-/**
- * Renders the loading, error, empty, and loaded states of the token list.
- * @returns The list body.
- */
-function TokenRows({
-	tokens,
-	failed,
-	onRevoked,
-}: {
-	tokens: readonly ApiTokenRow[] | undefined
-	failed: boolean
-	onRevoked: () => void
-}) {
-	if (failed) {
-		return <ErrorNotice>{__('Tokens could not be loaded.', 'alphone')}</ErrorNotice>
-	}
-	if (tokens === undefined) {
-		return <LoadingRows label={__('Loading tokens…', 'alphone')} />
-	}
-	if (tokens.length === 0) {
-		return (
-			<EmptyState.Root className="godmin-empty">
-				<EmptyState.Icon icon={people} />
-				<EmptyState.Title>{__('No API tokens yet.', 'alphone')}</EmptyState.Title>
-				<EmptyState.Description>{__('Add one with New token.', 'alphone')}</EmptyState.Description>
-			</EmptyState.Root>
-		)
-	}
-	return (
-		<div
-			className="godmin-table-scroll godmin-arrival"
-			role="region"
-			aria-label={__('API tokens', 'alphone')}
-			tabIndex={0}
-		>
-			<table className="godmin-table">
-				<thead>
-					<tr>
-						<th scope="col">{__('Name', 'alphone')}</th>
-						<th scope="col">{__('Scopes', 'alphone')}</th>
-						<th scope="col">{__('Created', 'alphone')}</th>
-						<th scope="col">{__('Last used', 'alphone')}</th>
-						<th scope="col">{__('Expires', 'alphone')}</th>
-						<th scope="col" className="godmin-table__actions">
-							<VisuallyHidden>{__('Actions', 'alphone')}</VisuallyHidden>
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{tokens.map((token) => (
-						<TokenRow key={token.id} token={token} onRevoked={onRevoked} />
-					))}
-				</tbody>
-			</table>
-		</div>
 	)
 }

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, __ } from '@alphone/frontend-sdk'
-
-import { formatCreated } from '../contacts/format'
+import { _x, __, formatDate } from '@alphone/frontend-sdk'
 
 /** grantableAreas lists the areas a token may be granted, in menu order. */
 export const grantableAreas = [
@@ -39,7 +37,7 @@ export const defaultLifetime = '90'
  * @returns The date, or a plain statement that it never acted.
  */
 export function formatLastUsed(at: string | null | undefined): string {
-	return at === null || at === undefined ? __('Never used', 'alphone') : formatCreated(new Date(at))
+	return at === null || at === undefined ? __('Never used', 'alphone') : formatDate(at)
 }
 
 /**
@@ -53,7 +51,7 @@ export function formatExpiry(at: string | null | undefined, now: Date): string {
 		return __('Never expires', 'alphone')
 	}
 	const ends = new Date(at)
-	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatCreated(ends)
+	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatDate(ends)
 }
 
 /**
