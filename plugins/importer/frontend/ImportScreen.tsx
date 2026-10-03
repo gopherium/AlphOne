@@ -9,6 +9,7 @@ import {
 	SectionTitle,
 	SelectControl,
 	__,
+	_x,
 	graphError,
 	sprintf,
 	useGraph,
@@ -49,7 +50,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 	}
 	if (!detail.data) {
 		return (
-			<PageScreen title={__('Import', 'alphone-importer')}>
+			<PageScreen title={_x('Import', 'admin section', 'alphone-importer')}>
 				<LoadingScreen label={__('Loading import…', 'alphone-importer')} />
 			</PageScreen>
 		)

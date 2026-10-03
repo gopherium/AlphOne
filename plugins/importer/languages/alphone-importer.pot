@@ -10,7 +10,7 @@ msgstr ""
 msgid "AlphOne could not read that file as a CSV or a spreadsheet."
 msgstr ""
 
-msgid "Choose a CSV or Excel file to start one."
+msgid "Bring contacts in from CSV and Excel files."
 msgstr ""
 
 msgid "Choose what each column holds before committing."
@@ -28,16 +28,10 @@ msgstr ""
 msgid "File"
 msgstr ""
 
-msgid "Import"
-msgstr ""
-
-msgid "Imports"
+msgid "File uploaded."
 msgstr ""
 
 msgid "Imports could not be loaded."
-msgstr ""
-
-msgid "Loading imports…"
 msgstr ""
 
 msgid "Loading import…"
@@ -46,10 +40,16 @@ msgstr ""
 msgid "Loading the preview…"
 msgstr ""
 
+msgid "No imports found."
+msgstr ""
+
 msgid "No imports yet."
 msgstr ""
 
 msgid "Not imported"
+msgstr ""
+
+msgid "Open"
 msgstr ""
 
 msgid "Outcome"
@@ -65,6 +65,9 @@ msgid "Rows"
 msgstr ""
 
 msgid "Save mapping"
+msgstr ""
+
+msgid "Search imports…"
 msgstr ""
 
 msgid "Started"
@@ -100,6 +103,12 @@ msgstr ""
 msgid "This import was committed already."
 msgstr ""
 
+msgid "Upload"
+msgstr ""
+
+msgid "Upload a CSV or Excel file to start one."
+msgstr ""
+
 msgctxt "admin section"
 msgid "Import"
 msgstr ""
@@ -114,6 +123,18 @@ msgstr ""
 
 msgctxt "import count"
 msgid "Skipped"
+msgstr ""
+
+msgctxt "import state"
+msgid "Imported"
+msgstr ""
+
+msgctxt "import state"
+msgid "Importing"
+msgstr ""
+
+msgctxt "import state"
+msgid "Ready"
 msgstr ""
 
 msgctxt "row outcome"
