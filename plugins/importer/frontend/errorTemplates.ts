@@ -13,7 +13,7 @@ const DOMAIN = 'alphone-importer'
 export function errorTemplates(): Record<string, string> {
 	return {
 		import_not_found: __('That import no longer exists.', DOMAIN),
-		file_too_large: __('The file runs past %(maxBytes)d bytes.', DOMAIN),
+		file_too_large: __('The file runs past %(maxBytes)s bytes.', DOMAIN),
 		file_unreadable: __('AlphOne could not read that file as a CSV or a spreadsheet.', DOMAIN),
 		mapping_invalid: __('The mapping does not fit the columns the file holds.', DOMAIN),
 		mapping_required: __('Choose what each column holds before committing.', DOMAIN),
