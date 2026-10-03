@@ -33,7 +33,10 @@ export const importDetailQuery = graphql(`
 				position
 				cells
 				outcome
-				reason
+				reason {
+					code
+					meta
+				}
 			}
 		}
 		importFields {
