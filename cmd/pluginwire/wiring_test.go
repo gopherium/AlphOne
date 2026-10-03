@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gopherium/pluginkit/wire"
+	"github.com/gopherium/framework/pluginkit/wire"
 )
 
 func TestRepositoryWiringIsUpToDate(t *testing.T) {
