@@ -31,6 +31,9 @@ msgstr ""
 msgid "File uploaded."
 msgstr ""
 
+msgid "Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed."
+msgstr ""
+
 msgid "Imports could not be loaded."
 msgstr ""
 
@@ -38,6 +41,9 @@ msgid "Loading import…"
 msgstr ""
 
 msgid "Loading the preview…"
+msgstr ""
+
+msgid "Mapping saved."
 msgstr ""
 
 msgid "No imports found."

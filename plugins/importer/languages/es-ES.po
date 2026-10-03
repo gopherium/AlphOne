@@ -41,6 +41,10 @@ msgid "File uploaded."
 msgstr "Archivo subido."
 
 #, fuzzy
+msgid "Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed."
+msgstr "Importación terminada. Importadas: %(imported)s. Omitidas: %(skipped)s. Fallidas: %(failed)s."
+
+#, fuzzy
 msgid "Imports could not be loaded."
 msgstr "No se han podido cargar las importaciones."
 
@@ -51,6 +55,10 @@ msgstr "Cargando la importación…"
 #, fuzzy
 msgid "Loading the preview…"
 msgstr "Cargando la vista previa…"
+
+#, fuzzy
+msgid "Mapping saved."
+msgstr "Asignación guardada."
 
 #, fuzzy
 msgid "No imports found."
