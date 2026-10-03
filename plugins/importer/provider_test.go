@@ -317,6 +317,38 @@ func TestSetMappingRefusesAFieldNoProviderServes(t *testing.T) {
 	}
 }
 
+// claimingProvider runs a commit claim the moment the importer lists its fields.
+type claimingProvider struct {
+	*fieldProvider
+	claim func()
+}
+
+// LiveContactFields runs the claim, then lists the settable fields.
+func (c *claimingProvider) LiveContactFields(ctx context.Context) ([]sdk.ContactField, error) {
+	c.claim()
+	return c.fieldProvider.LiveContactFields(ctx)
+}
+
+func TestSetMappingRefusesAnImportACommitClaimedMeanwhile(t *testing.T) {
+	t.Parallel()
+
+	racing := &claimingProvider{fieldProvider: newFieldProvider(birthDate()), claim: func() {}}
+	p, pool, _ := newServedPlugin(t, racing)
+	id := uploadNamed(t, p, "leads.csv", fieldCSV("Maria Perez,maria@example.com,1990-04-17"))
+	racing.claim = func() {
+		if _, err := pool.Exec(t.Context(),
+			"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", id); err != nil {
+			t.Errorf("claiming the import: %v", err)
+		}
+	}
+
+	err := mapNameEmailAndField(t, p, id, "birthDate")
+
+	if got := errorCode(t, err); got != "CONFLICT" {
+		t.Errorf("code = %q, want CONFLICT for a mapping the commit overtook", got)
+	}
+}
+
 func TestCommitWritesAMappedCellIntoItsField(t *testing.T) {
 	t.Parallel()
 

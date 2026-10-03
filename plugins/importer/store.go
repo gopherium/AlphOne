@@ -211,11 +211,15 @@ func (s *store) finishCommit(ctx context.Context, id uuid.UUID) (commitCounts, e
 
 // updateMapping stores the column assignments of an import that is still ready.
 func (s *store) updateMapping(ctx context.Context, id uuid.UUID, assigned mapping) error {
-	if _, err := s.pool.Exec(ctx,
+	updated, err := s.pool.Exec(ctx,
 		`UPDATE plugin_importer.imports SET mapping = $2
 		WHERE id = $1 AND state = $3 AND tenant_id = $4`,
-		id, assigned, stateReady, sdk.TenantOrDefault(ctx)); err != nil {
+		id, assigned, stateReady, sdk.TenantOrDefault(ctx))
+	if err != nil {
 		return fmt.Errorf("importer: update mapping: %w", err)
+	}
+	if updated.RowsAffected() == 0 {
+		return errMappingLocked
 	}
 	return nil
 }
