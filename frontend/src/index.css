@@ -361,6 +361,11 @@
 	white-space: nowrap;
 }
 
+.alphone-import__reason {
+	white-space: normal;
+	min-width: 24ch;
+}
+
 .alphone-tasks__list {
 	list-style: none;
 	margin: 0;
