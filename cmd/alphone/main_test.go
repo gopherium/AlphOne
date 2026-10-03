@@ -326,7 +326,7 @@ func TestRunRequiresDatabaseURL(t *testing.T) {
 	}
 }
 
-func TestParseTrustedProxies(t *testing.T) {
+func TestTrustedProxiesAreReadFromTheSetting(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
@@ -347,19 +347,22 @@ func TestParseTrustedProxies(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseTrustedProxies(tc.raw)
+			held, err := loadRunConfig(testGetenv(map[string]string{
+				"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
+				"ALPHONE_TRUSTED_PROXIES": tc.raw,
+			}))
 
 			if tc.wantErr {
-				if err == nil {
-					t.Fatalf("parseTrustedProxies(%q) error = nil, want an error", tc.raw)
+				if err == nil || !strings.HasPrefix(err.Error(), "ALPHONE_TRUSTED_PROXIES: ") {
+					t.Fatalf("loadRunConfig() with proxies %q error = %v, want them refused by name", tc.raw, err)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("parseTrustedProxies(%q) error = %v, want nil", tc.raw, err)
+				t.Fatalf("loadRunConfig() with proxies %q error = %v, want nil", tc.raw, err)
 			}
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("parseTrustedProxies(%q) = %v, want %v", tc.raw, got, tc.want)
+			if !slices.Equal(held.trustedProxies, tc.want) {
+				t.Errorf("trustedProxies from %q = %v, want %v", tc.raw, held.trustedProxies, tc.want)
 			}
 		})
 	}

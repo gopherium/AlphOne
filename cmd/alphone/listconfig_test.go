@@ -3,6 +3,7 @@
 package main
 
 import (
+	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -142,7 +143,7 @@ func TestAFormatLocaleThatIsNoLanguageTagIsRefusedByName(t *testing.T) {
 			"ALPHONE_FORMAT_LOCALE": raw,
 		}))
 
-		want := `ALPHONE_FORMAT_LOCALE must be a BCP 47 language tag such as es-ES or en-GB, got "` + raw + `"`
+		want := `ALPHONE_FORMAT_LOCALE: must be a BCP 47 language tag such as es-ES or en-GB, got "` + raw + `"`
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("ALPHONE_FORMAT_LOCALE=%q error = %v, want %q", raw, err, want)
 		}
@@ -176,7 +177,7 @@ func TestAnUnreadableToastDurationIsRefusedWithItsBounds(t *testing.T) {
 		"ALPHONE_TOAST_DURATION": "500us",
 	}))
 
-	want := `ALPHONE_TOAST_DURATION must be a duration such as 6s or 1500ms, ` +
+	want := `ALPHONE_TOAST_DURATION: must be a duration such as 6s or 1500ms, ` +
 		`in whole milliseconds from 1ms to 2147483647ms, got "500us"`
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("loadRunConfig() error = %v, want %q", err, want)
@@ -192,9 +193,47 @@ func TestPageSizesListedTwiceOrOutOfOrderAreRefusedByTheRule(t *testing.T) {
 		"ALPHONE_LIST_PAGE_SIZE":  "10",
 	}))
 
-	want := `ALPHONE_LIST_PAGE_SIZES must list each size once from the smallest up, got "20,10"`
+	want := `ALPHONE_LIST_PAGE_SIZES: must list each size once from the smallest up, got "20,10"`
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("loadRunConfig() error = %v, want %q", err, want)
+	}
+}
+
+func TestABoundSetByAnotherSettingIsRefusedNamingBoth(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		set  map[string]string
+		want string
+	}{
+		"a graph page past the graph cap": {
+			set:  map[string]string{"ALPHONE_GRAPH_PAGE_SIZE": "60", "ALPHONE_GRAPH_PAGE_CAP": "40"},
+			want: "ALPHONE_GRAPH_PAGE_SIZE: must not exceed ALPHONE_GRAPH_PAGE_CAP 40, got 60",
+		},
+		"a list page past the graph cap": {
+			set: map[string]string{
+				"ALPHONE_GRAPH_PAGE_CAP": "250", "ALPHONE_LIST_PAGE_SIZES": "10,300", "ALPHONE_LIST_PAGE_SIZE": "10",
+			},
+			want: "ALPHONE_LIST_PAGE_SIZES: must hold no size past ALPHONE_GRAPH_PAGE_CAP 250, got 300",
+		},
+		"an opening page the list does not offer": {
+			set:  map[string]string{"ALPHONE_LIST_PAGE_SIZES": "5,15,30", "ALPHONE_LIST_PAGE_SIZE": "25"},
+			want: "ALPHONE_LIST_PAGE_SIZE: must be one of ALPHONE_LIST_PAGE_SIZES [5 15 30], got 25",
+		},
+	}
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/x"}
+			maps.Copy(env, tt.set)
+
+			_, err := loadRunConfig(testGetenv(env))
+
+			if err == nil || err.Error() != tt.want {
+				t.Errorf("loadRunConfig() error = %v, want %q", err, tt.want)
+			}
+		})
 	}
 }
 
@@ -257,9 +296,9 @@ func TestAGraphPageCapPastTheLargestPricedPageIsRefusedWithItsBound(t *testing.T
 		"ALPHONE_GRAPH_PAGE_CAP": strconv.Itoa(largest + 1),
 	}))
 
-	want := "ALPHONE_GRAPH_PAGE_CAP " + strconv.Itoa(largest+1) + " must not exceed " + strconv.Itoa(largest) +
+	want := "ALPHONE_GRAPH_PAGE_CAP: must not exceed " + strconv.Itoa(largest) +
 		", the most rows a read of one field a row fits under the query cost limit " +
-		strconv.Itoa(graphres.ComplexityLimit)
+		strconv.Itoa(graphres.ComplexityLimit) + ", got " + strconv.Itoa(largest+1)
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("loadRunConfig() error = %v, want %q", err, want)
 	}

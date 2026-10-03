@@ -137,16 +137,19 @@ func TestThePublicURLRefusesAnUnparseableValue(t *testing.T) {
 
 	const unparseablePublicURL = "https://crm.example.com/\x7f"
 
-	held, err := parsePublicURL(unparseablePublicURL)
+	_, err := loadRunConfig(testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
+		"ALPHONE_SMTP_HOST":    "mail.example.com",
+		"ALPHONE_SMTP_FROM":    "crm@example.com",
+		"ALPHONE_PUBLIC_URL":   unparseablePublicURL,
+	}))
 
 	if err == nil {
-		t.Fatal("parsePublicURL() error = nil, want the unparseable address refused")
+		t.Fatal("loadRunConfig() error = nil, want the unparseable address refused")
 	}
-	if !strings.Contains(err.Error(), "ALPHONE_PUBLIC_URL") {
-		t.Errorf("parsePublicURL() error = %v, want it to name ALPHONE_PUBLIC_URL", err)
-	}
-	if held != "" {
-		t.Errorf("parsePublicURL() = %q, want empty on failure", held)
+	if !strings.HasPrefix(err.Error(), "ALPHONE_PUBLIC_URL: must be a URL: ") ||
+		strings.Count(err.Error(), "ALPHONE_PUBLIC_URL") != 1 {
+		t.Errorf("loadRunConfig() error = %v, want ALPHONE_PUBLIC_URL named once, before the reason", err)
 	}
 }
 
