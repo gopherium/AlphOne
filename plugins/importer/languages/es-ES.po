@@ -157,6 +157,21 @@ msgid "Import"
 msgstr "Importar"
 
 #, fuzzy
+msgctxt "contact field"
+msgid "Email"
+msgstr "Correo electrónico"
+
+#, fuzzy
+msgctxt "contact field"
+msgid "Name"
+msgstr "Nombre"
+
+#, fuzzy
+msgctxt "contact field"
+msgid "Phone"
+msgstr "Teléfono"
+
+#, fuzzy
 msgctxt "import count"
 msgid "Failed"
 msgstr "Fallidas"

@@ -344,6 +344,38 @@ test('a stored mapping arrives already chosen', async () => {
 	expect(screen.getByLabelText('Column 2')).toHaveTextContent('Not imported')
 })
 
+test('offers the contact fields by the names the interface gives them, a defined field by its own label', async () => {
+	server.use(
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({
+				data: {
+					importJob: {
+						__typename: 'ImportJob',
+						id: importID,
+						filename: 'contacts.csv',
+						state: 'ready',
+						columns: ['Name'],
+						mapping: [],
+						rows: [],
+					},
+					importFields: [
+						{ __typename: 'ImportField', name: 'name', label: 'Full name', required: true },
+						{ __typename: 'ImportField', name: 'email', label: 'E-mail address', required: false },
+						{ __typename: 'ImportField', name: 'phone', label: 'Telephone', required: false },
+						{ __typename: 'ImportField', name: 'joinedOn', label: 'Joined on', required: false },
+					],
+				},
+			}),
+		),
+	)
+	await renderSettled()
+
+	await userEvent.click(await screen.findByLabelText('Name'))
+
+	const offered = within(await screen.findByRole('listbox')).getAllByRole('option').map((option) => option.textContent)
+	expect(offered).toEqual(['Not imported', 'Name', 'Email', 'Phone', 'Joined on'])
+})
+
 test('the screen reports an import it cannot read', async () => {
 	server.use(
 		graphql.query('ImportDetail', () =>

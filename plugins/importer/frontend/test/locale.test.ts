@@ -37,6 +37,12 @@ test('confirms an upload in Spanish with a full stop, beside the action opening 
 	expect(await spanish('File uploaded.', 'Open', 'Upload')).toEqual(['Archivo subido.', 'Abrir', 'Subir'])
 })
 
+test('names the contact fields in Spanish as the contact screens do', async () => {
+	expect(
+		await spanish('contact field\u0004Name', 'contact field\u0004Email', 'contact field\u0004Phone'),
+	).toEqual(['Nombre', 'Correo electrónico', 'Teléfono'])
+})
+
 test('reads the imports list chrome in Spanish', async () => {
 	expect(
 		await spanish(

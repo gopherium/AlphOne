@@ -119,6 +119,18 @@ msgctxt "admin section"
 msgid "Import"
 msgstr ""
 
+msgctxt "contact field"
+msgid "Email"
+msgstr ""
+
+msgctxt "contact field"
+msgid "Name"
+msgstr ""
+
+msgctxt "contact field"
+msgid "Phone"
+msgstr ""
+
 msgctxt "import count"
 msgid "Failed"
 msgstr ""
