@@ -31,6 +31,9 @@ type Plugin = pluginkit.Plugin
 // the host migrates before starting any plugin.
 type Migrator = pluginkit.Migrator
 
+// Seeder is implemented by plugins that fill their own schema with development data.
+type Seeder = pluginkit.Seeder
+
 // RouteProvider is implemented by plugins that expose HTTP endpoints
 // under their own namespace.
 type RouteProvider = pluginkit.RouteProvider
