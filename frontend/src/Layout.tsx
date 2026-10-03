@@ -6,8 +6,8 @@ import { Outlet } from '@tanstack/react-router'
 
 import { RailContent } from './RailContent'
 
-const CHROME_COLOR = { background: '#1e1e1e' }
-const CANVAS_COLOR = { background: '#ffffff' }
+const CHROME_COLOR = { background: '#26292b' }
+const CANVAS_COLOR = { background: '#fcfcfc' }
 
 /**
  * Renders the admin layout: a dark navigation chrome wrapped around a light
