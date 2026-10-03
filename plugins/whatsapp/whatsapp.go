@@ -131,12 +131,23 @@ func (p *Plugin) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop halts the media download loop and releases the plugin's database
-// resources.
-func (p *Plugin) Stop(_ context.Context) error {
-	p.fetcher.Stop()
-	p.pool.Close()
-	return nil
+// Stop halts the media download loop and closes the database pool, returning the error of ctx when ctx ends first.
+func (p *Plugin) Stop(ctx context.Context) error {
+	if err := p.fetcher.Stop(ctx); err != nil {
+		go p.pool.Close()
+		return fmt.Errorf("whatsapp: stop media fetcher: %w", err)
+	}
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		p.pool.Close()
+	}()
+	select {
+	case <-closed:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("whatsapp: close database pool: %w", ctx.Err())
+	}
 }
 
 // Routes returns the plugin's HTTP endpoints, served relative to its
