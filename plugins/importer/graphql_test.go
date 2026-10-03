@@ -478,6 +478,53 @@ func TestGraphImportErrorsAreClassified(t *testing.T) {
 	})
 }
 
+func TestGraphImportCommitWithoutAMappingKeepsTheImportOpen(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+
+	early := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { id } }`,
+		map[string]any{"id": staged.ID}))
+	if got := firstCode(t, early); got != "VALIDATION" {
+		t.Fatalf("early commit code = %q, want VALIDATION", got)
+	}
+	mustGraphMapping(t, graphHandler, staged.ID)
+	mapped := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { imported } }`,
+		map[string]any{"id": staged.ID}))
+	if len(mapped.Errors) != 0 {
+		t.Errorf("commit after the mapping errors = %v, want none", mapped.Errors)
+	}
+}
+
+func TestGraphImportCommitReopensAnImportLeftCommittingWithoutAMapping(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+	importID := uuid.MustParse(staged.ID)
+	if _, err := pool.Exec(t.Context(),
+		"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", importID); err != nil {
+		t.Fatalf("leaving the import committing: %v", err)
+	}
+
+	stuck := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { id } }`,
+		map[string]any{"id": staged.ID}))
+
+	if got := firstCode(t, stuck); got != "VALIDATION" {
+		t.Fatalf("commit code = %q, want VALIDATION", got)
+	}
+	if held := stateOf(t, pool, importID); held != "ready" {
+		t.Fatalf("state after the commit = %q, want ready", held)
+	}
+	mustGraphMapping(t, graphHandler, staged.ID)
+}
+
 func TestGraphImportFieldsListsTheMappableFields(t *testing.T) {
 	t.Parallel()
 
