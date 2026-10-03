@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/pluginkit/graphwire"
 	"github.com/gopherium/framework/pluginkit/wire"
 )
@@ -24,6 +25,7 @@ var config = wire.Config{
 	License:      "Elastic-2.0",
 	TSLicense:    "AGPL-3.0-or-later",
 	Roots:        roots,
+	Reserved:     append(gonsole.BaseCommands(), "account", "token"),
 
 	GoRegistryPath:    "internal/graphroot/registry_gen.go",
 	GoRegistryPackage: "graphroot",
