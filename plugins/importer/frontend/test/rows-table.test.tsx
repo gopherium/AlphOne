@@ -82,6 +82,14 @@ test('the preview shows every cell beside its outcome and reason', async () => {
 	expect(screen.getByText('Ana Lopez already holds an address in this row.')).toBeInTheDocument()
 })
 
+test('a reason sits in the box that lets it wrap instead of widening the table', async () => {
+	renderRows()
+
+	expect(await screen.findByText('Ana Lopez already holds an address in this row.')).toHaveClass(
+		'alphone-import__reason',
+	)
+})
+
 test('a reason names a field by its label and its kind by the label the kind reads as', async () => {
 	const failed = rowOf(4, ['Maria Perez', 'maria@example.com'], {
 		outcome: 'failed',

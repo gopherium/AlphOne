@@ -92,6 +92,7 @@ function previewFields(columns: readonly string[]): Field<PreviewRow>[] {
 			id: 'reason',
 			label: __('Reason', 'alphone-importer'),
 			type: 'text',
+			render: ({ item }) => <span className="alphone-import__reason">{item.reason}</span>,
 			enableGlobalSearch: true,
 			filterBy: false,
 		},
