@@ -326,7 +326,7 @@ func TestRunRequiresDatabaseURL(t *testing.T) {
 	}
 }
 
-func TestParseTrustedProxies(t *testing.T) {
+func TestTrustedProxiesAreReadFromTheSetting(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
@@ -347,19 +347,22 @@ func TestParseTrustedProxies(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseTrustedProxies(tc.raw)
+			held, err := loadRunConfig(testGetenv(map[string]string{
+				"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
+				"ALPHONE_TRUSTED_PROXIES": tc.raw,
+			}))
 
 			if tc.wantErr {
-				if err == nil {
-					t.Fatalf("parseTrustedProxies(%q) error = nil, want an error", tc.raw)
+				if err == nil || !strings.HasPrefix(err.Error(), "ALPHONE_TRUSTED_PROXIES: ") {
+					t.Fatalf("loadRunConfig() with proxies %q error = %v, want them refused by name", tc.raw, err)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("parseTrustedProxies(%q) error = %v, want nil", tc.raw, err)
+				t.Fatalf("loadRunConfig() with proxies %q error = %v, want nil", tc.raw, err)
 			}
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("parseTrustedProxies(%q) = %v, want %v", tc.raw, got, tc.want)
+			if !slices.Equal(held.trustedProxies, tc.want) {
+				t.Errorf("trustedProxies from %q = %v, want %v", tc.raw, held.trustedProxies, tc.want)
 			}
 		})
 	}
@@ -420,31 +423,59 @@ func TestRunHandsPluginsTheDefaultMachineGrace(t *testing.T) {
 	}
 }
 
-func TestRegisterPluginsPropagatesFailure(t *testing.T) {
+// stopRegistered stops every plugin a test registered once the test ends.
+func stopRegistered(t *testing.T, registered []sdk.Plugin) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), pluginStopGrace)
+		defer cancel()
+		for _, plugin := range registered {
+			if err := plugin.Stop(ctx); err != nil {
+				t.Errorf("stopping plugin %s: %v", plugin.ID(), err)
+			}
+		}
+	})
+}
+
+// idsOf returns the id of every plugin in order.
+func idsOf(plugins []sdk.Plugin) []string {
+	ids := make([]string, 0, len(plugins))
+	for _, plugin := range plugins {
+		ids = append(ids, plugin.ID())
+	}
+	return ids
+}
+
+func TestRegisterPluginsNamesEachPluginThatCannotReadTheDatabaseURL(t *testing.T) {
 	t.Parallel()
 
 	plugins, err := registerPlugins(sdk.Deps{DatabaseURL: "://not-a-url"})
+	stopRegistered(t, plugins)
 
-	if err == nil {
-		t.Fatal("registerPlugins() error = nil, want a parse error")
-	}
-	if plugins != nil {
-		t.Errorf("registerPlugins() = %v, want nil on failure", plugins)
+	ids := idsOf(plugins)
+	for _, id := range []string{"fields", "importer", "whatsapp"} {
+		if err == nil || !strings.Contains(err.Error(), "plugin "+id+": ") {
+			t.Errorf("registerPlugins() error = %v, want the %s plugin named", err, id)
+		}
+		if slices.Contains(ids, id) {
+			t.Errorf("registerPlugins() = %v, want the %s plugin absent beside its failure", ids, id)
+		}
 	}
 }
 
-func TestRegisterPluginsPropagatesALaterPluginFailure(t *testing.T) {
+func TestRegisterPluginsReturnsThePluginsThatRegisteredBesideALaterFailure(t *testing.T) {
 	t.Parallel()
 
-	plugins, err := registerPlugins(sdk.Deps{Getenv: testGetenv(map[string]string{
-		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number",
-	})})
+	getenv := testGetenv(map[string]string{"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number"})
+	plugins, err := registerPlugins(sdk.Deps{Getenv: getenv, Env: settingsEnv(getenv)})
+	stopRegistered(t, plugins)
 
-	if err == nil || !strings.Contains(err.Error(), "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES") {
-		t.Fatalf("registerPlugins() error = %v, want the whatsapp media cap failure", err)
+	if err == nil || !strings.Contains(err.Error(), "plugin whatsapp: ") ||
+		!strings.Contains(err.Error(), "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES") {
+		t.Fatalf("registerPlugins() error = %v, want the whatsapp plugin named with its media cap", err)
 	}
-	if plugins != nil {
-		t.Errorf("registerPlugins() = %v, want nil on failure", plugins)
+	if ids := idsOf(plugins); len(ids) == 0 || slices.Contains(ids, "whatsapp") {
+		t.Errorf("registerPlugins() = %v, want the plugins that registered and the whatsapp plugin absent", ids)
 	}
 }
 

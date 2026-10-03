@@ -11,17 +11,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
-
-	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
@@ -86,16 +85,20 @@ func run(
 		Contacts:       directoryBridge{resolver: resolver},
 		Events:         pluginPublisher{publisher: events},
 		Getenv:         getenv,
+		Env:            settingsEnv(getenv),
 	})
+	host := pluginkit.NewHost(registered...)
 	if err != nil {
-		return fmt.Errorf("register plugins: %w", err)
+		return errors.Join(
+			fmt.Errorf("register plugins: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	if err := declareRoles(role.Default, registered); err != nil {
-		return fmt.Errorf("declare plugin roles: %w", err)
+		return errors.Join(
+			fmt.Errorf("declare plugin roles: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	mailSender, mailer, err := buildMail(settings.mail, logger)
 	if err != nil {
-		return err
+		return errors.Join(err, gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 	tenants := postgres.NewTenantStore(pool)
 	wireFieldProviders(registered)
@@ -103,8 +106,7 @@ func run(
 	wireTenantGate(registered, tenantGateBridge{tenants: tenants, grace: settings.machineGrace})
 	wireMailSenderFrom(registered, mailSender)
 
-	host := pluginkit.NewHost(registered...)
-	if err := host.Start(ctx); err != nil {
+	if err := host.Start(ctx, settings.serving.StopGrace); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
@@ -142,9 +144,8 @@ func run(
 		Screens:       settings.lists.screens,
 	}, registered)
 	if err != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return errors.Join(fmt.Errorf("compose graph root: %w", err), host.Stop(stopCtx))
+		return errors.Join(
+			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 
 	cfg := settings.serverConfig()
@@ -162,14 +163,8 @@ func run(
 		cfg.Web = os.DirFS(settings.webDir)
 	}
 
-	httpServer := &http.Server{
-		Addr:              settings.addr,
-		Handler:           server.NewServer(cfg),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	return serveUntilDone(ctx, httpServer, host, logger)
+	httpServer := httpServerFrom(settings, server.NewServer(cfg))
+	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
 }
 
 // pluginAreas returns the scope area every registered plugin holds its routes to.
@@ -207,6 +202,7 @@ func declarePluginRoles(
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: getenv("ALPHONE_DATABASE_URL"),
 		Getenv:      getenv,
+		Env:         settingsEnv(getenv),
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
@@ -286,17 +282,39 @@ func wireCredentialProviders(registered []sdk.Plugin) {
 
 // runConfig carries the environment-derived settings of the server.
 type runConfig struct {
+	composeSettings
 	databaseURL    string
 	addr           string
 	webDir         string
 	trustedProxies []string
 	graphiql       bool
-	machineGrace   time.Duration
-	mail           mailSettings
 	inviteTTL      time.Duration
 	reset          resetSettings
-	tenants        tenantSettings
 	lists          listSettings
+	serving        gonsole.Timeouts
+}
+
+// composeSettings carries the machine grace, the tenant bounds and the mail settings.
+type composeSettings struct {
+	machineGrace time.Duration
+	tenants      tenantSettings
+	mail         mailSettings
+}
+
+// servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
+var servingDefaults = gonsole.Timeouts{
+	ReadHeader: 10 * time.Second, Read: 30 * time.Second, Idle: 2 * time.Minute,
+	Grace: 10 * time.Second, CancelGrace: 5 * time.Second, StopGrace: 5 * time.Second,
+}
+
+// settingsEnv returns the reader of the settings under the program prefix.
+func settingsEnv(getenv func(string) string) gonsole.Env {
+	return gonsole.Env{Prefix: "ALPHONE_", Getenv: getenv}
+}
+
+// httpServerFrom returns the HTTP server for the handler at the address and under the timeouts the settings name.
+func httpServerFrom(settings runConfig, handler http.Handler) *http.Server {
+	return gonsole.NewServer(settings.addr, handler, settings.serving)
 }
 
 // tenantSettings bounds the per-tenant state plugins and the graph keep in memory.
@@ -315,12 +333,12 @@ func (c runConfig) serverConfig() server.Config {
 }
 
 // loadTenantSettings reads how many tenants' state to keep in memory and how long to keep one.
-func loadTenantSettings(getenv func(string) string) (tenantSettings, error) {
-	held, err := parsePositiveCount("ALPHONE_TENANTS_HELD", getenv("ALPHONE_TENANTS_HELD"), sdk.DefaultTenantsHeld)
+func loadTenantSettings(env gonsole.Env) (tenantSettings, error) {
+	held, err := env.Count("TENANTS_HELD", sdk.DefaultTenantsHeld)
 	if err != nil {
 		return tenantSettings{}, err
 	}
-	refresh, err := parseTokenTTL("ALPHONE_TENANTS_REFRESH", getenv("ALPHONE_TENANTS_REFRESH"), sdk.DefaultTenantsRefresh)
+	refresh, err := env.Duration("TENANTS_REFRESH", sdk.DefaultTenantsRefresh)
 	if err != nil {
 		return tenantSettings{}, err
 	}
@@ -347,30 +365,19 @@ type mailSettings struct {
 	templateDir string
 }
 
-// parseMailPort reads the relay port, empty applying the submission default.
-func parseMailPort(raw string) (int, error) {
-	if raw == "" {
-		return 587, nil
-	}
-	held, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse ALPHONE_SMTP_PORT: %w", err)
-	}
-	if held < 1 || held > 65535 {
-		return 0, errors.New("ALPHONE_SMTP_PORT must be between 1 and 65535")
-	}
-	return held, nil
-}
+// defaultMailPort is the submission port a relay listens on when the environment names none.
+const defaultMailPort = 587
 
-// parseMailTLS reads the transport security policy, empty applying mandatory.
-func parseMailTLS(raw string) (string, error) {
-	switch raw {
-	case "":
-		return "mandatory", nil
+// highestPort is the highest TCP port a relay can listen on.
+const highestPort = 65535
+
+// parseMailTLS reads the transport security policy.
+func parseMailTLS(value string) (string, error) {
+	switch value {
 	case "mandatory", "opportunistic", "none":
-		return raw, nil
+		return value, nil
 	}
-	return "", fmt.Errorf("ALPHONE_SMTP_TLS must be mandatory, opportunistic or none, got %q", raw)
+	return "", fmt.Errorf("must be mandatory, opportunistic or none, got %q", value)
 }
 
 // resetCooldownBudget answers the rate limit reset mail to one address rides under.
@@ -392,227 +399,153 @@ const defaultResetLinks = 3
 // defaultResetCooldown spaces the reset mail one address may receive.
 const defaultResetCooldown = time.Minute
 
-// parsePositiveCount reads a positive count named by the variable, empty applying the fallback.
-func parsePositiveCount(name, raw string, fallback int) (int, error) {
-	if raw == "" {
-		return fallback, nil
-	}
-	held, err := strconv.Atoi(raw)
+// parsePublicURL reads the address email links lead back to, without its trailing slash.
+func parsePublicURL(value string) (string, error) {
+	held, err := url.Parse(value)
 	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", name, err)
-	}
-	if held <= 0 {
-		return 0, fmt.Errorf("%s must be positive", name)
-	}
-	return held, nil
-}
-
-// parseTokenTTL reads one token lifetime, empty applying the fallback.
-func parseTokenTTL(name, raw string, fallback time.Duration) (time.Duration, error) {
-	if raw == "" {
-		return fallback, nil
-	}
-	held, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", name, err)
-	}
-	if held <= 0 {
-		return 0, fmt.Errorf("%s must be positive", name)
-	}
-	return held, nil
-}
-
-// parsePublicURL reads the address email links lead back to.
-func parsePublicURL(raw string) (string, error) {
-	if raw == "" {
-		return "", nil
-	}
-	held, err := url.Parse(raw)
-	if err != nil {
-		return "", fmt.Errorf("parse ALPHONE_PUBLIC_URL: %w", err)
+		return "", fmt.Errorf("must be a URL: %w", err)
 	}
 	if (held.Scheme != "http" && held.Scheme != "https") || held.Host == "" {
-		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must be an http or https address, got %q", raw)
+		return "", fmt.Errorf("must be an http or https address, got %q", value)
 	}
-	if strings.ContainsAny(raw, "?#") {
-		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must carry no query or fragment, got %q", raw)
+	if strings.ContainsAny(value, "?#") {
+		return "", fmt.Errorf("must carry no query or fragment, got %q", value)
 	}
 	if escaped := held.EscapedPath(); escaped != "" && escaped != "/" {
-		return "", fmt.Errorf("ALPHONE_PUBLIC_URL must name a site root, got %q", raw)
+		return "", fmt.Errorf("must name a site root, got %q", value)
 	}
-	return strings.TrimSuffix(raw, "/"), nil
+	return strings.TrimSuffix(value, "/"), nil
 }
 
 // loadMailSettings reads the mail relay settings from the environment.
-func loadMailSettings(getenv func(string) string) (mailSettings, error) {
-	host := getenv("ALPHONE_SMTP_HOST")
+func loadMailSettings(env gonsole.Env) (mailSettings, error) {
+	host := env.Value("SMTP_HOST")
 	if host == "" {
-		for _, name := range []string{
-			"ALPHONE_SMTP_PORT",
-			"ALPHONE_SMTP_USERNAME",
-			"ALPHONE_SMTP_PASSWORD",
-			"ALPHONE_SMTP_FROM",
-			"ALPHONE_SMTP_TLS",
-		} {
-			if getenv(name) != "" {
-				return mailSettings{}, fmt.Errorf("%s is set but ALPHONE_SMTP_HOST is not", name)
+		for _, name := range []string{"SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"} {
+			if env.Value(name) != "" {
+				return mailSettings{}, fmt.Errorf("%s is set but %s is not", env.Key(name), env.Key("SMTP_HOST"))
 			}
 		}
 		return mailSettings{}, nil
 	}
-	port, err := parseMailPort(getenv("ALPHONE_SMTP_PORT"))
+	port, err := env.Count("SMTP_PORT", defaultMailPort, gonsole.AtMost(highestPort))
 	if err != nil {
 		return mailSettings{}, err
 	}
-	tlsPolicy, err := parseMailTLS(getenv("ALPHONE_SMTP_TLS"))
+	tlsPolicy, err := gonsole.Parse(env, "SMTP_TLS", "mandatory", parseMailTLS)
 	if err != nil {
 		return mailSettings{}, err
 	}
-	from := getenv("ALPHONE_SMTP_FROM")
+	from := env.Value("SMTP_FROM")
 	if from == "" {
-		return mailSettings{}, errors.New("ALPHONE_SMTP_FROM is required when ALPHONE_SMTP_HOST is set")
+		return mailSettings{}, fmt.Errorf("%s is required when %s is set", env.Key("SMTP_FROM"), env.Key("SMTP_HOST"))
 	}
-	publicURL, err := parsePublicURL(getenv("ALPHONE_PUBLIC_URL"))
+	publicURL, err := gonsole.Parse(env, "PUBLIC_URL", "", parsePublicURL)
 	if err != nil {
 		return mailSettings{}, err
 	}
 	if publicURL == "" {
-		return mailSettings{}, errors.New("ALPHONE_PUBLIC_URL is required when ALPHONE_SMTP_HOST is set")
+		return mailSettings{}, fmt.Errorf("%s is required when %s is set", env.Key("PUBLIC_URL"), env.Key("SMTP_HOST"))
 	}
 	return mailSettings{
 		host:        host,
 		port:        port,
-		username:    getenv("ALPHONE_SMTP_USERNAME"),
-		password:    getenv("ALPHONE_SMTP_PASSWORD"),
+		username:    env.Value("SMTP_USERNAME"),
+		password:    env.Value("SMTP_PASSWORD"),
 		from:        from,
 		tls:         tlsPolicy,
 		publicURL:   publicURL,
-		templateDir: getenv("ALPHONE_MAIL_TEMPLATE_DIR"),
+		templateDir: env.Value("MAIL_TEMPLATE_DIR"),
 	}, nil
 }
 
-// parseMachineGrace reads the grace window a deactivated tenant keeps recording for.
-func parseMachineGrace(raw string) (time.Duration, error) {
-	if raw == "" {
-		return tenant.DefaultMachineGrace, nil
-	}
-	held, err := time.ParseDuration(raw)
+// loadComposeSettings reads the machine grace, the tenant bounds and the mail settings.
+func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
+	machineGrace, err := env.Duration("TENANT_MACHINE_GRACE", tenant.DefaultMachineGrace, gonsole.AllowZero())
 	if err != nil {
-		return 0, fmt.Errorf("parse ALPHONE_TENANT_MACHINE_GRACE: %w", err)
+		return composeSettings{}, err
 	}
-	if held < 0 {
-		return 0, errors.New("ALPHONE_TENANT_MACHINE_GRACE must not be negative")
+	tenants, err := loadTenantSettings(env)
+	if err != nil {
+		return composeSettings{}, err
 	}
-	return held, nil
+	mail, err := loadMailSettings(env)
+	if err != nil {
+		return composeSettings{}, err
+	}
+	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail}, nil
 }
 
 // loadRunConfig reads the server settings from the environment.
 func loadRunConfig(getenv func(string) string) (runConfig, error) {
-	databaseURL := getenv("ALPHONE_DATABASE_URL")
-	if databaseURL == "" {
-		return runConfig{}, errors.New("ALPHONE_DATABASE_URL is required")
-	}
-	addr := getenv("ALPHONE_ADDR")
-	if addr == "" {
-		addr = "localhost:8080"
-	}
-	trustedProxies, err := parseTrustedProxies(getenv("ALPHONE_TRUSTED_PROXIES"))
+	env := settingsEnv(getenv)
+	databaseURL, err := env.Required("DATABASE_URL")
 	if err != nil {
 		return runConfig{}, err
 	}
-	machineGrace, err := parseMachineGrace(getenv("ALPHONE_TENANT_MACHINE_GRACE"))
+	trustedProxies, err := gonsole.Parse(env, "TRUSTED_PROXIES", nil, ratelimit.ParseTrustedProxies)
 	if err != nil {
 		return runConfig{}, err
 	}
-	mail, err := loadMailSettings(getenv)
+	composed, err := loadComposeSettings(env)
 	if err != nil {
 		return runConfig{}, err
 	}
-	inviteTTL, err := parseTokenTTL("ALPHONE_INVITE_TTL", getenv("ALPHONE_INVITE_TTL"), authkit.DefaultInviteTTL)
+	inviteTTL, err := env.Duration("INVITE_TTL", authkit.DefaultInviteTTL)
 	if err != nil {
 		return runConfig{}, err
 	}
-	reset, err := loadResetSettings(getenv)
+	reset, err := loadResetSettings(env)
 	if err != nil {
 		return runConfig{}, err
 	}
-	tenants, err := loadTenantSettings(getenv)
+	lists, err := loadListSettings(env)
 	if err != nil {
 		return runConfig{}, err
 	}
-	lists, err := loadListSettings(getenv)
+	serving, err := env.Timeouts(servingDefaults)
 	if err != nil {
 		return runConfig{}, err
 	}
 	return runConfig{
-		databaseURL:    databaseURL,
-		addr:           addr,
-		webDir:         getenv("ALPHONE_WEB_DIR"),
-		trustedProxies: trustedProxies,
-		graphiql:       getenv("ALPHONE_DEV_GRAPHIQL") != "",
-		machineGrace:   machineGrace,
-		mail:           mail,
-		inviteTTL:      inviteTTL,
-		reset:          reset,
-		tenants:        tenants,
-		lists:          lists,
+		composeSettings: composed,
+		databaseURL:     databaseURL,
+		addr:            valueOr(env, "ADDR", "localhost:8080"),
+		webDir:          env.Value("WEB_DIR"),
+		trustedProxies:  trustedProxies,
+		graphiql:        env.Value("DEV_GRAPHIQL") != "",
+		inviteTTL:       inviteTTL,
+		reset:           reset,
+		lists:           lists,
+		serving:         serving,
 	}, nil
 }
 
+// valueOr returns the setting's value, or fallback when it is empty.
+func valueOr(env gonsole.Env, name, fallback string) string {
+	if value := env.Value(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
 // loadResetSettings reads the reset link lifetime, stack and rates from the environment.
-func loadResetSettings(getenv func(string) string) (resetSettings, error) {
-	ttl, err := parseTokenTTL("ALPHONE_RESET_TTL", getenv("ALPHONE_RESET_TTL"), authkit.DefaultResetTTL)
+func loadResetSettings(env gonsole.Env) (resetSettings, error) {
+	ttl, err := env.Duration("RESET_TTL", authkit.DefaultResetTTL)
 	if err != nil {
 		return resetSettings{}, err
 	}
-	attempts, err := parsePositiveCount("ALPHONE_RESET_ATTEMPTS", getenv("ALPHONE_RESET_ATTEMPTS"), defaultResetAttempts)
+	attempts, err := env.Count("RESET_ATTEMPTS", defaultResetAttempts)
 	if err != nil {
 		return resetSettings{}, err
 	}
-	links, err := parsePositiveCount("ALPHONE_RESET_LINKS", getenv("ALPHONE_RESET_LINKS"), defaultResetLinks)
+	links, err := env.Count("RESET_LINKS", defaultResetLinks)
 	if err != nil {
 		return resetSettings{}, err
 	}
-	cooldown, err := parseTokenTTL("ALPHONE_RESET_COOLDOWN", getenv("ALPHONE_RESET_COOLDOWN"), defaultResetCooldown)
+	cooldown, err := env.Duration("RESET_COOLDOWN", defaultResetCooldown)
 	if err != nil {
 		return resetSettings{}, err
 	}
 	return resetSettings{ttl: ttl, attempts: attempts, links: links, cooldown: cooldown}, nil
-}
-
-// serveUntilDone serves HTTP until ctx is cancelled or serving fails, then
-// stops the plugin host.
-func serveUntilDone(
-	ctx context.Context,
-	httpServer *http.Server,
-	host *pluginkit.Host,
-	logger *slog.Logger,
-) error {
-	serveErr := make(chan error, 1)
-	go func() {
-		serveErr <- httpServer.ListenAndServe()
-	}()
-	logger.Info("listening", "addr", httpServer.Addr)
-
-	select {
-	case err := <-serveErr:
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return errors.Join(fmt.Errorf("http server: %w", err), host.Stop(stopCtx))
-	case <-ctx.Done():
-	}
-
-	logger.Info("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
-}
-
-// parseTrustedProxies parses raw into trusted-proxy CIDR ranges.
-func parseTrustedProxies(raw string) ([]string, error) {
-	prefixes, err := ratelimit.ParseTrustedProxies(raw)
-	if err != nil {
-		return nil, fmt.Errorf("ALPHONE_TRUSTED_PROXIES: %w", err)
-	}
-	return prefixes, nil
 }

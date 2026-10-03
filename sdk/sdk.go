@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gopherium/pluginkit"
+	"github.com/gopherium/framework/pluginkit"
 )
 
 // ErrInvalidContact reports contact details the host refuses to store.
@@ -30,6 +30,9 @@ type Plugin = pluginkit.Plugin
 // Migrator is implemented by plugins that own database schema, which
 // the host migrates before starting any plugin.
 type Migrator = pluginkit.Migrator
+
+// Seeder is implemented by plugins that fill their own schema with development data.
+type Seeder = pluginkit.Seeder
 
 // RouteProvider is implemented by plugins that expose HTTP endpoints
 // under their own namespace.
@@ -58,6 +61,8 @@ type Deps struct {
 	Contacts       ContactDirectory
 	Getenv         func(string) string
 	Events         Publisher
+	// Env reads the settings under the program prefix, each value trimmed.
+	Env Env
 }
 
 // Publisher announces a plugin's own events to the host.

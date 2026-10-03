@@ -3,8 +3,22 @@
 package postgres
 
 import (
+	"errors"
 	"testing"
 )
+
+func TestMustLockerPanicsOnAnError(t *testing.T) {
+	t.Parallel()
+
+	failed := errors.New("no locker")
+	defer func() {
+		if recovered := recover(); recovered != failed {
+			t.Fatalf("mustLocker() recovered %v, want a panic with the error", recovered)
+		}
+	}()
+
+	mustLocker(nil, failed)
+}
 
 func TestMigrateRequiresDatabase(t *testing.T) {
 	t.Parallel()

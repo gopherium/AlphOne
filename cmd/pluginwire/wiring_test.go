@@ -3,12 +3,36 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/gopherium/pluginkit/wire"
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit/wire"
 )
+
+func TestConfigRefusesAPluginIDTheCommandLineKeeps(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range append(gonsole.BaseCommands(), "account", "token") {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeTree(t, root)
+			writePluginIn(t, root, "plugins", id, fmt.Sprintf(
+				`{"id": %q, "name": "Taken", "backend": "github.com/gopherium/alphone/plugins/%s"}`, id, id))
+
+			err := wire.Run(root, config)
+
+			if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("id %q is reserved", id)) {
+				t.Errorf("wire.Run() error = %v, want the id %q refused as reserved", err, id)
+			}
+		})
+	}
+}
 
 func TestRepositoryWiringIsUpToDate(t *testing.T) {
 	t.Parallel()

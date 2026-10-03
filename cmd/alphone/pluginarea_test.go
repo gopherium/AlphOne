@@ -13,7 +13,7 @@ import (
 func TestEveryPluginRouteAreaCanBeMintedIntoAToken(t *testing.T) {
 	t.Parallel()
 
-	registered, err := registerPlugins(sdk.Deps{Getenv: testGetenv(nil)})
+	registered, err := registerPlugins(sdk.Deps{Getenv: testGetenv(nil), Env: settingsEnv(testGetenv(nil))})
 	if err != nil {
 		t.Fatalf("registerPlugins() error = %v, want nil", err)
 	}

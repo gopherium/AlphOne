@@ -6,12 +6,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -632,7 +634,7 @@ func TestFetcherStartSweepsImmediately(t *testing.T) {
 	messageID := seedPendingImage(t, p, "wamid.startup", shaOf(binary))
 
 	f.Start()
-	defer f.Stop()
+	defer func() { _ = f.Stop(t.Context()) }()
 
 	waitFor(t, func() bool { return mediaStatus(p, messageID) == "stored" })
 }
@@ -645,7 +647,7 @@ func TestFetcherNudgeWakesTheLoop(t *testing.T) {
 	stub := newGraphStub(t, binary)
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	f.Start()
-	defer f.Stop()
+	defer func() { _ = f.Stop(t.Context()) }()
 	waitFor(t, func() bool { return f.sweeps.Load() >= 1 })
 	messageID := seedPendingImage(t, p, "wamid.nudged", shaOf(binary))
 
@@ -678,7 +680,7 @@ func TestFetcherTickerSweeps(t *testing.T) {
 		timeout:     time.Minute,
 	})
 	f.Start()
-	defer f.Stop()
+	defer func() { _ = f.Stop(t.Context()) }()
 	waitFor(t, func() bool { return f.sweeps.Load() >= 1 })
 	messageID := seedPendingImage(t, p, "wamid.ticked", shaOf(binary))
 
@@ -690,5 +692,68 @@ func TestFetcherStopWithoutStart(t *testing.T) {
 
 	f := newMediaFetcher(&store{}, newBroadcaster(), mediaFetcherConfig{})
 
-	f.Stop()
+	if err := f.Stop(t.Context()); err != nil {
+		t.Errorf("Stop() without Start() = %v, want nil", err)
+	}
+}
+
+func TestStopReturnsWhenItsContextEndsWhileASweepRuns(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	seedPendingImage(t, p, "wamid.held", shaOf([]byte("media-bytes")))
+	sweeping, release := context.WithCancel(context.Background())
+	t.Cleanup(release)
+	var holding atomic.Bool
+	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
+		records: func(context.Context, uuid.UUID) (bool, error) {
+			conn, err := p.pool.Acquire(sweeping)
+			if err != nil {
+				return false, err
+			}
+			defer conn.Release()
+			holding.Store(true)
+			<-sweeping.Done()
+			return false, nil
+		},
+	})
+	if err := p.Start(t.Context()); err != nil {
+		t.Fatalf("Start() error = %v, want nil", err)
+	}
+	waitFor(t, holding.Load)
+	ctx, cancel := context.WithCancel(t.Context())
+	stopped := make(chan error, 1)
+	go func() { stopped <- p.Stop(ctx) }()
+
+	cancel()
+
+	waitFor(t, func() bool { return len(stopped) == 1 })
+	if err := <-stopped; !errors.Is(err, context.Canceled) {
+		t.Errorf("Stop() error = %v, want the context error while the sweep still runs", err)
+	}
+	release()
+	waitFor(t, func() bool { return p.pool.Stat().TotalConns() == 0 })
+}
+
+func TestStopReturnsWhenItsContextEndsWhileAConnectionIsHeld(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conn, err := p.pool.Acquire(t.Context())
+	if err != nil {
+		t.Fatalf("Acquire() error = %v, want nil", err)
+	}
+	t.Cleanup(conn.Release)
+	ctx, cancel := context.WithCancel(t.Context())
+	stopped := make(chan error, 1)
+	go func() { stopped <- p.Stop(ctx) }()
+
+	cancel()
+
+	waitFor(t, func() bool { return len(stopped) == 1 })
+	if err := <-stopped; !errors.Is(err, context.Canceled) {
+		t.Errorf("Stop() error = %v, want the context error while a connection is still held", err)
+	}
+	conn.Release()
+	waitFor(t, func() bool { return p.pool.Stat().TotalConns() == 0 })
 }
