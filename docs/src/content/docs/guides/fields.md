@@ -121,8 +121,9 @@ Phone already use those names. The labels `Email` and `Phone` make exactly
 those names, so choose a longer label, such as `Email consent`.
 
 The kind is checked before anything is stored. A row whose cell does not fit
-its field fails, the reason names the field and its kind, and no contact is
-created for that row. Fix the spreadsheet and import it again.
+its field fails, the Reason column names the field and its kind in your
+language, and no contact is created for that row. Fix the spreadsheet and
+import it again.
 
 An empty cell stores nothing. The contact is created and the field stays
 waiting, exactly as if you had never touched it.
