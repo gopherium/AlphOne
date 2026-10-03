@@ -25,7 +25,8 @@ work while you are on the phone.
 The **New task** button at the top of the screen opens the full form,
 where a task also gets a due date, a priority and an optional contact.
 Search for the person by name and pick them, and the task is linked to
-them from both sides.
+them from both sides. **Add task** in a contact's row of the contact list
+opens the same form with that contact already picked.
 
 ## Completing
 
