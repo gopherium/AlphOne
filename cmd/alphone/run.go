@@ -20,6 +20,7 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -74,14 +75,30 @@ func run(
 	}
 
 	auth := authkit.New(authConfig(built.users))
-	admin := authkit.NewAdmin(adminConfig(built.users))
-	inviteConfig := authkit.InvitesConfig{
-		Store:           built.users,
+	graphRoot, err := graphroot.FromPlugins(graphResolver(settings, built, auth, logger), built.registered)
+	if err != nil {
+		return errors.Join(
+			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
+	}
+
+	httpServer := httpServerFrom(settings, server.NewServer(serverConfigOf(settings, built, host, auth, graphRoot)))
+	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
+}
+
+// inviteConfigOf returns the invitation and reset lifetimes the settings name over the account store.
+func inviteConfigOf(settings runConfig, store *authkitpg.UserStore) authkit.InvitesConfig {
+	return authkit.InvitesConfig{
+		Store:           store,
 		InviteTTL:       settings.inviteTTL,
 		ResetTTL:        settings.reset.ttl,
 		ResetTokensLive: settings.reset.links,
 	}
-	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
+}
+
+// graphResolver returns the core graph resolver over what compose built, the login handlers and the settings.
+func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, logger *slog.Logger) *graphres.Resolver {
+	invites := inviteConfigOf(settings, built.users)
+	return &graphres.Resolver{
 		Version:       version.Version(),
 		Contacts:      built.contacts,
 		Tasks:         built.tasks,
@@ -91,9 +108,9 @@ func run(
 		Events:        built.events,
 		Live:          built.hub,
 		Auth:          auth,
-		Admin:         admin,
-		Invites:       authkit.NewInvites(inviteConfig),
-		Onboarding:    postgres.NewOnboarding(built.pool, inviteConfig),
+		Admin:         authkit.NewAdmin(adminConfig(built.users)),
+		Invites:       authkit.NewInvites(invites),
+		Onboarding:    postgres.NewOnboarding(built.pool, invites),
 		Accounts:      built.users,
 		Mailer:        built.mailer,
 		PublicURL:     settings.mail.publicURL,
@@ -105,12 +122,13 @@ func run(
 		Logger:        logger,
 		Paging:        settings.lists.paging,
 		Screens:       settings.lists.screens,
-	}, built.registered)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
+}
 
+// serverConfigOf returns the server settings over what compose built, the plugin host, the logins and the graph root.
+func serverConfigOf(
+	settings runConfig, built composed, host *pluginkit.Host, auth *authkit.Handlers, graphRoot graph.ResolverRoot,
+) server.Config {
 	cfg := settings.serverConfig()
 	cfg.Version = version.Version()
 	cfg.Users = built.users
@@ -125,9 +143,7 @@ func run(
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
 	}
-
-	httpServer := httpServerFrom(settings, server.NewServer(cfg))
-	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
+	return cfg
 }
 
 // pluginAreas returns the scope area every registered plugin holds its routes to.
