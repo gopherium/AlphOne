@@ -36,7 +36,7 @@ export function ContactTasks({
 }) {
 	const graph = useGraph()
 	const settled = () => graph.refetch([contactDetailOperation])
-	const { controls, failed } = useRowControls(isoDate(new Date()), settled)
+	const { controls, failed } = useRowControls(isoDate(new Date()))
 
 	return (
 		<div className="alphone-tasks__contact-block">

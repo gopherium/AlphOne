@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, useGraphMutation, useToaster } from '@alphone/frontend-sdk'
+import { __, useGraph, useGraphMutation, useToaster } from '@alphone/frontend-sdk'
 import type { ToastAction } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
@@ -14,20 +14,23 @@ interface ListControls {
 	failed: boolean
 }
 
+/** listReads names the documents that list tasks, reread on whichever screen is open when a row change lands. */
+const listReads = ['DayTasks', 'OverdueTasks', 'ContactDetail']
+
 /**
  * Returns the controls completing, reopening and postponing the rows of a task list, each confirmed with an Undo toast.
  * @param today - The current date as YYYY-MM-DD.
- * @param refresh - The refresh of the documents the list reads, run after every change the server takes.
  * @returns The row controls and whether the last change or its undo failed.
  */
-export function useRowControls(today: string, refresh: () => void): ListControls {
+export function useRowControls(today: string): ListControls {
+	const graph = useGraph()
 	const toaster = useToaster()
 	const [pendingID, setPendingID] = useState('')
 	const [change, runChange] = useGraphMutation(updateTaskMutation)
 	const [push, runPush] = useGraphMutation(updateTaskMutation)
 	const settled = (data: unknown) => {
 		if (data) {
-			refresh()
+			graph.refetch(listReads)
 		}
 		return Boolean(data)
 	}

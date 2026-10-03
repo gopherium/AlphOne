@@ -195,6 +195,36 @@ test('undoes a completion on the contact page from its toast', async () => {
 	expect(patched[1]).toMatchObject({ id: callID, status: 'open' })
 })
 
+test('rereads the task list that is open when an undo lands from another screen', async () => {
+	let dayReads = 0
+	server.use(
+		graphql.query('DayTasks', () => {
+			dayReads++
+			return HttpResponse.json({
+				data: {
+					tasks: {
+						__typename: 'TaskConnection',
+						edges: [],
+						pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
+					},
+				},
+			})
+		}),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+	const row = screen.getByRole('listitem', { name: 'Call her back' })
+	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
+	await screen.findByText('Task completed.')
+	await userEvent.click(screen.getByRole('link', { name: 'Tasks' }))
+	await waitFor(() => expect(dayReads).toBeGreaterThan(0))
+	const before = dayReads
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	await waitFor(() => expect(dayReads).toBeGreaterThan(before))
+})
+
 test('pushes a task to tomorrow from the contact page', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })

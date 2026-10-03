@@ -63,7 +63,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 	const toaster = useToaster()
 	const [title, setTitle] = useState('')
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
-	const { controls, failed } = useRowControls(today, () => graph.refetch(taskOperations))
+	const { controls, failed } = useRowControls(today)
 	const submitAdd = async () => {
 		const result = await runAdd({ input: { title, dueOn: date } })
 		if (result.data) {
