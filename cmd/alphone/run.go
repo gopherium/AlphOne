@@ -18,11 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
-
-	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
@@ -105,7 +104,7 @@ func run(
 	wireMailSenderFrom(registered, mailSender)
 
 	host := pluginkit.NewHost(registered...)
-	if err := host.Start(ctx); err != nil {
+	if err := host.Start(ctx, settings.serving.StopGrace); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
@@ -143,9 +142,8 @@ func run(
 		Screens:       settings.lists.screens,
 	}, registered)
 	if err != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return errors.Join(fmt.Errorf("compose graph root: %w", err), host.Stop(stopCtx))
+		return errors.Join(
+			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 
 	cfg := settings.serverConfig()

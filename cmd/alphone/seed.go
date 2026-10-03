@@ -14,10 +14,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
-	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -64,6 +65,10 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if databaseURL == "" {
 		return errors.New("ALPHONE_DATABASE_URL is required")
 	}
+	stopGrace, err := settingsEnv(getenv).Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
+	if err != nil {
+		return err
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return fmt.Errorf("parse database url: %w", err)
@@ -85,7 +90,7 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), contacts); err != nil {
 		return err
 	}
-	if err := seedPlugins(ctx, databaseURL, getenv, resolver); err != nil {
+	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded demo data")
@@ -337,12 +342,13 @@ func buildDemoTask(
 	return built.Apply(task.Changes{Status: &done})
 }
 
-// seedWhatsApp registers the WhatsApp plugin and stores its demo conversations.
+// seedPlugins registers every plugin, starts them and stores their demo data, stopping them within the stop grace.
 func seedPlugins(
 	ctx context.Context,
 	databaseURL string,
 	getenv func(string) string,
 	resolver *contact.Resolver,
+	stopGrace time.Duration,
 ) error {
 	registered, err := registerPlugins(sdk.Deps{
 		DatabaseURL: databaseURL,
@@ -350,13 +356,13 @@ func seedPlugins(
 		Contacts:    directoryBridge{resolver: resolver},
 		Getenv:      getenv,
 	})
+	host := pluginkit.NewHost(registered...)
+	defer func() { _ = gonsole.StopHost(ctx, host, stopGrace) }()
 	if err != nil {
 		return err
 	}
 	wireFieldProviders(registered)
-	host := pluginkit.NewHost(registered...)
-	defer func() { _ = host.Stop(context.WithoutCancel(ctx)) }()
-	if err := host.Start(ctx); err != nil {
+	if err := host.Start(ctx, stopGrace); err != nil {
 		return err
 	}
 	return host.Seed(ctx)

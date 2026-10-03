@@ -554,6 +554,22 @@ func TestSeedReportsInvalidPluginConfiguration(t *testing.T) {
 	}
 }
 
+func TestSeedRefusesAZeroStopGraceBeforeTheDatabase(t *testing.T) {
+	t.Parallel()
+
+	getenv := testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":        unreachableDatabaseURL,
+		"ALPHONE_SHUTDOWN_STOP_GRACE": "0s",
+	})
+
+	err := seed(t.Context(), getenv, &strings.Builder{})
+
+	want := `ALPHONE_SHUTDOWN_STOP_GRACE: must stand above zero, got "0s"`
+	if err == nil || err.Error() != want {
+		t.Fatalf("seed() error = %v, want %q before any database is reached", err, want)
+	}
+}
+
 func TestSeedReportsBrokenContactStorage(t *testing.T) {
 	t.Parallel()
 
@@ -657,7 +673,7 @@ func TestSeedPluginsReportsMigrationFailure(t *testing.T) {
 
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver)
+	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace)
 
 	if err == nil {
 		t.Fatal("seedPlugins() error = nil, want a migration failure")
@@ -670,7 +686,7 @@ func TestSeedPluginsReportsSeedFailure(t *testing.T) {
 	databaseURL := testDatabaseURL(t)
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver)
+	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace)
 
 	if err == nil {
 		t.Fatal("seedPlugins() error = nil, want a seed failure")

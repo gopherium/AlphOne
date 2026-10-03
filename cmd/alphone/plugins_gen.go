@@ -5,29 +5,37 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+
 	fields "github.com/gopherium/alphone/plugins/fields"
 	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
 
-	"github.com/gopherium/alphone/sdk"
+	sdk "github.com/gopherium/alphone/sdk"
 )
 
+// registerPlugins registers every compiled plugin, answering the ones that registered and an error naming each failure.
 func registerPlugins(deps sdk.Deps) ([]sdk.Plugin, error) {
 	plugins := make([]sdk.Plugin, 0, 3)
+	var failed []error
 	fieldsPlugin, err := fields.Register(deps)
 	if err != nil {
-		return nil, err
+		failed = append(failed, fmt.Errorf("plugin fields: %w", err))
+	} else {
+		plugins = append(plugins, fieldsPlugin)
 	}
-	plugins = append(plugins, fieldsPlugin)
 	importerPlugin, err := importer.Register(deps)
 	if err != nil {
-		return nil, err
+		failed = append(failed, fmt.Errorf("plugin importer: %w", err))
+	} else {
+		plugins = append(plugins, importerPlugin)
 	}
-	plugins = append(plugins, importerPlugin)
 	whatsappPlugin, err := whatsapp.Register(deps)
 	if err != nil {
-		return nil, err
+		failed = append(failed, fmt.Errorf("plugin whatsapp: %w", err))
+	} else {
+		plugins = append(plugins, whatsappPlugin)
 	}
-	plugins = append(plugins, whatsappPlugin)
-	return plugins, nil
+	return plugins, errors.Join(failed...)
 }

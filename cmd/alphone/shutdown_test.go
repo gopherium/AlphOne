@@ -4,8 +4,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -149,6 +151,39 @@ func awaitStop(t *testing.T, plugin *holdingPlugin) stopSeen {
 	}
 }
 
+// stoppedWithinTheStopGrace checks that the host stopped the plugin under a live context the stop grace bounds.
+func stoppedWithinTheStopGrace(t *testing.T, plugin *holdingPlugin) {
+	t.Helper()
+	seen := awaitStop(t, plugin)
+	if !underTheStopGrace(seen) {
+		t.Errorf("the plugin stopped with live = %v and %v left, want a live context holding most of the %v stop grace",
+			seen.live, seen.left, shutdownStopGrace)
+	}
+}
+
+// stopGraceEnv returns the settings of a run over a fresh database under the stop grace of the shutdown tests.
+func stopGraceEnv(t *testing.T) func(string) string {
+	t.Helper()
+	return testGetenv(map[string]string{
+		"ALPHONE_DATABASE_URL":        testDatabaseURL(t),
+		"ALPHONE_SHUTDOWN_STOP_GRACE": shutdownStopGrace.String(),
+	})
+}
+
+// errStartRefused is the failure the refusing plugin's start answers.
+var errStartRefused = errors.New("start refused")
+
+// refusingStartPlugin is a plugin whose start always fails.
+type refusingStartPlugin struct {
+	silentPlugin
+}
+
+// ID names the plugin.
+func (refusingStartPlugin) ID() string { return "refusing" }
+
+// Start fails with the refused start.
+func (refusingStartPlugin) Start(context.Context) error { return errStartRefused }
+
 // awaitRun returns what run answered, failing when it never returns.
 func awaitRun(t *testing.T, finished <-chan error) error {
 	t.Helper()
@@ -273,4 +308,34 @@ func TestTheHTTPServerCarriesTheTimeoutsTheSettingsName(t *testing.T) {
 	if held.Handler == nil {
 		t.Error("Handler = nil, want the handler served")
 	}
+}
+
+func TestRunStopsTheStartedPluginsWithinTheStopGraceWhenOneFailsToStart(t *testing.T) {
+	t.Parallel()
+
+	plugin := newHoldingPlugin()
+
+	err := run(t.Context(), stopGraceEnv(t), io.Discard, func(sdk.Deps) ([]sdk.Plugin, error) {
+		return []sdk.Plugin{plugin, refusingStartPlugin{}}, nil
+	})
+
+	if !errors.Is(err, errStartRefused) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, errStartRefused)
+	}
+	stoppedWithinTheStopGrace(t, plugin)
+}
+
+func TestRunStopsThePluginsWithinTheStopGraceWhenTheGraphCannotCompose(t *testing.T) {
+	t.Parallel()
+
+	plugin := newHoldingPlugin()
+
+	err := run(t.Context(), stopGraceEnv(t), io.Discard, func(sdk.Deps) ([]sdk.Plugin, error) {
+		return []sdk.Plugin{plugin}, nil
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "compose graph root") {
+		t.Fatalf("run() error = %v, want the compose graph root failure", err)
+	}
+	stoppedWithinTheStopGrace(t, plugin)
 }
