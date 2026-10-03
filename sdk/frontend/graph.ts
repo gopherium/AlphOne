@@ -102,6 +102,25 @@ function spokenMessage(error: CombinedError): string {
 	)
 }
 
+/** StoredReason is a reason a server named as data, its stable code beside the values it carries. */
+export interface StoredReason {
+	/** code is the stable snake_case name of the reason. */
+	code: string
+	/** meta carries the named values the reason's message is filled from. */
+	meta?: unknown
+}
+
+/**
+ * Returns what a reader is shown for a reason a server named, in their own language.
+ * @param reason - The code and the values the server named.
+ * @param templates - The translated message each code stands for.
+ * @param fallback - The words shown when no template fits the reason.
+ * @returns The message to show.
+ */
+export function reasonText(reason: StoredReason, templates: Record<string, string>, fallback: string): string {
+	return errorText({ message: fallback, code: reason.code, meta: writtenMeta(reason.meta) }, templates, fallback)
+}
+
 /**
  * Maps a graph failure onto the error class the screens branch on.
  * @param error - The failure a graph operation answered with.
@@ -234,6 +253,7 @@ export function graphCacheExchange(): Exchange {
 			ImportCommitPayload: () => null,
 			LoginPayload: () => null,
 			ImportAssignment: () => null,
+			ImportRowReason: () => null,
 			WhatsAppMedia: () => null,
 			FieldSubField: () => null,
 			ImportContact: (data) => data.rowId as string,
