@@ -6,14 +6,51 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit"
+
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
+
+// loadPlugins returns the registration the command line runs the compiled plugins through, starting none.
+func loadPlugins(
+	registry *role.Registry, plugins func(sdk.Deps) ([]sdk.Plugin, error),
+) func(context.Context, gonsole.Call) (gonsole.Loaded, error) {
+	return func(ctx context.Context, call gonsole.Call) (gonsole.Loaded, error) {
+		grace, err := call.Env.Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
+		if err != nil {
+			return gonsole.Loaded{}, err
+		}
+		databaseURL, err := call.DatabaseURL()
+		if err != nil {
+			return gonsole.Loaded{}, err
+		}
+		settings, err := loadComposeSettings(call.Env)
+		if err != nil {
+			return gonsole.Loaded{}, err
+		}
+		built, err := compose(ctx, composeConfig{
+			composeSettings: settings,
+			databaseURL:     databaseURL,
+			getenv:          call.Env.Getenv,
+			roles:           registry,
+			logger:          slog.New(slog.NewTextHandler(call.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
+		}, plugins)
+		if err != nil {
+			return gonsole.Loaded{}, errors.Join(built.failed, err, abandon(ctx, built, grace))
+		}
+		host := pluginkit.NewHost(built.registered...)
+		return gonsole.Hosted(built.registered, host, built.failed, grace, built.pool.Close), nil
+	}
+}
 
 // invalidContactErrors lists the domain errors a plugin reads as unusable details.
 var invalidContactErrors = []error{
