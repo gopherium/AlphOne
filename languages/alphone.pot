@@ -7,6 +7,26 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone\n"
 
+msgid "%s user could not be disabled."
+msgid_plural "%s users could not be disabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user could not be enabled."
+msgid_plural "%s users could not be enabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user disabled."
+msgid_plural "%s users disabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user enabled."
+msgid_plural "%s users enabled."
+msgstr[0] ""
+msgstr[1] ""
+
 msgid "30 days"
 msgstr ""
 
@@ -94,6 +114,15 @@ msgstr ""
 msgid "Ask for tasks by one filter at a time."
 msgstr ""
 
+msgid "Avatar"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Change role"
+msgstr ""
+
 msgid "Channel"
 msgstr ""
 
@@ -104,6 +133,9 @@ msgid "Choose at least one event to send."
 msgstr ""
 
 msgid "Choose the channel this address belongs to."
+msgstr ""
+
+msgid "Choose the role of %(name)s."
 msgstr ""
 
 msgid "Complete"
@@ -157,9 +189,6 @@ msgstr ""
 msgid "Disable"
 msgstr ""
 
-msgid "Disable %(name)s"
-msgstr ""
-
 msgid "Dismiss"
 msgstr ""
 
@@ -182,9 +211,6 @@ msgid "Email"
 msgstr ""
 
 msgid "Enable"
-msgstr ""
-
-msgid "Enable %(name)s"
 msgstr ""
 
 msgid "Expires"
@@ -241,10 +267,10 @@ msgstr ""
 msgid "Loading tokens…"
 msgstr ""
 
-msgid "Loading users…"
+msgid "Loading…"
 msgstr ""
 
-msgid "Loading…"
+msgid "Manage who can sign in and what they can do."
 msgstr ""
 
 msgid "Name"
@@ -295,6 +321,9 @@ msgstr ""
 msgid "No role"
 msgstr ""
 
+msgid "No users found."
+msgstr ""
+
 msgid "No users yet."
 msgstr ""
 
@@ -340,9 +369,6 @@ msgstr ""
 msgid "Resend invitation"
 msgstr ""
 
-msgid "Resend invitation to %(name)s"
-msgstr ""
-
 msgid "Revoke"
 msgstr ""
 
@@ -355,7 +381,7 @@ msgstr ""
 msgid "Role"
 msgstr ""
 
-msgid "Role of %(name)s"
+msgid "Role changed."
 msgstr ""
 
 msgid "Save"
@@ -365,6 +391,12 @@ msgid "Scopes"
 msgstr ""
 
 msgid "Search contacts"
+msgstr ""
+
+msgid "Search users…"
+msgstr ""
+
+msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
 msgstr ""
 
 msgid "Send invitation"
@@ -484,6 +516,9 @@ msgstr ""
 msgid "The languages could not be read."
 msgstr ""
 
+msgid "The role could not be changed."
+msgstr ""
+
 msgid "The task could not be added."
 msgstr ""
 
@@ -500,6 +535,12 @@ msgid "The task could not be updated."
 msgstr ""
 
 msgid "The token could not be created."
+msgstr ""
+
+msgid "The user could not be disabled."
+msgstr ""
+
+msgid "The user could not be enabled."
 msgstr ""
 
 msgid "This link is no longer valid. Ask for a new one."
@@ -527,6 +568,15 @@ msgid "Try a different search, or add one with New contact."
 msgstr ""
 
 msgid "Undo"
+msgstr ""
+
+msgid "User disabled."
+msgstr ""
+
+msgid "User enabled."
+msgstr ""
+
+msgid "User sections"
 msgstr ""
 
 msgid "Users"
@@ -563,18 +613,6 @@ msgid "Your role does not allow %(capability)s."
 msgstr ""
 
 msgid "v%(version)s"
-msgstr ""
-
-msgctxt "account status"
-msgid "Active"
-msgstr ""
-
-msgctxt "account status"
-msgid "Disabled"
-msgstr ""
-
-msgctxt "account status"
-msgid "Invited"
 msgstr ""
 
 msgctxt "admin section"
@@ -615,4 +653,16 @@ msgstr ""
 
 msgctxt "token lifetime"
 msgid "Never"
+msgstr ""
+
+msgctxt "user status"
+msgid "Active"
+msgstr ""
+
+msgctxt "user status"
+msgid "Disabled"
+msgstr ""
+
+msgctxt "user status"
+msgid "Invited"
 msgstr ""

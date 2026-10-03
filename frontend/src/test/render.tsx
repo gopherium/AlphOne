@@ -4,6 +4,7 @@ import { Button, GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
 import {
 	HttpResponse,
 	adminSession,
+	badgeClasses,
 	buttonClasses,
 	graphql,
 	http,
@@ -20,7 +21,7 @@ import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
 import { createAppRouter } from '../router'
 
-export { buttonClasses }
+export { badgeClasses, buttonClasses }
 
 configureAuthTransport(graphAuthTransport)
 

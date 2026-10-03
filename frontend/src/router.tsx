@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { listSearch } from '@alphone/frontend-sdk'
 import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	lazyRouteComponent,
 	redirect,
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
@@ -13,7 +15,7 @@ import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
-import { NewTokenRoute, NewUserRoute, TokensRoute, UsersRoute } from './userRoutes'
+import { NewTokenRoute, NewUserRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -70,7 +72,8 @@ const contactRoute = createRoute({
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users',
-	component: UsersRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./users/UsersScreen'), 'UsersScreen'),
 })
 
 const newUserRoute = createRoute({
@@ -82,7 +85,8 @@ const newUserRoute = createRoute({
 const tokensRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users/tokens',
-	component: TokensRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./users/TokensScreen'), 'TokensScreen'),
 })
 
 const newTokenRoute = createRoute({

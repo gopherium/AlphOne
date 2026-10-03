@@ -7,6 +7,8 @@ import { beforeEach, expect, test, vi } from 'vitest'
 vi.mock('@alphone/frontend-sdk/dataviews', () => ({
 	DataViews: () => <table />,
 	DataForm: () => <form />,
+	filterSortAndPaginate: (data: unknown[]) => ({ data, paginationInfo: { totalItems: data.length, totalPages: 1 } }),
+	useEnableWpCompatOverlaySlot: () => {},
 }))
 
 import { createAppRouter } from '../router'
