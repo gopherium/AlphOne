@@ -29,8 +29,8 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await expect(page.getByText('No identities yet.')).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
-	await page.getByRole('link', { name }).click()
+	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
+	await page.getByRole('link', { name }).first().click()
 	await expect(page.getByRole('heading', { name })).toBeVisible()
 
 	await page.getByLabel('Name', { exact: true }).fill(renamed)
@@ -38,6 +38,6 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('textbox', { name: 'Search contacts' }).fill(String(stamp))
-	await expect(page.getByRole('link', { name: renamed })).toBeVisible()
+	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
+	await expect(page.getByRole('row').filter({ hasText: renamed })).toHaveCount(1)
 })
