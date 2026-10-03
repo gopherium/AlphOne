@@ -75,7 +75,7 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := migrateSchemas(ctx, databaseURL); err != nil {
+	if err := migrate(ctx, databaseURL); err != nil {
 		return err
 	}
 	created, err := seedUsers(ctx, pool)

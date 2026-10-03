@@ -34,7 +34,7 @@ func grantRole(ctx context.Context, getenv func(string) string, args []string, s
 	if err != nil {
 		return err
 	}
-	if err := migrateSchemas(ctx, databaseURL); err != nil {
+	if err := migrate(ctx, databaseURL); err != nil {
 		return err
 	}
 	return authkitpg.RunGrantRole(ctx, databaseURL, []string{"-role", held.String()}, stdout)

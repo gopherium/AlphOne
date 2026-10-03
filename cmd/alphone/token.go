@@ -59,7 +59,7 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := migrateSchemas(ctx, databaseURL); err != nil {
+	if err := migrate(ctx, databaseURL); err != nil {
 		return err
 	}
 
