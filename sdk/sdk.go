@@ -111,7 +111,7 @@ type ContactField struct {
 type FieldProvider interface {
 	// LiveContactFields lists every field a column may be mapped onto.
 	LiveContactFields(ctx context.Context) ([]ContactField, error)
-	// CheckContactFieldTexts reports a text no field accepts by wrapping ErrInvalidFieldText.
+	// CheckContactFieldTexts reports a text no field accepts as a [FieldTextError].
 	CheckContactFieldTexts(ctx context.Context, values map[string]string) error
 	// WriteContactFieldTexts stores the values the texts describe on one contact.
 	WriteContactFieldTexts(ctx context.Context, contactID uuid.UUID, values map[string]string) error
