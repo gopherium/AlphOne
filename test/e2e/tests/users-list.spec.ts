@@ -112,7 +112,7 @@ test('changes the role of a user in a modal and confirms it with a toast', async
 	const modal = page.getByRole('dialog', { name: 'Change role' })
 	await expect(modal.getByText('Choose the role of Maria Perez.')).toBeVisible()
 	await modal.getByRole('combobox', { name: 'Role' }).click()
-	await page.getByRole('option', { name: 'Admin' }).click()
+	await page.getByRole('option', { name: 'Admin', exact: true }).click()
 	await modal.getByRole('button', { name: 'Change role' }).click()
 
 	await expect(page.locator('.godmin-toasts').getByText('Role changed.')).toBeVisible()
