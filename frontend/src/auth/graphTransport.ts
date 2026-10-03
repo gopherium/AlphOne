@@ -28,10 +28,8 @@ import {
 	logoutMutation,
 	meQuery,
 	requestPasswordResetMutation,
-	resendInviteMutation,
 	resetPasswordMutation,
 	setUserDisabledMutation,
-	setUserRoleMutation,
 	usersQuery,
 } from './operations'
 
@@ -249,20 +247,6 @@ async function invite(input: NewInvite): Promise<Invitation> {
 }
 
 /**
- * Replaces a pending account's invitation through the resendInvite mutation.
- * @param email - The address the invitation was sent to.
- * @returns The delivery report, carrying the link when nothing mailed it.
- */
-export async function resendInvite(email: string): Promise<Invitation> {
-	const result = await execute(resendInviteMutation, { email })
-	refuseInvitation(firstCode(result), firstMessage(result, 'the invitation could not be sent'))
-	if (!result.data) {
-		throw new Error(firstMessage(result, 'resending the invitation failed'))
-	}
-	return toInvitation(result.data.resendInvite)
-}
-
-/**
  * Refuses a token operation by the reason the graph carried.
  * @param code - The extensions code of the first error.
  * @param reason - The stable reason of the first error.
@@ -336,21 +320,6 @@ async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
 	}
 	if (result.errors?.length) {
 		throw new Error(firstMessage(result, 'updating user failed'))
-	}
-}
-
-/**
- * Writes the role an account holds through the setUserRole mutation.
- * @param id - The identifier of the account to update.
- * @param role - The role the account is to hold.
- */
-export async function setUserRole(id: string, role: string): Promise<void> {
-	const result = await execute(setUserRoleMutation, { id, role })
-	if (firstCode(result) === 'UNAUTHENTICATED') {
-		throw new UnauthorizedError('session expired')
-	}
-	if (result.errors?.length) {
-		throw new Error(firstMessage(result, 'updating the role failed'))
 	}
 }
 

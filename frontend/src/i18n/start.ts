@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { LIST_CHROME_DOMAIN, listChromeCatalogFor } from '@gopherium/godmin'
 import { globCatalogs, startLocale } from '@gopherium/gottext'
 import type { Catalog, CatalogEntry } from '@gopherium/gottext'
 import { DOMAIN as BRICK_DOMAIN, catalogFor as brickCatalogFor } from '@gopherium/react-auth'
@@ -26,13 +27,14 @@ export function declaredEntries(registered: FrontendPlugin[]): CatalogEntry[] {
 
 /**
  * Returns one catalogue entry per text domain the interface reads.
- * @returns The entries, AlphOne's own first and the auth brick's last.
+ * @returns The entries, AlphOne's own first and the bricks' last.
  */
 export function localeEntries(): CatalogEntry[] {
 	return [
 		{ domain: DOMAIN, load: globCatalogs(own) },
 		...declaredEntries(plugins),
 		{ domain: BRICK_DOMAIN, load: brickCatalogFor },
+		{ domain: LIST_CHROME_DOMAIN, load: listChromeCatalogFor },
 	]
 }
 

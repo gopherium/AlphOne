@@ -7,6 +7,36 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone\n"
 
+msgid "%s token could not be revoked."
+msgid_plural "%s tokens could not be revoked."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s token revoked."
+msgid_plural "%s tokens revoked."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user could not be disabled."
+msgid_plural "%s users could not be disabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user could not be enabled."
+msgid_plural "%s users could not be enabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user disabled."
+msgid_plural "%s users disabled."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%s user enabled."
+msgid_plural "%s users enabled."
+msgstr[0] ""
+msgstr[1] ""
+
 msgid "30 days"
 msgstr ""
 
@@ -43,9 +73,6 @@ msgstr ""
 msgid "API tokens"
 msgstr ""
 
-msgid "Actions"
-msgstr ""
-
 msgid "Activation link"
 msgstr ""
 
@@ -53,6 +80,9 @@ msgid "Add a task above, or open a contact and create one from their page."
 msgstr ""
 
 msgid "Add identity"
+msgstr ""
+
+msgid "Add one with New contact."
 msgstr ""
 
 msgid "Add one with New token."
@@ -94,7 +124,19 @@ msgstr ""
 msgid "Ask for tasks by one filter at a time."
 msgstr ""
 
+msgid "Avatar"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Change role"
+msgstr ""
+
 msgid "Channel"
+msgstr ""
+
+msgid "Channels"
 msgstr ""
 
 msgid "Choose at least one area the token reaches."
@@ -104,6 +146,9 @@ msgid "Choose at least one event to send."
 msgstr ""
 
 msgid "Choose the channel this address belongs to."
+msgstr ""
+
+msgid "Choose the role of %(name)s."
 msgstr ""
 
 msgid "Complete"
@@ -157,9 +202,6 @@ msgstr ""
 msgid "Disable"
 msgstr ""
 
-msgid "Disable %(name)s"
-msgstr ""
-
 msgid "Dismiss"
 msgstr ""
 
@@ -184,13 +226,13 @@ msgstr ""
 msgid "Enable"
 msgstr ""
 
-msgid "Enable %(name)s"
-msgstr ""
-
 msgid "Expires"
 msgstr ""
 
 msgid "Identities"
+msgstr ""
+
+msgid "Identity"
 msgstr ""
 
 msgid "Identity added."
@@ -226,9 +268,6 @@ msgstr ""
 msgid "Load more tasks"
 msgstr ""
 
-msgid "Loading contacts…"
-msgstr ""
-
 msgid "Loading contact…"
 msgstr ""
 
@@ -238,13 +277,16 @@ msgstr ""
 msgid "Loading task…"
 msgstr ""
 
-msgid "Loading tokens…"
-msgstr ""
-
-msgid "Loading users…"
-msgstr ""
-
 msgid "Loading…"
+msgstr ""
+
+msgid "Manage the people you work with and how to reach them."
+msgstr ""
+
+msgid "Manage the tokens your programs sign in with."
+msgstr ""
+
+msgid "Manage who can sign in and what they can do."
 msgstr ""
 
 msgid "Name"
@@ -257,9 +299,6 @@ msgid "Never expires"
 msgstr ""
 
 msgid "Never used"
-msgstr ""
-
-msgid "New API token"
 msgstr ""
 
 msgid "New contact"
@@ -283,6 +322,9 @@ msgstr ""
 msgid "No contacts found."
 msgstr ""
 
+msgid "No contacts yet."
+msgstr ""
+
 msgid "No identities yet."
 msgstr ""
 
@@ -293,6 +335,12 @@ msgid "No open tasks."
 msgstr ""
 
 msgid "No role"
+msgstr ""
+
+msgid "No tokens found."
+msgstr ""
+
+msgid "No users found."
 msgstr ""
 
 msgid "No users yet."
@@ -334,28 +382,38 @@ msgstr ""
 msgid "Remove %(name)s"
 msgstr ""
 
+msgid "Rename"
+msgstr ""
+
+msgid "Rename contact"
+msgstr ""
+
 msgid "Reopen"
 msgstr ""
 
 msgid "Resend invitation"
 msgstr ""
 
-msgid "Resend invitation to %(name)s"
-msgstr ""
-
 msgid "Revoke"
 msgstr ""
 
-msgid "Revoke %(name)s"
+msgid "Revoke %s token? Anything using it stops working at once."
+msgid_plural "Revoke %s tokens? Anything using them stops working at once."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Revoke the token %(name)s? Anything using it stops working at once."
 msgstr ""
 
-msgid "Revoke failed."
-msgstr ""
+msgid "Revoke token"
+msgid_plural "Revoke tokens"
+msgstr[0] ""
+msgstr[1] ""
 
 msgid "Role"
 msgstr ""
 
-msgid "Role of %(name)s"
+msgid "Role changed."
 msgstr ""
 
 msgid "Save"
@@ -364,7 +422,16 @@ msgstr ""
 msgid "Scopes"
 msgstr ""
 
-msgid "Search contacts"
+msgid "Search contacts…"
+msgstr ""
+
+msgid "Search tokens…"
+msgstr ""
+
+msgid "Search users…"
+msgstr ""
+
+msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
 msgstr ""
 
 msgid "Send invitation"
@@ -484,6 +551,9 @@ msgstr ""
 msgid "The languages could not be read."
 msgstr ""
 
+msgid "The role could not be changed."
+msgstr ""
+
 msgid "The task could not be added."
 msgstr ""
 
@@ -502,6 +572,15 @@ msgstr ""
 msgid "The token could not be created."
 msgstr ""
 
+msgid "The token could not be revoked."
+msgstr ""
+
+msgid "The user could not be disabled."
+msgstr ""
+
+msgid "The user could not be enabled."
+msgstr ""
+
 msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
@@ -517,16 +596,25 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
+msgid "Token revoked."
+msgstr ""
+
 msgid "Tokens could not be loaded."
 msgstr ""
 
 msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
 msgstr ""
 
-msgid "Try a different search, or add one with New contact."
+msgid "Undo"
 msgstr ""
 
-msgid "Undo"
+msgid "User disabled."
+msgstr ""
+
+msgid "User enabled."
+msgstr ""
+
+msgid "User sections"
 msgstr ""
 
 msgid "Users"
@@ -565,18 +653,6 @@ msgstr ""
 msgid "v%(version)s"
 msgstr ""
 
-msgctxt "account status"
-msgid "Active"
-msgstr ""
-
-msgctxt "account status"
-msgid "Disabled"
-msgstr ""
-
-msgctxt "account status"
-msgid "Invited"
-msgstr ""
-
 msgctxt "admin section"
 msgid "Contacts"
 msgstr ""
@@ -609,10 +685,54 @@ msgctxt "task priority"
 msgid "Normal"
 msgstr ""
 
+msgctxt "token area"
+msgid "contacts"
+msgstr ""
+
+msgctxt "token area"
+msgid "events"
+msgstr ""
+
+msgctxt "token area"
+msgid "fields"
+msgstr ""
+
+msgctxt "token area"
+msgid "imports"
+msgstr ""
+
+msgctxt "token area"
+msgid "meta"
+msgstr ""
+
+msgctxt "token area"
+msgid "tasks"
+msgstr ""
+
+msgctxt "token area"
+msgid "users"
+msgstr ""
+
+msgctxt "token area"
+msgid "webhooks"
+msgstr ""
+
 msgctxt "token expiry"
 msgid "Expired"
 msgstr ""
 
 msgctxt "token lifetime"
 msgid "Never"
+msgstr ""
+
+msgctxt "user status"
+msgid "Active"
+msgstr ""
+
+msgctxt "user status"
+msgid "Disabled"
+msgstr ""
+
+msgctxt "user status"
+msgid "Invited"
 msgstr ""

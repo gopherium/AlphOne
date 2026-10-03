@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { listSearch } from '@alphone/frontend-sdk'
 import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	lazyRouteComponent,
 	redirect,
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
-import { ContactRoute, ContactsRoute, NewContactRoute } from './contactRoutes'
+import { ContactRoute, NewContactRoute } from './contactRoutes'
 import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
-import { NewTokenRoute, NewUserRoute, TokensRoute, UsersRoute } from './userRoutes'
+import { newTaskSearch } from './tasks/newTaskSearch'
+import { NewTokenRoute, NewUserRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -38,8 +41,7 @@ const tasksRoute = createRoute({
 const newTaskRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/tasks/new',
-	validateSearch: (search: Record<string, unknown>): { date?: string } =>
-		typeof search.date === 'string' ? { date: search.date } : {},
+	validateSearch: newTaskSearch,
 	component: NewTaskRoute,
 })
 
@@ -52,7 +54,8 @@ const taskRoute = createRoute({
 const contactsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/contacts',
-	component: ContactsRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./contacts/ContactsScreen'), 'ContactsScreen'),
 })
 
 const newContactRoute = createRoute({
@@ -70,7 +73,8 @@ const contactRoute = createRoute({
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users',
-	component: UsersRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./users/UsersScreen'), 'UsersScreen'),
 })
 
 const newUserRoute = createRoute({
@@ -82,7 +86,8 @@ const newUserRoute = createRoute({
 const tokensRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users/tokens',
-	component: TokensRoute,
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./users/TokensScreen'), 'TokensScreen'),
 })
 
 const newTokenRoute = createRoute({

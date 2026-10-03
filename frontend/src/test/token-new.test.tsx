@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { resetLocale } from '@gopherium/gottext/testing'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
+import { startAppLocale } from '../i18n/start'
 import { renderAt } from './render'
 
 const secret = 'a1_dGVzdHNlY3JldHZhbHVlZm9ydGhlbWludGZvcm0'
@@ -60,7 +62,62 @@ beforeEach(servingNoTokens)
 test('serves the new token screen at /users/tokens/new', async () => {
 	renderAt('/users/tokens/new')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'New API token' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
+})
+
+test('names each area in its read and write boxes, WhatsApp as the product writes it', async () => {
+	renderAt('/users/tokens/new')
+
+	await screen.findByRole('checkbox', { name: 'Read contacts' })
+	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual([
+		'Read contacts',
+		'Write contacts',
+		'Read events',
+		'Write events',
+		'Read fields',
+		'Write fields',
+		'Read imports',
+		'Write imports',
+		'Read meta',
+		'Write meta',
+		'Read tasks',
+		'Write tasks',
+		'Read users',
+		'Write users',
+		'Read webhooks',
+		'Write webhooks',
+		'Read WhatsApp',
+		'Write WhatsApp',
+	])
+})
+
+test('names each area in Spanish inside the Spanish read and write boxes', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	renderAt('/users/tokens/new')
+
+	await screen.findByRole('checkbox', { name: 'Leer contactos' })
+	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual([
+		'Leer contactos',
+		'Escribir contactos',
+		'Leer eventos',
+		'Escribir eventos',
+		'Leer campos',
+		'Escribir campos',
+		'Leer importaciones',
+		'Escribir importaciones',
+		'Leer metadatos',
+		'Escribir metadatos',
+		'Leer tareas',
+		'Escribir tareas',
+		'Leer usuarios',
+		'Escribir usuarios',
+		'Leer webhooks',
+		'Escribir webhooks',
+		'Leer WhatsApp',
+		'Escribir WhatsApp',
+	])
 })
 
 test('refuses to mint until a name and an area are given', async () => {
@@ -136,6 +193,7 @@ test('shows the secret once and warns it is never shown again', async () => {
 	expect(await screen.findByText(secret)).toBeInTheDocument()
 	expect(screen.getByText(/never shown again/)).toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: 'Create token' })).not.toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
 })
 
 test('copies the secret to the clipboard', async () => {

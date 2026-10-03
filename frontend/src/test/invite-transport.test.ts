@@ -5,7 +5,7 @@ import { InvalidTokenError, RateLimitedError, UnauthorizedError } from '@gopheri
 import { ValidationError } from '@gopherium/react-auth/admin'
 import { expect, test } from 'vitest'
 
-import { graphAuthTransport, resendInvite } from '../auth/graphTransport'
+import { graphAuthTransport } from '../auth/graphTransport'
 
 const maria = {
 	id: 'u1',
@@ -73,20 +73,6 @@ test('invite maps the refusals it can meet', async () => {
 	await expect(
 		graphAuthTransport.invite({ email: 'maria@example.com', name: 'Maria Perez' }),
 	).rejects.toBeInstanceOf(RateLimitedError)
-})
-
-test('resendInvite answers the delivery report', async () => {
-	graphResponds('mutation ResendInvite', {
-		data: { resendInvite: { delivered: true, activationLink: null } },
-	})
-
-	await expect(resendInvite('maria@example.com')).resolves.toEqual({ delivered: true })
-})
-
-test('resendInvite refuses a caller without a session', async () => {
-	graphResponds('mutation ResendInvite', graphError('UNAUTHENTICATED'))
-
-	await expect(resendInvite('maria@example.com')).rejects.toBeInstanceOf(UnauthorizedError)
 })
 
 test('acceptInvite answers the activated identity', async () => {
@@ -193,14 +179,11 @@ test('the token operations throw their fallback without a payload', async () => 
 	)
 })
 
-test('the invitations throw their fallback without a payload', async () => {
+test('an invitation throws its fallback without a payload', async () => {
 	graphResponds('mutation Invite', { data: null })
 	await expect(
 		graphAuthTransport.invite({ email: 'maria@example.com', name: 'Maria Perez' }),
 	).rejects.toThrow('inviting failed')
-
-	graphResponds('mutation ResendInvite', { data: null })
-	await expect(resendInvite('maria@example.com')).rejects.toThrow('resending the invitation failed')
 })
 
 test('an undelivered invitation without a link is refused', async () => {

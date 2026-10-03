@@ -69,6 +69,13 @@ test('renders a menu link for every core and plugin nav entry', async () => {
 	}
 })
 
+test('stacks the rows with no gap between them, as the Site Editor stacks its navigation', async () => {
+	renderMenuAt('/')
+
+	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
+	expect((nav.firstElementChild as HTMLElement).style.gap).toBe('')
+})
+
 test('marks the item for the active route as current', async () => {
 	const [target] = everyNavEntry
 	renderMenuAt(target.to)

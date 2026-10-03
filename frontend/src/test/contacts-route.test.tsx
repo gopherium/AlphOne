@@ -12,35 +12,8 @@ import { renderAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
 const brunoID = '0198c000-0000-7000-8000-000000000002'
-const carlaID = '0198c000-0000-7000-8000-000000000003'
-const adaID = '0198c000-0000-7000-8000-000000000004'
 const identityID1 = '0198c000-0000-7000-8000-000000000011'
 const identityID2 = '0198c000-0000-7000-8000-000000000012'
-
-function contactsPage(named: [string, string][], endCursor: string | null) {
-	return {
-		__typename: 'ContactConnection',
-		edges: named.map(([id, name]) => ({
-			__typename: 'ContactEdge',
-			node: { __typename: 'Contact', id, name, createdAt: '2026-07-06T10:00:00Z' },
-			cursor: id,
-		})),
-		pageInfo: { __typename: 'PageInfo', hasNextPage: endCursor !== null, endCursor },
-	}
-}
-
-function pageFor(q: string, after: string | undefined) {
-	if (q === 'ada') {
-		return contactsPage([[adaID, 'Ada Lovelace']], null)
-	}
-	if (q !== '') {
-		return contactsPage([], null)
-	}
-	if (after === 'CUR1') {
-		return contactsPage([[carlaID, 'Carla']], null)
-	}
-	return contactsPage([[anaID, 'Ana García'], [brunoID, 'Bruno']], 'CUR1')
-}
 
 type IdentityRow = { id: string; channel: string; identifier: string; display_name: string }
 
@@ -87,22 +60,12 @@ function expectFieldIn(child: Element | undefined, label: string) {
 	expect(child).toContainElement(screen.getByText(label))
 }
 
-let listQueries: string[] = []
-
 afterEach(() => {
 	resetLocaleData(undefined, 'alphone-whatsapp')
 })
 
 beforeEach(() => {
-	listQueries = []
 	server.use(
-		graphql.query('Contacts', ({ variables }) => {
-			const q = (variables.q as string | null) ?? ''
-			listQueries.push(q)
-			return HttpResponse.json({
-				data: { contacts: pageFor(q, variables.after as string | undefined) },
-			})
-		}),
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
 				data: {
@@ -116,115 +79,7 @@ beforeEach(() => {
 	)
 })
 
-test('ghosts the rows while the contacts arrive', async () => {
-	server.use(graphql.query('Contacts', () => new Promise(() => {})))
-	renderAt('/contacts')
-
-	const status = await screen.findByRole('status')
-	expect(status).toHaveTextContent('Loading contacts…')
-	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
-})
-
-test('fades the contact table in when it replaces the ghost', async () => {
-	renderAt('/contacts')
-
-	const region = await screen.findByRole('region', { name: 'Contacts' })
-	expect([...region.classList]).toContain('godmin-arrival')
-})
-
-test('serves the contacts screen at /contacts', async () => {
-	renderAt('/contacts')
-
-	expect(
-		await screen.findByRole('heading', { name: 'Contacts' }),
-	).toBeInTheDocument()
-	const ana = await screen.findByRole('row', { name: /Ana García/ })
-	expect(within(ana).getByText('06/07/2026')).toBeInTheDocument()
-	expect(screen.getByRole('row', { name: /Bruno/ })).toBeInTheDocument()
-})
-
-test('navigates to the contacts screen from the main menu', async () => {
-	renderAt('/')
-
-	await userEvent.click(await screen.findByRole('link', { name: 'Contacts' }))
-
-	expect(
-		await screen.findByRole('heading', { name: 'Contacts' }),
-	).toBeInTheDocument()
-})
-
-test('loads more contacts through the cursor', async () => {
-	renderAt('/contacts')
-	await screen.findByRole('row', { name: /Ana García/ })
-
-	await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
-
-	expect(await screen.findByRole('row', { name: /Carla/ })).toBeInTheDocument()
-	await waitFor(() =>
-		expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument(),
-	)
-})
-
-test('searches contacts once the query settles', async () => {
-	renderAt('/contacts')
-	await screen.findByRole('row', { name: /Ana García/ })
-
-	await userEvent.type(
-		screen.getByRole('textbox', { name: /search contacts/i }),
-		'ada',
-	)
-
-	expect(await screen.findByRole('row', { name: /Ada Lovelace/ })).toBeInTheDocument()
-	expect(listQueries).toContain('ada')
-	expect(listQueries).not.toContain('a')
-	expect(listQueries).not.toContain('ad')
-})
-
-test('shows an empty state when the search finds nothing', async () => {
-	renderAt('/contacts')
-	await screen.findByRole('row', { name: /Ana García/ })
-
-	await userEvent.type(
-		screen.getByRole('textbox', { name: /search contacts/i }),
-		'zz',
-	)
-
-	expect(await screen.findByText('No contacts found.')).toBeInTheDocument()
-	expect(
-		screen.getByText('Try a different search, or add one with New contact.'),
-	).toBeInTheDocument()
-})
-
-test('reports when contacts cannot be loaded', async () => {
-	server.use(
-		graphql.query('Contacts', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
-
-	renderAt('/contacts')
-
-	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
-})
-
-test('drops the session when the contacts request is unauthorized', async () => {
-	server.use(
-		graphql.query('Contacts', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
-			}),
-		),
-	)
-
-	const client = renderAt('/contacts')
-
-	await waitFor(() =>
-		expect(client.getQueryData(sessionQueryKey)).toBeNull(),
-	)
-})
-
-test('creates a contact and opens its detail', async () => {
+test('creates a contact, confirms it and opens its detail', async () => {
 	const newID = '0198c000-0000-7000-8000-000000000009'
 	server.use(
 		graphql.mutation('CreateContact', () =>

@@ -38,6 +38,7 @@ test('an invited person activates from the mailed link and lands on their tasks'
 }) => {
 	await invite(page, 'ada@example.com', 'Ada Lovelace')
 	await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible()
+	await expect(page.locator('.godmin-toasts').getByText('Invitation sent.')).toBeVisible()
 
 	const body = await sink.waitFor('ada@example.com')
 	const link = linkFrom(body, '/activate')
@@ -57,13 +58,18 @@ test('the users list marks an invited account and resends its invitation', async
 	await sink.waitFor('pending@example.com')
 	sink.clear()
 
-	await page.goto('/users')
+	await page.goto('/users?search=pending%40example.com')
 	const row = page.getByRole('row').filter({ hasText: 'pending@example.com' })
 	await expect(row.getByText('Invited', { exact: true })).toBeVisible()
 
-	await row.getByRole('button', { name: 'Resend invitation to Maria Perez' }).click()
+	await row.getByRole('button', { name: 'Actions' }).click()
+	await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+	const modal = page.getByRole('dialog', { name: 'Resend invitation' })
+	await modal.getByRole('button', { name: 'Resend invitation' }).click()
 
-	await expect(row.getByText('Invitation sent.')).toBeVisible()
+	await expect(page.locator('.godmin-toasts').getByText('Invitation sent.')).toBeVisible()
+	await expect(modal).toBeHidden()
+	await expect(row.getByText('Invitation sent.')).toBeHidden()
 	const resent = await sink.waitFor('pending@example.com')
 	expect(resent).toContain('/activate?token=')
 })

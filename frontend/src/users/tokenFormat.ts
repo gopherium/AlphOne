@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, __ } from '@alphone/frontend-sdk'
-
-import { formatCreated } from '../contacts/format'
+import { _x, __, formatDate } from '@alphone/frontend-sdk'
 
 /** grantableAreas lists the areas a token may be granted, in menu order. */
 export const grantableAreas = [
@@ -16,6 +14,24 @@ export const grantableAreas = [
 	'webhooks',
 	'whatsapp',
 ] as const
+
+/**
+ * Returns the name each grantable area reads under in a sentence, read fresh so the loaded catalogue answers.
+ * @returns The names, keyed by area.
+ */
+export function areaLabels(): Record<(typeof grantableAreas)[number], string> {
+	return {
+		contacts: _x('contacts', 'token area', 'alphone'),
+		events: _x('events', 'token area', 'alphone'),
+		fields: _x('fields', 'token area', 'alphone'),
+		imports: _x('imports', 'token area', 'alphone'),
+		meta: _x('meta', 'token area', 'alphone'),
+		tasks: _x('tasks', 'token area', 'alphone'),
+		users: _x('users', 'token area', 'alphone'),
+		webhooks: _x('webhooks', 'token area', 'alphone'),
+		whatsapp: 'WhatsApp',
+	}
+}
 
 /**
  * Returns the lifetimes the mint form offers, read fresh so the loaded catalogue answers.
@@ -39,7 +55,7 @@ export const defaultLifetime = '90'
  * @returns The date, or a plain statement that it never acted.
  */
 export function formatLastUsed(at: string | null | undefined): string {
-	return at === null || at === undefined ? __('Never used', 'alphone') : formatCreated(new Date(at))
+	return at === null || at === undefined ? __('Never used', 'alphone') : formatDate(at)
 }
 
 /**
@@ -53,7 +69,7 @@ export function formatExpiry(at: string | null | undefined, now: Date): string {
 		return __('Never expires', 'alphone')
 	}
 	const ends = new Date(at)
-	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatCreated(ends)
+	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatDate(ends)
 }
 
 /**

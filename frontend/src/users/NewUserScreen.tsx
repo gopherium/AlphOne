@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, PageScreen, Text, __ } from '@alphone/frontend-sdk'
+import { Button, ErrorNotice, InputControl, PageScreen, Text, __, useToaster } from '@alphone/frontend-sdk'
 import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/admin'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -25,6 +25,7 @@ function inviteErrorText(error: unknown): string {
  */
 export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
 	const queryClient = useQueryClient()
+	const toaster = useToaster()
 	const [email, setEmail] = useState('')
 	const [name, setName] = useState('')
 	const [activationLink, setActivationLink] = useState<string | null>(null)
@@ -33,6 +34,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 		onSuccess: async (invitation) => {
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			if (invitation.delivered) {
+				toaster.show(__('Invitation sent.', 'alphone'))
 				await onCreated()
 				return
 			}
