@@ -183,6 +183,11 @@ type ComplexityRoot struct {
 		Reason    func(childComplexity int) int
 	}
 
+	ImportRowReason struct {
+		Code func(childComplexity int) int
+		Meta func(childComplexity int) int
+	}
+
 	InvitePayload struct {
 		ActivationLink func(childComplexity int) int
 		Delivered      func(childComplexity int) int
@@ -963,6 +968,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ImportRow.Reason(childComplexity), true
+
+	case "ImportRowReason.code":
+		if e.ComplexityRoot.ImportRowReason.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportRowReason.Code(childComplexity), true
+	case "ImportRowReason.meta":
+		if e.ComplexityRoot.ImportRowReason.Meta == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ImportRowReason.Meta(childComplexity), true
 
 	case "InvitePayload.activationLink":
 		if e.ComplexityRoot.InvitePayload.ActivationLink == nil {
@@ -2065,8 +2083,13 @@ type ImportRow {
   position: Int!
   cells: [String!]!
   outcome: String!
-  reason: String
+  reason: ImportRowReason
   contactId: UUID
+}
+
+type ImportRowReason {
+  code: String!
+  meta: JSON!
 }
 
 type ImportField {
@@ -2438,6 +2461,16 @@ func (ec *executionContext) childFields_ImportRow(ctx context.Context, field gra
 		return ec.fieldContext_ImportRow_contactId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ImportRow", field.Name)
+}
+
+func (ec *executionContext) childFields_ImportRowReason(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "code":
+		return ec.fieldContext_ImportRowReason_code(ctx, field)
+	case "meta":
+		return ec.fieldContext_ImportRowReason_meta(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ImportRowReason", field.Name)
 }
 
 func (ec *executionContext) childFields_InvitePayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5770,15 +5803,24 @@ func (ec *executionContext) _ImportRow_reason(ctx context.Context, field graphql
 			return obj.Reason, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ImportRowReason) graphql.Marshaler {
+			return ec.marshalOImportRowReason2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportRowReason(ctx, selections, v)
 		},
 		true,
 		false,
 	)
 }
 func (ec *executionContext) fieldContext_ImportRow_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ImportRow", field, false, false, errors.New("field of type String does not have child fields"))
+	fc = &graphql.FieldContext{
+		Object:     "ImportRow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ImportRowReason(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _ImportRow_contactId(ctx context.Context, field graphql.CollectedField, obj *model.ImportRow) (ret graphql.Marshaler) {
@@ -5802,6 +5844,52 @@ func (ec *executionContext) _ImportRow_contactId(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_ImportRow_contactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ImportRow", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _ImportRowReason_code(ctx context.Context, field graphql.CollectedField, obj *model.ImportRowReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportRowReason_code(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportRowReason_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportRowReason", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ImportRowReason_meta(ctx context.Context, field graphql.CollectedField, obj *model.ImportRowReason) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ImportRowReason_meta(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Meta, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalNJSON2interface(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ImportRowReason_meta(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ImportRowReason", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
 func (ec *executionContext) _InvitePayload_delivered(ctx context.Context, field graphql.CollectedField, obj *model.InvitePayload) (ret graphql.Marshaler) {
@@ -12057,6 +12145,49 @@ func (ec *executionContext) _ImportRow(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var importRowReasonImplementors = []string{"ImportRowReason"}
+
+func (ec *executionContext) _ImportRowReason(ctx context.Context, sel ast.SelectionSet, obj *model.ImportRowReason) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, importRowReasonImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ImportRowReason")
+		case "code":
+			out.Values[i] = ec._ImportRowReason_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "meta":
+			out.Values[i] = ec._ImportRowReason_meta(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var invitePayloadImplementors = []string{"InvitePayload"}
 
 func (ec *executionContext) _InvitePayload(ctx context.Context, sel ast.SelectionSet, obj *model.InvitePayload) graphql.Marshaler {
@@ -15230,6 +15361,13 @@ func (ec *executionContext) marshalOImportJob2ᚖgithubᚗcomᚋgopheriumᚋalph
 		return graphql.Null
 	}
 	return ec._ImportJob(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOImportRowReason2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportRowReason(ctx context.Context, sel ast.SelectionSet, v *model.ImportRowReason) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ImportRowReason(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {

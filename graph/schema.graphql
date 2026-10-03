@@ -152,8 +152,12 @@ type ImportRow {
 	position: Int!
 	cells: [String!]!
 	outcome: String!
-	reason: String
+	reason: ImportRowReason
 	contactId: UUID
+}
+type ImportRowReason {
+	code: String!
+	meta: JSON!
 }
 type InvitePayload {
 	delivered: Boolean!
