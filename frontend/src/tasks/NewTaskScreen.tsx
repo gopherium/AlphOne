@@ -31,21 +31,29 @@ interface PickableContact {
 	name: string
 }
 
+/** PickedContact is the contact a new task links to, its setter, and whether the address contact still loads. */
+interface PickedContact {
+	contact: PickableContact | null
+	setContact: (contact: PickableContact | null) => void
+	naming: boolean
+}
+
 /**
  * Holds the contact a new task links to, starting on the one the address names once it arrives.
  * @param contactId - The contact the address names, none when absent.
- * @returns The linked contact beside the setter the picker calls.
+ * @returns The linked contact, the setter the picker calls and whether the address contact is still loading.
  */
-function usePickedContact(
-	contactId: string | undefined,
-): [PickableContact | null, (contact: PickableContact | null) => void] {
+function usePickedContact(contactId: string | undefined): PickedContact {
 	const [named] = useGraphQuery({
 		query: contactNameQuery,
 		variables: { id: contactId ?? '' },
 		pause: contactId === undefined,
 	})
 	const [picked, setPicked] = useState<PickableContact | null>()
-	return [picked === undefined ? (named.data?.contact ?? null) : picked, setPicked]
+	if (picked !== undefined) {
+		return { contact: picked, setContact: setPicked, naming: false }
+	}
+	return { contact: named.data?.contact ?? null, setContact: setPicked, naming: named.fetching }
 }
 
 /**
@@ -66,7 +74,7 @@ export function NewTaskScreen({
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
 	const [priority, setPriority] = useState(0)
-	const [contact, setContact] = usePickedContact(contactId)
+	const { contact, setContact, naming } = usePickedContact(contactId)
 	const [create, runCreate] = useGraphMutation(createTaskMutation)
 	const submit = async () => {
 		const result = await runCreate({
@@ -108,7 +116,7 @@ export function NewTaskScreen({
 				<ContactPicker contact={contact} onPick={setContact} />
 				<Button
 					type="submit"
-					disabled={title.trim() === '' || !isValidDate(dueOn) || create.fetching}
+					disabled={title.trim() === '' || !isValidDate(dueOn) || create.fetching || naming}
 					loading={create.fetching}
 				>
 					{__('Create task', 'alphone')}

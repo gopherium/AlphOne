@@ -191,6 +191,15 @@ test('links the new task to the contact the address names', async () => {
 	expect(asked).toEqual([contactID])
 })
 
+test('keeps Create task off until the contact the address names is found', async () => {
+	server.use(graphql.query('ContactName', () => new Promise(() => {})))
+	renderAt(`/tasks/new?contactId=${contactID}`)
+
+	await userEvent.type(await screen.findByLabelText('Title'), 'Call her back')
+
+	expect(screen.getByRole('button', { name: 'Create task' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('lets the reader drop the contact the address names and pick another', async () => {
 	namingContact({ id: '0198c000-0000-7000-8000-000000000303', name: 'Ana Lopez' })
 	renderAt('/tasks/new?contactId=0198c000-0000-7000-8000-000000000303')
