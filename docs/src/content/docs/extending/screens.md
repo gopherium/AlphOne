@@ -247,6 +247,26 @@ falls back to your own copy for anything else.
 Throw `ValidationError` from your API layer when the backend rejects the
 input, and anything else for a genuine failure.
 
+A reason the server stores beside a record, such as the reason on an import
+row, arrives as a `code` and its `meta`, or as null when the record needs
+none. `reasonText` turns it into a sentence from a template map of your own,
+writes every number in the format locale, and shows the fallback when no
+template fits. Build the map inside a function, so every call reads the
+catalogue the reader loaded.
+
+```tsx
+import { __, reasonText } from '@alphone/frontend-sdk'
+
+function invoiceReasons(): Record<string, string> {
+	return {
+		invoice_late: __('Paid %(days)s days late.', 'acme-billing'),
+	}
+}
+
+const shown =
+	invoice.reason === null ? '' : reasonText(invoice.reason, invoiceReasons(), invoice.reason.code)
+```
+
 ## Full bleed screens
 
 Most screens sit on a padded canvas. A screen that fills its canvas edge

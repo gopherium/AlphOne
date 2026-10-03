@@ -4,6 +4,20 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 /**
+ * Uploads a file through the Upload button of the imports list, then opens it from the toast.
+ * @param page - The page showing the imports list.
+ * @param file - The file to choose in the dialog.
+ */
+async function uploadAndOpen(page: Page, file: { name: string; mimeType: string; buffer: Buffer }) {
+	const chooser = page.waitForEvent('filechooser')
+	await page.getByRole('button', { name: 'Upload' }).click()
+	await (await chooser).setFiles(file)
+	await expect(page.locator('.godmin-toasts').getByText('File uploaded.')).toBeVisible()
+	await page.getByRole('button', { name: 'Open', exact: true }).click()
+	await expect(page.getByRole('heading', { name: file.name })).toBeVisible()
+}
+
+/**
  * Maps one column of the import onto a field.
  * @param page - The page showing the import.
  * @param column - The column label.
@@ -33,14 +47,14 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(page.getByText(`Email: ${knownEmail}`)).toBeVisible()
 
 	await page.getByRole('link', { name: 'Import' }).click()
-	await expect(page.getByRole('heading', { name: 'Import' })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Import', level: 1 })).toBeVisible()
 
 	const upload = page.waitForResponse(
 		(response) =>
 			response.url().includes('/api/graphql') &&
 			(response.request().headers()['content-type'] ?? '').startsWith('multipart/form-data'),
 	)
-	await page.getByLabel('Contacts file').setInputFiles({
+	await uploadAndOpen(page, {
 		name: 'contacts.csv',
 		mimeType: 'text/csv',
 		buffer: Buffer.from(
@@ -56,8 +70,6 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	expect(uploaded.status(), body).toBe(200)
 	expect(body, body).toContain('importUpload')
 
-	await page.getByRole('link', { name: 'contacts.csv' }).click()
-	await expect(page.getByRole('heading', { name: 'contacts.csv' })).toBeVisible()
 	await expect(page.getByText(wanted)).toBeVisible()
 
 	await chooseField(page, 'Full name', 'Name')
@@ -69,6 +81,8 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(rows.getByText('Imported', { exact: true }).first()).toBeVisible()
 	await expect(rows.getByText('Skipped', { exact: true }).first()).toBeVisible()
 	await expect(rows.getByText('Failed', { exact: true }).first()).toBeVisible()
+	await expect(rows.getByText(`${known} already holds an address in this row.`)).toBeVisible()
+	await expect(rows.getByText('The row has no name or no address.')).toBeVisible()
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
@@ -92,15 +106,13 @@ test('maps a spreadsheet column onto a field an operator defined', async ({ page
 	await expect(page.getByRole('region', { name: 'Fields' }).getByText(field)).toBeVisible()
 
 	await page.getByRole('link', { name: 'Import' }).click()
-	await page.getByLabel('Contacts file').setInputFiles({
+	await uploadAndOpen(page, {
 		name: 'joined.csv',
 		mimeType: 'text/csv',
 		buffer: Buffer.from(
 			'Full name,Email address,Joined\n' + `${wanted},maria.${stamp}@example.com,2026-03-01\n`,
 		),
 	})
-	await page.getByRole('link', { name: 'joined.csv' }).click()
-	await expect(page.getByRole('heading', { name: 'joined.csv' })).toBeVisible()
 
 	await chooseField(page, 'Full name', 'Name')
 	await chooseField(page, 'Email address', 'Email')

@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -164,6 +165,10 @@ type graphImportJob struct {
 		Position int
 		Cells    []string
 		Outcome  string
+		Reason   *struct {
+			Code string
+			Meta map[string]any
+		}
 	}
 	Contacts []struct {
 		ContactID string
@@ -347,6 +352,84 @@ func TestGraphImportCommitCreatesContacts(t *testing.T) {
 	}
 }
 
+// rowsDocument reads the staged rows of one import beside the reason each carries.
+const rowsDocument = `query($id: UUID!) { importJob(id: $id) { rows { position outcome reason { code meta } } } }`
+
+// graphRows reads the staged rows of one import through the graph.
+func graphRows(t *testing.T, graphHandler http.Handler, id string) graphImportJob {
+	t.Helper()
+	response := decodeGraph(t, postGraph(t, graphHandler, rowsDocument, map[string]any{"id": id}))
+	if len(response.Errors) != 0 {
+		t.Fatalf("rows errors = %v, want none", response.Errors)
+	}
+	var payload struct {
+		ImportJob graphImportJob
+	}
+	if err := json.Unmarshal(response.Data, &payload); err != nil {
+		t.Fatalf("decoding rows payload: %v", err)
+	}
+	return payload.ImportJob
+}
+
+func TestRowsAnswerTheReasonAsACodeAndItsValues(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newUploadPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, "Name,Email,Phone\nMaria Perez\n")
+
+	rows := graphRows(t, graphHandler, staged.ID).Rows
+
+	if len(rows) != 1 || rows[0].Reason == nil {
+		t.Fatalf("rows = %+v, want one row carrying a reason", rows)
+	}
+	if rows[0].Reason.Code != "row_cell_count_mismatch" {
+		t.Errorf("code = %q, want row_cell_count_mismatch", rows[0].Reason.Code)
+	}
+	if want := map[string]any{"cells": float64(1), "columns": float64(3)}; !reflect.DeepEqual(rows[0].Reason.Meta, want) {
+		t.Errorf("meta = %#v, want %#v", rows[0].Reason.Meta, want)
+	}
+}
+
+func TestRowsAnswerNoReasonForARowThatNeedsNone(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newUploadPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+
+	rows := graphRows(t, graphHandler, staged.ID).Rows
+
+	for _, row := range rows {
+		if row.Reason != nil {
+			t.Errorf("row %d reason = %+v, want null", row.Position, row.Reason)
+		}
+	}
+}
+
+func TestRowsAnswerAnEmptyMetaForAReasonWithoutValues(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, "Name,Email\nMaria Perez,\n")
+	mustGraphMapping(t, graphHandler, staged.ID)
+	committed := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { failed } }`, map[string]any{"id": staged.ID}))
+	if len(committed.Errors) != 0 {
+		t.Fatalf("commit errors = %v, want none", committed.Errors)
+	}
+
+	rows := graphRows(t, graphHandler, staged.ID).Rows
+
+	if len(rows) != 1 || rows[0].Reason == nil || rows[0].Reason.Code != "row_incomplete" {
+		t.Fatalf("rows = %+v, want one row_incomplete row", rows)
+	}
+	if rows[0].Reason.Meta == nil || len(rows[0].Reason.Meta) != 0 {
+		t.Errorf("meta = %#v, want an empty object rather than null", rows[0].Reason.Meta)
+	}
+}
+
 // mustGraphMapping assigns name and email through the graph.
 func mustGraphMapping(t *testing.T, graphHandler http.Handler, id string) {
 	t.Helper()
@@ -476,6 +559,53 @@ func TestGraphImportErrorsAreClassified(t *testing.T) {
 			t.Errorf("late mapping code = %q, want CONFLICT", got)
 		}
 	})
+}
+
+func TestGraphImportCommitWithoutAMappingKeepsTheImportOpen(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+
+	early := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { id } }`,
+		map[string]any{"id": staged.ID}))
+	if got := firstCode(t, early); got != "VALIDATION" {
+		t.Fatalf("early commit code = %q, want VALIDATION", got)
+	}
+	mustGraphMapping(t, graphHandler, staged.ID)
+	mapped := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { imported } }`,
+		map[string]any{"id": staged.ID}))
+	if len(mapped.Errors) != 0 {
+		t.Errorf("commit after the mapping errors = %v, want none", mapped.Errors)
+	}
+}
+
+func TestGraphImportCommitReopensAnImportLeftCommittingWithoutAMapping(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	graphHandler := newGraphHandler(t, p, pool, uuid.Must(uuid.NewV7()))
+	staged := stagedUpload(t, graphHandler, twoRowCSV)
+	importID := uuid.MustParse(staged.ID)
+	if _, err := pool.Exec(t.Context(),
+		"UPDATE plugin_importer.imports SET state = 'committing' WHERE id = $1", importID); err != nil {
+		t.Fatalf("leaving the import committing: %v", err)
+	}
+
+	stuck := decodeGraph(t, postGraph(t, graphHandler,
+		`mutation($id: UUID!) { importCommit(id: $id) { id } }`,
+		map[string]any{"id": staged.ID}))
+
+	if got := firstCode(t, stuck); got != "VALIDATION" {
+		t.Fatalf("commit code = %q, want VALIDATION", got)
+	}
+	if held := stateOf(t, pool, importID); held != "ready" {
+		t.Fatalf("state after the commit = %q, want ready", held)
+	}
+	mustGraphMapping(t, graphHandler, staged.ID)
 }
 
 func TestGraphImportFieldsListsTheMappableFields(t *testing.T) {

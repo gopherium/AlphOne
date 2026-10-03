@@ -76,9 +76,17 @@ func toGraphRow(staged stagedRow) *model.ImportRow {
 		Position:  staged.Position,
 		Cells:     staged.Cells,
 		Outcome:   staged.Outcome,
-		Reason:    staged.Reason,
+		Reason:    graphReason(staged.Reason),
 		ContactID: staged.ContactID,
 	}
+}
+
+// graphReason maps a stored row reason onto its graph model, nil when the row carries none.
+func graphReason(reason *rowReason) *model.ImportRowReason {
+	if reason == nil {
+		return nil
+	}
+	return &model.ImportRowReason{Code: reason.Code, Meta: reason.Meta}
 }
 
 // loadImportJob returns the stored import behind id or its classified absence.
@@ -223,6 +231,9 @@ func (m MutationResolvers) ImportUpload(
 	return toGraphImport(stored), nil
 }
 
+// mappingLocked is the graph error a mapping change on an import past its ready state answers.
+var mappingLocked = sdk.GraphError{Code: "CONFLICT", Reason: "mapping_locked", Err: errMappingLocked}
+
 // ImportSetMapping stores the column assignments of an import.
 func (m MutationResolvers) ImportSetMapping(
 	ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput,
@@ -232,7 +243,7 @@ func (m MutationResolvers) ImportSetMapping(
 		return nil, err
 	}
 	if stored.State != stateReady {
-		return nil, sdk.GraphError{Code: "CONFLICT", Reason: "mapping_locked", Err: errMappingLocked}
+		return nil, mappingLocked
 	}
 	known, err := m.plugin.registry(ctx)
 	if err != nil {
@@ -242,7 +253,11 @@ func (m MutationResolvers) ImportSetMapping(
 	if err != nil {
 		return nil, sdk.GraphError{Code: "VALIDATION", Reason: "mapping_invalid", Err: err}
 	}
-	if err := m.plugin.store.updateMapping(ctx, stored.ID, assigned); err != nil {
+	err = m.plugin.store.updateMapping(ctx, stored.ID, assigned)
+	if errors.Is(err, errMappingLocked) {
+		return nil, mappingLocked
+	}
+	if err != nil {
 		return nil, err
 	}
 	stored.Mapping = assigned

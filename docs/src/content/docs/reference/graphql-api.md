@@ -522,6 +522,28 @@ The stock plugins add their own:
 
 A plugin you install may add more, each documented by the plugin.
 
+### Import row reasons
+
+Each staged row of an import answers a `reason`. It is null for a row that
+needs none, or an object holding a stable `code` and a `meta` object with the
+values the reason names. A client matches on the code and builds its own
+sentence from `meta`, and never parses a sentence. The AlphOne screens show
+each code in the reader's language.
+
+| Code | Meta | When |
+| ---- | ---- | ---- |
+| `row_cell_count_mismatch` | `cells`, `columns` | the row holds more or fewer cells than the header lists. The row still imports |
+| `row_quote_misplaced` | `line` | a quote mark sits out of place on that line of the file, so the row was left empty |
+| `row_malformed` | | AlphOne could not read the row, so it was left empty |
+| `row_incomplete` | | the row has no name or no address |
+| `contact_details_invalid` | | the row holds a name or an address AlphOne cannot use |
+| `identity_taken` | | another contact already holds an address of the row |
+| `identity_taken_by` | `ownerName` | the named contact already holds an address of the row. The row's `contactId` points at that contact |
+| `value_kind_mismatch` | `field`, `kind` | a cell does not fit the kind its field declares |
+| `field_unknown` | `fields` | the row fills fields that no longer exist |
+| `field_text_refused` | | a field did not accept a cell and named no reason AlphOne reads |
+| `legacy_text` | `text` | a reason stored before reasons were codes, kept as it was written |
+
 ## Limits
 
 | Limit | Value |

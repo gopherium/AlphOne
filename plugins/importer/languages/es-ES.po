@@ -9,8 +9,24 @@ msgstr ""
 "Language: es\n"
 
 #, fuzzy
+msgid "%(ownerName)s already holds an address in this row."
+msgstr "%(ownerName)s ya tiene una dirección de esta fila."
+
+#, fuzzy
+msgid "A field does not accept the value this row holds."
+msgstr "Un campo no admite el valor que tiene esta fila."
+
+#, fuzzy
 msgid "AlphOne could not read that file as a CSV or a spreadsheet."
 msgstr "AlphOne no ha podido leer ese archivo como CSV ni como hoja de cálculo."
+
+#, fuzzy
+msgid "AlphOne could not read this row, so it was left empty."
+msgstr "AlphOne no ha podido leer esta fila, así que ha quedado vacía."
+
+#, fuzzy
+msgid "Another contact already holds an address in this row."
+msgstr "Ya hay otro contacto que tiene una dirección de esta fila."
 
 #, fuzzy
 msgid "Bring contacts in from CSV and Excel files."
@@ -21,8 +37,8 @@ msgid "Choose what each column holds before committing."
 msgstr "Elige qué contiene cada columna antes de confirmar."
 
 #, fuzzy
-msgid "Column %(number)d"
-msgstr "Columna %(number)d"
+msgid "Column %(number)s"
+msgstr "Columna %(number)s"
 
 #, fuzzy
 msgid "Commit"
@@ -33,6 +49,10 @@ msgid "Contacts file"
 msgstr "Archivo de contactos"
 
 #, fuzzy
+msgid "Fields that no longer exist: %(fields)s."
+msgstr "Campos que ya no existen: %(fields)s."
+
+#, fuzzy
 msgid "File"
 msgstr "Archivo"
 
@@ -41,8 +61,16 @@ msgid "File uploaded."
 msgstr "Archivo subido."
 
 #, fuzzy
+msgid "Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed."
+msgstr "Importación terminada. Importadas: %(imported)s. Omitidas: %(skipped)s. Fallidas: %(failed)s."
+
+#, fuzzy
 msgid "Imports could not be loaded."
 msgstr "No se han podido cargar las importaciones."
+
+#, fuzzy
+msgid "Line %(line)s of the file has a quote mark out of place, so this row was left empty."
+msgstr "La línea %(line)s del archivo tiene unas comillas mal colocadas, así que esta fila ha quedado vacía."
 
 #, fuzzy
 msgid "Loading import…"
@@ -51,6 +79,10 @@ msgstr "Cargando la importación…"
 #, fuzzy
 msgid "Loading the preview…"
 msgstr "Cargando la vista previa…"
+
+#, fuzzy
+msgid "Mapping saved."
+msgstr "Asignación guardada."
 
 #, fuzzy
 msgid "No imports found."
@@ -93,6 +125,10 @@ msgid "Search imports…"
 msgstr "Buscar importaciones…"
 
 #, fuzzy
+msgid "Search rows…"
+msgstr "Buscar filas…"
+
+#, fuzzy
 msgid "Started"
 msgstr "Iniciada"
 
@@ -129,6 +165,22 @@ msgid "The mapping does not fit the columns the file holds."
 msgstr "La asignación no encaja con las columnas que tiene el archivo."
 
 #, fuzzy
+msgid "The row does not match the header. Cells in the row: %(cells)s. Columns in the header: %(columns)s."
+msgstr "La fila no encaja con la cabecera. Celdas en la fila: %(cells)s. Columnas en la cabecera: %(columns)s."
+
+#, fuzzy
+msgid "The row has no name or no address."
+msgstr "La fila no tiene nombre o no tiene ninguna dirección."
+
+#, fuzzy
+msgid "The row holds a name or an address AlphOne cannot use."
+msgstr "La fila tiene un nombre o una dirección que AlphOne no puede usar."
+
+#, fuzzy
+msgid "The value for %(field)s does not match the kind the field declares: %(kind)s."
+msgstr "El valor de %(field)s no encaja con el tipo que declara el campo: %(kind)s."
+
+#, fuzzy
 msgid "This import no longer accepts a mapping."
 msgstr "Esta importación ya no admite una asignación."
 
@@ -147,6 +199,56 @@ msgstr "Sube un archivo CSV o Excel para empezar una."
 msgctxt "admin section"
 msgid "Import"
 msgstr "Importar"
+
+#, fuzzy
+msgctxt "contact field"
+msgid "Email"
+msgstr "Correo electrónico"
+
+#, fuzzy
+msgctxt "contact field"
+msgid "Name"
+msgstr "Nombre"
+
+#, fuzzy
+msgctxt "contact field"
+msgid "Phone"
+msgstr "Teléfono"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Choice"
+msgstr "Elección"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Date"
+msgstr "Fecha"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Long text"
+msgstr "Texto largo"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Number"
+msgstr "Número"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Repeater"
+msgstr "Repetidor"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Text"
+msgstr "Texto"
+
+#, fuzzy
+msgctxt "field kind"
+msgid "Yes or no"
+msgstr "Sí o no"
 
 #, fuzzy
 msgctxt "import count"

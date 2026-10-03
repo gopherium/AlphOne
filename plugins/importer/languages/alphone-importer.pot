@@ -7,7 +7,19 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-importer\n"
 
+msgid "%(ownerName)s already holds an address in this row."
+msgstr ""
+
+msgid "A field does not accept the value this row holds."
+msgstr ""
+
 msgid "AlphOne could not read that file as a CSV or a spreadsheet."
+msgstr ""
+
+msgid "AlphOne could not read this row, so it was left empty."
+msgstr ""
+
+msgid "Another contact already holds an address in this row."
 msgstr ""
 
 msgid "Bring contacts in from CSV and Excel files."
@@ -16,7 +28,7 @@ msgstr ""
 msgid "Choose what each column holds before committing."
 msgstr ""
 
-msgid "Column %(number)d"
+msgid "Column %(number)s"
 msgstr ""
 
 msgid "Commit"
@@ -25,19 +37,31 @@ msgstr ""
 msgid "Contacts file"
 msgstr ""
 
+msgid "Fields that no longer exist: %(fields)s."
+msgstr ""
+
 msgid "File"
 msgstr ""
 
 msgid "File uploaded."
 msgstr ""
 
+msgid "Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed."
+msgstr ""
+
 msgid "Imports could not be loaded."
+msgstr ""
+
+msgid "Line %(line)s of the file has a quote mark out of place, so this row was left empty."
 msgstr ""
 
 msgid "Loading import…"
 msgstr ""
 
 msgid "Loading the preview…"
+msgstr ""
+
+msgid "Mapping saved."
 msgstr ""
 
 msgid "No imports found."
@@ -70,6 +94,9 @@ msgstr ""
 msgid "Search imports…"
 msgstr ""
 
+msgid "Search rows…"
+msgstr ""
+
 msgid "Started"
 msgstr ""
 
@@ -97,6 +124,18 @@ msgstr ""
 msgid "The mapping does not fit the columns the file holds."
 msgstr ""
 
+msgid "The row does not match the header. Cells in the row: %(cells)s. Columns in the header: %(columns)s."
+msgstr ""
+
+msgid "The row has no name or no address."
+msgstr ""
+
+msgid "The row holds a name or an address AlphOne cannot use."
+msgstr ""
+
+msgid "The value for %(field)s does not match the kind the field declares: %(kind)s."
+msgstr ""
+
 msgid "This import no longer accepts a mapping."
 msgstr ""
 
@@ -111,6 +150,46 @@ msgstr ""
 
 msgctxt "admin section"
 msgid "Import"
+msgstr ""
+
+msgctxt "contact field"
+msgid "Email"
+msgstr ""
+
+msgctxt "contact field"
+msgid "Name"
+msgstr ""
+
+msgctxt "contact field"
+msgid "Phone"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Choice"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Date"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Long text"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Number"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Repeater"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Text"
+msgstr ""
+
+msgctxt "field kind"
+msgid "Yes or no"
 msgstr ""
 
 msgctxt "import count"

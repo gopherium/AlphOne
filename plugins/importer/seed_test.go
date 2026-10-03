@@ -62,8 +62,15 @@ func TestSeedStoresACommittedDemoImport(t *testing.T) {
 	if linked := linkOf(t, pool, 4); linked == nil || *linked != ada.ID {
 		t.Errorf("skipped row links to %v, want the contact it collided with %v", linked, ada.ID)
 	}
+	wantReason(t, seededReason(t, pool, 4), "identity_taken_by", map[string]any{"ownerName": "Ada Lovelace"})
 	if linked := linkOf(t, pool, 6); linked != nil {
 		t.Errorf("failed row links to %v, want no contact", linked)
+	}
+	wantReason(t, seededReason(t, pool, 6), "row_incomplete", map[string]any{})
+	for _, position := range []int{2, 3} {
+		if reason := seededReason(t, pool, position); reason != nil {
+			t.Errorf("imported row %d reason = %+v, want none", position, reason)
+		}
 	}
 }
 
@@ -81,6 +88,7 @@ func TestSeedPointsBothPerezRowsAtTheStoredContact(t *testing.T) {
 		if linked := linkOf(t, pool, position); linked == nil || *linked != maria.ID {
 			t.Errorf("row %d links to %v, want the stored Maria Perez %v", position, linked, maria.ID)
 		}
+		wantReason(t, seededReason(t, pool, position), "identity_taken_by", map[string]any{"ownerName": "Maria Perez"})
 	}
 }
 
@@ -175,6 +183,7 @@ func TestSeedRunsWithoutTheClaimingContact(t *testing.T) {
 		if linked := linkOf(t, pool, position); linked != nil {
 			t.Errorf("skipped row %d links to %v, want no contact when none claims the email", position, linked)
 		}
+		wantReason(t, seededReason(t, pool, position), "identity_taken", map[string]any{})
 	}
 }
 
@@ -238,6 +247,18 @@ func TestSeedReportsARowFailure(t *testing.T) {
 	if err := p.Seed(t.Context()); err == nil {
 		t.Fatal("Seed() error = nil, want the rejected row reported")
 	}
+}
+
+// seededReason returns the reason one seeded row carries, nil when it carries none.
+func seededReason(t *testing.T, pool *pgxpool.Pool, position int) *storedReason {
+	t.Helper()
+	var reason *storedReason
+	if err := pool.QueryRow(t.Context(),
+		"SELECT reason FROM plugin_importer.import_rows WHERE position = $1",
+		position).Scan(&reason); err != nil {
+		t.Fatalf("reading the reason of row %d: %v", position, err)
+	}
+	return reason
 }
 
 // linkOf returns the contact one seeded row points at.

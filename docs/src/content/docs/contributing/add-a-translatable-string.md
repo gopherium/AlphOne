@@ -36,7 +36,8 @@ inside. A placeholder is named, like `%(max)s`, so a translator can move
 it to wherever their language needs it. Every placeholder takes text,
 so a number goes in already written by `formatNumber`, and a date by
 `formatDate`, the same way WordPress hands `number_format_i18n` to its
-strings. That is how 1234 reads as 1.234 whatever the language. Use
+strings. That is how 1234 reads as 1.234 whatever the language. A test
+fails when a message holds a bare number placeholder such as `%d`. Use
 `_x` when one English word means two different things, which is covered
 below. The kit also exports `_n` for wording that changes with a count.
 
@@ -83,6 +84,11 @@ export function errorTemplates(): Record<string, string> {
 	}
 }
 ```
+
+A reason a server stores as data, such as the reason on each import row,
+renders through `reasonText` from the SDK with its own template map. Keep
+that map out of `errorTemplates`, so no plugin overwrites another plugin's
+codes.
 
 ## Never wrap these
 

@@ -26,7 +26,13 @@ type demoRow struct {
 	id      string
 	cells   []string
 	outcome string
-	reason  string
+	reason  rowReason
+}
+
+// seededRow is the contact one demo row points at beside the reason it stores.
+type seededRow struct {
+	link   *uuid.UUID
+	reason rowReason
 }
 
 // demoRows returns the scripted rows of the demo import in position order.
@@ -36,7 +42,7 @@ func demoRows() []demoRow {
 			id:      "0198d000-0000-7000-8000-0000000000b1",
 			cells:   []string{"Maria Perez", "maria.perez@example.com", "184467235", "1990-04-17"},
 			outcome: outcomeSkipped,
-			reason:  "the contact detail already belongs to a contact",
+			reason:  newReason(reasonIdentityTaken, nil),
 		},
 		{
 			id:      "0198d000-0000-7000-8000-0000000000b2",
@@ -52,19 +58,19 @@ func demoRows() []demoRow {
 			id:      "0198d000-0000-7000-8000-0000000000b4",
 			cells:   []string{"Ada Lovelace", seedClaimed, "", "1815-12-10"},
 			outcome: outcomeSkipped,
-			reason:  "the contact detail already belongs to a contact",
+			reason:  newReason(reasonIdentityTaken, nil),
 		},
 		{
 			id:      "0198d000-0000-7000-8000-0000000000b5",
 			cells:   []string{"M. Perez", "maria.perez@example.com", "", ""},
 			outcome: outcomeSkipped,
-			reason:  "the contact detail already belongs to a contact",
+			reason:  newReason(reasonIdentityTaken, nil),
 		},
 		{
 			id:      "0198d000-0000-7000-8000-0000000000b6",
 			cells:   []string{"", "", "184467238", ""},
 			outcome: outcomeFailed,
-			reason:  "the row carries no name or no contact detail",
+			reason:  newReason(reasonIncomplete, nil),
 		},
 	}
 }
@@ -95,11 +101,11 @@ func (p *Plugin) Seed(ctx context.Context) error {
 		return err
 	}
 	rows := demoRows()
-	links, err := p.seedLinks(ctx, rows, served)
+	seeded, err := p.seedLinks(ctx, rows, served)
 	if err != nil {
 		return err
 	}
-	return p.seedImport(ctx, id, rows, links, served.holds(seedFieldName))
+	return p.seedImport(ctx, id, rows, seeded, served.holds(seedFieldName))
 }
 
 // seedRegistry returns the registry the demo import fills, refusing a lost demo field.
@@ -117,30 +123,31 @@ func (p *Plugin) seedRegistry(ctx context.Context) (registry, error) {
 	return served, nil
 }
 
-// seedLinks returns the contact each demo row points at, in position order.
+// seedLinks returns the contact each demo row points at beside the reason it stores, in position order.
 func (p *Plugin) seedLinks(
 	ctx context.Context, rows []demoRow, served registry,
-) ([]*uuid.UUID, error) {
-	links := make([]*uuid.UUID, len(rows))
+) ([]seededRow, error) {
+	seeded := make([]seededRow, len(rows))
 	for i, row := range rows {
-		link, err := p.seedLink(ctx, row, served)
+		one, err := p.seedLink(ctx, row, served)
 		if err != nil {
 			return nil, err
 		}
-		links[i] = link
+		seeded[i] = one
 	}
-	return links, nil
+	return seeded, nil
 }
 
-// seedLink returns the contact one demo row points at, empty when it has none.
-func (p *Plugin) seedLink(ctx context.Context, row demoRow, served registry) (*uuid.UUID, error) {
+// seedLink returns the contact one demo row points at beside the reason it stores, the link empty when it has none.
+func (p *Plugin) seedLink(ctx context.Context, row demoRow, served registry) (seededRow, error) {
 	switch row.outcome {
 	case outcomeImported:
-		return p.seedContact(ctx, row, served)
+		link, err := p.seedContact(ctx, row, served)
+		return seededRow{link: link, reason: row.reason}, err
 	case outcomeSkipped:
 		return p.seedClaim(ctx, row)
 	}
-	return nil, nil
+	return seededRow{reason: row.reason}, nil
 }
 
 // seedContact stores the contact one imported demo row stands for and its field value.
@@ -158,21 +165,21 @@ func (p *Plugin) seedContact(ctx context.Context, row demoRow, served registry) 
 	return &created.ID, nil
 }
 
-// seedClaim returns the contact already owning the email one skipped demo row carries.
-func (p *Plugin) seedClaim(ctx context.Context, row demoRow) (*uuid.UUID, error) {
+// seedClaim returns the contact already owning the email one skipped demo row carries, named in the row's reason.
+func (p *Plugin) seedClaim(ctx context.Context, row demoRow) (seededRow, error) {
 	owner, found, err := p.contacts.FindByIdentity(ctx, sdk.Channel(fieldEmail), row.cells[1])
 	if err != nil {
-		return nil, fmt.Errorf("importer: seed claim lookup: %w", err)
+		return seededRow{}, fmt.Errorf("importer: seed claim lookup: %w", err)
 	}
 	if !found {
-		return nil, nil
+		return seededRow{reason: row.reason}, nil
 	}
-	return &owner.ID, nil
+	return seededRow{link: &owner.ID, reason: identityTakenReason(owner.Name)}, nil
 }
 
 // seedImport stores the demo import and its scripted rows.
 func (p *Plugin) seedImport(
-	ctx context.Context, id uuid.UUID, rows []demoRow, links []*uuid.UUID, withField bool,
+	ctx context.Context, id uuid.UUID, rows []demoRow, seeded []seededRow, withField bool,
 ) error {
 	counts := tally(rows)
 	headers, columns, fields := seedColumns(withField)
@@ -193,7 +200,7 @@ func (p *Plugin) seedImport(
 			"INSERT INTO plugin_importer.import_rows (id, import_id, position, cells, "+
 				"outcome, reason, contact_id) VALUES ($1, $2, $3, to_jsonb($4::text[]), $5, $6, $7)",
 			uuid.MustParse(row.id), id, i+1, row.cells[:len(headers)],
-			row.outcome, optionalReason(row.reason), links[i],
+			row.outcome, optionalReason(seeded[i].reason), seeded[i].link,
 		); err != nil {
 			return fmt.Errorf("importer: seed row %d: %w", i+1, err)
 		}

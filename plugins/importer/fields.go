@@ -116,8 +116,10 @@ func (r registry) group(texts map[string]string) (shares, error) {
 	}
 	if len(unserved) > 0 {
 		slices.Sort(unserved)
-		return nil, fmt.Errorf("%w: %w", sdk.ErrInvalidFieldText,
-			fmt.Errorf("no live field holds %s", strings.Join(unserved, ", ")))
+		return nil, sdk.FieldTextError{
+			Reason: sdk.FieldTextFieldUnknown, Fields: unserved,
+			Err: fmt.Errorf("no live field holds %s", strings.Join(unserved, ", ")),
+		}
 	}
 	return grouped, nil
 }

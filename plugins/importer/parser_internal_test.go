@@ -152,14 +152,16 @@ func TestParseRecordsRaggedRowsRatherThanFailing(t *testing.T) {
 	if diff := cmp.Diff([]string{"Maria Perez", "", ""}, short.cells); diff != "" {
 		t.Errorf("short row mismatch (-want +got):\n%s", diff)
 	}
-	if short.reason == "" {
-		t.Error("short row reason is empty, want the mismatch recorded")
+	shortReason := rowReason{Code: reasonCellCountMismatch, Meta: map[string]any{"cells": 1, "columns": 3}}
+	if diff := cmp.Diff(shortReason, short.reason); diff != "" {
+		t.Errorf("short row reason mismatch (-want +got):\n%s", diff)
 	}
 	if len(long.cells) != 4 {
 		t.Errorf("long row kept %d cells, want all 4 preserved", len(long.cells))
 	}
-	if long.reason == "" {
-		t.Error("long row reason is empty, want the mismatch recorded")
+	longReason := rowReason{Code: reasonCellCountMismatch, Meta: map[string]any{"cells": 4, "columns": 3}}
+	if diff := cmp.Diff(longReason, long.reason); diff != "" {
+		t.Errorf("long row reason mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -177,8 +179,26 @@ func TestParseRecordsAMalformedRowRatherThanFailing(t *testing.T) {
 	if diff := cmp.Diff([]string{"", ""}, got.rows[0].cells); diff != "" {
 		t.Errorf("cells mismatch (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(got.rows[0].reason, "malformed") {
-		t.Errorf("reason = %q, want the malformed row recorded", got.rows[0].reason)
+	want := rowReason{Code: reasonQuoteMisplaced, Meta: map[string]any{"line": 2}}
+	if diff := cmp.Diff(want, got.rows[0].reason); diff != "" {
+		t.Errorf("reason mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestParseCountsTheDelimiterHintLineInAMisplacedQuoteLine(t *testing.T) {
+	t.Parallel()
+
+	got, err := Parse([]byte("sep=,\nName,Email\nMaria \"Mari\" Perez,maria@example.com\n"))
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if len(got.rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(got.rows))
+	}
+	want := rowReason{Code: reasonQuoteMisplaced, Meta: map[string]any{"line": 3}}
+	if diff := cmp.Diff(want, got.rows[0].reason); diff != "" {
+		t.Errorf("reason mismatch, want the line counted from the top of the file (-want +got):\n%s", diff)
 	}
 }
 

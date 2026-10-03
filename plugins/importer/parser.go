@@ -39,7 +39,7 @@ const (
 // row is one data row of an upload beside the note explaining any repair.
 type row struct {
 	cells  []string
-	reason string
+	reason rowReason
 }
 
 // sheet is the column list and data rows a parser recovers from an upload.
@@ -93,20 +93,15 @@ func widen(cells []string, width int) []string {
 	return widened
 }
 
-// alignRow widens cells to width and notes any repair the row needed.
-func alignRow(cells []string, width int, err error) row {
+// alignRow widens cells to width and notes any repair the row needed, counting linesBefore ahead of the reader.
+func alignRow(cells []string, width int, err error, linesBefore int) row {
 	switch {
 	case err != nil:
-		return row{cells: widen(nil, width), reason: fmt.Sprintf("the row is malformed: %v", err)}
+		return row{cells: widen(nil, width), reason: malformedReason(err, linesBefore)}
 	case len(cells) < width:
-		return row{cells: widen(cells, width), reason: mismatchReason(len(cells), width)}
+		return row{cells: widen(cells, width), reason: cellCountReason(len(cells), width)}
 	case len(cells) > width:
-		return row{cells: cells, reason: mismatchReason(len(cells), width)}
+		return row{cells: cells, reason: cellCountReason(len(cells), width)}
 	}
 	return row{cells: cells}
-}
-
-// mismatchReason describes a row whose cell count differs from the header.
-func mismatchReason(got, width int) string {
-	return fmt.Sprintf("the row holds %d cells, the header lists %d", got, width)
 }

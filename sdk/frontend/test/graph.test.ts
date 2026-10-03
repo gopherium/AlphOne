@@ -2,11 +2,12 @@
 
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { gql } from 'urql'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, expect, onTestFinished, test, vi } from 'vitest'
 import { pipe, subscribe } from 'wonka'
 
 import { ValidationError } from '../errors'
-import { configureErrorText, createGraphClient, graphError, graphExtensions } from '../graph'
+import { rememberFormatLocale } from '../format'
+import { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText } from '../graph'
 import { HttpResponse, graphql, http, server } from '../testing'
 
 const versionQuery = gql`
@@ -253,6 +254,13 @@ const importJobQuery = gql`
 				column
 				field
 			}
+			rows {
+				id
+				reason {
+					code
+					meta
+				}
+			}
 			contacts {
 				contactId
 				name
@@ -365,6 +373,17 @@ test('keys every embedded type the graph returns without warning', async () => {
 						__typename: 'ImportJob',
 						id: 'id-import',
 						mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+						rows: [
+							{
+								__typename: 'ImportRow',
+								id: 'id-row',
+								reason: {
+									__typename: 'ImportRowReason',
+									code: 'identity_taken_by',
+									meta: { ownerName: 'Maria Perez' },
+								},
+							},
+						],
 						contacts: [
 							{
 								__typename: 'ImportContact',
@@ -711,6 +730,33 @@ test('speaks the server message for a reason no template holds', async () => {
 	const result = await graph.client.query(versionQuery, {}).toPromise()
 
 	expect(graphError(result.error)?.message).toBe('a message from the future')
+})
+
+test('renders a stored reason from the template its code names', () => {
+	const templates = { identity_taken_by: '%(ownerName)s ya tiene una dirección de esta fila.' }
+
+	expect(reasonText({ code: 'identity_taken_by', meta: { ownerName: 'Maria Perez' } }, templates, 'Sin motivo.'))
+		.toBe('Maria Perez ya tiene una dirección de esta fila.')
+})
+
+test('writes the numbers a stored reason carries in the format locale', () => {
+	rememberFormatLocale('es-ES')
+	onTestFinished(() => rememberFormatLocale(undefined))
+	const templates = { row_cell_count_mismatch: 'Celdas en la fila: %(cells)s. Columnas: %(columns)s.' }
+
+	expect(reasonText({ code: 'row_cell_count_mismatch', meta: { cells: 1234, columns: 3 } }, templates, 'Sin motivo.'))
+		.toBe('Celdas en la fila: 1.234. Columnas: 3.')
+})
+
+test('speaks the fallback for a code no template holds', () => {
+	expect(reasonText({ code: 'row_from_the_future' }, {}, 'row_from_the_future')).toBe('row_from_the_future')
+})
+
+test('speaks the fallback when a stored reason lacks a value its template names', () => {
+	const templates = { identity_taken_by: '%(ownerName)s ya tiene una dirección de esta fila.' }
+
+	expect(reasonText({ code: 'identity_taken_by', meta: {} }, templates, 'identity_taken_by')).toBe('identity_taken_by')
+	expect(reasonText({ code: 'identity_taken_by', meta: null }, templates, 'identity_taken_by')).toBe('identity_taken_by')
 })
 
 const contactPageQuery = gql`

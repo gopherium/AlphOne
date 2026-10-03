@@ -48,7 +48,10 @@ Feature: A spreadsheet fills the fields
     And the columns are mapped onto name, email and the field "birthDate"
     When the import is committed
     Then the commit answers 1 failed
-    And a row settles failed naming "birthDate" and kind DATE
+    And a row settles failed with the reason "value_kind_mismatch" and the meta:
+      """
+      {"field": "birthDate", "kind": "DATE"}
+      """
     And no contact named "Maria Perez" exists
 
   Scenario: Archiving a mapped field refuses the commit and keeps the import ready

@@ -57,7 +57,7 @@ type stagedRow struct {
 	Position  int        `db:"position"`
 	Cells     []string   `db:"cells"`
 	Outcome   string     `db:"outcome"`
-	Reason    *string    `db:"reason"`
+	Reason    *rowReason `db:"reason"`
 	ContactID *uuid.UUID `db:"contact_id"`
 }
 
@@ -134,12 +134,13 @@ type commitCounts struct {
 	Failed   int `db:"failed_count"`
 }
 
-// claimForCommit moves an import into committing and returns its mapping.
+// claimForCommit moves a mapped import into committing and returns its mapping, leaving an unmapped one ready.
 func (s *store) claimForCommit(ctx context.Context, id uuid.UUID) (mapping, error) {
 	var claimed mapping
 	var state string
 	err := s.pool.QueryRow(ctx,
-		`UPDATE plugin_importer.imports SET state = $2
+		`UPDATE plugin_importer.imports
+		SET state = CASE WHEN mapping = '{}'::jsonb THEN $3 ELSE $2 END
 		WHERE id = $1 AND state IN ($2, $3) AND tenant_id = $4
 		RETURNING mapping, state`,
 		id, stateCommitting, stateReady, sdk.TenantOrDefault(ctx)).Scan(&claimed, &state)
@@ -210,11 +211,15 @@ func (s *store) finishCommit(ctx context.Context, id uuid.UUID) (commitCounts, e
 
 // updateMapping stores the column assignments of an import that is still ready.
 func (s *store) updateMapping(ctx context.Context, id uuid.UUID, assigned mapping) error {
-	if _, err := s.pool.Exec(ctx,
+	updated, err := s.pool.Exec(ctx,
 		`UPDATE plugin_importer.imports SET mapping = $2
 		WHERE id = $1 AND state = $3 AND tenant_id = $4`,
-		id, assigned, stateReady, sdk.TenantOrDefault(ctx)); err != nil {
+		id, assigned, stateReady, sdk.TenantOrDefault(ctx))
+	if err != nil {
 		return fmt.Errorf("importer: update mapping: %w", err)
+	}
+	if updated.RowsAffected() == 0 {
+		return errMappingLocked
 	}
 	return nil
 }
@@ -288,12 +293,4 @@ func insertRows(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, rows []row) err
 		}
 	}
 	return nil
-}
-
-// optionalReason returns the note a row carries, or nil when it needed no repair.
-func optionalReason(reason string) *string {
-	if reason == "" {
-		return nil
-	}
-	return &reason
 }

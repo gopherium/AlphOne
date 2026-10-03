@@ -10,16 +10,20 @@ import {
 	SelectControl,
 	__,
 	_x,
+	formatNumber,
 	graphError,
 	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Suspense, lazy, useState } from 'react'
 
+import { columnLabel } from './column'
+import { fieldLabeller } from './fieldLabels'
 import type { ImportDetailQuery } from './gql/graphql'
 import {
 	importCommitMutation,
@@ -33,7 +37,7 @@ const RowsTable = lazy(() => import('./RowsTable'))
 export type StoredImport = NonNullable<ImportDetailQuery['importJob']>
 
 /** ImportField is one target field as the detail document selects it. */
-type ImportField = ImportDetailQuery['importFields'][number]
+export type ImportField = ImportDetailQuery['importFields'][number]
 
 // unmapped is the select value a column carries until a field is chosen.
 const unmapped = 'not-imported'
@@ -64,7 +68,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 			<MappingForm stored={stored} fields={importFields} />
 			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
 			<Suspense fallback={<LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />}>
-				<RowsTable stored={stored} rows={stored.rows} />
+				<RowsTable stored={stored} rows={stored.rows} fields={importFields} />
 			</Suspense>
 		</PageScreen>
 	)
@@ -82,17 +86,37 @@ function MappingForm({
 	fields: readonly ImportField[]
 }) {
 	const graph = useGraph()
+	const toaster = useToaster()
 	const [assigned, setAssigned] = useState<Record<string, string>>(assignedOf(stored.mapping))
 	const [save, startSave] = useGraphMutation(importSetMappingMutation)
 	const [commit, startCommit] = useGraphMutation(importCommitMutation)
+	const [failure, setFailure] = useState<string>()
 	const refresh = () => graph.refetch(['ImportDetail', 'Imports'])
+	const saveMapping = async () => {
+		setFailure(undefined)
+		const result = await startSave({ id: stored.id, assignments: assignmentsOf(assigned) })
+		setFailure(failureOf(result.error, __('The mapping could not be saved.', 'alphone-importer')))
+		if (result.data) {
+			toaster.show(__('Mapping saved.', 'alphone-importer'))
+		}
+		refresh()
+	}
+	const commitImport = async () => {
+		setFailure(undefined)
+		const result = await startCommit({ id: stored.id })
+		setFailure(failureOf(result.error, __('The import could not be committed.', 'alphone-importer')))
+		if (result.data) {
+			toaster.show(finishedMessage(result.data.importCommit))
+		}
+		refresh()
+	}
 
 	return (
 		<form
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void startSave({ id: stored.id, assignments: assignmentsOf(assigned) }).then(refresh)
+				void saveMapping()
 			}}
 		>
 			{stored.columns.map((column, index) => (
@@ -117,42 +141,40 @@ function MappingForm({
 				disabled={commit.fetching || stored.state !== 'ready'}
 				loading={commit.fetching}
 				onClick={() => {
-					void startCommit({ id: stored.id }).then(refresh)
+					void commitImport()
 				}}
 			>
 				{__('Commit', 'alphone-importer')}
 			</Button>
-			<MappingNotice save={save} commit={commit} />
+			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
 		</form>
 	)
 }
 
 /**
- * Renders whichever mapping failure the caller needs to see.
- * @returns The failure notice.
+ * Returns the toast a finished import raises.
+ * @param counts - How many rows the import brought in, skipped and failed.
+ * @returns The message naming the three counts.
  */
-function MappingNotice({
-	save,
-	commit,
-}: {
-	save: { error?: GraphFailure }
-	commit: { error?: GraphFailure }
-}) {
-	if (save.error) {
-		return (
-			<ErrorNotice>
-				{validationMessage(graphError(save.error), __('The mapping could not be saved.', 'alphone-importer'))}
-			</ErrorNotice>
-		)
-	}
-	if (commit.error) {
-		return (
-			<ErrorNotice>
-				{validationMessage(graphError(commit.error), __('The import could not be committed.', 'alphone-importer'))}
-			</ErrorNotice>
-		)
-	}
-	return null
+function finishedMessage(counts: { imported: number; skipped: number; failed: number }): string {
+	return sprintf(
+		__('Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed.', 'alphone-importer'),
+		{
+			imported: formatNumber(counts.imported),
+			skipped: formatNumber(counts.skipped),
+			failed: formatNumber(counts.failed),
+		},
+	)
+}
+
+/**
+ * Returns the message a refused write shows, or nothing for a write that went through.
+ * @param error - The failure the write met, absent when it went through.
+ * @param fallback - The message for a failure that names no reason.
+ * @returns The message, or undefined.
+ */
+function failureOf(error: GraphFailure | undefined, fallback: string): string | undefined {
+	return error === undefined ? undefined : validationMessage(graphError(error), fallback)
 }
 
 /**
@@ -172,13 +194,14 @@ function ColumnSelect({
 	chosen: string
 	onChoose: (field: string) => void
 }) {
+	const labelOf = fieldLabeller(fields)
 	const items = [
 		{ value: unmapped, label: __('Not imported', 'alphone-importer') },
-		...fields.map((field) => ({ value: field.name, label: field.label })),
+		...fields.map((field) => ({ value: field.name, label: labelOf(field.name) })),
 	]
 	return (
 		<SelectControl
-			label={column === '' ? sprintf(__('Column %(number)d', 'alphone-importer'), { number: index + 1 }) : column}
+			label={column === '' ? columnLabel(index) : column}
 			items={items}
 			value={chosenItem(items, chosen)}
 			onValueChange={(item) => onChoose(chosenValue(item))}

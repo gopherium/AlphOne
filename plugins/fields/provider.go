@@ -5,7 +5,7 @@ package fields
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -72,9 +72,16 @@ func (p *Plugin) readTexts(ctx context.Context, values map[string]string) (map[s
 	}
 	checked, err := checkValues(held, given)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", sdk.ErrInvalidFieldText, err)
+		return nil, fieldTextError(err)
 	}
 	return checked, nil
+}
+
+// fieldTextError returns the error a field consumer reads for texts the check did not accept.
+func fieldTextError(err error) sdk.FieldTextError {
+	var named valueError
+	errors.As(err, &named)
+	return sdk.FieldTextError{Reason: fieldReason(err), Fields: named.names, Kind: string(named.kind), Err: err}
 }
 
 // filledTexts returns the texts that carry more than space, trimmed.
