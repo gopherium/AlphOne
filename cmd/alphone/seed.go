@@ -90,7 +90,7 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), contacts); err != nil {
 		return err
 	}
-	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace); err != nil {
+	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace, registerPlugins); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded demo data")
@@ -349,12 +349,14 @@ func seedPlugins(
 	getenv func(string) string,
 	resolver *contact.Resolver,
 	stopGrace time.Duration,
+	plugins func(sdk.Deps) ([]sdk.Plugin, error),
 ) error {
-	registered, err := registerPlugins(sdk.Deps{
+	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
 		Resolver:    resolverBridge{resolver: resolver},
 		Contacts:    directoryBridge{resolver: resolver},
 		Getenv:      getenv,
+		Env:         settingsEnv(getenv),
 	})
 	host := pluginkit.NewHost(registered...)
 	defer func() { _ = gonsole.StopHost(ctx, host, stopGrace) }()

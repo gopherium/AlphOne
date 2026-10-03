@@ -41,7 +41,8 @@ const pluginTablesLookup = "SELECT count(*) FROM pg_tables WHERE schemaname = $1
 // registeredOver registers the generated plugin list over the database at address and stops each plugin at the end.
 func registeredOver(t *testing.T, address string) []sdk.Plugin {
 	t.Helper()
-	registered, err := registerPlugins(sdk.Deps{DatabaseURL: address, Getenv: testGetenv(nil)})
+	registered, err := registerPlugins(
+		sdk.Deps{DatabaseURL: address, Getenv: testGetenv(nil), Env: settingsEnv(testGetenv(nil))})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), pluginStopGrace)
 		defer cancel()

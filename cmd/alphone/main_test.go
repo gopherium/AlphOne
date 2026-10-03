@@ -463,9 +463,8 @@ func TestRegisterPluginsNamesEachPluginThatCannotReadTheDatabaseURL(t *testing.T
 func TestRegisterPluginsReturnsThePluginsThatRegisteredBesideALaterFailure(t *testing.T) {
 	t.Parallel()
 
-	plugins, err := registerPlugins(sdk.Deps{Getenv: testGetenv(map[string]string{
-		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number",
-	})})
+	getenv := testGetenv(map[string]string{"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number"})
+	plugins, err := registerPlugins(sdk.Deps{Getenv: getenv, Env: settingsEnv(getenv)})
 	stopRegistered(t, plugins)
 
 	if err == nil || !strings.Contains(err.Error(), "plugin whatsapp: ") ||

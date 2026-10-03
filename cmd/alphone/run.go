@@ -86,6 +86,7 @@ func run(
 		Contacts:       directoryBridge{resolver: resolver},
 		Events:         pluginPublisher{publisher: events},
 		Getenv:         getenv,
+		Env:            settingsEnv(getenv),
 	})
 	host := pluginkit.NewHost(registered...)
 	if err != nil {
@@ -202,6 +203,7 @@ func declarePluginRoles(
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: getenv("ALPHONE_DATABASE_URL"),
 		Getenv:      getenv,
+		Env:         settingsEnv(getenv),
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)

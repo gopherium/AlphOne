@@ -673,7 +673,8 @@ func TestSeedPluginsReportsMigrationFailure(t *testing.T) {
 
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace)
+	err := seedPlugins(
+		t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace, registerPlugins)
 
 	if err == nil {
 		t.Fatal("seedPlugins() error = nil, want a migration failure")
@@ -686,7 +687,7 @@ func TestSeedPluginsReportsSeedFailure(t *testing.T) {
 	databaseURL := testDatabaseURL(t)
 	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
 
-	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace)
+	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace, registerPlugins)
 
 	if err == nil {
 		t.Fatal("seedPlugins() error = nil, want a seed failure")
