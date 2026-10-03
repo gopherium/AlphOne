@@ -17,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -162,14 +163,8 @@ func run(
 		cfg.Web = os.DirFS(settings.webDir)
 	}
 
-	httpServer := &http.Server{
-		Addr:              settings.addr,
-		Handler:           server.NewServer(cfg),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	return serveUntilDone(ctx, httpServer, host, logger)
+	httpServer := httpServerFrom(settings, server.NewServer(cfg))
+	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
 }
 
 // pluginAreas returns the scope area every registered plugin holds its routes to.
@@ -297,6 +292,23 @@ type runConfig struct {
 	reset          resetSettings
 	tenants        tenantSettings
 	lists          listSettings
+	serving        gonsole.Timeouts
+}
+
+// servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
+var servingDefaults = gonsole.Timeouts{
+	ReadHeader: 10 * time.Second, Read: 30 * time.Second, Idle: 2 * time.Minute,
+	Grace: 10 * time.Second, CancelGrace: 5 * time.Second, StopGrace: 5 * time.Second,
+}
+
+// settingsEnv returns the reader of the settings under the program prefix.
+func settingsEnv(getenv func(string) string) gonsole.Env {
+	return gonsole.Env{Prefix: "ALPHONE_", Getenv: getenv}
+}
+
+// httpServerFrom returns the HTTP server for the handler at the address and under the timeouts the settings name.
+func httpServerFrom(settings runConfig, handler http.Handler) *http.Server {
+	return gonsole.NewServer(settings.addr, handler, settings.serving)
 }
 
 // tenantSettings bounds the per-tenant state plugins and the graph keep in memory.
@@ -544,6 +556,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	serving, err := settingsEnv(getenv).Timeouts(servingDefaults)
+	if err != nil {
+		return runConfig{}, err
+	}
 	return runConfig{
 		databaseURL:    databaseURL,
 		addr:           addr,
@@ -556,6 +572,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		reset:          reset,
 		tenants:        tenants,
 		lists:          lists,
+		serving:        serving,
 	}, nil
 }
 
@@ -578,34 +595,6 @@ func loadResetSettings(getenv func(string) string) (resetSettings, error) {
 		return resetSettings{}, err
 	}
 	return resetSettings{ttl: ttl, attempts: attempts, links: links, cooldown: cooldown}, nil
-}
-
-// serveUntilDone serves HTTP until ctx is cancelled or serving fails, then
-// stops the plugin host.
-func serveUntilDone(
-	ctx context.Context,
-	httpServer *http.Server,
-	host *pluginkit.Host,
-	logger *slog.Logger,
-) error {
-	serveErr := make(chan error, 1)
-	go func() {
-		serveErr <- httpServer.ListenAndServe()
-	}()
-	logger.Info("listening", "addr", httpServer.Addr)
-
-	select {
-	case err := <-serveErr:
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return errors.Join(fmt.Errorf("http server: %w", err), host.Stop(stopCtx))
-	case <-ctx.Done():
-	}
-
-	logger.Info("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return errors.Join(httpServer.Shutdown(shutdownCtx), host.Stop(shutdownCtx))
 }
 
 // parseTrustedProxies parses raw into trusted-proxy CIDR ranges.
