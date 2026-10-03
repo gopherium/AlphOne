@@ -16,13 +16,18 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
+	"github.com/pressly/goose/v3/lock"
 
 	"github.com/gopherium/alphone/sdk"
 )
+
+// uniqueViolation is the code Postgres answers when another session stored the same key first.
+const uniqueViolation = "23505"
 
 //go:embed migrations/*.sql
 var migrations embed.FS
@@ -189,7 +194,8 @@ func (p *Plugin) handleVerify() http.HandlerFunc {
 
 // Migrate creates and updates the plugin-owned plugin_whatsapp schema.
 func (p *Plugin) Migrate(ctx context.Context) error {
-	if _, err := p.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS plugin_whatsapp"); err != nil {
+	_, err := p.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS plugin_whatsapp")
+	if err != nil && !isSchemaFromAnotherSession(err) {
 		return fmt.Errorf("whatsapp: create schema: %w", err)
 	}
 	db := stdlib.OpenDBFromPool(p.pool)
@@ -197,13 +203,20 @@ func (p *Plugin) Migrate(ctx context.Context) error {
 	return migrate(ctx, db, "plugin_whatsapp.goose_db_version")
 }
 
-// migrate applies the embedded goose migrations to db using the given version table.
+// isSchemaFromAnotherSession reports whether err says another session created the same schema first.
+func isSchemaFromAnotherSession(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolation
+}
+
+// migrate applies the embedded goose migrations to db using the given version table under goose's session lock.
 func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 	store, err := database.NewStore(database.DialectPostgres, versionTable)
 	if err != nil {
 		return fmt.Errorf("whatsapp: migration store: %w", err)
 	}
-	provider, err := goose.NewProvider("", db, migrationSource, goose.WithStore(store))
+	locker := mustLocker(lock.NewPostgresSessionLocker())
+	provider, err := goose.NewProvider("", db, migrationSource, goose.WithStore(store), goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("whatsapp: migration provider: %w", err)
 	}
@@ -211,6 +224,14 @@ func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 		return fmt.Errorf("whatsapp: apply migrations: %w", err)
 	}
 	return nil
+}
+
+// mustLocker returns locker and panics if goose could not build it.
+func mustLocker(locker lock.SessionLocker, err error) lock.SessionLocker {
+	if err != nil {
+		panic(err)
+	}
+	return locker
 }
 
 // mustSub returns the sub-filesystem of fsys rooted at dir, panicking if it cannot be created.
