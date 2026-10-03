@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+
+import { graph } from '../graph'
 
 /**
  * Uploads a file through the Upload button of the imports list, then opens it from the toast.
@@ -28,6 +30,21 @@ async function chooseField(page: Page, column: string, field: string) {
 	const listbox = page.getByRole('listbox')
 	await listbox.getByRole('option', { name: field, exact: true }).click()
 	await expect(listbox).toBeHidden()
+}
+
+/**
+ * Measures how far a table runs past the box that scrolls it sideways.
+ * @param table - The table to measure.
+ * @returns The hidden width in pixels, zero when the table fits.
+ */
+async function hiddenWidth(table: Locator): Promise<number> {
+	return table.evaluate((element) => {
+		let box = element.parentElement
+		while (box !== null && !['auto', 'scroll'].includes(getComputedStyle(box).overflowX)) {
+			box = box.parentElement
+		}
+		return box === null ? 0 : box.scrollWidth - box.clientWidth
+	})
 }
 
 test('imports a CSV of contacts from the upload through to the contact list', async ({ page }) => {
@@ -88,6 +105,34 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
 	await expect(page.getByRole('row').filter({ hasText: wanted })).toHaveCount(1)
 	await expect(page.getByRole('row').filter({ hasText: known })).toHaveCount(1)
+})
+
+test('wraps a long row reason so the rows table fits a laptop screen', async ({ page, request }) => {
+	const stamp = Date.now()
+	const owner = `Maria Perez de la Fuente y Rodriguez ${stamp}`
+	const ownerEmail = `${stamp}@example.com`
+	await graph(
+		request,
+		'mutation($name: String!, $identities: [ContactIdentityInput!]) {' +
+			' createContact(name: $name, identities: $identities) { id } }',
+		{ name: owner, identities: [{ channel: 'email', identifier: ownerEmail }] },
+	)
+
+	await page.setViewportSize({ width: 1280, height: 900 })
+	await page.goto('/import')
+	await uploadAndOpen(page, {
+		name: `owned-${stamp}.csv`,
+		mimeType: 'text/csv',
+		buffer: Buffer.from('Full name,Email address\n' + `Ana ${stamp},${ownerEmail}\n`),
+	})
+	await chooseField(page, 'Full name', 'Name')
+	await chooseField(page, 'Email address', 'Email')
+	await page.getByRole('button', { name: 'Save mapping' }).click()
+	await page.getByRole('button', { name: 'Commit' }).click()
+
+	const rows = page.getByRole('region', { name: 'Rows' })
+	await expect(rows.getByText(`${owner} already holds an address in this row.`)).toBeVisible()
+	expect(await hiddenWidth(rows.getByRole('table'))).toBe(0)
 })
 
 test('maps a spreadsheet column onto a field an operator defined', async ({ page }) => {
