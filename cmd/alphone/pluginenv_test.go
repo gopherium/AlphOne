@@ -7,7 +7,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -49,18 +48,5 @@ func TestLoadPluginsHandsThePluginsTheirSettingsReader(t *testing.T) {
 		t.Fatalf("loadPlugins() = %v with %v failed, want %v failed", err, loaded.Failed, errCaptured)
 	}
 	releaseAtEnd(t, loaded)
-	assertReadsThePluginSetting(t, handed)
-}
-
-func TestSeedPluginsHandsThePluginsTheirSettingsReader(t *testing.T) {
-	t.Parallel()
-
-	var handed sdk.Deps
-	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(mediaCapSetting),
-		contact.NewResolver(nil), servingDefaults.StopGrace, capturingPlugins(&handed))
-
-	if !errors.Is(err, errCaptured) {
-		t.Fatalf("seedPlugins() error = %v, want %v in its chain", err, errCaptured)
-	}
 	assertReadsThePluginSetting(t, handed)
 }

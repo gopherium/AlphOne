@@ -52,7 +52,7 @@ func validate(_ context.Context, call gonsole.Call) error {
 	return err
 }
 
-// seedCore stores the demo data in the database the call's settings name.
+// seedCore stores the core demo data in the database the call's settings name.
 func seedCore(ctx context.Context, call gonsole.Call) error {
 	return seed(ctx, call.Env.Getenv, call.Stdout)
 }

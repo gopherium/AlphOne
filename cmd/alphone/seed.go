@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gopherium/framework/gonsole"
-	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
@@ -23,7 +21,6 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
-	"github.com/gopherium/alphone/sdk"
 )
 
 // Demo credentials stored by seed -yes, for development only.
@@ -35,14 +32,9 @@ const (
 	seedMemberName    = "Maria Perez"
 )
 
-// seed stores the demo data set in a database whose core schema the command line migrated.
+// seed stores the core demo data set in a database the command line migrated.
 func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) error {
-	env := settingsEnv(getenv)
-	databaseURL, err := env.Required("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	stopGrace, err := env.Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
+	databaseURL, err := settingsEnv(getenv).Required("DATABASE_URL")
 	if err != nil {
 		return err
 	}
@@ -62,9 +54,6 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	}
 	tasks := postgres.NewTaskStore(pool)
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), contacts); err != nil {
-		return err
-	}
-	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace, registerPlugins); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "seeded the core demo data")
@@ -313,32 +302,4 @@ func buildDemoTask(
 	}
 	done := task.StatusDone
 	return built.Apply(task.Changes{Status: &done})
-}
-
-// seedPlugins registers, starts and seeds every plugin, then stops them within the stop grace, reporting a failed stop.
-func seedPlugins(
-	ctx context.Context,
-	databaseURL string,
-	getenv func(string) string,
-	resolver *contact.Resolver,
-	stopGrace time.Duration,
-	plugins func(sdk.Deps) ([]sdk.Plugin, error),
-) (err error) {
-	registered, err := plugins(sdk.Deps{
-		DatabaseURL: databaseURL,
-		Resolver:    resolverBridge{resolver: resolver},
-		Contacts:    directoryBridge{resolver: resolver},
-		Getenv:      getenv,
-		Env:         settingsEnv(getenv),
-	})
-	host := pluginkit.NewHost(registered...)
-	defer func() { err = errors.Join(err, gonsole.StopHost(ctx, host, stopGrace)) }()
-	if err != nil {
-		return err
-	}
-	wireFieldProviders(registered)
-	if err := host.Start(ctx, stopGrace); err != nil {
-		return err
-	}
-	return host.Seed(ctx)
 }

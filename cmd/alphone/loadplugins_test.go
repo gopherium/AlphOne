@@ -88,6 +88,10 @@ func TestLoadPluginsNamesWhatItCannotRead(t *testing.T) {
 			map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, "ALPHONE_SHUTDOWN_STOP_GRACE": "soon"},
 			`ALPHONE_SHUTDOWN_STOP_GRACE: must be a duration like 30s, got "soon"`,
 		},
+		"a stop grace of zero": {
+			map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, "ALPHONE_SHUTDOWN_STOP_GRACE": "0s"},
+			`ALPHONE_SHUTDOWN_STOP_GRACE: must stand above zero, got "0s"`,
+		},
 		"a mail port in words": {
 			map[string]string{
 				"ALPHONE_DATABASE_URL": unreachableDatabaseURL,
