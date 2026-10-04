@@ -68,10 +68,12 @@ export {
 	check,
 	chevronLeft,
 	chevronRight,
+	close,
 	comment,
 	inbox,
 	key,
 	menu,
+	moveTo,
 	notAllowed,
 	pencil,
 	people,
@@ -92,14 +94,31 @@ export {
 	PageTab,
 	PageTabs,
 	PageTitle,
+	pageWindow,
+	paginationOf,
 	RepeatRows,
 	RowControls,
+	runEach,
 	SectionTitle,
 	Toaster,
+	useServerPaging,
 	useToaster,
 } from '@gopherium/godmin'
-export type { RowLabels, ToastAction, ToasterHandle } from '@gopherium/godmin'
+export type {
+	BulkFailure,
+	BulkOutcome,
+	PagedView,
+	PageWindow,
+	PaginationInfo,
+	RowLabels,
+	ServedPage,
+	ServedSize,
+	ServerPaging,
+	ToastAction,
+	ToasterHandle,
+} from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
+export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'
 export type { Capability, Role, Session } from './session'

@@ -7,18 +7,20 @@ import {
 	PageScreen,
 	__,
 	openOnTap,
+	paginationOf,
 	people,
 	useAdminSettings,
 	useGraphQuery,
 	useListView,
+	useServerPaging,
 } from '@alphone/frontend-sdk'
-import type { AdminSettings } from '@alphone/frontend-sdk'
+import type { AdminSettings, PagedView, PageWindow } from '@alphone/frontend-sdk'
 import { DataViews } from '@alphone/frontend-sdk/dataviews'
 import type { View } from '@alphone/frontend-sdk/dataviews'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
-import type { ContactPageQuery, ContactPageQueryVariables } from '../gql/graphql'
+import type { ContactPageQueryVariables } from '../gql/graphql'
 import { useContactActions } from './contactActions'
 import { contactFields } from './contactFields'
 import type { ContactRow } from './contactFields'
@@ -61,79 +63,48 @@ function channelsOf(filters: View['filters']): string[] | null {
 }
 
 /**
- * Returns the rows one page holds, the size the view names held under the contact page cap.
- * @param perPage - The page size the view holds.
- * @param settings - The admin settings, absent when they could not be read.
- * @returns The rows a page holds, or null for the size the graph serves by default.
- */
-function pageSize(perPage: number | undefined, settings: AdminSettings | undefined): number | null {
-	if (settings === undefined || perPage === undefined) {
-		return null
-	}
-	return Math.min(perPage, settings.contactPageCap)
-}
-
-/**
- * Returns the limit and offset of the page a view shows, stepping by the size the graph served while none is known.
+ * Returns the part of a view the server pages by, its page size only once the admin settings name the sizes.
  * @param view - The view the list shows.
- * @param settings - The admin settings, absent when they could not be read.
- * @param served - The rows the graph last served on one page, zero before it served any.
- * @returns The limit and offset of the page.
+ * @param settings - The admin settings, absent until they arrive or when they could not be read.
+ * @returns The page alone while the settings are missing, so the graph serves its default size.
  */
-function pageWindow({ page, perPage }: View, settings: AdminSettings | undefined, served: number) {
-	const limit = pageSize(perPage, settings)
-	return { limit, offset: ((page as number) - 1) * (limit ?? served) }
+function pagedView(view: View, settings: AdminSettings | undefined): PagedView {
+	return settings === undefined ? { page: view.page } : view
 }
 
 /**
  * Builds the contact page request a view stands for.
  * @param view - The view the list shows.
- * @param settings - The admin settings, absent when they could not be read.
- * @param served - The rows the graph last served on one page, zero before it served any.
+ * @param rows - The limit and offset of the page.
  * @returns The variables of the contact page query.
  */
-function pageVariables(view: View, settings: AdminSettings | undefined, served: number): ContactPageQueryVariables {
+function pageVariables(view: View, rows: PageWindow): ContactPageQueryVariables {
 	return {
 		q: view.search || null,
 		channels: channelsOf(view.filters),
 		orderBy: view.sort?.field === 'name' ? 'NAME' : 'CREATED_AT',
 		order: view.sort?.direction === 'asc' ? 'ASC' : 'DESC',
-		...pageWindow(view, settings, served),
+		...rows,
 	}
 }
 
 /**
- * Returns the count and the pages DataViews pages through, by the rows the graph served on the page.
- * @param page - The page the graph served, absent until it arrives.
- * @returns The pagination info.
- */
-function paginationOf(page: ContactPageQuery['contactPage'] | undefined) {
-	if (page === undefined) {
-		return { totalItems: 0, totalPages: 0 }
-	}
-	return { totalItems: page.total, totalPages: Math.ceil(page.total / page.limit) }
-}
-
-/**
- * Reads the contact page a view stands for, stepping by the size the graph served while the settings name none.
+ * Reads the contact page a view stands for, stepping by the size the graph served.
  * @param view - The view the list shows.
  * @param settings - The admin settings, absent until they arrive or when they could not be read.
  * @param sizing - Whether the list still waits for the admin settings.
  * @returns The query result beside the variables it was asked with.
  */
 function useContactPage(view: View, settings: AdminSettings | undefined, sizing: boolean) {
-	const [served, setServed] = useState(0)
-	const variables = pageVariables(view, settings, served)
+	const paging = useServerPaging(pagedView(view, settings), settings?.contactPageCap)
+	const variables = pageVariables(view, paging.window)
 	const [result] = useGraphQuery({
 		query: contactPageQuery,
 		variables,
 		pause: sizing,
 		requestPolicy: 'cache-and-network',
 	})
-	const limit = result.data?.contactPage.limit
-	if (limit !== undefined && limit !== served) {
-		setServed(limit)
-	}
+	paging.record(result.data?.contactPage, result.operation?.variables.limit ?? null)
 	return { result, variables }
 }
 

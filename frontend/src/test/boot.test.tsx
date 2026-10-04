@@ -22,3 +22,7 @@ test('ghosts the screen while the session loads', () => {
 test('the entry hands that ghost to the auth gate', () => {
 	expect(sources['../main.tsx']).toMatch(/loading=\{<BootLoading \/>\}/)
 })
+
+test('the entry hands the channel names to the SDK at boot', () => {
+	expect(sources['../main.tsx']).toMatch(/^configureAppChannelNames\(\)$/m)
+})

@@ -8,12 +8,13 @@ import {
 	_n,
 	formatNumber,
 	graphError,
+	runEach,
 	sprintf,
 	useGraph,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import type { BulkOutcome } from '@alphone/frontend-sdk'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
@@ -21,11 +22,7 @@ import type { ApiToken } from './tokenFields'
 import { apiTokenRevokeMutation } from './tokenOperations'
 
 /** RevokeOutcome reports the tokens one revoke reached and the failures of the rest. */
-interface RevokeOutcome {
-	asked: number
-	done: number
-	failures: GraphFailure[]
-}
+type RevokeOutcome = BulkOutcome<ApiToken>
 
 /** RevokeHandlers carries what the screen does once a revoke ran. */
 export interface RevokeHandlers {
@@ -72,7 +69,8 @@ function revokedMessage({ asked, done }: RevokeOutcome): string {
  */
 function unrevokedMessage({ asked, failures }: RevokeOutcome): string {
 	if (asked === 1) {
-		return validationMessage(graphError(failures[0]), __('The token could not be revoked.', 'alphone'))
+		const reason = graphError(failures[0].error)
+		return validationMessage(reason, __('The token could not be revoked.', 'alphone'))
 	}
 	const template = _n('%s token could not be revoked.', '%s tokens could not be revoked.', failures.length, 'alphone')
 	return sprintf(template, formatNumber(failures.length))
@@ -90,16 +88,14 @@ export function RevokeModal({ items, closeModal, onFailure, onRevoked }: RenderM
 	const submit = async () => {
 		setBusy(true)
 		onFailure(undefined)
-		const results = await Promise.all(
-			items.map((token) => graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise()),
+		const outcome = await runEach(items, (token) =>
+			graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise(),
 		)
-		const failures = results.flatMap((result) => (result.error ? [result.error] : []))
-		const outcome = { asked: items.length, done: items.length - failures.length, failures }
 		onRevoked()
 		if (outcome.done > 0) {
 			toaster.show(revokedMessage(outcome))
 		}
-		if (failures.length > 0) {
+		if (outcome.failures.length > 0) {
 			onFailure(unrevokedMessage(outcome))
 		}
 		closeModal?.()

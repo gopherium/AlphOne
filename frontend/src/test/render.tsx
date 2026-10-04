@@ -19,11 +19,13 @@ import { act, render } from '@testing-library/react'
 
 import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
+import { configureAppChannelNames } from '../contacts/channel'
 import { createAppRouter } from '../router'
 
 export { badgeClasses, buttonClasses }
 
 configureAuthTransport(graphAuthTransport)
+configureAppChannelNames()
 
 /**
  * Returns the class tokens the design system adds to a compact button.

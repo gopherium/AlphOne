@@ -201,6 +201,299 @@ and hides itself once every page is loaded.
 <LoadMore query={invoices}>Load more</LoadMore>
 ```
 
+## Lists with DataViews
+
+A short table you fill yourself fits the part above. A list a reader
+searches, sorts, filters and pages through is a WordPress DataViews
+list, like Contacts and Users. Import `DataViews` and its types from
+`@alphone/frontend-sdk/dataviews`, and everything else from
+`@alphone/frontend-sdk`.
+
+### The view lives in the address
+
+DataViews keeps the search, the sort, the filters, the page and the
+page size in one object, the **view**. `useListView` keeps that view in
+the address, so a reload, the back button or a shared link opens the
+same list. Give the route `validateSearch: listSearch`. It keeps what a
+list understands from the address and drops anything malformed.
+
+```tsx
+import { listSearch } from '@alphone/frontend-sdk'
+import { createRoute, lazyRouteComponent } from '@tanstack/react-router'
+
+createRoute({
+	getParentRoute: () => parent,
+	path: '/invoices',
+	validateSearch: listSearch,
+	component: lazyRouteComponent(() => import('./InvoicesScreen'), 'InvoicesScreen'),
+})
+```
+
+The screen reads the page sizes from the admin settings, asks the
+server for one page, and hands everything to `DataViews`:
+
+```tsx
+import {
+	ErrorNotice,
+	PageScreen,
+	__,
+	paginationOf,
+	useAdminSettings,
+	useGraphQuery,
+	useListView,
+	useServerPaging,
+} from '@alphone/frontend-sdk'
+import { DataViews } from '@alphone/frontend-sdk/dataviews'
+import { useMemo } from 'react'
+
+export function InvoicesScreen() {
+	const { settings, failed } = useAdminSettings()
+	const list = useListView({
+		fields: ['status', 'issued'],
+		titleField: 'number',
+		sort: { field: 'issued', direction: 'desc' },
+		perPage: settings?.listPageSize,
+	})
+	const sizing = settings === undefined && !failed
+	const paging = useServerPaging(settings === undefined ? { page: list.view.page } : list.view)
+	const [result] = useGraphQuery({
+		query: invoicePageQuery,
+		variables: { q: list.view.search || null, ...paging.window },
+		pause: sizing,
+		requestPolicy: 'cache-and-network',
+	})
+	const page = result.data?.invoicePage
+	paging.record(page, result.operation?.variables.limit ?? null)
+	const fields = useMemo(() => invoiceFields(), [])
+
+	return (
+		<PageScreen title={__('Invoices', 'acme-billing')} list>
+			{result.error ? (
+				<ErrorNotice>{__('Invoices could not be loaded.', 'acme-billing')}</ErrorNotice>
+			) : (
+				<DataViews
+					data={page?.items ?? []}
+					paginationInfo={paginationOf(page)}
+					fields={fields}
+					view={list.view}
+					onChangeView={list.onChangeView}
+					defaultLayouts={list.defaultLayouts}
+					selection={list.selection}
+					onChangeSelection={list.onChangeSelection}
+					isLoading={result.fetching || sizing}
+					searchLabel={__('Search invoices…', 'acme-billing')}
+					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
+				/>
+			)}
+		</PageScreen>
+	)
+}
+```
+
+`invoicePageQuery` is your plugin's own query. It takes `q`, `limit`
+and `offset`, and answers `items`, `total` and `limit`.
+`invoiceFields` returns your DataViews fields. Build them inside a
+function, so their labels read the catalogue the reader loaded.
+
+`useListView` takes what the list opens on. `fields` are the columns
+beside the title, `titleField` names each row, and `sort` is the first
+order. AlphOne lists open newest first. `perPage` comes from the admin
+settings, so the operator picks one page size for every list. Hand the
+five parts the hook answers straight to `DataViews`. Below 640px the
+hook lays the list out as a list instead of a table, and `phoneFields`
+picks what shows there beside the title.
+
+`list` on `PageScreen` lets the list fill the page down to the bottom
+edge. `isLoading` keeps the search box and the columns on screen while
+a page or the settings are still on their way.
+
+### Paging on the server
+
+`useServerPaging` and `paginationOf` come from the shared admin kit,
+and the SDK hands them on. `paging.window` holds the two numbers your
+query sends: `limit`, how many rows to ask for, and `offset`, how many
+to skip first. On page 3 with 20 rows a page, that is
+`{ limit: 20, offset: 40 }`.
+
+Your server answers a page with its rows, `total`, how many rows match
+in all, and `limit`, the page size it really used. `paginationOf(page)`
+turns that into the counts DataViews shows, and zero while the page is
+on its way.
+
+`paging.record(page, asked)` remembers the size the server used.
+`asked` is the limit of the request that got this page, and urql keeps
+it in `result.operation?.variables.limit`. A server may cut a large ask
+down to a cap of its own. When it does, the next pages step by the size
+it used, so no row goes missing or shows twice. An answer to an older
+request, with another page size, never changes the step. When you know
+the cap, pass it as the second argument, `useServerPaging(list.view, cap)`.
+
+`pause` holds the request until the settings arrive, so the first
+request already asks for the right size. When the settings cannot be
+read, the screen hands `useServerPaging` only the page, even when the
+address names a page size. The request then sends a `null` limit, and
+the server picks the size.
+
+### Reading fresh after a change
+
+urql keeps every answer in a cache. With its default policy, a query
+that mounts again shows the cached answer and asks the server nothing.
+So when your New invoice screen adds a row and sends the reader back,
+the list still shows the page from before. `graph.refetch` cannot help
+there, because it only reruns the queries on screen at that moment.
+
+Give every list that must show changes made somewhere else
+`requestPolicy: 'cache-and-network'`, as the example does. It shows the
+cached page at once, asks the server anyway, and swaps in the fresh
+page when it arrives.
+
+### Bulk actions
+
+An action with `supportsBulk: true` runs on every row the reader
+ticked. `runEach` makes one call per row, all at once, and counts how
+they went:
+
+```tsx
+import {
+	__,
+	_n,
+	formatNumber,
+	inbox,
+	runEach,
+	sprintf,
+	useGraph,
+	useToaster,
+} from '@alphone/frontend-sdk'
+import type { Action } from '@alphone/frontend-sdk/dataviews'
+
+export function useArchiveAction(onFailure: (message: string | undefined) => void): Action<InvoiceRow> {
+	const graph = useGraph()
+	const toaster = useToaster()
+	return {
+		id: 'archive',
+		label: __('Archive', 'acme-billing'),
+		icon: inbox,
+		supportsBulk: true,
+		callback: async (invoices) => {
+			onFailure(undefined)
+			const { done, failures } = await runEach(invoices, (invoice) =>
+				graph.client.mutation(archiveInvoiceMutation, { id: invoice.id }).toPromise(),
+			)
+			graph.refetch(['InvoicePage'])
+			if (done > 0) {
+				const template = _n('%s invoice archived.', '%s invoices archived.', done, 'acme-billing')
+				toaster.show(sprintf(template, formatNumber(done)))
+			}
+			if (failures.length > 0) {
+				const template = _n(
+					'%s invoice could not be archived.',
+					'%s invoices could not be archived.',
+					failures.length,
+					'acme-billing',
+				)
+				onFailure(sprintf(template, formatNumber(failures.length)))
+			}
+		},
+	}
+}
+```
+
+`runEach` answers `asked`, how many rows it got, `done`, how many calls
+worked, and `failures`, each row that failed with its error, in the
+order of the rows. A call fails when it throws, when its promise
+rejects, or when it answers with its `error` set. An urql result with
+an error counts as a failure, so the call hands back what `toPromise()`
+gives it. `runEach` itself never fails, so one bad row never hides the
+others.
+
+The rest is the shape every AlphOne list follows. Clear the old notice
+when the run starts. Refresh the list yourself, because DataViews never
+tells the screen an action finished. Toast what worked, and show what
+failed in an `ErrorNotice` above the list, never in a toast. The action
+lives in a hook because `useGraph` and `useToaster` only work inside a
+component, and the screen passes `onFailure` to show the message.
+
+Give every bulk action an `icon`. On a medium wide screen the toolbar
+shows only the icon. When one row was picked and it failed, show the
+server's reason instead of a count. `failures[0].error` is `unknown`,
+so cast it to `GraphFailure` and pass it through `graphError` and
+`validationMessage`, as in [Failures in forms](#failures-in-forms).
+
+### Channel names
+
+A list that shows a channel, such as the WhatsApp number a record uses,
+names it with `channelName`. It answers the name the core or any plugin
+gives that channel, in the reader's language, or the channel itself
+when nobody names it. Draw it as an outline badge, as Contacts does:
+
+```tsx
+import { Badge, channelName } from '@alphone/frontend-sdk'
+
+<Badge intent="none">{channelName(identity.channel)}</Badge>
+```
+
+Call it while you render, never once when the file loads, so it
+follows the language the reader picks.
+
+Your plugin names its own channels on `channels`. Write each label as a
+getter, so it reads the catalogue every time it is asked.
+`plugins/whatsapp/frontend/index.ts` does this:
+
+```ts
+channels: [
+	{
+		value: 'whatsapp',
+		get label() {
+			return _x('WhatsApp', 'contact channel', 'alphone-whatsapp')
+		},
+	},
+],
+```
+
+### Testing a list screen
+
+`renderPluginAt` from `@alphone/frontend-sdk/testing` mounts your
+plugin at an address, under a router and a toaster, with a fake graph
+client. Pass `session` to sign somebody in. The session goes straight
+into the test's query cache, so no session request goes out. Without
+one, the host asks the test server for the session, as the app does,
+so your test answers it. Answer `/api/auth/session` with an account to
+sign somebody in, or with a 401 for nobody. With nobody signed in, a
+screen behind a capability shows its refusal.
+
+```tsx
+import { adminSession, graphql, HttpResponse, renderPluginAt, server } from '@alphone/frontend-sdk/testing'
+import { screen } from '@testing-library/react'
+import { expect, test } from 'vitest'
+
+import { plugin } from '../index'
+
+const managing = { ...adminSession, capabilities: ['manage_invoices'] }
+
+const invoicePage = {
+	__typename: 'InvoicePage',
+	items: [{ __typename: 'Invoice', id: '019f5a00-0000-7000-8000-0000000000b1', number: 'INV-0001' }],
+	total: 1,
+	limit: 20,
+}
+
+test('lists the invoices the server answers', async () => {
+	server.use(graphql.query('InvoicePage', () => HttpResponse.json({ data: { invoicePage } })))
+	renderPluginAt(plugin, '/invoices', { session: managing })
+
+	expect(await screen.findByText('INV-0001')).toBeInTheDocument()
+})
+```
+
+The test setup serves the admin settings, with 20 rows a page.
+`paging([1, 2], 1)` serves smaller sizes, so two rows are enough to
+reach page 2.
+
+`renderPluginAt` hands back the fake graph client and the router.
+`graph.refetch` is a spy, so a test can check that an action refreshed
+the list with `expect(graph.refetch).toHaveBeenCalledWith(['InvoicePage'])`.
+The router tells where the screen went, in `router.state.location`.
+
 ## Dates, times, numbers and money
 
 Write every date, time, number and amount with the SDK formatters, never

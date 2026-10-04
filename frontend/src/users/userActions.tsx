@@ -9,12 +9,13 @@ import {
 	formatNumber,
 	graphError,
 	notAllowed,
+	runEach,
 	sprintf,
 	useGraph,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure, Session } from '@alphone/frontend-sdk'
+import type { BulkFailure, Session } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 import { usersQueryKey } from '@gopherium/react-auth/admin'
 import { useQueryClient } from '@tanstack/react-query'
@@ -45,15 +46,15 @@ function switchedMessage(disabled: boolean, asked: number, done: number): string
  * Returns the notice naming the accounts one disable or enable could not change.
  * @param disabled - Whether the accounts were to be disabled rather than enabled.
  * @param asked - How many accounts the action was asked to change.
- * @param failures - The failure each unchanged account answered with.
+ * @param failures - Each unchanged account with the failure it answered with.
  * @returns The reason for one account, the count for several.
  */
-function unswitchedMessage(disabled: boolean, asked: number, failures: GraphFailure[]): string {
+function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailure<Account>[]): string {
 	if (asked === 1) {
 		const fallback = disabled
 			? __('The user could not be disabled.', 'alphone')
 			: __('The user could not be enabled.', 'alphone')
-		return validationMessage(graphError(failures[0]), fallback)
+		return validationMessage(graphError(failures[0].error), fallback)
 	}
 	const template = disabled
 		? _n('%s user could not be disabled.', '%s users could not be disabled.', failures.length, 'alphone')
@@ -82,11 +83,9 @@ export function useUserActions(
 		const others = (user: Account) => user.id !== session.id
 		const switchAccounts = async (items: Account[], disabled: boolean) => {
 			onFailure(undefined)
-			const results = await Promise.all(
-				items.map((user) => graph.client.mutation(setUserDisabledMutation, { id: user.id, disabled }).toPromise()),
+			const { done, failures } = await runEach(items, (user) =>
+				graph.client.mutation(setUserDisabledMutation, { id: user.id, disabled }).toPromise(),
 			)
-			const failures = results.flatMap((result) => (result.error ? [result.error] : []))
-			const done = items.length - failures.length
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			if (done > 0) {
 				toaster.show(switchedMessage(disabled, items.length, done))

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x } from '@alphone/frontend-sdk'
+import { _x, configureChannelNames } from '@alphone/frontend-sdk'
 
 import { plugins } from '../plugins'
 
@@ -27,12 +27,10 @@ export function channelNames(): { value: string; label: string }[] {
 }
 
 /**
- * Returns the name the core or a plugin gives a channel, or the channel itself when none does.
- * @param channel - The channel an identity belongs to.
- * @returns The channel name to show.
+ * Hands the SDK the names the core and the plugins give each channel, so a plugin reads them as data.
  */
-export function channelName(channel: string): string {
-	return channelNames().find((item) => item.value === channel)?.label ?? channel
+export function configureAppChannelNames(): void {
+	configureChannelNames(channelNames)
 }
 
 /**

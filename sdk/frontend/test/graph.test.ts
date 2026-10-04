@@ -150,6 +150,16 @@ test('reports a network failure as an error rather than data', async () => {
 	expect(graphError(result.error)).not.toBeInstanceOf(ValidationError)
 })
 
+test('keeps an ordinary error a call threw as it is', () => {
+	const thrown = new Error('stream ended')
+
+	expect(graphError(thrown)).toBe(thrown)
+})
+
+test('turns a thrown value that is no error into an error carrying its text', () => {
+	expect(graphError('stream ended')).toEqual(new Error('stream ended'))
+})
+
 test('maps an unclassified graph error onto a plain error carrying its message', async () => {
 	respondWithError('Version', 'INTERNAL', 'internal error')
 	const { graph } = newClient()

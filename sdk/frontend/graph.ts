@@ -122,13 +122,25 @@ export function reasonText(reason: StoredReason, templates: Record<string, strin
 }
 
 /**
- * Maps a graph failure onto the error class the screens branch on.
- * @param error - The failure a graph operation answered with.
+ * Reports whether a failure is the one a graph operation answers with.
+ * @param error - The failure to read.
+ * @returns Whether it carries the graph errors of an answer.
+ */
+function answeredFailure(error: unknown): error is CombinedError {
+	return typeof error === 'object' && error !== null && 'graphQLErrors' in error && Array.isArray(error.graphQLErrors)
+}
+
+/**
+ * Maps a graph failure onto the error class the screens branch on, keeping an error a call threw as it is.
+ * @param error - The failure a graph operation answered with, or what its call threw.
  * @returns The mapped error, or undefined when the operation succeeded.
  */
-export function graphError(error: CombinedError | undefined): Error | undefined {
+export function graphError(error: unknown): Error | undefined {
 	if (!error) {
 		return undefined
+	}
+	if (!answeredFailure(error)) {
+		return error instanceof Error ? error : new Error(String(error))
 	}
 	const message = spokenMessage(error)
 	switch (errorCode(error)) {

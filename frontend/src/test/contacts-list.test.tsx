@@ -541,6 +541,15 @@ test('opens on the address page by the size the graph serves when the page size 
 	expect(asked.at(-1)).toMatchObject({ limit: null, offset: 2 })
 })
 
+test('asks the size the graph serves when the page size could not be read, even with one in the address', async () => {
+	unsized()
+	serving([ana, ada, maria], 2)
+	renderAt('/contacts?perPage=10')
+
+	await waitFor(async () => expect(await shownNames()).toEqual(['Ana Lopez', 'Ada Lovelace']), settled)
+	expect(asked[0]).toMatchObject({ limit: null, offset: 0 })
+})
+
 test('shows every contact on one page when the graph serves them all and the page size could not be read', async () => {
 	unsized()
 	renderAt('/contacts')
