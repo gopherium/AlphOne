@@ -25,6 +25,53 @@ database is all an upgrade takes.
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is rejected at startup. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
+## Mail
+
+AlphOne mails invitations and password reset links through a relay you
+name. Without `ALPHONE_SMTP_HOST` it sends no mail. An invitation then
+shows its activation link on screen for you to pass on, and a password
+reset request sends nothing. `ALPHONE_SMTP_PORT`,
+`ALPHONE_SMTP_USERNAME`, `ALPHONE_SMTP_PASSWORD`, `ALPHONE_SMTP_FROM`
+and `ALPHONE_SMTP_TLS` are refused without a host, with an error such as
+`ALPHONE_SMTP_PORT is set but ALPHONE_SMTP_HOST is not`.
+`ALPHONE_PUBLIC_URL` and `ALPHONE_MAIL_TEMPLATE_DIR` are read only with
+a host.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_SMTP_HOST` | The host name of the mail relay. Unset, AlphOne sends no mail. |
+| `ALPHONE_SMTP_PORT` | The port of the relay. Defaults to 587. Must be a whole number from 1 to 65535. |
+| `ALPHONE_SMTP_USERNAME` | The user name AlphOne logs in to the relay with. Set it together with `ALPHONE_SMTP_PASSWORD`, or leave both unset to send without logging in. |
+| `ALPHONE_SMTP_PASSWORD` | The password for that user name. |
+| `ALPHONE_SMTP_FROM` | The address every mail is sent from, such as `crm@example.com`. Required with a host. |
+| `ALPHONE_SMTP_TLS` | How the connection to the relay is secured with STARTTLS. `mandatory`, the default, refuses a relay that does not offer it. `opportunistic` uses it when the relay offers it, and `none` never does. A user name and password need `mandatory`. |
+| `ALPHONE_PUBLIC_URL` | The address people reach AlphOne at, such as `https://crm.example.com`. The link in every mail leads back to it. Required with a host. It must be an `http` or `https` address of a site root, with no path, query or fragment. |
+| `ALPHONE_MAIL_TEMPLATE_DIR` | A directory of your own mail templates. A file named `invite.tmpl` or `reset.tmpl` there replaces the built-in template of that name. Unset, the built-in ones are used. AlphOne refuses a directory that does not exist. |
+
+## Invitations and password resets
+
+A duration is written like `1h` or `30m` and must be above zero. A
+count must be a whole number above zero.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_INVITE_TTL` | How long the activation link of an invitation lives. Defaults to `168h`, seven days. |
+| `ALPHONE_RESET_TTL` | How long a password reset link lives. Defaults to `1h`. |
+| `ALPHONE_RESET_ATTEMPTS` | How many reset requests one client address may make within one reset link lifetime. Defaults to 3. A request over the limit is refused as rate limited. |
+| `ALPHONE_RESET_LINKS` | How many reset links one account may hold at once. Defaults to 3. Once it holds that many, a further request sends none until one is used or expires. |
+| `ALPHONE_RESET_COOLDOWN` | The shortest gap between two reset mails to one address. Defaults to `1m`. A request inside the gap sends nothing. |
+
+## Workspaces
+
+Every account works in a workspace. These variables matter once a
+deployment serves more than one.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_TENANT_MACHINE_GRACE` | How long a deactivated workspace keeps recording what a channel such as WhatsApp delivers, written as a duration. Defaults to `336h`, fourteen days. `0s` stops the recording as soon as the workspace is deactivated. |
+| `ALPHONE_TENANTS_HELD` | How many workspaces' fields each server process keeps in memory. Defaults to 256. Must be a whole number above zero. |
+| `ALPHONE_TENANTS_REFRESH` | How long a server process keeps a workspace's fields before reading them again. Defaults to `1m`. Must be a duration above zero. |
+
 ## Lists, toasts and formats
 
 | Variable | Purpose |
@@ -79,6 +126,7 @@ see [Meta setup](/whatsapp/meta-setup/).
 | `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` | The phone number ID (not the phone number itself) messages are sent from. |
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
 | `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
+| `ALPHONE_WHATSAPP_CREDENTIALS_KEY` | A key of 32 bytes written as 64 hex characters, which seals a workspace's own WhatsApp access token in the database when a plugin stores one per workspace. Unset, no such token can be stored. AlphOne refuses a value that is not hex or does not hold 32 bytes. |
 
 ## Behavior worth knowing
 
