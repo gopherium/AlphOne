@@ -53,8 +53,7 @@ export function QuickAddForm({
 				toaster.show(addedMessage(dueOn), { label: _x('View', 'toast action', 'alphone'), onAct: () => viewDay(dueOn) })
 			}
 			graph.refetch(taskListReads)
-			const field = titleField.current as HTMLInputElement
-			field.focus()
+			titleField.current?.focus()
 		}
 	}
 

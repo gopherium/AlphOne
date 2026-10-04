@@ -515,6 +515,33 @@ test('returns focus to the task title after an add', async () => {
 	await waitFor(() => expect(title).toHaveFocus())
 })
 
+test('confirms an add that lands after the screen was left', async () => {
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async ({ variables }) => {
+			await held
+			const input = variables.input as { title: string; dueOn: string }
+			const row = { ...taskRow(addedID, input.title), due_on: input.dueOn }
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
+			})
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await userEvent.click(screen.getByRole('link', { name: 'New task' }))
+	await screen.findByRole('heading', { level: 1, name: 'New task' })
+	release?.()
+
+	expect(await screen.findByText('Task added.')).toBeInTheDocument()
+})
+
 test('starts the next task on the day shown at normal priority after an add', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
