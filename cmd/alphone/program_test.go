@@ -4,6 +4,7 @@ package main
 
 import (
 	"io"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/gonsole/testkit"
 
+	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/version"
 	"github.com/gopherium/alphone/sdk"
@@ -20,6 +22,14 @@ import (
 var listedCommands = []string{
 	"check", "help", "list", "migrate", "seed", "serve", "version",
 	"account:create-admin", "account:disable", "account:enable", "account:grant-role", "account:list", "account:role",
+	"token:create", "token:list", "token:revoke",
+}
+
+// tokenSummaries are the token commands by name, each with the summary the listing prints beside it.
+var tokenSummaries = map[string]string{
+	"token:create": "mint a token for one account and show its secret once",
+	"token:list":   "list the tokens of one account",
+	"token:revoke": "revoke one token of one account",
 }
 
 // bareProgram returns the command line over env, its plugins registering nothing into a role registry of its own.
@@ -56,6 +66,10 @@ func TestProgramListsEveryCommandWhenNoneIsNamed(t *testing.T) {
 		"  account:grant-role    give a role to every account holding none",
 		"  account:list          list every account with its role",
 		"  account:role          set one account's role",
+		" token",
+		"  token:create          mint a token for one account and show its secret once",
+		"  token:list            list the tokens of one account",
+		"  token:revoke          revoke one token of one account",
 		"",
 		"Every command is described at https://docs.alph.one/self-hosting/commands/",
 		"",
@@ -225,5 +239,87 @@ func TestACommandStopsThePluginsItRegistered(t *testing.T) {
 	if !underTheStopGrace(*seen) {
 		t.Errorf("the plugin stopped with live = %v and %v left, want a live context holding most of the %v stop grace",
 			seen.live, seen.left, shutdownStopGrace)
+	}
+}
+
+func TestProgramListsTheTokenCommands(t *testing.T) {
+	t.Parallel()
+
+	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(nil), registerPlugins), "", "list")
+
+	if got.Code != gonsole.ExitDone || !regexp.MustCompile(`(?m)^ token$`).MatchString(got.Stdout) {
+		t.Fatalf("list = %d, stdout %q, stderr %q, want 0 and a token section", got.Code, got.Stdout, got.Stderr)
+	}
+	for name, summary := range tokenSummaries {
+		line := regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(name) + ` +` + regexp.QuoteMeta(summary) + `$`)
+		if !line.MatchString(got.Stdout) {
+			t.Errorf("the listing %q holds no line for %s, want it beside %q", got.Stdout, name, summary)
+		}
+	}
+}
+
+func TestTheOldTokenSpellingsStillWorkAndSayTheyAreDeprecated(t *testing.T) {
+	t.Parallel()
+
+	_, env := tokenDatabase(t)
+
+	created := testkit.Run(t, bareProgram(env), "", "token", "create", "-email", "admin@example.com", "-name", "n8n")
+
+	if created.Code != gonsole.ExitDone || !strings.Contains(created.Stdout, "\nsecret: "+apitoken.Prefix) ||
+		created.Stderr != "alphone: \"token create\" is deprecated, use \"token:create\"\n" {
+		t.Errorf("token create = %d, stdout %q, stderr %q, want 0, the secret and the deprecation",
+			created.Code, created.Stdout, created.Stderr)
+	}
+
+	listed := testkit.Run(t, bareProgram(env), "", "token", "list", "-email", "admin@example.com")
+
+	if listed.Code != gonsole.ExitDone || !strings.Contains(listed.Stdout, "  n8n  scopes ") ||
+		listed.Stderr != "alphone: \"token list\" is deprecated, use \"token:list\"\n" {
+		t.Errorf("token list = %d, stdout %q, stderr %q, want 0, the token and the deprecation",
+			listed.Code, listed.Stdout, listed.Stderr)
+	}
+}
+
+// tokenCommandsNamed is the refusal of a line that names the token command without one of its three commands.
+const tokenCommandsNamed = "alphone: unknown command \"token\", want token:create, token:list or token:revoke\n"
+
+func TestTheOldRevokeSpellingIsRefused(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	secret := secretOf(t, mint(t, env).Stdout)
+	held := storedToken(t, databaseURL, secret)
+
+	got := testkit.Run(t, bareProgram(env), "", "token", "revoke", "-email", "admin@example.com", "-id", held.ID.String())
+
+	if got.Code != gonsole.ExitMisused || got.Stdout != "" || got.Stderr != tokenCommandsNamed {
+		t.Errorf("token revoke = %d, stdout %q, stderr %q, want 2 and %q",
+			got.Code, got.Stdout, got.Stderr, tokenCommandsNamed)
+	}
+	if kept := storedToken(t, databaseURL, secret); kept.ID != held.ID {
+		t.Errorf("the token %v is held after the old revoke spelling, want %v kept", kept.ID, held.ID)
+	}
+}
+
+func TestTheTokenCommandAloneNamesTheTokenCommands(t *testing.T) {
+	t.Parallel()
+
+	lines := map[string][]string{
+		"no command":         {"token"},
+		"a help flag":        {"token", "-h"},
+		"the help command":   {"help", "token"},
+		"an unknown command": {"token", "sniff", "-email", "admin@example.com"},
+	}
+	for testName, args := range lines {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			got := testkit.Run(t, bareProgram(nil), "", args...)
+
+			if got.Code != gonsole.ExitMisused || got.Stdout != "" || got.Stderr != tokenCommandsNamed {
+				t.Errorf("%q = %d, stdout %q, stderr %q, want 2 and %q",
+					args, got.Code, got.Stdout, got.Stderr, tokenCommandsNamed)
+			}
+		})
 	}
 }

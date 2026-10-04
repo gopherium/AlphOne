@@ -14,6 +14,7 @@ import (
 
 	"github.com/gopherium/framework/gonsole/testkit"
 
+	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/role"
 )
 
@@ -52,7 +53,113 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Then(`^the database holds no schema$`, s.holdsNoSchema)
 		sc.Then(`^the database holds no demo data$`, s.holdsNoDemoData)
 		sc.Then(`^the database holds the demo data$`, s.holdsTheDemoData)
+		sc.Given(`^the administrator "([^"]*)"$`, s.holdAdministrator)
+		sc.Given(`^the account "([^"]*)" holds a token named "([^"]*)"$`, s.holdToken)
+		sc.When(`^the operator mints a token named "([^"]*)" for "([^"]*)"$`, s.mintToken)
+		sc.When(`^the operator mints a token named "([^"]*)" for "([^"]*)" with the old spelling "([^"]*)"$`,
+			s.mintTokenSpelled)
+		sc.When(`^the operator lists the tokens of "([^"]*)" with the old spelling "([^"]*)"$`, s.listTokensSpelled)
+		sc.When(`^the operator revokes the token "([^"]*)" of "([^"]*)" with the old spelling "([^"]*)"$`,
+			s.revokeTokenSpelled)
+		sc.Then(`^the answer carries a secret beginning with "([^"]*)"$`, s.carriesSecret)
+		sc.Then(`^the answer says "([^"]*)" is deprecated and names "([^"]*)"$`, s.saysDeprecated)
+		sc.Then(`^the answer lists the token "([^"]*)"$`, s.listsToken)
+		sc.Then(`^the token list of "([^"]*)" shows "([^"]*)"$`, s.tokenListShows)
+		sc.Then(`^the token list of "([^"]*)" shows no secret$`, s.tokenListShowsNoSecret)
 	}
+}
+
+// holdAdministrator creates the administrator at email, typing the password on standard input.
+func (s *operatorScenario) holdAdministrator(email string) error {
+	s.createAdministrator(email, typedPassword)
+	return s.succeeds()
+}
+
+// holdToken mints the token called name for the account at email.
+func (s *operatorScenario) holdToken(email, name string) error {
+	s.mintToken(name, email)
+	return s.succeeds()
+}
+
+// mintToken mints the token called name for the account at email.
+func (s *operatorScenario) mintToken(name, email string) {
+	s.mintTokenSpelled(name, email, "token:create")
+}
+
+// mintTokenSpelled mints the token called name for the account at email, the command spelled as spelling.
+func (s *operatorScenario) mintTokenSpelled(name, email, spelling string) {
+	s.run("", append(strings.Fields(spelling), "-email", email, "-name", name)...)
+}
+
+// listTokensSpelled lists the tokens of the account at email, the command spelled as spelling.
+func (s *operatorScenario) listTokensSpelled(email, spelling string) {
+	s.run("", append(strings.Fields(spelling), "-email", email)...)
+}
+
+// revokeTokenSpelled revokes the token called name of the account at email, the command spelled as spelling.
+func (s *operatorScenario) revokeTokenSpelled(ctx context.Context, name, email, spelling string) error {
+	var id string
+	if err := s.scan(ctx, "SELECT id::text FROM core.api_tokens WHERE name = $1", &id, name); err != nil {
+		return fmt.Errorf("finding the token %s: %w", name, err)
+	}
+	s.run("", append(strings.Fields(spelling), "-email", email, "-id", id)...)
+	return nil
+}
+
+// carriesSecret fails unless the answer prints a secret line starting with prefix.
+func (s *operatorScenario) carriesSecret(prefix string) error {
+	if !strings.Contains(s.result.Stdout, "\nsecret: "+prefix) {
+		return fmt.Errorf("stdout %q carries no secret beginning with %s", s.result.Stdout, prefix)
+	}
+	return nil
+}
+
+// saysDeprecated fails unless the answer says the old spelling is deprecated in favour of the command called name.
+func (s *operatorScenario) saysDeprecated(old, name string) error {
+	if want := fmt.Sprintf("%q is deprecated, use %q", old, name); !strings.Contains(s.result.Stderr, want) {
+		return fmt.Errorf("stderr %q does not carry %q", s.result.Stderr, want)
+	}
+	return nil
+}
+
+// listsToken fails unless the answer lists the token called name.
+func (s *operatorScenario) listsToken(name string) error {
+	return listing(s.result.Stdout, name)
+}
+
+// tokenListShows fails unless token:list for the account at email lists the token called name.
+func (s *operatorScenario) tokenListShows(email, name string) error {
+	listed, err := s.tokenList(email)
+	if err != nil {
+		return err
+	}
+	return listing(listed, name)
+}
+
+// tokenListShowsNoSecret fails when token:list for the account at email prints a secret.
+func (s *operatorScenario) tokenListShowsNoSecret(email string) error {
+	listed, err := s.tokenList(email)
+	if err != nil || strings.Contains(listed, apitoken.Prefix) {
+		return fmt.Errorf("token:list %q (%v), want no secret listed", listed, err)
+	}
+	return nil
+}
+
+// tokenList returns what token:list prints for the account at email, an error when it fails.
+func (s *operatorScenario) tokenList(email string) (string, error) {
+	listed := s.answer("", "token:list", "-email", email)
+	if listed.Code != 0 {
+		return "", fmt.Errorf("token:list exited with %d and stderr %q", listed.Code, listed.Stderr)
+	}
+	return listed.Stdout, nil
+}
+
+// listing fails unless the token list printed holds a line for the token called name.
+func listing(printed, name string) error {
+	if !strings.Contains(printed, "  "+name+"  scopes ") {
+		return fmt.Errorf("the token list %q holds no line for %s", printed, name)
+	}
+	return nil
 }
 
 // pointAtAnEmptyDatabase points the settings at a fresh database holding no schema.
@@ -65,9 +172,14 @@ func (s *operatorScenario) nameNoDatabase() {
 	delete(s.env, "ALPHONE_DATABASE_URL")
 }
 
-// run runs the command line in process over the scenario's settings and the compiled plugins, feeding stdin.
+// answer runs the command line in process over the scenario's settings and the compiled plugins, feeding stdin.
+func (s *operatorScenario) answer(stdin string, args ...string) testkit.Result {
+	return testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registerPlugins), stdin, args...)
+}
+
+// run runs the command line and keeps its answer for the steps that follow.
 func (s *operatorScenario) run(stdin string, args ...string) {
-	s.result = testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registerPlugins), stdin, args...)
+	s.result = s.answer(stdin, args...)
 }
 
 // runWithNoCommand runs the command line naming no command.

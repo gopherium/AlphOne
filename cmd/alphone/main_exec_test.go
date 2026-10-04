@@ -503,7 +503,7 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(cloned)
 }
 
-// tokenSecret pulls the a1_ secret out of the token create output.
+// tokenSecret pulls the a1_ secret out of the token:create output.
 func tokenSecret(t *testing.T, stdout string) string {
 	t.Helper()
 	start := strings.Index(stdout, "a1_")
@@ -679,12 +679,12 @@ func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (stri
 	t.Helper()
 	binary, env := coverBinary(t)
 	var minted bytes.Buffer
-	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "exec")
+	token := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "exec")
 	token.Dir = t.TempDir()
 	token.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	token.Stdout = &minted
 	if err := token.Run(); err != nil {
-		t.Fatalf("token create: %v", err)
+		t.Fatalf("token:create: %v", err)
 	}
 	addr := freeAddr(t)
 	serve := exec.Command(binary, "serve")
@@ -819,12 +819,12 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 		t.Fatalf("account:create-admin: %v", err)
 	}
 	var stdout bytes.Buffer
-	mint := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "agent")
+	mint := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "agent")
 	mint.Dir = t.TempDir()
 	mint.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	mint.Stdout = &stdout
 	if err := mint.Run(); err != nil {
-		t.Fatalf("token create: %v", err)
+		t.Fatalf("token:create: %v", err)
 	}
 	addr := freeAddr(t)
 	serve := exec.Command(binary, "serve")
@@ -862,7 +862,7 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "token", "list", "-email", "admin@example.com")
+	cmd := exec.Command(binary, "token:list", "-email", "admin@example.com")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -871,7 +871,7 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("token without configuration: %v, want exit code 1", err)
+		t.Fatalf("token:list without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
@@ -879,6 +879,35 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 }
 
 func TestMainBinaryTokenCreatesAToken(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("account:create-admin: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "n8n")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("token:create: %v, stderr: %s", err, stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "a1_") {
+		t.Errorf("stdout = %q, want it to print the secret", stdout.String())
+	}
+}
+
+func TestMainBinarySaysAnOldTokenSpellingIsDeprecated(t *testing.T) {
 	t.Parallel()
 
 	binary, env := coverBinary(t)
@@ -902,7 +931,10 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 		t.Fatalf("token create: %v, stderr: %s", err, stderr.String())
 	}
 
-	if !strings.Contains(stdout.String(), "a1_") {
-		t.Errorf("stdout = %q, want it to print the secret", stdout.String())
+	if !strings.Contains(stdout.String(), "\nsecret: a1_") {
+		t.Errorf("stdout = %q, want the old spelling to still print the secret", stdout.String())
+	}
+	if want := `alphone: "token create" is deprecated, use "token:create"`; !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to carry %q", stderr.String(), want)
 	}
 }

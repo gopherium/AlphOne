@@ -41,8 +41,8 @@ func addressRequirers() map[string]addressReader {
 		"account:grant-role": func(t *testing.T, getenv func(string) string, _ string) error {
 			return commandFailure(t, getenv, registeringNothing, "account:grant-role", "-role", "member", "-yes")
 		},
-		"token": func(t *testing.T, getenv func(string) string, _ string) error {
-			return token(t.Context(), getenv, []string{"list", "-email", "maria.perez@example.com"}, io.Discard)
+		"token:list": func(t *testing.T, getenv func(string) string, _ string) error {
+			return commandFailure(t, getenv, registeringNothing, "token:list", "-email", "maria.perez@example.com")
 		},
 		"seed": func(t *testing.T, getenv func(string) string, _ string) error {
 			return seed(t.Context(), getenv, io.Discard)

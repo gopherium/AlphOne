@@ -29,10 +29,11 @@ func programOver(
 		Footer:     "Every command is described at https://docs.alph.one/self-hosting/commands/",
 		Env:        settingsEnv(getenv),
 		Database:   "DATABASE_URL",
+		Renamed:    map[string]string{"token create": "token:create", "token list": "token:list"},
 		Serve:      serve(plugins),
 		Migrations: migrations(),
 		Seed:       seedCore,
-		Commands:   accounts.Commands(accountConfig(registry)),
+		Commands:   append(accounts.Commands(accountConfig(registry)), tokenCommands()...),
 		Plugins:    loadPlugins(registry, plugins),
 	}
 }

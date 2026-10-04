@@ -4,18 +4,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/apitoken"
@@ -26,52 +25,73 @@ import (
 // defaultTokenLifetime is how long a token minted from the command line lasts.
 const defaultTokenLifetime = 90 * 24 * time.Hour
 
-// dateLayout formats the dates the token subcommands print.
+// dateLayout formats the dates the token commands print.
 const dateLayout = "2006-01-02"
-
-// tokenUsage is the line the token subcommand prints when asked how to run it.
-const tokenUsage = "usage: alphone token create|list|revoke [flags], pass -h after the verb for its flags"
-
-// token creates, lists, and revokes the API tokens of one user.
-func token(ctx context.Context, getenv func(string) string, args []string, stdout io.Writer) error {
-	if len(args) == 0 || slices.Contains([]string{"help", "-h", "-help", "--help"}, args[0]) {
-		_, err := fmt.Fprintln(stdout, tokenUsage)
-		return err
-	}
-	verb := args[0]
-	if !slices.Contains([]string{"create", "list", "revoke"}, verb) {
-		return fmt.Errorf("token: unknown command %q, want create, list or revoke", verb)
-	}
-	opts, err := parseTokenFlags(verb, args[1:], stdout)
-	if errors.Is(err, flag.ErrHelp) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	databaseURL, err := settingsEnv(getenv).Required("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	pool, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		return fmt.Errorf("parse database url: %w", err)
-	}
-	defer pool.Close()
-	if err := migrate(ctx, databaseURL); err != nil {
-		return err
-	}
-
-	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, opts.email)
-	if err != nil {
-		return err
-	}
-	return runTokenVerb(ctx, postgres.NewTokenStore(pool), owner.ID, verb, opts, stdout)
-}
 
 // neverWord is the lifetime a token is given to be permanent.
 const neverWord = "never"
+
+// tokenStep is the work one token command does over the token store for the account that owns the tokens.
+type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error
+
+// tokenCommands returns the commands that mint, list and revoke the API tokens of one account.
+func tokenCommands() []gonsole.Command {
+	return []gonsole.Command{
+		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
+			createToken),
+		tokenCommand("token:list", "list the tokens of one account", ownerFlag, listTokens),
+		tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken),
+	}
+}
+
+// tokenCommand returns the token command called name, which runs step for the account its -email flag names.
+func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenStep) gonsole.Command {
+	return gonsole.Command{
+		Name:    name,
+		Summary: summary,
+		Flags:   flags,
+		Run: func(ctx context.Context, call gonsole.Call) error {
+			email := call.Flags["email"]
+			if strings.TrimSpace(email) == "" {
+				return gonsole.Misuse(fmt.Errorf("%s wants -email <address>", name))
+			}
+			address, err := call.DatabaseURL()
+			if err != nil {
+				return err
+			}
+			pool, err := pgxpool.New(ctx, address)
+			if err != nil {
+				return fmt.Errorf("parse database url: %w", err)
+			}
+			defer pool.Close()
+			owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, email)
+			if err != nil {
+				return err
+			}
+			return step(ctx, postgres.NewTokenStore(pool), owner.ID, call)
+		},
+	}
+}
+
+// ownerFlag declares the -email flag naming the account that owns the tokens.
+func ownerFlag(fs *flag.FlagSet) {
+	fs.String("email", "", "`address` of the account that owns the tokens")
+}
+
+// createTokenFlags declares the flags of token:create.
+func createTokenFlags(fs *flag.FlagSet) {
+	ownerFlag(fs)
+	fs.String("name", "", "`name` of the token to create")
+	fs.Var(new(scopeList), "scope", "`area:access` scope the token may act in, repeatable, the area one of "+
+		strings.Join(graphres.DeclaredAreas(), ", "))
+	fs.String("ttl", "", "`days` the token lasts, or never")
+}
+
+// revokeTokenFlags declares the flags of token:revoke.
+func revokeTokenFlags(fs *flag.FlagSet) {
+	ownerFlag(fs)
+	fs.String("id", "", "`id` of the token to revoke")
+}
 
 // scopeList collects a repeatable scope flag.
 type scopeList []string
@@ -81,117 +101,72 @@ func (l *scopeList) String() string {
 	return strings.Join(*l, " ")
 }
 
-// Set adds one scope to the collection.
+// Set adds one scope to the collection, refusing a blank scope or one that holds a space.
 func (l *scopeList) Set(scope string) error {
+	if scope == "" || strings.ContainsFunc(scope, unicode.IsSpace) {
+		return fmt.Errorf("%w: %q", apitoken.ErrMalformedScope, scope)
+	}
 	*l = append(*l, scope)
 	return nil
 }
 
-// tokenFlags carries the parsed flags of a token subcommand.
-type tokenFlags struct {
-	email  string
-	name   string
-	id     string
-	scopes scopeList
-	ttl    string
-}
-
-// parseTokenFlags parses the flags of one token subcommand.
-func parseTokenFlags(verb string, args []string, stdout io.Writer) (tokenFlags, error) {
-	flags := flag.NewFlagSet("token "+verb, flag.ContinueOnError)
-	flags.SetOutput(stdout)
-	opts := tokenFlags{}
-	flags.StringVar(&opts.email, "email", "", "email address of the owning user")
-	flags.StringVar(&opts.name, "name", "", "name of the token to create")
-	flags.StringVar(&opts.id, "id", "", "identifier of the token to revoke")
-	flags.Var(&opts.scopes, "scope",
-		"area and access the token may act in, repeatable, one of "+strings.Join(graphres.DeclaredAreas(), ", "))
-	flags.StringVar(&opts.ttl, "ttl", "", "days the token lasts, or never")
-	if err := flags.Parse(args); err != nil {
-		return tokenFlags{}, fmt.Errorf("parse flags: %w", err)
-	}
-	return opts, nil
-}
-
-// grantedScopes returns the scopes asked for, the wildcard when none were.
-func (o tokenFlags) grantedScopes() apitoken.Scopes {
-	if len(o.scopes) == 0 {
+// grantedScopes returns the scopes the call asks for, the wildcard when it asks for none.
+func grantedScopes(call gonsole.Call) apitoken.Scopes {
+	asked := strings.Fields(call.Flags["scope"])
+	if len(asked) == 0 {
 		return apitoken.Full()
 	}
-	return apitoken.Scopes(o.scopes)
+	return apitoken.Scopes(asked)
 }
 
-// lifetime returns the lifetime asked for, the default when unasked.
-func (o tokenFlags) lifetime() (time.Duration, error) {
-	switch o.ttl {
+// tokenLifetime returns the lifetime the call asks for, the default when it asks for none.
+func tokenLifetime(call gonsole.Call) (time.Duration, error) {
+	ttl := call.Flags["ttl"]
+	switch ttl {
 	case "":
 		return defaultTokenLifetime, nil
 	case neverWord:
 		return apitoken.Never, nil
 	}
-	days, err := strconv.Atoi(o.ttl)
+	days, err := strconv.Atoi(ttl)
 	if err != nil {
 		return 0, fmt.Errorf("parse ttl: %w", err)
 	}
 	return apitoken.LifetimeOfDays(days)
 }
 
-// runTokenVerb runs the named token subcommand against the store.
-func runTokenVerb(
-	ctx context.Context,
-	tokens *postgres.TokenStore,
-	userID uuid.UUID,
-	verb string,
-	opts tokenFlags,
-	stdout io.Writer,
-) error {
-	switch verb {
-	case "create":
-		return createToken(ctx, tokens, userID, opts, stdout)
-	case "list":
-		return listTokens(ctx, tokens, userID, stdout)
-	}
-	return revokeToken(ctx, tokens, userID, opts.id, stdout)
-}
-
-// createToken mints a token and prints its secret for the only time.
-func createToken(
-	ctx context.Context,
-	tokens *postgres.TokenStore,
-	userID uuid.UUID,
-	opts tokenFlags,
-	stdout io.Writer,
-) error {
-	lifetime, err := opts.lifetime()
+// createToken mints the token the call asks for and prints its secret for the only time.
+func createToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
+	lifetime, err := tokenLifetime(call)
 	if err != nil {
 		return err
 	}
-	granted := opts.grantedScopes()
+	granted := grantedScopes(call)
 	if err := graphres.ValidateScopes(granted); err != nil {
 		return err
 	}
-	minted, err := apitoken.Mint(userID, opts.name, granted, lifetime)
+	minted, err := apitoken.Mint(owner, call.Flags["name"], granted, lifetime)
 	if err != nil {
 		return err
 	}
 	if err := tokens.Create(ctx, minted.Token); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "created token %s\n", minted.Token.ID)
-	_, _ = fmt.Fprintf(stdout, "secret: %s\n", minted.Secret)
-	_, _ = fmt.Fprintln(stdout, "store it now, it is never shown again")
-	_, _ = fmt.Fprintf(stdout, "scopes %s, expires %s\n", minted.Token.Scopes, orNever(minted.Token.ExpiresAt))
+	_, _ = fmt.Fprintf(call.Stdout, "created token %s\n", minted.Token.ID)
+	_, _ = fmt.Fprintf(call.Stdout, "secret: %s\n", minted.Secret)
+	_, _ = fmt.Fprintln(call.Stdout, "store it now, it is never shown again")
+	_, _ = fmt.Fprintf(call.Stdout, "scopes %s, expires %s\n", minted.Token.Scopes, orNever(minted.Token.ExpiresAt))
 	return nil
 }
 
-// listTokens prints one line per token of the user, secrets excluded.
-func listTokens(ctx context.Context, tokens *postgres.TokenStore, userID uuid.UUID, stdout io.Writer) error {
-	stored, err := tokens.ListForUser(ctx, userID)
+// listTokens prints one line per token of the owner, secrets excluded.
+func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
+	stored, err := tokens.ListForUser(ctx, owner)
 	if err != nil {
 		return err
 	}
 	for _, t := range stored {
-		_, _ = fmt.Fprintf(stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
+		_, _ = fmt.Fprintf(call.Stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
 			t.ID, t.Name, t.Scopes, t.CreatedAt.UTC().Format(dateLayout),
 			orNever(t.LastUsedAt), orNever(t.ExpiresAt))
 	}
@@ -206,21 +181,15 @@ func orNever(at time.Time) string {
 	return at.UTC().Format(dateLayout)
 }
 
-// revokeToken deletes one token of the user.
-func revokeToken(
-	ctx context.Context,
-	tokens *postgres.TokenStore,
-	userID uuid.UUID,
-	id string,
-	stdout io.Writer,
-) error {
-	tokenID, err := uuid.Parse(id)
+// revokeToken deletes the token of the owner the call's -id flag names.
+func revokeToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
+	tokenID, err := uuid.Parse(call.Flags["id"])
 	if err != nil {
 		return fmt.Errorf("parse token id: %w", err)
 	}
-	if err := tokens.Revoke(ctx, userID, tokenID); err != nil {
+	if err := tokens.Revoke(ctx, owner, tokenID); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "revoked token %s\n", tokenID)
+	_, _ = fmt.Fprintf(call.Stdout, "revoked token %s\n", tokenID)
 	return nil
 }

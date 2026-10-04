@@ -80,7 +80,6 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
-  @wip
   Scenario: A token is minted and its secret is shown once
     Given the administrator "admin@example.com"
     When the operator mints a token named "automation" for "admin@example.com"
@@ -89,7 +88,6 @@ Feature: Operators run AlphOne from one command line
     And the token list of "admin@example.com" shows "automation"
     And the token list of "admin@example.com" shows no secret
 
-  @wip
   Scenario: The old two word token spelling still works and says it is deprecated
     Given the administrator "admin@example.com"
     When the operator mints a token named "automation" for "admin@example.com" with the old spelling "token create"
@@ -101,7 +99,6 @@ Feature: Operators run AlphOne from one command line
     And the answer lists the token "automation"
     And the answer says "token list" is deprecated and names "token:list"
 
-  @wip
   Scenario: The old revoke spelling is refused
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
