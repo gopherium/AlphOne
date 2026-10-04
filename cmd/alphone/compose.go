@@ -110,7 +110,7 @@ func abandon(ctx context.Context, built composed, grace time.Duration) error {
 
 // migrations returns the schema steps every database takes, in the order they apply.
 func migrations() []gonsole.Step {
-	return []gonsole.Step{accounts.Migration(), {Name: "core", Run: postgres.Migrate}}
+	return []gonsole.Step{accounts.Migration(), accounts.RecordMigration(), {Name: "core", Run: postgres.Migrate}}
 }
 
 // migrate applies every schema step to the database at databaseURL.

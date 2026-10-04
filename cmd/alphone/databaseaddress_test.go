@@ -39,7 +39,8 @@ func addressRequirers() map[string]addressReader {
 				"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 		},
 		"account:grant-role": func(t *testing.T, getenv func(string) string, _ string) error {
-			return commandFailure(t, getenv, registeringNothing, "account:grant-role", "-role", "member", "-yes")
+			return commandFailure(t, getenv, registeringNothing,
+				"account:grant-role", "-role", "member", "-yes", "-as", "maria.perez@example.com")
 		},
 		"token:list": func(t *testing.T, getenv func(string) string, _ string) error {
 			return commandFailure(t, getenv, registeringNothing, "token:list", "-email", "maria.perez@example.com")
@@ -59,7 +60,7 @@ func addressReaders() map[string]addressReader {
 				return nil, fmt.Errorf("the plugins got the address %q, want %q", deps.DatabaseURL, address)
 			}
 			return nil, nil
-		}, "account:grant-role", "-role", "member")
+		}, "account:grant-role", "-role", "member", "-as", "maria.perez@example.com")
 	}
 	return readers
 }
@@ -72,7 +73,8 @@ func TestEveryCommandTakesAPaddedDatabaseAddress(t *testing.T) {
 			t.Parallel()
 
 			address := testDatabaseURL(t)
-			storeRoleless(t, address, "maria.perez@example.com")
+			createAccount(t, testGetenv(map[string]string{"ALPHONE_DATABASE_URL": address}),
+				"maria.perez@example.com", role.Admin.String())
 			getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": "  " + address + "  "})
 
 			if err := read(t, getenv, address); err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // operatorCommandsFeature is the feature the command line answers to.
@@ -26,15 +27,16 @@ const wipTag = "@wip"
 
 // operatorScenario is what one operator scenario keeps between its steps.
 type operatorScenario struct {
-	t      *testing.T
-	env    map[string]string
-	result testkit.Result
+	t       *testing.T
+	env     map[string]string
+	plugins func(sdk.Deps) ([]sdk.Plugin, error)
+	result  testkit.Result
 }
 
 // initializeOperatorCommands returns the binding of the operator command steps, t holding their databases.
 func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) {
-		s := &operatorScenario{t: t, env: map[string]string{}}
+		s := &operatorScenario{t: t, env: map[string]string{}, plugins: registerPlugins}
 		sc.Given(`^the settings point at an empty database$`, s.pointAtAnEmptyDatabase)
 		sc.Given(`^the settings name no database$`, s.nameNoDatabase)
 		sc.When(`^the operator runs alphone with no command$`, s.runWithNoCommand)
@@ -44,6 +46,7 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 			s.createAdministrator)
 		sc.Then(`^the command succeeds$`, s.succeeds)
 		sc.Then(`^the command exits with code (\d+)$`, s.exitsWith)
+		sc.Then(`^the refusal says "([^"]*)"$`, s.refusalSays)
 		sc.Then(`^the answer says "([^"]*)" is an unknown command$`, s.namesUnknownCommand)
 		sc.Then(`^the answer names the command "([^"]*)"$`, s.namesCommand)
 		sc.Then(`^the account "([^"]*)" holds the role "([^"]*)"$`, s.holdsRole)
@@ -68,7 +71,92 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Then(`^the token list of "([^"]*)" shows no secret$`, s.tokenListShowsNoSecret)
 		sc.Given(`^the setting "([^"]*)" holds "([^"]*)"$`, s.holdSetting)
 		sc.Then(`^the answer names the setting "([^"]*)"$`, s.namesSetting)
+		sc.Given(`^the member "([^"]*)"$`, s.holdMember)
+		sc.Given(`^a plugin declares the role "([^"]*)" with a capability the role "([^"]*)" lacks$`,
+			s.declareRoleBeyond)
+		sc.When(`^the operator gives "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.giveRole)
+		sc.When(`^the operator previews giving "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.previewRole)
+		sc.When(`^the operator disables "([^"]*)" acting as "([^"]*)"$`, s.disableAccount)
+		sc.Then(`^the account "([^"]*)" still holds the role "([^"]*)"$`, s.holdsRole)
+		sc.Then(`^the account "([^"]*)" is still enabled$`, s.isEnabled)
+		sc.Then(`^no account change is on record$`, s.recordsNothing)
+		sc.Then(`^the command "account:records" lists "([^"]*)" applied by "([^"]*)"$`, s.recordsChange)
 	}
+}
+
+// holdMember creates the member at email, typing the password on standard input.
+func (s *operatorScenario) holdMember(email string) error {
+	s.run(typedPassword+"\n", "account:create-admin", "-email", email, "-name", "Member", "-role", "member")
+	return s.succeeds()
+}
+
+// declareRoleBeyond adds a plugin declaring the role called name with a capability the role held lacks.
+func (s *operatorScenario) declareRoleBeyond(name, held string) {
+	s.plugins = besideTheCompiledPlugins(rolePlugin{declared: []sdk.RoleDeclaration{
+		{Name: name, Capabilities: []string{"reach_beyond_" + held}},
+	}})
+}
+
+// giveRole gives the account at email the role, acting as actor, -as left out when actor is empty.
+func (s *operatorScenario) giveRole(email, held, actor string) {
+	s.changeRole(email, held, actor, "-yes")
+}
+
+// previewRole previews giving the account at email the role, acting as actor.
+func (s *operatorScenario) previewRole(email, held, actor string) {
+	s.changeRole(email, held, actor)
+}
+
+// changeRole runs account:role for the account at email and the role with the flags, acting as actor when named.
+func (s *operatorScenario) changeRole(email, held, actor string, flags ...string) {
+	args := append([]string{"account:role", email, held}, flags...)
+	if actor != "" {
+		args = append(args, "-as", actor)
+	}
+	s.run("", args...)
+}
+
+// disableAccount disables the account at email, acting as actor.
+func (s *operatorScenario) disableAccount(email, actor string) {
+	s.run("", "account:disable", email, "-yes", "-as", actor)
+}
+
+// isEnabled fails unless the account at email is enabled.
+func (s *operatorScenario) isEnabled(ctx context.Context, email string) error {
+	var enabled bool
+	err := s.scan(ctx, "SELECT EXISTS (SELECT FROM auth.users WHERE email = $1 AND NOT disabled)", &enabled, email)
+	if err != nil || !enabled {
+		return fmt.Errorf("the account %s is enabled %v (%v), want it enabled", email, enabled, err)
+	}
+	return nil
+}
+
+// records returns the lines account:records lists, over a command line that registers no plugin.
+func (s *operatorScenario) records() ([]string, error) {
+	listed := testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registeringNothing), "",
+		"account:records")
+	if listed.Code != 0 {
+		return nil, fmt.Errorf("account:records exited with %d and stderr %q", listed.Code, listed.Stderr)
+	}
+	return strings.FieldsFunc(listed.Stdout, func(r rune) bool { return r == '\n' }), nil
+}
+
+// recordsNothing fails unless no account change is on record.
+func (s *operatorScenario) recordsNothing() error {
+	held, err := s.records()
+	if err != nil || len(held) != 0 {
+		return fmt.Errorf("records %q (%v), want none", held, err)
+	}
+	return nil
+}
+
+// recordsChange fails unless the one record names the command called name applied by actor.
+func (s *operatorScenario) recordsChange(name, actor string) error {
+	held, err := s.records()
+	if err != nil || len(held) != 1 || !strings.Contains(held[0], actor+"  "+name) {
+		return fmt.Errorf("records %q (%v), want the one %s %s applied", held, err, name, actor)
+	}
+	return nil
 }
 
 // holdSetting gives the setting called key the value.
@@ -187,9 +275,9 @@ func (s *operatorScenario) nameNoDatabase() {
 	delete(s.env, "ALPHONE_DATABASE_URL")
 }
 
-// answer runs the command line in process over the scenario's settings and the compiled plugins, feeding stdin.
+// answer runs the command line in process over the scenario's settings and plugins, feeding stdin.
 func (s *operatorScenario) answer(stdin string, args ...string) testkit.Result {
-	return testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registerPlugins), stdin, args...)
+	return testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), s.plugins), stdin, args...)
 }
 
 // run runs the command line and keeps its answer for the steps that follow.
@@ -226,6 +314,14 @@ func (s *operatorScenario) succeeds() error {
 func (s *operatorScenario) exitsWith(code int) error {
 	if s.result.Code != code {
 		return fmt.Errorf("the command exited with %d and stderr %q, want %d", s.result.Code, s.result.Stderr, code)
+	}
+	return nil
+}
+
+// refusalSays fails unless the refusal carries text.
+func (s *operatorScenario) refusalSays(text string) error {
+	if !strings.Contains(s.result.Stderr, text) {
+		return fmt.Errorf("stderr %q does not carry %q", s.result.Stderr, text)
 	}
 	return nil
 }

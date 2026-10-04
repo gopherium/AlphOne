@@ -21,7 +21,8 @@ import (
 // listedCommands are the names the listing of the command line holds, in the order it prints them.
 var listedCommands = []string{
 	"check", "help", "list", "migrate", "seed", "serve", "version",
-	"account:create-admin", "account:disable", "account:enable", "account:grant-role", "account:list", "account:role",
+	"account:create-admin", "account:disable", "account:enable", "account:grant-role", "account:list",
+	"account:records", "account:role",
 	"token:create", "token:list", "token:revoke",
 }
 
@@ -65,6 +66,7 @@ func TestProgramListsEveryCommandWhenNoneIsNamed(t *testing.T) {
 		"  account:enable        enable one disabled account",
 		"  account:grant-role    give a role to every account holding none",
 		"  account:list          list every account with its role",
+		"  account:records       list who applied which change, the newest first",
 		"  account:role          set one account's role",
 		" token",
 		"  token:create          mint a token for one account and show its secret once",
@@ -146,6 +148,17 @@ func TestProgramServeNamesTheMissingDatabase(t *testing.T) {
 
 	if got.Code != gonsole.ExitFailed || got.Stderr != "alphone: ALPHONE_DATABASE_URL is required\n" {
 		t.Errorf("serve = %d with stderr %q, want 1 and the missing database named", got.Code, got.Stderr)
+	}
+}
+
+func TestProgramMigrateNamesEveryStepInTheOrderItApplies(t *testing.T) {
+	t.Parallel()
+
+	got := testkit.Run(t, bareProgram(map[string]string{"ALPHONE_DATABASE_URL": barePostgres(t)}), "", "migrate")
+
+	want := "migrated accounts\nmigrated records\nmigrated core\nmigrated plugins\n"
+	if got.Code != gonsole.ExitDone || got.Stdout != want {
+		t.Errorf("migrate = %d, stdout %q, stderr %q, want 0 and %q", got.Code, got.Stdout, got.Stderr, want)
 	}
 }
 
@@ -261,6 +274,29 @@ func TestCheckNamesAMalformedSetting(t *testing.T) {
 
 			if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.HasPrefix(got.Stderr, "alphone: "+key+": ") {
 				t.Errorf("check with %s=%q = %d, stdout %q, stderr %q, want 1 and the setting named",
+					key, value, got.Code, got.Stdout, got.Stderr)
+			}
+		})
+	}
+}
+
+func TestCheckNamesAMalformedRecordSetting(t *testing.T) {
+	t.Parallel()
+
+	malformed := map[string]string{
+		"ALPHONE_COMMAND_RECORD_TIMEOUT": "soon",
+		"ALPHONE_COMMAND_RECORDS_LIMIT":  "many",
+	}
+	for key, value := range malformed {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, key: value}
+
+			got := testkit.Run(t, bareProgram(env), "", "check")
+
+			if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.HasPrefix(got.Stderr, "alphone: "+key+": ") {
+				t.Errorf("check with %s=%q = %d, stdout %q, stderr %q, want 1 and the record setting named",
 					key, value, got.Code, got.Stdout, got.Stderr)
 			}
 		})

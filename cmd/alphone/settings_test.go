@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -53,8 +54,10 @@ func coreSettings() map[string]string {
 	}
 }
 
-// settingsReadElsewhere names the settings of the example file that a plugin reads, not the core.
+// settingsReadElsewhere names the settings of the example file that a plugin or an account command reads, not the core.
 var settingsReadElsewhere = []string{
+	"ALPHONE_COMMAND_RECORD_TIMEOUT",
+	"ALPHONE_COMMAND_RECORDS_LIMIT",
 	"ALPHONE_FIELDS_ENTRIES_MAX",
 	"ALPHONE_WHATSAPP_VERIFY_TOKEN",
 	"ALPHONE_WHATSAPP_APP_SECRET",
@@ -65,23 +68,23 @@ var settingsReadElsewhere = []string{
 	"ALPHONE_WHATSAPP_GRAPH_URL",
 }
 
-// exampleSetting matches one setting line of the example file, commented or not, capturing its key.
-var exampleSetting = regexp.MustCompile(`^#?\s*(ALPHONE_[A-Z0-9_]+)=`)
+// exampleSetting matches one setting line of the example file, commented or not, capturing its key and its value.
+var exampleSetting = regexp.MustCompile(`^#?\s*(ALPHONE_[A-Z0-9_]+)=(.*)$`)
 
-// exampleSettings returns every ALPHONE_ key the example file names, commented lines included.
-func exampleSettings(t *testing.T) []string {
+// exampleSettings returns the value of every ALPHONE_ key the example file names, commented lines included.
+func exampleSettings(t *testing.T) map[string]string {
 	t.Helper()
 	example, err := os.ReadFile(filepath.Join("..", "..", ".env.example"))
 	if err != nil {
 		t.Fatalf("reading the example file: %v", err)
 	}
-	var keys []string
+	values := map[string]string{}
 	for _, line := range strings.Split(string(example), "\n") {
 		if found := exampleSetting.FindStringSubmatch(line); found != nil {
-			keys = append(keys, found[1])
+			values[found[1]] = found[2]
 		}
 	}
-	return keys
+	return values
 }
 
 func TestPaddedSettingsLoadLikePlainOnes(t *testing.T) {
@@ -158,14 +161,30 @@ func TestEverySettingTheExampleFileNamesHasAnOwner(t *testing.T) {
 	named := exampleSettings(t)
 	owned := append(slices.Collect(maps.Keys(coreSettings())), settingsReadElsewhere...)
 
-	for _, key := range named {
+	for key := range named {
 		if !slices.Contains(owned, key) {
 			t.Errorf("the example file names %s, which nothing reads", key)
 		}
 	}
 	for _, key := range owned {
-		if !slices.Contains(named, key) {
+		if _, held := named[key]; !held {
 			t.Errorf("%s is read but the example file never names it", key)
+		}
+	}
+}
+
+func TestTheExampleFileStatesTheRecordFallbacks(t *testing.T) {
+	t.Parallel()
+
+	named := exampleSettings(t)
+	fallbacks := map[string]string{
+		"ALPHONE_COMMAND_RECORD_TIMEOUT": recordTimeout.String(),
+		"ALPHONE_COMMAND_RECORDS_LIMIT":  strconv.Itoa(recordsLimit),
+	}
+
+	for key, want := range fallbacks {
+		if named[key] != want {
+			t.Errorf("the example file states %s=%q, want the fallback %q", key, named[key], want)
 		}
 	}
 }

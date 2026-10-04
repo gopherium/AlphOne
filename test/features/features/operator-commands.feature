@@ -46,22 +46,21 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the account "admin@example.com" holds the role "admin"
 
-  @wip
   Scenario Outline: An account change is refused when <case>
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
     When the operator gives "maria.perez@example.com" the role "admin" acting as "<actor>"
     Then the command exits with code <code>
+    And the refusal says "<refusal>"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
     Examples:
-      | case                                 | actor                   | code |
-      | it names no acting account           |                         | 2    |
-      | the acting account is a member       | maria.perez@example.com | 1    |
-      | nobody answers to the acting address | nobody@example.com      | 1    |
+      | case                                 | actor                   | code | refusal                  |
+      | it names no acting account           |                         | 2    | wants -as                |
+      | the acting account is a member       | maria.perez@example.com | 1    | which lacks manage_users |
+      | nobody answers to the acting address | nobody@example.com      | 1    | no account answers to    |
 
-  @wip
   Scenario: An applied account change is kept on record
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -70,7 +69,6 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" holds the role "admin"
     And the command "account:records" lists "account:role" applied by "admin@example.com"
 
-  @wip
   Scenario: A preview of an account change records nothing
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -156,7 +154,6 @@ Feature: Operators run AlphOne from one command line
     And the answer lists the token "automation" of "admin@example.com"
     And the answer lists the token "reporting" of "maria.perez@example.com"
 
-  @wip
   Scenario: An acting account cannot disable itself
     Given the administrator "admin@example.com"
     And the administrator "maria.perez@example.com"
@@ -165,7 +162,6 @@ Feature: Operators run AlphOne from one command line
     And the account "admin@example.com" is still enabled
     And no account change is on record
 
-  @wip
   Scenario: An account change beyond the acting account's reach is refused
     Given a plugin declares the role "steward" with a capability the role "admin" lacks
     And the administrator "admin@example.com"

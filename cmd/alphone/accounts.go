@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gopherium/framework/gonsole"
 	accounts "github.com/gopherium/framework/gonsole/auth"
@@ -12,9 +13,20 @@ import (
 	"github.com/gopherium/alphone/internal/role"
 )
 
-// accountConfig returns the configuration of the account commands over the roles registry holds.
+// recordTimeout bounds storing one command record when ALPHONE_COMMAND_RECORD_TIMEOUT names no other.
+const recordTimeout = 5 * time.Second
+
+// recordsLimit is how many records account:records lists when ALPHONE_COMMAND_RECORDS_LIMIT names no other.
+const recordsLimit = 50
+
+// accountConfig returns the configuration of the account commands and of the check on the acting account.
 func accountConfig(registry *role.Registry) accounts.Config {
-	return accounts.Config{Roles: declaredRoles(registry)}
+	return accounts.Config{
+		Roles:         declaredRoles(registry),
+		Capability:    string(role.ManageUsers),
+		RecordTimeout: recordTimeout,
+		RecordsLimit:  recordsLimit,
+	}
 }
 
 // declaredRoles returns the role table of the account commands, the plugins registered first to declare theirs.

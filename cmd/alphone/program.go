@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gopherium/framework/gonsole"
 	accounts "github.com/gopherium/framework/gonsole/auth"
@@ -22,6 +23,7 @@ func program(getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, e
 func programOver(
 	registry *role.Registry, getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error),
 ) gonsole.Program {
+	accountCommands := accountConfig(registry)
 	return gonsole.Program{
 		Name:       "alphone",
 		Title:      "AlphOne",
@@ -31,12 +33,19 @@ func programOver(
 		Database:   "DATABASE_URL",
 		Renamed:    map[string]string{"token create": "token:create", "token list": "token:list"},
 		Serve:      serve(plugins),
-		Validate:   validate,
+		Validate:   validate(accountCommands),
 		Migrations: migrations(),
 		Seed:       seedCore,
-		Commands:   append(accounts.Commands(accountConfig(registry)), tokenCommands()...),
+		Commands:   coreCommands(accountCommands),
 		Plugins:    loadPlugins(registry, plugins),
+		Authorize:  accounts.Authorize(accountCommands),
+		Record:     accounts.Record(accountCommands),
 	}
+}
+
+// coreCommands returns the account commands over cfg, the records they keep and the token commands.
+func coreCommands(cfg accounts.Config) []gonsole.Command {
+	return slices.Concat(accounts.Commands(cfg), []gonsole.Command{accounts.Records(cfg)}, tokenCommands())
 }
 
 // serve returns the command that serves the API and the web application over the compiled plugins.
@@ -46,10 +55,14 @@ func serve(plugins func(sdk.Deps) ([]sdk.Plugin, error)) func(context.Context, g
 	}
 }
 
-// validate checks every setting the server reads, reaching no database.
-func validate(_ context.Context, call gonsole.Call) error {
-	_, err := loadRunConfig(call.Env.Getenv)
-	return err
+// validate returns the check of every setting the server and the account hooks of cfg read, reaching no database.
+func validate(cfg accounts.Config) func(context.Context, gonsole.Call) error {
+	return func(_ context.Context, call gonsole.Call) error {
+		if _, err := loadRunConfig(call.Env.Getenv); err != nil {
+			return err
+		}
+		return cfg.Validate(call.Env)
+	}
 }
 
 // seedCore stores the core demo data in the database the call's settings name.
