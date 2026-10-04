@@ -311,6 +311,10 @@ msgid "Nothing due today."
 msgstr "No hay nada que venza hoy."
 
 #, fuzzy
+msgid "Open %(name)s"
+msgstr "Abrir %(name)s"
+
+#, fuzzy
 msgid "Open tasks"
 msgstr "Tareas abiertas"
 
@@ -712,6 +716,10 @@ msgid "Task added."
 msgstr "Tarea añadida."
 
 #, fuzzy
+msgid "Task added for %(date)s."
+msgstr "Tarea añadida para el %(date)s."
+
+#, fuzzy
 msgid "Task completed."
 msgstr "Tarea completada."
 
@@ -867,6 +875,11 @@ msgstr "Token revocado."
 msgctxt "day heading"
 msgid "%(weekday)s, %(date)s"
 msgstr "%(weekday)s, %(date)s"
+
+#, fuzzy
+msgctxt "toast action"
+msgid "View"
+msgstr "Ver"
 
 #, fuzzy
 msgctxt "token area"

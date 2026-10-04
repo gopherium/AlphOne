@@ -45,6 +45,15 @@ export function movedMessage(date: string): string {
 }
 
 /**
+ * Returns the toast the quick add raises once a task was added for a day other than the one shown.
+ * @param date - The due date as YYYY-MM-DD.
+ * @returns A message such as Task added for 30/07/2026.
+ */
+export function addedMessage(date: string): string {
+	return sprintf(__('Task added for %(date)s.', 'alphone'), { date: formatDate(date) })
+}
+
+/**
  * Returns the toast raised once a task took a new status.
  * @param status - The status the task took.
  * @returns Task completed. for a done task, Task reopened. for an open one.

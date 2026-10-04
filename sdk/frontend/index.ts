@@ -70,6 +70,7 @@ export {
 	chevronRight,
 	close,
 	comment,
+	commentAuthorAvatar,
 	inbox,
 	key,
 	menu,

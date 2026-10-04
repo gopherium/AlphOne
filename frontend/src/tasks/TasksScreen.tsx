@@ -5,7 +5,6 @@ import {
 	Collapsible,
 	EmptyState,
 	IconButton,
-	InputControl,
 	LoadingRows,
 	LoadMore,
 	ErrorNotice,
@@ -18,24 +17,19 @@ import {
 	formatNumber,
 	inbox,
 	sprintf,
-	useToaster,
-	validationMessage,
 } from '@alphone/frontend-sdk'
-import { graphError, useConnection, useGraph, useGraphMutation } from '@alphone/frontend-sdk'
+import { useConnection } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
-import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 
 import { formatDay, shiftDate } from './format'
-import { createTaskMutation, dayTasksQuery, overdueTasksQuery } from './operations'
+import { dayTasksQuery, overdueTasksQuery } from './operations'
+import { QuickAddForm } from './QuickAddForm'
 import { TaskList } from './TaskList'
 import type { ListedTask, RowControls } from './TaskList'
 import { useRowControls } from './useRowControls'
 
 const tasksPageSize = 50
-
-/** taskOperations names the documents a task write must refresh. */
-const taskOperations = ['DayTasks', 'OverdueTasks']
 
 /**
  * Renders a day of tasks with its overdue work, quick add field, and done
@@ -43,7 +37,6 @@ const taskOperations = ['DayTasks', 'OverdueTasks']
  * @returns The tasks screen.
  */
 export function TasksScreen({ date, today }: { date: string; today: string }) {
-	const graph = useGraph()
 	const tasks = useConnection({
 		query: dayTasksQuery,
 		variables: { date, status: 'open', first: tasksPageSize },
@@ -60,18 +53,8 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		select: (data) => data.tasks,
 		pause: date !== today,
 	})
-	const toaster = useToaster()
-	const [title, setTitle] = useState('')
-	const [add, runAdd] = useGraphMutation(createTaskMutation)
 	const { controls, failed } = useRowControls(today)
-	const submitAdd = async () => {
-		const result = await runAdd({ input: { title, dueOn: date } })
-		if (result.data) {
-			setTitle('')
-			toaster.show(__('Task added.', 'alphone'))
-			graph.refetch(taskOperations)
-		}
-	}
+	const navigate = useNavigate()
 
 	return (
 		<PageScreen
@@ -87,34 +70,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 			}
 		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
-			<form
-				className="godmin-form godmin-form--inline"
-				onSubmit={(event) => {
-					event.preventDefault()
-					void submitAdd()
-				}}
-			>
-				<div className="godmin-form__row">
-					<InputControl
-						className="godmin-form__grow"
-						label={__('Task title', 'alphone')}
-						value={title}
-						onChange={(event) => setTitle(event.target.value)}
-					/>
-					<Button
-						type="submit"
-						disabled={title.trim() === '' || add.fetching}
-						loading={add.fetching}
-					>
-						{__('Add task', 'alphone')}
-					</Button>
-				</div>
-			</form>
-			{add.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(add.error), __('The task could not be added.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
+			<QuickAddForm day={date} viewDay={(day) => void navigate({ to: '/tasks', search: { date: day } })} />
 			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</PageScreen>

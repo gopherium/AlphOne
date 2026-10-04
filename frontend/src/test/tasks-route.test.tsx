@@ -15,6 +15,8 @@ const doneID = '0198c000-0000-7000-8000-000000000103'
 const addedID = '0198c000-0000-7000-8000-000000000104'
 const oldID = '0198c000-0000-7000-8000-000000000105'
 const refileID = '0198c000-0000-7000-8000-000000000106'
+const contactID = '0198c000-0000-7000-8000-000000000107'
+const linkedContact = { id: contactID, name: 'Maria Perez' }
 
 // These dates are computed independently of the screen's own date helpers.
 function localDate(offsetDays: number) {
@@ -36,6 +38,15 @@ function movedToast(iso: string) {
 	return `Task moved to ${iso.split('-').reverse().join('/')}.`
 }
 
+/**
+ * Returns the toast a quick add for a day other than the one shown raises.
+ * @param iso - The day the task was added for as YYYY-MM-DD.
+ * @returns The toast text.
+ */
+function addedToast(iso: string) {
+	return `Task added for ${iso.split('-').reverse().join('/')}.`
+}
+
 const today = localDate(0)
 const tomorrow = localDate(1)
 const yesterday = localDate(-1)
@@ -47,6 +58,7 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 		status,
 		priority,
 		due_on: today,
+		contact: null as typeof linkedContact | null,
 	}
 }
 
@@ -73,6 +85,7 @@ function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null =
 				status: row.status,
 				priority: row.priority,
 				dueOn: row.due_on,
+				contact: row.contact === null ? null : { __typename: 'Contact', ...row.contact },
 			},
 			cursor: row.id,
 		})),
@@ -83,6 +96,7 @@ function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null =
 let listedDates: string[] = []
 let overdueBefore: string[] = []
 let patched: { id: string; body: Record<string, unknown> }[] = []
+let created: Record<string, unknown>[] = []
 let tasks: ReturnType<typeof taskRow>[] = []
 let overdue: ReturnType<typeof taskRow>[] = []
 
@@ -90,6 +104,7 @@ beforeEach(() => {
 	listedDates = []
 	overdueBefore = []
 	patched = []
+	created = []
 	overdue = []
 	tasks = [
 		taskRow(callID, 'Call the supplier'),
@@ -127,15 +142,42 @@ beforeEach(() => {
 			return HttpResponse.json({ data: { updateTask: taskNode(updated) } })
 		}),
 		graphql.mutation('CreateTask', ({ variables }) => {
-			const input = variables.input as { title: string }
-			const created = taskRow(addedID, input.title)
-			tasks = [...tasks, created]
+			const input = variables.input as { title: string; dueOn: string; priority?: number }
+			created.push({ ...input })
+			const row = { ...taskRow(addedID, input.title, 'open', input.priority ?? 0), due_on: input.dueOn }
+			tasks = [...tasks, row]
 			return HttpResponse.json({
-				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(created), replay: false } },
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
 			})
 		}),
 	)
 })
+
+/** Serves the open and done lists of each day from the tasks due on it. */
+function servePerDay() {
+	server.use(
+		graphql.query('DayTasks', ({ variables }) => {
+			const date = String(variables.date)
+			const status = String(variables.status)
+			return HttpResponse.json({
+				data: { tasks: taskPage(tasks.filter((row) => row.due_on === date && row.status === status)) },
+			})
+		}),
+	)
+}
+
+/** Picks a day in the quick add due date field. */
+async function pickDue(day: string) {
+	const due = screen.getByLabelText('Due date')
+	await userEvent.clear(due)
+	await userEvent.type(due, day)
+}
+
+/** Picks the High priority in the quick add priority field. */
+async function pickHigh() {
+	await userEvent.click(screen.getByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
+}
 
 test('shows the add button busy and still refuses a second submit', async () => {
 	const busy = busyClasses()
@@ -297,6 +339,86 @@ test('marks a raised priority on the row', async () => {
 	expect(within(row).getByText('High')).toBeInTheDocument()
 })
 
+test('opens the linked contact from the person icon after the task title', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+	server.use(
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({
+				data: {
+					contact: {
+						__typename: 'Contact',
+						...linkedContact,
+						createdAt: '2026-07-06T10:00:00Z',
+						identities: [],
+						tasks: taskPage([]),
+					},
+				},
+			}),
+		),
+	)
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+
+	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	expect(open).toHaveAttribute('href', `/contacts/${contactID}`)
+	await userEvent.click(open)
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })).toBeInTheDocument()
+})
+
+test('shows the person icon only on a task linked to a contact', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }, taskRow(quoteID, 'Send the quote')]
+
+	renderAt('/tasks')
+
+	const linked = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	expect(within(linked).getByRole('link', { name: 'Open Maria Perez' })).toBeInTheDocument()
+	const unlinked = screen.getByRole('listitem', { name: 'Send the quote' })
+	expect(within(unlinked).getAllByRole('link')).toHaveLength(1)
+	expect(within(unlinked).getByRole('link', { name: 'Send the quote' })).toBeInTheDocument()
+})
+
+test('sets the person icon right after the task title, as a small button', async () => {
+	const small = buttonClasses('solid', 'small').filter((token) => !buttonClasses('solid').includes(token))
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	const title = within(row).getByRole('link', { name: 'Call the supplier' })
+	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	const cell = row.querySelector('.alphone-tasks__title')
+	expect(cell).toContainElement(title)
+	expect(cell).toContainElement(open)
+	expect(title.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(small.length).toBeGreaterThan(0)
+	expect([...open.classList]).toEqual(expect.arrayContaining(small))
+	expect(open).toHaveClass('alphone-tasks__open-contact')
+	expect(open.querySelector('svg')).not.toBeNull()
+})
+
+test('names the contact in the person icon tooltip', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+
+	await userEvent.hover(within(row).getByRole('link', { name: 'Open Maria Perez' }))
+
+	expect(await screen.findByText('Open Maria Perez')).toBeInTheDocument()
+})
+
+test('shows the person icon on overdue work linked to a contact', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday, contact: linkedContact }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+	expect(within(row).getByRole('link', { name: 'Open Maria Perez' })).toHaveAttribute(
+		'href',
+		`/contacts/${contactID}`,
+	)
+})
+
 test('adds a task from the quick add field', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
@@ -312,6 +434,181 @@ test('adds a task from the quick add field', async () => {
 	expect(screen.getByText('Task added.')).toBeInTheDocument()
 })
 
+test('starts the quick add on the day shown at normal priority', async () => {
+	renderAt(`/tasks?date=${tomorrow}`)
+	await screen.findByText('Call the supplier')
+
+	expect(screen.getByLabelText('Due date')).toHaveValue(tomorrow)
+	expect(screen.getByLabelText('Priority')).toHaveTextContent('Normal')
+})
+
+test('names the quick add fields as the New task screen does', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	expect(screen.getByText('Due date', { selector: 'label' })).toBeInTheDocument()
+	expect(screen.getByText('Priority', { selector: 'label' })).toBeInTheDocument()
+})
+
+test('adds a task on the day shown at normal priority', async () => {
+	renderAt(`/tasks?date=${tomorrow}`)
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toEqual({ title: 'Order more boxes', dueOn: tomorrow, priority: 0 })
+	expect(await screen.findByText('Task added.')).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'View' })).not.toBeInTheDocument()
+})
+
+test('adds a task on the chosen day at the chosen priority', async () => {
+	servePerDay()
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickDue(today)
+	await pickHigh()
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toEqual({ title: 'Order more boxes', dueOn: today, priority: 1 })
+	const row = await screen.findByRole('listitem', { name: 'Order more boxes' })
+	expect(within(row).getByText('High')).toBeInTheDocument()
+})
+
+test('names the day a task was added for, keeps it out of the day shown and opens its day from the toast', async () => {
+	servePerDay()
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
+	await screen.findByText('Nothing due today.')
+	await userEvent.click(await screen.findByRole('button', { name: 'Today' }))
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickDue(tomorrow)
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	expect(await screen.findByText(addedToast(tomorrow))).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	const open = screen.getByRole('list', { name: 'Open tasks' })
+	expect(within(open).queryByText('Order more boxes')).not.toBeInTheDocument()
+
+	await userEvent.click(screen.getByRole('button', { name: 'View' }))
+
+	expect(await screen.findByRole('listitem', { name: 'Order more boxes' })).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Today' })).toBeInTheDocument()
+})
+
+test('returns focus to the task title after an add', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+
+	await userEvent.type(title, 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	await waitFor(() => expect(title).toHaveFocus())
+})
+
+test('confirms an add that lands after the screen was left', async () => {
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async ({ variables }) => {
+			await held
+			const input = variables.input as { title: string; dueOn: string }
+			const row = { ...taskRow(addedID, input.title), due_on: input.dueOn }
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
+			})
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await userEvent.click(screen.getByRole('link', { name: 'New task' }))
+	await screen.findByRole('heading', { level: 1, name: 'New task' })
+	release?.()
+
+	expect(await screen.findByText('Task added.')).toBeInTheDocument()
+})
+
+test('names the day of an add that lands after the day shown changed', async () => {
+	servePerDay()
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async ({ variables }) => {
+			await held
+			const input = variables.input as { title: string; dueOn: string }
+			const row = { ...taskRow(addedID, input.title), due_on: input.dueOn }
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
+			})
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
+	await screen.findByText('Nothing due today.')
+	release?.()
+
+	expect(await screen.findByText(addedToast(today))).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
+})
+
+test('starts the next task on the day shown at normal priority after an add', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickDue(localDate(3))
+	await pickHigh()
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	await waitFor(() => expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue(''))
+	expect(screen.getByLabelText('Due date')).toHaveValue(today)
+	expect(screen.getByLabelText('Priority')).toHaveTextContent('Normal')
+})
+
+test('moves the quick add due date along with the day shown and keeps a typed title', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickDue(localDate(3))
+
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
+
+	await waitFor(() => expect(screen.getByLabelText('Due date')).toHaveValue(tomorrow))
+	expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue('Order more boxes')
+})
+
+test('keeps Add task off while the quick add due date is empty', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.clear(screen.getByLabelText('Due date'))
+
+	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('does not add a task without a title', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
@@ -322,7 +619,7 @@ test('does not add a task without a title', async () => {
 	)
 })
 
-test('lays the task title and Add task on one form row', async () => {
+test('lays the task title, the due date, the priority and Add task on one form row', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -331,17 +628,21 @@ test('lays the task title and Add task on one form row', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 	const title = screen.getByRole('textbox', { name: 'Task title' })
+	const due = screen.getByLabelText('Due date')
+	const priority = screen.getByLabelText('Priority')
 	const add = screen.getByRole('button', { name: 'Add task' })
 
 	const row = title.closest('.godmin-form__row')
 	expect(row).not.toBeNull()
 	expect(row?.parentElement).toHaveClass('godmin-form')
 	const cells = [...(row as Element).children]
-	expect(cells).toHaveLength(2)
-	const titleCell = cells.find((cell) => cell.contains(title))
-	expect(titleCell).toBeDefined()
-	expect(titleCell).not.toBe(add)
+	expect(cells).toHaveLength(4)
+	const fieldCells = [title, due, priority].map((field) => cells.find((cell) => cell.contains(field)))
+	expect(fieldCells).not.toContain(undefined)
+	expect(new Set(fieldCells).size).toBe(3)
+	expect(fieldCells).not.toContain(add)
 	expect(add.parentElement).toBe(row)
+	expect(cells.at(-1)).toBe(add)
 
 	await userEvent.type(title, 'X')
 	await userEvent.click(add)
@@ -355,7 +656,7 @@ test('lets the quick add form fill its column as one row', async () => {
 	await screen.findByText('Call the supplier')
 
 	const form = screen.getByRole('textbox', { name: 'Task title' }).closest('form')
-	expect(form).toHaveClass('godmin-form', 'godmin-form--inline')
+	expect(form).toHaveClass('godmin-form', 'godmin-form--inline', 'alphone-tasks__add')
 })
 
 test('gives the task title the widest share of the form row', async () => {

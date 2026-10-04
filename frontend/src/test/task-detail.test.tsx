@@ -187,6 +187,7 @@ test('reaches the detail from the day list', async () => {
 									status: 'open',
 									priority: 0,
 									dueOn: '2026-08-10',
+									contact: null,
 								},
 								cursor: taskID,
 							}]

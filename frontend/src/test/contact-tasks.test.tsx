@@ -75,6 +75,7 @@ function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor
 					status: row.status,
 					priority: row.priority,
 					dueOn: row.due_on,
+					contact: { __typename: 'Contact', id, name: 'Maria Perez' },
 				},
 				cursor: row.id,
 			})),
@@ -100,8 +101,11 @@ beforeEach(() => {
 		}),
 		graphql.mutation('CreateTask', ({ variables }) => {
 			const input = variables.input as Record<string, unknown>
-			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId })
-			const row = taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), String(input.dueOn))
+			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId, priority: input.priority })
+			const row = {
+				...taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), String(input.dueOn)),
+				priority: Number(input.priority ?? 0),
+			}
 			tasks = [...tasks, row]
 			return HttpResponse.json({
 				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
@@ -141,6 +145,15 @@ test('lists the open tasks of a contact with their due dates', async () => {
 	expect(within(list).getByText('Call her back')).toBeInTheDocument()
 	expect(within(list).getByText(dueLabel(tomorrow))).toBeInTheDocument()
 	expect(contactFilters).toContain(contactID)
+})
+
+test('leaves the person icon off the tasks on their own contact page', async () => {
+	renderAt(`/contacts/${contactID}`)
+
+	const list = await screen.findByRole('list', { name: 'Contact tasks' })
+	expect(within(list).getByRole('link', { name: 'Call her back' })).toBeInTheDocument()
+	expect(within(list).queryByRole('link', { name: 'Open Maria Perez' })).not.toBeInTheDocument()
+	expect(within(list).getAllByRole('link')).toHaveLength(2)
 })
 
 test('opens a task from the contact page', async () => {
@@ -262,15 +275,34 @@ test('adds a task for the contact due today', async () => {
 		title: 'Send the invoice',
 		contact_id: contactID,
 		due_on: today,
+		priority: 0,
 	})
 	expect(await screen.findByText('Send the invoice')).toBeInTheDocument()
 	expect(screen.getByText('Task added.')).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveFocus())
 })
 
-test('starts a new contact task on today', async () => {
+test('starts a new contact task on today at normal priority', async () => {
 	renderAt(`/contacts/${contactID}`)
 
 	expect(await screen.findByLabelText('Due date')).toHaveValue(today)
+	expect(screen.getByLabelText('Priority')).toHaveTextContent('Normal')
+	expect(screen.getByText('Priority', { selector: 'label' })).toBeInTheDocument()
+})
+
+test('adds a task for the contact at the chosen priority', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
+	await userEvent.click(screen.getByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({ title: 'Send the invoice', contact_id: contactID, due_on: today, priority: 1 })
+	const row = await screen.findByRole('listitem', { name: 'Send the invoice' })
+	expect(within(row).getByText('High')).toBeInTheDocument()
 })
 
 test('adds a task for the contact due on the chosen day', async () => {
@@ -288,6 +320,8 @@ test('adds a task for the contact due on the chosen day', async () => {
 	expect(created[0]).toMatchObject({ title: 'Send the invoice', contact_id: contactID, due_on: chosen })
 	const row = await screen.findByRole('listitem', { name: 'Send the invoice' })
 	expect(within(row).getByText(dueLabel(chosen))).toBeInTheDocument()
+	expect(screen.getByText('Task added.')).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'View' })).not.toBeInTheDocument()
 })
 
 test('keeps Add task off while the due date is empty', async () => {
@@ -300,7 +334,7 @@ test('keeps Add task off while the due date is empty', async () => {
 	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('lays the task title, the due date and Add task on one form row', async () => {
+test('lays the task title, the due date, the priority and Add task on one form row', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -310,19 +344,19 @@ test('lays the task title, the due date and Add task on one form row', async () 
 	await screen.findByRole('list', { name: 'Contact tasks' })
 	const title = screen.getByRole('textbox', { name: 'Task title' })
 	const due = screen.getByLabelText('Due date')
+	const priority = screen.getByLabelText('Priority')
 	const add = screen.getByRole('button', { name: 'Add task' })
 
 	const row = title.closest('.godmin-form__row')
 	expect(row).not.toBeNull()
 	expect(row?.parentElement).toHaveClass('godmin-form')
 	const cells = [...(row as Element).children]
-	expect(cells).toHaveLength(3)
-	const titleCell = cells.find((cell) => cell.contains(title))
-	const dueCell = cells.find((cell) => cell.contains(due))
-	expect(titleCell).toBeDefined()
-	expect(dueCell).toBeDefined()
-	expect(titleCell).not.toBe(dueCell)
+	expect(cells).toHaveLength(4)
+	const fieldCells = [title, due, priority].map((field) => cells.find((cell) => cell.contains(field)))
+	expect(fieldCells).not.toContain(undefined)
+	expect(new Set(fieldCells).size).toBe(3)
 	expect(add.parentElement).toBe(row)
+	expect(cells.at(-1)).toBe(add)
 
 	await userEvent.type(title, 'X')
 	await userEvent.click(add)
@@ -336,7 +370,7 @@ test('lets the contact task form fill its column as one row', async () => {
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
 	const form = screen.getByRole('textbox', { name: 'Task title' }).closest('form')
-	expect(form).toHaveClass('godmin-form', 'godmin-form--inline', 'alphone-tasks__add--contact')
+	expect(form).toHaveClass('godmin-form', 'godmin-form--inline', 'alphone-tasks__add', 'alphone-tasks__add--contact')
 })
 
 test('gives the contact task title the widest share of the form row', async () => {
@@ -361,7 +395,7 @@ test('names the contact task title with a visible label and no placeholder', asy
 	expect(screen.getByRole('textbox', { name: 'Task title' })).not.toHaveAttribute('placeholder')
 })
 
-test('starts the next task on today after an add', async () => {
+test('starts the next task on today at normal priority after an add', async () => {
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 
@@ -369,10 +403,14 @@ test('starts the next task on today after an add', async () => {
 	const due = screen.getByLabelText('Due date')
 	await userEvent.clear(due)
 	await userEvent.type(due, localDate(3))
+	await userEvent.click(screen.getByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	await waitFor(() => expect(created).toHaveLength(1))
 	await waitFor(() => expect(screen.getByLabelText('Due date')).toHaveValue(today))
+	expect(screen.getByLabelText('Priority')).toHaveTextContent('Normal')
+	expect(screen.getByRole('textbox', { name: 'Task title' })).toHaveValue('')
 })
 
 test('says when a contact has nothing open', async () => {

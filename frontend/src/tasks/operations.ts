@@ -2,6 +2,9 @@
 
 import { graphql } from '../gql'
 
+/** taskListReads names the documents that list tasks, reread on whichever screen is open when a task changes. */
+export const taskListReads = ['DayTasks', 'OverdueTasks', 'ContactDetail']
+
 export const createTaskMutation = graphql(`
 	mutation CreateTask($input: CreateTaskInput!) {
 		createTask(input: $input) {
@@ -56,6 +59,10 @@ export const dayTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					contact {
+						id
+						name
+					}
 				}
 				cursor
 			}
@@ -77,6 +84,10 @@ export const overdueTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					contact {
+						id
+						name
+					}
 				}
 				cursor
 			}

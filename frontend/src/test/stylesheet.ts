@@ -7,13 +7,25 @@ import { join } from 'node:path'
 const sheet = readFileSync(join(import.meta.dirname, '..', 'index.css'), 'utf8')
 
 /**
- * Returns the declarations of the top level rule written for exactly one selector.
+ * Escapes a string for use inside a regular expression.
+ * @param text - The literal text.
+ * @returns The escaped text.
+ */
+function literal(text: string): string {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Returns the declarations of the rule for exactly one selector, at the top level or inside the given media block.
  * @param selector - The selector of the rule.
+ * @param media - The condition of the media block holding the rule, such as (max-width: 639px).
  * @returns The declarations, keyed by property.
  */
-export function declarations(selector: string): Record<string, string> {
-	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-	const body = new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`).exec(sheet)?.[1] ?? ''
+export function declarations(selector: string, media?: string): Record<string, string> {
+	const block =
+		media === undefined ? sheet : (new RegExp(`\\n@media ${literal(media)} \\{([\\s\\S]*?)\\n\\}`).exec(sheet)?.[1] ?? '')
+	const indent = media === undefined ? '' : '\\t'
+	const body = new RegExp(`(?:^|\\n)${indent}${literal(selector)} \\{([^}]*)\\}`).exec(block)?.[1] ?? ''
 	return Object.fromEntries(
 		body
 			.split(';')

@@ -36,6 +36,29 @@ database is all an upgrade takes.
 | `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. AlphOne will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
 | `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. AlphOne will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
 
+## Timeouts and shutdown
+
+Each value is written as a duration such as `30s`, `1500ms` or `2m`.
+AlphOne will not start unless every value is a duration above zero. A
+value in words stops it with an error such as
+`ALPHONE_SHUTDOWN_GRACE: must be a duration like 30s, got "soon"`, and a
+zero stops it with `must stand above zero, got "0s"`.
+
+A stop runs the three shutdown graces one after the other, so with the
+defaults it can take up to 20 seconds. Whatever stops AlphOne must wait
+longer than the three added together. The Docker Compose file in
+[Install](/self-hosting/install/) waits 25 seconds, so raise its
+`stop_grace_period` whenever you raise a grace.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_HTTP_READ_HEADER_TIMEOUT` | How long a client has to send the headers of a request. Defaults to `10s`. |
+| `ALPHONE_HTTP_READ_TIMEOUT` | How long a client has to send a whole request, its body included. Defaults to `30s`. A request still arriving after that is cut off, so raise it when large uploads come over slow connections. |
+| `ALPHONE_HTTP_IDLE_TIMEOUT` | How long an idle connection waits for its next request before AlphOne closes it. Defaults to `2m`. |
+| `ALPHONE_SHUTDOWN_GRACE` | How long running requests get to finish once a stop begins. Defaults to `10s`. The requests still running after that are cancelled. |
+| `ALPHONE_SHUTDOWN_CANCEL_GRACE` | How long the cancelled requests get to end before AlphOne closes their connections. Defaults to `5s`. |
+| `ALPHONE_SHUTDOWN_STOP_GRACE` | How long the plugins get to stop once the requests are over. Defaults to `5s`. |
+
 ## Fields plugin
 
 | Variable | Purpose |

@@ -405,6 +405,12 @@
 	color: var(--wpds-color-foreground-content-neutral-weak);
 }
 
+.alphone-tasks__open-contact {
+	vertical-align: top;
+	margin-inline-start: var(--wpds-dimension-gap-xs);
+	margin-block: calc((var(--wpds-typography-line-height-sm) - var(--wpds-dimension-size-sm)) / 2);
+}
+
 .alphone-tasks__due {
 	color: var(--wpds-color-foreground-content-neutral-weak);
 	white-space: nowrap;
@@ -464,6 +470,10 @@
 	margin-left: auto;
 }
 
+.alphone-tasks__add .godmin-form__row > :not(.godmin-form__grow, button) {
+	flex-grow: 0;
+}
+
 /* Small viewport overrides live together at the end of the sheet, so they
    always win over the rules above them without needing extra specificity. */
 @media (max-width: 639px) {
@@ -489,6 +499,14 @@
 
 	.alphone-tasks__push {
 		margin-left: auto;
+	}
+
+	.alphone-tasks__add .godmin-form__grow {
+		flex-basis: 100%;
+	}
+
+	.alphone-tasks__add .godmin-form__row > :not(.godmin-form__grow, button) {
+		flex-grow: 1;
 	}
 
 }
