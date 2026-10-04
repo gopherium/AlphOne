@@ -168,7 +168,7 @@ func TestProgramSeedOnlyPreviewsUntilYes(t *testing.T) {
 
 	got := testkit.Run(t, bareProgram(env), "", "seed", "-yes")
 
-	if got.Code != gonsole.ExitDone || !strings.Contains(got.Stdout, "seeded demo data") ||
+	if got.Code != gonsole.ExitDone || !strings.Contains(got.Stdout, "seeded the core demo data") ||
 		!strings.Contains(got.Stderr, "demo data is for development only") {
 		t.Errorf("seed -yes = %d, stdout %q, stderr %q, want 0 and the demo data stored", got.Code, got.Stdout, got.Stderr)
 	}

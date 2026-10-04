@@ -35,7 +35,7 @@ const (
 	seedMemberName    = "Maria Perez"
 )
 
-// seed migrates the database and stores the demo data set.
+// seed stores the demo data set in a database whose core schema the command line migrated.
 func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) error {
 	env := settingsEnv(getenv)
 	databaseURL, err := env.Required("DATABASE_URL")
@@ -51,9 +51,6 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := migrate(ctx, databaseURL); err != nil {
-		return err
-	}
 	created, err := seedUsers(ctx, pool)
 	if err != nil {
 		return err
@@ -70,9 +67,8 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace, registerPlugins); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(stdout, "seeded demo data")
+	_, _ = fmt.Fprintln(stdout, "seeded the core demo data")
 	reportLogins(stdout, created)
-	_, _ = fmt.Fprintln(stdout, "development only, never seed a production database")
 	return nil
 }
 
