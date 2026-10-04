@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, InitialsAvatar, Stack, __, formatDate } from '@alphone/frontend-sdk'
+import { Badge, InitialsAvatar, Stack, __, channelName, formatDate } from '@alphone/frontend-sdk'
 import type { Field } from '@alphone/frontend-sdk/dataviews'
 
 import type { ContactPageQuery } from '../gql/graphql'
-import { channelName, channelNames } from './channel'
+import { channelNames } from './channel'
 
 /** ContactRow is one contact as the contacts list shows it. */
 export type ContactRow = ContactPageQuery['contactPage']['items'][number]

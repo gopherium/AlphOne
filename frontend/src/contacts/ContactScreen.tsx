@@ -14,6 +14,7 @@ import {
 	Text,
 	ValidationError,
 	__,
+	channelName,
 	formatDate,
 	graphError,
 	sprintf,
@@ -30,7 +31,7 @@ import { useId, useState } from 'react'
 import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
 import { ContactPanels } from './ContactPanels'
-import { channelItemOf, channelItems, channelName } from './channel'
+import { channelItemOf, channelItems } from './channel'
 import {
 	addContactIdentityMutation,
 	contactDetailQuery,

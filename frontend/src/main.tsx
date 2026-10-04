@@ -20,12 +20,14 @@ import { AppToaster, PublicToaster } from './AppToaster'
 import { graphAuthTransport } from './auth/graphTransport'
 import { LoginSlot, publicAuthScreen } from './auth/PublicAuth'
 import { BootLoading } from './boot'
+import { configureAppChannelNames } from './contacts/channel'
 import { configureAppErrorText } from './i18n/errors'
 import { startAppLocale } from './i18n/start'
 import { createAppRouter } from './router'
 
 await startAppLocale()
 configureAppErrorText()
+configureAppChannelNames()
 
 configureAuthTransport(graphAuthTransport)
 const queryClient = createAuthQueryClient()
