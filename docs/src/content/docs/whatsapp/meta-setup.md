@@ -168,7 +168,7 @@ docker compose up -d
 ```
 
 For [local development](/start/local-development/), put them in the
-repository's `.env` and restart `go run ./cmd/alphone`.
+repository's `.env` and restart `go run ./cmd/alphone serve`.
 
 ## 7. Send the first message
 
