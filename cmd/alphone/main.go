@@ -1,56 +1,49 @@
 // SPDX-License-Identifier: Elastic-2.0
 
-// Command alphone runs the AlphOne CRM server.
+// Command alphone runs the AlphOne CRM server and the commands an operator runs beside it.
 package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	"github.com/joho/godotenv"
+
+	"github.com/gopherium/framework/gonsole"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
 
-// errUnknownSubcommand reports a first argument naming no subcommand.
-var errUnknownSubcommand = errors.New("unknown subcommand")
+// oldCommands are the commands the old dispatch still runs ahead of the command line.
+var oldCommands = []string{"createadmin", "grantrole", "token"}
 
-// usage is the help text the CLI prints when asked.
-const usage = `AlphOne, a plugin first CRM.
-
-Usage:
-  alphone                serve the API and the web application
-  alphone createadmin    create the first administrator
-  alphone grantrole      give a role to every account holding none
-  alphone token          create and revoke API tokens
-  alphone seed           store the demo data
-  alphone help           print this text
-
-Pass -h to a subcommand for its own flags.
-Every setting is read from the environment, see
-https://docs.alph.one/self-hosting/configuration/`
-
-// main runs the alphone server, or one of its subcommands.
+// main runs the alphone command line, an old command through the old dispatch.
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	_ = godotenv.Load()
-	if err := dispatch(ctx, os.Args[1:], registerPlugins); err != nil {
-		fmt.Fprintln(os.Stderr, "alphone:", err)
-		os.Exit(1)
+	if len(os.Args) > 1 && slices.Contains(oldCommands, os.Args[1]) {
+		os.Exit(runOld(os.Args[1:]))
 	}
+	os.Exit(gonsole.Main(program(os.Getenv, registerPlugins)))
 }
 
-// dispatch runs the subcommand named by the first argument, or the server.
-func dispatch(ctx context.Context, args []string, plugins func(sdk.Deps) ([]sdk.Plugin, error)) error {
-	if len(args) == 0 {
-		return run(ctx, os.Getenv, os.Stderr, plugins)
+// runOld runs one old command under a context the first SIGINT or SIGTERM ends and returns its exit code.
+func runOld(args []string) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := dispatch(ctx, args, registerPlugins); err != nil {
+		fmt.Fprintln(os.Stderr, "alphone:", err)
+		return 1
 	}
+	return 0
+}
+
+// dispatch runs the old command the first argument names.
+func dispatch(ctx context.Context, args []string, plugins func(sdk.Deps) ([]sdk.Plugin, error)) error {
 	switch args[0] {
 	case "createadmin":
 		if err := declarePluginRoles(role.Default, os.Getenv, plugins); err != nil {
@@ -62,15 +55,6 @@ func dispatch(ctx context.Context, args []string, plugins func(sdk.Deps) ([]sdk.
 			return err
 		}
 		return grantRole(ctx, os.Getenv, args[1:], os.Stdout)
-	case "token":
-		return token(ctx, os.Getenv, args[1:], os.Stdout)
-	case "seed":
-		return seedCommand(ctx, os.Getenv, args[1:], os.Stdout)
-	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(os.Stdout, usage)
-		return err
-	default:
-		return fmt.Errorf("%w %q, want createadmin, grantrole, seed or token, or no argument to serve",
-			errUnknownSubcommand, args[0])
 	}
+	return token(ctx, os.Getenv, args[1:], os.Stdout)
 }

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -19,6 +20,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/version"
@@ -46,7 +49,7 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary)
+	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -55,10 +58,78 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("alphone without configuration: %v, want exit code 1", err)
+		t.Fatalf("alphone serve without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
+	}
+}
+
+// listingBudget bounds a bare run, which must print the listing and end rather than serve.
+const listingBudget = 30 * time.Second
+
+func TestMainBinaryListsTheCommandsWhenNoneIsNamed(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := barePostgres(t)
+	ctx, cancel := context.WithTimeout(t.Context(), listingBudget)
+	defer cancel()
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, binary)
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	inProcess := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	want := testkit.Run(t, programOver(role.NewRegistry(), inProcess, registerPlugins), "")
+	if err != nil || stdout.String() != want.Stdout || stderr.String() != want.Stderr {
+		t.Errorf("alphone = %v, stdout %q, stderr %q, want 0 and the listing the program prints in process %q",
+			err, stdout.String(), stderr.String(), want.Stdout)
+	}
+	if schemas := extraSchemas(t, databaseURL); len(schemas) > 0 {
+		t.Errorf("the database holds the schemas %v after a bare run, want nothing served or migrated", schemas)
+	}
+}
+
+func TestMainBinaryPrintsWhatTheProgramPrintsInProcess(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		args []string
+		code int
+	}{
+		"the seed help":   {[]string{"seed", "-h"}, 0},
+		"an unknown flag": {[]string{"seed", "-now"}, 2},
+	}
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			binary, env := coverBinary(t)
+			var stdout, stderr bytes.Buffer
+			cmd := exec.Command(binary, tc.args...)
+			cmd.Dir = t.TempDir()
+			cmd.Env = env
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			err := cmd.Run()
+
+			var exitErr *exec.ExitError
+			if err != nil && !errors.As(err, &exitErr) {
+				t.Fatalf("alphone %q: %v", tc.args, err)
+			}
+			want := testkit.Run(t, bareProgram(nil), "", tc.args...)
+			if code := cmd.ProcessState.ExitCode(); code != tc.code || want.Code != tc.code ||
+				stdout.String() != want.Stdout || stderr.String() != want.Stderr {
+				t.Errorf("alphone %q = %d, stdout %q, stderr %q, want %d and the in process %q and %q", tc.args,
+					code, stdout.String(), stderr.String(), tc.code, want.Stdout, want.Stderr)
+			}
+		})
 	}
 }
 
@@ -75,8 +146,8 @@ func TestMainBinaryPrintsHelp(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("alphone --help: %v, want it to succeed", err)
 	}
-	if !strings.Contains(stdout.String(), "createadmin") {
-		t.Errorf("stdout = %q, want the subcommands listed", stdout.String())
+	if !strings.Contains(stdout.String(), "\n  serve ") {
+		t.Errorf("stdout = %q, want the base commands listed", stdout.String())
 	}
 }
 
@@ -85,7 +156,7 @@ func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "not-a-subcommand")
+	cmd := exec.Command(binary, "not-a-command")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -93,10 +164,10 @@ func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 	err := cmd.Run()
 
 	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("alphone with an unknown argument: %v, want exit code 1", err)
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+		t.Fatalf("alphone with an unknown argument: %v, want exit code 2", err)
 	}
-	if !strings.Contains(stderr.String(), "unknown subcommand") {
+	if !strings.Contains(stderr.String(), `unknown command "not-a-command"`) {
 		t.Errorf("stderr = %q, want the argument refused", stderr.String())
 	}
 	if strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
@@ -151,7 +222,7 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "seed")
+	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -160,7 +231,7 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("seed without configuration: %v, want exit code 1", err)
+		t.Fatalf("seed -yes without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
@@ -197,7 +268,7 @@ func TestMainBinarySeedStoresDemoData(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(binary, "seed")
+	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
 	cmd.Stdout = &stdout
@@ -218,7 +289,7 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -255,7 +326,7 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -293,7 +364,7 @@ func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -320,7 +391,7 @@ func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -356,7 +427,7 @@ func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	binary, env := coverBinary(t)
 	addr := freeAddr(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary)
+	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env,
 		"ALPHONE_DATABASE_URL="+testDatabaseURL(t),
@@ -587,7 +658,7 @@ func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (stri
 		t.Fatalf("token create: %v", err)
 	}
 	addr := freeAddr(t)
-	serve := exec.Command(binary)
+	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
 		"ALPHONE_DATABASE_URL="+databaseURL,
@@ -726,7 +797,7 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 		t.Fatalf("token create: %v", err)
 	}
 	addr := freeAddr(t)
-	serve := exec.Command(binary)
+	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
 		"ALPHONE_DATABASE_URL="+databaseURL,

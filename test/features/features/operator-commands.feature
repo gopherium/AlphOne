@@ -9,7 +9,6 @@ Feature: Operators run AlphOne from one command line
   Background:
     Given the settings point at an empty database
 
-  @wip
   Scenario: A run with no command lists every command and leaves the database without a schema
     When the operator runs alphone with no command
     Then the command succeeds
@@ -28,14 +27,12 @@ Feature: Operators run AlphOne from one command line
       | createadmin |
       | grantrole   |
 
-  @wip
   Scenario: A help page answers without a database
     Given the settings name no database
     When the operator asks for the help page of "migrate"
     Then the command succeeds
     And the answer describes "migrate"
 
-  @wip
   Scenario: Seeding only previews until it is confirmed with -yes
     When the operator runs "seed"
     Then the command succeeds
