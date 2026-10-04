@@ -55,10 +55,13 @@ func serve(plugins func(sdk.Deps) ([]sdk.Plugin, error)) func(context.Context, g
 	}
 }
 
-// validate returns the check of every setting the server and the account hooks of cfg read, reaching no database.
+// validate checks every setting the server, the token commands and the account hooks of cfg read, reaching no database.
 func validate(cfg accounts.Config) func(context.Context, gonsole.Call) error {
 	return func(_ context.Context, call gonsole.Call) error {
 		if _, err := loadRunConfig(call.Env.Getenv); err != nil {
+			return err
+		}
+		if _, err := defaultTokenLifetime(call.Env); err != nil {
 			return err
 		}
 		return cfg.Validate(call.Env)

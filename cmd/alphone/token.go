@@ -27,8 +27,11 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// defaultTokenLifetime is how long a token minted from the command line lasts.
-const defaultTokenLifetime = 90 * 24 * time.Hour
+// tokenDaysSetting is the setting that names how many days a token minted without -ttl lasts.
+const tokenDaysSetting = "TOKEN_TTL_DAYS"
+
+// defaultTokenDays is how many days a token minted without -ttl lasts when the setting is unset.
+const defaultTokenDays = 90
 
 // dateLayout formats the dates the token commands print.
 const dateLayout = "2006-01-02"
@@ -148,7 +151,8 @@ func createTokenFlags(fs *flag.FlagSet) {
 	fs.String("name", "", "`name` of the token to create")
 	fs.Var(new(scopeList), "scope", "`area:access` scope the token may act in, repeatable, the area one of "+
 		strings.Join(graphres.DeclaredAreas(), ", "))
-	fs.String("ttl", "", "`days` the token lasts, or never")
+	fs.String("ttl", "", fmt.Sprintf("`days` the token lasts, or never, %s days when left out, %d when it is unset",
+		settingsEnv(nil).Key(tokenDaysSetting), defaultTokenDays))
 }
 
 // revokeTokenFlags declares the flags of token:revoke.
@@ -183,12 +187,22 @@ func grantedScopes(call gonsole.Call) apitoken.Scopes {
 	return apitoken.Scopes(asked)
 }
 
-// tokenLifetime returns the lifetime the call asks for, the default when it asks for none.
+// defaultTokenLifetime returns how long a token minted without -ttl lasts, as the setting in env names it.
+func defaultTokenLifetime(env gonsole.Env) (time.Duration, error) {
+	days, err := env.Count(tokenDaysSetting, defaultTokenDays,
+		gonsole.AllowZero(), gonsole.AtMost(apitoken.MaxLifetimeDays))
+	if err != nil {
+		return 0, err
+	}
+	return apitoken.LifetimeOfDays(days)
+}
+
+// tokenLifetime returns the lifetime the call asks for, the setting's default when it asks for none.
 func tokenLifetime(call gonsole.Call) (time.Duration, error) {
 	ttl := call.Flags["ttl"]
 	switch ttl {
 	case "":
-		return defaultTokenLifetime, nil
+		return defaultTokenLifetime(call.Env)
 	case neverWord:
 		return apitoken.Never, nil
 	}

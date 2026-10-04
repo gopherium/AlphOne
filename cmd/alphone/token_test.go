@@ -334,7 +334,7 @@ func TestTokenCreateGrantsFullScopeForNinetyDaysAndSaysSo(t *testing.T) {
 	if got, want := stored.Scopes.String(), apitoken.Wildcard; got != want {
 		t.Errorf("scopes = %q, want %q", got, want)
 	}
-	if want := stored.CreatedAt.Add(defaultTokenLifetime); !stored.ExpiresAt.Equal(want) {
+	if want := stored.CreatedAt.Add(90 * 24 * time.Hour); !stored.ExpiresAt.Equal(want) {
 		t.Errorf("expires at %v, want %v", stored.ExpiresAt, want)
 	}
 	said := fmt.Sprintf("scopes %s, expires %s", stored.Scopes, stored.ExpiresAt.UTC().Format(dateLayout))
@@ -449,6 +449,85 @@ func TestTokenCreateLastsAsLongAsAsked(t *testing.T) {
 	stored := storedToken(t, databaseURL, secretOf(t, got.Stdout))
 	if want := stored.CreatedAt.Add(7 * 24 * time.Hour); !stored.ExpiresAt.Equal(want) {
 		t.Errorf("expires at %v, want %v", stored.ExpiresAt, want)
+	}
+}
+
+func TestTokenCreateTakesItsDefaultLifetimeFromTheSetting(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		setting string
+		ttl     []string
+		want    time.Duration
+	}{
+		"seven days":                       {"7", nil, 7 * 24 * time.Hour},
+		"seven days padded with spaces":    {"  7  ", nil, 7 * 24 * time.Hour},
+		"zero days, which never expire":    {"0", nil, apitoken.Never},
+		"seven days and a -ttl of three":   {"7", []string{"-ttl", "3"}, 3 * 24 * time.Hour},
+		"seven days and a -ttl of zero":    {"7", []string{"-ttl", "0"}, apitoken.Never},
+		"the most days a token may last":   {"106751", nil, apitoken.MaxLifetimeDays * 24 * time.Hour},
+		"a malformed setting under a -ttl": {"a season", []string{"-ttl", "3"}, 3 * 24 * time.Hour},
+	}
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			databaseURL, env := tokenDatabase(t)
+			env["ALPHONE_TOKEN_TTL_DAYS"] = tc.setting
+
+			got := mint(t, env, tc.ttl...)
+
+			stored := storedToken(t, databaseURL, secretOf(t, got.Stdout))
+			lasts := apitoken.Never
+			if !stored.ExpiresAt.IsZero() {
+				lasts = stored.ExpiresAt.Sub(stored.CreatedAt)
+			}
+			if lasts != tc.want {
+				t.Errorf("the token lasts %v (expires at %v), want %v", lasts, stored.ExpiresAt, tc.want)
+			}
+		})
+	}
+}
+
+func TestTokenCreateRefusesAMalformedDefaultLifetime(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	env["ALPHONE_TOKEN_TTL_DAYS"] = "a season"
+
+	got := testkit.Run(t, bareProgram(env), "", "token:create", "-email", "admin@example.com", "-name", "n8n")
+
+	want := "alphone: ALPHONE_TOKEN_TTL_DAYS: must be a whole number, got \"a season\"\n"
+	if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+		t.Errorf("token:create = %d, stdout %q, stderr %q, want 1 and %q", got.Code, got.Stdout, got.Stderr, want)
+	}
+	if minted := countRows(t, testPool(t, databaseURL), "core.api_tokens"); minted != 0 {
+		t.Errorf("the database holds %d tokens, want none minted", minted)
+	}
+}
+
+func TestCheckNamesAMalformedTokenLifetime(t *testing.T) {
+	t.Parallel()
+
+	reasons := map[string]string{
+		"a season": "must be a whole number",
+		"-1":       "must not be negative",
+		"106752":   "must stand at or below 106751",
+	}
+	for value, reason := range reasons {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, "ALPHONE_TOKEN_TTL_DAYS": value}
+
+			got := testkit.Run(t, bareProgram(env), "", "check")
+
+			want := fmt.Sprintf("alphone: ALPHONE_TOKEN_TTL_DAYS: %s, got %q\n", reason, value)
+			if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+				t.Errorf("check with ALPHONE_TOKEN_TTL_DAYS=%q = %d, stdout %q, stderr %q, want 1 and %q",
+					value, got.Code, got.Stdout, got.Stderr, want)
+			}
+		})
 	}
 }
 
@@ -954,7 +1033,7 @@ func TestTokenCreateHelpNamesEveryDeclaredArea(t *testing.T) {
 		"    \tarea:access scope the token may act in, repeatable, the area one of " +
 			strings.Join(graphres.DeclaredAreas(), ", "),
 		"  -ttl days",
-		"    \tdays the token lasts, or never",
+		"    \tdays the token lasts, or never, ALPHONE_TOKEN_TTL_DAYS days when left out, 90 when it is unset",
 		"",
 	}, "\n")
 	if got.Code != gonsole.ExitDone || got.Stdout != want || got.Stderr != "" {

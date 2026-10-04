@@ -54,10 +54,11 @@ func coreSettings() map[string]string {
 	}
 }
 
-// settingsReadElsewhere names the settings of the example file that a plugin or an account command reads, not the core.
+// settingsReadElsewhere names the settings of the example file that a plugin or a command reads, not the server.
 var settingsReadElsewhere = []string{
 	"ALPHONE_COMMAND_RECORD_TIMEOUT",
 	"ALPHONE_COMMAND_RECORDS_LIMIT",
+	"ALPHONE_TOKEN_TTL_DAYS",
 	"ALPHONE_FIELDS_ENTRIES_MAX",
 	"ALPHONE_WHATSAPP_VERIFY_TOKEN",
 	"ALPHONE_WHATSAPP_APP_SECRET",
@@ -173,13 +174,14 @@ func TestEverySettingTheExampleFileNamesHasAnOwner(t *testing.T) {
 	}
 }
 
-func TestTheExampleFileStatesTheRecordFallbacks(t *testing.T) {
+func TestTheExampleFileStatesTheCommandFallbacks(t *testing.T) {
 	t.Parallel()
 
 	named := exampleSettings(t)
 	fallbacks := map[string]string{
 		"ALPHONE_COMMAND_RECORD_TIMEOUT": recordTimeout.String(),
 		"ALPHONE_COMMAND_RECORDS_LIMIT":  strconv.Itoa(recordsLimit),
+		"ALPHONE_TOKEN_TTL_DAYS":         strconv.Itoa(defaultTokenDays),
 	}
 
 	for key, want := range fallbacks {
