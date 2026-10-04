@@ -343,7 +343,7 @@ func buildDemoTask(
 	return built.Apply(task.Changes{Status: &done})
 }
 
-// seedPlugins registers every plugin, starts them and stores their demo data, stopping them within the stop grace.
+// seedPlugins registers, starts and seeds every plugin, then stops them within the stop grace, reporting a failed stop.
 func seedPlugins(
 	ctx context.Context,
 	databaseURL string,
@@ -351,7 +351,7 @@ func seedPlugins(
 	resolver *contact.Resolver,
 	stopGrace time.Duration,
 	plugins func(sdk.Deps) ([]sdk.Plugin, error),
-) error {
+) (err error) {
 	registered, err := plugins(sdk.Deps{
 		DatabaseURL: databaseURL,
 		Resolver:    resolverBridge{resolver: resolver},
@@ -360,7 +360,7 @@ func seedPlugins(
 		Env:         settingsEnv(getenv),
 	})
 	host := pluginkit.NewHost(registered...)
-	defer func() { _ = gonsole.StopHost(ctx, host, stopGrace) }()
+	defer func() { err = errors.Join(err, gonsole.StopHost(ctx, host, stopGrace)) }()
 	if err != nil {
 		return err
 	}

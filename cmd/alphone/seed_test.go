@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 var errEntropy = errors.New("entropy source failed")
@@ -691,5 +693,24 @@ func TestSeedPluginsReportsSeedFailure(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("seedPlugins() error = nil, want a seed failure")
+	}
+}
+
+func TestSeedPluginsReportsAPluginThatFailsToStop(t *testing.T) {
+	t.Parallel()
+
+	var stopped atomic.Pointer[stopSeen]
+	failingStop := func(sdk.Deps) ([]sdk.Plugin, error) {
+		return []sdk.Plugin{stoppingPlugin{stopped: &stopped}}, nil
+	}
+
+	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil),
+		contact.NewResolver(nil), servingDefaults.StopGrace, failingStop)
+
+	if !errors.Is(err, errStopFailed) {
+		t.Errorf("seedPlugins() error = %v, want the failed stop %q reported", err, errStopFailed)
+	}
+	if stopped.Load() == nil {
+		t.Error("the plugin was left running, want it stopped after seeding")
 	}
 }
