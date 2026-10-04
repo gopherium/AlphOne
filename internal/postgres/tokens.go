@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/postgres/db"
 	"github.com/gopherium/alphone/sdk"
@@ -86,6 +88,34 @@ func (s *TokenStore) ListForUser(ctx context.Context, userID uuid.UUID) ([]apito
 		tokens = append(tokens, tokenFromRow(row))
 	}
 	return tokens, nil
+}
+
+// OwnedToken is one stored token beside the address of the account owning it and the tenant keeping it.
+type OwnedToken struct {
+	Token    apitoken.Token
+	Owner    string
+	TenantID uuid.UUID
+}
+
+// ListEvery returns the tokens of every account in every tenant, the owner blank when no account answers.
+func (s *TokenStore) ListEvery(ctx context.Context) ([]OwnedToken, error) {
+	rows, err := s.queries.ListEveryAPIToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list every api token: %w", err)
+	}
+	accounts, err := authkitpg.NewUserStore(s.pool).ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list the token owners: %w", err)
+	}
+	owners := make(map[uuid.UUID]string, len(accounts))
+	for _, account := range accounts {
+		owners[account.ID] = account.Email
+	}
+	every := make([]OwnedToken, 0, len(rows))
+	for _, row := range rows {
+		every = append(every, OwnedToken{Token: tokenFromRow(row), Owner: owners[row.UserID], TenantID: row.TenantID})
+	}
+	return every, nil
 }
 
 // Revoke deletes one token of userID, or reports [apitoken.ErrNotFound] when

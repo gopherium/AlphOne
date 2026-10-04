@@ -32,6 +32,24 @@ var workerQueries = map[string]bool{
 	"SettleWebhookDelivery":  true,
 }
 
+// operatorQueries names the queries an operator command runs across every tenant on purpose.
+var operatorQueries = map[string]bool{
+	"ListEveryAPIToken": true,
+}
+
+// exemptedGroups holds every group of queries exempted from the tenant filter.
+var exemptedGroups = []map[string]bool{authenticatingQueries, workerQueries, operatorQueries}
+
+// exempted reports whether a group of exempted queries names the query called name.
+func exempted(name string) bool {
+	for _, group := range exemptedGroups {
+		if group[name] {
+			return true
+		}
+	}
+	return false
+}
+
 // namedQueries splits a sqlc source into its named query blocks.
 func namedQueries(source string) map[string]string {
 	blocks := map[string]string{}
@@ -203,7 +221,7 @@ func TestEveryNamedQueryFiltersTheGuardedTablesByTenant(t *testing.T) {
 	}
 
 	for name, query := range queries {
-		if authenticatingQueries[name] || workerQueries[name] {
+		if exempted(name) {
 			continue
 		}
 		for _, table := range unguarded(query, tenantGuardedTables) {
@@ -221,14 +239,11 @@ func TestEveryExemptedQueryStillExists(t *testing.T) {
 	}
 	queries := namedQueries(string(source))
 
-	for name := range authenticatingQueries {
-		if _, held := queries[name]; !held {
-			t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
-		}
-	}
-	for name := range workerQueries {
-		if _, held := queries[name]; !held {
-			t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
+	for _, group := range exemptedGroups {
+		for name := range group {
+			if _, held := queries[name]; !held {
+				t.Errorf("%s is exempted but no longer exists, want the exemption dropped", name)
+			}
 		}
 	}
 }

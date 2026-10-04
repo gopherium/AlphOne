@@ -679,6 +679,42 @@ func (q *Queries) ListContactsByIDs(ctx context.Context, arg ListContactsByIDsPa
 	return items, nil
 }
 
+const listEveryAPIToken = `-- name: ListEveryAPIToken :many
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
+FROM core.api_tokens
+ORDER BY tenant_id, user_id, created_at DESC, id DESC
+`
+
+func (q *Queries) ListEveryAPIToken(ctx context.Context) ([]CoreApiToken, error) {
+	rows, err := q.db.Query(ctx, listEveryAPIToken)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreApiToken
+	for rows.Next() {
+		var i CoreApiToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.TokenHash,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+			&i.Scopes,
+			&i.ExpiresAt,
+			&i.TenantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id
