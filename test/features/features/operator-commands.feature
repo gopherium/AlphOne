@@ -15,7 +15,6 @@ Feature: Operators run AlphOne from one command line
     And the answer lists the commands "serve", "migrate", "seed" and "check"
     And the database holds no schema
 
-  @wip
   Scenario Outline: An account command name from before the command line is refused
     When the operator runs "<name>"
     Then the command exits with code 2
@@ -42,7 +41,6 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the database holds the demo data
 
-  @wip
   Scenario: The first administrator is created from the command line
     When the operator creates the administrator "admin@example.com" with the password "correct horse battery"
     Then the command succeeds

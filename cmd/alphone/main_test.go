@@ -163,6 +163,9 @@ func newContactStore(t *testing.T) *postgres.ContactStore {
 	return postgres.NewContactStore(pool)
 }
 
+// unreachableDatabaseURL names a database on a port no server listens on, given up on within a second.
+const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
+
 // testDatabaseURL returns the URL of a fresh migrated database, skipping the test in short mode.
 func testDatabaseURL(t *testing.T) string {
 	t.Helper()

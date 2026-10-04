@@ -17,7 +17,10 @@ import (
 )
 
 // listedCommands are the names the listing of the command line holds, in the order it prints them.
-var listedCommands = []string{"check", "help", "list", "migrate", "seed", "serve", "version"}
+var listedCommands = []string{
+	"check", "help", "list", "migrate", "seed", "serve", "version",
+	"account:create-admin", "account:disable", "account:enable", "account:grant-role", "account:list", "account:role",
+}
 
 // bareProgram returns the command line over env, its plugins registering nothing into a role registry of its own.
 func bareProgram(env map[string]string) gonsole.Program {
@@ -39,13 +42,20 @@ func TestProgramListsEveryCommandWhenNoneIsNamed(t *testing.T) {
 			"A command that offers -yes is a dry run until -yes.",
 		"",
 		"Available commands:",
-		"  check    check every setting, every plugin and every command name",
-		"  help     print the help of one command",
-		"  list     list every command",
-		"  migrate  apply every schema step",
-		"  seed     store the demo data",
-		"  serve    run the server",
-		"  version  print the version",
+		"  check                 check every setting, every plugin and every command name",
+		"  help                  print the help of one command",
+		"  list                  list every command",
+		"  migrate               apply every schema step",
+		"  seed                  store the demo data",
+		"  serve                 run the server",
+		"  version               print the version",
+		" account",
+		"  account:create-admin  create an account under a role",
+		"  account:disable       disable one account",
+		"  account:enable        enable one disabled account",
+		"  account:grant-role    give a role to every account holding none",
+		"  account:list          list every account with its role",
+		"  account:role          set one account's role",
 		"",
 		"Every command is described at https://docs.alph.one/self-hosting/commands/",
 		"",
@@ -80,6 +90,22 @@ func TestProgramRefusesAnUnknownCommand(t *testing.T) {
 	want := "alphone: unknown command \"not-a-command\", run \"alphone list\" to see every command\n"
 	if got.Code != gonsole.ExitMisused || got.Stdout != "" || got.Stderr != want {
 		t.Errorf("not-a-command = %d, stdout %q, stderr %q, want 2 and %q", got.Code, got.Stdout, got.Stderr, want)
+	}
+}
+
+func TestProgramRefusesTheCommandNamesFromBeforeTheCommandLine(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"createadmin", "grantrole"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := testkit.Run(t, bareProgram(nil), "", name)
+
+			if got.Code != gonsole.ExitMisused || !strings.Contains(got.Stderr, `unknown command "`+name+`"`) {
+				t.Errorf("%s = %d with stderr %q, want 2 and the unknown command named", name, got.Code, got.Stderr)
+			}
+		})
 	}
 }
 

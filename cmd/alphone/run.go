@@ -171,25 +171,6 @@ func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
 	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
 }
 
-// declarePluginRoles registers the plugins over the settings a role declaration needs and grants
-// the registry every role they declare.
-func declarePluginRoles(
-	registry *role.Registry,
-	getenv func(string) string,
-	plugins func(sdk.Deps) ([]sdk.Plugin, error),
-) error {
-	env := settingsEnv(getenv)
-	registered, err := plugins(sdk.Deps{
-		DatabaseURL: env.Value("DATABASE_URL"),
-		Getenv:      getenv,
-		Env:         env,
-	})
-	if err != nil {
-		return fmt.Errorf("register plugins: %w", err)
-	}
-	return declareRoles(registry, registered)
-}
-
 // declareRoles grants the registry every role a registered plugin declares.
 func declareRoles(registry *role.Registry, registered []sdk.Plugin) error {
 	for _, plugin := range registered {

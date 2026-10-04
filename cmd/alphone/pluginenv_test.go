@@ -38,15 +38,17 @@ func TestRunHandsThePluginsTheirSettingsReader(t *testing.T) {
 	assertReadsThePluginSetting(t, handed)
 }
 
-func TestDeclarePluginRolesHandsThePluginsTheirSettingsReader(t *testing.T) {
+func TestLoadPluginsHandsThePluginsTheirSettingsReader(t *testing.T) {
 	t.Parallel()
 
 	var handed sdk.Deps
-	err := declarePluginRoles(role.NewRegistry(), testGetenv(mediaCapSetting), capturingPlugins(&handed))
+	loaded, err := loadPlugins(role.NewRegistry(), capturingPlugins(&handed))(t.Context(),
+		describingCall(mediaCapSetting, io.Discard))
 
-	if !errors.Is(err, errCaptured) {
-		t.Fatalf("declarePluginRoles() error = %v, want %v in its chain", err, errCaptured)
+	if err != nil || !errors.Is(loaded.Failed, errCaptured) {
+		t.Fatalf("loadPlugins() = %v with %v failed, want %v failed", err, loaded.Failed, errCaptured)
 	}
+	releaseAtEnd(t, loaded)
 	assertReadsThePluginSetting(t, handed)
 }
 

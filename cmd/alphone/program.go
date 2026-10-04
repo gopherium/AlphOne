@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/gopherium/framework/gonsole"
+	accounts "github.com/gopherium/framework/gonsole/auth"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/version"
@@ -31,6 +32,7 @@ func programOver(
 		Serve:      serve(plugins),
 		Migrations: migrations(),
 		Seed:       seedCore,
+		Commands:   accounts.Commands(accountConfig(registry)),
 		Plugins:    loadPlugins(registry, plugins),
 	}
 }

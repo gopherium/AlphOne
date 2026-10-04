@@ -39,7 +39,13 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.When(`^the operator runs alphone with no command$`, s.runWithNoCommand)
 		sc.When(`^the operator runs "([^"]*)"$`, s.runLine)
 		sc.When(`^the operator asks for the help page of "([^"]*)"$`, s.askForHelp)
+		sc.When(`^the operator creates the administrator "([^"]*)" with the password "([^"]*)"$`,
+			s.createAdministrator)
 		sc.Then(`^the command succeeds$`, s.succeeds)
+		sc.Then(`^the command exits with code (\d+)$`, s.exitsWith)
+		sc.Then(`^the answer says "([^"]*)" is an unknown command$`, s.namesUnknownCommand)
+		sc.Then(`^the answer names the command "([^"]*)"$`, s.namesCommand)
+		sc.Then(`^the account "([^"]*)" holds the role "([^"]*)"$`, s.holdsRole)
 		sc.Then(`^the answer lists the commands "([^"]*)", "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.listsCommands)
 		sc.Then(`^the answer describes "([^"]*)"$`, s.describes)
 		sc.Then(`^the answer says nothing changed until it is confirmed with "([^"]*)"$`, s.saysNothingChanged)
@@ -59,30 +65,66 @@ func (s *operatorScenario) nameNoDatabase() {
 	delete(s.env, "ALPHONE_DATABASE_URL")
 }
 
-// run runs the command line in process over the scenario's settings and the compiled plugins.
-func (s *operatorScenario) run(args ...string) {
-	s.result = testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registerPlugins), "", args...)
+// run runs the command line in process over the scenario's settings and the compiled plugins, feeding stdin.
+func (s *operatorScenario) run(stdin string, args ...string) {
+	s.result = testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registerPlugins), stdin, args...)
 }
 
 // runWithNoCommand runs the command line naming no command.
 func (s *operatorScenario) runWithNoCommand() {
-	s.run()
+	s.run("")
 }
 
 // runLine runs the command line the text spells, split on its spaces.
 func (s *operatorScenario) runLine(line string) {
-	s.run(strings.Fields(line)...)
+	s.run("", strings.Fields(line)...)
 }
 
 // askForHelp asks for the help page of the command called name.
 func (s *operatorScenario) askForHelp(name string) {
-	s.run("help", name)
+	s.run("", "help", name)
+}
+
+// createAdministrator creates an administrator at email, typing the password on standard input.
+func (s *operatorScenario) createAdministrator(email, password string) {
+	s.run(password+"\n", "account:create-admin", "-email", email, "-name", "Administrator", "-role", "admin")
 }
 
 // succeeds fails unless the command exited with code 0.
 func (s *operatorScenario) succeeds() error {
-	if s.result.Code != 0 {
-		return fmt.Errorf("the command exited with %d and stderr %q, want 0", s.result.Code, s.result.Stderr)
+	return s.exitsWith(0)
+}
+
+// exitsWith fails unless the command exited with code.
+func (s *operatorScenario) exitsWith(code int) error {
+	if s.result.Code != code {
+		return fmt.Errorf("the command exited with %d and stderr %q, want %d", s.result.Code, s.result.Stderr, code)
+	}
+	return nil
+}
+
+// namesUnknownCommand fails unless the refusal names the command called name as unknown.
+func (s *operatorScenario) namesUnknownCommand(name string) error {
+	if !strings.Contains(s.result.Stderr, `unknown command "`+name+`"`) {
+		return fmt.Errorf("stderr %q does not name the unknown command %q", s.result.Stderr, name)
+	}
+	return nil
+}
+
+// namesCommand fails unless the refusal names the command the operator can run instead.
+func (s *operatorScenario) namesCommand(name string) error {
+	if !strings.Contains(s.result.Stderr, name) {
+		return fmt.Errorf("stderr %q does not name %q", s.result.Stderr, name)
+	}
+	return nil
+}
+
+// holdsRole fails unless the account at email holds the role.
+func (s *operatorScenario) holdsRole(ctx context.Context, email, held string) error {
+	var stored bool
+	err := s.scan(ctx, "SELECT EXISTS (SELECT FROM auth.users WHERE email = $1 AND role = $2)", &stored, email, held)
+	if err != nil || !stored {
+		return fmt.Errorf("the account %s holds the role %s %v (%v), want it to", email, held, stored, err)
 	}
 	return nil
 }

@@ -20,13 +20,13 @@ func TestMainBinaryGrantsARoleToEveryAccountHoldingNone(t *testing.T) {
 	databaseURL := testDatabaseURL(t)
 	holding := storeRoleless(t, databaseURL, "none@example.com")
 	var stdout bytes.Buffer
-	granting := exec.Command(binary, "grantrole", "-role", "member")
+	granting := exec.Command(binary, "account:grant-role", "-role", "member", "-yes")
 	granting.Dir = t.TempDir()
 	granting.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	granting.Stdout = &stdout
 
 	if err := granting.Run(); err != nil {
-		t.Fatalf("grantrole: %v, answered %s", err, stdout.String())
+		t.Fatalf("account:grant-role: %v, answered %s", err, stdout.String())
 	}
 
 	users := authkitpg.NewUserStore(testPool(t, databaseURL))

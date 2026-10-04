@@ -3,10 +3,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
@@ -15,16 +19,27 @@ import (
 // addressReader runs one command over getenv, address being the database address it must use.
 type addressReader func(t *testing.T, getenv func(string) string, address string) error
 
+// commandFailure runs the command line over getenv and plugins and answers its refusal, nil when it succeeds.
+func commandFailure(
+	t *testing.T, getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error), args ...string,
+) error {
+	t.Helper()
+	got := testkit.Run(t, programOver(role.NewRegistry(), getenv, plugins), typedPassword+"\n", args...)
+	if got.Code == gonsole.ExitDone {
+		return nil
+	}
+	return errors.New(strings.TrimSuffix(strings.TrimPrefix(got.Stderr, "alphone: "), "\n"))
+}
+
 // addressRequirers returns every command that refuses to run without a database address, by name.
 func addressRequirers() map[string]addressReader {
 	return map[string]addressReader{
-		"createadmin": func(t *testing.T, getenv func(string) string, _ string) error {
-			return createAdmin(t.Context(), getenv,
-				[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
-				strings.NewReader("correct horse battery\n"), io.Discard)
+		"account:create-admin": func(t *testing.T, getenv func(string) string, _ string) error {
+			return commandFailure(t, getenv, registeringNothing,
+				"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 		},
-		"grantrole": func(t *testing.T, getenv func(string) string, _ string) error {
-			return grantRole(t.Context(), getenv, []string{"-role", "member"}, io.Discard)
+		"account:grant-role": func(t *testing.T, getenv func(string) string, _ string) error {
+			return commandFailure(t, getenv, registeringNothing, "account:grant-role", "-role", "member", "-yes")
 		},
 		"token": func(t *testing.T, getenv func(string) string, _ string) error {
 			return token(t.Context(), getenv, []string{"list", "-email", "maria.perez@example.com"}, io.Discard)
@@ -38,13 +53,13 @@ func addressRequirers() map[string]addressReader {
 // addressReaders returns every reader of the database address, the commands and the plugin roles, by name.
 func addressReaders() map[string]addressReader {
 	readers := addressRequirers()
-	readers["the plugin roles"] = func(_ *testing.T, getenv func(string) string, address string) error {
-		return declarePluginRoles(role.NewRegistry(), getenv, func(deps sdk.Deps) ([]sdk.Plugin, error) {
+	readers["the plugin roles"] = func(t *testing.T, getenv func(string) string, address string) error {
+		return commandFailure(t, getenv, func(deps sdk.Deps) ([]sdk.Plugin, error) {
 			if deps.DatabaseURL != address {
 				return nil, fmt.Errorf("the plugins got the address %q, want %q", deps.DatabaseURL, address)
 			}
 			return nil, nil
-		})
+		}, "account:grant-role", "-role", "member")
 	}
 	return readers
 }
@@ -82,16 +97,5 @@ func TestEveryCommandRefusesABlankDatabaseAddressByName(t *testing.T) {
 				t.Errorf("%s over a blank address error = %v, want %q", name, err, "ALPHONE_DATABASE_URL is required")
 			}
 		})
-	}
-}
-
-func TestRoleWritingSubcommandsPrintTheirHelpWithoutADatabaseAddress(t *testing.T) {
-	t.Setenv("ALPHONE_DATABASE_URL", "")
-	noPlugins := func(sdk.Deps) ([]sdk.Plugin, error) { return nil, nil }
-
-	for _, name := range []string{"createadmin", "grantrole"} {
-		if err := dispatch(t.Context(), []string{name, "-h"}, noPlugins); err != nil {
-			t.Errorf("dispatch(%s -h) error = %v, want the help printed before the address is read", name, err)
-		}
 	}
 }

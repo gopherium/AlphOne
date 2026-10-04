@@ -22,16 +22,7 @@ import (
 // seedTokenUser provisions the account the token subcommand acts for.
 func seedTokenUser(t *testing.T, getenv func(string) string) {
 	t.Helper()
-	err := createAdmin(
-		t.Context(),
-		getenv,
-		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
-		strings.NewReader("correct horse battery\n"),
-		io.Discard,
-	)
-	if err != nil {
-		t.Fatalf("createAdmin() error = %v, want nil", err)
-	}
+	createAccount(t, getenv, "admin@example.com", "admin")
 }
 
 // secretOf returns the token secret printed in output.
