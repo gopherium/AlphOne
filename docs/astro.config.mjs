@@ -60,7 +60,11 @@ export default defineConfig({
 				},
 				{
 					label: 'Extending',
-					items: [{ slug: 'extending/screens' }, { slug: 'extending/graph' }],
+					items: [
+						{ slug: 'extending/screens' },
+						{ slug: 'extending/graph' },
+						{ slug: 'extending/commands' },
+					],
 				},
 				{
 					label: 'Contributing',
