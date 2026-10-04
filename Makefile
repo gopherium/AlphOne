@@ -1,8 +1,9 @@
-.PHONY: peers test test-race cover cover-html lint vuln fmt generate outdated db-up db-down db-reset \
+.PHONY: peers test test-race cover cover-html test-uncovered lint vuln fmt generate outdated db-up db-down db-reset \
 	seed dev dev-watch demo n8n n8n-down n8n-node n8n-node-local runbook \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e /internal/graphroot -e '/alphone/graph$$' -e '/alphone/graph/model$$')
+UNCOVEREDPKGS = $(filter-out $(COVERPKGS),$(shell go list ./...))
 
 test:
 	go test ./...
@@ -117,14 +118,15 @@ demo: db-up e2e-build
 	ALPHONE_WEB_DIR=frontend/dist ./alphone serve
 
 COVERDATA = .covdata
+GOTESTFLAGS ?=
 
 cover:
 	rm -rf $(COVERDATA)
 	mkdir -p $(COVERDATA)/bin $(COVERDATA)/counters
-	go build -cover -coverpkg=./cmd/... -o $(COVERDATA)/bin ./cmd/alphone ./cmd/doclint ./cmd/pluginwire ./cmd/schemagen
+	go build -cover -covermode=atomic -coverpkg=./cmd/... -o $(COVERDATA)/bin ./cmd/alphone ./cmd/doclint ./cmd/pluginwire ./cmd/schemagen
 	ALPHONE_COVER_BINDIR=$(CURDIR)/$(COVERDATA)/bin \
 	ALPHONE_COVER_GOCOVERDIR=$(CURDIR)/$(COVERDATA)/counters \
-	go test -cover $(COVERPKGS) -args -test.gocoverdir=$(CURDIR)/$(COVERDATA)/counters
+	go test $(GOTESTFLAGS) -cover -covermode=atomic $(COVERPKGS) -args -test.gocoverdir=$(CURDIR)/$(COVERDATA)/counters
 	@echo "=== merged unit + binary coverage ==="
 	go tool covdata percent -i=$(COVERDATA)/counters
 	@go tool covdata textfmt -i=$(COVERDATA)/counters -o $(COVERDATA)/cover.out
@@ -132,6 +134,9 @@ cover:
 
 cover-html: cover
 	go tool cover -html=$(COVERDATA)/cover.out
+
+test-uncovered:
+	go test $(GOTESTFLAGS) $(UNCOVEREDPKGS)
 
 E2E_DB ?= alphone_e2e
 E2E_DATABASE_URL ?= postgres://postgres:alphone@localhost:5433/$(E2E_DB)?sslmode=disable
