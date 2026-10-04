@@ -80,6 +80,41 @@ test('carries work left over from an earlier day into today', async ({ page }) =
 	await expect(page.getByRole('listitem', { name: title })).toBeVisible()
 })
 
+test('adds a task with a due date and a priority from the tasks screen', async ({ page }) => {
+	const title = `Order more boxes ${Date.now()}`
+
+	await page.goto('/')
+	await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
+	const browserDay = await page.evaluate(() => {
+		const at = new Date()
+		const today = at.toLocaleDateString('en-CA')
+		at.setDate(at.getDate() + 1)
+		return { today, tomorrow: at.toLocaleDateString('en-CA') }
+	})
+
+	await page.getByRole('textbox', { name: 'Task title', exact: true }).fill(title)
+	await page.getByLabel('Due date', { exact: true }).fill(browserDay.tomorrow)
+	await page.getByLabel('Priority', { exact: true }).click()
+	await page.getByRole('option', { name: 'High', exact: true }).click()
+	await page.getByRole('button', { name: 'Add task', exact: true }).click()
+
+	const toasts = page.locator('.godmin-toasts')
+	const added = `Task added for ${browserDay.tomorrow.split('-').reverse().join('/')}.`
+	await expect(toasts.getByText(added, { exact: true })).toBeVisible()
+	await expect(page.getByRole('textbox', { name: 'Task title', exact: true })).toHaveValue('')
+	await expect(page.getByRole('textbox', { name: 'Task title', exact: true })).toBeFocused()
+	await expect(page.getByLabel('Due date', { exact: true })).toHaveValue(browserDay.today)
+	await expect(page.getByLabel('Priority', { exact: true })).toHaveText('Normal')
+	await expect(page.getByRole('listitem', { name: title, exact: true })).toHaveCount(0)
+
+	await toasts.getByRole('button', { name: 'View', exact: true }).click()
+
+	const openTasks = page.getByRole('list', { name: 'Open tasks', exact: true })
+	const row = openTasks.getByRole('listitem', { name: title, exact: true })
+	await expect(row).toBeVisible()
+	await expect(row.getByText('High', { exact: true })).toBeVisible()
+})
+
 test('opens a task from the day list', async ({ page }) => {
 	const title = `Approve the pricing ${Date.now()}`
 

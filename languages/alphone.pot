@@ -455,6 +455,9 @@ msgstr ""
 msgid "Task"
 msgstr ""
 
+msgid "Task added for %(date)s."
+msgstr ""
+
 msgid "Task added."
 msgstr ""
 
@@ -683,6 +686,10 @@ msgstr ""
 
 msgctxt "task priority"
 msgid "Normal"
+msgstr ""
+
+msgctxt "toast action"
+msgid "View"
 msgstr ""
 
 msgctxt "token area"

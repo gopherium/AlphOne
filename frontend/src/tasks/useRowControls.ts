@@ -5,7 +5,7 @@ import type { ToastAction } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
 import { laterDate, movedMessage, shiftDate, statusMessage } from './format'
-import { updateTaskMutation } from './operations'
+import { taskListReads, updateTaskMutation } from './operations'
 import type { ListedTask, RowControls } from './TaskList'
 
 /** ListControls are what the rows of a task list run and whether the last change or its undo failed. */
@@ -13,9 +13,6 @@ interface ListControls {
 	controls: RowControls
 	failed: boolean
 }
-
-/** listReads names the documents that list tasks, reread on whichever screen is open when a row change lands. */
-const listReads = ['DayTasks', 'OverdueTasks', 'ContactDetail']
 
 /**
  * Returns the controls completing, reopening and postponing the rows of a task list, each confirmed with an Undo toast.
@@ -30,7 +27,7 @@ export function useRowControls(today: string): ListControls {
 	const [push, runPush] = useGraphMutation(updateTaskMutation)
 	const settled = (data: unknown) => {
 		if (data) {
-			graph.refetch(listReads)
+			graph.refetch(taskListReads)
 		}
 		return Boolean(data)
 	}

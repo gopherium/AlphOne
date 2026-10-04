@@ -464,6 +464,10 @@
 	margin-left: auto;
 }
 
+.alphone-tasks__add .godmin-form__row > :not(.godmin-form__grow, button) {
+	flex-grow: 0;
+}
+
 /* Small viewport overrides live together at the end of the sheet, so they
    always win over the rules above them without needing extra specificity. */
 @media (max-width: 639px) {
@@ -489,6 +493,14 @@
 
 	.alphone-tasks__push {
 		margin-left: auto;
+	}
+
+	.alphone-tasks__add .godmin-form__grow {
+		flex-basis: 100%;
+	}
+
+	.alphone-tasks__add .godmin-form__row > :not(.godmin-form__grow, button) {
+		flex-grow: 1;
 	}
 
 }
