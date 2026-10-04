@@ -31,6 +31,7 @@ func programOver(
 		Database:   "DATABASE_URL",
 		Renamed:    map[string]string{"token create": "token:create", "token list": "token:list"},
 		Serve:      serve(plugins),
+		Validate:   validate,
 		Migrations: migrations(),
 		Seed:       seedCore,
 		Commands:   append(accounts.Commands(accountConfig(registry)), tokenCommands()...),
@@ -43,6 +44,12 @@ func serve(plugins func(sdk.Deps) ([]sdk.Plugin, error)) func(context.Context, g
 	return func(ctx context.Context, call gonsole.Call) error {
 		return run(ctx, call.Env.Getenv, call.Stderr, plugins)
 	}
+}
+
+// validate checks every setting the server reads, reaching no database.
+func validate(_ context.Context, call gonsole.Call) error {
+	_, err := loadRunConfig(call.Env.Getenv)
+	return err
 }
 
 // seedCore stores the demo data in the database the call's settings name.

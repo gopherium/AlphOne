@@ -242,6 +242,49 @@ func TestACommandStopsThePluginsItRegistered(t *testing.T) {
 	}
 }
 
+func TestCheckNamesAMalformedSetting(t *testing.T) {
+	t.Parallel()
+
+	malformed := map[string]string{
+		"ALPHONE_INVITE_TTL":        "a week",
+		"ALPHONE_HTTP_READ_TIMEOUT": "soon",
+		"ALPHONE_RESET_ATTEMPTS":    "many",
+		"ALPHONE_TRUSTED_PROXIES":   "the office",
+	}
+	for key, value := range malformed {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, key: value}
+
+			got := testkit.Run(t, bareProgram(env), "", "check")
+
+			if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.HasPrefix(got.Stderr, "alphone: "+key+": ") {
+				t.Errorf("check with %s=%q = %d, stdout %q, stderr %q, want 1 and the setting named",
+					key, value, got.Code, got.Stdout, got.Stderr)
+			}
+		})
+	}
+}
+
+func TestCheckPassesValidSettingsWithoutReachingTheDatabase(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"ALPHONE_DATABASE_URL":      unreachableDatabaseURL,
+		"ALPHONE_INVITE_TTL":        "72h",
+		"ALPHONE_HTTP_READ_TIMEOUT": "45s",
+		"ALPHONE_RESET_ATTEMPTS":    "5",
+	}
+
+	got := testkit.Run(t, bareProgram(env), "", "check")
+
+	want := "settings, plugins and command names are valid\n"
+	if got.Code != gonsole.ExitDone || got.Stdout != want || got.Stderr != "" {
+		t.Errorf("check = %d, stdout %q, stderr %q, want 0 and every setting valid", got.Code, got.Stdout, got.Stderr)
+	}
+}
+
 func TestProgramListsTheTokenCommands(t *testing.T) {
 	t.Parallel()
 

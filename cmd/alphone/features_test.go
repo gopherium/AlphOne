@@ -66,7 +66,22 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Then(`^the answer lists the token "([^"]*)"$`, s.listsToken)
 		sc.Then(`^the token list of "([^"]*)" shows "([^"]*)"$`, s.tokenListShows)
 		sc.Then(`^the token list of "([^"]*)" shows no secret$`, s.tokenListShowsNoSecret)
+		sc.Given(`^the setting "([^"]*)" holds "([^"]*)"$`, s.holdSetting)
+		sc.Then(`^the answer names the setting "([^"]*)"$`, s.namesSetting)
 	}
+}
+
+// holdSetting gives the setting called key the value.
+func (s *operatorScenario) holdSetting(key, value string) {
+	s.env[key] = value
+}
+
+// namesSetting fails unless the refusal names the setting called key.
+func (s *operatorScenario) namesSetting(key string) error {
+	if !strings.Contains(s.result.Stderr, key) {
+		return fmt.Errorf("stderr %q does not name the setting %s", s.result.Stderr, key)
+	}
+	return nil
 }
 
 // holdAdministrator creates the administrator at email, typing the password on standard input.

@@ -119,7 +119,6 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token list of "admin@example.com" shows no token
 
-  @wip
   Scenario: The check command names a malformed setting
     Given the setting "ALPHONE_INVITE_TTL" holds "a week"
     When the operator runs "check"
