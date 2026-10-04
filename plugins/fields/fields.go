@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"strconv"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -28,8 +28,8 @@ var migrations embed.FS
 
 var migrationSource = mustSub(migrations, "migrations")
 
-// entriesMaxVariable names the setting that caps the entries one repeater holds.
-const entriesMaxVariable = "ALPHONE_FIELDS_ENTRIES_MAX"
+// entriesMaxSetting names the setting under the program prefix that caps the entries one repeater holds.
+const entriesMaxSetting = "FIELDS_ENTRIES_MAX"
 
 // defaultEntriesMax is how many entries one repeater holds when the setting is unset.
 const defaultEntriesMax = 500
@@ -46,28 +46,9 @@ type Plugin struct {
 	entriesMax int
 }
 
-// entriesCap parses the most entries one repeater holds, applying the default when raw is empty.
-func entriesCap(raw string) (int, error) {
-	if raw == "" {
-		return defaultEntriesMax, nil
-	}
-	parsed, err := strconv.ParseInt(raw, 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("fields: parse %s: %w", entriesMaxVariable, err)
-	}
-	if parsed <= 0 {
-		return 0, fmt.Errorf("fields: %s must be positive", entriesMaxVariable)
-	}
-	return int(parsed), nil
-}
-
-// Register builds the fields [Plugin] from the host-provided deps, reading the entries cap from the environment.
+// Register builds the fields [Plugin] from the host-provided deps, reading the entries cap through the settings reader.
 func Register(deps sdk.Deps) (*Plugin, error) {
-	getenv := deps.Getenv
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	entriesMax, err := entriesCap(getenv(entriesMaxVariable))
+	entriesMax, err := deps.Env.Count(entriesMaxSetting, defaultEntriesMax, sdk.AtMost(math.MaxInt32))
 	if err != nil {
 		return nil, err
 	}
