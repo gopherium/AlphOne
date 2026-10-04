@@ -11,9 +11,26 @@ precedence over `.env` entries, which is how the container setup in
 [`.env.example`](https://github.com/gopherium/AlphOne/blob/main/.env.example)
 as a commented template.
 
-Database migrations for the core, the auth layer, and every plugin run
-automatically at startup, so pointing a new version at an existing
-database is all an upgrade takes.
+When a variable holds a value AlphOne refuses:
+
+- `alphone check` names it, without connecting to the database.
+- `serve` will not start, unless the variable is one of the three under
+  [Account records and tokens](#account-records-and-tokens), which only
+  the commands read.
+- A refused value under [Mail](#mail), [Workspaces](#workspaces),
+  [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
+  or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops `migrate`, `seed -yes`,
+  `account:create-admin` and the account commands that take `-as`.
+
+[Commands](/self-hosting/commands/) describes every command.
+
+Database migrations for the core, the auth layer, the command records
+and every plugin run automatically when `serve` starts, so pointing a
+new version at an existing database is all an upgrade takes.
+`alphone migrate` runs them without starting the server. Each run waits
+for one database lock, so a starting server and a command never migrate
+together. The wait is fixed: AlphOne asks for the lock every five
+seconds and gives up after five minutes.
 
 ## Core
 
@@ -22,7 +39,7 @@ database is all an upgrade takes.
 | `ALPHONE_DATABASE_URL` | yes | none | PostgreSQL connection string, e.g. `postgres://user:pass@host:5432/alphone?sslmode=disable`. |
 | `ALPHONE_ADDR` | no | `localhost:8080` | Listen address. The container image sets `0.0.0.0:8080`. |
 | `ALPHONE_WEB_DIR` | no | unset | Directory holding the built frontend, served for all non-API paths. The container image sets `/web`. Unset, only the API is served, which suits development behind Vite. |
-| `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is rejected at startup. |
+| `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is refused. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
 ## Mail
@@ -127,6 +144,17 @@ see [Meta setup](/whatsapp/meta-setup/).
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
 | `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
 | `ALPHONE_WHATSAPP_CREDENTIALS_KEY` | A key of 32 bytes written as 64 hex characters, which seals a workspace's own WhatsApp access token in the database when a plugin stores one per workspace. Unset, no such token can be stored. AlphOne refuses a value that is not hex or does not hold 32 bytes. |
+
+## Account records and tokens
+
+Only the [commands](/self-hosting/commands/) read these. `serve`
+ignores them, and `alphone check` names a refused value.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_COMMAND_RECORD_TIMEOUT` | How long storing the record of one applied account change may take, written as a duration such as `5s`. Defaults to `5s`. A record that takes longer fails, and the command exits 1 with the change already made. The account commands that take `-as` refuse a value that is not a duration above zero. |
+| `ALPHONE_COMMAND_RECORDS_LIMIT` | How many records `account:records` lists when `-limit` is left out. Defaults to 50. `account:records` refuses a value that is not a whole number above zero, unless `-limit` is given. |
+| `ALPHONE_TOKEN_TTL_DAYS` | How many days a token minted with `token:create` lasts when `-ttl` is left out. Defaults to 90. `0` mints tokens that never expire. `token:create` refuses a value that is not a whole number from 0 to 106751, unless `-ttl` is given. |
 
 ## Behavior worth knowing
 

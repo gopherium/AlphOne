@@ -23,6 +23,15 @@ docker compose pull alphone
 docker compose up -d alphone
 ```
 
+Recreating the container starts `serve`, which applies the new version's
+migrations before it listens. Let that happen before the first account
+change after an update, or run `alphone migrate`, which applies them
+without starting the server, see [Commands](/self-hosting/commands/).
+After an update from a release that did not keep command records yet,
+the account commands that take `-as` change nothing until the
+migrations ran. They stop with
+`the command records are missing, run migrate first`.
+
 ## Updating automatically
 
 Any watcher that reacts to a republished `:latest` digest works. The
@@ -52,6 +61,13 @@ Pin the previous version and re-up:
 ```sh
 docker compose up -d alphone
 ```
+
+A release from before the command line was rebuilt serves when it runs
+with no command, and refuses `serve`. Remove `serve` from any
+`command:` or script you added before you pin such a release. It also
+refuses every command in the Now column of
+[Old names](/self-hosting/commands/#old-names), so a script that runs
+one of them stops working.
 
 One caution: rolling the app back does not roll the database back.
 Migrations only move forward, so if the newer version already migrated
@@ -96,11 +112,47 @@ is what the backup section below sets up anyway.
 An account that ends up holding no role still works contacts and tasks,
 because no field of the product asks for a capability. What it loses is
 user management, so a rollback that strips every role can leave nobody
-able to promote anyone back. `alphone grantrole -role member` gives a
-role to every account holding none, and says how many it changed. It
-leaves the accounts that already hold one alone, so running it twice
-changes nothing the second time. Choose the role with care, because it
-goes to every account holding none rather than to one you pick.
+able to promote anyone back. `account:grant-role` gives a role to every
+account holding none, and says how many it changed. It leaves the
+accounts that already hold one alone, so running it twice changes
+nothing the second time. Choose the role with care, because it goes to
+every account holding none rather than to one you pick.
+
+Like every command that changes an existing account, it acts as an
+admin you name with `-as`, and it only shows what it would change until
+you add `-yes`:
+
+```sh
+docker compose exec alphone /alphone \
+  account:grant-role -role member -as admin@example.com
+```
+
+```text
+would grant member to 2 accounts
+alphone: dry run, nothing changed, pass -yes to apply
+```
+
+Run the same line with `-yes` at the end to give the role. The acting
+account must be enabled, activated and hold a role that manages users,
+such as admin. When nobody holds a role, no account can act, and the
+command stops with
+`the account admin@example.com holds no role, so it lacks manage_users`.
+Create a new admin with `account:create-admin`, as in
+[Install](/self-hosting/install/#4-start-it-and-create-the-admin-login),
+and act as it:
+
+```sh
+docker compose exec alphone /alphone account:create-admin \
+  -email rescue@example.com -name "Rescue Admin" -role admin
+docker compose exec alphone /alphone \
+  account:grant-role -role member -as rescue@example.com -yes
+docker compose exec alphone /alphone \
+  account:role admin@example.com admin -as rescue@example.com -yes
+```
+
+The last line gives one former admin the admin role back. Repeat it for
+each of them. Every applied change is recorded, and `account:records`
+lists who made it.
 
 ## Backup scenario
 
