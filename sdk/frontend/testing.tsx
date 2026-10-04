@@ -7,6 +7,7 @@ import {
 	HttpResponse,
 	installTestEnvironment as installAuthTestEnvironment,
 	defaultUser,
+	seedSession,
 	server,
 } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -20,6 +21,7 @@ import {
 	createRouter,
 	useRouterState,
 } from '@tanstack/react-router'
+import type { AnyRouter } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
 import { Badge, Button, Text } from '@wordpress/ui'
 import { graphql } from 'msw'
@@ -31,6 +33,7 @@ import { doorbellExchange, graphCacheExchange, graphRetryExchange } from './grap
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
+import type { Session } from './session'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
 export { setViewport } from '@gopherium/godmin/testing'
@@ -209,13 +212,40 @@ export function installTestEnvironment() {
 	installAuthTestEnvironment()
 }
 
+/** PluginHostOptions tunes the host a plugin screen renders in. */
+export interface PluginHostOptions {
+	/** session is the signed-in account the host holds, read without a session request. */
+	session?: Session
+}
+
+/** HostedPlugin is the fake graph a hosted plugin consumes beside the router it is mounted in. */
+export interface HostedPlugin extends FakeGraph {
+	/** router is the router the plugin routes are mounted in. */
+	router: AnyRouter
+}
+
+/**
+ * Returns the query client a plugin host holds, the session seeded and never stale when one is given.
+ * @param session - The signed-in account, absent for a host holding none.
+ * @returns The query client.
+ */
+function hostQueryClient(session?: Session): QueryClient {
+	if (session === undefined) {
+		return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	}
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+	seedSession(client, session)
+	return client
+}
+
 /**
  * Renders the given frontend plugin mounted at a specific route path, below a toaster.
  * @param plugin - The frontend plugin whose nav and routes are mounted.
  * @param path - The initial router path to render at.
- * @returns The fake graph client the mounted plugin consumes.
+ * @param options - The session the host holds, none by default.
+ * @returns The fake graph client the mounted plugin consumes, beside its router.
  */
-export function renderPluginAt(plugin: FrontendPlugin, path: string): FakeGraph {
+export function renderPluginAt(plugin: FrontendPlugin, path: string, options: PluginHostOptions = {}): HostedPlugin {
 	const rootRoute = createRootRoute({
 		component: function TestHost() {
 			const matches = useRouterState({ select: (state) => state.matches })
@@ -256,9 +286,7 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string): FakeGraph 
 		routeTree,
 		history: createMemoryHistory({ initialEntries: [path] }),
 	})
-	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	})
+	const client = hostQueryClient(options.session)
 	const fake = fakeGraphClient()
 	render(
 		<QueryClientProvider client={client}>
@@ -269,5 +297,5 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string): FakeGraph 
 			</GraphProvider>
 		</QueryClientProvider>,
 	)
-	return fake
+	return { ...fake, router }
 }
