@@ -191,9 +191,10 @@ test('opens the contact of a task from the person icon on its row', async ({ pag
 		'mutation($name: String!) { createContact(name: $name) { id } }',
 		{ name: contact },
 	)
+	const browserToday = await page.evaluate(() => new Date().toLocaleDateString('en-CA'))
 	await createTask(request, {
 		title,
-		dueOn: new Date().toISOString().slice(0, 10),
+		dueOn: browserToday,
 		contactId: created.createContact.id,
 	})
 
