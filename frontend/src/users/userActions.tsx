@@ -15,7 +15,7 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { BulkFailure, GraphFailure, Session } from '@alphone/frontend-sdk'
+import type { BulkFailure, Session } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 import { usersQueryKey } from '@gopherium/react-auth/admin'
 import { useQueryClient } from '@tanstack/react-query'
@@ -54,7 +54,7 @@ function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailu
 		const fallback = disabled
 			? __('The user could not be disabled.', 'alphone')
 			: __('The user could not be enabled.', 'alphone')
-		return validationMessage(graphError(failures[0].error as GraphFailure), fallback)
+		return validationMessage(graphError(failures[0].error), fallback)
 	}
 	const template = disabled
 		? _n('%s user could not be disabled.', '%s users could not be disabled.', failures.length, 'alphone')

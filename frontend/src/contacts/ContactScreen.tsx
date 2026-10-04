@@ -26,6 +26,7 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
+import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useId, useState } from 'react'
 
 import { plugins } from '../plugins'
@@ -105,7 +106,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
  * @param error - The failure the mutation answered with.
  * @returns The mapped error, or undefined when the write succeeded.
  */
-function identityError(error: Parameters<typeof graphError>[0]): Error | undefined {
+function identityError(error: GraphFailure | undefined): Error | undefined {
 	const owner = graphExtensions(error).ownerName
 	if (typeof owner === 'string') {
 		return new ValidationError(sprintf(__('Already on contact %(name)s.', 'alphone'), { name: owner }))

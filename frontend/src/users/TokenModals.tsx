@@ -14,7 +14,7 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { BulkOutcome, GraphFailure } from '@alphone/frontend-sdk'
+import type { BulkOutcome } from '@alphone/frontend-sdk'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 import { useState } from 'react'
 
@@ -69,7 +69,7 @@ function revokedMessage({ asked, done }: RevokeOutcome): string {
  */
 function unrevokedMessage({ asked, failures }: RevokeOutcome): string {
 	if (asked === 1) {
-		const reason = graphError(failures[0].error as GraphFailure)
+		const reason = graphError(failures[0].error)
 		return validationMessage(reason, __('The token could not be revoked.', 'alphone'))
 	}
 	const template = _n('%s token could not be revoked.', '%s tokens could not be revoked.', failures.length, 'alphone')
