@@ -61,11 +61,12 @@ func seedCommand(ctx context.Context, getenv func(string) string, args []string,
 
 // seed migrates the database and stores the demo data set.
 func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) error {
-	databaseURL := getenv("ALPHONE_DATABASE_URL")
-	if databaseURL == "" {
-		return errors.New("ALPHONE_DATABASE_URL is required")
+	env := settingsEnv(getenv)
+	databaseURL, err := env.Required("DATABASE_URL")
+	if err != nil {
+		return err
 	}
-	stopGrace, err := settingsEnv(getenv).Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
+	stopGrace, err := env.Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
 	if err != nil {
 		return err
 	}

@@ -199,10 +199,11 @@ func declarePluginRoles(
 	getenv func(string) string,
 	plugins func(sdk.Deps) ([]sdk.Plugin, error),
 ) error {
+	env := settingsEnv(getenv)
 	registered, err := plugins(sdk.Deps{
-		DatabaseURL: getenv("ALPHONE_DATABASE_URL"),
+		DatabaseURL: env.Value("DATABASE_URL"),
 		Getenv:      getenv,
-		Env:         settingsEnv(getenv),
+		Env:         env,
 	})
 	if err != nil {
 		return fmt.Errorf("register plugins: %w", err)
