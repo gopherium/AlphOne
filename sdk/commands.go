@@ -18,3 +18,17 @@ type Env = gonsole.Env
 
 // Misuse marks err as a misused command line, which exits with code 2.
 var Misuse = gonsole.Misuse
+
+// Bound narrows the values a Count or Duration setting accepts.
+type Bound = gonsole.Bound
+
+// AtMost refuses a value above highest.
+var AtMost = gonsole.AtMost
+
+// AllowZero accepts zero beside the values above it.
+var AllowZero = gonsole.AllowZero
+
+// Parse returns the setting read by parse, the fallback when it is empty, any error naming the setting.
+func Parse[T any](e Env, name string, fallback T, parse func(string) (T, error)) (T, error) {
+	return gonsole.Parse(e, name, fallback, parse)
+}
