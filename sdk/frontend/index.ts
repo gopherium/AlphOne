@@ -118,6 +118,7 @@ export type {
 	ToasterHandle,
 } from '@gopherium/godmin'
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
+export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, can, useSession } from './session'
 export type { Capability, Role, Session } from './session'
