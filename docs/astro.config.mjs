@@ -47,6 +47,7 @@ export default defineConfig({
 					items: [
 						{ slug: 'self-hosting/install' },
 						{ slug: 'self-hosting/configuration' },
+						{ slug: 'self-hosting/commands' },
 						{ slug: 'self-hosting/updates-and-backups' },
 					],
 				},
