@@ -35,17 +35,14 @@ var (
 	errSealTooShort     = errors.New("whatsapp: sealed token shorter than its nonce")
 )
 
-// credentialsKey parses a hex encoded 32 byte sealing key, answering nil for an empty value.
+// credentialsKey parses a hex encoded 32 byte sealing key.
 func credentialsKey(raw string) ([]byte, error) {
-	if raw == "" {
-		return nil, nil
-	}
 	key, err := hex.DecodeString(raw)
 	if err != nil {
-		return nil, fmt.Errorf("whatsapp: parse ALPHONE_WHATSAPP_CREDENTIALS_KEY: %w", err)
+		return nil, fmt.Errorf("must be hex encoded: %w", err)
 	}
 	if len(key) != 32 {
-		return nil, fmt.Errorf("whatsapp: ALPHONE_WHATSAPP_CREDENTIALS_KEY holds %d bytes, want 32", len(key))
+		return nil, fmt.Errorf("must hold 32 bytes, got %d", len(key))
 	}
 	return key, nil
 }

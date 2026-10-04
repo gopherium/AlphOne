@@ -61,6 +61,8 @@ var settingsReadElsewhere = []string{
 	"ALPHONE_WHATSAPP_ACCESS_TOKEN",
 	"ALPHONE_WHATSAPP_PHONE_NUMBER_ID",
 	"ALPHONE_WHATSAPP_CREDENTIALS_KEY",
+	"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES",
+	"ALPHONE_WHATSAPP_GRAPH_URL",
 }
 
 // exampleSetting matches one setting line of the example file, commented or not, capturing its key.

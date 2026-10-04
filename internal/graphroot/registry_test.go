@@ -83,12 +83,12 @@ func TestAllReturnsThePluginsThatRegisteredBesideALaterFailure(t *testing.T) {
 
 	plugins, err := graphroot.All(sdk.Deps{
 		DatabaseURL: lazyURL,
-		Getenv: func(name string) string {
+		Env: sdk.Env{Prefix: "ALPHONE_", Getenv: func(name string) string {
 			if name == "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES" {
 				return "not a byte count"
 			}
 			return ""
-		},
+		}},
 	})
 	stopRegistered(t, plugins)
 

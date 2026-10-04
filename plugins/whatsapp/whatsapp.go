@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -58,19 +57,14 @@ func newOutboundClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: transportTemplate.Clone()}
 }
 
-// Register builds the WhatsApp [Plugin] from the host-provided deps,
-// reading its Meta application credentials and the tenant sealing key
-// from the ALPHONE_WHATSAPP environment variables.
+// Register builds the WhatsApp [Plugin] from the host-provided deps, reading its settings under WHATSAPP_.
 func Register(deps sdk.Deps) (*Plugin, error) {
-	getenv := deps.Getenv
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	maxBytes, err := mediaCap(getenv("ALPHONE_WHATSAPP_MEDIA_MAX_BYTES"))
+	env := deps.Env.Within("WHATSAPP_")
+	maxBytes, err := env.Count("MEDIA_MAX_BYTES", defaultMediaMaxBytes)
 	if err != nil {
 		return nil, err
 	}
-	key, err := credentialsKey(getenv("ALPHONE_WHATSAPP_CREDENTIALS_KEY"))
+	key, err := sdk.Parse(env, "CREDENTIALS_KEY", nil, credentialsKey)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +72,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
 	}
-	graphURL := getenv("ALPHONE_WHATSAPP_GRAPH_URL")
+	graphURL := env.Value("GRAPH_URL")
 	if graphURL == "" {
 		graphURL = defaultGraphURL
 	}
@@ -86,12 +80,12 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		pool:        pool,
 		resolver:    deps.Resolver,
 		publisher:   deps.Events,
-		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
-		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
+		verifyToken: env.Value("VERIFY_TOKEN"),
+		appSecret:   env.Value("APP_SECRET"),
 		key:         key,
 		envCredentials: credentials{
-			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
-			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+			phoneNumberID: env.Value("PHONE_NUMBER_ID"),
+			accessToken:   env.Value("ACCESS_TOKEN"),
 		},
 		store: &store{pool: pool},
 		sender: &sender{
@@ -104,25 +98,9 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		baseURL:     graphURL,
 		credentials: p.credentialsFor,
 		records:     p.recordsTraffic,
-		maxBytes:    maxBytes,
+		maxBytes:    int64(maxBytes),
 	})
 	return p, nil
-}
-
-// mediaCap parses the stored media size limit, applying the default when raw
-// is empty.
-func mediaCap(raw string) (int64, error) {
-	if raw == "" {
-		return defaultMediaMaxBytes, nil
-	}
-	parsed, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("whatsapp: parse ALPHONE_WHATSAPP_MEDIA_MAX_BYTES: %w", err)
-	}
-	if parsed <= 0 {
-		return 0, errors.New("whatsapp: ALPHONE_WHATSAPP_MEDIA_MAX_BYTES must be positive")
-	}
-	return parsed, nil
 }
 
 // ID reports the plugin identifier.
