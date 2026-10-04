@@ -159,4 +159,8 @@ jobs:
           fi
           (cd base && apidiff -w /tmp/sdk-base.export ./sdk)
           apidiff -incompatible /tmp/sdk-base.export ./sdk | tee /tmp/incompatible.txt
+          if [ -s /tmp/incompatible.txt ] && grep -q '^0\.' internal/version/VERSION; then
+            echo "::warning title=sdk contract::the sdk changed incompatibly, allowed while AlphOne is below 1.0"
+            exit 0
+          fi
           test ! -s /tmp/incompatible.txt

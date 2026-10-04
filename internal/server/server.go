@@ -14,9 +14,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
-	"github.com/gopherium/pluginkit"
 
 	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/credential"

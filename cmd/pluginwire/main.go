@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gopherium/pluginkit/graphwire"
-	"github.com/gopherium/pluginkit/wire"
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/pluginkit/graphwire"
+	"github.com/gopherium/framework/pluginkit/wire"
 )
 
 // roots lists the plugin root directories scanned in order.
@@ -24,6 +25,7 @@ var config = wire.Config{
 	License:      "Elastic-2.0",
 	TSLicense:    "AGPL-3.0-or-later",
 	Roots:        roots,
+	Reserved:     append(gonsole.BaseCommands(), "account", "token"),
 
 	GoRegistryPath:    "internal/graphroot/registry_gen.go",
 	GoRegistryPackage: "graphroot",

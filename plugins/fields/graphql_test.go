@@ -45,7 +45,7 @@ func newFieldsClientWith(t *testing.T, getenv func(string) string) *gqlclient.Cl
 		t.Fatalf("connecting the test pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL(), Getenv: getenv})
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL(), Env: sdk.Env{Prefix: "ALPHONE_", Getenv: getenv}})
 	if err != nil {
 		t.Fatalf("fields.Register() error = %v, want nil", err)
 	}

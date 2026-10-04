@@ -44,12 +44,12 @@ func newPublishingPlugin(t *testing.T) (*whatsapp.Plugin, *recordingPublisher) {
 	p, err := whatsapp.Register(sdk.Deps{
 		DatabaseURL: cfg.URL(),
 		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
-		Getenv: func(key string) string {
+		Env: sdk.Env{Prefix: "ALPHONE_", Getenv: func(key string) string {
 			return map[string]string{
 				"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
 				"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "555000111",
 			}[key]
-		},
+		}},
 		Events: publisher,
 	})
 	if err != nil {

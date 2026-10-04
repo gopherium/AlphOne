@@ -50,9 +50,9 @@ func token(ctx context.Context, getenv func(string) string, args []string, stdou
 		return err
 	}
 
-	databaseURL := getenv("ALPHONE_DATABASE_URL")
-	if databaseURL == "" {
-		return errors.New("ALPHONE_DATABASE_URL is required")
+	databaseURL, err := settingsEnv(getenv).Required("DATABASE_URL")
+	if err != nil {
+		return err
 	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {

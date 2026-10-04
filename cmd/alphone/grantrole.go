@@ -26,9 +26,9 @@ func grantRole(ctx context.Context, getenv func(string) string, args []string, s
 		return fmt.Errorf("parse flags: %w", err)
 	}
 
-	databaseURL := getenv("ALPHONE_DATABASE_URL")
-	if databaseURL == "" {
-		return errors.New("ALPHONE_DATABASE_URL is required")
+	databaseURL, err := settingsEnv(getenv).Required("DATABASE_URL")
+	if err != nil {
+		return err
 	}
 	held, err := role.Parse(*named)
 	if err != nil {

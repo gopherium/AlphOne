@@ -101,14 +101,18 @@ func (f *mediaFetcher) Start() {
 	}()
 }
 
-// Stop cancels the download loop and waits for it to finish. Stopping a
-// never started fetcher is not an error.
-func (f *mediaFetcher) Stop() {
+// Stop cancels the download loop and waits for it to finish, returning the error of ctx when ctx ends first.
+func (f *mediaFetcher) Stop(ctx context.Context) error {
 	if f.cancel == nil {
-		return
+		return nil
 	}
 	f.cancel()
-	<-f.done
+	select {
+	case <-f.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // poke wakes the download loop for a fresh pending row without waiting for

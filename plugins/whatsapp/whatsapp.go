@@ -12,17 +12,21 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
+	"github.com/pressly/goose/v3/lock"
 
 	"github.com/gopherium/alphone/sdk"
 )
+
+// uniqueViolation is the code Postgres answers when another session stored the same key first.
+const uniqueViolation = "23505"
 
 //go:embed migrations/*.sql
 var migrations embed.FS
@@ -53,19 +57,14 @@ func newOutboundClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: transportTemplate.Clone()}
 }
 
-// Register builds the WhatsApp [Plugin] from the host-provided deps,
-// reading its Meta application credentials and the tenant sealing key
-// from the ALPHONE_WHATSAPP environment variables.
+// Register builds the WhatsApp [Plugin] from the host-provided deps.
 func Register(deps sdk.Deps) (*Plugin, error) {
-	getenv := deps.Getenv
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	maxBytes, err := mediaCap(getenv("ALPHONE_WHATSAPP_MEDIA_MAX_BYTES"))
+	env := deps.Env.Within("WHATSAPP_")
+	maxBytes, err := env.Count("MEDIA_MAX_BYTES", defaultMediaMaxBytes)
 	if err != nil {
 		return nil, err
 	}
-	key, err := credentialsKey(getenv("ALPHONE_WHATSAPP_CREDENTIALS_KEY"))
+	key, err := sdk.Parse(env, "CREDENTIALS_KEY", nil, credentialsKey)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
 	}
-	graphURL := getenv("ALPHONE_WHATSAPP_GRAPH_URL")
+	graphURL := env.Value("GRAPH_URL")
 	if graphURL == "" {
 		graphURL = defaultGraphURL
 	}
@@ -81,12 +80,12 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		pool:        pool,
 		resolver:    deps.Resolver,
 		publisher:   deps.Events,
-		verifyToken: getenv("ALPHONE_WHATSAPP_VERIFY_TOKEN"),
-		appSecret:   getenv("ALPHONE_WHATSAPP_APP_SECRET"),
+		verifyToken: env.Value("VERIFY_TOKEN"),
+		appSecret:   env.Value("APP_SECRET"),
 		key:         key,
 		envCredentials: credentials{
-			phoneNumberID: getenv("ALPHONE_WHATSAPP_PHONE_NUMBER_ID"),
-			accessToken:   getenv("ALPHONE_WHATSAPP_ACCESS_TOKEN"),
+			phoneNumberID: env.Value("PHONE_NUMBER_ID"),
+			accessToken:   env.Value("ACCESS_TOKEN"),
 		},
 		store: &store{pool: pool},
 		sender: &sender{
@@ -99,25 +98,9 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		baseURL:     graphURL,
 		credentials: p.credentialsFor,
 		records:     p.recordsTraffic,
-		maxBytes:    maxBytes,
+		maxBytes:    int64(maxBytes),
 	})
 	return p, nil
-}
-
-// mediaCap parses the stored media size limit, applying the default when raw
-// is empty.
-func mediaCap(raw string) (int64, error) {
-	if raw == "" {
-		return defaultMediaMaxBytes, nil
-	}
-	parsed, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("whatsapp: parse ALPHONE_WHATSAPP_MEDIA_MAX_BYTES: %w", err)
-	}
-	if parsed <= 0 {
-		return 0, errors.New("whatsapp: ALPHONE_WHATSAPP_MEDIA_MAX_BYTES must be positive")
-	}
-	return parsed, nil
 }
 
 // ID reports the plugin identifier.
@@ -131,12 +114,23 @@ func (p *Plugin) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop halts the media download loop and releases the plugin's database
-// resources.
-func (p *Plugin) Stop(_ context.Context) error {
-	p.fetcher.Stop()
-	p.pool.Close()
-	return nil
+// Stop halts the media download loop and closes the database pool, returning the error of ctx when ctx ends first.
+func (p *Plugin) Stop(ctx context.Context) error {
+	if err := p.fetcher.Stop(ctx); err != nil {
+		go p.pool.Close()
+		return fmt.Errorf("whatsapp: stop media fetcher: %w", err)
+	}
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		p.pool.Close()
+	}()
+	select {
+	case <-closed:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("whatsapp: close database pool: %w", ctx.Err())
+	}
 }
 
 // Routes returns the plugin's HTTP endpoints, served relative to its
@@ -178,7 +172,8 @@ func (p *Plugin) handleVerify() http.HandlerFunc {
 
 // Migrate creates and updates the plugin-owned plugin_whatsapp schema.
 func (p *Plugin) Migrate(ctx context.Context) error {
-	if _, err := p.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS plugin_whatsapp"); err != nil {
+	_, err := p.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS plugin_whatsapp")
+	if err != nil && !isSchemaFromAnotherSession(err) {
 		return fmt.Errorf("whatsapp: create schema: %w", err)
 	}
 	db := stdlib.OpenDBFromPool(p.pool)
@@ -186,13 +181,20 @@ func (p *Plugin) Migrate(ctx context.Context) error {
 	return migrate(ctx, db, "plugin_whatsapp.goose_db_version")
 }
 
-// migrate applies the embedded goose migrations to db using the given version table.
+// isSchemaFromAnotherSession reports whether err says another session created the same schema first.
+func isSchemaFromAnotherSession(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolation
+}
+
+// migrate applies the embedded goose migrations to db using the given version table under goose's session lock.
 func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 	store, err := database.NewStore(database.DialectPostgres, versionTable)
 	if err != nil {
 		return fmt.Errorf("whatsapp: migration store: %w", err)
 	}
-	provider, err := goose.NewProvider("", db, migrationSource, goose.WithStore(store))
+	locker := mustLocker(lock.NewPostgresSessionLocker())
+	provider, err := goose.NewProvider("", db, migrationSource, goose.WithStore(store), goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("whatsapp: migration provider: %w", err)
 	}
@@ -200,6 +202,14 @@ func migrate(ctx context.Context, db *sql.DB, versionTable string) error {
 		return fmt.Errorf("whatsapp: apply migrations: %w", err)
 	}
 	return nil
+}
+
+// mustLocker returns locker and panics if goose could not build it.
+func mustLocker(locker lock.SessionLocker, err error) lock.SessionLocker {
+	if err != nil {
+		panic(err)
+	}
+	return locker
 }
 
 // mustSub returns the sub-filesystem of fsys rooted at dir, panicking if it cannot be created.

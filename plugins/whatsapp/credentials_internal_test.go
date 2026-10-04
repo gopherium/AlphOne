@@ -89,13 +89,14 @@ func TestCredentialsKeyDemandsSixtyFourHexCharacters(t *testing.T) {
 
 	tests := map[string]struct {
 		raw     string
-		wantErr bool
-		wantNil bool
+		wantErr string
 	}{
 		"a valid key": {raw: strings.Repeat("ab", 32)},
-		"no key":      {raw: "", wantNil: true},
-		"a short key": {raw: "abcd", wantErr: true},
-		"not hex":     {raw: strings.Repeat("zz", 32), wantErr: true},
+		"a short key": {raw: "abcd", wantErr: "must hold 32 bytes, got 2"},
+		"not hex": {
+			raw:     strings.Repeat("zz", 32),
+			wantErr: "must be hex encoded: encoding/hex: invalid byte: U+007A 'z'",
+		},
 	}
 	for testName, tc := range tests {
 		t.Run(testName, func(t *testing.T) {
@@ -103,14 +104,14 @@ func TestCredentialsKeyDemandsSixtyFourHexCharacters(t *testing.T) {
 
 			key, err := credentialsKey(tc.raw)
 
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("credentialsKey() error = %v, wantErr %t", err, tc.wantErr)
+			if tc.wantErr != "" {
+				if err == nil || err.Error() != tc.wantErr {
+					t.Errorf("credentialsKey() error = %v, want %q, the key left for the reader to name", err, tc.wantErr)
+				}
+				return
 			}
-			if tc.wantNil && key != nil {
-				t.Errorf("credentialsKey() = %x, want nil for an empty value", key)
-			}
-			if !tc.wantErr && !tc.wantNil && len(key) != 32 {
-				t.Errorf("len(key) = %d, want 32", len(key))
+			if err != nil || len(key) != 32 {
+				t.Errorf("credentialsKey() = %x, %v, want 32 bytes", key, err)
 			}
 		})
 	}

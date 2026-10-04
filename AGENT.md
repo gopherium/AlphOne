@@ -35,7 +35,7 @@ frontend/             React SPA host (Vite); plugins import UI only via @alphone
 1. Keep changes small and focused: one behavior per change.
 2. Every change ships with tests, written before the implementation.
 3. Every function carries a doc comment: Go in canonical form, TypeScript following tsdoc standard. Lines wrap at 120 columns.
-4. Run `make test`, `make lint`, and `make vuln` before submitting. CI enforces all three, plus the race detector and SDK compatibility checks. `make vuln` fails only on advisories your code actually calls.
+4. Run `make test`, `make lint`, and `make vuln` before submitting. CI enforces all three, plus the race detector, and warns on an SDK compatibility break until 1.0. `make vuln` fails only on advisories your code actually calls.
 
 ## License
 
