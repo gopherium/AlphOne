@@ -122,7 +122,6 @@ Feature: Operators run AlphOne from one command line
     Then the command exits with code 1
     And the answer names the setting "ALPHONE_INVITE_TTL"
 
-  @wip
   Scenario: A token belongs to its owner's workspace
     Given the member "maria.perez@example.com"
     And the workspace "Acme" exists

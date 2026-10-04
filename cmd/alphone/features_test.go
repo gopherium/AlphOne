@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/cucumber/godog"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/framework/gonsole/testkit"
@@ -84,7 +85,36 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.When(`^the operator previews revoking the token "([^"]*)" of "([^"]*)"$`, s.previewRevokingToken)
 		sc.When(`^the operator revokes the token "([^"]*)" of "([^"]*)"$`, s.revokeTokenConfirmed)
 		sc.Then(`^the token list of "([^"]*)" shows no token$`, s.tokenListShowsNoToken)
+		sc.Given(`^the workspace "([^"]*)" exists$`, s.createTenant)
+		sc.Given(`^the account "([^"]*)" is placed in the workspace "([^"]*)"$`, s.placeInTenant)
+		sc.Then(`^the token "([^"]*)" is kept in the workspace "([^"]*)"$`, s.keptInTenant)
 	}
+}
+
+// createTenant stores the tenant called tenantName.
+func (s *operatorScenario) createTenant(ctx context.Context, tenantName string) error {
+	var created bool
+	return s.scan(ctx, "INSERT INTO core.tenants (id, name) VALUES ($1, $2) RETURNING true", &created,
+		uuid.Must(uuid.NewV7()), tenantName)
+}
+
+// placeInTenant stands the account at email in the tenant called tenantName.
+func (s *operatorScenario) placeInTenant(ctx context.Context, email, tenantName string) error {
+	var placed bool
+	return s.scan(ctx, `INSERT INTO core.tenant_members (user_id, tenant_id)
+		SELECT u.id, t.id FROM auth.users u, core.tenants t WHERE u.email = $1 AND t.name = $2
+		RETURNING true`, &placed, email, tenantName)
+}
+
+// keptInTenant fails unless the token called name is stored in the tenant called tenantName.
+func (s *operatorScenario) keptInTenant(ctx context.Context, name, tenantName string) error {
+	var kept bool
+	err := s.scan(ctx, `SELECT EXISTS (SELECT FROM core.api_tokens a JOIN core.tenants t ON t.id = a.tenant_id
+		WHERE a.name = $1 AND t.name = $2)`, &kept, name, tenantName)
+	if err != nil || !kept {
+		return fmt.Errorf("the token %s is kept in the workspace %s %v (%v), want it there", name, tenantName, kept, err)
+	}
+	return nil
 }
 
 // holdMember creates the member at email, typing the password on standard input.

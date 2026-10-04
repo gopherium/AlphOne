@@ -3,9 +3,13 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +24,8 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // seedTokenUser provisions the account the token commands act for.
@@ -68,6 +74,201 @@ func storedToken(t *testing.T, databaseURL, secret string) apitoken.Token {
 		t.Fatalf("ByHash() error = %v, want the stored token", err)
 	}
 	return stored
+}
+
+// placedMember creates maria.perez@example.com and stands it in a fresh tenant, answering the account and the tenant.
+func placedMember(t *testing.T, databaseURL string, env map[string]string) (gouncer.User, uuid.UUID) {
+	t.Helper()
+	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
+	member := accountAt(t, databaseURL, "maria.perez@example.com")
+	pool := testPool(t, databaseURL)
+	acme := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(), "INSERT INTO core.tenants (id, name) VALUES ($1, $2)", acme, "Acme"); err != nil {
+		t.Fatalf("storing the tenant: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", member.ID, acme); err != nil {
+		t.Fatalf("placing the member: %v", err)
+	}
+	return member, acme
+}
+
+// heldTokenIDs returns the ids of the tokens of userID the token store lists in the tenant ctx stands in.
+func heldTokenIDs(t *testing.T, ctx context.Context, databaseURL string, userID uuid.UUID) []uuid.UUID {
+	t.Helper()
+	held, err := postgres.NewTokenStore(testPool(t, databaseURL)).ListForUser(ctx, userID)
+	if err != nil {
+		t.Fatalf("ListForUser() error = %v, want the tokens", err)
+	}
+	ids := make([]uuid.UUID, 0, len(held))
+	for _, token := range held {
+		ids = append(ids, token.ID)
+	}
+	return ids
+}
+
+// servedAPI serves the API in process over the database at databaseURL until the test ends, answering its address.
+func servedAPI(t *testing.T, databaseURL string) string {
+	t.Helper()
+	addr := freeAddr(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- run(ctx, testGetenv(map[string]string{
+			"ALPHONE_DATABASE_URL": databaseURL,
+			"ALPHONE_ADDR":         addr,
+		}), io.Discard, registerPlugins)
+	}()
+	t.Cleanup(func() { stopRun(t, cancel, runErr) })
+	waitForServer(t, "http://"+addr)
+	return addr
+}
+
+// graphData posts query to the API at addr under credential, decodes its data into data and answers its cookies.
+func graphData(t *testing.T, addr, query string, credential func(*http.Request), data any) []*http.Cookie {
+	t.Helper()
+	document, err := json.Marshal(map[string]string{"query": query})
+	if err != nil {
+		t.Fatalf("encoding the graph query: %v", err)
+	}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+addr+"/api/graphql",
+		strings.NewReader(string(document)))
+	if err != nil {
+		t.Fatalf("building the graph request: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	credential(request)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("posting the graph request: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	var answered struct {
+		Data   json.RawMessage   `json:"data"`
+		Errors []json.RawMessage `json:"errors"`
+	}
+	err = json.NewDecoder(response.Body).Decode(&answered)
+	if err == nil && len(answered.Errors) == 0 {
+		err = json.Unmarshal(answered.Data, data)
+	}
+	if err != nil || response.StatusCode != http.StatusOK || len(answered.Errors) > 0 {
+		t.Fatalf("the API answered %q with %d, errors %s (%v), want it served",
+			query, response.StatusCode, answered.Errors, err)
+	}
+	return response.Cookies()
+}
+
+// bearerTenant answers the id of the tenant the API at addr stands the bearer of secret in.
+func bearerTenant(t *testing.T, addr, secret string) string {
+	t.Helper()
+	var answered struct {
+		Tenant struct {
+			ID string `json:"id"`
+		} `json:"tenant"`
+	}
+	graphData(t, addr, "{ tenant { id } }", func(r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+secret)
+	}, &answered)
+	return answered.Tenant.ID
+}
+
+// screenTokenIDs logs the account at email in to the API at addr and answers the ids of the tokens it lists.
+func screenTokenIDs(t *testing.T, addr, email string) []string {
+	t.Helper()
+	login := fmt.Sprintf("mutation { login(email: %q, password: %q) { me { id } } }", email, typedPassword)
+	var signedIn json.RawMessage
+	cookies := graphData(t, addr, login, func(*http.Request) {}, &signedIn)
+	var answered struct {
+		APITokens []struct {
+			ID string `json:"id"`
+		} `json:"apiTokens"`
+	}
+	graphData(t, addr, "{ apiTokens { id } }", func(r *http.Request) {
+		for _, cookie := range cookies {
+			r.AddCookie(cookie)
+		}
+	}, &answered)
+	ids := make([]string, 0, len(answered.APITokens))
+	for _, listed := range answered.APITokens {
+		ids = append(ids, listed.ID)
+	}
+	return ids
+}
+
+func TestTokenCreateStoresTheTokenInItsOwnersTenant(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	member, acme := placedMember(t, databaseURL, env)
+
+	got := testkit.Run(t, bareProgram(env), "",
+		"token:create", "-email", "maria.perez@example.com", "-name", "reporting")
+
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("token:create = %d with stderr %q, want 0", got.Code, got.Stderr)
+	}
+	secret := secretOf(t, got.Stdout)
+	minted := storedToken(t, databaseURL, secret)
+	inTenant := heldTokenIDs(t, sdk.WithTenant(t.Context(), acme), databaseURL, member.ID)
+	if !slices.Contains(inTenant, minted.ID) {
+		t.Errorf("the owner's tenant lists %v, want the minted token %v", inTenant, minted.ID)
+	}
+	if inDefault := heldTokenIDs(t, t.Context(), databaseURL, member.ID); slices.Contains(inDefault, minted.ID) {
+		t.Errorf("the default tenant lists the minted token %v, want it absent", minted.ID)
+	}
+	addr := servedAPI(t, databaseURL)
+	if standing := bearerTenant(t, addr, secret); standing != acme.String() {
+		t.Errorf("the API stands the token in the tenant %s, want the owner's tenant %s", standing, acme)
+	}
+	if listed := screenTokenIDs(t, addr, "maria.perez@example.com"); !slices.Contains(listed, minted.ID.String()) {
+		t.Errorf("the owner's screen lists %v, want the minted token %s", listed, minted.ID)
+	}
+}
+
+func TestTokenListAndRevokeReachATokenInTheOwnersTenant(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	member, acme := placedMember(t, databaseURL, env)
+	minted, err := apitoken.Mint(member.ID, "reporting", apitoken.Full(), apitoken.Never)
+	if err != nil {
+		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
+	}
+	store := postgres.NewTokenStore(testPool(t, databaseURL))
+	if err := store.Create(sdk.WithTenant(t.Context(), acme), minted.Token); err != nil {
+		t.Fatalf("Create() error = %v, want the token stored in the owner's tenant", err)
+	}
+
+	listed := testkit.Run(t, bareProgram(env), "", "token:list", "-email", "maria.perez@example.com")
+	revoked := testkit.Run(t, bareProgram(env), "",
+		"token:revoke", "-email", "maria.perez@example.com", "-id", minted.Token.ID.String(), "-yes")
+
+	if want := minted.Token.ID.String() + "  reporting  scopes "; listed.Code != gonsole.ExitDone ||
+		!strings.Contains(listed.Stdout, want) {
+		t.Errorf("token:list = %d, stdout %q, stderr %q, want 0 and %q", listed.Code, listed.Stdout, listed.Stderr, want)
+	}
+	if revoked.Code != gonsole.ExitDone {
+		t.Errorf("token:revoke -yes = %d with stderr %q, want 0", revoked.Code, revoked.Stderr)
+	}
+	if _, err := store.ByHash(t.Context(), minted.Token.Hash); !errors.Is(err, apitoken.ErrNotFound) {
+		t.Errorf("ByHash() after token:revoke -yes error = %v, want the token gone", err)
+	}
+}
+
+func TestTokenCommandsReportATenantTheyCannotRead(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	if _, err := testPool(t, databaseURL).Exec(t.Context(), "DROP TABLE core.tenant_members"); err != nil {
+		t.Fatalf("dropping the tenant placements: %v", err)
+	}
+
+	got := testkit.Run(t, bareProgram(env), "", "token:list", "-email", "admin@example.com")
+
+	if got.Code != gonsole.ExitFailed || got.Stdout != "" || !strings.Contains(got.Stderr, "read tenant") {
+		t.Errorf("token:list = %d, stdout %q, stderr %q, want 1 and the tenant read failure named",
+			got.Code, got.Stdout, got.Stderr)
+	}
 }
 
 func TestTokenCreatePrintsTheSecretOnce(t *testing.T) {

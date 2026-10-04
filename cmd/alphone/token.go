@@ -21,6 +21,7 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // defaultTokenLifetime is how long a token minted from the command line lasts.
@@ -47,7 +48,7 @@ func tokenCommands() []gonsole.Command {
 	}
 }
 
-// tokenCommand returns the token command called name, which runs step for the account its -email flag names.
+// tokenCommand returns the token command called name, running step in the tenant of the account -email names.
 func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenStep) gonsole.Command {
 	return gonsole.Command{
 		Name:    name,
@@ -67,13 +68,26 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 				return fmt.Errorf("parse database url: %w", err)
 			}
 			defer pool.Close()
-			owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, email)
+			standing, owner, err := tokenOwner(ctx, pool, email)
 			if err != nil {
 				return err
 			}
-			return step(ctx, postgres.NewTokenStore(pool), owner, call)
+			return step(standing, postgres.NewTokenStore(pool), owner, call)
 		},
 	}
+}
+
+// tokenOwner returns the account the typed address names and ctx standing in that account's tenant.
+func tokenOwner(ctx context.Context, pool *pgxpool.Pool, typed string) (context.Context, gouncer.User, error) {
+	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, typed)
+	if err != nil {
+		return ctx, gouncer.User{}, err
+	}
+	held, err := postgres.NewTenantStore(pool).TenantForUser(ctx, owner.ID)
+	if err != nil {
+		return ctx, gouncer.User{}, err
+	}
+	return sdk.WithTenant(ctx, held.ID), owner, nil
 }
 
 // ownerFlag declares the -email flag naming the account that owns the tokens.
