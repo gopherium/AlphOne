@@ -48,7 +48,7 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 			s.createAdministrator)
 		sc.Then(`^the command succeeds$`, s.succeeds)
 		sc.Then(`^the command exits with code (\d+)$`, s.exitsWith)
-		sc.Then(`^the refusal says "([^"]*)"$`, s.refusalSays)
+		sc.Then(`^the error says "([^"]*)"$`, s.errorSays)
 		sc.Then(`^the answer says "([^"]*)" is an unknown command$`, s.namesUnknownCommand)
 		sc.Then(`^the answer names the command "([^"]*)"$`, s.namesCommand)
 		sc.Then(`^the account "([^"]*)" holds the role "([^"]*)"$`, s.holdsRole)
@@ -253,7 +253,7 @@ func (s *operatorScenario) holdSetting(key, value string) {
 	s.env[key] = value
 }
 
-// namesSetting fails unless the refusal names the setting called key.
+// namesSetting fails unless the error names the setting called key.
 func (s *operatorScenario) namesSetting(key string) error {
 	if !strings.Contains(s.result.Stderr, key) {
 		return fmt.Errorf("stderr %q does not name the setting %s", s.result.Stderr, key)
@@ -431,15 +431,15 @@ func (s *operatorScenario) exitsWith(code int) error {
 	return nil
 }
 
-// refusalSays fails unless the refusal carries text.
-func (s *operatorScenario) refusalSays(text string) error {
+// errorSays fails unless the error carries text.
+func (s *operatorScenario) errorSays(text string) error {
 	if !strings.Contains(s.result.Stderr, text) {
 		return fmt.Errorf("stderr %q does not carry %q", s.result.Stderr, text)
 	}
 	return nil
 }
 
-// namesUnknownCommand fails unless the refusal names the command called name as unknown.
+// namesUnknownCommand fails unless the error names the command called name as unknown.
 func (s *operatorScenario) namesUnknownCommand(name string) error {
 	if !strings.Contains(s.result.Stderr, `unknown command "`+name+`"`) {
 		return fmt.Errorf("stderr %q does not name the unknown command %q", s.result.Stderr, name)
@@ -447,7 +447,7 @@ func (s *operatorScenario) namesUnknownCommand(name string) error {
 	return nil
 }
 
-// namesCommand fails unless the refusal names the command the operator can run instead.
+// namesCommand fails unless the error names the command the operator can run instead.
 func (s *operatorScenario) namesCommand(name string) error {
 	if !strings.Contains(s.result.Stderr, name) {
 		return fmt.Errorf("stderr %q does not name %q", s.result.Stderr, name)

@@ -19,7 +19,7 @@ import (
 // addressReader runs one command over getenv, address being the database address it must use.
 type addressReader func(t *testing.T, getenv func(string) string, address string) error
 
-// commandFailure runs the command line over getenv and plugins and answers its refusal, nil when it succeeds.
+// commandFailure runs the command line over getenv and plugins and answers its error, nil when it succeeds.
 func commandFailure(
 	t *testing.T, getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error), args ...string,
 ) error {

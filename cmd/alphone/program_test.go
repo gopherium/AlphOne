@@ -359,7 +359,7 @@ func TestTheOldTokenSpellingsStillWorkAndSayTheyAreDeprecated(t *testing.T) {
 	}
 }
 
-// tokenCommandsNamed is the refusal of a line that names the token command without one of its three commands.
+// tokenCommandsNamed is the error of a line that names the token command without one of its three commands.
 const tokenCommandsNamed = "alphone: unknown command \"token\", want token:create, token:list or token:revoke\n"
 
 func TestTheOldRevokeSpellingIsRefused(t *testing.T) {

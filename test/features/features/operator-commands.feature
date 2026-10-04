@@ -51,12 +51,12 @@ Feature: Operators run AlphOne from one command line
     And the member "maria.perez@example.com"
     When the operator gives "maria.perez@example.com" the role "admin" acting as "<actor>"
     Then the command exits with code <code>
-    And the refusal says "<refusal>"
+    And the error says "<error>"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
     Examples:
-      | case                                 | actor                   | code | refusal                  |
+      | case                                 | actor                   | code | error                    |
       | it names no acting account           |                         | 2    | wants -as                |
       | the acting account is a member       | maria.perez@example.com | 1    | which lacks manage_users |
       | nobody answers to the acting address | nobody@example.com      | 1    | no account answers to    |
