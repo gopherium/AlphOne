@@ -138,7 +138,6 @@ Feature: Operators run AlphOne from one command line
     And the answer is one JSON document listing the token "automation"
     And the JSON document holds no secret
 
-  @wip
   Scenario: The token list covers every account with -all
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -148,8 +147,8 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" holds a token named "reporting"
     When the operator lists the tokens of every account with "-all"
     Then the command succeeds
-    And the answer lists the token "automation" of "admin@example.com"
-    And the answer lists the token "reporting" of "maria.perez@example.com"
+    And the answer lists the token "automation" of "admin@example.com" in the workspace "Default"
+    And the answer lists the token "reporting" of "maria.perez@example.com" in the workspace "Acme"
 
   Scenario: An acting account cannot disable itself
     Given the administrator "admin@example.com"

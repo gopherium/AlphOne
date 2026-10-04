@@ -26,6 +26,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -594,25 +595,26 @@ func jsonMoment(at time.Time) string {
 	return strconv.Quote(at.UTC().Format(time.RFC3339Nano))
 }
 
-// tokenDocument returns the document token:list -json answers for the one stored token, its last use and expiry given.
-func tokenDocument(stored apitoken.Token, lastUsed, expires string) string {
-	return strings.Join([]string{
-		"{",
-		`  "tokens": [`,
-		"    {",
-		`      "id": "` + stored.ID.String() + `",`,
-		`      "name": "` + stored.Name + `",`,
+// tokenDocument returns the document token:list -json answers for the one stored token, the fields before it given.
+func tokenDocument(stored apitoken.Token, lastUsed, expires string, leading ...string) string {
+	lines := []string{"{", `  "tokens": [`, "    {"}
+	for _, field := range leading {
+		lines = append(lines, "      "+field+",")
+	}
+	return strings.Join(append(lines,
+		`      "id": "`+stored.ID.String()+`",`,
+		`      "name": "`+stored.Name+`",`,
 		`      "scopes": [`,
-		`        "` + stored.Scopes.String() + `"`,
+		`        "`+stored.Scopes.String()+`"`,
 		"      ],",
-		`      "created_at": ` + jsonMoment(stored.CreatedAt) + ",",
-		`      "last_used_at": ` + lastUsed + ",",
-		`      "expires_at": ` + expires,
+		`      "created_at": `+jsonMoment(stored.CreatedAt)+",",
+		`      "last_used_at": `+lastUsed+",",
+		`      "expires_at": `+expires,
 		"    }",
 		"  ]",
 		"}",
 		"",
-	}, "\n")
+	), "\n")
 }
 
 func TestTokenListAnswersOneJSONDocument(t *testing.T) {
@@ -652,14 +654,183 @@ func TestTokenListAnswersOneJSONDocument(t *testing.T) {
 	}
 }
 
+// allTokensLine returns the line token:list -all prints for the stored token of owner, never used, in the tenant.
+func allTokensLine(owner string, tenantID uuid.UUID, stored apitoken.Token) string {
+	return fmt.Sprintf("%s  tenant %s  %s  %s  scopes %s  created %s  last used never  expires %s",
+		owner, tenantID, stored.ID, stored.Name, stored.Scopes, stored.CreatedAt.UTC().Format(dateLayout),
+		stored.ExpiresAt.UTC().Format(dateLayout))
+}
+
+// everyTokenEntry is what a test reads back of one token the document token:list -all answers.
+type everyTokenEntry struct {
+	Owner    string `json:"owner"`
+	TenantID string `json:"tenant_id"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+}
+
+// ownerlessToken stores a token in the default tenant whose user id names no account, answering it as stored.
+func ownerlessToken(t *testing.T, databaseURL string, lifetime time.Duration) apitoken.Token {
+	t.Helper()
+	minted, err := apitoken.Mint(uuid.Must(uuid.NewV7()), "orphan", apitoken.Full(), lifetime)
+	if err != nil {
+		t.Fatalf("apitoken.Mint() error = %v, want nil", err)
+	}
+	store := postgres.NewTokenStore(testPool(t, databaseURL))
+	if err := store.Create(sdk.WithTenant(t.Context(), tenant.DefaultID), minted.Token); err != nil {
+		t.Fatalf("Create() error = %v, want the token stored in the default tenant", err)
+	}
+	return storedToken(t, databaseURL, minted.Secret)
+}
+
+func TestTokenListAllCoversEveryAccount(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	_, acme := placedMember(t, databaseURL, env)
+	automation := storedToken(t, databaseURL, secretOf(t, mint(t, env).Stdout))
+	reporting := storedToken(t, databaseURL, secretOf(t, testkit.Run(t, bareProgram(env), "",
+		"token:create", "-email", "maria.perez@example.com", "-name", "reporting").Stdout))
+	orphan := ownerlessToken(t, databaseURL, 90*24*time.Hour)
+
+	text := testkit.Run(t, bareProgram(env), "", "token:list", "-all")
+	document := testkit.Run(t, bareProgram(env), "", "token:list", "-all", "-json")
+
+	lines := strings.Split(strings.TrimSuffix(text.Stdout, "\n"), "\n")
+	slices.Sort(lines)
+	want := []string{
+		allTokensLine("admin@example.com", tenant.DefaultID, automation),
+		allTokensLine("maria.perez@example.com", acme, reporting),
+		allTokensLine("(no account)", tenant.DefaultID, orphan),
+	}
+	slices.Sort(want)
+	if text.Code != gonsole.ExitDone || !slices.Equal(lines, want) {
+		t.Errorf("token:list -all = %d, stdout %q, stderr %q, want 0 and the lines %q",
+			text.Code, text.Stdout, text.Stderr, want)
+	}
+	var listed struct {
+		Tokens []everyTokenEntry `json:"tokens"`
+	}
+	err := json.Unmarshal([]byte(document.Stdout), &listed)
+	entries := []everyTokenEntry{
+		{"admin@example.com", tenant.DefaultID.String(), automation.ID.String(), "n8n"},
+		{"maria.perez@example.com", acme.String(), reporting.ID.String(), "reporting"},
+		{"", tenant.DefaultID.String(), orphan.ID.String(), "orphan"},
+	}
+	byID := func(a, b everyTokenEntry) int { return strings.Compare(a.ID, b.ID) }
+	slices.SortFunc(listed.Tokens, byID)
+	slices.SortFunc(entries, byID)
+	if err != nil || document.Code != gonsole.ExitDone || !slices.Equal(listed.Tokens, entries) {
+		t.Errorf("token:list -all -json = %d, stdout %q, stderr %q (%v), want 0 and the tokens %+v",
+			document.Code, document.Stdout, document.Stderr, err, entries)
+	}
+}
+
+func TestTokenListRefusesAllTogetherWithAnAddress(t *testing.T) {
+	t.Parallel()
+
+	got := testkit.Run(t, bareProgram(nil), "", "token:list", "-all", "-email", "admin@example.com")
+
+	want := "alphone: token:list takes -email or -all, not both\n"
+	if got.Code != gonsole.ExitMisused || got.Stdout != "" || !strings.HasPrefix(got.Stderr, want) {
+		t.Errorf("token:list -all -email = %d, stdout %q, stderr %q, want 2 and %q",
+			got.Code, got.Stdout, got.Stderr, want)
+	}
+}
+
+func TestTokenListAllAnswersOneJSONDocument(t *testing.T) {
+	t.Parallel()
+
+	inDefault := `"tenant_id": "` + tenant.DefaultID.String() + `"`
+	held := map[string]func(t *testing.T, databaseURL string, env map[string]string) string{
+		"an install holding no token": func(*testing.T, string, map[string]string) string {
+			return "{\n  \"tokens\": []\n}\n"
+		},
+		"a token of an account never used": func(t *testing.T, databaseURL string, env map[string]string) string {
+			stored := storedToken(t, databaseURL, secretOf(t, mint(t, env).Stdout))
+			return tokenDocument(stored, "null", jsonMoment(stored.ExpiresAt), `"owner": "admin@example.com"`, inDefault)
+		},
+		"a token used once whose account is gone": func(t *testing.T, databaseURL string, _ map[string]string) string {
+			stored := ownerlessToken(t, databaseURL, apitoken.Never)
+			used := time.Now().Truncate(time.Microsecond)
+			if err := postgres.NewTokenStore(testPool(t, databaseURL)).TouchLastUsed(t.Context(), stored.ID, used); err != nil {
+				t.Fatalf("TouchLastUsed() error = %v, want nil", err)
+			}
+			return tokenDocument(stored, jsonMoment(used), "null", `"owner": null`, inDefault)
+		},
+	}
+	for condition, holding := range held {
+		t.Run(condition, func(t *testing.T) {
+			t.Parallel()
+
+			databaseURL, env := tokenDatabase(t)
+			want := holding(t, databaseURL, env)
+
+			got := testkit.Run(t, bareProgram(env), "", "token:list", "-all", "-json")
+
+			if got.Code != gonsole.ExitDone || got.Stdout != want || got.Stderr != "" {
+				t.Errorf("token:list -all -json = %d, stdout %q, stderr %q, want 0 and\n%s",
+					got.Code, got.Stdout, got.Stderr, want)
+			}
+		})
+	}
+}
+
+func TestTokenListWithAllSetToFalseListsTheNamedAccount(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	stored := storedToken(t, databaseURL, secretOf(t, mint(t, env).Stdout))
+
+	got := testkit.Run(t, bareProgram(env), "", "token:list", "-all=false", "-email", "admin@example.com")
+
+	want := stored.ID.String() + "  n8n  scopes "
+	if got.Code != gonsole.ExitDone || !strings.HasPrefix(got.Stdout, want) {
+		t.Errorf("token:list -all=false -email = %d, stdout %q, stderr %q, want 0 and the account's line %q",
+			got.Code, got.Stdout, got.Stderr, want)
+	}
+}
+
+func TestTokenListHelpNamesItsFlags(t *testing.T) {
+	t.Parallel()
+
+	got := testkit.Run(t, bareProgram(nil), "", "token:list", "-h")
+
+	want := strings.Join([]string{
+		"list the tokens of one account or of every account",
+		"",
+		"Usage:",
+		"  alphone token:list [flags]",
+		"",
+		"Flags:",
+		"  -all",
+		"    \tlist the tokens of every account in every tenant, each with its owner and its tenant",
+		"  -email address",
+		"    \taddress of the account that owns the tokens",
+		"  -json",
+		"    \tanswer one JSON document",
+		"",
+	}, "\n")
+	if got.Code != gonsole.ExitDone || got.Stdout != want || got.Stderr != "" {
+		t.Errorf("token:list -h = %d, stdout %q, stderr %q, want 0 and its page\n%s",
+			got.Code, got.Stdout, got.Stderr, want)
+	}
+}
+
 func TestTokenCommandsWantTheOwnersAddress(t *testing.T) {
 	t.Parallel()
 
+	wants := map[string]string{
+		"token:create": "token:create wants -email <address>",
+		"token:list":   "token:list wants -email <address> or -all",
+		"token:revoke": "token:revoke wants -email <address>",
+	}
 	lines := map[string][]string{
 		"token:create with a blank -email": {"token:create", "-email", "  ", "-name", "n8n"},
 		"token:create with no -email":      {"token:create", "-name", "n8n"},
 		"token:list with a blank -email":   {"token:list", "-email", "  "},
 		"token:list with no -email":        {"token:list"},
+		"token:list with -all=false alone": {"token:list", "-all=false"},
 		"token:revoke with a blank -email": {"token:revoke", "-email", "  ", "-id", uuid.Nil.String()},
 		"token:revoke with no -email":      {"token:revoke", "-id", uuid.Nil.String()},
 	}
@@ -669,7 +840,7 @@ func TestTokenCommandsWantTheOwnersAddress(t *testing.T) {
 
 			got := testkit.Run(t, bareProgram(nil), "", args...)
 
-			want := "alphone: " + args[0] + " wants -email <address>\n"
+			want := "alphone: " + wants[args[0]] + "\n"
 			if got.Code != gonsole.ExitMisused || !strings.HasPrefix(got.Stderr, want) {
 				t.Errorf("%q = %d with stderr %q, want 2 and %q", args, got.Code, got.Stderr, want)
 			}
@@ -757,6 +928,9 @@ func TestTokenStepsReportStoreFailures(t *testing.T) {
 		if err := step(t.Context(), store, owner, call); err == nil {
 			t.Errorf("the %s step on a closed pool error = nil, want the failure reported", name)
 		}
+	}
+	if err := listEveryToken(t.Context(), store, call); err == nil {
+		t.Error("the token:list -all step on a closed pool error = nil, want the failure reported")
 	}
 }
 

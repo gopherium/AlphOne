@@ -3,9 +3,12 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -33,19 +36,20 @@ const dateLayout = "2006-01-02"
 // neverWord is the lifetime a token is given to be permanent.
 const neverWord = "never"
 
+// noAccount stands for the owner in the token list when no account answers for a token.
+const noAccount = "(no account)"
+
 // tokenStep is the work one token command does over the token store for the account that owns the tokens.
 type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error
 
-// tokenCommands returns the commands that mint, list and revoke the API tokens of one account.
+// tokenCommands returns the commands that mint, list and revoke the API tokens of an account.
 func tokenCommands() []gonsole.Command {
-	list := tokenCommand("token:list", "list the tokens of one account", ownerFlag, listTokens)
-	list.JSON = true
 	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken)
 	revoke.Writes = true
 	return []gonsole.Command{
 		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
 			createToken),
-		list,
+		tokenListCommand(),
 		revoke,
 	}
 }
@@ -61,22 +65,52 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 			if email == "" {
 				return gonsole.Misuse(fmt.Errorf("%s wants -email <address>", name))
 			}
-			address, err := call.DatabaseURL()
-			if err != nil {
-				return err
-			}
-			pool, err := pgxpool.New(ctx, address)
-			if err != nil {
-				return fmt.Errorf("parse database url: %w", err)
-			}
-			defer pool.Close()
-			standing, owner, err := tokenOwner(ctx, pool, email)
-			if err != nil {
-				return err
-			}
-			return step(standing, postgres.NewTokenStore(pool), owner, call)
+			return withPool(ctx, call, func(pool *pgxpool.Pool) error {
+				standing, owner, err := tokenOwner(ctx, pool, email)
+				if err != nil {
+					return err
+				}
+				return step(standing, postgres.NewTokenStore(pool), owner, call)
+			})
 		},
 	}
+}
+
+// tokenListCommand returns token:list, which lists the tokens of the account -email names or of every account.
+func tokenListCommand() gonsole.Command {
+	list := tokenCommand("token:list", "list the tokens of one account or of every account", listTokenFlags, listTokens)
+	list.JSON = true
+	ofOne := list.Run
+	list.Run = func(ctx context.Context, call gonsole.Call) error {
+		_, named := call.Flags["email"]
+		every := call.Flags["all"] == "true"
+		switch {
+		case every && named:
+			return gonsole.Misuse(errors.New("token:list takes -email or -all, not both"))
+		case every:
+			return withPool(ctx, call, func(pool *pgxpool.Pool) error {
+				return listEveryToken(ctx, postgres.NewTokenStore(pool), call)
+			})
+		case storedAddress(call.Flags["email"]) == "":
+			return gonsole.Misuse(errors.New("token:list wants -email <address> or -all"))
+		}
+		return ofOne(ctx, call)
+	}
+	return list
+}
+
+// withPool runs work over a pool on the database the call's settings name, closing the pool once work returns.
+func withPool(ctx context.Context, call gonsole.Call, work func(*pgxpool.Pool) error) error {
+	address, err := call.DatabaseURL()
+	if err != nil {
+		return err
+	}
+	pool, err := pgxpool.New(ctx, address)
+	if err != nil {
+		return fmt.Errorf("parse database url: %w", err)
+	}
+	defer pool.Close()
+	return work(pool)
 }
 
 // storedAddress returns typed as gouncer stores an address, trimmed and in lower case.
@@ -100,6 +134,12 @@ func tokenOwner(ctx context.Context, pool *pgxpool.Pool, email string) (context.
 // ownerFlag declares the -email flag naming the account that owns the tokens.
 func ownerFlag(fs *flag.FlagSet) {
 	fs.String("email", "", "`address` of the account that owns the tokens")
+}
+
+// listTokenFlags declares the flags of token:list.
+func listTokenFlags(fs *flag.FlagSet) {
+	ownerFlag(fs)
+	fs.Bool("all", false, "list the tokens of every account in every tenant, each with its owner and its tenant")
 }
 
 // createTokenFlags declares the flags of token:create.
@@ -199,11 +239,54 @@ func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.
 		}{listed})
 	}
 	for _, t := range stored {
-		_, _ = fmt.Fprintf(call.Stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
-			t.ID, t.Name, t.Scopes, t.CreatedAt.UTC().Format(dateLayout),
-			orNever(t.LastUsedAt), orNever(t.ExpiresAt))
+		_, _ = io.WriteString(call.Stdout, tokenLine(t))
 	}
 	return nil
+}
+
+// listEveryToken prints one line per token of every account, or one JSON document with -json, owner and tenant first.
+func listEveryToken(ctx context.Context, tokens *postgres.TokenStore, call gonsole.Call) error {
+	every, err := tokens.ListEvery(ctx)
+	if err != nil {
+		return err
+	}
+	if call.JSON {
+		listed := make([]accountToken, 0, len(every))
+		for _, held := range every {
+			listed = append(listed, accountToken{
+				Owner: addressOrNull(held.Owner), TenantID: held.TenantID.String(), listedToken: listedTokenOf(held.Token),
+			})
+		}
+		return call.Encode(struct {
+			Tokens []accountToken `json:"tokens"`
+		}{listed})
+	}
+	for _, held := range every {
+		owner := cmp.Or(held.Owner, noAccount)
+		_, _ = fmt.Fprintf(call.Stdout, "%s  tenant %s  %s", owner, held.TenantID, tokenLine(held.Token))
+	}
+	return nil
+}
+
+// addressOrNull returns the address of a token's owner, nil when no account answers for the token.
+func addressOrNull(address string) *string {
+	if address == "" {
+		return nil
+	}
+	return &address
+}
+
+// tokenLine returns the line that lists one token, its secret left out.
+func tokenLine(t apitoken.Token) string {
+	return fmt.Sprintf("%s  %s  scopes %s  created %s  last used %s  expires %s\n",
+		t.ID, t.Name, t.Scopes, t.CreatedAt.UTC().Format(dateLayout), orNever(t.LastUsedAt), orNever(t.ExpiresAt))
+}
+
+// accountToken is one token in the document token:list -all answers, after its owner's address and its tenant.
+type accountToken struct {
+	Owner    *string `json:"owner"`
+	TenantID string  `json:"tenant_id"`
+	listedToken
 }
 
 // listedToken is one token in the document token:list answers with -json, its secret left out.

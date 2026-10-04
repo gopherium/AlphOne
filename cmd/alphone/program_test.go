@@ -29,7 +29,7 @@ var listedCommands = []string{
 // tokenSummaries are the token commands by name, each with the summary the listing prints beside it.
 var tokenSummaries = map[string]string{
 	"token:create": "mint a token for one account and show its secret once",
-	"token:list":   "list the tokens of one account",
+	"token:list":   "list the tokens of one account or of every account",
 	"token:revoke": "revoke one token of one account",
 }
 
@@ -70,7 +70,7 @@ func TestProgramListsEveryCommandWhenNoneIsNamed(t *testing.T) {
 		"  account:role          set one account's role",
 		" token",
 		"  token:create          mint a token for one account and show its secret once",
-		"  token:list            list the tokens of one account",
+		"  token:list            list the tokens of one account or of every account",
 		"  token:revoke          revoke one token of one account",
 		"",
 		"Every command is described at https://docs.alph.one/self-hosting/commands/",

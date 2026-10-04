@@ -92,7 +92,28 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.When(`^the operator lists the tokens of "([^"]*)" as JSON$`, s.listTokensAsJSON)
 		sc.Then(`^the answer is one JSON document listing the token "([^"]*)"$`, s.documentLists)
 		sc.Then(`^the JSON document holds no secret$`, s.documentHoldsNoSecret)
+		sc.When(`^the operator lists the tokens of every account with "([^"]*)"$`, s.listTokensOfEveryAccount)
+		sc.Then(`^the answer lists the token "([^"]*)" of "([^"]*)" in the workspace "([^"]*)"$`, s.listsTokenOf)
 	}
+}
+
+// listTokensOfEveryAccount lists the tokens of every account, the flag naming them all.
+func (s *operatorScenario) listTokensOfEveryAccount(flag string) {
+	s.run("", "token:list", flag)
+}
+
+// listsTokenOf fails unless the answer lists the token called name of the account at email in the tenant tenantName.
+func (s *operatorScenario) listsTokenOf(ctx context.Context, name, email, tenantName string) error {
+	var held string
+	if err := s.scan(ctx, "SELECT id::text FROM core.tenants WHERE name = $1", &held, tenantName); err != nil {
+		return fmt.Errorf("reading the workspace %s: %w", tenantName, err)
+	}
+	for _, line := range strings.Split(s.result.Stdout, "\n") {
+		if strings.HasPrefix(line, email+"  tenant "+held+"  ") && strings.Contains(line, "  "+name+"  scopes ") {
+			return nil
+		}
+	}
+	return fmt.Errorf("the token list %q holds no line for %s of %s in %s", s.result.Stdout, name, email, tenantName)
 }
 
 // listTokensAsJSON lists the tokens of the account at email as one JSON document.
