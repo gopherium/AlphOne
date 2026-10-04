@@ -33,6 +33,7 @@ services:
   alphone:
     image: ghcr.io/gopherium/alphone:latest
     restart: unless-stopped
+    stop_grace_period: 25s
     env_file: .env
     environment:
       ALPHONE_ADDR: "0.0.0.0:8080"
@@ -79,6 +80,10 @@ networks:
 volumes:
   pgdata:
 ```
+
+`stop_grace_period: 25s` is there because a stop can take up to 20
+seconds while AlphOne lets running requests and plugins finish, and
+Docker kills a container after 10 by default.
 
 Set the external network `name:` to the Docker network your proxy lives
 on. Find it with:
