@@ -81,6 +81,9 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Then(`^the account "([^"]*)" is still enabled$`, s.isEnabled)
 		sc.Then(`^no account change is on record$`, s.recordsNothing)
 		sc.Then(`^the command "account:records" lists "([^"]*)" applied by "([^"]*)"$`, s.recordsChange)
+		sc.When(`^the operator previews revoking the token "([^"]*)" of "([^"]*)"$`, s.previewRevokingToken)
+		sc.When(`^the operator revokes the token "([^"]*)" of "([^"]*)"$`, s.revokeTokenConfirmed)
+		sc.Then(`^the token list of "([^"]*)" shows no token$`, s.tokenListShowsNoToken)
 	}
 }
 
@@ -201,11 +204,26 @@ func (s *operatorScenario) listTokensSpelled(email, spelling string) {
 
 // revokeTokenSpelled revokes the token called name of the account at email, the command spelled as spelling.
 func (s *operatorScenario) revokeTokenSpelled(ctx context.Context, name, email, spelling string) error {
+	return s.runOnToken(ctx, name, email, strings.Fields(spelling)...)
+}
+
+// previewRevokingToken previews revoking the token called name of the account at email.
+func (s *operatorScenario) previewRevokingToken(ctx context.Context, name, email string) error {
+	return s.runOnToken(ctx, name, email, "token:revoke")
+}
+
+// revokeTokenConfirmed revokes the token called name of the account at email, confirmed with -yes.
+func (s *operatorScenario) revokeTokenConfirmed(ctx context.Context, name, email string) error {
+	return s.runOnToken(ctx, name, email, "token:revoke", "-yes")
+}
+
+// runOnToken runs args with the owner at email and the id of the token called name.
+func (s *operatorScenario) runOnToken(ctx context.Context, name, email string, args ...string) error {
 	var id string
 	if err := s.scan(ctx, "SELECT id::text FROM core.api_tokens WHERE name = $1", &id, name); err != nil {
 		return fmt.Errorf("finding the token %s: %w", name, err)
 	}
-	s.run("", append(strings.Fields(spelling), "-email", email, "-id", id)...)
+	s.run("", append(args, "-email", email, "-id", id)...)
 	return nil
 }
 
@@ -244,6 +262,15 @@ func (s *operatorScenario) tokenListShowsNoSecret(email string) error {
 	listed, err := s.tokenList(email)
 	if err != nil || strings.Contains(listed, apitoken.Prefix) {
 		return fmt.Errorf("token:list %q (%v), want no secret listed", listed, err)
+	}
+	return nil
+}
+
+// tokenListShowsNoToken fails when token:list for the account at email lists a token.
+func (s *operatorScenario) tokenListShowsNoToken(email string) error {
+	listed, err := s.tokenList(email)
+	if err != nil || strings.Contains(listed, "  scopes ") {
+		return fmt.Errorf("token:list %q (%v), want no token listed", listed, err)
 	}
 	return nil
 }

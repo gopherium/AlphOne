@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/gouncer"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/apitoken"
@@ -32,15 +33,17 @@ const dateLayout = "2006-01-02"
 const neverWord = "never"
 
 // tokenStep is the work one token command does over the token store for the account that owns the tokens.
-type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error
+type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error
 
 // tokenCommands returns the commands that mint, list and revoke the API tokens of one account.
 func tokenCommands() []gonsole.Command {
+	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken)
+	revoke.Writes = true
 	return []gonsole.Command{
 		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
 			createToken),
 		tokenCommand("token:list", "list the tokens of one account", ownerFlag, listTokens),
-		tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken),
+		revoke,
 	}
 }
 
@@ -68,7 +71,7 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 			if err != nil {
 				return err
 			}
-			return step(ctx, postgres.NewTokenStore(pool), owner.ID, call)
+			return step(ctx, postgres.NewTokenStore(pool), owner, call)
 		},
 	}
 }
@@ -136,7 +139,7 @@ func tokenLifetime(call gonsole.Call) (time.Duration, error) {
 }
 
 // createToken mints the token the call asks for and prints its secret for the only time.
-func createToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
+func createToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
 	lifetime, err := tokenLifetime(call)
 	if err != nil {
 		return err
@@ -145,7 +148,7 @@ func createToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UU
 	if err := graphres.ValidateScopes(granted); err != nil {
 		return err
 	}
-	minted, err := apitoken.Mint(owner, call.Flags["name"], granted, lifetime)
+	minted, err := apitoken.Mint(owner.ID, call.Flags["name"], granted, lifetime)
 	if err != nil {
 		return err
 	}
@@ -160,8 +163,8 @@ func createToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UU
 }
 
 // listTokens prints one line per token of the owner, secrets excluded.
-func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
-	stored, err := tokens.ListForUser(ctx, owner)
+func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
+	stored, err := tokens.ListForUser(ctx, owner.ID)
 	if err != nil {
 		return err
 	}
@@ -181,15 +184,35 @@ func orNever(at time.Time) string {
 	return at.UTC().Format(dateLayout)
 }
 
-// revokeToken deletes the token of the owner the call's -id flag names.
-func revokeToken(ctx context.Context, tokens *postgres.TokenStore, owner uuid.UUID, call gonsole.Call) error {
+// revokeToken deletes the token of the owner the call's -id flag names, only naming it until the call applies.
+func revokeToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
 	tokenID, err := uuid.Parse(call.Flags["id"])
 	if err != nil {
 		return fmt.Errorf("parse token id: %w", err)
 	}
-	if err := tokens.Revoke(ctx, owner, tokenID); err != nil {
+	if !call.Apply {
+		return previewRevoke(ctx, tokens, owner, tokenID, call)
+	}
+	if err := tokens.Revoke(ctx, owner.ID, tokenID); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(call.Stdout, "revoked token %s\n", tokenID)
 	return nil
+}
+
+// previewRevoke names the token of the owner a revoke would delete, apitoken.ErrNotFound when the owner holds none.
+func previewRevoke(
+	ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, tokenID uuid.UUID, call gonsole.Call,
+) error {
+	held, err := tokens.ListForUser(ctx, owner.ID)
+	if err != nil {
+		return err
+	}
+	for _, t := range held {
+		if t.ID == tokenID {
+			_, _ = fmt.Fprintf(call.Stdout, "would revoke token %s (%s) of %s\n", t.ID, t.Name, owner.Email)
+			return nil
+		}
+	}
+	return apitoken.ErrNotFound
 }

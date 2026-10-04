@@ -907,6 +907,50 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 	}
 }
 
+func TestMainBinaryTokenRevokeOnlyPreviewsUntilYes(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = env
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("account:create-admin: %v", err)
+	}
+	var minted bytes.Buffer
+	mint := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "n8n")
+	mint.Dir = t.TempDir()
+	mint.Env = env
+	mint.Stdout = &minted
+	if err := mint.Run(); err != nil {
+		t.Fatalf("token:create: %v", err)
+	}
+	secret := tokenSecret(t, minted.String())
+	held := storedToken(t, databaseURL, secret)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "token:revoke", "-email", "admin@example.com", "-id", held.ID.String())
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("token:revoke: %v, stderr: %s", err, stderr.String())
+	}
+
+	want := "would revoke token " + held.ID.String() + " (n8n) of admin@example.com\n"
+	if stdout.String() != want || stderr.String() != "alphone: dry run, nothing changed, pass -yes to apply\n" {
+		t.Errorf("token:revoke stdout %q, stderr %q, want %q and a dry run", stdout.String(), stderr.String(), want)
+	}
+	if kept := storedToken(t, databaseURL, secret); kept.ID != held.ID {
+		t.Errorf("the secret finds the stored token %v after the preview, want %v kept", kept.ID, held.ID)
+	}
+}
+
 func TestMainBinarySaysAnOldTokenSpellingIsDeprecated(t *testing.T) {
 	t.Parallel()
 

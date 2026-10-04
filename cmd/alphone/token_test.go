@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -260,15 +261,68 @@ func TestTokenRevokeRemovesTheToken(t *testing.T) {
 	stored := storedToken(t, databaseURL, secret)
 
 	got := testkit.Run(t, bareProgram(env), "",
-		"token:revoke", "-email", "admin@example.com", "-id", stored.ID.String())
+		"token:revoke", "-email", "admin@example.com", "-id", stored.ID.String(), "-yes")
 
 	if got.Code != gonsole.ExitDone || got.Stdout != "revoked token "+stored.ID.String()+"\n" {
-		t.Fatalf("token:revoke = %d, stdout %q, stderr %q, want 0 and the token named",
+		t.Fatalf("token:revoke -yes = %d, stdout %q, stderr %q, want 0 and the token named",
 			got.Code, got.Stdout, got.Stderr)
 	}
 	_, err := postgres.NewTokenStore(testPool(t, databaseURL)).ByHash(t.Context(), apitoken.HashSecret(secret))
-	if err == nil {
-		t.Error("ByHash() after token:revoke found the token, want it gone")
+	if !errors.Is(err, apitoken.ErrNotFound) {
+		t.Errorf("ByHash() after token:revoke -yes error = %v, want the token gone", err)
+	}
+}
+
+func TestTokenRevokeOnlyPreviewsUntilYes(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	secret := secretOf(t, mint(t, env).Stdout)
+	stored := storedToken(t, databaseURL, secret)
+
+	got := testkit.Run(t, bareProgram(env), "",
+		"token:revoke", "-email", "admin@example.com", "-id", stored.ID.String())
+
+	want := "would revoke token " + stored.ID.String() + " (n8n) of admin@example.com\n"
+	if got.Code != gonsole.ExitDone || got.Stdout != want ||
+		got.Stderr != "alphone: dry run, nothing changed, pass -yes to apply\n" {
+		t.Errorf("token:revoke = %d, stdout %q, stderr %q, want 0, %q and a dry run",
+			got.Code, got.Stdout, got.Stderr, want)
+	}
+	if kept := storedToken(t, databaseURL, secret); kept.ID != stored.ID {
+		t.Errorf("the secret finds the stored token %v after the preview, want %v kept", kept.ID, stored.ID)
+	}
+}
+
+func TestTokenRevokeRefusesATokenTheOwnerDoesNotHold(t *testing.T) {
+	t.Parallel()
+
+	modes := map[string][]string{"a preview": nil, "a revoke confirmed with -yes": {"-yes"}}
+	for mode, confirm := range modes {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+
+			databaseURL, env := tokenDatabase(t)
+			createAccount(t, testGetenv(env), "maria.perez@example.com", "member")
+			own := testkit.Run(t, bareProgram(env), "",
+				"token:create", "-email", "maria.perez@example.com", "-name", "reporting")
+			if own.Code != gonsole.ExitDone {
+				t.Fatalf("token:create for maria.perez@example.com = %d with stderr %q, want 0", own.Code, own.Stderr)
+			}
+			secret := secretOf(t, mint(t, env).Stdout)
+			held := storedToken(t, databaseURL, secret)
+			args := []string{"token:revoke", "-email", "maria.perez@example.com", "-id", held.ID.String()}
+
+			got := testkit.Run(t, bareProgram(env), "", append(args, confirm...)...)
+
+			want := "alphone: " + apitoken.ErrNotFound.Error() + "\n"
+			if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+				t.Errorf("%s = %d, stdout %q, stderr %q, want 1 and %q", mode, got.Code, got.Stdout, got.Stderr, want)
+			}
+			if kept := storedToken(t, databaseURL, secret); kept.ID != held.ID {
+				t.Errorf("the token %v is held after a revoke by another account, want %v kept", kept.ID, held.ID)
+			}
+		})
 	}
 }
 
@@ -399,7 +453,7 @@ func TestTokenStepsReportStoreFailures(t *testing.T) {
 	t.Parallel()
 
 	store := closedTokenStore(t)
-	owner := uuid.Must(uuid.NewV7())
+	owner := gouncer.User{ID: uuid.Must(uuid.NewV7()), Email: "admin@example.com"}
 	call := gonsole.Call{Flags: map[string]string{"name": "n8n", "id": uuid.Nil.String()}, Stdout: io.Discard}
 	steps := map[string]tokenStep{"token:create": createToken, "token:list": listTokens, "token:revoke": revokeToken}
 

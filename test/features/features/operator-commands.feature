@@ -105,7 +105,6 @@ Feature: Operators run AlphOne from one command line
     And the answer names the command "token:revoke"
     And the token list of "admin@example.com" shows "automation"
 
-  @wip
   Scenario: Revoking a token only previews until it is confirmed with -yes
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
