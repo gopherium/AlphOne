@@ -15,6 +15,8 @@ const doneID = '0198c000-0000-7000-8000-000000000103'
 const addedID = '0198c000-0000-7000-8000-000000000104'
 const oldID = '0198c000-0000-7000-8000-000000000105'
 const refileID = '0198c000-0000-7000-8000-000000000106'
+const contactID = '0198c000-0000-7000-8000-000000000107'
+const linkedContact = { id: contactID, name: 'Maria Perez' }
 
 // These dates are computed independently of the screen's own date helpers.
 function localDate(offsetDays: number) {
@@ -56,6 +58,7 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 		status,
 		priority,
 		due_on: today,
+		contact: null as typeof linkedContact | null,
 	}
 }
 
@@ -82,6 +85,7 @@ function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null =
 				status: row.status,
 				priority: row.priority,
 				dueOn: row.due_on,
+				contact: row.contact === null ? null : { __typename: 'Contact', ...row.contact },
 			},
 			cursor: row.id,
 		})),
@@ -333,6 +337,86 @@ test('marks a raised priority on the row', async () => {
 
 	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
 	expect(within(row).getByText('High')).toBeInTheDocument()
+})
+
+test('opens the linked contact from the person icon after the task title', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+	server.use(
+		graphql.query('ContactDetail', () =>
+			HttpResponse.json({
+				data: {
+					contact: {
+						__typename: 'Contact',
+						...linkedContact,
+						createdAt: '2026-07-06T10:00:00Z',
+						identities: [],
+						tasks: taskPage([]),
+					},
+				},
+			}),
+		),
+	)
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+
+	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	expect(open).toHaveAttribute('href', `/contacts/${contactID}`)
+	await userEvent.click(open)
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })).toBeInTheDocument()
+})
+
+test('shows the person icon only on a task linked to a contact', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }, taskRow(quoteID, 'Send the quote')]
+
+	renderAt('/tasks')
+
+	const linked = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	expect(within(linked).getByRole('link', { name: 'Open Maria Perez' })).toBeInTheDocument()
+	const unlinked = screen.getByRole('listitem', { name: 'Send the quote' })
+	expect(within(unlinked).getAllByRole('link')).toHaveLength(1)
+	expect(within(unlinked).getByRole('link', { name: 'Send the quote' })).toBeInTheDocument()
+})
+
+test('sets the person icon right after the task title, as a small button', async () => {
+	const small = buttonClasses('solid', 'small').filter((token) => !buttonClasses('solid').includes(token))
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	const title = within(row).getByRole('link', { name: 'Call the supplier' })
+	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	const cell = row.querySelector('.alphone-tasks__title')
+	expect(cell).toContainElement(title)
+	expect(cell).toContainElement(open)
+	expect(title.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(small.length).toBeGreaterThan(0)
+	expect([...open.classList]).toEqual(expect.arrayContaining(small))
+	expect(open).toHaveClass('alphone-tasks__open-contact')
+	expect(open.querySelector('svg')).not.toBeNull()
+})
+
+test('names the contact in the person icon tooltip', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+
+	await userEvent.hover(within(row).getByRole('link', { name: 'Open Maria Perez' }))
+
+	expect(await screen.findByText('Open Maria Perez')).toBeInTheDocument()
+})
+
+test('shows the person icon on overdue work linked to a contact', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday, contact: linkedContact }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+	expect(within(row).getByRole('link', { name: 'Open Maria Perez' })).toHaveAttribute(
+		'href',
+		`/contacts/${contactID}`,
+	)
 })
 
 test('adds a task from the quick add field', async () => {

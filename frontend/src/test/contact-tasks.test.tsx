@@ -75,6 +75,7 @@ function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor
 					status: row.status,
 					priority: row.priority,
 					dueOn: row.due_on,
+					contact: { __typename: 'Contact', id, name: 'Maria Perez' },
 				},
 				cursor: row.id,
 			})),
@@ -144,6 +145,15 @@ test('lists the open tasks of a contact with their due dates', async () => {
 	expect(within(list).getByText('Call her back')).toBeInTheDocument()
 	expect(within(list).getByText(dueLabel(tomorrow))).toBeInTheDocument()
 	expect(contactFilters).toContain(contactID)
+})
+
+test('leaves the person icon off the tasks on their own contact page', async () => {
+	renderAt(`/contacts/${contactID}`)
+
+	const list = await screen.findByRole('list', { name: 'Contact tasks' })
+	expect(within(list).getByRole('link', { name: 'Call her back' })).toBeInTheDocument()
+	expect(within(list).queryByRole('link', { name: 'Open Maria Perez' })).not.toBeInTheDocument()
+	expect(within(list).getAllByRole('link')).toHaveLength(2)
 })
 
 test('opens a task from the contact page', async () => {

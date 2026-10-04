@@ -59,6 +59,10 @@ export const dayTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					contact {
+						id
+						name
+					}
 				}
 				cursor
 			}
@@ -80,6 +84,10 @@ export const overdueTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					contact {
+						id
+						name
+					}
 				}
 				cursor
 			}

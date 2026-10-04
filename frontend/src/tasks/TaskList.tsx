@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, Button, Checkbox, Link, Stack, Text, __, _x } from '@alphone/frontend-sdk'
+import {
+	Badge,
+	Button,
+	Checkbox,
+	IconButton,
+	Link,
+	Stack,
+	Text,
+	__,
+	_x,
+	commentAuthorAvatar,
+	sprintf,
+} from '@alphone/frontend-sdk'
 import { Link as RouterLink } from '@tanstack/react-router'
 
 import { formatDue } from './format'
@@ -12,6 +24,7 @@ export interface ListedTask {
 	status: string
 	priority: number
 	dueOn: string
+	contact?: { id: string; name: string } | null
 }
 
 export interface RowControls {
@@ -94,6 +107,7 @@ function TaskRow({
 				>
 					{task.title}
 				</Link>
+				{task.contact ? <OpenContact contact={task.contact} /> : null}
 			</Text>
 			{task.priority > 0 ? <Badge intent="high">{_x('High', 'task priority', 'alphone')}</Badge> : null}
 			{showDueDate ? (
@@ -113,5 +127,25 @@ function TaskRow({
 				</Button>
 			)}
 		</Stack>
+	)
+}
+
+/**
+ * Renders the person icon that opens the contact a task is linked to.
+ * @returns The contact icon link.
+ */
+function OpenContact({ contact }: { contact: { id: string; name: string } }) {
+	return (
+		<IconButton
+			icon={commentAuthorAvatar}
+			label={sprintf(__('Open %(name)s', 'alphone'), { name: contact.name })}
+			variant="minimal"
+			tone="neutral"
+			size="small"
+			className="alphone-tasks__open-contact"
+			nativeButton={false}
+			role="link"
+			render={<RouterLink to="/contacts/$contactId" params={{ contactId: contact.id }} />}
+		/>
 	)
 }

@@ -311,6 +311,10 @@ msgid "Nothing due today."
 msgstr "No hay nada que venza hoy."
 
 #, fuzzy
+msgid "Open %(name)s"
+msgstr "Abrir %(name)s"
+
+#, fuzzy
 msgid "Open tasks"
 msgstr "Tareas abiertas"
 
