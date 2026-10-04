@@ -456,8 +456,10 @@ channels: [
 plugin at an address, under a router and a toaster, with a fake graph
 client. Pass `session` to sign somebody in. The session goes straight
 into the test's query cache, so no session request goes out. Without
-one, `useSession` answers `null`, so a screen behind a capability shows
-its refusal and `useAdminSettings` never asks for the page sizes.
+one, the host asks the test server for the session, as the app does,
+so your test answers it. Answer `/api/auth/session` with an account to
+sign somebody in, or with a 401 for nobody. With nobody signed in, a
+screen behind a capability shows its refusal.
 
 ```tsx
 import { adminSession, graphql, HttpResponse, renderPluginAt, server } from '@alphone/frontend-sdk/testing'
