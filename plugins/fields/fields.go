@@ -46,7 +46,7 @@ type Plugin struct {
 	entriesMax int
 }
 
-// Register builds the fields [Plugin] from the host-provided deps, reading the entries cap through the settings reader.
+// Register builds the fields [Plugin] from the host-provided deps.
 func Register(deps sdk.Deps) (*Plugin, error) {
 	entriesMax, err := deps.Env.Count(entriesMaxSetting, defaultEntriesMax, sdk.AtMost(math.MaxInt32))
 	if err != nil {

@@ -57,7 +57,7 @@ func newOutboundClient(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: transportTemplate.Clone()}
 }
 
-// Register builds the WhatsApp [Plugin] from the host-provided deps, reading its settings under WHATSAPP_.
+// Register builds the WhatsApp [Plugin] from the host-provided deps.
 func Register(deps sdk.Deps) (*Plugin, error) {
 	env := deps.Env.Within("WHATSAPP_")
 	maxBytes, err := env.Count("MEDIA_MAX_BYTES", defaultMediaMaxBytes)
