@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { useQuery } from '@tanstack/react-query'
 import { createRoute } from '@tanstack/react-router'
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { expect, onTestFinished, test } from 'vitest'
 
 import { useSession } from '../index'
@@ -56,6 +57,42 @@ test('asks the server for the session when the host is given none', async () => 
 
 	expect(await screen.findByText(`Signed in as ${adminSession.name}`)).toBeInTheDocument()
 	expect(sent).toContain(SESSION_PATH)
+})
+
+/** How many times the probe query read its data. */
+const probe = { reads: 0 }
+
+/** Renders how many times the probe query read its data. */
+function ProbeScreen() {
+	const { data } = useQuery({ queryKey: ['probe'], queryFn: async () => ++probe.reads })
+	return <p>{`Probe read ${data ?? 0}`}</p>
+}
+
+/** Renders a page away from the probe. */
+function AwayScreen() {
+	return <p>Away</p>
+}
+
+/** A plugin mounting the probe at /probe and a page away from it at /away. */
+const probePlugin: FrontendPlugin = {
+	id: 'probe',
+	nav: [],
+	routes: (parent) => [
+		createRoute({ getParentRoute: () => parent, path: '/probe', component: ProbeScreen }),
+		createRoute({ getParentRoute: () => parent, path: '/away', component: AwayScreen }),
+	],
+}
+
+test('lets a plugin query go stale as usual when the host holds a session', async () => {
+	probe.reads = 0
+	const { router } = renderPluginAt(probePlugin, '/probe', { session: adminSession })
+	expect(await screen.findByText('Probe read 1')).toBeInTheDocument()
+
+	await act(() => router.navigate({ to: '/away' }))
+	await screen.findByText('Away')
+	await act(() => router.navigate({ to: '/probe' }))
+
+	expect(await screen.findByText('Probe read 2')).toBeInTheDocument()
 })
 
 test('hands back the router the plugin screen is mounted in', async () => {

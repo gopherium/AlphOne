@@ -3,6 +3,7 @@
 import '@testing-library/jest-dom/vitest'
 import { Toaster } from '@gopherium/godmin'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
+import { sessionQueryKey } from '@gopherium/react-auth'
 import {
 	HttpResponse,
 	installTestEnvironment as installAuthTestEnvironment,
@@ -230,11 +231,11 @@ export interface HostedPlugin extends FakeGraph {
  * @returns The query client.
  */
 function hostQueryClient(session?: Session): QueryClient {
-	if (session === undefined) {
-		return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+	if (session !== undefined) {
+		client.setQueryDefaults(sessionQueryKey, { staleTime: Infinity })
+		seedSession(client, session)
 	}
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-	seedSession(client, session)
 	return client
 }
 
