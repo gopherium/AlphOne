@@ -542,6 +542,36 @@ test('confirms an add that lands after the screen was left', async () => {
 	expect(await screen.findByText('Task added.')).toBeInTheDocument()
 })
 
+test('names the day of an add that lands after the day shown changed', async () => {
+	servePerDay()
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async ({ variables }) => {
+			await held
+			const input = variables.input as { title: string; dueOn: string }
+			const row = { ...taskRow(addedID, input.title), due_on: input.dueOn }
+			return HttpResponse.json({
+				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
+			})
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
+	await screen.findByText('Nothing due today.')
+	release?.()
+
+	expect(await screen.findByText(addedToast(today))).toBeInTheDocument()
+	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
+})
+
 test('starts the next task on the day shown at normal priority after an add', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')

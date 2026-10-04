@@ -12,7 +12,7 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { addedMessage, isValidDate } from './format'
 import { createTaskMutation, taskListReads } from './operations'
@@ -40,6 +40,10 @@ export function QuickAddForm({
 	const [picked, setPicked] = useState<{ on: string; value: string } | null>(null)
 	const [priority, setPriority] = useState(0)
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
+	const shownDay = useRef(day)
+	useLayoutEffect(() => {
+		shownDay.current = day
+	})
 	const dueOn = picked !== null && picked.on === day ? picked.value : day
 	const submitAdd = async () => {
 		const result = await runAdd({ input: { title, dueOn, priority, contactId } })
@@ -47,7 +51,7 @@ export function QuickAddForm({
 			setTitle('')
 			setPicked(null)
 			setPriority(0)
-			if (viewDay === undefined || dueOn === day) {
+			if (viewDay === undefined || dueOn === shownDay.current) {
 				toaster.show(__('Task added.', 'alphone'))
 			} else {
 				toaster.show(addedMessage(dueOn), { label: _x('View', 'toast action', 'alphone'), onAct: () => viewDay(dueOn) })
