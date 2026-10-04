@@ -271,6 +271,37 @@ func TestTokenCommandsReportATenantTheyCannotRead(t *testing.T) {
 	}
 }
 
+func TestTokenCommandsFindTheOwnerByAPaddedUpperCaseAddress(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	held := storedToken(t, databaseURL, secretOf(t, mint(t, env).Stdout))
+	const typed = "  Admin@Example.COM "
+	lines := map[string]struct {
+		args []string
+		want string
+	}{
+		"token:create": {[]string{"token:create", "-email", typed, "-name", "reporting"}, "created token "},
+		"token:list":   {[]string{"token:list", "-email", typed}, held.ID.String() + "  n8n  scopes "},
+		"token:revoke": {
+			[]string{"token:revoke", "-email", typed, "-id", held.ID.String()},
+			"would revoke token " + held.ID.String() + " (n8n) of admin@example.com\n",
+		},
+	}
+	for name, line := range lines {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := testkit.Run(t, bareProgram(env), "", line.args...)
+
+			if got.Code != gonsole.ExitDone || !strings.Contains(got.Stdout, line.want) {
+				t.Errorf("%s -email %q = %d, stdout %q, stderr %q, want 0 and %q",
+					name, typed, got.Code, got.Stdout, got.Stderr, line.want)
+			}
+		})
+	}
+}
+
 func TestTokenCreatePrintsTheSecretOnce(t *testing.T) {
 	t.Parallel()
 

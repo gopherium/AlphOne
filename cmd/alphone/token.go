@@ -55,8 +55,8 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 		Summary: summary,
 		Flags:   flags,
 		Run: func(ctx context.Context, call gonsole.Call) error {
-			email := call.Flags["email"]
-			if strings.TrimSpace(email) == "" {
+			email := storedAddress(call.Flags["email"])
+			if email == "" {
 				return gonsole.Misuse(fmt.Errorf("%s wants -email <address>", name))
 			}
 			address, err := call.DatabaseURL()
@@ -77,9 +77,14 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 	}
 }
 
-// tokenOwner returns the account the typed address names and ctx standing in that account's tenant.
-func tokenOwner(ctx context.Context, pool *pgxpool.Pool, typed string) (context.Context, gouncer.User, error) {
-	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, typed)
+// storedAddress returns typed as gouncer stores an address, trimmed and in lower case.
+func storedAddress(typed string) string {
+	return strings.ToLower(strings.TrimSpace(typed))
+}
+
+// tokenOwner returns the account at email and ctx standing in that account's tenant.
+func tokenOwner(ctx context.Context, pool *pgxpool.Pool, email string) (context.Context, gouncer.User, error) {
+	owner, err := authkitpg.NewUserStore(pool).UserByEmail(ctx, email)
 	if err != nil {
 		return ctx, gouncer.User{}, err
 	}
