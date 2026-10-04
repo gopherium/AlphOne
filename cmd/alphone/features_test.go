@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -88,7 +89,41 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Given(`^the workspace "([^"]*)" exists$`, s.createTenant)
 		sc.Given(`^the account "([^"]*)" is placed in the workspace "([^"]*)"$`, s.placeInTenant)
 		sc.Then(`^the token "([^"]*)" is kept in the workspace "([^"]*)"$`, s.keptInTenant)
+		sc.When(`^the operator lists the tokens of "([^"]*)" as JSON$`, s.listTokensAsJSON)
+		sc.Then(`^the answer is one JSON document listing the token "([^"]*)"$`, s.documentLists)
+		sc.Then(`^the JSON document holds no secret$`, s.documentHoldsNoSecret)
 	}
+}
+
+// listTokensAsJSON lists the tokens of the account at email as one JSON document.
+func (s *operatorScenario) listTokensAsJSON(email string) {
+	s.run("", "token:list", "-email", email, "-json")
+}
+
+// documentLists fails unless the answer is one JSON document whose tokens hold the one called name.
+func (s *operatorScenario) documentLists(name string) error {
+	var document struct {
+		Tokens []struct {
+			Name string `json:"name"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(s.result.Stdout), &document); err != nil {
+		return fmt.Errorf("stdout %q is no one JSON document: %w", s.result.Stdout, err)
+	}
+	for _, listed := range document.Tokens {
+		if listed.Name == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("the document %q lists no token %s", s.result.Stdout, name)
+}
+
+// documentHoldsNoSecret fails when the JSON document carries a secret.
+func (s *operatorScenario) documentHoldsNoSecret() error {
+	if strings.Contains(s.result.Stdout, apitoken.Prefix) || strings.Contains(s.result.Stdout, `"secret"`) {
+		return fmt.Errorf("the document %q carries a secret, want none", s.result.Stdout)
+	}
+	return nil
 }
 
 // createTenant stores the tenant called tenantName.

@@ -38,12 +38,14 @@ type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner goun
 
 // tokenCommands returns the commands that mint, list and revoke the API tokens of one account.
 func tokenCommands() []gonsole.Command {
+	list := tokenCommand("token:list", "list the tokens of one account", ownerFlag, listTokens)
+	list.JSON = true
 	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken)
 	revoke.Writes = true
 	return []gonsole.Command{
 		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
 			createToken),
-		tokenCommand("token:list", "list the tokens of one account", ownerFlag, listTokens),
+		list,
 		revoke,
 	}
 }
@@ -181,11 +183,20 @@ func createToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer
 	return nil
 }
 
-// listTokens prints one line per token of the owner, secrets excluded.
+// listTokens prints one line per token of the owner, or one JSON document with -json, secrets excluded.
 func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
 	stored, err := tokens.ListForUser(ctx, owner.ID)
 	if err != nil {
 		return err
+	}
+	if call.JSON {
+		listed := make([]listedToken, 0, len(stored))
+		for _, t := range stored {
+			listed = append(listed, listedTokenOf(t))
+		}
+		return call.Encode(struct {
+			Tokens []listedToken `json:"tokens"`
+		}{listed})
 	}
 	for _, t := range stored {
 		_, _ = fmt.Fprintf(call.Stdout, "%s  %s  scopes %s  created %s  last used %s  expires %s\n",
@@ -193,6 +204,37 @@ func listTokens(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.
 			orNever(t.LastUsedAt), orNever(t.ExpiresAt))
 	}
 	return nil
+}
+
+// listedToken is one token in the document token:list answers with -json, its secret left out.
+type listedToken struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Scopes     []string   `json:"scopes"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	ExpiresAt  *time.Time `json:"expires_at"`
+}
+
+// listedTokenOf returns the stored token as the document token:list answers lists it.
+func listedTokenOf(t apitoken.Token) listedToken {
+	return listedToken{
+		ID:         t.ID.String(),
+		Name:       t.Name,
+		Scopes:     append([]string{}, t.Scopes...),
+		CreatedAt:  t.CreatedAt.UTC(),
+		LastUsedAt: momentOrNull(t.LastUsedAt),
+		ExpiresAt:  momentOrNull(t.ExpiresAt),
+	}
+}
+
+// momentOrNull returns the moment in UTC, nil when it has not come.
+func momentOrNull(at time.Time) *time.Time {
+	if at.IsZero() {
+		return nil
+	}
+	utc := at.UTC()
+	return &utc
 }
 
 // orNever returns the date in UTC, or never when the moment has not come.

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -585,6 +586,69 @@ func TestTokenListShowsTheLastUseDate(t *testing.T) {
 	want := "last used " + used.Format(dateLayout)
 	if got.Code != gonsole.ExitDone || !strings.Contains(got.Stdout, want) {
 		t.Errorf("token:list = %d with stdout %q, want 0 and %q", got.Code, got.Stdout, want)
+	}
+}
+
+// jsonMoment returns the moment as a JSON document writes it, in UTC.
+func jsonMoment(at time.Time) string {
+	return strconv.Quote(at.UTC().Format(time.RFC3339Nano))
+}
+
+// tokenDocument returns the document token:list -json answers for the one stored token, its last use and expiry given.
+func tokenDocument(stored apitoken.Token, lastUsed, expires string) string {
+	return strings.Join([]string{
+		"{",
+		`  "tokens": [`,
+		"    {",
+		`      "id": "` + stored.ID.String() + `",`,
+		`      "name": "` + stored.Name + `",`,
+		`      "scopes": [`,
+		`        "` + stored.Scopes.String() + `"`,
+		"      ],",
+		`      "created_at": ` + jsonMoment(stored.CreatedAt) + ",",
+		`      "last_used_at": ` + lastUsed + ",",
+		`      "expires_at": ` + expires,
+		"    }",
+		"  ]",
+		"}",
+		"",
+	}, "\n")
+}
+
+func TestTokenListAnswersOneJSONDocument(t *testing.T) {
+	t.Parallel()
+
+	held := map[string]func(t *testing.T, databaseURL string, env map[string]string) string{
+		"an account holding no token": func(*testing.T, string, map[string]string) string {
+			return "{\n  \"tokens\": []\n}\n"
+		},
+		"a token never used that expires": func(t *testing.T, databaseURL string, env map[string]string) string {
+			stored := storedToken(t, databaseURL, secretOf(t, mint(t, env).Stdout))
+			return tokenDocument(stored, "null", jsonMoment(stored.ExpiresAt))
+		},
+		"a token used once that never expires": func(t *testing.T, databaseURL string, env map[string]string) string {
+			stored := storedToken(t, databaseURL, secretOf(t, mint(t, env, "-ttl", "never").Stdout))
+			used := time.Now().Truncate(time.Microsecond)
+			if err := postgres.NewTokenStore(testPool(t, databaseURL)).TouchLastUsed(t.Context(), stored.ID, used); err != nil {
+				t.Fatalf("TouchLastUsed() error = %v, want nil", err)
+			}
+			return tokenDocument(stored, jsonMoment(used), "null")
+		},
+	}
+	for condition, holding := range held {
+		t.Run(condition, func(t *testing.T) {
+			t.Parallel()
+
+			databaseURL, env := tokenDatabase(t)
+			want := holding(t, databaseURL, env)
+
+			got := testkit.Run(t, bareProgram(env), "", "token:list", "-email", "admin@example.com", "-json")
+
+			if got.Code != gonsole.ExitDone || got.Stdout != want || got.Stderr != "" {
+				t.Errorf("token:list -json = %d, stdout %q, stderr %q, want 0 and\n%s",
+					got.Code, got.Stdout, got.Stderr, want)
+			}
+		})
 	}
 }
 

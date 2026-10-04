@@ -130,7 +130,6 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token "automation" is kept in the workspace "Acme"
 
-  @wip
   Scenario: The token list answers as JSON
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
