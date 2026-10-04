@@ -100,20 +100,20 @@ n8n-node-local:
 
 runbook:
 	@test -n "$(ALPHONE_TOKEN)" || \
-		(echo "set ALPHONE_TOKEN, mint one with: ./alphone token create -email you@example.com -name runbook" && false)
+		(echo "set ALPHONE_TOKEN, mint one with: ./alphone token:create -email you@example.com -name runbook" && false)
 	node test/runbook/run.ts
 
 seed: db-up
-	go run ./cmd/alphone seed
+	go run ./cmd/alphone seed -yes
 
 dev: db-up
-	go run ./cmd/alphone
+	go run ./cmd/alphone serve
 
 dev-watch: db-up
 	GOWORK=off go tool air
 
 demo: db-up e2e-build
-	ALPHONE_WEB_DIR=frontend/dist ./alphone
+	ALPHONE_WEB_DIR=frontend/dist ./alphone serve
 
 COVERDATA = .covdata
 
@@ -162,7 +162,7 @@ e2e-serve: db-up e2e-build
 		ALPHONE_SMTP_FROM=crm@example.com \
 		ALPHONE_SMTP_TLS=none \
 		ALPHONE_PUBLIC_URL="$(E2E_PUBLIC_URL)" \
-		./alphone
+		./alphone serve
 
 e2e-db-reset: db-up
 	docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
@@ -171,7 +171,7 @@ e2e-db-reset: db-up
 
 e2e-seed: db-up e2e-build
 	printf '%s\n' "$(E2E_PASSWORD)" | \
-		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone createadmin \
+		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone account:create-admin \
 		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)" -role "$(E2E_ROLE)"
 
 e2e-reset: e2e-db-reset e2e-seed
