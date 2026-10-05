@@ -7,6 +7,7 @@ msgstr ""
 "X-Domain: alphone\n"
 "Project-Id-Version: AlphOne\n"
 "Language: es\n"
+"Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 
 msgid "30 days"
 msgstr "30 días"
@@ -19,18 +20,6 @@ msgstr "Un contacto necesita un nombre."
 
 msgid "A lifetime is zero days or more."
 msgstr "Una duración es de cero días o más."
-
-msgid "A lifetime runs to %(maxDays)s days at most."
-msgstr "Una duración llega como mucho a %(maxDays)s días."
-
-msgid "A name runs to %(max)s characters at most."
-msgstr "Un nombre tiene como mucho %(max)s caracteres."
-
-msgid "A password runs to %(max)s characters at most."
-msgstr "Una contraseña tiene como mucho %(max)s caracteres."
-
-msgid "A password runs to %(min)s characters at least."
-msgstr "Una contraseña tiene al menos %(min)s caracteres."
 
 msgid "A task needs a title."
 msgstr "Una tarea necesita un título."
@@ -90,10 +79,6 @@ msgstr "Ya hay otro contacto que tiene esa dirección."
 #, fuzzy
 msgid "Areas"
 msgstr "Áreas"
-
-#, fuzzy
-msgid "Ask for between %(min)s and %(max)s at a time."
-msgstr "Pide entre %(min)s y %(max)s a la vez."
 
 #, fuzzy
 msgid "Ask for tasks by one filter at a time."
@@ -193,9 +178,8 @@ msgstr "Fecha de vencimiento"
 msgid "Email"
 msgstr "Correo electrónico"
 
-#, fuzzy
 msgid "Enable"
-msgstr "Reactivar"
+msgstr "Activar"
 
 #, fuzzy
 msgid "Expires"
@@ -311,10 +295,6 @@ msgid "Nothing due today."
 msgstr "No hay nada que venza hoy."
 
 #, fuzzy
-msgid "Open %(name)s"
-msgstr "Abrir %(name)s"
-
-#, fuzzy
 msgid "Open tasks"
 msgstr "Tareas abiertas"
 
@@ -394,10 +374,6 @@ msgstr "Estado"
 #, fuzzy
 msgid "Task"
 msgstr "Tarea"
-
-#, fuzzy
-msgid "Task title"
-msgstr "Título de la tarea"
 
 #, fuzzy
 msgid "Tasks"
@@ -527,10 +503,6 @@ msgstr "No se ha podido crear el token."
 msgid "This token does not reach %(scope)s."
 msgstr "Este token no alcanza %(scope)s."
 
-#, fuzzy
-msgid "This workspace has been deactivated. Contact your operator."
-msgstr "Este espacio de trabajo ha sido desactivado. Contacta con tu operador."
-
 msgid "Title"
 msgstr "Título"
 
@@ -541,10 +513,6 @@ msgstr "Hoy"
 #, fuzzy
 msgid "Tokens could not be loaded."
 msgstr "No se han podido cargar los tokens."
-
-#, fuzzy
-msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
-msgstr "Demasiados intentos. Espera %(retryAfter)s segundos e inténtalo de nuevo."
 
 msgid "Users"
 msgstr "Usuarios"
@@ -589,66 +557,12 @@ msgid "Your role does not allow %(capability)s."
 msgstr "Tu rol no permite %(capability)s."
 
 #, fuzzy
-msgctxt "user status"
-msgid "Active"
-msgstr "Activo"
-
-#, fuzzy
-msgctxt "user status"
-msgid "Disabled"
-msgstr "Desactivado"
-
-#, fuzzy
-msgctxt "admin section"
-msgid "Contacts"
-msgstr "Contactos"
-
-#, fuzzy
-#, fuzzy
-msgctxt "admin section"
-msgid "Language"
-msgstr "Idioma"
-
-msgctxt "admin section"
-msgid "Tasks"
-msgstr "Tareas"
-
-#, fuzzy
-msgctxt "contact channel"
-msgid "Email"
-msgstr "Correo electrónico"
-
-#, fuzzy
-msgctxt "contact channel"
-msgid "Phone"
-msgstr "Teléfono"
-
-#, fuzzy
-msgctxt "task priority"
-msgid "High"
-msgstr "Alta"
-
-#, fuzzy
-msgctxt "task priority"
-msgid "Normal"
-msgstr "Normal"
-
-#, fuzzy
-msgctxt "token expiry"
-msgid "Expired"
-msgstr "Caducado"
-
-msgctxt "token lifetime"
-msgid "Never"
-msgstr "Nunca"
-
-#, fuzzy
 msgid "Loading…"
 msgstr "Cargando…"
 
 #, fuzzy
-msgid "Postpone"
-msgstr "Posponer"
+msgid "This workspace has been deactivated. Contact your operator."
+msgstr "Este espacio de trabajo ha sido desactivado. Contacta con tu operador."
 
 #, fuzzy
 msgid "Activation link"
@@ -683,13 +597,94 @@ msgid "This link is no longer valid. Ask for a new one."
 msgstr "Este enlace ya no es válido. Pide uno nuevo."
 
 #, fuzzy
-msgctxt "user status"
-msgid "Invited"
-msgstr "Invitado"
-
-#, fuzzy
 msgid "v%(version)s"
 msgstr "v%(version)s"
+
+#, fuzzy
+msgid "Postpone"
+msgstr "Posponer"
+
+#, fuzzy
+msgid "%s token could not be revoked."
+msgid_plural "%s tokens could not be revoked."
+msgstr[0] "No se ha podido revocar %s token."
+msgstr[1] "No se han podido revocar %s tokens."
+msgstr[2] ""
+
+#, fuzzy
+msgid "%s token revoked."
+msgid_plural "%s tokens revoked."
+msgstr[0] "%s token revocado."
+msgstr[1] "%s tokens revocados."
+msgstr[2] ""
+
+#, fuzzy
+msgid "%s user could not be disabled."
+msgid_plural "%s users could not be disabled."
+msgstr[0] "No se ha podido desactivar %s usuario."
+msgstr[1] "No se han podido desactivar %s usuarios."
+msgstr[2] ""
+
+#, fuzzy
+msgid "%s user could not be enabled."
+msgid_plural "%s users could not be enabled."
+msgstr[0] "No se ha podido reactivar %s usuario."
+msgstr[1] "No se han podido reactivar %s usuarios."
+msgstr[2] ""
+
+#, fuzzy
+msgid "%s user disabled."
+msgid_plural "%s users disabled."
+msgstr[0] "%s usuario desactivado."
+msgstr[1] "%s usuarios desactivados."
+msgstr[2] ""
+
+#, fuzzy
+msgid "%s user enabled."
+msgid_plural "%s users enabled."
+msgstr[0] "%s usuario reactivado."
+msgstr[1] "%s usuarios reactivados."
+msgstr[2] ""
+
+msgid "A lifetime runs to %(maxDays)s days at most."
+msgstr "Una duración llega como mucho a %(maxDays)s días."
+
+msgid "A name runs to %(max)s characters at most."
+msgstr "Un nombre tiene como mucho %(max)s caracteres."
+
+msgid "A password runs to %(max)s characters at most."
+msgstr "Una contraseña tiene como mucho %(max)s caracteres."
+
+msgid "A password runs to %(min)s characters at least."
+msgstr "Una contraseña tiene al menos %(min)s caracteres."
+
+#, fuzzy
+msgid "Add one with New contact."
+msgstr "Añade uno con Contacto nuevo."
+
+#, fuzzy
+msgid "Ask for between %(min)s and %(max)s at a time."
+msgstr "Pide entre %(min)s y %(max)s a la vez."
+
+#, fuzzy
+msgid "Avatar"
+msgstr "Avatar"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "Cancelar"
+
+#, fuzzy
+msgid "Change role"
+msgstr "Cambiar el rol"
+
+#, fuzzy
+msgid "Channels"
+msgstr "Canales"
+
+#, fuzzy
+msgid "Choose the role of %(name)s."
+msgstr "Elige el rol de %(name)s."
 
 #, fuzzy
 msgid "Contact added."
@@ -704,6 +699,10 @@ msgid "Dismiss"
 msgstr "Descartar"
 
 #, fuzzy
+msgid "Identity"
+msgstr "Identidad"
+
+#, fuzzy
 msgid "Identity added."
 msgstr "Identidad añadida."
 
@@ -712,12 +711,86 @@ msgid "Identity removed."
 msgstr "Identidad quitada."
 
 #, fuzzy
-msgid "Task added."
-msgstr "Tarea añadida."
+msgid "Manage the people you work with and how to reach them."
+msgstr "Gestiona las personas con las que trabajas y cómo contactar con ellas."
+
+#, fuzzy
+msgid "Manage the tokens your programs sign in with."
+msgstr "Gestiona los tokens con los que entran tus programas."
+
+#, fuzzy
+msgid "Manage who can sign in and what they can do."
+msgstr "Gestiona quién puede entrar y qué puede hacer."
+
+#, fuzzy
+msgid "No contacts yet."
+msgstr "Todavía no hay contactos."
+
+#, fuzzy
+msgid "No tokens found."
+msgstr "No se ha encontrado ningún token."
+
+#, fuzzy
+msgid "No users found."
+msgstr "No se ha encontrado ningún usuario."
+
+#, fuzzy
+msgid "Open %(name)s"
+msgstr "Abrir %(name)s"
+
+#, fuzzy
+msgid "Rename"
+msgstr "Renombrar"
+
+#, fuzzy
+msgid "Rename contact"
+msgstr "Renombrar el contacto"
+
+#, fuzzy
+msgid "Revoke %s token? Anything using it stops working at once."
+msgid_plural "Revoke %s tokens? Anything using them stops working at once."
+msgstr[0] "¿Revocar %s token? Todo lo que lo use dejará de funcionar al momento."
+msgstr[1] "¿Revocar %s tokens? Todo lo que los use dejará de funcionar al momento."
+msgstr[2] ""
+
+#, fuzzy
+msgid "Revoke the token %(name)s? Anything using it stops working at once."
+msgstr "¿Revocar el token %(name)s? Todo lo que lo use dejará de funcionar al momento."
+
+#, fuzzy
+msgid "Revoke token"
+msgid_plural "Revoke tokens"
+msgstr[0] "Revocar token"
+msgstr[1] "Revocar tokens"
+msgstr[2] ""
+
+#, fuzzy
+msgid "Role changed."
+msgstr "Rol cambiado."
+
+#, fuzzy
+msgid "Search contacts…"
+msgstr "Buscar contactos…"
+
+#, fuzzy
+msgid "Search tokens…"
+msgstr "Buscar tokens…"
+
+#, fuzzy
+msgid "Search users…"
+msgstr "Buscar usuarios…"
+
+#, fuzzy
+msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
+msgstr "¿Enviar una invitación nueva a %(name)s (%(email)s)? El enlace anterior dejará de funcionar."
 
 #, fuzzy
 msgid "Task added for %(date)s."
 msgstr "Tarea añadida para el %(date)s."
+
+#, fuzzy
+msgid "Task added."
+msgstr "Tarea añadida."
 
 #, fuzzy
 msgid "Task completed."
@@ -736,64 +809,16 @@ msgid "Task saved."
 msgstr "Tarea guardada."
 
 #, fuzzy
-msgid "Undo"
-msgstr "Deshacer"
-
-#, fuzzy
-msgid "%s user could not be disabled."
-msgid_plural "%s users could not be disabled."
-msgstr[0] "No se ha podido desactivar %s usuario."
-msgstr[1] "No se han podido desactivar %s usuarios."
-
-#, fuzzy
-msgid "%s user could not be enabled."
-msgid_plural "%s users could not be enabled."
-msgstr[0] "No se ha podido reactivar %s usuario."
-msgstr[1] "No se han podido reactivar %s usuarios."
-
-#, fuzzy
-msgid "%s user disabled."
-msgid_plural "%s users disabled."
-msgstr[0] "%s usuario desactivado."
-msgstr[1] "%s usuarios desactivados."
-
-#, fuzzy
-msgid "%s user enabled."
-msgid_plural "%s users enabled."
-msgstr[0] "%s usuario reactivado."
-msgstr[1] "%s usuarios reactivados."
-
-#, fuzzy
-msgid "Cancel"
-msgstr "Cancelar"
-
-#, fuzzy
-msgid "Change role"
-msgstr "Cambiar el rol"
-
-#, fuzzy
-msgid "Choose the role of %(name)s."
-msgstr "Elige el rol de %(name)s."
-
-#, fuzzy
-msgid "No users found."
-msgstr "No se ha encontrado ningún usuario."
-
-#, fuzzy
-msgid "Role changed."
-msgstr "Rol cambiado."
-
-#, fuzzy
-msgid "Search users…"
-msgstr "Buscar usuarios…"
-
-#, fuzzy
-msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
-msgstr "¿Enviar una invitación nueva a %(name)s (%(email)s)? El enlace anterior dejará de funcionar."
+msgid "Task title"
+msgstr "Título de la tarea"
 
 #, fuzzy
 msgid "The role could not be changed."
 msgstr "No se ha podido cambiar el rol."
+
+#, fuzzy
+msgid "The token could not be revoked."
+msgstr "No se ha podido revocar el token."
 
 #, fuzzy
 msgid "The user could not be disabled."
@@ -804,6 +829,18 @@ msgid "The user could not be enabled."
 msgstr "No se ha podido reactivar el usuario."
 
 #, fuzzy
+msgid "Token revoked."
+msgstr "Token revocado."
+
+#, fuzzy
+msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
+msgstr "Demasiados intentos. Espera %(retryAfter)s segundos e inténtalo de nuevo."
+
+#, fuzzy
+msgid "Undo"
+msgstr "Deshacer"
+
+#, fuzzy
 msgid "User disabled."
 msgstr "Usuario desactivado."
 
@@ -812,64 +849,50 @@ msgid "User enabled."
 msgstr "Usuario reactivado."
 
 #, fuzzy
-msgid "Manage the tokens your programs sign in with."
-msgstr "Gestiona los tokens con los que entran tus programas."
-
-#, fuzzy
-msgid "Manage who can sign in and what they can do."
-msgstr "Gestiona quién puede entrar y qué puede hacer."
-
-#, fuzzy
 msgid "User sections"
 msgstr "Secciones de usuarios"
 
 #, fuzzy
-msgid "Avatar"
-msgstr "Avatar"
+msgctxt "admin section"
+msgid "Contacts"
+msgstr "Contactos"
+
+msgctxt "admin section"
+msgid "Tasks"
+msgstr "Tareas"
+
+msgctxt "admin section"
+msgid "Language"
+msgstr "Idioma"
 
 #, fuzzy
-msgid "%s token could not be revoked."
-msgid_plural "%s tokens could not be revoked."
-msgstr[0] "No se ha podido revocar %s token."
-msgstr[1] "No se han podido revocar %s tokens."
+msgctxt "contact channel"
+msgid "Email"
+msgstr "Correo electrónico"
 
 #, fuzzy
-msgid "%s token revoked."
-msgid_plural "%s tokens revoked."
-msgstr[0] "%s token revocado."
-msgstr[1] "%s tokens revocados."
+msgctxt "contact channel"
+msgid "Phone"
+msgstr "Teléfono"
 
 #, fuzzy
-msgid "No tokens found."
-msgstr "No se ha encontrado ningún token."
+msgctxt "task priority"
+msgid "High"
+msgstr "Alta"
 
 #, fuzzy
-msgid "Revoke %s token? Anything using it stops working at once."
-msgid_plural "Revoke %s tokens? Anything using them stops working at once."
-msgstr[0] "¿Revocar %s token? Todo lo que lo use dejará de funcionar al momento."
-msgstr[1] "¿Revocar %s tokens? Todo lo que los use dejará de funcionar al momento."
+msgctxt "task priority"
+msgid "Normal"
+msgstr "Normal"
 
 #, fuzzy
-msgid "Revoke the token %(name)s? Anything using it stops working at once."
-msgstr "¿Revocar el token %(name)s? Todo lo que lo use dejará de funcionar al momento."
+msgctxt "token expiry"
+msgid "Expired"
+msgstr "Caducado"
 
-#, fuzzy
-msgid "Revoke token"
-msgid_plural "Revoke tokens"
-msgstr[0] "Revocar token"
-msgstr[1] "Revocar tokens"
-
-#, fuzzy
-msgid "Search tokens…"
-msgstr "Buscar tokens…"
-
-#, fuzzy
-msgid "The token could not be revoked."
-msgstr "No se ha podido revocar el token."
-
-#, fuzzy
-msgid "Token revoked."
-msgstr "Token revocado."
+msgctxt "token lifetime"
+msgid "Never"
+msgstr "Nunca"
 
 #, fuzzy
 msgctxt "day heading"
@@ -922,33 +945,16 @@ msgid "webhooks"
 msgstr "webhooks"
 
 #, fuzzy
-msgid "Add one with New contact."
-msgstr "Añade uno con Contacto nuevo."
+msgctxt "user status"
+msgid "Active"
+msgstr "Activo"
 
 #, fuzzy
-msgid "Channels"
-msgstr "Canales"
+msgctxt "user status"
+msgid "Disabled"
+msgstr "Desactivado"
 
 #, fuzzy
-msgid "Identity"
-msgstr "Identidad"
-
-#, fuzzy
-msgid "Manage the people you work with and how to reach them."
-msgstr "Gestiona las personas con las que trabajas y cómo contactar con ellas."
-
-#, fuzzy
-msgid "No contacts yet."
-msgstr "Todavía no hay contactos."
-
-#, fuzzy
-msgid "Rename"
-msgstr "Renombrar"
-
-#, fuzzy
-msgid "Rename contact"
-msgstr "Renombrar el contacto"
-
-#, fuzzy
-msgid "Search contacts…"
-msgstr "Buscar contactos…"
+msgctxt "user status"
+msgid "Invited"
+msgstr "Invitado"
