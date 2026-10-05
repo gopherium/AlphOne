@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -100,11 +101,21 @@ func claimed(t *testing.T, url, secret string, attempts int) webhook.ClaimedDeli
 	}
 }
 
-// newWorker returns a worker over queue, and the log it writes to.
+// loopback is the guard letting a worker reach the test subscribers listening on 127.0.0.1.
+var loopback = webhook.AddressGuard{
+	Allowed: webhook.AllowList{Ranges: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}},
+}
+
+// newWorker returns a worker over queue reaching the test subscribers, and the log it writes to.
 func newWorker(queue *fakeWorkerQueue) (*webhook.Worker, *strings.Builder) {
+	return newGuardedWorker(queue, loopback)
+}
+
+// newGuardedWorker returns a worker over queue posting only where guard allows, and the log it writes to.
+func newGuardedWorker(queue *fakeWorkerQueue, guard webhook.AddressGuard) (*webhook.Worker, *strings.Builder) {
 	var logged strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logged, nil))
-	return webhook.NewWorker(queue, logger), &logged
+	return webhook.NewWorker(queue, logger, guard), &logged
 }
 
 func TestWorkerSignsAndDeliversTheExactPayload(t *testing.T) {
@@ -226,7 +237,7 @@ func TestWorkerRetriesAnUnreachableSubscriber(t *testing.T) {
 	queue := &fakeWorkerQueue{pending: []webhook.ClaimedDelivery{
 		claimed(t, "http://127.0.0.1:9/gone", "whsec_a", 1),
 	}}
-	worker, _ := newWorker(queue)
+	worker, logged := newWorker(queue)
 
 	worker.Sweep(t.Context())
 
@@ -236,6 +247,9 @@ func TestWorkerRetriesAnUnreachableSubscriber(t *testing.T) {
 	}
 	if settled[0].LastError == "" {
 		t.Error("last_error is empty, want the transport failure recorded")
+	}
+	if strings.Contains(logged.String(), "internal address") {
+		t.Errorf("log = %q, want no refusal warning for a subscriber that did not answer", logged.String())
 	}
 }
 

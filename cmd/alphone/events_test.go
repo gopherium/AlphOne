@@ -47,7 +47,7 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	unaddressed := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Nil)
 	publisher := nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
 		hub:        hub,
 	}
 
@@ -80,7 +80,7 @@ func TestAPluginEventStaysInsideTheCallersTenant(t *testing.T) {
 	far := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()))
 	publisher := pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
 		hub:        hub,
 	}}
 
@@ -108,7 +108,7 @@ func TestAHeadlessPluginPublishLandsInTheDefaultTenant(t *testing.T) {
 	elsewhere := hub.Subscribe(uuid.Must(uuid.NewV7()), sdk.DefaultTenantID)
 	publisher := pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
 		hub:        hub,
 	}}
 

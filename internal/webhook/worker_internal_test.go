@@ -44,14 +44,14 @@ func (q *countingQueue) sweeps() int {
 func TestStoppingANeverStartedWorkerIsFine(t *testing.T) {
 	t.Parallel()
 
-	NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil))).Stop()
+	NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{}).Stop()
 }
 
 func TestWorkerSweepsOnEveryTick(t *testing.T) {
 	t.Parallel()
 
 	queue := &countingQueue{}
-	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)))
+	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{})
 	worker.interval = time.Millisecond
 
 	worker.Start()
@@ -69,7 +69,7 @@ func TestWorkerSweepsOnEveryTick(t *testing.T) {
 func TestWorkerPostsOverItsOwnConnectionPool(t *testing.T) {
 	t.Parallel()
 
-	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)))
+	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{})
 
 	if worker.client.Transport == nil {
 		t.Fatal("worker transport = nil, so it posts over the pool every other caller shares")
@@ -83,7 +83,7 @@ func TestWorkerReportsAnUnusableSubscriberURL(t *testing.T) {
 	t.Parallel()
 
 	var logged strings.Builder
-	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&logged, nil)))
+	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{})
 
 	err := worker.post(t.Context(), ClaimedDelivery{URL: "://not a url"})
 
@@ -97,7 +97,7 @@ func TestWorkerLogsAFailureToSettle(t *testing.T) {
 
 	var logged strings.Builder
 	queue := &countingQueue{settleErr: errors.New("queue unavailable")}
-	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&logged, nil)))
+	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{})
 
 	worker.settle(t.Context(), ClaimedDelivery{Delivery: Delivery{ID: uuid.Must(uuid.NewV7())}},
 		StatusDelivered, time.Now().UTC(), "")

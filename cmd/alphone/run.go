@@ -65,7 +65,7 @@ func run(
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
-	deliveries := webhook.NewWorker(webhooks, logger)
+	deliveries := webhook.NewWorker(webhooks, logger, webhook.AddressGuard{})
 	deliveries.Start()
 	defer deliveries.Stop()
 	hub := event.NewHub()

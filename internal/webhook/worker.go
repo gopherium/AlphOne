@@ -5,6 +5,7 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -51,19 +52,11 @@ type Worker struct {
 	done     chan struct{}
 }
 
-// transportTemplate is the pool settings every delivery client is cloned from.
-var transportTemplate = http.DefaultTransport.(*http.Transport)
-
-// newDeliveryTransport returns the connection pool deliveries are posted over.
-func newDeliveryTransport() http.RoundTripper {
-	return transportTemplate.Clone()
-}
-
-// NewWorker returns a [Worker] draining queue.
-func NewWorker(queue WorkerQueue, logger *slog.Logger) *Worker {
+// NewWorker returns a [Worker] draining queue, posting only to the addresses guard allows.
+func NewWorker(queue WorkerQueue, logger *slog.Logger, guard AddressGuard) *Worker {
 	return &Worker{
 		queue:    queue,
-		client:   &http.Client{Timeout: requestTimeout, Transport: newDeliveryTransport()},
+		client:   guard.Client(requestTimeout),
 		logger:   logger,
 		nudge:    make(chan struct{}, 1),
 		interval: sweepInterval,
@@ -160,6 +153,7 @@ func (w *Worker) post(ctx context.Context, d ClaimedDelivery) error {
 	request.Header.Set("X-AlphOne-Signature-256", Sign(d.Secret, d.Payload))
 	response, err := w.client.Do(request)
 	if err != nil {
+		w.warnRefused(ctx, d, request.URL.Host, err)
 		return fmt.Errorf("posting delivery: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
@@ -167,6 +161,14 @@ func (w *Worker) post(ctx context.Context, d ClaimedDelivery) error {
 		return fmt.Errorf("subscriber answered %d", response.StatusCode)
 	}
 	return nil
+}
+
+// warnRefused tells the operator which host a delivery was refused for when the guard refused it.
+func (w *Worker) warnRefused(ctx context.Context, d ClaimedDelivery, host string, err error) {
+	if errors.Is(err, ErrAddressRefused) {
+		w.logger.WarnContext(ctx, "refusing a webhook delivery to an internal address",
+			"host", host, "delivery", d.ID, "error", err)
+	}
 }
 
 // settle records the outcome of one delivery attempt.
