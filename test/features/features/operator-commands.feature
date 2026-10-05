@@ -116,6 +116,18 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token list of "admin@example.com" shows no token
 
+  Scenario Outline: A token command refuses a line it cannot read without a database
+    Given the settings name no database
+    When the operator runs "<command> -email admin@example.com <flags>"
+    Then the command exits with code 2
+    And the error says "<error>"
+
+    Examples:
+      | command      | flags | error                           |
+      | token:create |       | token:create wants -name <name> |
+      | token:revoke |       | token:revoke wants -id <id>     |
+      | token:revoke | -yes  | token:revoke wants -id <id>     |
+
   Scenario: The check command names a malformed setting
     Given the setting "ALPHONE_INVITE_TTL" holds "a week"
     When the operator runs "check"

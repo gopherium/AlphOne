@@ -401,9 +401,6 @@ func TestTokenCreateRefusesATokenItCannotMint(t *testing.T) {
 		"an address nobody answers to": {
 			[]string{"-email", "nobody@example.com", "-name", "n8n"}, gouncer.ErrUserNotFound.Error(),
 		},
-		"a blank name": {
-			[]string{"-email", "admin@example.com", "-name", "  "}, apitoken.ErrEmptyName.Error(),
-		},
 	}
 	for testName, tc := range tests {
 		t.Run(testName, func(t *testing.T) {
@@ -896,35 +893,62 @@ func TestTokenListHelpNamesItsFlags(t *testing.T) {
 	}
 }
 
-func TestTokenCommandsWantTheOwnersAddress(t *testing.T) {
+func TestTokenCommandsWantEveryFlagTheyNeed(t *testing.T) {
 	t.Parallel()
 
-	wants := map[string]string{
-		"token:create": "token:create wants -email <address>",
-		"token:list":   "token:list wants -email <address> or -all",
-		"token:revoke": "token:revoke wants -email <address>",
+	const (
+		createOwner = "token:create wants -email <address>"
+		createName  = "token:create wants -name <name>"
+		listOwner   = "token:list wants -email <address> or -all"
+		revokeOwner = "token:revoke wants -email <address>"
+		revokeID    = "token:revoke wants -id <id>"
+		owner       = "admin@example.com"
+	)
+	unheldID := uuid.Nil.String()
+	lines := map[string]struct {
+		args []string
+		want string
+	}{
+		"token:create with a blank -email":   {[]string{"token:create", "-email", "  ", "-name", "n8n"}, createOwner},
+		"token:create with no -email":        {[]string{"token:create", "-name", "n8n"}, createOwner},
+		"token:create with a blank -name":    {[]string{"token:create", "-email", owner, "-name", "  "}, createName},
+		"token:create with no -name":         {[]string{"token:create", "-email", owner}, createName},
+		"token:list with a blank -email":     {[]string{"token:list", "-email", "  "}, listOwner},
+		"token:list with no -email":          {[]string{"token:list"}, listOwner},
+		"token:list with -all=false alone":   {[]string{"token:list", "-all=false"}, listOwner},
+		"token:revoke with a blank -email":   {[]string{"token:revoke", "-email", "  ", "-id", unheldID}, revokeOwner},
+		"token:revoke with no -email":        {[]string{"token:revoke", "-id", unheldID}, revokeOwner},
+		"token:revoke with a blank -id":      {[]string{"token:revoke", "-email", owner, "-id", "  "}, revokeID},
+		"token:revoke with no -id":           {[]string{"token:revoke", "-email", owner}, revokeID},
+		"token:revoke -yes with a blank -id": {[]string{"token:revoke", "-email", owner, "-id", "  ", "-yes"}, revokeID},
+		"token:revoke -yes with no -id":      {[]string{"token:revoke", "-email", owner, "-yes"}, revokeID},
 	}
-	lines := map[string][]string{
-		"token:create with a blank -email": {"token:create", "-email", "  ", "-name", "n8n"},
-		"token:create with no -email":      {"token:create", "-name", "n8n"},
-		"token:list with a blank -email":   {"token:list", "-email", "  "},
-		"token:list with no -email":        {"token:list"},
-		"token:list with -all=false alone": {"token:list", "-all=false"},
-		"token:revoke with a blank -email": {"token:revoke", "-email", "  ", "-id", uuid.Nil.String()},
-		"token:revoke with no -email":      {"token:revoke", "-id", uuid.Nil.String()},
-	}
-	for testName, args := range lines {
+	for testName, line := range lines {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			got := testkit.Run(t, bareProgram(nil), "", args...)
+			got := testkit.Run(t, bareProgram(nil), "", line.args...)
 
-			want := "alphone: " + wants[args[0]] + "\n"
-			if got.Code != gonsole.ExitMisused || !strings.HasPrefix(got.Stderr, want) {
-				t.Errorf("%q = %d with stderr %q, want 2 and %q", args, got.Code, got.Stderr, want)
+			want := "alphone: " + line.want + "\n"
+			if got.Code != gonsole.ExitMisused || got.Stdout != "" || !strings.HasPrefix(got.Stderr, want) {
+				t.Errorf("%q = %d, stdout %q, stderr %q, want 2, nothing on stdout and %q",
+					line.args, got.Code, got.Stdout, got.Stderr, want)
 			}
 		})
 	}
+}
+
+func TestMustMintPanicsOnAnError(t *testing.T) {
+	t.Parallel()
+
+	failed := errors.New("no token")
+	defer func() {
+		if recovered := recover(); recovered != failed {
+			t.Fatalf("mustMint() recovered %v, want a panic with the error", recovered)
+		}
+	}()
+
+	mustMint(apitoken.Minted{}, failed)
 }
 
 func TestTokenCommandsRefuseAFlagTheyDoNotDeclare(t *testing.T) {

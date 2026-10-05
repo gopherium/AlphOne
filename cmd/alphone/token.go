@@ -47,29 +47,27 @@ type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner goun
 
 // tokenCommands returns the commands that mint, list and revoke the API tokens of an account.
 func tokenCommands() []gonsole.Command {
-	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken)
+	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken,
+		"email", "id")
 	revoke.Writes = true
 	return []gonsole.Command{
 		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
-			createToken),
+			createToken, "email", "name"),
 		tokenListCommand(),
 		revoke,
 	}
 }
 
-// tokenCommand returns the token command called name, running step in the tenant of the account -email names.
-func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenStep) gonsole.Command {
+// tokenCommand returns the command called name, needing the flags needs and running step in the owner's tenant.
+func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenStep, needs ...string) gonsole.Command {
 	return gonsole.Command{
 		Name:    name,
 		Summary: summary,
 		Flags:   flags,
+		Needs:   needs,
 		Run: func(ctx context.Context, call gonsole.Call) error {
-			email := storedAddress(call.Flags["email"])
-			if email == "" {
-				return gonsole.Misuse(fmt.Errorf("%s wants -email <address>", name))
-			}
 			return withPool(ctx, call, func(pool *pgxpool.Pool) error {
-				standing, owner, err := tokenOwner(ctx, pool, email)
+				standing, owner, err := tokenOwner(ctx, pool, storedAddress(call.Flags["email"]))
 				if err != nil {
 					return err
 				}
@@ -223,10 +221,7 @@ func createToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer
 	if err := graphres.ValidateScopes(granted); err != nil {
 		return err
 	}
-	minted, err := apitoken.Mint(owner.ID, call.Flags["name"], granted, lifetime)
-	if err != nil {
-		return err
-	}
+	minted := mustMint(apitoken.Mint(owner.ID, call.Flags["name"], granted, lifetime))
 	if err := tokens.Create(ctx, minted.Token); err != nil {
 		return err
 	}
@@ -235,6 +230,14 @@ func createToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer
 	_, _ = fmt.Fprintln(call.Stdout, "store it now, it is never shown again")
 	_, _ = fmt.Fprintf(call.Stdout, "scopes %s, expires %s\n", minted.Token.Scopes, orNever(minted.Token.ExpiresAt))
 	return nil
+}
+
+// mustMint returns minted and panics if minting a token the command line already checked failed.
+func mustMint(minted apitoken.Minted, err error) apitoken.Minted {
+	if err != nil {
+		panic(err)
+	}
+	return minted
 }
 
 // listTokens prints one line per token of the owner, or one JSON document with -json, secrets excluded.

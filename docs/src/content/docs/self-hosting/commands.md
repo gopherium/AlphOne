@@ -104,7 +104,7 @@ Every command exits with one of three codes:
 | --- | --- |
 | `0` | The command ran, or showed what it would change. |
 | `1` | The command ran and failed, for example over a refused setting, an unknown account or a refused change. The reason follows `alphone:` on the error stream. |
-| `2` | The line itself is wrong, such as an unknown command, a missing flag or argument, or an unknown role. The reason follows `alphone:`, then the help page of the command when there is one. A missing `-name` on `token:create` or `-id` on `token:revoke` exits 1 instead. |
+| `2` | The line itself is wrong, such as an unknown command, a missing flag or argument, or an unknown role. The reason follows `alphone:`, then the help page of the command when there is one. |
 
 ```sh
 alphone frobnicate
@@ -407,7 +407,7 @@ scopes contacts:read tasks:read, expires 2027-01-02
 - `-ttl` sets how many days the token lasts, or `never`. Without it the
   token lasts `ALPHONE_TOKEN_TTL_DAYS` days, ninety by default.
 
-Without `-name` it exits 1 with `alphone: apitoken: empty name`.
+Without `-name` it exits 2 with `alphone: token:create wants -name <name>`.
 
 ### token:list
 
@@ -463,8 +463,8 @@ alphone: dry run, nothing changed, pass -yes to apply
 
 With `-yes` it answers `revoked token` and the id. An id the account
 does not hold exits 1 with `alphone: apitoken: not found`, with or
-without `-yes`. Without `-id` it exits 1 with
-`alphone: parse token id: invalid UUID length: 0`.
+without `-yes`. Without `-id` it exits 2 with
+`alphone: token:revoke wants -id <id>`, with or without `-yes`.
 
 ## Old names
 
