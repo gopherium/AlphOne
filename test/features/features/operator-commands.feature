@@ -123,10 +123,15 @@ Feature: Operators run AlphOne from one command line
     And the error says "<error>"
 
     Examples:
-      | command      | flags | error                           |
-      | token:create |       | token:create wants -name <name> |
-      | token:revoke |       | token:revoke wants -id <id>     |
-      | token:revoke | -yes  | token:revoke wants -id <id>     |
+      | command      | flags                                | error                                               |
+      | token:create |                                      | token:create wants -name <name>                     |
+      | token:revoke |                                      | token:revoke wants -id <id>                         |
+      | token:revoke | -yes                                 | token:revoke wants -id <id>                         |
+      | token:create | -name automation -ttl soon           | for flag -ttl: want a whole number of days or never |
+      | token:create | -name automation -ttl 106752         | for flag -ttl: apitoken: lifetime too long          |
+      | token:create | -name automation -scope contact:read | for flag -scope: apitoken: unknown area             |
+      | token:revoke | -id not-a-uuid                       | for flag -id: invalid UUID length                   |
+      | token:revoke | -id not-a-uuid -yes                  | for flag -id: invalid UUID length                   |
 
   Scenario: The check command names a malformed setting
     Given the setting "ALPHONE_INVITE_TTL" holds "a week"

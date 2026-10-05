@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,30 +41,40 @@ const neverWord = "never"
 // noAccount stands for the owner in the token list when no account answers for a token.
 const noAccount = "(no account)"
 
+// errNotDays is the reason a -ttl that is neither whole days nor never cannot be read.
+var errNotDays = errors.New("want a whole number of days or never")
+
 // tokenStep is the work one token command does over the token store for the account that owns the tokens.
 type tokenStep func(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error
 
+// tokenRead reads the values the line of the token command called name sets and returns the step that acts on them.
+type tokenRead func(name string, call gonsole.Call) (tokenStep, error)
+
 // tokenCommands returns the commands that mint, list and revoke the API tokens of an account.
 func tokenCommands() []gonsole.Command {
-	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, revokeToken,
+	revoke := tokenCommand("token:revoke", "revoke one token of one account", revokeTokenFlags, readRevoke,
 		"email", "id")
 	revoke.Writes = true
 	return []gonsole.Command{
 		tokenCommand("token:create", "mint a token for one account and show its secret once", createTokenFlags,
-			createToken, "email", "name"),
+			readCreate, "email", "name"),
 		tokenListCommand(),
 		revoke,
 	}
 }
 
-// tokenCommand returns the command called name, needing the flags needs and running step in the owner's tenant.
-func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenStep, needs ...string) gonsole.Command {
+// tokenCommand returns the command called name, needing needs and running the step read returns in the owner's tenant.
+func tokenCommand(name, summary string, flags func(*flag.FlagSet), read tokenRead, needs ...string) gonsole.Command {
 	return gonsole.Command{
 		Name:    name,
 		Summary: summary,
 		Flags:   flags,
 		Needs:   needs,
 		Run: func(ctx context.Context, call gonsole.Call) error {
+			step, err := read(name, call)
+			if err != nil {
+				return err
+			}
 			return withPool(ctx, call, func(pool *pgxpool.Pool) error {
 				standing, owner, err := tokenOwner(ctx, pool, storedAddress(call.Flags["email"]))
 				if err != nil {
@@ -79,7 +88,7 @@ func tokenCommand(name, summary string, flags func(*flag.FlagSet), step tokenSte
 
 // tokenListCommand returns token:list, which lists the tokens of the account -email names or of every account.
 func tokenListCommand() gonsole.Command {
-	list := tokenCommand("token:list", "list the tokens of one account or of every account", listTokenFlags, listTokens)
+	list := tokenCommand("token:list", "list the tokens of one account or of every account", listTokenFlags, readList)
 	list.JSON = true
 	ofOne := list.Run
 	list.Run = func(ctx context.Context, call gonsole.Call) error {
@@ -167,10 +176,10 @@ func (l *scopeList) String() string {
 	return strings.Join(*l, " ")
 }
 
-// Set adds one scope to the collection, refusing a blank scope or one that holds a space.
+// Set adds one scope to the collection, refusing one the scope rules refuse.
 func (l *scopeList) Set(scope string) error {
-	if scope == "" || strings.ContainsFunc(scope, unicode.IsSpace) {
-		return fmt.Errorf("%w: %q", apitoken.ErrMalformedScope, scope)
+	if err := graphres.ValidateScopes(apitoken.Scopes{scope}); err != nil {
+		return err
 	}
 	*l = append(*l, scope)
 	return nil
@@ -195,8 +204,8 @@ func defaultTokenLifetime(env gonsole.Env) (time.Duration, error) {
 	return apitoken.LifetimeOfDays(days)
 }
 
-// tokenLifetime returns the lifetime the call asks for, the setting's default when it asks for none.
-func tokenLifetime(call gonsole.Call) (time.Duration, error) {
+// tokenLifetime returns the lifetime the line of the command called name asks for, the setting's default without one.
+func tokenLifetime(name string, call gonsole.Call) (time.Duration, error) {
 	ttl := call.Flags["ttl"]
 	switch ttl {
 	case "":
@@ -204,24 +213,48 @@ func tokenLifetime(call gonsole.Call) (time.Duration, error) {
 	case neverWord:
 		return apitoken.Never, nil
 	}
-	days, err := strconv.Atoi(ttl)
+	lifetime, err := lifetimeOfDays(ttl)
 	if err != nil {
-		return 0, fmt.Errorf("parse ttl: %w", err)
+		return 0, unreadable(name, "ttl", ttl, err)
+	}
+	return lifetime, nil
+}
+
+// lifetimeOfDays returns the lifetime of the whole days ttl names, judging a number past the range of int by its sign.
+func lifetimeOfDays(ttl string) (time.Duration, error) {
+	days, err := strconv.Atoi(ttl)
+	switch {
+	case errors.Is(err, strconv.ErrRange) && days < 0:
+		return 0, apitoken.ErrNegativeLifetime
+	case errors.Is(err, strconv.ErrRange):
+		return 0, apitoken.ErrLifetimeTooLong
+	case err != nil:
+		return 0, errNotDays
 	}
 	return apitoken.LifetimeOfDays(days)
 }
 
-// createToken mints the token the call asks for and prints its secret for the only time.
-func createToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
-	lifetime, err := tokenLifetime(call)
+// unreadable returns the misuse of a value the line of command set on the flag called name, refused for reason.
+func unreadable(command, name, value string, reason error) error {
+	return gonsole.Misuse(fmt.Errorf("%s: invalid value %q for flag -%s: %w", command, value, name, reason))
+}
+
+// readCreate reads the lifetime the line of the minting command called name asks for and returns the minting step.
+func readCreate(name string, call gonsole.Call) (tokenStep, error) {
+	lifetime, err := tokenLifetime(name, call)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	granted := grantedScopes(call)
-	if err := graphres.ValidateScopes(granted); err != nil {
-		return err
-	}
-	minted := mustMint(apitoken.Mint(owner.ID, call.Flags["name"], granted, lifetime))
+	return func(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
+		return createToken(ctx, tokens, owner, call, lifetime)
+	}, nil
+}
+
+// createToken mints the token the call asks for, lasting lifetime, and prints its secret for the only time.
+func createToken(
+	ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call, lifetime time.Duration,
+) error {
+	minted := mustMint(apitoken.Mint(owner.ID, call.Flags["name"], grantedScopes(call), lifetime))
 	if err := tokens.Create(ctx, minted.Token); err != nil {
 		return err
 	}
@@ -238,6 +271,11 @@ func mustMint(minted apitoken.Minted, err error) apitoken.Minted {
 		panic(err)
 	}
 	return minted
+}
+
+// readList returns the step that lists the tokens of one account, a token:list line setting no value to read.
+func readList(string, gonsole.Call) (tokenStep, error) {
+	return listTokens, nil
 }
 
 // listTokens prints one line per token of the owner, or one JSON document with -json, secrets excluded.
@@ -345,12 +383,22 @@ func orNever(at time.Time) string {
 	return at.UTC().Format(dateLayout)
 }
 
-// revokeToken deletes the token of the owner the call's -id flag names, only naming it until the call applies.
-func revokeToken(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
-	tokenID, err := uuid.Parse(call.Flags["id"])
+// readRevoke reads the id the line of the revoking command called name sets and returns the step revoking that token.
+func readRevoke(name string, call gonsole.Call) (tokenStep, error) {
+	typed := call.Flags["id"]
+	tokenID, err := uuid.Parse(typed)
 	if err != nil {
-		return fmt.Errorf("parse token id: %w", err)
+		return nil, unreadable(name, "id", typed, err)
 	}
+	return func(ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, call gonsole.Call) error {
+		return revokeToken(ctx, tokens, owner, tokenID, call)
+	}, nil
+}
+
+// revokeToken deletes the owner's token tokenID, only naming it until the call applies.
+func revokeToken(
+	ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, tokenID uuid.UUID, call gonsole.Call,
+) error {
 	if !call.Apply {
 		return previewRevoke(ctx, tokens, owner, tokenID, call)
 	}

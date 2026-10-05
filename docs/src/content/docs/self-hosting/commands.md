@@ -104,7 +104,7 @@ Every command exits with one of three codes:
 | --- | --- |
 | `0` | The command ran, or showed what it would change. |
 | `1` | The command ran and failed, for example over a refused setting, an unknown account or a refused change. The reason follows `alphone:` on the error stream. |
-| `2` | The line itself is wrong, such as an unknown command, a missing flag or argument, or an unknown role. The reason follows `alphone:`, then the help page of the command when there is one. |
+| `2` | The line itself is wrong, such as an unknown command, a missing flag or argument, a flag value it cannot read, or an unknown role. The reason follows `alphone:`, then the help page of the command when there is one. |
 
 ```sh
 alphone frobnicate
@@ -404,10 +404,25 @@ scopes contacts:read tasks:read, expires 2027-01-02
   as `tasks:read` or `tasks:write`. Repeat it for each area. Without it
   the token holds every area, shown as `scopes *`.
   `alphone help token:create` lists the areas.
-- `-ttl` sets how many days the token lasts, or `never`. Without it the
-  token lasts `ALPHONE_TOKEN_TTL_DAYS` days, ninety by default.
+- `-ttl` sets how many days the token lasts, or `never`. `-ttl 0`
+  mints a token that never expires too. Without `-ttl` the token lasts
+  `ALPHONE_TOKEN_TTL_DAYS` days, ninety by default.
 
 Without `-name` it exits 2 with `alphone: token:create wants -name <name>`.
+A `-ttl` that is neither `never` nor a whole number of days from 0 to
+106751, or a `-scope` whose area no schema declares or whose access is
+neither `read` nor `write`, also exits 2, before any database is reached:
+
+```sh
+alphone token:create -email you@example.com -name "my agent" -ttl soon
+```
+
+```text
+alphone: token:create: invalid value "soon" for flag -ttl: want a whole number of days or never
+```
+
+A malformed `ALPHONE_TOKEN_TTL_DAYS` exits 1 instead, as every refused
+setting does.
 
 ### token:list
 
@@ -464,7 +479,8 @@ alphone: dry run, nothing changed, pass -yes to apply
 With `-yes` it answers `revoked token` and the id. An id the account
 does not hold exits 1 with `alphone: apitoken: not found`, with or
 without `-yes`. Without `-id` it exits 2 with
-`alphone: token:revoke wants -id <id>`, with or without `-yes`.
+`alphone: token:revoke wants -id <id>`, and an `-id` that is not a UUID
+exits 2 before any database is reached, both with or without `-yes`.
 
 ## Old names
 

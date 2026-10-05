@@ -375,44 +375,62 @@ func TestTokenCreateGrantsOnlyTheScopesAsked(t *testing.T) {
 	}
 }
 
-func TestTokenCreateRefusesATokenItCannotMint(t *testing.T) {
+// helpPage returns the help page of the command called name.
+func helpPage(t *testing.T, name string) string {
+	t.Helper()
+	got := testkit.Run(t, bareProgram(nil), "", name, "-h")
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("%s -h = %d with stderr %q, want 0 and its page", name, got.Code, got.Stderr)
+	}
+	return got.Stdout
+}
+
+func TestTokenCreateRefusesAValueItCannotReadBeforeTheDatabase(t *testing.T) {
 	t.Parallel()
 
-	_, env := tokenDatabase(t)
+	env := map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}
+	page := helpPage(t, "token:create")
 	tests := map[string]struct {
-		args []string
-		want string
+		flag, value, reason string
 	}{
-		"an area no schema declares": {
-			[]string{"-email", "admin@example.com", "-name", "typo", "-scope", "contact:read"},
-			apitoken.ErrUnknownArea.Error(),
-		},
-		"an unreadable lifetime": {
-			[]string{"-email", "admin@example.com", "-name", "n8n", "-ttl", "soon"}, "parse ttl",
-		},
-		"a lifetime that would overflow": {
-			[]string{"-email", "admin@example.com", "-name", "n8n", "-ttl", "213504"},
-			apitoken.ErrLifetimeTooLong.Error(),
-		},
-		"a malformed scope": {
-			[]string{"-email", "admin@example.com", "-name", "n8n", "-scope", "tasks:admin"},
-			apitoken.ErrMalformedScope.Error(),
-		},
-		"an address nobody answers to": {
-			[]string{"-email", "nobody@example.com", "-name", "n8n"}, gouncer.ErrUserNotFound.Error(),
-		},
+		"an area no schema declares":        {"scope", "contact:read", `apitoken: unknown area: "contact"`},
+		"a malformed scope":                 {"scope", "tasks:admin", `apitoken: malformed scope: "tasks:admin"`},
+		"a lifetime in no whole days":       {"ttl", "soon", "want a whole number of days or never"},
+		"a lifetime in a fraction of days":  {"ttl", "1.5", "want a whole number of days or never"},
+		"a negative lifetime":               {"ttl", "-1", apitoken.ErrNegativeLifetime.Error()},
+		"one day past the longest lifetime": {"ttl", "106752", apitoken.ErrLifetimeTooLong.Error() + ": 106752 days"},
+		"a lifetime that would overflow":    {"ttl", "213504", apitoken.ErrLifetimeTooLong.Error() + ": 213504 days"},
+		"more days than a number holds":     {"ttl", "99999999999999999999", apitoken.ErrLifetimeTooLong.Error()},
+		"fewer days than a number holds":    {"ttl", "-99999999999999999999", apitoken.ErrNegativeLifetime.Error()},
 	}
 	for testName, tc := range tests {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			got := testkit.Run(t, bareProgram(env), "", append([]string{"token:create"}, tc.args...)...)
+			got := testkit.Run(t, bareProgram(env), "",
+				"token:create", "-email", "admin@example.com", "-name", "n8n", "-"+tc.flag, tc.value)
 
-			if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, tc.want) || got.Stdout != "" {
-				t.Errorf("token:create %q = %d, stdout %q, stderr %q, want 1, nothing minted and %q",
-					tc.args, got.Code, got.Stdout, got.Stderr, tc.want)
+			want := fmt.Sprintf("alphone: token:create: invalid value %q for flag -%s: %s\n\n%s",
+				tc.value, tc.flag, tc.reason, page)
+			if got.Code != gonsole.ExitMisused || got.Stdout != "" || got.Stderr != want {
+				t.Errorf("token:create -%s %q = %d, stdout %q, stderr %q, want 2, no database reached and %q",
+					tc.flag, tc.value, got.Code, got.Stdout, got.Stderr, want)
 			}
 		})
+	}
+}
+
+func TestTokenCreateRefusesAnAddressNobodyAnswersTo(t *testing.T) {
+	t.Parallel()
+
+	_, env := tokenDatabase(t)
+
+	got := testkit.Run(t, bareProgram(env), "", "token:create", "-email", "nobody@example.com", "-name", "n8n")
+
+	want := "alphone: " + gouncer.ErrUserNotFound.Error() + "\n"
+	if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
+		t.Errorf("token:create -email nobody@example.com = %d, stdout %q, stderr %q, want 1, nothing minted and %q",
+			got.Code, got.Stdout, got.Stderr, want)
 	}
 }
 
@@ -636,15 +654,60 @@ func TestTokenRevokeRefusesATokenTheOwnerDoesNotHold(t *testing.T) {
 	}
 }
 
-func TestTokenRevokeRefusesAnUnreadableID(t *testing.T) {
+func TestTokenRevokeRefusesAnUnreadableIDBeforeTheDatabase(t *testing.T) {
 	t.Parallel()
 
-	_, env := tokenDatabase(t)
+	env := map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}
+	want := "alphone: token:revoke: invalid value \"not-a-uuid\" for flag -id: invalid UUID length: 10\n\n" +
+		helpPage(t, "token:revoke")
+	modes := map[string][]string{"a preview": nil, "a revoke confirmed with -yes": {"-yes"}}
+	for mode, confirm := range modes {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
 
-	got := testkit.Run(t, bareProgram(env), "", "token:revoke", "-email", "admin@example.com", "-id", "not-a-uuid")
+			args := append([]string{"token:revoke", "-email", "admin@example.com", "-id", "not-a-uuid"}, confirm...)
+			got := testkit.Run(t, bareProgram(env), "", args...)
 
-	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, "parse token id") {
-		t.Errorf("token:revoke -id not-a-uuid = %d with stderr %q, want 1 and the id refused", got.Code, got.Stderr)
+			if got.Code != gonsole.ExitMisused || got.Stdout != "" || got.Stderr != want {
+				t.Errorf("%q = %d, stdout %q, stderr %q, want 2, no database reached and %q",
+					args, got.Code, got.Stdout, got.Stderr, want)
+			}
+		})
+	}
+}
+
+func TestATokenCommandUnderAnotherNameNamesItInAValueItCannotRead(t *testing.T) {
+	t.Parallel()
+
+	renamed := bareProgram(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})
+	renamed.Commands = append(renamed.Commands,
+		tokenCommand("token:mint", "mint a token", createTokenFlags, readCreate, "email", "name"),
+		tokenCommand("token:drop", "drop a token", revokeTokenFlags, readRevoke, "email", "id"))
+	lines := map[string]struct {
+		args []string
+		want string
+	}{
+		"a lifetime in no whole days": {
+			[]string{"token:mint", "-email", "admin@example.com", "-name", "n8n", "-ttl", "soon"},
+			`token:mint: invalid value "soon" for flag -ttl: want a whole number of days or never`,
+		},
+		"an id that is not a UUID": {
+			[]string{"token:drop", "-email", "admin@example.com", "-id", "not-a-uuid"},
+			`token:drop: invalid value "not-a-uuid" for flag -id: invalid UUID length: 10`,
+		},
+	}
+	for condition, line := range lines {
+		t.Run(condition, func(t *testing.T) {
+			t.Parallel()
+
+			got := testkit.Run(t, renamed, "", line.args...)
+
+			want := "alphone: " + line.want + "\n"
+			if got.Code != gonsole.ExitMisused || got.Stdout != "" || !strings.HasPrefix(got.Stderr, want) {
+				t.Errorf("%q = %d, stdout %q, stderr %q, want 2, nothing on stdout and %q",
+					line.args, got.Code, got.Stdout, got.Stderr, want)
+			}
+		})
 	}
 }
 
@@ -1024,10 +1087,16 @@ func TestTokenStepsReportStoreFailures(t *testing.T) {
 
 	store := closedTokenStore(t)
 	owner := gouncer.User{ID: uuid.Must(uuid.NewV7()), Email: "admin@example.com"}
-	call := gonsole.Call{Flags: map[string]string{"name": "n8n", "id": uuid.Nil.String()}, Stdout: io.Discard}
-	steps := map[string]tokenStep{"token:create": createToken, "token:list": listTokens, "token:revoke": revokeToken}
+	call := gonsole.Call{
+		Flags: map[string]string{"name": "n8n", "id": uuid.Nil.String(), "ttl": neverWord}, Stdout: io.Discard,
+	}
+	reads := map[string]tokenRead{"token:create": readCreate, "token:list": readList, "token:revoke": readRevoke}
 
-	for name, step := range steps {
+	for name, read := range reads {
+		step, err := read(name, call)
+		if err != nil {
+			t.Fatalf("reading the %s line error = %v, want its step", name, err)
+		}
 		if err := step(t.Context(), store, owner, call); err == nil {
 			t.Errorf("the %s step on a closed pool error = nil, want the failure reported", name)
 		}
