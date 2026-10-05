@@ -161,6 +161,7 @@ func run(
 	cfg.PluginPublicPaths = host.PublicPaths()
 	cfg.PluginAreas = pluginAreas(registered)
 	cfg.FieldSources = fieldSources(registered)
+	cfg.Logger = logger
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
 	}

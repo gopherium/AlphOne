@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -86,6 +87,7 @@ type world struct {
 	memberValue  string
 	memberID     uuid.UUID
 	status       int
+	cookies      []*http.Cookie
 	relay        *smtpmock.Server
 	invitedValue string
 	entryIDs     map[string]string
@@ -137,6 +139,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		t.Fatalf("building the scenario mailer: %v", err)
 	}
 	inviteConfig := authkit.InvitesConfig{Store: users}
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	graph := &graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
@@ -156,7 +159,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:       quiet,
 	}
 	root, err := graphroot.FromPlugins(graph, registered)
 	if err != nil {
@@ -187,6 +190,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Tokens:       tokens,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
+		Logger:       quiet,
 	}))
 	t.Cleanup(srv.Close)
 

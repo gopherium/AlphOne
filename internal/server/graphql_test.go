@@ -5,6 +5,8 @@ package server_test
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -54,6 +56,9 @@ type graphConfig struct {
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
 	GraphiQL          bool
+	TrustedProxies    []string
+	Logger            *slog.Logger
+	Web               fs.FS
 }
 
 // newGraphServer returns a server whose graph root composes cfg's stores with
@@ -115,6 +120,9 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
 		GraphiQL:          cfg.GraphiQL,
+		TrustedProxies:    cfg.TrustedProxies,
+		Logger:            cfg.Logger,
+		Web:               cfg.Web,
 	})
 }
 

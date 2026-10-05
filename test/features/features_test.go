@@ -108,6 +108,11 @@ func initializeWebhooks(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerWebhookSteps(sc, t) }
 }
 
+// initializeCrossOrigin registers the cross-origin write steps.
+func initializeCrossOrigin(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerCrossOriginSteps(sc, t) }
+}
+
 // initializeRoles registers the role steps.
 func initializeRoles(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerRoleSteps(sc, t) }
@@ -185,6 +190,10 @@ func TestTokens(t *testing.T) {
 
 func TestWebhooks(t *testing.T) {
 	runFeature(t, "features/webhooks.feature", initializeWebhooks(t))
+}
+
+func TestCrossOriginWrites(t *testing.T) {
+	runFeature(t, "features/cross-origin-writes.feature", initializeCrossOrigin(t))
 }
 
 func TestRoles(t *testing.T) {
