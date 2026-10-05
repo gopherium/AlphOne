@@ -59,6 +59,91 @@ longer than the three added together. The Docker Compose file in
 | `ALPHONE_SHUTDOWN_CANCEL_GRACE` | How long the cancelled requests get to end before AlphOne closes their connections. Defaults to `5s`. |
 | `ALPHONE_SHUTDOWN_STOP_GRACE` | How long the plugins get to stop once the requests are over. Defaults to `5s`. |
 
+## Webhooks
+
+AlphOne refuses to deliver a [webhook](/reference/webhooks/) to an
+internal address unless you allow it here. Internal means loopback, the
+private network ranges, the shared and reserved ranges, link-local and
+multicast addresses, and their IPv6 counterparts. Public addresses are
+reached on any port.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_WEBHOOK_ALLOWED_HOSTS` | The internal addresses webhooks may still reach, comma separated. Empty by default, which refuses them all. An entry is a CIDR range such as `127.0.0.1/32`, or a host name with a port such as `n8n:5678`. |
+
+The two kinds of entry match at different moments:
+
+- A host name with a port matches the host and port written in the
+  webhook URL, before the name is looked up. `n8n:5678` opens
+  `http://n8n:5678/...` whatever address the name points to, and
+  nothing else on that network. Prefer it for one service on the same
+  Docker network, because that network usually holds the database too.
+  A URL that names no port uses 80 for `http` and 443 for `https`, so
+  `https://hooks.internal/receive` needs the entry `hooks.internal:443`.
+- A CIDR range matches the address AlphOne is about to connect to, after
+  the lookup. `127.0.0.1/32` opens every port on `127.0.0.1`, whatever
+  name the webhook URL used to get there.
+
+Link-local and cloud metadata addresses, `169.254.0.0/16`, `fe80::/10`
+and `fd00:ec2::254`, stay refused even when an entry lists them.
+
+On a network that reaches IPv4 through a NAT64 translator, an address in
+`64:ff9b::/96` is judged as the IPv4 address it carries. A public one
+passes with no entry, and an internal one needs its IPv4 range listed.
+
+AlphOne will not start unless every entry is one of the two kinds. A
+host name without a port, such as `n8n`, stops it with:
+
+```text
+ALPHONE_WEBHOOK_ALLOWED_HOSTS: must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678, got "n8n"
+```
+
+A refused delivery counts as a failed attempt and is retried like any
+other. Each one leaves a warning in the log,
+`refusing a webhook delivery to an internal address`, naming the host.
+Webhook deliveries ignore `HTTP_PROXY` and `HTTPS_PROXY` and always
+connect to the subscriber directly.
+
+## Cross-origin writes
+
+AlphOne refuses a write that a browser sends from a page at another
+origin, so a page elsewhere cannot make a signed-in person's browser
+change anything. Reads are never refused. A request that carries
+neither `Sec-Fetch-Site` nor `Origin` passes, so API tokens, scripts,
+n8n, AI agents over MCP and the WhatsApp webhook work as before. There
+is no setting to turn the check off.
+
+A browser write is judged in one of two ways:
+
+- A current browser says where the page stood in `Sec-Fetch-Site`. A
+  write from AlphOne's own pages passes, anything else is refused.
+- A browser from before 2023 does not send that header and is judged by
+  its `Origin`. Its host and port must match the `Host` header of the
+  write. The scheme is not compared.
+
+That second way is why a reverse proxy in front of AlphOne should pass
+the visitor's `Host` header through unchanged. AlphOne never reads
+`X-Forwarded-Host` for this check. Caddy and Traefik keep the `Host`
+header by default, and nginx needs `proxy_set_header Host $host`. Have
+the proxy send `Strict-Transport-Security` as well, so those older
+browsers never load one of your pages over plain `http`.
+
+A refused write answers HTTP 403 with this body, and the app tells the
+person that the request came from a page on another site:
+
+```json
+{ "error": "cross-origin request refused", "code": "request_cross_origin" }
+```
+
+The log gets a warning, `write refused`, with the method, the path, the
+`Host` header, the `Origin` and `Sec-Fetch-Site` the browser sent, and
+one of two reasons:
+
+- `fetch-site` when the browser said in `Sec-Fetch-Site` that the page
+  stood at another origin, a sibling subdomain included
+- `origin` when the browser sent only `Origin` and its host and port do
+  not match the `Host` header
+
 ## Fields plugin
 
 | Variable | Purpose |
@@ -108,4 +193,6 @@ see [Meta setup](/whatsapp/meta-setup/).
   account-side defense.
 - **The session cookie** is `HttpOnly`, `Secure`, `SameSite=Lax`, with
   the `__Host-` prefix. This is why [HTTPS is
-  mandatory](/self-hosting/install/) in production.
+  mandatory](/self-hosting/install/) in production. On top of the
+  cookie, writes a browser sends from another origin are refused, see
+  [Cross-origin writes](#cross-origin-writes).

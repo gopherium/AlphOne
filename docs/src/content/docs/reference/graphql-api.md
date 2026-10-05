@@ -408,6 +408,16 @@ A refused input looks like this:
 `path` names the field that failed, which matters when one operation asks for
 several.
 
+One refusal never reaches the graph. A write a browser sends from a page at
+another origin is refused before GraphQL reads it, with HTTP 403 and a plain
+JSON body rather than an `errors` list. A program sending a token without
+browser headers never meets it. See
+[cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
+
+```json
+{ "error": "cross-origin request refused", "code": "request_cross_origin" }
+```
+
 ### Reasons
 
 Beside the coarse `code`, a refused operation names a `reason`, a short fixed
@@ -456,6 +466,7 @@ The reasons the core answers with:
 | `origin_source_required` | | an origin event needs a source |
 | `event_unknown` | | the event name is not one AlphOne knows |
 | `webhook_url_invalid` | | the webhook URL does not parse |
+| `webhook_url_internal` | | the webhook URL is an internal IP address the operator has not allowed, see [webhooks](/reference/webhooks/#internal-addresses) |
 | `webhook_events_required` | | a webhook needs at least one event |
 | `webhook_not_found` | | the id names no webhook |
 | `first_out_of_range` | `min`, `max` | the page size is outside the range |

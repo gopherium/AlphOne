@@ -39,6 +39,34 @@ token) and a trigger whose scope includes the `alphone` container. Start
 with a notification-only trigger if you want to review updates before
 they apply, then switch to auto once you trust the flow.
 
+## Updating from an older release
+
+Coming from one release back or older, the update changes what an
+existing install sends and accepts. Read this before it reaches your
+server, because a watcher on `:latest` applies it on its own.
+
+- AlphOne refuses to deliver webhooks to internal addresses. A receiver
+  on your own network, such as n8n at `http://n8n:5678` on the same
+  Docker network or at `http://localhost:5678` on the same machine,
+  receives nothing until you list it, for example with
+  `ALPHONE_WEBHOOK_ALLOWED_HOSTS=n8n:5678`. Its subscription stays and
+  looks active. The only signs are the warning
+  `refusing a webhook delivery to an internal address` in the log and
+  the `last_error` of its deliveries. See
+  [Webhooks](/self-hosting/configuration/#webhooks).
+- Webhook deliveries ignore `HTTP_PROXY` and `HTTPS_PROXY` and connect
+  to the receiver directly.
+- A receiver that answers with a redirect, any `3xx`, fails the
+  delivery attempt. Subscribe the final address.
+- Disabling an account stops its webhooks.
+- A browser write sent from a page at another origin is refused with
+  `request_cross_origin`. A browser from before 2023 does not send
+  `Sec-Fetch-Site`, so AlphOne compares its `Origin` with the `Host`
+  header. Behind a reverse proxy, the proxy has to pass the visitor's
+  `Host` through unchanged, or such a browser is refused on AlphOne's
+  own pages too. `X-Forwarded-Host` is not read. See
+  [Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
+
 ## Rolling back
 
 Pin the previous version and re-up:

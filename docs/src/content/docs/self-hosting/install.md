@@ -105,6 +105,9 @@ ALPHONE_WHATSAPP_VERIFY_TOKEN=<from Meta>
 ALPHONE_WHATSAPP_APP_SECRET=<from Meta>
 ALPHONE_WHATSAPP_ACCESS_TOKEN=<from Meta>
 ALPHONE_WHATSAPP_PHONE_NUMBER_ID=<from Meta>
+
+# Only needed when a webhook receiver, such as n8n, shares a network with AlphOne.
+# ALPHONE_WEBHOOK_ALLOWED_HOSTS=n8n:5678
 ```
 
 `ALPHONE_TRUSTED_PROXIES` deserves a moment of attention. The login rate
@@ -120,6 +123,14 @@ docker network inspect <proxy-network> -f '{{range .IPAM.Config}}{{.Subnet}}{{en
 
 Keep that network limited to the proxy and the apps it fronts, because
 any container attached to it can set the header.
+
+AlphOne refuses to deliver webhooks to internal addresses, and every
+container on your Docker networks has one. If n8n or another webhook
+receiver runs next to AlphOne and its webhook URLs name it on a shared
+network, such as `http://n8n:5678/webhook/...`, allow that one service
+with `ALPHONE_WEBHOOK_ALLOWED_HOSTS=n8n:5678`. A receiver reached at a
+public `https` address needs nothing. See
+[Webhooks](/self-hosting/configuration/#webhooks) for the format.
 
 Without the WhatsApp variables the plugin runs inert: its screens exist
 but no webhook verifies and no message sends. Fill them in whenever you
@@ -139,9 +150,30 @@ alphone.example.com {
 docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Caddy obtains and renews the certificate automatically. For nginx or
-Traefik, proxy the domain to `alphone:8080` and make sure the proxy sets
-`X-Forwarded-For`.
+Caddy obtains and renews the certificate automatically, and keeps the
+`Host` header the visitor typed.
+
+For nginx or Traefik, proxy the domain to `alphone:8080` and make sure
+the proxy sets `X-Forwarded-For` and keeps the visitor's `Host` header.
+Traefik keeps it by default. With nginx, add:
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+The `Host` header matters only for browsers from before 2023, which do
+not send `Sec-Fetch-Site`. AlphOne compares their `Origin` with `Host`,
+so a proxy that renames the host makes AlphOne refuse their saves, see
+[Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
+
+Have the proxy send `Strict-Transport-Security` too. That comparison
+never looks at the scheme, and the header keeps those browsers on
+`https`. In Caddy, add
+`header Strict-Transport-Security "max-age=31536000"` to the site
+block. With nginx, add
+`add_header Strict-Transport-Security "max-age=31536000" always;`. In
+Traefik, set `stsSeconds` on a headers middleware.
 
 ## 4. Start it and create the admin login
 

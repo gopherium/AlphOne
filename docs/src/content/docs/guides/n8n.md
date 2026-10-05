@@ -218,6 +218,24 @@ curl -s https://your-domain/api/graphql \
 A subscription pointing at your n8n webhook url means the loop is live.
 From now on, every inbound WhatsApp message creates its task on its own.
 
+### When n8n runs next to AlphOne
+
+n8n builds its webhook urls from its `WEBHOOK_URL` setting, and AlphOne
+refuses to deliver to internal addresses unless the operator allows them.
+Which one you have decides whether AlphOne needs an entry:
+
+| n8n's webhook urls start with | Add to AlphOne's environment |
+| ----------------------------- | ---------------------------- |
+| a public `https` address | nothing |
+| `http://n8n:5678`, both in the same compose project | `ALPHONE_WEBHOOK_ALLOWED_HOSTS=n8n:5678` |
+| `http://localhost:5678`, both on your machine | `ALPHONE_WEBHOOK_ALLOWED_HOSTS=localhost:5678` |
+
+Restart AlphOne after adding it. The entry opens that one host and port
+and nothing else on the network. Without it the workflow publishes and the
+subscription exists, but every delivery is refused.
+[Configuration](/self-hosting/configuration/#webhooks) explains the
+format.
+
 ## How AlphOne marks automated work
 
 A task created with an API token records `token:<name>` in its
@@ -242,7 +260,9 @@ docker compose exec postgres psql -U postgres -d alphone -c \
      FROM core.webhook_deliveries ORDER BY created_at DESC LIMIT 5"
 ```
 
-`delivered` with `attempts = 1` means the chain worked first time.
+`delivered` with `attempts = 1` means the chain worked first time. A
+`last_error` naming `webhook: address refused` means AlphOne refused n8n's
+address, see [When n8n runs next to AlphOne](#when-n8n-runs-next-to-alphone).
 
 ## When it does not work
 
@@ -252,6 +272,9 @@ docker compose exec postgres psql -U postgres -d alphone -c \
 | `invalid token` | The token expired, was revoked, or the token id was pasted instead of the secret. Run `alphone token list` to see its expiry. Only the value starting `a1_` authenticates |
 | `scope required: contacts:write` | The token was not granted that area. Mint a replacement with the `-scope` it needs, tokens cannot be widened in place |
 | Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
+| A subscription exists but nothing arrives, AlphOne logs `refusing a webhook delivery to an internal address` | n8n's webhook url is on your own network. Add its host and port to `ALPHONE_WEBHOOK_ALLOWED_HOSTS`, see [above](#when-n8n-runs-next-to-alphone) |
+| Publishing fails with `url names an internal address` | n8n's webhook url is an internal IP address. Add that address and its port, such as `10.0.0.5:5678`, to `ALPHONE_WEBHOOK_ALLOWED_HOSTS`, or set `WEBHOOK_URL` to a public `https` address. A host name in its place passes this check, but every delivery is then refused until its entry is listed |
+| Deliveries stuck `pending` with `subscriber answered 301` or another `3xx` | n8n's webhook url forwards somewhere else and AlphOne never follows. Set `WEBHOOK_URL` to the final address |
 | A task titled with literal `{{ }}` | The field is not in expression mode. Use its `fx` toggle |
 | The task node fails with a validation error naming the id, previews show a leading `=` | An `=` was typed into the expression editor. n8n adds it, so delete yours |
 | Deliveries stuck `pending` with `subscriber answered 404` | A subscription outlived its workflow. Delete it with the `deleteWebhook` mutation |
