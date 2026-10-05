@@ -148,6 +148,28 @@ func TestAHostEntryOpensItsNameAndPortAlone(t *testing.T) {
 	}
 }
 
+func TestTheClientFollowsNoRedirect(t *testing.T) {
+	t.Parallel()
+
+	second, reached := countingServer(t)
+	first := httptest.NewServer(http.RedirectHandler(second.URL, http.StatusFound))
+	t.Cleanup(first.Close)
+	guard := webhook.AddressGuard{Allowed: webhook.AllowList{Ranges: prefixes("127.0.0.1/32")}}
+
+	response, err := guard.Client(time.Second).Get(first.URL)
+
+	if err != nil {
+		t.Fatalf("Get() error = %v, want the redirect answered as it came", err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusFound {
+		t.Errorf("status = %d, want %d", response.StatusCode, http.StatusFound)
+	}
+	if got := reached.Load(); got != 0 {
+		t.Errorf("the redirect target saw %d requests, want none", got)
+	}
+}
+
 func TestTheClientReachesALoopbackServerAnOperatorAllowed(t *testing.T) {
 	t.Parallel()
 

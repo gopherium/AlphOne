@@ -97,12 +97,17 @@ type AddressGuard struct {
 	Resolver *net.Resolver
 }
 
-// Client returns an HTTP client bounded by timeout that dials only allowed addresses and ignores proxy settings.
+// Client returns an HTTP client bounded by timeout that dials only allowed addresses and follows no proxy or redirect.
 func (g AddressGuard) Client(timeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DialContext = g.dial
-	return &http.Client{Timeout: timeout, Transport: transport}
+	return &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: answerRedirect}
+}
+
+// answerRedirect stops a client at the first redirect, answering it to the caller instead of following it.
+func answerRedirect(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
 }
 
 // dial connects to address once every address it resolves to passes the guard, a named host entry opening them all.

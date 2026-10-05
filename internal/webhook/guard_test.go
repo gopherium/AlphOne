@@ -3,6 +3,7 @@
 package webhook_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -220,6 +221,37 @@ func TestWorkerRefusesAMetadataAddressBehindAnAllowedHostEntry(t *testing.T) {
 	wantRefused(t, settled, logged, "metadata.example.com")
 	if !strings.Contains(settled.LastError, "169.254.169.254:80") {
 		t.Errorf("last_error = %q, want the resolved metadata address refused", settled.LastError)
+	}
+}
+
+func TestWorkerCountsARedirectAsAFailedDelivery(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []int{
+		http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther,
+		http.StatusTemporaryRedirect, http.StatusPermanentRedirect,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+
+			second, reached := countingSubscriber(t)
+			first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, second.URL+"/hook", status)
+			}))
+			t.Cleanup(first.Close)
+
+			settled, _ := deliverOnce(t, first.URL+"/hook", loopback)
+
+			if settled.Status != webhook.StatusPending {
+				t.Errorf("status = %q, want the redirect left pending as a failed attempt", settled.Status)
+			}
+			if want := fmt.Sprintf("subscriber answered %d", status); !strings.Contains(settled.LastError, want) {
+				t.Errorf("last_error = %q, want %q", settled.LastError, want)
+			}
+			if got := reached.Load(); got != 0 {
+				t.Errorf("the redirect target saw %d posts, want it never reached", got)
+			}
+		})
 	}
 }
 
