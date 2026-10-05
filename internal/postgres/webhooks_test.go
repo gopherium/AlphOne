@@ -4,12 +4,17 @@ package postgres_test
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/gouncer"
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -24,6 +29,38 @@ func mustSubscription(t *testing.T, owner uuid.UUID, url string, events ...event
 		t.Fatalf("webhook.NewSubscription() error = %v, want nil", err)
 	}
 	return sub
+}
+
+// storedOwner stores an account that owns webhook subscriptions and returns its id.
+func storedOwner(t *testing.T, pool *pgxpool.Pool, email string) uuid.UUID {
+	t.Helper()
+	held, err := gouncer.NewInvitedUser(email, "Maria Perez")
+	if err != nil {
+		t.Fatalf("gouncer.NewInvitedUser() error = %v, want nil", err)
+	}
+	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), held); err != nil {
+		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+	return held.ID
+}
+
+// setOwnerDisabled disables or enables the owner's account, failing the test on error.
+func setOwnerDisabled(t *testing.T, pool *pgxpool.Pool, owner uuid.UUID, disabled bool) {
+	t.Helper()
+	if err := authkitpg.NewUserStore(pool).SetUserDisabled(t.Context(), owner, disabled); err != nil {
+		t.Fatalf("SetUserDisabled(%v) error = %v, want nil", disabled, err)
+	}
+}
+
+// claimedNow claims every delivery due now and returns them.
+func claimedNow(t *testing.T, store *postgres.WebhookStore) []webhook.ClaimedDelivery {
+	t.Helper()
+	now := time.Now().UTC()
+	claimed, err := store.ClaimDueDeliveries(t.Context(), now, now.Add(time.Minute), 10)
+	if err != nil {
+		t.Fatalf("ClaimDueDeliveries() error = %v, want nil", err)
+	}
+	return claimed
 }
 
 // mustDelivery returns a delivery of a fresh task created event for the subscription, failing the test on error.
@@ -91,9 +128,12 @@ func TestWebhookStoreListsOnlyTheOwnersSubscriptions(t *testing.T) {
 func TestWebhookStoreMatchesSubscriptionsByEvent(t *testing.T) {
 	t.Parallel()
 
-	store := postgres.NewWebhookStore(newTestPool(t))
-	wanted := mustSubscription(t, uuid.Must(uuid.NewV7()), "https://example.com/tasks", event.TaskCreated)
-	other := mustSubscription(t, uuid.Must(uuid.NewV7()), "https://example.com/contacts", event.ContactCreated)
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	wanted := mustSubscription(t, storedOwner(t, pool, "maria@example.com"),
+		"https://example.com/tasks", event.TaskCreated)
+	other := mustSubscription(t, storedOwner(t, pool, "luis@example.com"),
+		"https://example.com/contacts", event.ContactCreated)
 	for _, sub := range []webhook.Subscription{wanted, other} {
 		if err := store.CreateSubscription(t.Context(), sub); err != nil {
 			t.Fatalf("CreateSubscription() error = %v, want nil", err)
@@ -107,6 +147,81 @@ func TestWebhookStoreMatchesSubscriptionsByEvent(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != wanted.ID {
 		t.Errorf("got %d subscriptions, want only the one subscribed to task.created", len(got))
+	}
+}
+
+func TestWebhookStoreSkipsTheSubscriptionsOfADisabledOwner(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	owner := storedOwner(t, pool, "maria@example.com")
+	sub := mustSubscription(t, owner, "https://example.com/hook", event.TaskCreated)
+	if err := store.CreateSubscription(t.Context(), sub); err != nil {
+		t.Fatalf("CreateSubscription() error = %v, want nil", err)
+	}
+	setOwnerDisabled(t, pool, owner, true)
+
+	disabled, err := store.ListSubscriptionsForEvent(t.Context(), event.TaskCreated)
+
+	if err != nil {
+		t.Fatalf("ListSubscriptionsForEvent() error = %v, want nil", err)
+	}
+	if len(disabled) != 0 {
+		t.Errorf("got %d subscriptions of a disabled owner, want none", len(disabled))
+	}
+	setOwnerDisabled(t, pool, owner, false)
+	enabled, err := store.ListSubscriptionsForEvent(t.Context(), event.TaskCreated)
+	if err != nil {
+		t.Fatalf("ListSubscriptionsForEvent() after re-enabling error = %v, want nil", err)
+	}
+	if len(enabled) != 1 || enabled[0].ID != sub.ID {
+		t.Errorf("got %d subscriptions once the owner is enabled again, want the one subscription back", len(enabled))
+	}
+}
+
+func TestWebhookStoreSkipsASubscriptionWithoutAnOwnerAccount(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewWebhookStore(newTestPool(t))
+	orphan := mustSubscription(t, uuid.Must(uuid.NewV7()), "https://example.com/hook", event.TaskCreated)
+	if err := store.CreateSubscription(t.Context(), orphan); err != nil {
+		t.Fatalf("CreateSubscription() error = %v, want nil", err)
+	}
+
+	got, err := store.ListSubscriptionsForEvent(t.Context(), event.TaskCreated)
+
+	if err != nil {
+		t.Fatalf("ListSubscriptionsForEvent() error = %v, want nil", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d subscriptions owned by no account, want none", len(got))
+	}
+}
+
+func TestADisabledOwnersWebhookGetsNoDeliveryUntilEnabledAgain(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	dispatcher := webhook.NewDispatcher(store, slog.New(slog.DiscardHandler))
+	owner := storedOwner(t, pool, "maria@example.com")
+	sub := mustSubscription(t, owner, "https://example.com/hook", event.TaskCreated)
+	if err := store.CreateSubscription(t.Context(), sub); err != nil {
+		t.Fatalf("CreateSubscription() error = %v, want nil", err)
+	}
+	setOwnerDisabled(t, pool, owner, true)
+
+	dispatcher.Publish(t.Context(), event.TaskCreated, map[string]any{"title": "Call Maria"})
+
+	if got := claimedNow(t, store); len(got) != 0 {
+		t.Errorf("queued %d deliveries for a disabled owner, want none", len(got))
+	}
+	setOwnerDisabled(t, pool, owner, false)
+	dispatcher.Publish(t.Context(), event.TaskCreated, map[string]any{"title": "Call Maria again"})
+	got := claimedNow(t, store)
+	if len(got) != 1 || got[0].SubscriptionID != sub.ID {
+		t.Errorf("queued %d deliveries once the owner is enabled again, want one for the subscription", len(got))
 	}
 }
 

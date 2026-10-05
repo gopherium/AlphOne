@@ -11,6 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuthUser struct {
+	ID       uuid.UUID
+	Disabled bool
+}
+
 type CoreApiToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
