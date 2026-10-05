@@ -105,11 +105,20 @@ func TestTheGuardPassesAnInternalAddressInsideAnAllowedRange(t *testing.T) {
 	}
 }
 
-// neverReached holds link-local and metadata addresses across their ranges, refused whatever an operator allows.
+// neverReached holds link-local, metadata and host agent addresses, refused whatever an operator allows.
 var neverReached = []string{
 	"169.254.0.1:80", "169.254.169.254:80", "169.254.170.2:80", "169.254.255.255:80",
 	"[fe80::1]:80", "[fe80::1%eth0]:80", "[fe80:1::1]:80", "[febf::1]:80", "[fd00:ec2::254]:80",
 	"[64:ff9b::a9fe:a9fe]:80", "[64:ff9b::a9fe:aa02]:80",
+	"100.100.100.200:80", "[64:ff9b::6464:64c8]:80", "[::ffff:100.100.100.200]:80",
+	"168.63.129.16:80", "168.63.129.16:32526", "[64:ff9b::a83f:8110]:80", "[::ffff:168.63.129.16]:80",
+	"192.0.0.192:80", "[fd00:ec2::23]:80", "[fd20:ce::254]:80", "[fd00:a9fe:a9fe::1]:80", "[fd00:42::42]:80",
+}
+
+// besideNever holds the neighbours of the single never addresses, reachable once their range is allowed.
+var besideNever = []string{
+	"100.100.100.199:80", "100.100.100.201:80", "168.63.129.15:80", "168.63.129.17:80", "192.0.0.193:80",
+	"[fd00:ec2::22]:80", "[fd20:ce::253]:80", "[fd00:a9fe:a9fe::2]:80", "[fd00:42::43]:80",
 }
 
 func TestTheGuardNeverPassesLinkLocalOrMetadataAddresses(t *testing.T) {
@@ -123,8 +132,21 @@ func TestTheGuardNeverPassesLinkLocalOrMetadataAddresses(t *testing.T) {
 			t.Errorf("check(%q) error = %v, want it refused whatever the allowed ranges", address, err)
 		}
 	}
-	if err := guard.check("tcp", "10.0.0.1:80"); err != nil {
-		t.Errorf("check() inside an allowed range error = %v, want the rest of the range passed", err)
+	for _, address := range append([]string{"10.0.0.1:80"}, besideNever...) {
+		if err := guard.check("tcp", address); err != nil {
+			t.Errorf("check(%q) inside an allowed range error = %v, want the rest of the range passed", address, err)
+		}
+	}
+}
+
+func TestTheGuardRefusesAPublicHostAgentAddressWithNothingAllowed(t *testing.T) {
+	t.Parallel()
+
+	if err := (AddressGuard{}).check("tcp4", "168.63.129.16:80"); !errors.Is(err, ErrAddressRefused) {
+		t.Errorf("check() error = %v, want the host agent address refused though it is public", err)
+	}
+	if err := (AddressGuard{}).check("tcp4", "168.63.129.17:80"); err != nil {
+		t.Errorf("check() beside the host agent error = %v, want a public neighbour passed", err)
 	}
 }
 

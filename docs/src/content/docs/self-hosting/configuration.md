@@ -65,7 +65,7 @@ AlphOne refuses to deliver a [webhook](/reference/webhooks/) to an
 internal address unless you allow it here. Internal means loopback, the
 private network ranges, the shared and reserved ranges, link-local and
 multicast addresses, and their IPv6 counterparts. Public addresses are
-reached on any port.
+reached on any port, apart from the cloud host addresses listed below.
 
 | Variable | Purpose |
 | --- | --- |
@@ -84,8 +84,14 @@ The two kinds of entry match at different moments:
   the lookup. `127.0.0.1/32` opens every port on `127.0.0.1`, whatever
   name the webhook URL used to get there.
 
-Link-local and cloud metadata addresses, `169.254.0.0/16`, `fe80::/10`
-and `fd00:ec2::254`, stay refused even when an entry lists them.
+Link-local addresses, `169.254.0.0/16` and `fe80::/10`, stay refused
+even when an entry lists them. So do the cloud metadata and host
+addresses that sit outside those ranges: `100.100.100.200` (Alibaba
+Cloud), `168.63.129.16` (Azure), `192.0.0.192` (Oracle), `fd00:ec2::23`
+and `fd00:ec2::254` (AWS), `fd20:ce::254` (Google Cloud),
+`fd00:a9fe:a9fe::1` (Akamai) and `fd00:42::42` (Scaleway). Azure's
+address is public, and it is refused all the same. The addresses next
+to them stay open to an entry that lists their range.
 
 On a network that reaches IPv4 through a NAT64 translator, an address in
 `64:ff9b::/96` is judged as the IPv4 address it carries. A public one

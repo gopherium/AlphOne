@@ -86,20 +86,24 @@ func TestWorkerRefusesEveryInternalRange(t *testing.T) {
 	t.Parallel()
 
 	for name, host := range map[string]string{
-		"cloud metadata":          "169.254.169.254",
-		"container credentials":   "169.254.170.2",
-		"a private ten":           "10.0.0.1",
-		"a private ten for pods":  "10.42.0.10",
-		"a private seventeen":     "172.16.0.1",
-		"a container bridge":      "172.17.0.2",
-		"a private one ninety":    "192.168.1.1",
-		"shared address space":    "100.64.0.1",
-		"this network":            "0.0.0.0",
-		"loopback six":            "[::1]",
-		"metadata six":            "[fd00:ec2::254]",
-		"a container network six": "[fd12:3456::1]",
-		"link local six":          "[fe80::1]",
-		"translated six":          "[64:ff9b::7f00:1]",
+		"cloud metadata":           "169.254.169.254",
+		"container credentials":    "169.254.170.2",
+		"a private ten":            "10.0.0.1",
+		"a private ten for pods":   "10.42.0.10",
+		"a private seventeen":      "172.16.0.1",
+		"a container bridge":       "172.17.0.2",
+		"a private one ninety":     "192.168.1.1",
+		"shared address space":     "100.64.0.1",
+		"this network":             "0.0.0.0",
+		"loopback six":             "[::1]",
+		"metadata six":             "[fd00:ec2::254]",
+		"metadata in shared space": "100.100.100.200",
+		"a public host agent":      "168.63.129.16",
+		"metadata in reserved":     "192.0.0.192",
+		"metadata six elsewhere":   "[fd20:ce::254]",
+		"a container network six":  "[fd12:3456::1]",
+		"link local six":           "[fe80::1]",
+		"translated six":           "[64:ff9b::7f00:1]",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -121,6 +125,18 @@ func TestWorkerRefusesTheMetadataAddressEvenWhenItsRangeIsAllowed(t *testing.T) 
 	settled, logged := deliverOnce(t, "http://169.254.169.254/latest", guard)
 
 	wantRefused(t, settled, logged, "169.254.169.254")
+}
+
+func TestWorkerRefusesAMetadataAddressInsideAnAllowedSharedRange(t *testing.T) {
+	t.Parallel()
+
+	guard := webhook.AddressGuard{
+		Allowed: webhook.AllowList{Ranges: []netip.Prefix{netip.MustParsePrefix("100.64.0.0/10")}},
+	}
+
+	settled, logged := deliverOnce(t, "http://100.100.100.200/latest", guard)
+
+	wantRefused(t, settled, logged, "100.100.100.200")
 }
 
 func TestWorkerRefusesLoopbackWrittenAsAnIPv4InIPv6Address(t *testing.T) {

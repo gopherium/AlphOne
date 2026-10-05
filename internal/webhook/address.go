@@ -26,8 +26,11 @@ var internal = prefixes(
 	"::/128", "::1/128", "64:ff9b:1::/48", "fc00::/7", "fe80::/10", "ff00::/8",
 )
 
-// never lists the link-local and cloud metadata ranges no operator can allow.
-var never = prefixes("169.254.0.0/16", "fe80::/10", "fd00:ec2::254/128")
+// never lists the link-local ranges and the cloud metadata and host agent addresses no operator can allow.
+var never = prefixes(
+	"169.254.0.0/16", "fe80::/10", "100.100.100.200/32", "168.63.129.16/32", "192.0.0.192/32",
+	"fd00:ec2::23/128", "fd00:ec2::254/128", "fd20:ce::254/128", "fd00:a9fe:a9fe::1/128", "fd00:42::42/128",
+)
 
 // translated is the well-known NAT64 prefix, whose addresses carry the IPv4 address they reach in their last bytes.
 var translated = netip.MustParsePrefix("64:ff9b::/96")

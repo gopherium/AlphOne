@@ -206,7 +206,9 @@ passwords, which are stored hashed. Treat database backups accordingly.
 
 AlphOne refuses to deliver to internal addresses: loopback, the private
 network ranges, link-local and cloud metadata addresses, and their IPv6
-counterparts. Public addresses are reached on any port.
+counterparts. Public addresses are reached on any port, apart from a
+few cloud metadata addresses, see
+[Configuration](/self-hosting/configuration/#webhooks).
 
 The check runs on the address AlphOne is about to connect to, after the name
 lookup, so every attempt is checked again. A refused delivery counts as a
