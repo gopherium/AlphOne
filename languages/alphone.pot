@@ -100,6 +100,9 @@ msgstr ""
 msgid "AlphOne does not speak that language yet."
 msgstr ""
 
+msgid "AlphOne sends no webhook to an internal address the operator has not allowed."
+msgstr ""
+
 msgid "Already on contact %(name)s."
 msgstr ""
 

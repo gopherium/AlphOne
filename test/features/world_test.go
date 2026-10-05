@@ -60,6 +60,7 @@ type worldKey struct{}
 // world holds everything one scenario needs, torn down when it ends.
 type world struct {
 	t            *testing.T
+	graph        *graphres.Resolver
 	pool         *pgxpool.Pool
 	tasks        *postgres.TaskStore
 	contacts     *postgres.ContactStore
@@ -136,7 +137,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		t.Fatalf("building the scenario mailer: %v", err)
 	}
 	inviteConfig := authkit.InvitesConfig{Store: users}
-	root, err := graphroot.FromPlugins(&graphres.Resolver{
+	graph := &graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
 		Tasks:        tasks,
@@ -156,7 +157,8 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
-	}, registered)
+	}
+	root, err := graphroot.FromPlugins(graph, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
 	}
@@ -190,6 +192,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 
 	return &world{
 		t:        t,
+		graph:    graph,
 		pool:     pool,
 		tasks:    tasks,
 		contacts: contacts,

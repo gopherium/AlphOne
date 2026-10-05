@@ -128,6 +128,34 @@ func TestTheGuardNeverPassesLinkLocalOrMetadataAddresses(t *testing.T) {
 	}
 }
 
+func TestAHostEntryNeverOpensATranslatedMetadataAddress(t *testing.T) {
+	t.Parallel()
+
+	guard := AddressGuard{Allowed: AllowList{Hosts: []string{"n8n:5678"}}}.naming("n8n:5678")
+
+	if err := guard.check("tcp", "[64:ff9b::a9fe:a9fe]:5678"); !errors.Is(err, ErrAddressRefused) {
+		t.Errorf("check() error = %v, want the translated metadata address refused behind a host entry", err)
+	}
+	if err := guard.check("tcp", "[64:ff9b::a00:5]:5678"); err != nil {
+		t.Errorf("check() error = %v, want the host entry to open a translated internal address", err)
+	}
+}
+
+func TestAHostEntryNeverOpensALinkLocalOrMetadataAddress(t *testing.T) {
+	t.Parallel()
+
+	guard := AddressGuard{Allowed: AllowList{Hosts: []string{"n8n:5678"}}}.naming("n8n:5678")
+
+	for _, address := range neverReached {
+		if err := guard.check("tcp", address); !errors.Is(err, ErrAddressRefused) {
+			t.Errorf("check(%q) error = %v, want it refused behind a host entry", address, err)
+		}
+	}
+	if err := guard.check("tcp", "10.0.0.5:5678"); err != nil {
+		t.Errorf("check() error = %v, want the host entry to open an internal address", err)
+	}
+}
+
 func TestTheGuardJudgesATranslatedAddressByTheIPv4AddressItCarries(t *testing.T) {
 	t.Parallel()
 

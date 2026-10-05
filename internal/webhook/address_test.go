@@ -148,6 +148,22 @@ func TestAHostEntryOpensItsNameAndPortAlone(t *testing.T) {
 	}
 }
 
+func TestAdmitRefusesAnInternalLiteralAndPassesEveryName(t *testing.T) {
+	t.Parallel()
+
+	guard := webhook.AddressGuard{Allowed: webhook.AllowList{Hosts: []string{"10.0.0.5:5678"}}}
+
+	if err := guard.Admit("127.0.0.1", "80"); !errors.Is(err, webhook.ErrAddressRefused) {
+		t.Errorf("Admit(127.0.0.1) error = %v, want %v", err, webhook.ErrAddressRefused)
+	}
+	if err := guard.Admit("10.0.0.5", "5678"); err != nil {
+		t.Errorf("Admit() of an allowed host entry error = %v, want nil", err)
+	}
+	if err := guard.Admit("metadata.example.com", "80"); err != nil {
+		t.Errorf("Admit() of a name error = %v, want every name left to the dial", err)
+	}
+}
+
 func TestTheClientFollowsNoRedirect(t *testing.T) {
 	t.Parallel()
 

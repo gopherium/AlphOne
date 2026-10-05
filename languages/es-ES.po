@@ -68,6 +68,10 @@ msgid "AlphOne does not speak that language yet."
 msgstr "AlphOne todavía no habla ese idioma."
 
 #, fuzzy
+msgid "AlphOne sends no webhook to an internal address the operator has not allowed."
+msgstr "AlphOne no envía webhooks a una dirección interna que el operador no haya permitido."
+
+#, fuzzy
 msgid "Already on contact %(name)s."
 msgstr "Ya está en el contacto %(name)s."
 

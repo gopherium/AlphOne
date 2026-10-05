@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"testing"
 
 	gqlclient "github.com/99designs/gqlgen/client"
@@ -17,6 +18,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/webhook"
 )
 
 // recordingPublisher captures every published event in order.
@@ -497,6 +499,55 @@ func TestUpdateTaskLifecycle(t *testing.T) {
 	}
 	if got := firstErrorCode(t, missing.Errors); got != "NOT_FOUND" {
 		t.Errorf("missing task code = %q, want NOT_FOUND", got)
+	}
+}
+
+func TestCreateWebhookRefusesAnAddressWrittenAsAnInternalIP(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+
+	refused, err := h.client.RawPost(
+		`mutation { createWebhook(url: "http://127.0.0.1:5678/hook", events: ["task.created"]) { secret } }`,
+	)
+
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	if got := firstErrorCode(t, refused.Errors); got != "VALIDATION" {
+		t.Errorf("code = %q, want VALIDATION", got)
+	}
+	if got := firstErrorReason(t, refused.Errors); got != "webhook_url_internal" {
+		t.Errorf("reason = %q, want webhook_url_internal", got)
+	}
+	var listed struct {
+		Webhooks []struct {
+			ID string `json:"id"`
+		} `json:"webhooks"`
+	}
+	h.client.MustPost(`{ webhooks { id } }`, &listed)
+	if len(listed.Webhooks) != 0 {
+		t.Errorf("webhooks = %+v, want the refused address never stored", listed.Webhooks)
+	}
+}
+
+func TestCreateWebhookAcceptsAnInternalAddressTheOperatorAllowed(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	loopback := []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}
+	h.resolver.WebhookGuard = webhook.AddressGuard{Allowed: webhook.AllowList{Ranges: loopback}}
+
+	var created struct {
+		CreateWebhook struct {
+			Secret string `json:"secret"`
+		} `json:"createWebhook"`
+	}
+	h.client.MustPost(
+		`mutation { createWebhook(url: "http://127.0.0.1:5678/hook", events: ["task.created"]) { secret } }`, &created)
+
+	if created.CreateWebhook.Secret == "" {
+		t.Error("secret is empty, want the allowed address subscribed")
 	}
 }
 

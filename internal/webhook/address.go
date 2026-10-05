@@ -110,12 +110,26 @@ func answerRedirect(*http.Request, []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
-// dial connects to address once every address it resolves to passes the guard, a named host entry opening them all.
-func (g AddressGuard) dial(ctx context.Context, network, address string) (net.Conn, error) {
+// Admit refuses host when it is an IP literal the guard does not allow on port, looking no name up.
+func (g AddressGuard) Admit(host, port string) error {
+	if _, err := netip.ParseAddr(host); err != nil {
+		return nil
+	}
+	address := net.JoinHostPort(host, port)
+	return g.naming(address).check("tcp", address)
+}
+
+// naming returns the guard a request naming address answers to, every range open once a host entry names it.
+func (g AddressGuard) naming(address string) AddressGuard {
 	if g.Allowed.names(address) {
 		g.Allowed.Ranges = anywhere
 	}
-	dialer := net.Dialer{Resolver: g.Resolver, ControlContext: g.control}
+	return g
+}
+
+// dial connects to address once every address it resolves to passes the guard.
+func (g AddressGuard) dial(ctx context.Context, network, address string) (net.Conn, error) {
+	dialer := net.Dialer{Resolver: g.Resolver, ControlContext: g.naming(address).control}
 	return dialer.DialContext(ctx, network, address)
 }
 

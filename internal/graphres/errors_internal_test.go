@@ -5,6 +5,9 @@ package graphres
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +30,21 @@ func TestEveryRefusedSentinelNamesAReason(t *testing.T) {
 		named, _ := presented.Extensions["reason"].(string)
 		if named == "" {
 			t.Errorf("%v names no reason, want every refused sentinel naming one", sentinel)
+		}
+	}
+}
+
+func TestEveryCoreReasonHasAFrontendMessage(t *testing.T) {
+	t.Parallel()
+
+	templates, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "i18n", "errorTemplates.ts"))
+	if err != nil {
+		t.Fatalf("reading the frontend templates: %v", err)
+	}
+
+	for _, held := range reasonsFor {
+		if !strings.Contains(string(templates), "\t"+held.reason+": __(") {
+			t.Errorf("reason %q has no frontend message, want the screens to speak it", held.reason)
 		}
 	}
 }

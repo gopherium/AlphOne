@@ -3,11 +3,15 @@
 package webhook_test
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net"
+	"net/netip"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +61,86 @@ func TestNewSubscriptionRejectsUnusableURLs(t *testing.T) {
 		if !errors.Is(err, webhook.ErrInvalidURL) {
 			t.Errorf("%s: error = %v, want %v", name, err, webhook.ErrInvalidURL)
 		}
+	}
+}
+
+func TestAdmitRefusesAnAddressWrittenAsAnInternalIP(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"http://127.0.0.1/hook", "http://10.0.0.5:5678/hook", "https://192.168.1.20/hook", "http://0.0.0.0/",
+		"http://169.254.169.254/latest", "https://[::1]/hook", "http://[::ffff:127.0.0.1]/hook",
+		"http://[fe80::1%25eth0]/hook", "http://[fd00:ec2::254]/hook",
+	} {
+		if err := webhook.Admit(webhook.AddressGuard{}, raw); !errors.Is(err, webhook.ErrInternalURL) {
+			t.Errorf("Admit(%q) error = %v, want %v", raw, err, webhook.ErrInternalURL)
+		}
+	}
+}
+
+func TestAdmitAcceptsAHostNameWithoutLookingItUp(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	guard := webhook.AddressGuard{Resolver: &net.Resolver{
+		PreferGo: true,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			lookups.Add(1)
+			return nil, errors.New("no lookup is expected")
+		},
+	}}
+
+	for _, raw := range []string{"https://example.com/hook", "http://n8n:5678/webhook", "http://localhost:5678/hook"} {
+		if err := webhook.Admit(guard, raw); err != nil {
+			t.Errorf("Admit(%q) error = %v, want a host name accepted as written", raw, err)
+		}
+	}
+	if got := lookups.Load(); got != 0 {
+		t.Errorf("Admit() looked %d names up, want none", got)
+	}
+}
+
+func TestAdmitAcceptsAPublicAddressOnAnyPort(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"https://192.0.2.10/hook", "http://198.51.100.7:5678/hook", "https://[2001:db8::1]:8443/",
+	} {
+		if err := webhook.Admit(webhook.AddressGuard{}, raw); err != nil {
+			t.Errorf("Admit(%q) error = %v, want nil", raw, err)
+		}
+	}
+}
+
+func TestAdmitAcceptsAnInternalAddressTheOperatorAllowed(t *testing.T) {
+	t.Parallel()
+
+	guard := webhook.AddressGuard{Allowed: webhook.AllowList{
+		Ranges: []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32"), netip.MustParsePrefix("169.254.0.0/16")},
+		Hosts:  []string{"10.0.0.5:5678", "10.0.0.6:443", "10.0.0.7:80"},
+	}}
+
+	for _, raw := range []string{
+		"http://127.0.0.1:5678/hook", "http://10.0.0.5:5678/hook", "https://10.0.0.6/hook", "http://10.0.0.7/hook",
+	} {
+		if err := webhook.Admit(guard, raw); err != nil {
+			t.Errorf("Admit(%q) error = %v, want an allowed address accepted", raw, err)
+		}
+	}
+	for _, raw := range []string{
+		"http://10.0.0.5/hook", "http://10.0.0.6/hook", "https://10.0.0.7/hook", "http://169.254.169.254/latest",
+	} {
+		if err := webhook.Admit(guard, raw); !errors.Is(err, webhook.ErrInternalURL) {
+			t.Errorf("Admit(%q) error = %v, want %v", raw, err, webhook.ErrInternalURL)
+		}
+	}
+}
+
+func TestAdmitRefusesAnUnreadableURL(t *testing.T) {
+	t.Parallel()
+
+	if err := webhook.Admit(webhook.AddressGuard{}, "://nonsense"); !errors.Is(err, webhook.ErrInvalidURL) {
+		t.Errorf("Admit() error = %v, want %v", err, webhook.ErrInvalidURL)
 	}
 }
 

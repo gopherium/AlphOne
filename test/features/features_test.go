@@ -103,6 +103,11 @@ func initializeTokens(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerTokenSteps(sc, t) }
 }
 
+// initializeWebhooks registers the webhook steps.
+func initializeWebhooks(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerWebhookSteps(sc, t) }
+}
+
 // initializeRoles registers the role steps.
 func initializeRoles(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerRoleSteps(sc, t) }
@@ -176,6 +181,10 @@ func TestImportRowReasons(t *testing.T) {
 
 func TestTokens(t *testing.T) {
 	runFeature(t, "features/tokens.feature", initializeTokens(t))
+}
+
+func TestWebhooks(t *testing.T) {
+	runFeature(t, "features/webhooks.feature", initializeWebhooks(t))
 }
 
 func TestRoles(t *testing.T) {

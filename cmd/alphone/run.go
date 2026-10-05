@@ -64,8 +64,9 @@ func run(
 	tasks := postgres.NewTaskStore(pool)
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
+	webhookGuard := webhook.AddressGuard{Allowed: settings.webhookHosts}
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
-	deliveries := webhook.NewWorker(webhooks, logger, webhook.AddressGuard{Allowed: settings.webhookHosts})
+	deliveries := webhook.NewWorker(webhooks, logger, webhookGuard)
 	deliveries.Start()
 	defer deliveries.Stop()
 	hub := event.NewHub()
@@ -123,6 +124,7 @@ func run(
 		Contacts:      contacts,
 		Tasks:         tasks,
 		Webhooks:      webhooks,
+		WebhookGuard:  webhookGuard,
 		Tenants:       tenants,
 		Tokens:        tokens,
 		Events:        events,

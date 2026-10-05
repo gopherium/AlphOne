@@ -33,6 +33,7 @@ export function errorTemplates(): Record<string, string> {
 		origin_source_required: __('An event needs the source it came from.', DOMAIN),
 		event_unknown: __('That event name is not one AlphOne knows.', DOMAIN),
 		webhook_url_invalid: __('Write the address as a full URL.', DOMAIN),
+		webhook_url_internal: __('AlphOne sends no webhook to an internal address the operator has not allowed.', DOMAIN),
 		webhook_events_required: __('Choose at least one event to send.', DOMAIN),
 		webhook_not_found: __('That webhook no longer exists.', DOMAIN),
 		first_out_of_range: __('Ask for between %(min)s and %(max)s at a time.', DOMAIN),
