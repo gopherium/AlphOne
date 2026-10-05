@@ -19,8 +19,10 @@ When a variable holds a value AlphOne refuses:
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
   [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
-  or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops `migrate`, `seed -yes`,
-  `account:create-admin` and the account commands that take `-as`.
+  or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops the account commands
+  that take `-as`, before they change anything. It stops `migrate`,
+  `seed -yes` and `account:create-admin` too, but only once they have
+  applied the account, record and core migrations.
 
 [Commands](/self-hosting/commands/) describes every command.
 
@@ -93,20 +95,22 @@ deployment serves more than one.
 
 | Variable | Purpose |
 | --- | --- |
-| `ALPHONE_GRAPH_PAGE_SIZE` | Rows a core graph list (`contacts`, `tasks`, `contactPage`) answers when the caller names no size. Defaults to 50. AlphOne will not start if the value is not a positive whole number or is above `ALPHONE_GRAPH_PAGE_CAP`. |
-| `ALPHONE_GRAPH_PAGE_CAP` | The most rows one core graph list answers. Defaults to 200. A request for more is refused, and AlphOne will not start if the value is not a positive whole number or is above 1250. Reading even one field of each row costs 2 a row, so 1250 rows is the largest page that fits the query cost limit of 2500. A wider read of a large page can still be refused by that limit, see [Limits](/reference/graphql-api/#limits). |
-| `ALPHONE_TOAST_DURATION` | How long a confirmation toast stays on screen, written as a duration such as `6s` or `1500ms`. Defaults to `6s`. AlphOne will not start unless the value is whole milliseconds from `1ms` to `2147483647ms`. |
-| `ALPHONE_LIST_PAGE_SIZES` | The page sizes a list screen offers, comma separated. Defaults to `10,20,50,100`. AlphOne will not start unless each size is a positive whole number, listed once from the smallest up, and none is above `ALPHONE_GRAPH_PAGE_CAP`. |
-| `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. AlphOne will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
-| `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. AlphOne will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
+| `ALPHONE_GRAPH_PAGE_SIZE` | Rows a core graph list (`contacts`, `tasks`, `contactPage`) answers when the caller names no size. Defaults to 50. `serve` will not start if the value is not a positive whole number or is above `ALPHONE_GRAPH_PAGE_CAP`. |
+| `ALPHONE_GRAPH_PAGE_CAP` | The most rows one core graph list answers. Defaults to 200. A request for more is refused, and `serve` will not start if the value is not a positive whole number or is above 1250. Reading even one field of each row costs 2 a row, so 1250 rows is the largest page that fits the query cost limit of 2500. A wider read of a large page can still be refused by that limit, see [Limits](/reference/graphql-api/#limits). |
+| `ALPHONE_TOAST_DURATION` | How long a confirmation toast stays on screen, written as a duration such as `6s` or `1500ms`. Defaults to `6s`. `serve` will not start unless the value is whole milliseconds from `1ms` to `2147483647ms`. |
+| `ALPHONE_LIST_PAGE_SIZES` | The page sizes a list screen offers, comma separated. Defaults to `10,20,50,100`. `serve` will not start unless each size is a positive whole number, listed once from the smallest up, and none is above `ALPHONE_GRAPH_PAGE_CAP`. |
+| `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. `serve` will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
+| `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. `serve` will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
 
 ## Timeouts and shutdown
 
 Each value is written as a duration such as `30s`, `1500ms` or `2m`.
-AlphOne will not start unless every value is a duration above zero. A
+`serve` will not start unless every value is a duration above zero. A
 value in words stops it with an error such as
 `ALPHONE_SHUTDOWN_GRACE: must be a duration like 30s, got "soon"`, and a
-zero stops it with `must stand above zero, got "0s"`.
+zero stops it with `must stand above zero, got "0s"`. A refused
+`ALPHONE_SHUTDOWN_STOP_GRACE` also stops the other commands listed at
+the top of this page.
 
 A stop runs the three shutdown graces one after the other, so with the
 defaults it can take up to 20 seconds. Whatever stops AlphOne must wait
@@ -127,7 +131,7 @@ longer than the three added together. The Docker Compose file in
 
 | Variable | Purpose |
 | --- | --- |
-| `ALPHONE_FIELDS_ENTRIES_MAX` | The most entries one repeater field holds on a contact. Defaults to 500. An add past the cap is refused, and AlphOne will not start if the value is not a whole number between 1 and 2147483647. |
+| `ALPHONE_FIELDS_ENTRIES_MAX` | The most entries one repeater field holds on a contact. Defaults to 500. An add past the cap is refused. A value that is not a whole number between 1 and 2147483647 stops `serve` and the other commands listed at the top of this page. |
 
 ## WhatsApp plugin
 

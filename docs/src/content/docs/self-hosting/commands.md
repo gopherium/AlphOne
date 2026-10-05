@@ -128,7 +128,9 @@ that command must be `serve`.
 and the plugins finish, within the three shutdown graces
 `ALPHONE_SHUTDOWN_GRACE`, `ALPHONE_SHUTDOWN_CANCEL_GRACE` and
 `ALPHONE_SHUTDOWN_STOP_GRACE`. Whatever stops it must wait longer than
-the three added together.
+the three added together. Their defaults and the HTTP timeouts `serve`
+reads are under
+[Timeouts and shutdown](/self-hosting/configuration/#timeouts-and-shutdown).
 
 ### migrate
 
