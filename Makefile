@@ -1,8 +1,9 @@
-.PHONY: peers test test-race cover cover-html lint vuln fmt generate outdated db-up db-down db-reset \
+.PHONY: peers test test-race cover cover-html test-uncovered lint vuln fmt generate outdated db-up db-down db-reset \
 	seed dev dev-watch demo n8n n8n-down n8n-node n8n-node-local runbook \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e /internal/graphroot -e '/alphone/graph$$' -e '/alphone/graph/model$$')
+UNCOVEREDPKGS = $(filter-out $(COVERPKGS),$(shell go list ./...))
 
 test:
 	go test ./...
@@ -67,7 +68,8 @@ db-down:
 
 db-reset: db-up
 	printf '%s\n' \
-		"SELECT format('DROP SCHEMA %I CASCADE', nspname) FROM pg_namespace WHERE nspname IN ('core', 'auth') OR nspname LIKE 'plugin\_%' \gexec" \
+		"SELECT format('DROP SCHEMA %I CASCADE', nspname) FROM pg_namespace" \
+		"WHERE nspname IN ('core', 'auth', 'gonsole') OR nspname LIKE 'plugin\_%' \gexec" \
 		"DROP TABLE IF EXISTS public.goose_db_version;" | \
 		docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
 	$(MAKE) seed
@@ -100,30 +102,31 @@ n8n-node-local:
 
 runbook:
 	@test -n "$(ALPHONE_TOKEN)" || \
-		(echo "set ALPHONE_TOKEN, mint one with: ./alphone token create -email you@example.com -name runbook" && false)
+		(echo "set ALPHONE_TOKEN, mint one with: ./alphone token:create -email you@example.com -name runbook" && false)
 	node test/runbook/run.ts
 
 seed: db-up
-	go run ./cmd/alphone seed
+	go run ./cmd/alphone seed -yes
 
 dev: db-up
-	go run ./cmd/alphone
+	go run ./cmd/alphone serve
 
 dev-watch: db-up
 	GOWORK=off go tool air
 
 demo: db-up e2e-build
-	ALPHONE_WEB_DIR=frontend/dist ./alphone
+	ALPHONE_WEB_DIR=frontend/dist ./alphone serve
 
 COVERDATA = .covdata
+GOTESTFLAGS ?=
 
 cover:
 	rm -rf $(COVERDATA)
 	mkdir -p $(COVERDATA)/bin $(COVERDATA)/counters
-	go build -cover -coverpkg=./cmd/... -o $(COVERDATA)/bin ./cmd/alphone ./cmd/doclint ./cmd/pluginwire ./cmd/schemagen
+	go build -cover -covermode=atomic -coverpkg=./cmd/... -o $(COVERDATA)/bin ./cmd/alphone ./cmd/doclint ./cmd/pluginwire ./cmd/schemagen
 	ALPHONE_COVER_BINDIR=$(CURDIR)/$(COVERDATA)/bin \
 	ALPHONE_COVER_GOCOVERDIR=$(CURDIR)/$(COVERDATA)/counters \
-	go test -cover $(COVERPKGS) -args -test.gocoverdir=$(CURDIR)/$(COVERDATA)/counters
+	go test $(GOTESTFLAGS) -cover -covermode=atomic $(COVERPKGS) -args -test.gocoverdir=$(CURDIR)/$(COVERDATA)/counters
 	@echo "=== merged unit + binary coverage ==="
 	go tool covdata percent -i=$(COVERDATA)/counters
 	@go tool covdata textfmt -i=$(COVERDATA)/counters -o $(COVERDATA)/cover.out
@@ -131,6 +134,9 @@ cover:
 
 cover-html: cover
 	go tool cover -html=$(COVERDATA)/cover.out
+
+test-uncovered:
+	go test $(GOTESTFLAGS) $(UNCOVEREDPKGS)
 
 E2E_DB ?= alphone_e2e
 E2E_DATABASE_URL ?= postgres://postgres:alphone@localhost:5433/$(E2E_DB)?sslmode=disable
@@ -162,7 +168,7 @@ e2e-serve: db-up e2e-build
 		ALPHONE_SMTP_FROM=crm@example.com \
 		ALPHONE_SMTP_TLS=none \
 		ALPHONE_PUBLIC_URL="$(E2E_PUBLIC_URL)" \
-		./alphone
+		./alphone serve
 
 e2e-db-reset: db-up
 	docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
@@ -171,7 +177,7 @@ e2e-db-reset: db-up
 
 e2e-seed: db-up e2e-build
 	printf '%s\n' "$(E2E_PASSWORD)" | \
-		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone createadmin \
+		ALPHONE_DATABASE_URL="$(E2E_DATABASE_URL)" ./alphone account:create-admin \
 		-email "$(E2E_EMAIL)" -name "$(E2E_NAME)" -role "$(E2E_ROLE)"
 
 e2e-reset: e2e-db-reset e2e-seed

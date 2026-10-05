@@ -16,13 +16,13 @@ import (
 func mintScopedSecret(t *testing.T, binary string, env []string, databaseURL, scope string) string {
 	t.Helper()
 	var stdout bytes.Buffer
-	mint := exec.Command(binary, "token", "create",
+	mint := exec.Command(binary, "token:create",
 		"-email", "admin@example.com", "-name", "narrow", "-scope", scope)
 	mint.Dir = t.TempDir()
 	mint.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	mint.Stdout = &stdout
 	if err := mint.Run(); err != nil {
-		t.Fatalf("token create: %v", err)
+		t.Fatalf("token:create: %v", err)
 	}
 	return tokenSecret(t, stdout.String())
 }
@@ -48,12 +48,13 @@ func TestMainBinaryHoldsAPluginRouteToItsDeclaredArea(t *testing.T) {
 
 	databaseURL := testDatabaseURL(t)
 	binary, env := coverBinary(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
 	if err := createUser.Run(); err != nil {
-		t.Fatalf("createadmin: %v", err)
+		t.Fatalf("account:create-admin: %v", err)
 	}
 	narrow := mintScopedSecret(t, binary, env, databaseURL, "tasks:read")
 	wide := mintScopedSecret(t, binary, env, databaseURL, "whatsapp:read")

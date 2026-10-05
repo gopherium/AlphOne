@@ -420,7 +420,9 @@ function reportLine(one: Case, verdict: string | null): string {
  */
 async function main(): Promise<void> {
 	if (!token) {
-		throw new Error('set ALPHONE_TOKEN to a token minted with: alphone token create -name runbook')
+		throw new Error(
+			'set ALPHONE_TOKEN to a token minted with: alphone token:create -email you@example.com -name runbook',
+		)
 	}
 	const containerURL = reachableURL()
 	console.log(`n8n reaches AlphOne at ${containerURL}`)

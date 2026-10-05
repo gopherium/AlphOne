@@ -29,12 +29,12 @@ type Receiver = { url: string; deliveries: Delivery[]; close: () => Promise<void
 async function mintToken(name: string): Promise<string> {
 	const { stdout } = await run(
 		join(repoRoot, 'alphone'),
-		['token', 'create', '-email', credentials.email, '-name', name],
+		['token:create', '-email', credentials.email, '-name', name],
 		{ env: { ...process.env, ALPHONE_DATABASE_URL: databaseURL } },
 	)
 	const secret = /^secret: (.+)$/m.exec(stdout)?.[1]
 	if (!secret) {
-		throw new Error(`token create printed no secret: ${stdout}`)
+		throw new Error(`token:create printed no secret: ${stdout}`)
 	}
 	return secret
 }

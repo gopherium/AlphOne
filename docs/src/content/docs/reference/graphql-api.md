@@ -24,7 +24,7 @@ Two credentials work, and every operation needs one.
 bearer token:
 
 ```sh
-alphone token create -email you@example.com -name "my integration"
+alphone token:create -email you@example.com -name "my integration"
 ```
 
 ```text
@@ -39,11 +39,13 @@ distinguishable from typed work.
 A token narrows that authority twice over. Each `-scope` grants one area
 and whether the token may write there, and an operation touching an area
 the token does not hold is refused with code `UNAUTHORIZED` naming the
-scope it needed. Without `-scope` the token holds every area. A newly
-minted token also expires, after ninety days unless `-ttl` says otherwise,
-and an expired token is refused as `invalid token`. Tokens that predate
-scopes keep full authority and no expiry until you replace them, so run
-`alphone token list` to see which ones those are.
+scope it needed. Without `-scope` the token holds every area. A token
+minted with `alphone token:create` also expires, after
+`ALPHONE_TOKEN_TTL_DAYS` days, ninety by default, unless `-ttl` says
+otherwise. `apiTokenCreate` without `ttlDays` mints one that never
+expires. An expired token is refused as `invalid token`. Tokens that
+predate scopes keep full authority and no expiry until you replace them,
+so run `alphone token:list -all` to see which ones those are.
 
 Token management is the one thing a token can never do, whatever its
 scopes. `apiTokens`, `apiTokenCreate` and `apiTokenRevoke` require a

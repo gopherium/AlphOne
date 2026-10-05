@@ -4,6 +4,7 @@ tmp_dir = ".air"
 [build]
   cmd = "go build -o ./.air/alphone ./cmd/alphone"
   bin = "./.air/alphone"
+  args_bin = ["serve"]
   include_ext = ["go"]
   exclude_dir = [".air", ".covdata", "node_modules", "frontend", "docs", "test", "deploy", "patches", "scripts"]
   exclude_regex = ["_test\\.go$", "generated\\.go$", "models_gen\\.go$"]

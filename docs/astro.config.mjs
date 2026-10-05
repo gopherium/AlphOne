@@ -47,6 +47,7 @@ export default defineConfig({
 					items: [
 						{ slug: 'self-hosting/install' },
 						{ slug: 'self-hosting/configuration' },
+						{ slug: 'self-hosting/commands' },
 						{ slug: 'self-hosting/updates-and-backups' },
 					],
 				},
@@ -59,7 +60,11 @@ export default defineConfig({
 				},
 				{
 					label: 'Extending',
-					items: [{ slug: 'extending/screens' }, { slug: 'extending/graph' }],
+					items: [
+						{ slug: 'extending/screens' },
+						{ slug: 'extending/graph' },
+						{ slug: 'extending/commands' },
+					],
 				},
 				{
 					label: 'Contributing',

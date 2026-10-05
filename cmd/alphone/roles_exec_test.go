@@ -3,11 +3,12 @@
 package main
 
 import (
-	"database/sql"
-	"strings"
 	"testing"
 
 	"github.com/peterldowns/pgtestdb"
+
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -26,26 +27,14 @@ func TestCreateAdminProvisionsAnAdminOnABareDatabase(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := barePostgres(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
-	err := createAdmin(t.Context(), getenv,
-		[]string{"-email", "admin@example.com", "-name", "Admin", "-role", "admin"},
-		strings.NewReader("correct horse battery\n"), &strings.Builder{})
+	got := testkit.Run(t, bareProgram(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), typedPassword+"\n",
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 
-	if err != nil {
-		t.Fatalf("createAdmin() error = %v, want nil on a database holding no schema", err)
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("account:create-admin = %d with stderr %q, want 0 on a database holding no schema", got.Code, got.Stderr)
 	}
-	db, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		t.Fatalf("opening the database: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-	var tier string
-	if err := db.QueryRowContext(t.Context(),
-		"SELECT role FROM auth.users WHERE email = 'admin@example.com'").Scan(&tier); err != nil {
-		t.Fatalf("reading the provisioned role: %v", err)
-	}
-	if tier != role.Admin.String() {
-		t.Errorf("role = %q, want %q, the first user manages users", tier, role.Admin.String())
+	if held := roleOf(t, databaseURL, "admin@example.com"); held != role.Admin.String() {
+		t.Errorf("role = %q, want %q, the first user manages users", held, role.Admin.String())
 	}
 }

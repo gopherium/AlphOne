@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -19,6 +20,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/version"
@@ -46,7 +49,7 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary)
+	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -55,10 +58,78 @@ func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("alphone without configuration: %v, want exit code 1", err)
+		t.Fatalf("alphone serve without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
+	}
+}
+
+// listingBudget bounds a bare run, which must print the listing and end rather than serve.
+const listingBudget = 30 * time.Second
+
+func TestMainBinaryListsTheCommandsWhenNoneIsNamed(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := barePostgres(t)
+	ctx, cancel := context.WithTimeout(t.Context(), listingBudget)
+	defer cancel()
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, binary)
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	inProcess := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	want := testkit.Run(t, programOver(role.NewRegistry(), inProcess, registerPlugins), "")
+	if err != nil || stdout.String() != want.Stdout || stderr.String() != want.Stderr {
+		t.Errorf("alphone = %v, stdout %q, stderr %q, want 0 and the listing the program prints in process %q",
+			err, stdout.String(), stderr.String(), want.Stdout)
+	}
+	if schemas := extraSchemas(t, databaseURL); len(schemas) > 0 {
+		t.Errorf("the database holds the schemas %v after a bare run, want nothing served or migrated", schemas)
+	}
+}
+
+func TestMainBinaryPrintsWhatTheProgramPrintsInProcess(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		args []string
+		code int
+	}{
+		"the seed help":   {[]string{"seed", "-h"}, 0},
+		"an unknown flag": {[]string{"seed", "-now"}, 2},
+	}
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			binary, env := coverBinary(t)
+			var stdout, stderr bytes.Buffer
+			cmd := exec.Command(binary, tc.args...)
+			cmd.Dir = t.TempDir()
+			cmd.Env = env
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			err := cmd.Run()
+
+			var exitErr *exec.ExitError
+			if err != nil && !errors.As(err, &exitErr) {
+				t.Fatalf("alphone %q: %v", tc.args, err)
+			}
+			want := testkit.Run(t, bareProgram(nil), "", tc.args...)
+			if code := cmd.ProcessState.ExitCode(); code != tc.code || want.Code != tc.code ||
+				stdout.String() != want.Stdout || stderr.String() != want.Stderr {
+				t.Errorf("alphone %q = %d, stdout %q, stderr %q, want %d and the in process %q and %q", tc.args,
+					code, stdout.String(), stderr.String(), tc.code, want.Stdout, want.Stderr)
+			}
+		})
 	}
 }
 
@@ -75,8 +146,8 @@ func TestMainBinaryPrintsHelp(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("alphone --help: %v, want it to succeed", err)
 	}
-	if !strings.Contains(stdout.String(), "createadmin") {
-		t.Errorf("stdout = %q, want the subcommands listed", stdout.String())
+	if !strings.Contains(stdout.String(), "\n  serve ") {
+		t.Errorf("stdout = %q, want the base commands listed", stdout.String())
 	}
 }
 
@@ -85,7 +156,7 @@ func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "not-a-subcommand")
+	cmd := exec.Command(binary, "not-a-command")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -93,14 +164,41 @@ func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 	err := cmd.Run()
 
 	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("alphone with an unknown argument: %v, want exit code 1", err)
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+		t.Fatalf("alphone with an unknown argument: %v, want exit code 2", err)
 	}
-	if !strings.Contains(stderr.String(), "unknown subcommand") {
+	if !strings.Contains(stderr.String(), `unknown command "not-a-command"`) {
 		t.Errorf("stderr = %q, want the argument refused", stderr.String())
 	}
 	if strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want the server never started", stderr.String())
+	}
+}
+
+func TestMainBinaryRefusesTheCommandNamesFromBeforeTheCommandLine(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"createadmin", "grantrole"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			binary, env := coverBinary(t)
+			var stderr bytes.Buffer
+			cmd := exec.Command(binary, name, "-role", "admin")
+			cmd.Dir = t.TempDir()
+			cmd.Env = env
+			cmd.Stderr = &stderr
+
+			err := cmd.Run()
+
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+				t.Fatalf("alphone %s: %v with stderr %q, want exit code 2", name, err, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), `unknown command "`+name+`"`) {
+				t.Errorf("stderr = %q, want the old command name refused", stderr.String())
+			}
+		})
 	}
 }
 
@@ -109,7 +207,8 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "createadmin")
+	cmd := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -118,10 +217,31 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("createadmin without configuration: %v, want exit code 1", err)
+		t.Fatalf("account:create-admin without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
+	}
+}
+
+func TestMainBinaryCreateAdminWantsItsFlagsBeforeTheDatabase(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary, "account:create-admin", "-email", "admin@example.com", "-name", "Admin")
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+		t.Fatalf("account:create-admin without -role: %v, want exit code 2", err)
+	}
+	if want := "alphone: account:create-admin wants -role <role>\n"; !strings.HasPrefix(stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to open with %q", stderr.String(), want)
 	}
 }
 
@@ -130,7 +250,8 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	cmd := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
 	cmd.Stdin = strings.NewReader("correct horse battery\n")
@@ -138,7 +259,7 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("createadmin: %v, stderr: %s", err, stderr.String())
+		t.Fatalf("account:create-admin: %v, stderr: %s", err, stderr.String())
 	}
 
 	if !strings.Contains(stdout.String(), "created user admin@example.com") {
@@ -151,7 +272,7 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "seed")
+	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -160,7 +281,7 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("seed without configuration: %v, want exit code 1", err)
+		t.Fatalf("seed -yes without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
@@ -197,7 +318,7 @@ func TestMainBinarySeedStoresDemoData(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(binary, "seed")
+	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+testDatabaseURL(t))
 	cmd.Stdout = &stdout
@@ -218,7 +339,7 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -255,7 +376,7 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -293,7 +414,7 @@ func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -320,7 +441,7 @@ func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
-	seedCmd := exec.Command(binary, "seed")
+	seedCmd := exec.Command(binary, "seed", "-yes")
 	seedCmd.Dir = t.TempDir()
 	seedCmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	seedCmd.Stderr = &stderr
@@ -356,7 +477,7 @@ func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	binary, env := coverBinary(t)
 	addr := freeAddr(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary)
+	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
 	cmd.Env = append(env,
 		"ALPHONE_DATABASE_URL="+testDatabaseURL(t),
@@ -404,7 +525,7 @@ func (b bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(cloned)
 }
 
-// tokenSecret pulls the a1_ secret out of the token create output.
+// tokenSecret pulls the a1_ secret out of the token:create output.
 func tokenSecret(t *testing.T, stdout string) string {
 	t.Helper()
 	start := strings.Index(stdout, "a1_")
@@ -564,12 +685,13 @@ func postForm(t *testing.T, addr, secret, contentType string, body io.Reader) gr
 func servedBinary(t *testing.T, databaseURL string) (string, string) {
 	t.Helper()
 	binary, env := coverBinary(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
 	if err := createUser.Run(); err != nil {
-		t.Fatalf("createadmin: %v", err)
+		t.Fatalf("account:create-admin: %v", err)
 	}
 	return servedSeededBinary(t, databaseURL)
 }
@@ -579,15 +701,15 @@ func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (stri
 	t.Helper()
 	binary, env := coverBinary(t)
 	var minted bytes.Buffer
-	token := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "exec")
+	token := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "exec")
 	token.Dir = t.TempDir()
 	token.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	token.Stdout = &minted
 	if err := token.Run(); err != nil {
-		t.Fatalf("token create: %v", err)
+		t.Fatalf("token:create: %v", err)
 	}
 	addr := freeAddr(t)
-	serve := exec.Command(binary)
+	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
 		"ALPHONE_DATABASE_URL="+databaseURL,
@@ -710,23 +832,24 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
 	if err := createUser.Run(); err != nil {
-		t.Fatalf("createadmin: %v", err)
+		t.Fatalf("account:create-admin: %v", err)
 	}
 	var stdout bytes.Buffer
-	mint := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "agent")
+	mint := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "agent")
 	mint.Dir = t.TempDir()
 	mint.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	mint.Stdout = &stdout
 	if err := mint.Run(); err != nil {
-		t.Fatalf("token create: %v", err)
+		t.Fatalf("token:create: %v", err)
 	}
 	addr := freeAddr(t)
-	serve := exec.Command(binary)
+	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
 		"ALPHONE_DATABASE_URL="+databaseURL,
@@ -761,7 +884,7 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "token", "list", "-email", "admin@example.com")
+	cmd := exec.Command(binary, "token:list", "-email", "admin@example.com")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -770,7 +893,7 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("token without configuration: %v, want exit code 1", err)
+		t.Fatalf("token:list without configuration: %v, want exit code 1", err)
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
@@ -782,12 +905,86 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	databaseURL := testDatabaseURL(t)
-	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
 	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser.Stdin = strings.NewReader("correct horse battery\n")
 	if err := createUser.Run(); err != nil {
-		t.Fatalf("createadmin: %v", err)
+		t.Fatalf("account:create-admin: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "n8n")
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("token:create: %v, stderr: %s", err, stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "a1_") {
+		t.Errorf("stdout = %q, want it to print the secret", stdout.String())
+	}
+}
+
+func TestMainBinaryTokenRevokeOnlyPreviewsUntilYes(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = env
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("account:create-admin: %v", err)
+	}
+	var minted bytes.Buffer
+	mint := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "n8n")
+	mint.Dir = t.TempDir()
+	mint.Env = env
+	mint.Stdout = &minted
+	if err := mint.Run(); err != nil {
+		t.Fatalf("token:create: %v", err)
+	}
+	secret := tokenSecret(t, minted.String())
+	held := storedToken(t, databaseURL, secret)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binary, "token:revoke", "-email", "admin@example.com", "-id", held.ID.String())
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("token:revoke: %v, stderr: %s", err, stderr.String())
+	}
+
+	want := "would revoke token " + held.ID.String() + " (n8n) of admin@example.com\n"
+	if stdout.String() != want || stderr.String() != "alphone: dry run, nothing changed, pass -yes to apply\n" {
+		t.Errorf("token:revoke stdout %q, stderr %q, want %q and a dry run", stdout.String(), stderr.String(), want)
+	}
+	if kept := storedToken(t, databaseURL, secret); kept.ID != held.ID {
+		t.Errorf("the secret finds the stored token %v after the preview, want %v kept", kept.ID, held.ID)
+	}
+}
+
+func TestMainBinarySaysAnOldTokenSpellingIsDeprecated(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	databaseURL := testDatabaseURL(t)
+	createUser := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
+	createUser.Dir = t.TempDir()
+	createUser.Env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
+	createUser.Stdin = strings.NewReader("correct horse battery\n")
+	if err := createUser.Run(); err != nil {
+		t.Fatalf("account:create-admin: %v", err)
 	}
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary, "token", "create", "-email", "admin@example.com", "-name", "n8n")
@@ -800,7 +997,10 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 		t.Fatalf("token create: %v, stderr: %s", err, stderr.String())
 	}
 
-	if !strings.Contains(stdout.String(), "a1_") {
-		t.Errorf("stdout = %q, want it to print the secret", stdout.String())
+	if !strings.Contains(stdout.String(), "\nsecret: a1_") {
+		t.Errorf("stdout = %q, want the old spelling to still print the secret", stdout.String())
+	}
+	if want := `alphone: "token create" is deprecated, use "token:create"`; !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to carry %q", stderr.String(), want)
 	}
 }
