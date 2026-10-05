@@ -170,13 +170,21 @@ not send `Sec-Fetch-Site`. AlphOne compares their `Origin` with `Host`,
 so a proxy that renames the host makes AlphOne refuse their saves, see
 [Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
 
-Have the proxy send `Strict-Transport-Security` too. That comparison
-never looks at the scheme, and the header keeps those browsers on
-`https`. In Caddy, add
-`header Strict-Transport-Security "max-age=31536000"` to the site
-block. With nginx, add
-`add_header Strict-Transport-Security "max-age=31536000" always;`. In
-Traefik, set `stsSeconds` on a headers middleware.
+Sending `Strict-Transport-Security` from the proxy is your choice. That
+comparison never looks at the scheme, and the header closes that gap by
+keeping browsers on `https` for your domain. It also commits you. A
+browser that has seen it uses only `https` for your domain, and lets
+nobody click past a certificate warning there, until its time runs out.
+If you choose it, start with a short time such as `max-age=300` and
+raise it once everything works. Sending `max-age=0` later tells browsers
+to forget it.
+
+In Caddy, add `header Strict-Transport-Security "max-age=300"` to the
+site block. With nginx, add
+`add_header Strict-Transport-Security "max-age=300" always;`. In
+Traefik, put the header in `customResponseHeaders` on a headers
+middleware. Its `stsSeconds` option drops the header at 0, so it could
+never send `max-age=0`.
 
 ## 4. Start it and create the admin login
 
