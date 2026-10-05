@@ -63,7 +63,7 @@ func tokenCommands() []gonsole.Command {
 	}
 }
 
-// tokenCommand returns the command called name, needing needs and running the step read returns in the owner's tenant.
+// tokenCommand returns the command called name, needing needs and handing the step read returns the owner's tenant.
 func tokenCommand(name, summary string, flags func(*flag.FlagSet), read tokenRead, needs ...string) gonsole.Command {
 	return gonsole.Command{
 		Name:    name,
@@ -395,33 +395,28 @@ func readRevoke(name string, call gonsole.Call) (tokenStep, error) {
 	}, nil
 }
 
-// revokeToken deletes the owner's token tokenID, only naming it until the call applies.
+// revokeToken deletes the owner's token tokenID in any tenant, only naming it until the call applies.
 func revokeToken(
 	ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, tokenID uuid.UUID, call gonsole.Call,
 ) error {
 	if !call.Apply {
 		return previewRevoke(ctx, tokens, owner, tokenID, call)
 	}
-	if err := tokens.Revoke(ctx, owner.ID, tokenID); err != nil {
+	if err := tokens.RevokeInAnyTenant(ctx, owner.ID, tokenID); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(call.Stdout, "revoked token %s\n", tokenID)
 	return nil
 }
 
-// previewRevoke names the token of the owner a revoke would delete, apitoken.ErrNotFound when the owner holds none.
+// previewRevoke names the token of the owner a revoke would delete in any tenant, apitoken.ErrNotFound when none.
 func previewRevoke(
 	ctx context.Context, tokens *postgres.TokenStore, owner gouncer.User, tokenID uuid.UUID, call gonsole.Call,
 ) error {
-	held, err := tokens.ListForUser(ctx, owner.ID)
+	held, err := tokens.FindInAnyTenant(ctx, owner.ID, tokenID)
 	if err != nil {
 		return err
 	}
-	for _, t := range held {
-		if t.ID == tokenID {
-			_, _ = fmt.Fprintf(call.Stdout, "would revoke token %s (%s) of %s\n", t.ID, t.Name, owner.Email)
-			return nil
-		}
-	}
-	return apitoken.ErrNotFound
+	_, _ = fmt.Fprintf(call.Stdout, "would revoke token %s (%s) of %s\n", held.ID, held.Name, owner.Email)
+	return nil
 }

@@ -377,8 +377,11 @@ command exits 1 with the change already made.
 programs use to call the API, see
 [GraphQL API](/reference/graphql-api/#authenticating). Each one acts on
 the account `-email` names, found by its address in upper or lower
-case, and in the workspace that account works in. They take no `-as`
-and are not recorded.
+case. `token:create` and `token:list -email` act in the workspace that
+account works in, and `token:revoke` finds the account's token in any
+workspace. `token:list -all` takes no `-email` and lists the tokens of
+every account in every workspace. They take no `-as` and are not
+recorded.
 
 They apply no migration, so on a database no version has migrated yet
 they exit 1. After an update they still run, so run `migrate`, or start
@@ -460,14 +463,16 @@ unset. With `-all` each token also carries `owner`, `null` when no
 account answers for it, and `tenant_id`.
 
 When an account moves to another workspace, the tokens it held stay in
-the old one and still work. `token:list -all` shows them, but neither
-`token:revoke` nor the API tokens tab of the Users page can revoke them
-yet.
+the old one and still work. `token:list -email` no longer shows them,
+but `token:list -all` does, with the workspace that keeps them.
+`token:revoke` revokes them, while the API tokens tab of the Users page
+cannot yet.
 
 ### token:revoke
 
-Revokes one token of one account. It needs `-email` and `-id`, and only
-names the token until you add `-yes`:
+Revokes one token of one account, in whichever workspace keeps it. It
+needs `-email` and `-id`, and only names the token until you add
+`-yes`:
 
 ```sh
 alphone token:revoke -email admin@example.com -id 01a10784-b957-7537-b4af-7d04cc2ce486
@@ -483,6 +488,10 @@ does not hold exits 1 with `alphone: apitoken: not found`, with or
 without `-yes`. Without `-id` it exits 2 with
 `alphone: token:revoke wants -id <id>`, and an `-id` that is not a UUID
 exits 2 before any database is reached, both with or without `-yes`.
+
+To find a token the account left in another workspace, run
+`token:list -all` and take the id from the line that starts with the
+account's address.
 
 ## Old names
 

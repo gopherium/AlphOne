@@ -167,6 +167,20 @@ Feature: Operators run AlphOne from one command line
     And the answer lists the token "automation" of "admin@example.com" in the workspace "Default"
     And the answer lists the token "reporting" of "maria.perez@example.com" in the workspace "Acme"
 
+  Scenario: A token left in the workspace its owner moved from is revoked
+    Given the member "maria.perez@example.com"
+    And the account "maria.perez@example.com" holds a token named "reporting"
+    And the workspace "Acme" exists
+    And the account "maria.perez@example.com" is placed in the workspace "Acme"
+    When the operator lists the tokens of every account with "-all"
+    Then the answer lists the token "reporting" of "maria.perez@example.com" in the workspace "Default"
+    When the operator previews revoking the token "reporting" of "maria.perez@example.com"
+    Then the command succeeds
+    And the answer says nothing changed until it is confirmed with "-yes"
+    When the operator revokes the token "reporting" of "maria.perez@example.com"
+    Then the command succeeds
+    And the token list of every account no longer shows "reporting"
+
   Scenario: An acting account cannot disable itself
     Given the administrator "admin@example.com"
     And the administrator "maria.perez@example.com"

@@ -83,16 +83,22 @@ func placedMember(t *testing.T, databaseURL string, env map[string]string) (goun
 	t.Helper()
 	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
 	member := accountAt(t, databaseURL, "maria.perez@example.com")
+	return member, placedInNewTenant(t, databaseURL, member.ID)
+}
+
+// placedInNewTenant stands the account userID in a fresh tenant called Acme and answers the tenant.
+func placedInNewTenant(t *testing.T, databaseURL string, userID uuid.UUID) uuid.UUID {
+	t.Helper()
 	pool := testPool(t, databaseURL)
 	acme := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(t.Context(), "INSERT INTO core.tenants (id, name) VALUES ($1, $2)", acme, "Acme"); err != nil {
 		t.Fatalf("storing the tenant: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(),
-		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", member.ID, acme); err != nil {
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", userID, acme); err != nil {
 		t.Fatalf("placing the member: %v", err)
 	}
-	return member, acme
+	return acme
 }
 
 // heldTokenIDs returns the ids of the tokens of userID the token store lists in the tenant ctx stands in.
@@ -126,8 +132,8 @@ func servedAPI(t *testing.T, databaseURL string) string {
 	return addr
 }
 
-// graphData posts query to the API at addr under credential, decodes its data into data and answers its cookies.
-func graphData(t *testing.T, addr, query string, credential func(*http.Request), data any) []*http.Cookie {
+// postGraphQuery posts query to the API at addr under credential and answers the response for the caller to close.
+func postGraphQuery(t *testing.T, addr, query string, credential func(*http.Request)) *http.Response {
 	t.Helper()
 	document, err := json.Marshal(map[string]string{"query": query})
 	if err != nil {
@@ -144,12 +150,26 @@ func graphData(t *testing.T, addr, query string, credential func(*http.Request),
 	if err != nil {
 		t.Fatalf("posting the graph request: %v", err)
 	}
+	return response
+}
+
+// bearerOf returns the credential that presents secret as a bearer token.
+func bearerOf(secret string) func(*http.Request) {
+	return func(r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+secret)
+	}
+}
+
+// graphData posts query to the API at addr under credential, decodes its data into data and answers its cookies.
+func graphData(t *testing.T, addr, query string, credential func(*http.Request), data any) []*http.Cookie {
+	t.Helper()
+	response := postGraphQuery(t, addr, query, credential)
 	defer func() { _ = response.Body.Close() }()
 	var answered struct {
 		Data   json.RawMessage   `json:"data"`
 		Errors []json.RawMessage `json:"errors"`
 	}
-	err = json.NewDecoder(response.Body).Decode(&answered)
+	err := json.NewDecoder(response.Body).Decode(&answered)
 	if err == nil && len(answered.Errors) == 0 {
 		err = json.Unmarshal(answered.Data, data)
 	}
@@ -168,10 +188,16 @@ func bearerTenant(t *testing.T, addr, secret string) string {
 			ID string `json:"id"`
 		} `json:"tenant"`
 	}
-	graphData(t, addr, "{ tenant { id } }", func(r *http.Request) {
-		r.Header.Set("Authorization", "Bearer "+secret)
-	}, &answered)
+	graphData(t, addr, "{ tenant { id } }", bearerOf(secret), &answered)
 	return answered.Tenant.ID
+}
+
+// bearerStatus answers the status the API at addr serves a graph query presented with the bearer secret.
+func bearerStatus(t *testing.T, addr, secret string) int {
+	t.Helper()
+	response := postGraphQuery(t, addr, "{ tenant { id } }", bearerOf(secret))
+	_ = response.Body.Close()
+	return response.StatusCode
 }
 
 // screenTokenIDs logs the account at email in to the API at addr and answers the ids of the tokens it lists.
@@ -254,6 +280,43 @@ func TestTokenListAndRevokeReachATokenInTheOwnersTenant(t *testing.T) {
 	}
 	if _, err := store.ByHash(t.Context(), minted.Token.Hash); !errors.Is(err, apitoken.ErrNotFound) {
 		t.Errorf("ByHash() after token:revoke -yes error = %v, want the token gone", err)
+	}
+}
+
+func TestTokenRevokeReachesATokenLeftInTheWorkspaceItsOwnerMovedFrom(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, env := tokenDatabase(t)
+	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
+	minted := testkit.Run(t, bareProgram(env), "",
+		"token:create", "-email", "maria.perez@example.com", "-name", "reporting")
+	if minted.Code != gonsole.ExitDone {
+		t.Fatalf("token:create = %d with stderr %q, want 0", minted.Code, minted.Stderr)
+	}
+	secret := secretOf(t, minted.Stdout)
+	stray := storedToken(t, databaseURL, secret)
+	acme := placedInNewTenant(t, databaseURL, accountAt(t, databaseURL, "maria.perez@example.com").ID)
+	addr := servedAPI(t, databaseURL)
+	if standing := bearerTenant(t, addr, secret); standing != acme.String() {
+		t.Fatalf("the API stands the stray token in the tenant %s, want the owner's new tenant %s", standing, acme)
+	}
+	args := []string{"token:revoke", "-email", "maria.perez@example.com", "-id", stray.ID.String()}
+
+	preview := testkit.Run(t, bareProgram(env), "", args...)
+	revoked := testkit.Run(t, bareProgram(env), "", append(args, "-yes")...)
+
+	want := "would revoke token " + stray.ID.String() + " (reporting) of maria.perez@example.com\n"
+	if preview.Code != gonsole.ExitDone || preview.Stdout != want ||
+		preview.Stderr != "alphone: dry run, nothing changed, pass -yes to apply\n" {
+		t.Errorf("token:revoke = %d, stdout %q, stderr %q, want 0, %q and a dry run",
+			preview.Code, preview.Stdout, preview.Stderr, want)
+	}
+	if revoked.Code != gonsole.ExitDone || revoked.Stdout != "revoked token "+stray.ID.String()+"\n" {
+		t.Errorf("token:revoke -yes = %d, stdout %q, stderr %q, want 0 and the token named",
+			revoked.Code, revoked.Stdout, revoked.Stderr)
+	}
+	if status := bearerStatus(t, addr, secret); status != http.StatusUnauthorized {
+		t.Errorf("the API answers the revoked secret with %d, want %d", status, http.StatusUnauthorized)
 	}
 }
 

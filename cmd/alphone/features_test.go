@@ -94,7 +94,18 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Then(`^the JSON document holds no secret$`, s.documentHoldsNoSecret)
 		sc.When(`^the operator lists the tokens of every account with "([^"]*)"$`, s.listTokensOfEveryAccount)
 		sc.Then(`^the answer lists the token "([^"]*)" of "([^"]*)" in the workspace "([^"]*)"$`, s.listsTokenOf)
+		sc.Then(`^the token list of every account no longer shows "([^"]*)"$`, s.everyTokenListOmits)
 	}
+}
+
+// everyTokenListOmits fails unless token:list -all succeeds and holds no line for the token called name.
+func (s *operatorScenario) everyTokenListOmits(name string) error {
+	listed := s.answer("", "token:list", "-all")
+	if listed.Code != 0 || listing(listed.Stdout, name) == nil {
+		return fmt.Errorf("token:list -all = %d, stdout %q, stderr %q, want 0 and no line for %s",
+			listed.Code, listed.Stdout, listed.Stderr, name)
+	}
+	return nil
 }
 
 // listTokensOfEveryAccount lists the tokens of every account, the flag naming them all.
