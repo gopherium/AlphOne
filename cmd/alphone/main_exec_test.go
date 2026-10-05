@@ -207,7 +207,8 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 
 	binary, env := coverBinary(t)
 	var stderr bytes.Buffer
-	cmd := exec.Command(binary, "account:create-admin")
+	cmd := exec.Command(binary,
+		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	cmd.Dir = t.TempDir()
 	cmd.Env = env
 	cmd.Stderr = &stderr
@@ -220,6 +221,27 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "ALPHONE_DATABASE_URL is required") {
 		t.Errorf("stderr = %q, want it to report the missing database URL", stderr.String())
+	}
+}
+
+func TestMainBinaryCreateAdminWantsItsFlagsBeforeTheDatabase(t *testing.T) {
+	t.Parallel()
+
+	binary, env := coverBinary(t)
+	var stderr bytes.Buffer
+	cmd := exec.Command(binary, "account:create-admin", "-email", "admin@example.com", "-name", "Admin")
+	cmd.Dir = t.TempDir()
+	cmd.Env = env
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+		t.Fatalf("account:create-admin without -role: %v, want exit code 2", err)
+	}
+	if want := "alphone: account:create-admin wants -role <role>\n"; !strings.HasPrefix(stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to open with %q", stderr.String(), want)
 	}
 }
 
