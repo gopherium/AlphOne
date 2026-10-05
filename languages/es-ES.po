@@ -528,6 +528,10 @@ msgid "The token could not be created."
 msgstr "No se ha podido crear el token."
 
 #, fuzzy
+msgid "This request came from a page on another site, so it was refused. Open the admin on this site and try again."
+msgstr "Esta petición vino de una página de otro sitio, así que se rechazó. Abre la administración en este sitio e inténtalo de nuevo."
+
+#, fuzzy
 msgid "This token does not reach %(scope)s."
 msgstr "Este token no alcanza %(scope)s."
 

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { rememberFormatLocale } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, http, server, textClasses } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
+import { configureAppErrorText } from '../i18n/errors'
 import { busyClasses, buttonClasses, compactClasses, liveStream, renderAt } from './render'
 
 const callID = '0198c000-0000-7000-8000-000000000101'
@@ -832,6 +833,28 @@ test('reports a generic message when adding fails otherwise', async () => {
 
 	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
 	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+})
+
+test('tells the reader why the add was refused as a write from another site', async () => {
+	configureAppErrorText()
+	server.use(
+		http.post('/api/graphql', async ({ request }) => {
+			const { operationName } = (await request.clone().json()) as { operationName?: string }
+			return operationName === 'CreateTask'
+				? HttpResponse.json({ error: 'cross-origin request refused', code: 'request_cross_origin' }, { status: 403 })
+				: undefined
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	expect(await screen.findByText(
+		'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+	)).toBeInTheDocument()
+	expect(screen.queryByText('The task could not be added.')).not.toBeInTheDocument()
 })
 
 test('reports when a task cannot be updated', async () => {

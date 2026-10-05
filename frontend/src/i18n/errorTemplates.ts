@@ -15,6 +15,10 @@ export function errorTemplates(): Record<string, string> {
 		authentication_required: __('Sign in to go on.', DOMAIN),
 		credentials_invalid: __('That email and password do not match an account.', DOMAIN),
 		tenant_deactivated: __('This workspace has been deactivated. Contact your operator.', DOMAIN),
+		request_cross_origin: __(
+			'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+			DOMAIN,
+		),
 		rate_limited: __('Too many attempts. Wait %(retryAfter)s seconds and try again.', DOMAIN),
 		scope_missing: __('This token does not reach %(scope)s.', DOMAIN),
 		capability_missing: __('Your role does not allow %(capability)s.', DOMAIN),

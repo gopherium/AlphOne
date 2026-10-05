@@ -322,6 +322,53 @@ export function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['
 	return { exchange, refetch }
 }
 
+/** RouterRefusal is the JSON answer a route refuses a request with before the graph reads it. */
+interface RouterRefusal {
+	/** error is the refusal in the server's words. */
+	error: string
+	/** code is the stable snake_case name of the refusal. */
+	code: string
+}
+
+/**
+ * Reports whether a parsed answer is a router refusal naming its code.
+ * @param body - The parsed answer, of any shape.
+ * @returns Whether it carries a message beside a code.
+ */
+function routerRefusal(body: unknown): body is RouterRefusal {
+	return typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' &&
+		'code' in body && typeof body.code === 'string'
+}
+
+/**
+ * Returns the answer the graph client reads, a router refusal turned into the refused input naming its code.
+ * @param response - The answer the server sent.
+ * @returns The answer, rewritten only for a router refusal.
+ */
+async function graphReadable(response: Response): Promise<Response> {
+	if (response.status !== 403 || !response.headers.get('Content-Type')?.includes('application/json')) {
+		return response
+	}
+	const body: unknown = await response.clone().json().catch(() => undefined)
+	if (!routerRefusal(body)) {
+		return response
+	}
+	return Response.json(
+		{ errors: [{ message: body.error, extensions: { code: 'VALIDATION', reason: body.code } }] },
+		{ status: response.status, statusText: response.statusText },
+	)
+}
+
+/**
+ * Fetches one graph request, reading a router refusal as a graph error.
+ * @param input - The address the request goes to.
+ * @param init - The request options.
+ * @returns The answer the graph client reads.
+ */
+async function graphFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+	return graphReadable(await fetch(input, init))
+}
+
 /**
  * Returns the configured graph client every screen and plugin shares.
  * @param options - The session expiry callback bridging to the auth layer.
@@ -332,6 +379,7 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 	const stream = eventStreamExchange()
 	const client = new Client({
 		url: graphEndpoint,
+		fetch: graphFetch,
 		fetchOptions: { credentials: 'same-origin' },
 		preferGetMethod: false,
 		exchanges: [

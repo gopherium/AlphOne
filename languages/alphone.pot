@@ -593,6 +593,9 @@ msgstr ""
 msgid "This link is no longer valid. Ask for a new one."
 msgstr ""
 
+msgid "This request came from a page on another site, so it was refused. Open the admin on this site and try again."
+msgstr ""
+
 msgid "This token does not reach %(scope)s."
 msgstr ""
 
