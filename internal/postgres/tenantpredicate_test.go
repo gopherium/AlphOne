@@ -34,7 +34,9 @@ var workerQueries = map[string]bool{
 
 // operatorQueries names the queries an operator command runs across every tenant on purpose.
 var operatorQueries = map[string]bool{
-	"ListEveryAPIToken": true,
+	"ListEveryAPIToken":         true,
+	"GetAPITokenInAnyTenant":    true,
+	"RevokeAPITokenInAnyTenant": true,
 }
 
 // exemptedGroups holds every group of queries exempted from the tenant filter.

@@ -267,6 +267,73 @@ func TestTokenStoreRevokesOneTokenOfItsOwner(t *testing.T) {
 	}
 }
 
+func TestTokenStoreFindsAndRevokesATokenItsOwnerLeftInAnotherTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := storedOwner(t, pool, "maria.perez@example.com")
+	minted := mustMint(t, owner, "reporting")
+	if err := store.Create(standingIn(t, tenant.DefaultID), minted.Token); err != nil {
+		t.Fatalf("creating token: %v", err)
+	}
+	acme := seededTenant(t, pool)
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", owner, acme); err != nil {
+		t.Fatalf("placing the owner: %v", err)
+	}
+	standing := standingIn(t, acme)
+	if held, err := store.ListForUser(standing, owner); err != nil || len(held) != 0 {
+		t.Fatalf("ListForUser() in the owner's tenant = %v, %v, want no token there", held, err)
+	}
+
+	found, err := store.FindInAnyTenant(standing, owner, minted.Token.ID)
+
+	if err != nil {
+		t.Fatalf("FindInAnyTenant() error = %v, want the token left in the default tenant", err)
+	}
+	if diff := cmp.Diff(minted.Token, found, cmpopts.EquateApproxTime(time.Microsecond)); diff != "" {
+		t.Errorf("FindInAnyTenant() mismatch (-want +got):\n%s", diff)
+	}
+	if err := store.RevokeInAnyTenant(standing, owner, minted.Token.ID); err != nil {
+		t.Fatalf("RevokeInAnyTenant() error = %v, want nil", err)
+	}
+	if _, err := store.ByHash(t.Context(), minted.Token.Hash); !errors.Is(err, apitoken.ErrNotFound) {
+		t.Errorf("ByHash() after RevokeInAnyTenant() error = %v, want %v", err, apitoken.ErrNotFound)
+	}
+}
+
+func TestTokenStoreReachesNoTokenInAnyTenantUnlessTheOwnerAndTheIDBothMatch(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := storedOwner(t, pool, "maria.perez@example.com")
+	minted := mustMint(t, owner, "reporting")
+	if err := store.Create(standingIn(t, seededTenant(t, pool)), minted.Token); err != nil {
+		t.Fatalf("creating token: %v", err)
+	}
+	lookups := map[string]struct {
+		userID, tokenID uuid.UUID
+	}{
+		"the token id under another account": {storedOwner(t, pool, "admin@example.com"), minted.Token.ID},
+		"an id no token carries":             {owner, uuid.Must(uuid.NewV7())},
+	}
+
+	for condition, lookup := range lookups {
+		_, found := store.FindInAnyTenant(t.Context(), lookup.userID, lookup.tokenID)
+		revoked := store.RevokeInAnyTenant(t.Context(), lookup.userID, lookup.tokenID)
+
+		if !errors.Is(found, apitoken.ErrNotFound) || !errors.Is(revoked, apitoken.ErrNotFound) {
+			t.Errorf("%s: FindInAnyTenant() error = %v, RevokeInAnyTenant() error = %v, want %v from both",
+				condition, found, revoked, apitoken.ErrNotFound)
+		}
+	}
+	if _, err := store.ByHash(t.Context(), minted.Token.Hash); err != nil {
+		t.Errorf("ByHash() after the refused revokes error = %v, want the token intact", err)
+	}
+}
+
 func TestTokenStoreReportsConnectionFailure(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +360,24 @@ func TestTokenStoreReportsConnectionFailure(t *testing.T) {
 	}
 	if err := store.Revoke(t.Context(), owner, minted.Token.ID); err == nil || errors.Is(err, apitoken.ErrNotFound) {
 		t.Errorf("Revoke() on closed pool error = %v, want a non-ErrNotFound error", err)
+	}
+}
+
+func TestTokenStoreReportsConnectionFailureInAnyTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := uuid.Must(uuid.NewV7())
+	pool.Close()
+
+	_, found := store.FindInAnyTenant(t.Context(), owner, uuid.Must(uuid.NewV7()))
+	revoked := store.RevokeInAnyTenant(t.Context(), owner, uuid.Must(uuid.NewV7()))
+
+	for name, err := range map[string]error{"FindInAnyTenant": found, "RevokeInAnyTenant": revoked} {
+		if err == nil || errors.Is(err, apitoken.ErrNotFound) {
+			t.Errorf("%s() on closed pool error = %v, want a non-ErrNotFound error", name, err)
+		}
 	}
 }
 

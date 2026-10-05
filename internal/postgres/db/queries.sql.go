@@ -424,6 +424,34 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (Core
 	return i, err
 }
 
+const getAPITokenInAnyTenant = `-- name: GetAPITokenInAnyTenant :one
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
+FROM core.api_tokens
+WHERE id = $1 AND user_id = $2
+`
+
+type GetAPITokenInAnyTenantParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetAPITokenInAnyTenant(ctx context.Context, arg GetAPITokenInAnyTenantParams) (CoreApiToken, error) {
+	row := q.db.QueryRow(ctx, getAPITokenInAnyTenant, arg.ID, arg.UserID)
+	var i CoreApiToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TokenHash,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.Scopes,
+		&i.ExpiresAt,
+		&i.TenantID,
+	)
+	return i, err
+}
+
 const getContact = `-- name: GetContact :one
 SELECT id, name, created_at, tenant_id
 FROM core.contacts
@@ -1077,6 +1105,24 @@ type RevokeAPITokenParams struct {
 
 func (q *Queries) RevokeAPIToken(ctx context.Context, arg RevokeAPITokenParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeAPIToken, arg.ID, arg.UserID, arg.TenantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeAPITokenInAnyTenant = `-- name: RevokeAPITokenInAnyTenant :execrows
+DELETE FROM core.api_tokens
+WHERE id = $1 AND user_id = $2
+`
+
+type RevokeAPITokenInAnyTenantParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) RevokeAPITokenInAnyTenant(ctx context.Context, arg RevokeAPITokenInAnyTenantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAPITokenInAnyTenant, arg.ID, arg.UserID)
 	if err != nil {
 		return 0, err
 	}

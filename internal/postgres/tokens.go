@@ -133,6 +133,30 @@ func (s *TokenStore) Revoke(ctx context.Context, userID, id uuid.UUID) error {
 	return nil
 }
 
+// FindInAnyTenant returns the token id of userID in any tenant, or [apitoken.ErrNotFound] when the user owns none.
+func (s *TokenStore) FindInAnyTenant(ctx context.Context, userID, id uuid.UUID) (apitoken.Token, error) {
+	row, err := s.queries.GetAPITokenInAnyTenant(ctx, db.GetAPITokenInAnyTenantParams{ID: id, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apitoken.Token{}, apitoken.ErrNotFound
+	}
+	if err != nil {
+		return apitoken.Token{}, fmt.Errorf("postgres: find api token in any tenant: %w", err)
+	}
+	return tokenFromRow(row), nil
+}
+
+// RevokeInAnyTenant deletes the token id of userID in any tenant, [apitoken.ErrNotFound] when the user owns none.
+func (s *TokenStore) RevokeInAnyTenant(ctx context.Context, userID, id uuid.UUID) error {
+	deleted, err := s.queries.RevokeAPITokenInAnyTenant(ctx, db.RevokeAPITokenInAnyTenantParams{ID: id, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("postgres: revoke api token in any tenant: %w", err)
+	}
+	if deleted == 0 {
+		return apitoken.ErrNotFound
+	}
+	return nil
+}
+
 // tokenFromRow maps a stored row onto the domain token.
 func tokenFromRow(row db.CoreApiToken) apitoken.Token {
 	return apitoken.Token{
