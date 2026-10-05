@@ -9,11 +9,13 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -560,8 +562,8 @@ func postForm(t *testing.T, addr, secret, contentType string, body io.Reader) gr
 	return envelope
 }
 
-// servedBinary starts the real binary on its own database, answering its address and token.
-func servedBinary(t *testing.T, databaseURL string) (string, string) {
+// servedBinary starts the real binary on its own database plus extra settings, answering its address and token.
+func servedBinary(t *testing.T, databaseURL string, extra ...string) (string, string) {
 	t.Helper()
 	binary, env := coverBinary(t)
 	createUser := exec.Command(binary, "createadmin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
@@ -571,7 +573,31 @@ func servedBinary(t *testing.T, databaseURL string) (string, string) {
 	if err := createUser.Run(); err != nil {
 		t.Fatalf("createadmin: %v", err)
 	}
-	return servedSeededBinary(t, databaseURL)
+	return servedSeededBinary(t, databaseURL, extra...)
+}
+
+func TestMainBinaryDeliversToAReceiverTheOperatorAllowed(t *testing.T) {
+	t.Parallel()
+
+	var posts atomic.Int32
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		posts.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	addr, secret := servedBinary(t, testDatabaseURL(t), "ALPHONE_WEBHOOK_ALLOWED_HOSTS=127.0.0.1/32")
+	postGraph(t, addr, secret, `{"query":"mutation { createWebhook(url: \"`+receiver.URL+
+		`/hook\", events: [\"contact.created\"]) { secret } }"}`)
+
+	postGraph(t, addr, secret, `{"query":"mutation { createContact(name: \"Maria Perez\") { id } }"}`)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for posts.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := posts.Load(); got != 1 {
+		t.Errorf("the receiver saw %d deliveries, want the allowed loopback receiver served once", got)
+	}
 }
 
 // servedSeededBinary starts the real binary on a database already holding the admin, adding extra to its environment.

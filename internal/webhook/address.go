@@ -9,6 +9,9 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -29,6 +32,9 @@ var never = prefixes("169.254.0.0/16", "fe80::/10", "fd00:ec2::254/128")
 // translated is the well-known NAT64 prefix, whose addresses carry the IPv4 address they reach in their last bytes.
 var translated = netip.MustParsePrefix("64:ff9b::/96")
 
+// anywhere holds every address, the ranges a host entry opens once a request names it.
+var anywhere = prefixes("0.0.0.0/0", "::/0")
+
 // prefixes parses the ranges a table lists.
 func prefixes(ranges ...string) []netip.Prefix {
 	parsed := make([]netip.Prefix, 0, len(ranges))
@@ -42,6 +48,45 @@ func prefixes(ranges ...string) []netip.Prefix {
 type AllowList struct {
 	// Ranges are the internal address ranges a dialled address may fall in.
 	Ranges []netip.Prefix
+	// Hosts are the host names with a port a request may name, in lower case.
+	Hosts []string
+}
+
+// ParseAllowList reads a comma separated list of CIDR ranges and host names with a port.
+func ParseAllowList(value string) (AllowList, error) {
+	var allowed AllowList
+	for _, entry := range strings.Split(value, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry != "" && !allowed.add(entry) {
+			return AllowList{}, fmt.Errorf(
+				"must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678, got %q", value)
+		}
+	}
+	return allowed, nil
+}
+
+// add files entry as a range when it holds a slash and as a host name with a port otherwise, reporting whether it read.
+func (a *AllowList) add(entry string) bool {
+	if strings.Contains(entry, "/") {
+		prefix, err := netip.ParsePrefix(entry)
+		if err != nil {
+			return false
+		}
+		a.Ranges = append(a.Ranges, prefix.Masked())
+		return true
+	}
+	host, port, err := net.SplitHostPort(entry)
+	number, invalid := strconv.ParseUint(port, 10, 16)
+	if err != nil || invalid != nil || host == "" || number == 0 {
+		return false
+	}
+	a.Hosts = append(a.Hosts, net.JoinHostPort(strings.ToLower(host), strconv.FormatUint(number, 10)))
+	return true
+}
+
+// names reports whether address, the host and port a request names, is one of the allowed host entries.
+func (a AllowList) names(address string) bool {
+	return slices.Contains(a.Hosts, strings.ToLower(address))
 }
 
 // AddressGuard decides which addresses outbound requests may reach.
@@ -60,8 +105,11 @@ func (g AddressGuard) Client(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: transport}
 }
 
-// dial connects to address once every address it resolves to passes the guard.
+// dial connects to address once every address it resolves to passes the guard, a named host entry opening them all.
 func (g AddressGuard) dial(ctx context.Context, network, address string) (net.Conn, error) {
+	if g.Allowed.names(address) {
+		g.Allowed.Ranges = anywhere
+	}
 	dialer := net.Dialer{Resolver: g.Resolver, ControlContext: g.control}
 	return dialer.DialContext(ctx, network, address)
 }

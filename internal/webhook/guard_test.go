@@ -190,6 +190,39 @@ func TestWorkerDeliversToALoopbackRangeAnOperatorAllowed(t *testing.T) {
 	}
 }
 
+func TestWorkerDeliversToAHostEntryAnOperatorAllowed(t *testing.T) {
+	t.Parallel()
+
+	subscriber, posts := countingSubscriber(t)
+	port := portOf(t, subscriber)
+	guard := webhook.AddressGuard{Allowed: webhook.AllowList{Hosts: []string{"localhost:" + port}}}
+
+	settled, _ := deliverOnce(t, "http://localhost:"+port+"/hook", guard)
+
+	if settled.Status != webhook.StatusDelivered {
+		t.Errorf("status = %q, want delivered: %s", settled.Status, settled.LastError)
+	}
+	if got := posts.Load(); got != 1 {
+		t.Errorf("subscriber saw %d posts, want 1", got)
+	}
+}
+
+func TestWorkerRefusesAMetadataAddressBehindAnAllowedHostEntry(t *testing.T) {
+	t.Parallel()
+
+	guard := webhook.AddressGuard{
+		Allowed:  webhook.AllowList{Hosts: []string{"metadata.example.com:80"}},
+		Resolver: fakeResolver(map[string]netip.Addr{"metadata.example.com": netip.MustParseAddr("169.254.169.254")}),
+	}
+
+	settled, logged := deliverOnce(t, "http://metadata.example.com/latest", guard)
+
+	wantRefused(t, settled, logged, "metadata.example.com")
+	if !strings.Contains(settled.LastError, "169.254.169.254:80") {
+		t.Errorf("last_error = %q, want the resolved metadata address refused", settled.LastError)
+	}
+}
+
 func TestWorkerIgnoresTheProxySettings(t *testing.T) {
 	proxy, proxied := countingSubscriber(t)
 	subscriber, posts := countingSubscriber(t)

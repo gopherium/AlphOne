@@ -65,7 +65,7 @@ func run(
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	dispatcher := webhook.NewDispatcher(webhooks, logger)
-	deliveries := webhook.NewWorker(webhooks, logger, webhook.AddressGuard{})
+	deliveries := webhook.NewWorker(webhooks, logger, webhook.AddressGuard{Allowed: settings.webhookHosts})
 	deliveries.Start()
 	defer deliveries.Stop()
 	hub := event.NewHub()
@@ -295,11 +295,12 @@ type runConfig struct {
 	serving        gonsole.Timeouts
 }
 
-// composeSettings carries the machine grace, the tenant bounds and the mail settings.
+// composeSettings carries the machine grace, the tenant bounds, the mail settings and the webhook allow list.
 type composeSettings struct {
 	machineGrace time.Duration
 	tenants      tenantSettings
 	mail         mailSettings
+	webhookHosts webhook.AllowList
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -460,7 +461,7 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 	}, nil
 }
 
-// loadComposeSettings reads the machine grace, the tenant bounds and the mail settings.
+// loadComposeSettings reads the machine grace, the tenant bounds, the mail settings and the webhook allow list.
 func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	machineGrace, err := env.Duration("TENANT_MACHINE_GRACE", tenant.DefaultMachineGrace, gonsole.AllowZero())
 	if err != nil {
@@ -474,7 +475,11 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
-	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail}, nil
+	webhookHosts, err := gonsole.Parse(env, "WEBHOOK_ALLOWED_HOSTS", webhook.AllowList{}, webhook.ParseAllowList)
+	if err != nil {
+		return composeSettings{}, err
+	}
+	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail, webhookHosts: webhookHosts}, nil
 }
 
 // loadRunConfig reads the server settings from the environment.
