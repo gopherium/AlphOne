@@ -130,9 +130,10 @@ A browser write is judged in one of two ways:
 That second way is why a reverse proxy in front of AlphOne should pass
 the visitor's `Host` header through unchanged. AlphOne never reads
 `X-Forwarded-Host` for this check. Caddy and Traefik keep the `Host`
-header by default, and nginx needs `proxy_set_header Host $host`. Have
-the proxy send `Strict-Transport-Security` as well, so those older
-browsers never load one of your pages over plain `http`.
+header by default, and nginx needs `proxy_set_header Host $http_host`,
+which keeps the port as well. Have the proxy send
+`Strict-Transport-Security` as well, so those older browsers never load
+one of your pages over plain `http`.
 
 A refused write answers HTTP 403 with this body, and the app tells the
 person that the request came from a page on another site:

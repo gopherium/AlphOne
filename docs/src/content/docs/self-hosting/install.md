@@ -158,9 +158,12 @@ the proxy sets `X-Forwarded-For` and keeps the visitor's `Host` header.
 Traefik keeps it by default. With nginx, add:
 
 ```nginx
-proxy_set_header Host $host;
+proxy_set_header Host $http_host;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 ```
+
+Use `$http_host` rather than `$host`. It passes the port too, which
+matters when AlphOne answers on a port other than 443.
 
 The `Host` header matters only for browsers from before 2023, which do
 not send `Sec-Fetch-Site`. AlphOne compares their `Origin` with `Host`,
