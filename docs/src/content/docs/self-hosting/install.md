@@ -176,8 +176,9 @@ keeping browsers on `https` for your domain. It also commits you. A
 browser that has seen it uses only `https` for your domain, and lets
 nobody click past a certificate warning there, until its time runs out.
 If you choose it, start with a short time such as `max-age=300` and
-raise it once everything works. Sending `max-age=0` later tells browsers
-to forget it.
+raise it once everything works. Sending `max-age=0` later, over valid
+`https`, tells browsers to forget it. A browser ignores the header on
+plain `http`.
 
 In Caddy, add `header Strict-Transport-Security "max-age=300"` to the
 site block. With nginx, add
