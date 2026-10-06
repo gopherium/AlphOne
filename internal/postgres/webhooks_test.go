@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"errors"
 	"log/slog"
+	"reflect"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func TestWebhookStoreSubscriptionRoundTrip(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("got %d subscriptions, want 1", len(got))
 	}
-	if diff := cmp.Diff(sub, got[0], cmpopts.EquateApproxTime(time.Microsecond)); diff != "" {
+	if diff := cmp.Diff(sub, got[0].Subscription, cmpopts.EquateApproxTime(time.Microsecond)); diff != "" {
 		t.Errorf("subscription mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -441,5 +442,83 @@ func TestWebhookStoreReportsConnectionFailure(t *testing.T) {
 	}
 	if err := store.SettleDelivery(t.Context(), delivery.ID, webhook.StatusFailed, now, "boom"); err == nil {
 		t.Error("SettleDelivery() on closed pool error = nil, want error")
+	}
+	if _, err := store.ListWorkspaceSubscriptions(t.Context()); err == nil {
+		t.Error("ListWorkspaceSubscriptions() on closed pool error = nil, want error")
+	}
+	if err := store.DeleteWorkspaceSubscription(t.Context(), sub.ID); err == nil || errors.Is(err, webhook.ErrNotFound) {
+		t.Errorf("DeleteWorkspaceSubscription() on closed pool error = %v, want a non-ErrNotFound error", err)
+	}
+}
+
+func TestWebhookStoreListsEveryWorkspaceSubscriptionWithItsOwner(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	member := storedOwner(t, pool, "member@example.com")
+	gone := uuid.Must(uuid.NewV7())
+	for _, sub := range []webhook.Subscription{
+		mustSubscription(t, member, "https://example.com/member", event.TaskCreated),
+		mustSubscription(t, gone, "https://example.com/orphan", event.TaskCreated),
+	} {
+		if err := store.CreateSubscription(t.Context(), sub); err != nil {
+			t.Fatalf("CreateSubscription() error = %v, want nil", err)
+		}
+	}
+
+	got, err := store.ListWorkspaceSubscriptions(t.Context())
+
+	if err != nil {
+		t.Fatalf("ListWorkspaceSubscriptions() error = %v, want nil", err)
+	}
+	owners := map[string]*webhook.Owner{}
+	for _, listed := range got {
+		owners[listed.URL] = listed.Owner
+	}
+	want := &webhook.Owner{ID: member, Name: "Maria Perez", Email: "member@example.com"}
+	if len(got) != 2 || !reflect.DeepEqual(owners["https://example.com/member"], want) {
+		t.Errorf("listed %+v, want both subscriptions and the member's owned by %+v", got, want)
+	}
+	if owner, held := owners["https://example.com/orphan"]; !held || owner != nil {
+		t.Errorf("orphan owner = %+v, want a subscription whose account is gone listed with no owner", owner)
+	}
+}
+
+func TestWebhookStoreListsTheOwnersSubscriptionsWithTheOwner(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	member := storedOwner(t, pool, "member@example.com")
+	if err := store.CreateSubscription(t.Context(),
+		mustSubscription(t, member, "https://example.com/member", event.TaskCreated)); err != nil {
+		t.Fatalf("CreateSubscription() error = %v, want nil", err)
+	}
+
+	got, err := store.ListSubscriptionsForUser(t.Context(), member)
+
+	want := &webhook.Owner{ID: member, Name: "Maria Perez", Email: "member@example.com"}
+	if err != nil || len(got) != 1 || !reflect.DeepEqual(got[0].Owner, want) {
+		t.Errorf("ListSubscriptionsForUser() = %+v, %v, want one subscription owned by %+v", got, err, want)
+	}
+}
+
+func TestWebhookStoreDeletesAnySubscriptionOfTheWorkspace(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewWebhookStore(newTestPool(t))
+	sub := mustSubscription(t, uuid.Must(uuid.NewV7()), "https://example.com/hook", event.TaskCreated)
+	if err := store.CreateSubscription(t.Context(), sub); err != nil {
+		t.Fatalf("CreateSubscription() error = %v, want nil", err)
+	}
+
+	if err := store.DeleteWorkspaceSubscription(t.Context(), sub.ID); err != nil {
+		t.Fatalf("DeleteWorkspaceSubscription() error = %v, want nil", err)
+	}
+	err := store.DeleteWorkspaceSubscription(t.Context(), sub.ID)
+
+	if !errors.Is(err, webhook.ErrNotFound) {
+		t.Errorf("DeleteWorkspaceSubscription() of a deleted subscription error = %v, want %v", err, webhook.ErrNotFound)
 	}
 }

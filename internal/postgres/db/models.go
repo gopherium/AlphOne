@@ -13,6 +13,8 @@ import (
 
 type AuthUser struct {
 	ID       uuid.UUID
+	Email    string
+	Name     string
 	Disabled bool
 }
 

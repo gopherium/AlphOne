@@ -401,6 +401,24 @@ func (q *Queries) DeleteWebhookSubscription(ctx context.Context, arg DeleteWebho
 	return result.RowsAffected(), nil
 }
 
+const deleteWorkspaceWebhookSubscription = `-- name: DeleteWorkspaceWebhookSubscription :execrows
+DELETE FROM core.webhook_subscriptions
+WHERE id = $1 AND tenant_id = $2
+`
+
+type DeleteWorkspaceWebhookSubscriptionParams struct {
+	ID       uuid.UUID
+	TenantID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkspaceWebhookSubscription(ctx context.Context, arg DeleteWorkspaceWebhookSubscriptionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkspaceWebhookSubscription, arg.ID, arg.TenantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
 SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
 FROM core.api_tokens
@@ -971,10 +989,12 @@ func (q *Queries) ListWebhookSubscriptionsForEvent(ctx context.Context, arg List
 }
 
 const listWebhookSubscriptionsForUser = `-- name: ListWebhookSubscriptionsForUser :many
-SELECT id, user_id, url, events, secret, created_at, tenant_id
-FROM core.webhook_subscriptions
-WHERE user_id = $1 AND tenant_id = $2
-ORDER BY created_at DESC, id DESC
+SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id,
+    u.name AS owner_name, u.email AS owner_email
+FROM core.webhook_subscriptions s
+LEFT JOIN auth.users u ON u.id = s.user_id
+WHERE s.user_id = $1 AND s.tenant_id = $2
+ORDER BY s.created_at DESC, s.id DESC
 `
 
 type ListWebhookSubscriptionsForUserParams struct {
@@ -982,15 +1002,27 @@ type ListWebhookSubscriptionsForUserParams struct {
 	TenantID uuid.UUID
 }
 
-func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListWebhookSubscriptionsForUserParams) ([]CoreWebhookSubscription, error) {
+type ListWebhookSubscriptionsForUserRow struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Url        string
+	Events     []string
+	Secret     string
+	CreatedAt  time.Time
+	TenantID   uuid.UUID
+	OwnerName  pgtype.Text
+	OwnerEmail pgtype.Text
+}
+
+func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListWebhookSubscriptionsForUserParams) ([]ListWebhookSubscriptionsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listWebhookSubscriptionsForUser, arg.UserID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreWebhookSubscription
+	var items []ListWebhookSubscriptionsForUserRow
 	for rows.Next() {
-		var i CoreWebhookSubscription
+		var i ListWebhookSubscriptionsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -999,6 +1031,59 @@ func (q *Queries) ListWebhookSubscriptionsForUser(ctx context.Context, arg ListW
 			&i.Secret,
 			&i.CreatedAt,
 			&i.TenantID,
+			&i.OwnerName,
+			&i.OwnerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceWebhookSubscriptions = `-- name: ListWorkspaceWebhookSubscriptions :many
+SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id,
+    u.name AS owner_name, u.email AS owner_email
+FROM core.webhook_subscriptions s
+LEFT JOIN auth.users u ON u.id = s.user_id
+WHERE s.tenant_id = $1
+ORDER BY s.created_at DESC, s.id DESC
+`
+
+type ListWorkspaceWebhookSubscriptionsRow struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Url        string
+	Events     []string
+	Secret     string
+	CreatedAt  time.Time
+	TenantID   uuid.UUID
+	OwnerName  pgtype.Text
+	OwnerEmail pgtype.Text
+}
+
+func (q *Queries) ListWorkspaceWebhookSubscriptions(ctx context.Context, tenantID uuid.UUID) ([]ListWorkspaceWebhookSubscriptionsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceWebhookSubscriptions, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkspaceWebhookSubscriptionsRow
+	for rows.Next() {
+		var i ListWorkspaceWebhookSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Url,
+			&i.Events,
+			&i.Secret,
+			&i.CreatedAt,
+			&i.TenantID,
+			&i.OwnerName,
+			&i.OwnerEmail,
 		); err != nil {
 			return nil, err
 		}
