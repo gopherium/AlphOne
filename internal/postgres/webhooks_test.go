@@ -211,17 +211,19 @@ func TestADisabledOwnersWebhookGetsNoDeliveryUntilEnabledAgain(t *testing.T) {
 	}
 }
 
-func TestWebhookStoreClaimsADeliveryWithItsOwnersState(t *testing.T) {
+func TestWebhookStoreReportsWhetherASubscriptionsOwnerIsDisabled(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct {
 		disabled  bool
 		ownerless bool
+		missing   bool
 		want      bool
 	}{
-		"an enabled owner":                 {want: false},
-		"an owner disabled after queueing": {disabled: true, want: true},
-		"an owner with no account":         {ownerless: true, want: true},
+		"an enabled owner":         {want: false},
+		"a disabled owner":         {disabled: true, want: true},
+		"an owner with no account": {ownerless: true, want: true},
+		"a deleted subscription":   {missing: true, want: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -233,22 +235,33 @@ func TestWebhookStoreClaimsADeliveryWithItsOwnersState(t *testing.T) {
 				owner = storedOwner(t, pool, "maria@example.com")
 			}
 			sub := mustSubscription(t, owner, "https://example.com/hook", event.TaskCreated)
-			if err := store.CreateSubscription(t.Context(), sub); err != nil {
-				t.Fatalf("CreateSubscription() error = %v, want nil", err)
-			}
-			if err := store.EnqueueDelivery(t.Context(), mustDelivery(t, sub)); err != nil {
-				t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
+			if !tc.missing {
+				if err := store.CreateSubscription(t.Context(), sub); err != nil {
+					t.Fatalf("CreateSubscription() error = %v, want nil", err)
+				}
 			}
 			if tc.disabled {
 				setOwnerDisabled(t, pool, owner, true)
 			}
 
-			got := claimedNow(t, store)
+			got, err := store.OwnerDisabled(t.Context(), sub.ID)
 
-			if len(got) != 1 || got[0].OwnerDisabled != tc.want {
-				t.Errorf("claimed %+v, want one delivery with OwnerDisabled %v", got, tc.want)
+			if err != nil || got != tc.want {
+				t.Errorf("OwnerDisabled() = %v, %v, want %v, nil", got, err, tc.want)
 			}
 		})
+	}
+}
+
+func TestWebhookStoreReportsAFailedOwnerLookup(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewWebhookStore(pool)
+	pool.Close()
+
+	if _, err := store.OwnerDisabled(t.Context(), uuid.Must(uuid.NewV7())); err == nil {
+		t.Error("OwnerDisabled() over a closed pool error = nil, want the failure")
 	}
 }
 

@@ -76,11 +76,10 @@ WITH claimed AS (
 )
 SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
     c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
-    s.url, s.secret, COALESCE(u.disabled, TRUE)::boolean AS owner_disabled
+    s.url, s.secret
 FROM claimed c
 JOIN core.webhook_subscriptions s
     ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id
-LEFT JOIN auth.users u ON u.id = s.user_id
 `
 
 type ClaimWebhookDeliveriesParams struct {
@@ -102,7 +101,6 @@ type ClaimWebhookDeliveriesRow struct {
 	CreatedAt      time.Time
 	Url            string
 	Secret         string
-	OwnerDisabled  bool
 }
 
 func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDeliveriesParams) ([]ClaimWebhookDeliveriesRow, error) {
@@ -127,7 +125,6 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 			&i.CreatedAt,
 			&i.Url,
 			&i.Secret,
-			&i.OwnerDisabled,
 		); err != nil {
 			return nil, err
 		}
@@ -1368,4 +1365,20 @@ func (q *Queries) UserSetting(ctx context.Context, arg UserSettingParams) ([]str
 		return nil, err
 	}
 	return items, nil
+}
+
+const webhookOwnerDisabled = `-- name: WebhookOwnerDisabled :one
+SELECT COALESCE((
+    SELECT u.disabled
+    FROM core.webhook_subscriptions s
+    JOIN auth.users u ON u.id = s.user_id
+    WHERE s.id = $1
+), TRUE)::boolean AS disabled
+`
+
+func (q *Queries) WebhookOwnerDisabled(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, webhookOwnerDisabled, id)
+	var disabled bool
+	err := row.Scan(&disabled)
+	return disabled, err
 }
