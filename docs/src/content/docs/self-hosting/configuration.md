@@ -18,7 +18,8 @@ When a variable holds a value AlphOne refuses:
   [Account records and tokens](#account-records-and-tokens), which only
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
-  [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
+  [Webhooks](#webhooks), [Fields plugin](#fields-plugin) or
+  [WhatsApp plugin](#whatsapp-plugin),
   or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops the account commands
   that take `-as`, before they change anything. It stops `migrate`,
   `seed -yes` and `account:create-admin` too, but only once they have
@@ -165,8 +166,9 @@ On a network that reaches IPv4 through a NAT64 translator, an address in
 `64:ff9b::/96` is judged as the IPv4 address it carries. A public one
 passes with no entry, and an internal one needs its IPv4 range listed.
 
-AlphOne will not start unless every entry is one of the two kinds. A
-host name without a port, such as `n8n`, stops it with:
+`serve` will not start unless every entry is one of the two kinds, and
+the commands listed at the top of this page stop too. A host name
+without a port, such as `n8n`, stops them with:
 
 ```text
 ALPHONE_WEBHOOK_ALLOWED_HOSTS: must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678, got "n8n"
