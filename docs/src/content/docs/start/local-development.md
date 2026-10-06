@@ -58,12 +58,20 @@ Running it again is safe, it repairs a half-seeded database instead of
 duplicating anything. The credentials are public knowledge: never run
 the seeder against a production database.
 
-To create another account instead, via CLI use `createadmin`. It prompts for a
-password on stdin, minimum 12 characters:
+`make seed` runs `go run ./cmd/alphone seed -yes`. Without `-yes` the
+seeder only says what it would store.
+
+To create another account instead, use `account:create-admin`. It
+prompts for a password on stdin, minimum 12 characters:
 
 ```sh
-go run ./cmd/alphone createadmin -email you@example.com -name "Your Name"
+go run ./cmd/alphone account:create-admin \
+  -email you@example.com -name "Your Name" -role admin
 ```
+
+`-role member` creates a member instead. `go run ./cmd/alphone` with no
+command lists every command, and [Commands](/self-hosting/commands/)
+describes each one.
 
 ## 4. Run the backend
 
@@ -72,7 +80,7 @@ make dev
 ```
 
 `make dev` starts the database container when it is not running yet and
-then runs `go run ./cmd/alphone`. Migrations run automatically at
+then runs `go run ./cmd/alphone serve`. Migrations run automatically at
 startup, so a fresh database is ready on first boot. The API listens on
 `localhost:8080` (change it with `ALPHONE_ADDR`).
 
@@ -130,10 +138,10 @@ Manual testing accumulates junk. To get back to the seeded demo data:
 make db-reset
 ```
 
-That drops every schema AlphOne owns, `core`, `auth`, and one per
-plugin, then runs `make seed`, which re-migrates and refills. It
-destroys every local record, so never point it at anything you care
-about.
+That drops every schema AlphOne owns, `core`, `auth`, `gonsole` with the
+account command records, and one per plugin, then runs `make seed`,
+which re-migrates and refills. It destroys every local record, so never
+point it at anything you care about.
 
 ## Working on the n8n integration
 
@@ -171,7 +179,7 @@ Create an **AlphOne API** credential:
 | Field | Value |
 | ----- | ----- |
 | Base URL | `http://host.docker.internal:8080` |
-| API Token | a secret from `alphone token create -email you@example.com -name n8n -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read`. Without `-scope` it holds every area, and without `-ttl` it lasts ninety days |
+| API Token | a secret from `alphone token:create -email you@example.com -name n8n -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read`. Without `-scope` it holds every area, and without `-ttl` it lasts ninety days by default, set with `ALPHONE_TOKEN_TTL_DAYS` |
 
 Press the test button. It asks AlphOne for its version and should report
 success. `localhost` inside the container means the container itself, so

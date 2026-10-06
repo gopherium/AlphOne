@@ -3,21 +3,24 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"io"
+	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
-	"github.com/gopherium/gouncer/authkit/testkit"
+	authtest "github.com/gopherium/gouncer/authkit/testkit"
 
-	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
@@ -68,19 +71,89 @@ func demoCounts(t *testing.T, pool *pgxpool.Pool) [7]int {
 	}
 }
 
-func TestSeedPopulatesTheDemoData(t *testing.T) {
+// developmentWarning is the line seed -yes prints on stderr once every seed succeeded.
+const developmentWarning = "alphone: demo data is for development only, never seed a production database\n"
+
+// errSeedRefused is the failure of a plugin that refuses its demo data.
+var errSeedRefused = errors.New("demo data refused")
+
+// seedRefusingPlugin refuses to store its demo data.
+type seedRefusingPlugin struct{ inertPlugin }
+
+// Seed refuses the demo data.
+func (seedRefusingPlugin) Seed(context.Context) error {
+	return errSeedRefused
+}
+
+// compiledProgram returns the command line over env and the compiled plugins, their roles in a registry of its own.
+func compiledProgram(env map[string]string) gonsole.Program {
+	return programOver(role.NewRegistry(), testGetenv(env), registerPlugins)
+}
+
+var _ sdk.Seeder = (*stepRecordingPlugin)(nil)
+
+// stepRecordingPlugin records every step the host asks of it, in order.
+type stepRecordingPlugin struct {
+	inertPlugin
+	asked []string
+}
+
+// Start records the start.
+func (p *stepRecordingPlugin) Start(context.Context) error {
+	p.asked = append(p.asked, "start")
+	return nil
+}
+
+// Seed records the seed.
+func (p *stepRecordingPlugin) Seed(context.Context) error {
+	p.asked = append(p.asked, "seed")
+	return nil
+}
+
+// Stop records the stop.
+func (p *stepRecordingPlugin) Stop(context.Context) error {
+	p.asked = append(p.asked, "stop")
+	return nil
+}
+
+func TestSeedYesStoresThePluginDemoDataWithoutStartingAPlugin(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
-	var stdout strings.Builder
-
-	if err := seed(t.Context(), getenv, &stdout); err != nil {
-		t.Fatalf("seed() error = %v, want nil", err)
+	recording := &stepRecordingPlugin{inertPlugin: inertPlugin{id: "recording"}}
+	registeringOne := func(sdk.Deps) ([]sdk.Plugin, error) {
+		return []sdk.Plugin{recording}, nil
 	}
+	env := map[string]string{"ALPHONE_DATABASE_URL": databaseURL}
 
-	if !strings.Contains(stdout.String(), "admin@example.com / password1234") {
-		t.Errorf("output = %q, want it to print the demo credentials", stdout.String())
+	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), registeringOne), "", "seed", "-yes")
+
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
+	}
+	if want := []string{"seed", "stop"}; !slices.Equal(recording.asked, want) {
+		t.Errorf("the plugin was asked %v, want %v, its demo data stored and the plugin stopped, never started",
+			recording.asked, want)
+	}
+	isPlugin := func(schema string) bool { return strings.HasPrefix(schema, "plugin_") }
+	if schemas := extraSchemas(t, databaseURL); slices.ContainsFunc(schemas, isPlugin) {
+		t.Errorf("the database holds the schemas %v, want no plugin started beside the one the command line registered",
+			schemas)
+	}
+}
+
+func TestSeedYesPopulatesTheDemoData(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+
+	got := testkit.Run(t, compiledProgram(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), "", "seed", "-yes")
+
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
+	}
+	if !strings.Contains(got.Stdout, "admin@example.com / password1234") {
+		t.Errorf("output = %q, want it to print the demo credentials", got.Stdout)
 	}
 	pool := testPool(t, databaseURL)
 	admin, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), "admin@example.com")
@@ -101,16 +174,16 @@ func TestSeedPopulatesTheDemoData(t *testing.T) {
 	}
 }
 
-func TestSeedFillsSeveralContactPagesOnSeveralChannels(t *testing.T) {
+func TestSeedYesFillsSeveralContactPagesOnSeveralChannels(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
-	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
-		t.Fatalf("seed() error = %v, want nil", err)
+	got := testkit.Run(t, compiledProgram(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), "", "seed", "-yes")
+
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
 	}
-
 	pool := testPool(t, databaseURL)
 	if held := countRows(t, pool, "core.contacts"); held < 3*graphres.DefaultListPageSize {
 		t.Errorf("contacts = %d, want at least three pages of %d", held, graphres.DefaultListPageSize)
@@ -211,7 +284,7 @@ func TestSeedReportsAStatusAccountItCannotStore(t *testing.T) {
 func TestSeedStatusesReportsAnAccountItCannotBuild(t *testing.T) {
 	t.Parallel()
 
-	err := seedStatuses(t.Context(), testkit.NewStore(), []demoStatus{{email: "not an address", name: "Ana Lopez"}})
+	err := seedStatuses(t.Context(), authtest.NewStore(), []demoStatus{{email: "not an address", name: "Ana Lopez"}})
 
 	if err == nil || !strings.Contains(err.Error(), "not an address") {
 		t.Fatalf("seedStatuses() error = %v, want the malformed account reported", err)
@@ -265,16 +338,64 @@ func TestSeedNamesEveryLoginItCreates(t *testing.T) {
 	}
 }
 
-func TestSeedMigratesEveryPluginSchema(t *testing.T) {
+func TestSeedLeavesTheSchemaToTheCommandLine(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := barePostgres(t)
+
+	err := seed(t.Context(), testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), io.Discard)
+
+	if schemas := extraSchemas(t, databaseURL); err == nil || len(schemas) > 0 {
+		t.Errorf("seed() over a bare database = %v with the schemas %v, want a failure and no schema", err, schemas)
+	}
+}
+
+func TestSeedYesWarnsOnStderrAfterEverySeedSucceeded(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		plugins  func(sdk.Deps) ([]sdk.Plugin, error)
+		code     int
+		warnings int
+		last     string
+	}{
+		"every seed succeeds": {
+			plugins: registeringNothing, code: gonsole.ExitDone, warnings: 1, last: developmentWarning,
+		},
+		"a plugin refuses its demo data": {
+			plugins: func(sdk.Deps) ([]sdk.Plugin, error) {
+				return []sdk.Plugin{seedRefusingPlugin{inertPlugin{id: "refusing"}}}, nil
+			},
+			code: gonsole.ExitFailed, warnings: 0, last: errSeedRefused.Error() + "\n",
+		},
+	}
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)}
+
+			got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), tc.plugins), "", "seed", "-yes")
+
+			if got.Code != tc.code || !strings.HasSuffix(got.Stderr, tc.last) ||
+				strings.Count(got.Stdout+got.Stderr, "development only") != tc.warnings {
+				t.Errorf("seed -yes = %d, stdout %q, stderr %q, want %d, %d development warnings and stderr ending %q",
+					got.Code, got.Stdout, got.Stderr, tc.code, tc.warnings, tc.last)
+			}
+		})
+	}
+}
+
+func TestSeedYesMigratesEveryPluginSchema(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
-	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
-		t.Fatalf("seed() error = %v, want nil", err)
+	got := testkit.Run(t, compiledProgram(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), "", "seed", "-yes")
+
+	if got.Code != gonsole.ExitDone {
+		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
 	}
-
 	pool := testPool(t, databaseURL)
 	for _, table := range []string{"plugin_whatsapp.conversations", "plugin_importer.imports"} {
 		var exists bool
@@ -422,7 +543,7 @@ func TestSeedReportsBrokenTaskStorage(t *testing.T) {
 func TestSeedTasksReportsAdminLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	users := testkit.NewStore()
+	users := authtest.NewStore()
 	users.LookupErr = errors.New("store down")
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
 
@@ -436,7 +557,7 @@ func TestSeedTasksReportsAdminLookupFailure(t *testing.T) {
 func TestSeedTasksReportsLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	users := testkit.NewStore()
+	users := authtest.NewStore()
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
 	users.AddUser(t, seedMemberEmail, seedMemberName, seedAdminPassword)
 	pool := testPool(t, testDatabaseURL(t))
@@ -453,7 +574,7 @@ func TestSeedTasksReportsLookupFailure(t *testing.T) {
 func TestSeedTasksReportsAColleagueLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	users := testkit.NewStore()
+	users := authtest.NewStore()
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
 
@@ -468,7 +589,7 @@ func TestSeedTasksReportsAColleagueLookupFailure(t *testing.T) {
 }
 
 func TestSeedTasksReportsIDGenerationFailure(t *testing.T) {
-	users := testkit.NewStore()
+	users := authtest.NewStore()
 	users.AddUser(t, seedAdminEmail, seedAdminName, seedAdminPassword)
 	users.AddUser(t, seedMemberEmail, seedMemberName, seedAdminPassword)
 	store := postgres.NewTaskStore(testPool(t, testDatabaseURL(t)))
@@ -482,29 +603,29 @@ func TestSeedTasksReportsIDGenerationFailure(t *testing.T) {
 	}
 }
 
-func TestSeedIsIdempotentAcrossRuns(t *testing.T) {
+func TestSeedYesIsIdempotentAcrossRuns(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	env := map[string]string{"ALPHONE_DATABASE_URL": databaseURL}
 
-	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
-		t.Fatalf("first seed() error = %v, want nil", err)
+	if first := testkit.Run(t, compiledProgram(env), "", "seed", "-yes"); first.Code != gonsole.ExitDone {
+		t.Fatalf("first seed -yes = %d with stderr %q, want 0", first.Code, first.Stderr)
 	}
-	var second strings.Builder
-	if err := seed(t.Context(), getenv, &second); err != nil {
-		t.Fatalf("second seed() error = %v, want nil", err)
+	second := testkit.Run(t, compiledProgram(env), "", "seed", "-yes")
+	if second.Code != gonsole.ExitDone {
+		t.Fatalf("second seed -yes = %d with stderr %q, want 0", second.Code, second.Stderr)
 	}
 
 	pool := testPool(t, databaseURL)
 	if got, want := demoCounts(t, pool), [7]int{71, 7, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
-	if !strings.Contains(second.String(), "admin@example.com already exists") {
-		t.Errorf("second output = %q, want it to report the existing admin", second.String())
+	if !strings.Contains(second.Stdout, "admin@example.com already exists") {
+		t.Errorf("second output = %q, want it to report the existing admin", second.Stdout)
 	}
-	if strings.Contains(second.String(), "password1234") {
-		t.Errorf("second output = %q, want it to not repeat the demo password", second.String())
+	if strings.Contains(second.Stdout, "password1234") {
+		t.Errorf("second output = %q, want it to not repeat the demo password", second.Stdout)
 	}
 }
 
@@ -528,7 +649,7 @@ func TestSeedValidatesItsInput(t *testing.T) {
 	}
 }
 
-func TestSeedReportsCoreMigrationFailure(t *testing.T) {
+func TestSeedYesReportsACoreMigrationFailure(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
@@ -536,39 +657,27 @@ func TestSeedReportsCoreMigrationFailure(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), "ALTER TABLE goose_db_version DROP COLUMN version_id"); err != nil {
 		t.Fatalf("breaking the core migration table: %v", err)
 	}
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
-	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
-		t.Fatal("seed() error = nil, want a core migration failure")
+	got := testkit.Run(t, bareProgram(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), "", "seed", "-yes")
+
+	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, "migrate core") {
+		t.Errorf("seed -yes over a broken core migration table = %d with stderr %q, want 1 and the core step named",
+			got.Code, got.Stderr)
 	}
 }
 
-func TestSeedReportsInvalidPluginConfiguration(t *testing.T) {
+func TestSeedYesReportsInvalidPluginConfiguration(t *testing.T) {
 	t.Parallel()
 
-	getenv := testGetenv(map[string]string{
+	env := map[string]string{
 		"ALPHONE_DATABASE_URL":             testDatabaseURL(t),
 		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number",
-	})
-
-	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
-		t.Fatal("seed() error = nil, want a plugin configuration failure")
 	}
-}
 
-func TestSeedRefusesAZeroStopGraceBeforeTheDatabase(t *testing.T) {
-	t.Parallel()
+	got := testkit.Run(t, compiledProgram(env), "", "seed", "-yes")
 
-	getenv := testGetenv(map[string]string{
-		"ALPHONE_DATABASE_URL":        unreachableDatabaseURL,
-		"ALPHONE_SHUTDOWN_STOP_GRACE": "0s",
-	})
-
-	err := seed(t.Context(), getenv, &strings.Builder{})
-
-	want := `ALPHONE_SHUTDOWN_STOP_GRACE: must stand above zero, got "0s"`
-	if err == nil || err.Error() != want {
-		t.Fatalf("seed() error = %v, want %q before any database is reached", err, want)
+	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES") {
+		t.Errorf("seed -yes = %d with stderr %q, want 1 and the plugin setting named", got.Code, got.Stderr)
 	}
 }
 
@@ -667,50 +776,5 @@ func TestSeedReportsAnUnstorableAccount(t *testing.T) {
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
 		t.Fatal("seed() error = nil, want the unstored account reported")
-	}
-}
-
-func TestSeedPluginsReportsMigrationFailure(t *testing.T) {
-	t.Parallel()
-
-	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
-
-	err := seedPlugins(
-		t.Context(), unreachableDatabaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace, registerPlugins)
-
-	if err == nil {
-		t.Fatal("seedPlugins() error = nil, want a migration failure")
-	}
-}
-
-func TestSeedPluginsReportsSeedFailure(t *testing.T) {
-	t.Parallel()
-
-	databaseURL := testDatabaseURL(t)
-	resolver := contact.NewResolver(postgres.NewContactStore(testPool(t, unreachableDatabaseURL)))
-
-	err := seedPlugins(t.Context(), databaseURL, testGetenv(nil), resolver, servingDefaults.StopGrace, registerPlugins)
-
-	if err == nil {
-		t.Fatal("seedPlugins() error = nil, want a seed failure")
-	}
-}
-
-func TestSeedPluginsReportsAPluginThatFailsToStop(t *testing.T) {
-	t.Parallel()
-
-	var stopped atomic.Pointer[stopSeen]
-	failingStop := func(sdk.Deps) ([]sdk.Plugin, error) {
-		return []sdk.Plugin{stoppingPlugin{stopped: &stopped}}, nil
-	}
-
-	err := seedPlugins(t.Context(), unreachableDatabaseURL, testGetenv(nil),
-		contact.NewResolver(nil), servingDefaults.StopGrace, failingStop)
-
-	if !errors.Is(err, errStopFailed) {
-		t.Errorf("seedPlugins() error = %v, want the failed stop %q reported", err, errStopFailed)
-	}
-	if stopped.Load() == nil {
-		t.Error("the plugin was left running, want it stopped after seeding")
 	}
 }

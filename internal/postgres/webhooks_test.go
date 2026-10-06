@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gopherium/gouncer"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/event"
@@ -29,19 +28,6 @@ func mustSubscription(t *testing.T, owner uuid.UUID, url string, events ...event
 		t.Fatalf("webhook.NewSubscription() error = %v, want nil", err)
 	}
 	return sub
-}
-
-// storedOwner stores an account that owns webhook subscriptions and returns its id.
-func storedOwner(t *testing.T, pool *pgxpool.Pool, email string) uuid.UUID {
-	t.Helper()
-	held, err := gouncer.NewInvitedUser(email, "Maria Perez")
-	if err != nil {
-		t.Fatalf("gouncer.NewInvitedUser() error = %v, want nil", err)
-	}
-	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), held); err != nil {
-		t.Fatalf("CreateUser() error = %v, want nil", err)
-	}
-	return held.ID
 }
 
 // setOwnerDisabled disables or enables the owner's account, failing the test on error.

@@ -28,3 +28,4 @@ ENV ALPHONE_ADDR=0.0.0.0:8080
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/alphone"]
+CMD ["serve"]

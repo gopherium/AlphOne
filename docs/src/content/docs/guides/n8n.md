@@ -53,7 +53,7 @@ An engine cannot hold a browser session, so it authenticates with a
 token. On the AlphOne host:
 
 ```sh
-alphone token create -email you@example.com -name "n8n" \
+alphone token:create -email you@example.com -name "n8n" \
   -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read
 ```
 
@@ -78,11 +78,12 @@ rarely what an automation needs. Area names are exact, so a typo like
 A token also never reaches further than the person who created it. Mint
 it against an account that already does the work you are automating.
 
-A token also expires. Without `-ttl` it lasts ninety days, and after
-that every request answers `invalid token`. Pass `-ttl 30` for a
-shorter life, or `-ttl never` for one that does not expire. Run
-`alphone token list` to see the scopes and the expiry date of every
-token you hold.
+A token also expires. Without `-ttl` it lasts ninety days by default,
+set with `ALPHONE_TOKEN_TTL_DAYS`, and after that every request answers
+`invalid token`. Pass `-ttl 30` for a shorter life, or `-ttl never` for
+one that does not expire. Run
+`alphone token:list -email you@example.com` to see the scopes and the
+expiry date of every token you hold.
 
 ## 3. Create the credential
 
@@ -269,7 +270,7 @@ address, see [When n8n runs next to AlphOne](#when-n8n-runs-next-to-alphone).
 | Symptom | Cause |
 | ------- | ----- |
 | The credential test fails | The base URL has a trailing slash, or says `localhost` where the container cannot reach AlphOne, or the token expired |
-| `invalid token` | The token expired, was revoked, or the token id was pasted instead of the secret. Run `alphone token list` to see its expiry. Only the value starting `a1_` authenticates |
+| `invalid token` | The token expired, was revoked, or the token id was pasted instead of the secret. Run `alphone token:list -email you@example.com` to see its expiry. Only the value starting `a1_` authenticates |
 | `scope required: contacts:write` | The token was not granted that area. Mint a replacement with the `-scope` it needs, tokens cannot be widened in place |
 | Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
 | A subscription exists but nothing arrives, AlphOne logs `refusing a webhook delivery to an internal address` | n8n's webhook url is on your own network. Add its host and port to `ALPHONE_WEBHOOK_ALLOWED_HOSTS`, see [above](#when-n8n-runs-next-to-alphone) |

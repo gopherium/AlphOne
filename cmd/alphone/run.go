@@ -14,16 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
-	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -49,94 +46,78 @@ func run(
 		return err
 	}
 
-	pool, err := pgxpool.New(ctx, settings.databaseURL)
+	built, err := compose(ctx, composeConfig{
+		composeSettings: settings.composeSettings,
+		databaseURL:     settings.databaseURL,
+		getenv:          getenv,
+		roles:           role.Default,
+		logger:          logger,
+	}, plugins)
+	if built.failed != nil {
+		err = errors.Join(fmt.Errorf("register plugins: %w", built.failed), err)
+	}
 	if err != nil {
-		return fmt.Errorf("parse database url: %w", err)
+		return errors.Join(err, abandon(ctx, built, settings.serving.StopGrace))
 	}
-	defer pool.Close()
-
-	if err := migrateSchemas(ctx, settings.databaseURL); err != nil {
-		return err
-	}
-
-	userStore := authkitpg.NewUserStore(pool)
-	contacts := postgres.NewContactStore(pool)
-	tasks := postgres.NewTaskStore(pool)
-	tokens := postgres.NewTokenStore(pool)
-	webhooks := postgres.NewWebhookStore(pool)
-	webhookGuard := webhook.AddressGuard{Allowed: settings.webhookHosts}
-	dispatcher := webhook.NewDispatcher(webhooks, logger)
-	deliveries := webhook.NewWorker(webhooks, logger, webhookGuard)
-	deliveries.Start()
-	defer deliveries.Stop()
-	hub := event.NewHub()
-	events := nudgingPublisher{dispatcher: dispatcher, worker: deliveries, hub: hub}
-	reaper := authkit.NewReaper(userStore, authkit.ReaperConfig{Logger: logger})
-	reaper.Start()
-	defer reaper.Stop()
-
-	resolver := contact.NewResolver(contacts, contact.WithEvents(events))
-	registered, err := plugins(sdk.Deps{
-		DatabaseURL:    settings.databaseURL,
-		PublicURL:      settings.mail.publicURL,
-		MachineGrace:   settings.machineGrace,
-		TenantsHeld:    settings.tenants.held,
-		TenantsRefresh: settings.tenants.refresh,
-		Resolver:       resolverBridge{resolver: resolver},
-		Contacts:       directoryBridge{resolver: resolver},
-		Events:         pluginPublisher{publisher: events},
-		Getenv:         getenv,
-		Env:            settingsEnv(getenv),
-	})
-	host := pluginkit.NewHost(registered...)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("register plugins: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
-	}
-	if err := declareRoles(role.Default, registered); err != nil {
-		return errors.Join(
-			fmt.Errorf("declare plugin roles: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
-	}
-	mailSender, mailer, err := buildMail(settings.mail, logger)
-	if err != nil {
+	defer built.pool.Close()
+	host := pluginkit.NewHost(built.registered...)
+	if err := migrate(ctx, settings.databaseURL); err != nil {
 		return errors.Join(err, gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
-	tenants := postgres.NewTenantStore(pool)
-	wireFieldProviders(registered)
-	wireCredentialProviders(registered)
-	wireTenantGate(registered, tenantGateBridge{tenants: tenants, grace: settings.machineGrace})
-	wireMailSenderFrom(registered, mailSender)
+
+	built.worker.Start()
+	defer built.worker.Stop()
+	reaper := authkit.NewReaper(built.users, authkit.ReaperConfig{Logger: logger})
+	reaper.Start()
+	defer reaper.Stop()
 
 	if err := host.Start(ctx, settings.serving.StopGrace); err != nil {
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	auth := authkit.New(authConfig(userStore))
-	admin := authkit.NewAdmin(adminConfig(userStore))
-	inviteConfig := authkit.InvitesConfig{
-		Store:           userStore,
+	auth := authkit.New(authConfig(built.users))
+	graphRoot, err := graphroot.FromPlugins(graphResolver(settings, built, auth, logger), built.registered)
+	if err != nil {
+		return errors.Join(
+			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
+	}
+
+	serverConfig := serverConfigOf(settings, built, host, auth, graphRoot, logger)
+	httpServer := httpServerFrom(settings, server.NewServer(serverConfig))
+	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
+}
+
+// inviteConfigOf returns the invitation and reset lifetimes the settings name over the account store.
+func inviteConfigOf(settings runConfig, store *authkitpg.UserStore) authkit.InvitesConfig {
+	return authkit.InvitesConfig{
+		Store:           store,
 		InviteTTL:       settings.inviteTTL,
 		ResetTTL:        settings.reset.ttl,
 		ResetTokensLive: settings.reset.links,
 	}
-	graphRoot, err := graphroot.FromPlugins(&graphres.Resolver{
+}
+
+// graphResolver returns the core graph resolver over what compose built, the login handlers and the settings.
+func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, logger *slog.Logger) *graphres.Resolver {
+	invites := inviteConfigOf(settings, built.users)
+	return &graphres.Resolver{
 		Version:       version.Version(),
-		Contacts:      contacts,
-		Tasks:         tasks,
-		Webhooks:      webhooks,
-		WebhookGuard:  webhookGuard,
-		Tenants:       tenants,
-		Tokens:        tokens,
-		Events:        events,
-		Live:          hub,
+		Contacts:      built.contacts,
+		Tasks:         built.tasks,
+		Webhooks:      built.webhooks,
+		WebhookGuard:  built.webhookGuard,
+		Tenants:       built.tenants,
+		Tokens:        built.tokens,
+		Events:        built.events,
+		Live:          built.hub,
 		Auth:          auth,
-		Admin:         admin,
-		Invites:       authkit.NewInvites(inviteConfig),
-		Onboarding:    postgres.NewOnboarding(pool, inviteConfig),
-		Accounts:      userStore,
-		Mailer:        mailer,
+		Admin:         authkit.NewAdmin(adminConfig(built.users)),
+		Invites:       authkit.NewInvites(invites),
+		Onboarding:    postgres.NewOnboarding(built.pool, invites),
+		Accounts:      built.users,
+		Mailer:        built.mailer,
 		PublicURL:     settings.mail.publicURL,
-		Settings:      postgres.NewUserSettingStore(pool),
+		Settings:      postgres.NewUserSettingStore(built.pool),
 		LoginLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter:  ratelimit.NewLimiter(resetBudget(settings)),
@@ -144,30 +125,30 @@ func run(
 		Logger:        logger,
 		Paging:        settings.lists.paging,
 		Screens:       settings.lists.screens,
-	}, registered)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
+}
 
+// serverConfigOf returns the server settings over what compose built, the host, the logins, the graph root and logger.
+func serverConfigOf(
+	settings runConfig, built composed, host *pluginkit.Host, auth *authkit.Handlers, graphRoot graph.ResolverRoot,
+	logger *slog.Logger,
+) server.Config {
 	cfg := settings.serverConfig()
 	cfg.Version = version.Version()
-	cfg.Users = userStore
-	cfg.Tenants = tenants
+	cfg.Users = built.users
+	cfg.Tenants = built.tenants
 	cfg.Auth = auth
 	cfg.GraphRoot = graphRoot
-	cfg.Tokens = tokens
+	cfg.Tokens = built.tokens
 	cfg.Plugins = host.Routes()
 	cfg.PluginPublicPaths = host.PublicPaths()
-	cfg.PluginAreas = pluginAreas(registered)
-	cfg.FieldSources = fieldSources(registered)
+	cfg.PluginAreas = pluginAreas(built.registered)
+	cfg.FieldSources = fieldSources(built.registered)
 	cfg.Logger = logger
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
 	}
-
-	httpServer := httpServerFrom(settings, server.NewServer(cfg))
-	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
+	return cfg
 }
 
 // pluginAreas returns the scope area every registered plugin holds its routes to.
@@ -193,25 +174,6 @@ func authConfig(store *authkitpg.UserStore) authkit.Config {
 // adminConfig returns the administration configuration guarding the privileged cover.
 func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
 	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
-}
-
-// declarePluginRoles registers the plugins over the settings a role declaration needs and grants
-// the registry every role they declare.
-func declarePluginRoles(
-	registry *role.Registry,
-	getenv func(string) string,
-	plugins func(sdk.Deps) ([]sdk.Plugin, error),
-) error {
-	env := settingsEnv(getenv)
-	registered, err := plugins(sdk.Deps{
-		DatabaseURL: env.Value("DATABASE_URL"),
-		Getenv:      getenv,
-		Env:         env,
-	})
-	if err != nil {
-		return fmt.Errorf("register plugins: %w", err)
-	}
-	return declareRoles(registry, registered)
 }
 
 // declareRoles grants the registry every role a registered plugin declares.
@@ -496,7 +458,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
-	composed, err := loadComposeSettings(env)
+	shared, err := loadComposeSettings(env)
 	if err != nil {
 		return runConfig{}, err
 	}
@@ -517,7 +479,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		return runConfig{}, err
 	}
 	return runConfig{
-		composeSettings: composed,
+		composeSettings: shared,
 		databaseURL:     databaseURL,
 		addr:            valueOr(env, "ADDR", "localhost:8080"),
 		webDir:          env.Value("WEB_DIR"),

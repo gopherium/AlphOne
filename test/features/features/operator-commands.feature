@@ -9,14 +9,12 @@ Feature: Operators run AlphOne from one command line
   Background:
     Given the settings point at an empty database
 
-  @wip
   Scenario: A run with no command lists every command and leaves the database without a schema
     When the operator runs alphone with no command
     Then the command succeeds
     And the answer lists the commands "serve", "migrate", "seed" and "check"
     And the database holds no schema
 
-  @wip
   Scenario Outline: An account command name from before the command line is refused
     When the operator runs "<name>"
     Then the command exits with code 2
@@ -28,14 +26,12 @@ Feature: Operators run AlphOne from one command line
       | createadmin |
       | grantrole   |
 
-  @wip
   Scenario: A help page answers without a database
     Given the settings name no database
     When the operator asks for the help page of "migrate"
     Then the command succeeds
     And the answer describes "migrate"
 
-  @wip
   Scenario: Seeding only previews until it is confirmed with -yes
     When the operator runs "seed"
     Then the command succeeds
@@ -45,28 +41,26 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the database holds the demo data
 
-  @wip
   Scenario: The first administrator is created from the command line
     When the operator creates the administrator "admin@example.com" with the password "correct horse battery"
     Then the command succeeds
     And the account "admin@example.com" holds the role "admin"
 
-  @wip
   Scenario Outline: An account change is refused when <case>
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
     When the operator gives "maria.perez@example.com" the role "admin" acting as "<actor>"
     Then the command exits with code <code>
+    And the error says "<error>"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
     Examples:
-      | case                                 | actor                   | code |
-      | it names no acting account           |                         | 2    |
-      | the acting account is a member       | maria.perez@example.com | 1    |
-      | nobody answers to the acting address | nobody@example.com      | 1    |
+      | case                                 | actor                   | code | error                    |
+      | it names no acting account           |                         | 2    | wants -as                |
+      | the acting account is a member       | maria.perez@example.com | 1    | which lacks manage_users |
+      | nobody answers to the acting address | nobody@example.com      | 1    | no account answers to    |
 
-  @wip
   Scenario: An applied account change is kept on record
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -75,7 +69,6 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" holds the role "admin"
     And the command "account:records" lists "account:role" applied by "admin@example.com"
 
-  @wip
   Scenario: A preview of an account change records nothing
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -85,7 +78,6 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
-  @wip
   Scenario: A token is minted and its secret is shown once
     Given the administrator "admin@example.com"
     When the operator mints a token named "automation" for "admin@example.com"
@@ -94,7 +86,6 @@ Feature: Operators run AlphOne from one command line
     And the token list of "admin@example.com" shows "automation"
     And the token list of "admin@example.com" shows no secret
 
-  @wip
   Scenario: The old two word token spelling still works and says it is deprecated
     Given the administrator "admin@example.com"
     When the operator mints a token named "automation" for "admin@example.com" with the old spelling "token create"
@@ -106,7 +97,6 @@ Feature: Operators run AlphOne from one command line
     And the answer lists the token "automation"
     And the answer says "token list" is deprecated and names "token:list"
 
-  @wip
   Scenario: The old revoke spelling is refused
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
@@ -115,7 +105,6 @@ Feature: Operators run AlphOne from one command line
     And the answer names the command "token:revoke"
     And the token list of "admin@example.com" shows "automation"
 
-  @wip
   Scenario: Revoking a token only previews until it is confirmed with -yes
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
@@ -127,14 +116,29 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token list of "admin@example.com" shows no token
 
-  @wip
+  Scenario Outline: A token command refuses a line it cannot read without a database
+    Given the settings name no database
+    When the operator runs "<command> -email admin@example.com <flags>"
+    Then the command exits with code 2
+    And the error says "<error>"
+
+    Examples:
+      | command      | flags                                | error                                               |
+      | token:create |                                      | token:create wants -name <name>                     |
+      | token:revoke |                                      | token:revoke wants -id <id>                         |
+      | token:revoke | -yes                                 | token:revoke wants -id <id>                         |
+      | token:create | -name automation -ttl soon           | for flag -ttl: want a whole number of days or never |
+      | token:create | -name automation -ttl 106752         | for flag -ttl: apitoken: lifetime too long          |
+      | token:create | -name automation -scope contact:read | for flag -scope: apitoken: unknown area             |
+      | token:revoke | -id not-a-uuid                       | for flag -id: invalid UUID length                   |
+      | token:revoke | -id not-a-uuid -yes                  | for flag -id: invalid UUID length                   |
+
   Scenario: The check command names a malformed setting
     Given the setting "ALPHONE_INVITE_TTL" holds "a week"
     When the operator runs "check"
     Then the command exits with code 1
     And the answer names the setting "ALPHONE_INVITE_TTL"
 
-  @wip
   Scenario: A token belongs to its owner's workspace
     Given the member "maria.perez@example.com"
     And the workspace "Acme" exists
@@ -143,7 +147,6 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token "automation" is kept in the workspace "Acme"
 
-  @wip
   Scenario: The token list answers as JSON
     Given the administrator "admin@example.com"
     And the account "admin@example.com" holds a token named "automation"
@@ -152,7 +155,6 @@ Feature: Operators run AlphOne from one command line
     And the answer is one JSON document listing the token "automation"
     And the JSON document holds no secret
 
-  @wip
   Scenario: The token list covers every account with -all
     Given the administrator "admin@example.com"
     And the member "maria.perez@example.com"
@@ -162,10 +164,23 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" holds a token named "reporting"
     When the operator lists the tokens of every account with "-all"
     Then the command succeeds
-    And the answer lists the token "automation" of "admin@example.com"
-    And the answer lists the token "reporting" of "maria.perez@example.com"
+    And the answer lists the token "automation" of "admin@example.com" in the workspace "Default"
+    And the answer lists the token "reporting" of "maria.perez@example.com" in the workspace "Acme"
 
-  @wip
+  Scenario: A token left in the workspace its owner moved from is revoked
+    Given the member "maria.perez@example.com"
+    And the account "maria.perez@example.com" holds a token named "reporting"
+    And the workspace "Acme" exists
+    And the account "maria.perez@example.com" is placed in the workspace "Acme"
+    When the operator lists the tokens of every account with "-all"
+    Then the answer lists the token "reporting" of "maria.perez@example.com" in the workspace "Default"
+    When the operator previews revoking the token "reporting" of "maria.perez@example.com"
+    Then the command succeeds
+    And the answer says nothing changed until it is confirmed with "-yes"
+    When the operator revokes the token "reporting" of "maria.perez@example.com"
+    Then the command succeeds
+    And the token list of every account no longer shows "reporting"
+
   Scenario: An acting account cannot disable itself
     Given the administrator "admin@example.com"
     And the administrator "maria.perez@example.com"
@@ -174,7 +189,6 @@ Feature: Operators run AlphOne from one command line
     And the account "admin@example.com" is still enabled
     And no account change is on record
 
-  @wip
   Scenario: An account change beyond the acting account's reach is refused
     Given a plugin declares the role "steward" with a capability the role "admin" lacks
     And the administrator "admin@example.com"

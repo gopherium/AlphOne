@@ -176,6 +176,20 @@ ORDER BY created_at DESC, id DESC;
 DELETE FROM core.api_tokens
 WHERE id = $1 AND user_id = $2 AND tenant_id = @tenant_id;
 
+-- name: ListEveryAPIToken :many
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
+FROM core.api_tokens
+ORDER BY tenant_id, user_id, created_at DESC, id DESC;
+
+-- name: GetAPITokenInAnyTenant :one
+SELECT id, user_id, name, token_hash, created_at, last_used_at, scopes, expires_at, tenant_id
+FROM core.api_tokens
+WHERE id = $1 AND user_id = $2;
+
+-- name: RevokeAPITokenInAnyTenant :execrows
+DELETE FROM core.api_tokens
+WHERE id = $1 AND user_id = $2;
+
 -- name: CreateWebhookSubscription :exec
 INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, created_at, tenant_id)
 VALUES ($1, $2, $3, $4, $5, $6, @tenant_id);

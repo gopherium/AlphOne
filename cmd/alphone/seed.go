@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"strings"
@@ -14,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gopherium/framework/gonsole"
-	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
@@ -24,10 +21,9 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
-	"github.com/gopherium/alphone/sdk"
 )
 
-// Demo credentials stored by the seed subcommand, for development only.
+// Demo credentials stored by seed -yes, for development only.
 const (
 	seedAdminEmail    = "admin@example.com"
 	seedAdminName     = "Admin"
@@ -36,37 +32,9 @@ const (
 	seedMemberName    = "Maria Perez"
 )
 
-// seedUsage is the help the seed subcommand prints.
-const seedUsage = `Usage:
-  alphone seed
-
-Stores the demo data. It takes no flags or arguments.`
-
-// seedCommand runs the seed subcommand, refusing any flag or argument before it touches the database.
-func seedCommand(ctx context.Context, getenv func(string) string, args []string, stdout io.Writer) error {
-	flags := flag.NewFlagSet("seed", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	err := flags.Parse(args)
-	switch {
-	case errors.Is(err, flag.ErrHelp):
-		_, err := fmt.Fprintln(stdout, seedUsage)
-		return err
-	case err != nil:
-		return fmt.Errorf("seed: %w", err)
-	case len(args) > 0:
-		return errors.New("seed takes no arguments")
-	}
-	return seed(ctx, getenv, stdout)
-}
-
-// seed migrates the database and stores the demo data set.
+// seed stores the core demo data set in a database the command line migrated.
 func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) error {
-	env := settingsEnv(getenv)
-	databaseURL, err := env.Required("DATABASE_URL")
-	if err != nil {
-		return err
-	}
-	stopGrace, err := env.Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
+	databaseURL, err := settingsEnv(getenv).Required("DATABASE_URL")
 	if err != nil {
 		return err
 	}
@@ -75,9 +43,6 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 		return fmt.Errorf("parse database url: %w", err)
 	}
 	defer pool.Close()
-	if err := migrateSchemas(ctx, databaseURL); err != nil {
-		return err
-	}
 	created, err := seedUsers(ctx, pool)
 	if err != nil {
 		return err
@@ -91,12 +56,8 @@ func seed(ctx context.Context, getenv func(string) string, stdout io.Writer) err
 	if err := seedTasks(ctx, tasks, authkitpg.NewUserStore(pool), contacts); err != nil {
 		return err
 	}
-	if err := seedPlugins(ctx, databaseURL, getenv, resolver, stopGrace, registerPlugins); err != nil {
-		return err
-	}
-	_, _ = fmt.Fprintln(stdout, "seeded demo data")
+	_, _ = fmt.Fprintln(stdout, "seeded the core demo data")
 	reportLogins(stdout, created)
-	_, _ = fmt.Fprintln(stdout, "development only, never seed a production database")
 	return nil
 }
 
@@ -341,32 +302,4 @@ func buildDemoTask(
 	}
 	done := task.StatusDone
 	return built.Apply(task.Changes{Status: &done})
-}
-
-// seedPlugins registers, starts and seeds every plugin, then stops them within the stop grace, reporting a failed stop.
-func seedPlugins(
-	ctx context.Context,
-	databaseURL string,
-	getenv func(string) string,
-	resolver *contact.Resolver,
-	stopGrace time.Duration,
-	plugins func(sdk.Deps) ([]sdk.Plugin, error),
-) (err error) {
-	registered, err := plugins(sdk.Deps{
-		DatabaseURL: databaseURL,
-		Resolver:    resolverBridge{resolver: resolver},
-		Contacts:    directoryBridge{resolver: resolver},
-		Getenv:      getenv,
-		Env:         settingsEnv(getenv),
-	})
-	host := pluginkit.NewHost(registered...)
-	defer func() { err = errors.Join(err, gonsole.StopHost(ctx, host, stopGrace)) }()
-	if err != nil {
-		return err
-	}
-	wireFieldProviders(registered)
-	if err := host.Start(ctx, stopGrace); err != nil {
-		return err
-	}
-	return host.Seed(ctx)
 }

@@ -134,54 +134,6 @@ func TestRunStopsThePluginsWhenTheMailCannotBeBuilt(t *testing.T) {
 	stoppedUnderTheStopGrace(t, err, &stopped)
 }
 
-func TestDeclaringPluginRolesTeachesTheRegistryBeforeACommandParsesOne(t *testing.T) {
-	t.Parallel()
-
-	registry := role.NewRegistry()
-	declaring := func(sdk.Deps) ([]sdk.Plugin, error) {
-		return []sdk.Plugin{
-			rolePlugin{declared: []sdk.RoleDeclaration{
-				{Name: "steward", Capabilities: []string{"manage_users"}},
-			}},
-		}, nil
-	}
-
-	if err := declarePluginRoles(registry, testGetenv(nil), declaring); err != nil {
-		t.Fatalf("declarePluginRoles() error = %v, want nil", err)
-	}
-
-	if _, err := registry.Parse("steward"); err != nil {
-		t.Errorf("Parse(steward) error = %v, want a command able to name a declared role", err)
-	}
-}
-
-func TestEveryRoleWritingSubcommandRefusesAPluginItCannotRegister(t *testing.T) {
-	t.Parallel()
-
-	failing := func(sdk.Deps) ([]sdk.Plugin, error) { return nil, errPluginMigrate }
-
-	for _, name := range []string{"createadmin", "grantrole"} {
-		err := dispatch(t.Context(), []string{name, "-role", "admin"}, failing)
-
-		if !errors.Is(err, errPluginMigrate) {
-			t.Errorf("dispatch(%q) error = %v, want the registrar failure refused before any role is parsed",
-				name, err)
-		}
-	}
-}
-
-func TestDeclaringPluginRolesReportsARegistrarThatFails(t *testing.T) {
-	t.Parallel()
-
-	failing := func(sdk.Deps) ([]sdk.Plugin, error) { return nil, errPluginMigrate }
-
-	err := declarePluginRoles(role.NewRegistry(), testGetenv(nil), failing)
-
-	if !errors.Is(err, errPluginMigrate) {
-		t.Errorf("declarePluginRoles() error = %v, want the registrar failure reported", err)
-	}
-}
-
 func TestDeclareRolesGrantsEveryDeclarationAPluginMakes(t *testing.T) {
 	t.Parallel()
 

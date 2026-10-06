@@ -12,12 +12,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 	"github.com/pressly/goose/v3"
 
+	"github.com/gopherium/gouncer"
+	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
+
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // mustMint returns a token minted for the user with full scopes and no expiry.
@@ -163,6 +169,85 @@ func TestTokenStoreListsNewestFirstForOneUserOnly(t *testing.T) {
 	}
 }
 
+// storedOwner stores an invited account at email for tokens to belong to and answers its id.
+func storedOwner(t *testing.T, pool *pgxpool.Pool, email string) uuid.UUID {
+	t.Helper()
+	held, err := gouncer.NewInvitedUser(email, "Maria Perez")
+	if err != nil {
+		t.Fatalf("gouncer.NewInvitedUser() error = %v, want nil", err)
+	}
+	if err := authkitpg.NewUserStore(pool).CreateUser(t.Context(), held); err != nil {
+		t.Fatalf("CreateUser() error = %v, want nil", err)
+	}
+	return held.ID
+}
+
+// heldToken is what a test reads back of one token ListEvery answers.
+type heldToken struct {
+	Owner    string
+	TenantID uuid.UUID
+	Name     string
+}
+
+func TestListEveryTokenCoversEveryTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	acme := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(), "INSERT INTO core.tenants (id, name) VALUES ($1, $2)", acme, "Acme"); err != nil {
+		t.Fatalf("storing the tenant: %v", err)
+	}
+	inDefault := mustMint(t, storedOwner(t, pool, "admin@example.com"), "automation")
+	inAcme := mustMint(t, storedOwner(t, pool, "maria.perez@example.com"), "reporting")
+	ownerless := mustMint(t, uuid.Must(uuid.NewV7()), "ownerless")
+	for _, stored := range []struct {
+		tenantID uuid.UUID
+		minted   apitoken.Minted
+	}{{tenant.DefaultID, inDefault}, {acme, inAcme}, {tenant.DefaultID, ownerless}} {
+		if err := store.Create(sdk.WithTenant(t.Context(), stored.tenantID), stored.minted.Token); err != nil {
+			t.Fatalf("creating token %q: %v", stored.minted.Token.Name, err)
+		}
+	}
+
+	got, err := store.ListEvery(sdk.WithTenant(t.Context(), acme))
+
+	if err != nil {
+		t.Fatalf("ListEvery() error = %v, want nil", err)
+	}
+	held := map[uuid.UUID]heldToken{}
+	for _, owned := range got {
+		held[owned.Token.ID] = heldToken{Owner: owned.Owner, TenantID: owned.TenantID, Name: owned.Token.Name}
+	}
+	want := map[uuid.UUID]heldToken{
+		inDefault.Token.ID: {Owner: "admin@example.com", TenantID: tenant.DefaultID, Name: "automation"},
+		inAcme.Token.ID:    {Owner: "maria.perez@example.com", TenantID: acme, Name: "reporting"},
+		ownerless.Token.ID: {Owner: "", TenantID: tenant.DefaultID, Name: "ownerless"},
+	}
+	if diff := cmp.Diff(want, held); diff != "" || len(got) != len(want) {
+		t.Errorf("ListEvery() answered %d tokens, mismatch (-want +got):\n%s", len(got), diff)
+	}
+}
+
+func TestListEveryTokenReportsOwnersItCannotRead(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	if err := store.Create(t.Context(), mustMint(t, uuid.Must(uuid.NewV7()), "automation").Token); err != nil {
+		t.Fatalf("creating token: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), "DROP TABLE auth.users CASCADE"); err != nil {
+		t.Fatalf("dropping the accounts: %v", err)
+	}
+
+	got, err := store.ListEvery(t.Context())
+
+	if err == nil || got != nil {
+		t.Errorf("ListEvery() = %v, %v, want no tokens and the owner read failure", got, err)
+	}
+}
+
 func TestTokenStoreRevokesOneTokenOfItsOwner(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +264,73 @@ func TestTokenStoreRevokesOneTokenOfItsOwner(t *testing.T) {
 
 	if _, err := store.ByHash(t.Context(), minted.Token.Hash); !errors.Is(err, apitoken.ErrNotFound) {
 		t.Errorf("ByHash() after revoke error = %v, want %v", err, apitoken.ErrNotFound)
+	}
+}
+
+func TestTokenStoreFindsAndRevokesATokenItsOwnerLeftInAnotherTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := storedOwner(t, pool, "maria.perez@example.com")
+	minted := mustMint(t, owner, "reporting")
+	if err := store.Create(standingIn(t, tenant.DefaultID), minted.Token); err != nil {
+		t.Fatalf("creating token: %v", err)
+	}
+	acme := seededTenant(t, pool)
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenant_members (user_id, tenant_id) VALUES ($1, $2)", owner, acme); err != nil {
+		t.Fatalf("placing the owner: %v", err)
+	}
+	standing := standingIn(t, acme)
+	if held, err := store.ListForUser(standing, owner); err != nil || len(held) != 0 {
+		t.Fatalf("ListForUser() in the owner's tenant = %v, %v, want no token there", held, err)
+	}
+
+	found, err := store.FindInAnyTenant(standing, owner, minted.Token.ID)
+
+	if err != nil {
+		t.Fatalf("FindInAnyTenant() error = %v, want the token left in the default tenant", err)
+	}
+	if diff := cmp.Diff(minted.Token, found, cmpopts.EquateApproxTime(time.Microsecond)); diff != "" {
+		t.Errorf("FindInAnyTenant() mismatch (-want +got):\n%s", diff)
+	}
+	if err := store.RevokeInAnyTenant(standing, owner, minted.Token.ID); err != nil {
+		t.Fatalf("RevokeInAnyTenant() error = %v, want nil", err)
+	}
+	if _, err := store.ByHash(t.Context(), minted.Token.Hash); !errors.Is(err, apitoken.ErrNotFound) {
+		t.Errorf("ByHash() after RevokeInAnyTenant() error = %v, want %v", err, apitoken.ErrNotFound)
+	}
+}
+
+func TestTokenStoreReachesNoTokenInAnyTenantUnlessTheOwnerAndTheIDBothMatch(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := storedOwner(t, pool, "maria.perez@example.com")
+	minted := mustMint(t, owner, "reporting")
+	if err := store.Create(standingIn(t, seededTenant(t, pool)), minted.Token); err != nil {
+		t.Fatalf("creating token: %v", err)
+	}
+	lookups := map[string]struct {
+		userID, tokenID uuid.UUID
+	}{
+		"the token id under another account": {storedOwner(t, pool, "admin@example.com"), minted.Token.ID},
+		"an id no token carries":             {owner, uuid.Must(uuid.NewV7())},
+	}
+
+	for condition, lookup := range lookups {
+		_, found := store.FindInAnyTenant(t.Context(), lookup.userID, lookup.tokenID)
+		revoked := store.RevokeInAnyTenant(t.Context(), lookup.userID, lookup.tokenID)
+
+		if !errors.Is(found, apitoken.ErrNotFound) || !errors.Is(revoked, apitoken.ErrNotFound) {
+			t.Errorf("%s: FindInAnyTenant() error = %v, RevokeInAnyTenant() error = %v, want %v from both",
+				condition, found, revoked, apitoken.ErrNotFound)
+		}
+	}
+	if _, err := store.ByHash(t.Context(), minted.Token.Hash); err != nil {
+		t.Errorf("ByHash() after the refused revokes error = %v, want the token intact", err)
 	}
 }
 
@@ -203,8 +355,29 @@ func TestTokenStoreReportsConnectionFailure(t *testing.T) {
 	if _, err := store.ListForUser(t.Context(), owner); err == nil {
 		t.Error("ListForUser() on closed pool error = nil, want error")
 	}
+	if _, err := store.ListEvery(t.Context()); err == nil {
+		t.Error("ListEvery() on closed pool error = nil, want error")
+	}
 	if err := store.Revoke(t.Context(), owner, minted.Token.ID); err == nil || errors.Is(err, apitoken.ErrNotFound) {
 		t.Errorf("Revoke() on closed pool error = %v, want a non-ErrNotFound error", err)
+	}
+}
+
+func TestTokenStoreReportsConnectionFailureInAnyTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewTokenStore(pool)
+	owner := uuid.Must(uuid.NewV7())
+	pool.Close()
+
+	_, found := store.FindInAnyTenant(t.Context(), owner, uuid.Must(uuid.NewV7()))
+	revoked := store.RevokeInAnyTenant(t.Context(), owner, uuid.Must(uuid.NewV7()))
+
+	for name, err := range map[string]error{"FindInAnyTenant": found, "RevokeInAnyTenant": revoked} {
+		if err == nil || errors.Is(err, apitoken.ErrNotFound) {
+			t.Errorf("%s() on closed pool error = %v, want a non-ErrNotFound error", name, err)
+		}
 	}
 }
 

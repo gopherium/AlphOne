@@ -193,18 +193,33 @@ cd /srv/alphone
 docker compose up -d
 ```
 
-Migrations run automatically on container start, so the database is
-ready on first boot. Create the first account:
+The image runs `alphone serve` when the service names no command.
+`serve` applies every migration before it listens, so the database is
+ready on first boot. A `command:` of your own replaces it, so that
+command must be `serve`.
+
+Create the first account:
 
 ```sh
-docker compose exec alphone /alphone createadmin \
-  -email you@example.com -name "Your Name"
+docker compose exec alphone /alphone account:create-admin \
+  -email you@example.com -name "Your Name" -role admin
 ```
 
-Type a password of at least 12 characters at the prompt, then open
-`https://your-domain` and log in.
+At the `Password:` prompt, type a password of at least 12 characters and
+press Enter. The prompt does not hide what you type. The command answers
+`created user you@example.com`. Then open `https://your-domain` and log
+in.
 
-`createadmin` makes an admin, so this account can create the rest of your
+The command reads the password from the first line of its input, so a
+script can pipe it in instead. Add `-T`, so Docker reads the input from
+the pipe rather than from a terminal:
+
+```sh
+printf '%s\n' "$ADMIN_PASSWORD" | docker compose exec -T alphone /alphone \
+  account:create-admin -email you@example.com -name "Your Name" -role admin
+```
+
+`-role admin` makes an admin, so this account can create the rest of your
 colleagues. Everyone it creates arrives as a member and works the product
 without managing users. Promote one from the Users screen when you want a
 second admin. See [Roles](/reference/graphql-api/#roles) for what each tier
@@ -214,6 +229,8 @@ may do.
 
 - [Configuration](/self-hosting/configuration/) lists every environment
   variable.
+- [Commands](/self-hosting/commands/) lists every command the binary
+  takes, such as the ones that change an account or mint an API token.
 - [Updates and backups](/self-hosting/updates-and-backups/) covers
   staying current and not losing data.
 - [Meta setup](/whatsapp/meta-setup/) connects your WhatsApp number. Its

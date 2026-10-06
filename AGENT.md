@@ -8,7 +8,7 @@ AlphOne is a source-available multichannel CRM. The backend is a Go service expo
 - **Plugins live in one folder each.** A plugin is a directory under `plugins/` holding a `plugin.json` manifest, an ordinary Go package (compiled in), and an optional `frontend/` npm package for its React screens. The Go package exports `Register(sdk.Deps) (*Plugin, error)`; the frontend package exports a `FrontendPlugin` object named `plugin`. `make generate` runs the whole chain, plugin wiring, sqlc, gqlgen, TypeScript codegen and the schema snapshot; CI fails if any output is stale. A plugin extends the graph with its own schema module, and may still mount HTTP routes under `/api/plugins/{name}/` for what the graph cannot carry. It gets `/{name}` in the SPA and its own Postgres schema with its own migrations. Plugins never import each other and reach the core only through the SDK.
 
 ```text
-cmd/alphone/          main: config, db pool, plugin registration
+cmd/alphone/          main: the command line on gonsole, config, db pool, plugin registration
 cmd/pluginwire/       generator: plugins/*/plugin.json -> wiring files
 internal/server       http.Handler, the graph endpoint, middleware
 internal/graphres     core graph resolvers

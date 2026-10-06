@@ -3,10 +3,22 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/cucumber/godog"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/framework/gonsole/testkit"
+
+	"github.com/gopherium/alphone/internal/apitoken"
+	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // operatorCommandsFeature is the feature the command line answers to.
@@ -15,8 +27,523 @@ const operatorCommandsFeature = "../../test/features/features/operator-commands.
 // wipTag marks the scenarios whose steps are not bound yet.
 const wipTag = "@wip"
 
-// initializeOperatorCommands binds the operator command steps to a scenario.
-func initializeOperatorCommands(*godog.ScenarioContext) {}
+// operatorScenario is what one operator scenario keeps between its steps.
+type operatorScenario struct {
+	t       *testing.T
+	env     map[string]string
+	plugins func(sdk.Deps) ([]sdk.Plugin, error)
+	result  testkit.Result
+}
+
+// initializeOperatorCommands returns the binding of the operator command steps, t holding their databases.
+func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) {
+		s := &operatorScenario{t: t, env: map[string]string{}, plugins: registerPlugins}
+		sc.Given(`^the settings point at an empty database$`, s.pointAtAnEmptyDatabase)
+		sc.Given(`^the settings name no database$`, s.nameNoDatabase)
+		sc.When(`^the operator runs alphone with no command$`, s.runWithNoCommand)
+		sc.When(`^the operator runs "([^"]*)"$`, s.runLine)
+		sc.When(`^the operator asks for the help page of "([^"]*)"$`, s.askForHelp)
+		sc.When(`^the operator creates the administrator "([^"]*)" with the password "([^"]*)"$`,
+			s.createAdministrator)
+		sc.Then(`^the command succeeds$`, s.succeeds)
+		sc.Then(`^the command exits with code (\d+)$`, s.exitsWith)
+		sc.Then(`^the error says "([^"]*)"$`, s.errorSays)
+		sc.Then(`^the answer says "([^"]*)" is an unknown command$`, s.namesUnknownCommand)
+		sc.Then(`^the answer names the command "([^"]*)"$`, s.namesCommand)
+		sc.Then(`^the account "([^"]*)" holds the role "([^"]*)"$`, s.holdsRole)
+		sc.Then(`^the answer lists the commands "([^"]*)", "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.listsCommands)
+		sc.Then(`^the answer describes "([^"]*)"$`, s.describes)
+		sc.Then(`^the answer says nothing changed until it is confirmed with "([^"]*)"$`, s.saysNothingChanged)
+		sc.Then(`^the database holds no schema$`, s.holdsNoSchema)
+		sc.Then(`^the database holds no demo data$`, s.holdsNoDemoData)
+		sc.Then(`^the database holds the demo data$`, s.holdsTheDemoData)
+		sc.Given(`^the administrator "([^"]*)"$`, s.holdAdministrator)
+		sc.Given(`^the account "([^"]*)" holds a token named "([^"]*)"$`, s.holdToken)
+		sc.When(`^the operator mints a token named "([^"]*)" for "([^"]*)"$`, s.mintToken)
+		sc.When(`^the operator mints a token named "([^"]*)" for "([^"]*)" with the old spelling "([^"]*)"$`,
+			s.mintTokenSpelled)
+		sc.When(`^the operator lists the tokens of "([^"]*)" with the old spelling "([^"]*)"$`, s.listTokensSpelled)
+		sc.When(`^the operator revokes the token "([^"]*)" of "([^"]*)" with the old spelling "([^"]*)"$`,
+			s.revokeTokenSpelled)
+		sc.Then(`^the answer carries a secret beginning with "([^"]*)"$`, s.carriesSecret)
+		sc.Then(`^the answer says "([^"]*)" is deprecated and names "([^"]*)"$`, s.saysDeprecated)
+		sc.Then(`^the answer lists the token "([^"]*)"$`, s.listsToken)
+		sc.Then(`^the token list of "([^"]*)" shows "([^"]*)"$`, s.tokenListShows)
+		sc.Then(`^the token list of "([^"]*)" shows no secret$`, s.tokenListShowsNoSecret)
+		sc.Given(`^the setting "([^"]*)" holds "([^"]*)"$`, s.holdSetting)
+		sc.Then(`^the answer names the setting "([^"]*)"$`, s.namesSetting)
+		sc.Given(`^the member "([^"]*)"$`, s.holdMember)
+		sc.Given(`^a plugin declares the role "([^"]*)" with a capability the role "([^"]*)" lacks$`,
+			s.declareRoleBeyond)
+		sc.When(`^the operator gives "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.giveRole)
+		sc.When(`^the operator previews giving "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.previewRole)
+		sc.When(`^the operator disables "([^"]*)" acting as "([^"]*)"$`, s.disableAccount)
+		sc.Then(`^the account "([^"]*)" still holds the role "([^"]*)"$`, s.holdsRole)
+		sc.Then(`^the account "([^"]*)" is still enabled$`, s.isEnabled)
+		sc.Then(`^no account change is on record$`, s.recordsNothing)
+		sc.Then(`^the command "account:records" lists "([^"]*)" applied by "([^"]*)"$`, s.recordsChange)
+		sc.When(`^the operator previews revoking the token "([^"]*)" of "([^"]*)"$`, s.previewRevokingToken)
+		sc.When(`^the operator revokes the token "([^"]*)" of "([^"]*)"$`, s.revokeTokenConfirmed)
+		sc.Then(`^the token list of "([^"]*)" shows no token$`, s.tokenListShowsNoToken)
+		sc.Given(`^the workspace "([^"]*)" exists$`, s.createTenant)
+		sc.Given(`^the account "([^"]*)" is placed in the workspace "([^"]*)"$`, s.placeInTenant)
+		sc.Then(`^the token "([^"]*)" is kept in the workspace "([^"]*)"$`, s.keptInTenant)
+		sc.When(`^the operator lists the tokens of "([^"]*)" as JSON$`, s.listTokensAsJSON)
+		sc.Then(`^the answer is one JSON document listing the token "([^"]*)"$`, s.documentLists)
+		sc.Then(`^the JSON document holds no secret$`, s.documentHoldsNoSecret)
+		sc.When(`^the operator lists the tokens of every account with "([^"]*)"$`, s.listTokensOfEveryAccount)
+		sc.Then(`^the answer lists the token "([^"]*)" of "([^"]*)" in the workspace "([^"]*)"$`, s.listsTokenOf)
+		sc.Then(`^the token list of every account no longer shows "([^"]*)"$`, s.everyTokenListOmits)
+	}
+}
+
+// everyTokenListOmits fails unless token:list -all succeeds and holds no line for the token called name.
+func (s *operatorScenario) everyTokenListOmits(name string) error {
+	listed := s.answer("", "token:list", "-all")
+	if listed.Code != 0 || listing(listed.Stdout, name) == nil {
+		return fmt.Errorf("token:list -all = %d, stdout %q, stderr %q, want 0 and no line for %s",
+			listed.Code, listed.Stdout, listed.Stderr, name)
+	}
+	return nil
+}
+
+// listTokensOfEveryAccount lists the tokens of every account, the flag naming them all.
+func (s *operatorScenario) listTokensOfEveryAccount(flag string) {
+	s.run("", "token:list", flag)
+}
+
+// listsTokenOf fails unless the answer lists the token called name of the account at email in the tenant tenantName.
+func (s *operatorScenario) listsTokenOf(ctx context.Context, name, email, tenantName string) error {
+	var held string
+	if err := s.scan(ctx, "SELECT id::text FROM core.tenants WHERE name = $1", &held, tenantName); err != nil {
+		return fmt.Errorf("reading the workspace %s: %w", tenantName, err)
+	}
+	for _, line := range strings.Split(s.result.Stdout, "\n") {
+		if strings.HasPrefix(line, email+"  tenant "+held+"  ") && strings.Contains(line, "  "+name+"  scopes ") {
+			return nil
+		}
+	}
+	return fmt.Errorf("the token list %q holds no line for %s of %s in %s", s.result.Stdout, name, email, tenantName)
+}
+
+// listTokensAsJSON lists the tokens of the account at email as one JSON document.
+func (s *operatorScenario) listTokensAsJSON(email string) {
+	s.run("", "token:list", "-email", email, "-json")
+}
+
+// documentLists fails unless the answer is one JSON document whose tokens hold the one called name.
+func (s *operatorScenario) documentLists(name string) error {
+	var document struct {
+		Tokens []struct {
+			Name string `json:"name"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(s.result.Stdout), &document); err != nil {
+		return fmt.Errorf("stdout %q is no one JSON document: %w", s.result.Stdout, err)
+	}
+	for _, listed := range document.Tokens {
+		if listed.Name == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("the document %q lists no token %s", s.result.Stdout, name)
+}
+
+// documentHoldsNoSecret fails when the JSON document carries a secret.
+func (s *operatorScenario) documentHoldsNoSecret() error {
+	if strings.Contains(s.result.Stdout, apitoken.Prefix) || strings.Contains(s.result.Stdout, `"secret"`) {
+		return fmt.Errorf("the document %q carries a secret, want none", s.result.Stdout)
+	}
+	return nil
+}
+
+// createTenant stores the tenant called tenantName.
+func (s *operatorScenario) createTenant(ctx context.Context, tenantName string) error {
+	var created bool
+	return s.scan(ctx, "INSERT INTO core.tenants (id, name) VALUES ($1, $2) RETURNING true", &created,
+		uuid.Must(uuid.NewV7()), tenantName)
+}
+
+// placeInTenant stands the account at email in the tenant called tenantName.
+func (s *operatorScenario) placeInTenant(ctx context.Context, email, tenantName string) error {
+	var placed bool
+	return s.scan(ctx, `INSERT INTO core.tenant_members (user_id, tenant_id)
+		SELECT u.id, t.id FROM auth.users u, core.tenants t WHERE u.email = $1 AND t.name = $2
+		RETURNING true`, &placed, email, tenantName)
+}
+
+// keptInTenant fails unless the token called name is stored in the tenant called tenantName.
+func (s *operatorScenario) keptInTenant(ctx context.Context, name, tenantName string) error {
+	var kept bool
+	err := s.scan(ctx, `SELECT EXISTS (SELECT FROM core.api_tokens a JOIN core.tenants t ON t.id = a.tenant_id
+		WHERE a.name = $1 AND t.name = $2)`, &kept, name, tenantName)
+	if err != nil || !kept {
+		return fmt.Errorf("the token %s is kept in the workspace %s %v (%v), want it there", name, tenantName, kept, err)
+	}
+	return nil
+}
+
+// holdMember creates the member at email, typing the password on standard input.
+func (s *operatorScenario) holdMember(email string) error {
+	s.run(typedPassword+"\n", "account:create-admin", "-email", email, "-name", "Member", "-role", "member")
+	return s.succeeds()
+}
+
+// declareRoleBeyond adds a plugin declaring the role called name with a capability the role held lacks.
+func (s *operatorScenario) declareRoleBeyond(name, held string) {
+	s.plugins = besideTheCompiledPlugins(rolePlugin{declared: []sdk.RoleDeclaration{
+		{Name: name, Capabilities: []string{"reach_beyond_" + held}},
+	}})
+}
+
+// giveRole gives the account at email the role, acting as actor, -as left out when actor is empty.
+func (s *operatorScenario) giveRole(email, held, actor string) {
+	s.changeRole(email, held, actor, "-yes")
+}
+
+// previewRole previews giving the account at email the role, acting as actor.
+func (s *operatorScenario) previewRole(email, held, actor string) {
+	s.changeRole(email, held, actor)
+}
+
+// changeRole runs account:role for the account at email and the role with the flags, acting as actor when named.
+func (s *operatorScenario) changeRole(email, held, actor string, flags ...string) {
+	args := append([]string{"account:role", email, held}, flags...)
+	if actor != "" {
+		args = append(args, "-as", actor)
+	}
+	s.run("", args...)
+}
+
+// disableAccount disables the account at email, acting as actor.
+func (s *operatorScenario) disableAccount(email, actor string) {
+	s.run("", "account:disable", email, "-yes", "-as", actor)
+}
+
+// isEnabled fails unless the account at email is enabled.
+func (s *operatorScenario) isEnabled(ctx context.Context, email string) error {
+	var enabled bool
+	err := s.scan(ctx, "SELECT EXISTS (SELECT FROM auth.users WHERE email = $1 AND NOT disabled)", &enabled, email)
+	if err != nil || !enabled {
+		return fmt.Errorf("the account %s is enabled %v (%v), want it enabled", email, enabled, err)
+	}
+	return nil
+}
+
+// records returns the lines account:records lists, over a command line that registers no plugin.
+func (s *operatorScenario) records() ([]string, error) {
+	listed := testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), registeringNothing), "",
+		"account:records")
+	if listed.Code != 0 {
+		return nil, fmt.Errorf("account:records exited with %d and stderr %q", listed.Code, listed.Stderr)
+	}
+	return strings.FieldsFunc(listed.Stdout, func(r rune) bool { return r == '\n' }), nil
+}
+
+// recordsNothing fails unless no account change is on record.
+func (s *operatorScenario) recordsNothing() error {
+	held, err := s.records()
+	if err != nil || len(held) != 0 {
+		return fmt.Errorf("records %q (%v), want none", held, err)
+	}
+	return nil
+}
+
+// recordsChange fails unless the one record names the command called name applied by actor.
+func (s *operatorScenario) recordsChange(name, actor string) error {
+	held, err := s.records()
+	if err != nil || len(held) != 1 || !strings.Contains(held[0], actor+"  "+name) {
+		return fmt.Errorf("records %q (%v), want the one %s %s applied", held, err, name, actor)
+	}
+	return nil
+}
+
+// holdSetting gives the setting called key the value.
+func (s *operatorScenario) holdSetting(key, value string) {
+	s.env[key] = value
+}
+
+// namesSetting fails unless the error names the setting called key.
+func (s *operatorScenario) namesSetting(key string) error {
+	if !strings.Contains(s.result.Stderr, key) {
+		return fmt.Errorf("stderr %q does not name the setting %s", s.result.Stderr, key)
+	}
+	return nil
+}
+
+// holdAdministrator creates the administrator at email, typing the password on standard input.
+func (s *operatorScenario) holdAdministrator(email string) error {
+	s.createAdministrator(email, typedPassword)
+	return s.succeeds()
+}
+
+// holdToken mints the token called name for the account at email.
+func (s *operatorScenario) holdToken(email, name string) error {
+	s.mintToken(name, email)
+	return s.succeeds()
+}
+
+// mintToken mints the token called name for the account at email.
+func (s *operatorScenario) mintToken(name, email string) {
+	s.mintTokenSpelled(name, email, "token:create")
+}
+
+// mintTokenSpelled mints the token called name for the account at email, the command spelled as spelling.
+func (s *operatorScenario) mintTokenSpelled(name, email, spelling string) {
+	s.run("", append(strings.Fields(spelling), "-email", email, "-name", name)...)
+}
+
+// listTokensSpelled lists the tokens of the account at email, the command spelled as spelling.
+func (s *operatorScenario) listTokensSpelled(email, spelling string) {
+	s.run("", append(strings.Fields(spelling), "-email", email)...)
+}
+
+// revokeTokenSpelled revokes the token called name of the account at email, the command spelled as spelling.
+func (s *operatorScenario) revokeTokenSpelled(ctx context.Context, name, email, spelling string) error {
+	return s.runOnToken(ctx, name, email, strings.Fields(spelling)...)
+}
+
+// previewRevokingToken previews revoking the token called name of the account at email.
+func (s *operatorScenario) previewRevokingToken(ctx context.Context, name, email string) error {
+	return s.runOnToken(ctx, name, email, "token:revoke")
+}
+
+// revokeTokenConfirmed revokes the token called name of the account at email, confirmed with -yes.
+func (s *operatorScenario) revokeTokenConfirmed(ctx context.Context, name, email string) error {
+	return s.runOnToken(ctx, name, email, "token:revoke", "-yes")
+}
+
+// runOnToken runs args with the owner at email and the id of the token called name.
+func (s *operatorScenario) runOnToken(ctx context.Context, name, email string, args ...string) error {
+	var id string
+	if err := s.scan(ctx, "SELECT id::text FROM core.api_tokens WHERE name = $1", &id, name); err != nil {
+		return fmt.Errorf("finding the token %s: %w", name, err)
+	}
+	s.run("", append(args, "-email", email, "-id", id)...)
+	return nil
+}
+
+// carriesSecret fails unless the answer prints a secret line starting with prefix.
+func (s *operatorScenario) carriesSecret(prefix string) error {
+	if !strings.Contains(s.result.Stdout, "\nsecret: "+prefix) {
+		return fmt.Errorf("stdout %q carries no secret beginning with %s", s.result.Stdout, prefix)
+	}
+	return nil
+}
+
+// saysDeprecated fails unless the answer says the old spelling is deprecated in favour of the command called name.
+func (s *operatorScenario) saysDeprecated(old, name string) error {
+	if want := fmt.Sprintf("%q is deprecated, use %q", old, name); !strings.Contains(s.result.Stderr, want) {
+		return fmt.Errorf("stderr %q does not carry %q", s.result.Stderr, want)
+	}
+	return nil
+}
+
+// listsToken fails unless the answer lists the token called name.
+func (s *operatorScenario) listsToken(name string) error {
+	return listing(s.result.Stdout, name)
+}
+
+// tokenListShows fails unless token:list for the account at email lists the token called name.
+func (s *operatorScenario) tokenListShows(email, name string) error {
+	listed, err := s.tokenList(email)
+	if err != nil {
+		return err
+	}
+	return listing(listed, name)
+}
+
+// tokenListShowsNoSecret fails when token:list for the account at email prints a secret.
+func (s *operatorScenario) tokenListShowsNoSecret(email string) error {
+	listed, err := s.tokenList(email)
+	if err != nil || strings.Contains(listed, apitoken.Prefix) {
+		return fmt.Errorf("token:list %q (%v), want no secret listed", listed, err)
+	}
+	return nil
+}
+
+// tokenListShowsNoToken fails when token:list for the account at email lists a token.
+func (s *operatorScenario) tokenListShowsNoToken(email string) error {
+	listed, err := s.tokenList(email)
+	if err != nil || strings.Contains(listed, "  scopes ") {
+		return fmt.Errorf("token:list %q (%v), want no token listed", listed, err)
+	}
+	return nil
+}
+
+// tokenList returns what token:list prints for the account at email, an error when it fails.
+func (s *operatorScenario) tokenList(email string) (string, error) {
+	listed := s.answer("", "token:list", "-email", email)
+	if listed.Code != 0 {
+		return "", fmt.Errorf("token:list exited with %d and stderr %q", listed.Code, listed.Stderr)
+	}
+	return listed.Stdout, nil
+}
+
+// listing fails unless the token list printed holds a line for the token called name.
+func listing(printed, name string) error {
+	if !strings.Contains(printed, "  "+name+"  scopes ") {
+		return fmt.Errorf("the token list %q holds no line for %s", printed, name)
+	}
+	return nil
+}
+
+// pointAtAnEmptyDatabase points the settings at a fresh database holding no schema.
+func (s *operatorScenario) pointAtAnEmptyDatabase() {
+	s.env["ALPHONE_DATABASE_URL"] = barePostgres(s.t)
+}
+
+// nameNoDatabase leaves the database setting out.
+func (s *operatorScenario) nameNoDatabase() {
+	delete(s.env, "ALPHONE_DATABASE_URL")
+}
+
+// answer runs the command line in process over the scenario's settings and plugins, feeding stdin.
+func (s *operatorScenario) answer(stdin string, args ...string) testkit.Result {
+	return testkit.Run(s.t, programOver(role.NewRegistry(), testGetenv(s.env), s.plugins), stdin, args...)
+}
+
+// run runs the command line and keeps its answer for the steps that follow.
+func (s *operatorScenario) run(stdin string, args ...string) {
+	s.result = s.answer(stdin, args...)
+}
+
+// runWithNoCommand runs the command line naming no command.
+func (s *operatorScenario) runWithNoCommand() {
+	s.run("")
+}
+
+// runLine runs the command line the text spells, split on its spaces.
+func (s *operatorScenario) runLine(line string) {
+	s.run("", strings.Fields(line)...)
+}
+
+// askForHelp asks for the help page of the command called name.
+func (s *operatorScenario) askForHelp(name string) {
+	s.run("", "help", name)
+}
+
+// createAdministrator creates an administrator at email, typing the password on standard input.
+func (s *operatorScenario) createAdministrator(email, password string) {
+	s.run(password+"\n", "account:create-admin", "-email", email, "-name", "Administrator", "-role", "admin")
+}
+
+// succeeds fails unless the command exited with code 0.
+func (s *operatorScenario) succeeds() error {
+	return s.exitsWith(0)
+}
+
+// exitsWith fails unless the command exited with code.
+func (s *operatorScenario) exitsWith(code int) error {
+	if s.result.Code != code {
+		return fmt.Errorf("the command exited with %d and stderr %q, want %d", s.result.Code, s.result.Stderr, code)
+	}
+	return nil
+}
+
+// errorSays fails unless the error carries text.
+func (s *operatorScenario) errorSays(text string) error {
+	if !strings.Contains(s.result.Stderr, text) {
+		return fmt.Errorf("stderr %q does not carry %q", s.result.Stderr, text)
+	}
+	return nil
+}
+
+// namesUnknownCommand fails unless the error names the command called name as unknown.
+func (s *operatorScenario) namesUnknownCommand(name string) error {
+	if !strings.Contains(s.result.Stderr, `unknown command "`+name+`"`) {
+		return fmt.Errorf("stderr %q does not name the unknown command %q", s.result.Stderr, name)
+	}
+	return nil
+}
+
+// namesCommand fails unless the error names the command the operator can run instead.
+func (s *operatorScenario) namesCommand(name string) error {
+	if !strings.Contains(s.result.Stderr, name) {
+		return fmt.Errorf("stderr %q does not name %q", s.result.Stderr, name)
+	}
+	return nil
+}
+
+// holdsRole fails unless the account at email holds the role.
+func (s *operatorScenario) holdsRole(ctx context.Context, email, held string) error {
+	var stored bool
+	err := s.scan(ctx, "SELECT EXISTS (SELECT FROM auth.users WHERE email = $1 AND role = $2)", &stored, email, held)
+	if err != nil || !stored {
+		return fmt.Errorf("the account %s holds the role %s %v (%v), want it to", email, held, stored, err)
+	}
+	return nil
+}
+
+// listsCommands fails unless the listing holds a line for each command named.
+func (s *operatorScenario) listsCommands(first, second, third, fourth string) error {
+	for _, name := range []string{first, second, third, fourth} {
+		if !strings.Contains(s.result.Stdout, "\n  "+name+" ") {
+			return fmt.Errorf("the listing %q holds no line for %s", s.result.Stdout, name)
+		}
+	}
+	return nil
+}
+
+// describes fails unless the answer is the help page of the command called name.
+func (s *operatorScenario) describes(name string) error {
+	if !strings.Contains(s.result.Stdout, "alphone "+name) {
+		return fmt.Errorf("stdout %q is no help page of %s", s.result.Stdout, name)
+	}
+	return nil
+}
+
+// saysNothingChanged fails unless the command reported a dry run that the flag would apply.
+func (s *operatorScenario) saysNothingChanged(flag string) error {
+	if !strings.Contains(s.result.Stderr, "dry run, nothing changed, pass "+flag+" to apply") {
+		return fmt.Errorf("stderr %q reports no dry run that %s applies", s.result.Stderr, flag)
+	}
+	return nil
+}
+
+// holdsNoSchema fails when the database holds a schema beyond the ones every database holds.
+func (s *operatorScenario) holdsNoSchema(ctx context.Context) error {
+	var schemas []string
+	if err := s.scan(ctx, extraSchemasLookup, &schemas); err != nil || len(schemas) > 0 {
+		return fmt.Errorf("the database holds the schemas %v (%v), want none", schemas, err)
+	}
+	return nil
+}
+
+// holdsNoDemoData fails when the database holds a contact.
+func (s *operatorScenario) holdsNoDemoData(ctx context.Context) error {
+	var table bool
+	if err := s.scan(ctx, "SELECT to_regclass('core.contacts') IS NOT NULL", &table); err != nil || !table {
+		return err
+	}
+	var stored bool
+	if err := s.scan(ctx, "SELECT EXISTS (SELECT FROM core.contacts)", &stored); err != nil || stored {
+		return fmt.Errorf("the database holds contacts %v (%v), want none", stored, err)
+	}
+	return nil
+}
+
+// holdsTheDemoData fails unless the database holds the demo admin, contacts and tasks.
+func (s *operatorScenario) holdsTheDemoData(ctx context.Context) error {
+	var stored bool
+	err := s.scan(ctx, "SELECT EXISTS (SELECT FROM auth.users WHERE email = $1) "+
+		"AND EXISTS (SELECT FROM core.contacts) AND EXISTS (SELECT FROM core.tasks)", &stored, seedAdminEmail)
+	if err != nil || !stored {
+		return fmt.Errorf("the database holds the demo data %v (%v), want it stored", stored, err)
+	}
+	return nil
+}
+
+// scan reads the one value query answers on the scenario's database into dest.
+func (s *operatorScenario) scan(ctx context.Context, query string, dest any, args ...any) error {
+	pool, err := pgxpool.New(ctx, s.env["ALPHONE_DATABASE_URL"])
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	return pool.QueryRow(ctx, query, args...).Scan(dest)
+}
 
 func TestOperatorCommands(t *testing.T) {
 	if testing.Short() {
@@ -27,7 +554,7 @@ func TestOperatorCommands(t *testing.T) {
 		tags = ""
 	}
 	suite := godog.TestSuite{
-		ScenarioInitializer: initializeOperatorCommands,
+		ScenarioInitializer: initializeOperatorCommands(t),
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{operatorCommandsFeature},
