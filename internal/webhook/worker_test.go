@@ -326,3 +326,29 @@ func TestWorkerSweepsWhenPoked(t *testing.T) {
 	}
 	t.Error("a poke did not drain the queue")
 }
+
+func TestWorkerFailsADeliveryOfADisabledOwnerWithoutPostingIt(t *testing.T) {
+	t.Parallel()
+
+	subscriber, posts := countingSubscriber(t)
+	stopped := claimed(t, subscriber.URL, "whsec_a", 1)
+	stopped.OwnerDisabled = true
+	queue := &fakeWorkerQueue{pending: []webhook.ClaimedDelivery{stopped}}
+	worker, logged := newWorker(queue)
+
+	worker.Sweep(t.Context())
+
+	if got := posts.Load(); got != 0 {
+		t.Errorf("subscriber saw %d posts, want none for a disabled owner", got)
+	}
+	settled := queue.settlements()
+	if len(settled) != 1 || settled[0].Status != webhook.StatusFailed {
+		t.Fatalf("settlements = %+v, want the delivery settled as failed", settled)
+	}
+	if settled[0].LastError != webhook.ErrOwnerDisabled.Error() {
+		t.Errorf("last_error = %q, want %q", settled[0].LastError, webhook.ErrOwnerDisabled.Error())
+	}
+	if !strings.Contains(logged.String(), "dropping a webhook delivery of a disabled owner") {
+		t.Errorf("log = %q, want the dropped delivery noted", logged.String())
+	}
+}

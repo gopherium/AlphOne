@@ -33,11 +33,16 @@ type WorkerQueue interface {
 	SettleDelivery(ctx context.Context, id uuid.UUID, status string, deliverAfter time.Time, lastError string) error
 }
 
+// ErrOwnerDisabled reports a delivery dropped because the account owning its subscription is disabled or gone.
+var ErrOwnerDisabled = errors.New("webhook: owner disabled")
+
 // ClaimedDelivery is a delivery together with where to send it.
 type ClaimedDelivery struct {
 	Delivery
 	URL    string
 	Secret string
+	// OwnerDisabled reports whether the account owning the subscription is disabled or gone.
+	OwnerDisabled bool
 }
 
 // Worker posts queued deliveries to their subscribers until each is
@@ -123,8 +128,13 @@ func (w *Worker) Sweep(ctx context.Context) {
 	}
 }
 
-// attempt posts one delivery and records what happened.
+// attempt posts one delivery and records what happened, failing it unposted when its owner is disabled.
 func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
+	if d.OwnerDisabled {
+		w.logger.InfoContext(ctx, "dropping a webhook delivery of a disabled owner", "delivery", d.ID)
+		w.settle(ctx, d, StatusFailed, time.Now().UTC(), ErrOwnerDisabled.Error())
+		return
+	}
 	err := w.post(ctx, d)
 	if err == nil {
 		w.settle(ctx, d, StatusDelivered, time.Now().UTC(), "")
