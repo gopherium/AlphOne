@@ -41,6 +41,9 @@ type Capability string
 // ManageUsers is the capability administering accounts.
 const ManageUsers Capability = "manage_users"
 
+// ManageWebhooks is the capability creating webhooks and managing every webhook of a workspace.
+const ManageWebhooks Capability = "manage_webhooks"
+
 // Registry holds every role a deployment knows and the capabilities each carries.
 type Registry struct {
 	mu      sync.RWMutex
@@ -49,7 +52,7 @@ type Registry struct {
 
 // NewRegistry returns a registry holding the core roles and nothing a plugin declares.
 func NewRegistry() *Registry {
-	return &Registry{carried: map[Role][]Capability{Admin: {ManageUsers}, Member: {}}}
+	return &Registry{carried: map[Role][]Capability{Admin: {ManageUsers, ManageWebhooks}, Member: {}}}
 }
 
 // Default is the registry the deployment reads, which the host fills at wiring.
