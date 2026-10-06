@@ -135,7 +135,9 @@ it.
 
 Disabling that account stops its subscriptions. Events published while it is
 disabled are not delivered to them, and enabling the account again resumes
-them. Deliveries queued before the account was disabled keep their retries.
+them. A delivery queued earlier that comes due while the account is disabled is
+dropped instead of sent. It fails with `webhook: owner disabled` in its
+`last_error`, and enabling the account again does not bring it back.
 
 ### Creating one
 
