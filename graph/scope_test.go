@@ -185,9 +185,9 @@ extend type Mutation { two: String! @scope(area: "users", write: true, admin: fa
 	}
 }
 
-func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
-	t.Parallel()
-
+// fieldsNeeding names every core root field whose scope declares capability.
+func fieldsNeeding(t *testing.T, capability role.Capability) map[string]bool {
+	t.Helper()
 	reserved := map[string]bool{}
 	files, err := filepath.Glob(filepath.Join("schema", "*.graphqls"))
 	if err != nil {
@@ -201,10 +201,27 @@ func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading %s: %v", path, err)
 		}
-		for _, field := range gatedFieldsIn(t, path, string(raw)) {
+		for _, field := range gatedFieldsIn(t, path, string(raw), capability) {
 			reserved[field] = true
 		}
 	}
+	return reserved
+}
+
+func TestOnlyWebhookCreationNeedsTheManageWebhooksCapability(t *testing.T) {
+	t.Parallel()
+
+	reserved := fieldsNeeding(t, role.ManageWebhooks)
+
+	if len(reserved) != 1 || !reserved["createWebhook"] {
+		t.Errorf("fields needing manage_webhooks = %v, want createWebhook alone", reserved)
+	}
+}
+
+func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
+	t.Parallel()
+
+	reserved := fieldsNeeding(t, role.ManageUsers)
 
 	want := map[string]bool{
 		"setUserDisabled": true,
@@ -225,8 +242,8 @@ func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 	}
 }
 
-// gatedFieldsIn names the root fields of one SDL source needing the manage users capability.
-func gatedFieldsIn(t *testing.T, name, source string) []string {
+// gatedFieldsIn names the root fields of one SDL source needing capability.
+func gatedFieldsIn(t *testing.T, name, source string, capability role.Capability) []string {
 	t.Helper()
 	doc, err := parser.ParseSchema(&ast.Source{Name: name, Input: source})
 	if err != nil {
@@ -243,7 +260,7 @@ func gatedFieldsIn(t *testing.T, name, source string) []string {
 				continue
 			}
 			needed := declared.Arguments.ForName("capability")
-			if needed != nil && needed.Value.Raw == string(role.ManageUsers) {
+			if needed != nil && needed.Value.Raw == string(capability) {
 				reserved = append(reserved, field.Name)
 			}
 		}
