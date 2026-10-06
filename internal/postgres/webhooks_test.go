@@ -211,6 +211,47 @@ func TestADisabledOwnersWebhookGetsNoDeliveryUntilEnabledAgain(t *testing.T) {
 	}
 }
 
+func TestWebhookStoreClaimsADeliveryWithItsOwnersState(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		disabled  bool
+		ownerless bool
+		want      bool
+	}{
+		"an enabled owner":                 {want: false},
+		"an owner disabled after queueing": {disabled: true, want: true},
+		"an owner with no account":         {ownerless: true, want: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := newTestPool(t)
+			store := postgres.NewWebhookStore(pool)
+			owner := uuid.Must(uuid.NewV7())
+			if !tc.ownerless {
+				owner = storedOwner(t, pool, "maria@example.com")
+			}
+			sub := mustSubscription(t, owner, "https://example.com/hook", event.TaskCreated)
+			if err := store.CreateSubscription(t.Context(), sub); err != nil {
+				t.Fatalf("CreateSubscription() error = %v, want nil", err)
+			}
+			if err := store.EnqueueDelivery(t.Context(), mustDelivery(t, sub)); err != nil {
+				t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
+			}
+			if tc.disabled {
+				setOwnerDisabled(t, pool, owner, true)
+			}
+
+			got := claimedNow(t, store)
+
+			if len(got) != 1 || got[0].OwnerDisabled != tc.want {
+				t.Errorf("claimed %+v, want one delivery with OwnerDisabled %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestWebhookStoreDeletesOnlyForItsOwner(t *testing.T) {
 	t.Parallel()
 

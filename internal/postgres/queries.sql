@@ -234,10 +234,11 @@ WITH claimed AS (
 )
 SELECT c.id, c.subscription_id, c.event_id, c.event_name, c.payload,
     c.attempts, c.deliver_after, c.status, c.last_error, c.created_at,
-    s.url, s.secret
+    s.url, s.secret, COALESCE(u.disabled, TRUE)::boolean AS owner_disabled
 FROM claimed c
 JOIN core.webhook_subscriptions s
-    ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id;
+    ON s.id = c.subscription_id AND s.tenant_id = c.tenant_id
+LEFT JOIN auth.users u ON u.id = s.user_id;
 
 -- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries

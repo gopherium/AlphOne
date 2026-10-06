@@ -144,8 +144,9 @@ func (s *WebhookStore) ClaimDueDeliveries(
 				LastError:      row.LastError.String,
 				CreatedAt:      row.CreatedAt,
 			},
-			URL:    row.Url,
-			Secret: row.Secret,
+			URL:           row.Url,
+			Secret:        row.Secret,
+			OwnerDisabled: row.OwnerDisabled,
 		})
 	}
 	return deliveries, nil
