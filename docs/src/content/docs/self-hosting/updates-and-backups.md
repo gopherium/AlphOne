@@ -88,6 +88,13 @@ server, because a watcher on `:latest` applies it on its own.
   with no command now only lists the commands, so it needs `serve`.
   `createadmin` and `grantrole` are refused under their old names, see
   [Old names](/self-hosting/commands/#old-names).
+- What's Up Docker before 9.1.0 rebuilds the container from the old
+  container's settings. Those name no command, because older images had
+  none, so the new version only lists the commands, exits 0 and
+  restarts in a loop. Update What's Up Docker to 9.1.0 or later before
+  this release reaches your server, or switch its trigger to
+  notification only and update by hand as in
+  [Updating by hand](#updating-by-hand), which starts `serve`.
 
 ## Rolling back
 
