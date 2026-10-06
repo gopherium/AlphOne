@@ -507,7 +507,7 @@ a notice first, such as
 | Before | Now |
 | --- | --- |
 | `alphone` alone started the server | `alphone serve`. A run with no command lists the commands. |
-| `alphone createadmin` | `alphone account:create-admin`, which also needs `-role`. The old name exits 2. |
+| `alphone createadmin` | `alphone account:create-admin`. Pass `-role admin`. The old name exits 2. |
 | `alphone grantrole` | `alphone account:grant-role`, which also needs `-as` and `-yes`. The old name exits 2. |
 | `alphone seed` | `alphone seed -yes`. Without `-yes` it only previews. |
 | `alphone token create` | `alphone token:create`. The old spelling still works. |
