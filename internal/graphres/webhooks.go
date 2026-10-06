@@ -11,6 +11,7 @@ import (
 
 	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
@@ -23,16 +24,38 @@ func toWebhook(sub webhook.Subscription) *model.Webhook {
 	return &model.Webhook{ID: sub.ID, URL: sub.URL, Events: events, CreatedAt: sub.CreatedAt}
 }
 
-// Webhooks lists the caller's webhook subscriptions.
+// toListedWebhook maps a listed subscription onto its graph model with its owner, without the secret.
+func toListedWebhook(listed webhook.Listed) *model.Webhook {
+	mapped := toWebhook(listed.Subscription)
+	if listed.Owner != nil {
+		mapped.Owner = &model.WebhookOwner{ID: listed.Owner.ID, Name: listed.Owner.Name, Email: listed.Owner.Email}
+	}
+	return mapped
+}
+
+// managesWebhooks reports whether identity may manage every webhook of its workspace.
+func managesWebhooks(identity authkit.Identity) bool {
+	return role.Can(role.Role(identity.Role), role.ManageWebhooks)
+}
+
+// Webhooks lists every webhook of the workspace to a holder of manage_webhooks, and the caller's own to anyone else.
 func (q QueryResolvers) Webhooks(ctx context.Context) ([]*model.Webhook, error) {
 	identity := authkit.IdentityFromContext(ctx)
-	subs, err := q.root.Webhooks.ListSubscriptionsForUser(ctx, identity.ID)
+	var (
+		subs []webhook.Listed
+		err  error
+	)
+	if managesWebhooks(identity) {
+		subs, err = q.root.Webhooks.ListWorkspaceSubscriptions(ctx)
+	} else {
+		subs, err = q.root.Webhooks.ListSubscriptionsForUser(ctx, identity.ID)
+	}
 	if err != nil {
 		return nil, err
 	}
 	listing := make([]*model.Webhook, len(subs))
 	for i, sub := range subs {
-		listing[i] = toWebhook(sub)
+		listing[i] = toListedWebhook(sub)
 	}
 	return listing, nil
 }
@@ -56,13 +79,23 @@ func (m MutationResolvers) CreateWebhook(
 	if err := m.root.Webhooks.CreateSubscription(ctx, sub); err != nil {
 		return nil, err
 	}
-	return &model.CreateWebhookPayload{Webhook: toWebhook(sub), Secret: sub.Secret}, nil
+	owner := &webhook.Owner{ID: identity.ID, Name: identity.Name, Email: identity.Email}
+	return &model.CreateWebhookPayload{
+		Webhook: toListedWebhook(webhook.Listed{Subscription: sub, Owner: owner}),
+		Secret:  sub.Secret,
+	}, nil
 }
 
-// DeleteWebhook revokes one of the caller's subscriptions.
+// DeleteWebhook revokes any webhook of the workspace for a holder of manage_webhooks, and only its own for anyone else.
 func (m MutationResolvers) DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error) {
 	identity := authkit.IdentityFromContext(ctx)
-	if err := m.root.Webhooks.DeleteSubscription(ctx, identity.ID, id); err != nil {
+	var err error
+	if managesWebhooks(identity) {
+		err = m.root.Webhooks.DeleteWorkspaceSubscription(ctx, id)
+	} else {
+		err = m.root.Webhooks.DeleteSubscription(ctx, identity.ID, id)
+	}
+	if err != nil {
 		return false, err
 	}
 	return true, nil

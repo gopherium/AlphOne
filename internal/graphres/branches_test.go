@@ -10,12 +10,16 @@ import (
 	"testing"
 	"time"
 
+	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/google/uuid"
+
+	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/plugins/fields"
@@ -399,12 +403,22 @@ func (s failingWebhookStore) CreateSubscription(context.Context, webhook.Subscri
 }
 
 // ListSubscriptionsForUser returns the store's error instead of any subscription.
-func (s failingWebhookStore) ListSubscriptionsForUser(context.Context, uuid.UUID) ([]webhook.Subscription, error) {
+func (s failingWebhookStore) ListSubscriptionsForUser(context.Context, uuid.UUID) ([]webhook.Listed, error) {
+	return nil, s.err
+}
+
+// ListWorkspaceSubscriptions returns the store's error instead of any subscription.
+func (s failingWebhookStore) ListWorkspaceSubscriptions(context.Context) ([]webhook.Listed, error) {
 	return nil, s.err
 }
 
 // DeleteSubscription returns the store's error instead of deleting the subscription.
 func (s failingWebhookStore) DeleteSubscription(context.Context, uuid.UUID, uuid.UUID) error {
+	return s.err
+}
+
+// DeleteWorkspaceSubscription returns the store's error instead of deleting the subscription.
+func (s failingWebhookStore) DeleteWorkspaceSubscription(context.Context, uuid.UUID) error {
 	return s.err
 }
 
@@ -420,13 +434,16 @@ func TestWebhookResolversSurfaceStoreFailures(t *testing.T) {
 		"creation": `mutation { createWebhook(url: "https://example.com/hook", events: ["task.created"]) { secret } }`,
 		"deletion": fmt.Sprintf(`mutation { deleteWebhook(id: %q) }`, uuid.Must(uuid.NewV7())),
 	}
+	admin := newActingClient(t, resolver, authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()})
 	for name, query := range operations {
-		response, err := client.RawPost(query)
-		if err != nil {
-			t.Fatalf("%s RawPost() error = %v, want nil", name, err)
-		}
-		if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
-			t.Errorf("%s code = %q, want INTERNAL", name, got)
+		for caller, held := range map[string]*gqlclient.Client{"an owner": client, "a holder": admin} {
+			response, err := held.RawPost(query)
+			if err != nil {
+				t.Fatalf("%s by %s RawPost() error = %v, want nil", name, caller, err)
+			}
+			if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
+				t.Errorf("%s by %s code = %q, want INTERNAL", name, caller, got)
+			}
 		}
 	}
 }

@@ -67,8 +67,10 @@ type TenantStore interface {
 // WebhookStore provides the webhook subscriptions the graph manages.
 type WebhookStore interface {
 	CreateSubscription(ctx context.Context, sub webhook.Subscription) error
-	ListSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]webhook.Subscription, error)
+	ListSubscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]webhook.Listed, error)
+	ListWorkspaceSubscriptions(ctx context.Context) ([]webhook.Listed, error)
 	DeleteSubscription(ctx context.Context, userID, id uuid.UUID) error
+	DeleteWorkspaceSubscription(ctx context.Context, id uuid.UUID) error
 }
 
 // outranking refuses an actor writing an account of another tenant or holding a capability it lacks.
