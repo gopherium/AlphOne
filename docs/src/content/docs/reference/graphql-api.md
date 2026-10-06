@@ -124,7 +124,7 @@ query { me { role capabilities grantable } }
 give another account, which is every role whose capabilities it already holds
 itself. An admin cannot grant a role that reaches further than its own.
 
-Three operations need the `manage_users` capability: `createUser`,
+Four operations need the `manage_users` capability: `invite`, `resendInvite`,
 `setUserDisabled` and `setUserRole`. An account without it is refused:
 
 ```json
@@ -181,16 +181,16 @@ came with the product or with a plugin.
 A write that would leave no enabled account able to manage users is refused with
 `the last admin cannot be unseated`.
 
-`createUser` takes an optional `role`. Leaving it out starts the account at the
-narrowest role the deployment names, which is `member` in a stock install.
+`invite` takes an optional `role`. Leaving it out starts the account as a
+`member`.
 
 ### Roles and scopes together
 
 A role narrows the user. A scope narrows what a token carries of that user's
 authority. An operation runs only when both allow it.
 
-| The caller | What it holds | Reaching `createUser` |
-| ---------- | ------------- | --------------------- |
+| The caller | What it holds | Reaching `invite` |
+| ---------- | ------------- | ----------------- |
 | An admin's session | the capability, and no token to narrow it | yes |
 | An admin's token scoped `users:write` | both | yes |
 | An admin's token scoped `contacts:read` | the capability but not the scope | no, `scope required: users:write` |
@@ -637,7 +637,7 @@ cannot drift. Point a client at the endpoint, or read
 | ---- | ----- | ------ |
 | Session | `me` | `login`, `logout` |
 | Locale | `locale`, `supportedLocales` | `setLocale` |
-| Users | `users` | `createUser`, `setUserDisabled`, `setUserRole` |
+| Users | `users` | `invite`, `resendInvite`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contactPage`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
 | Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
