@@ -106,6 +106,23 @@ test('renders core and plugin reasons from one merged map', () => {
 	expect(merged.message_content_required).toBe('Write something to send.')
 })
 
+test('explains a write the server refused as sent from another site', () => {
+	expect(appErrorTemplates().request_cross_origin).toBe(
+		'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+	)
+})
+
+test('explains a refused cross-origin write in the language the graph resolves', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+
+	await startAppLocale()
+
+	expect(appErrorTemplates().request_cross_origin).toBe(
+		'Esta petición vino de una página de otro sitio, así que se rechazó. ' +
+			'Abre la administración en este sitio e inténtalo de nuevo.',
+	)
+})
+
 test('skips a plugin declaring no templates of its own', () => {
 	expect(declaredTemplates([{ id: 'bare', routes: () => [], nav: [] }])).toEqual({})
 })

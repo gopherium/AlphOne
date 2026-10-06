@@ -101,6 +101,11 @@ Answer with any `2xx` to accept a delivery. Anything else, including a
 redirect, a timeout, or a refused connection, counts as a failure and is
 retried.
 
+AlphOne never follows a redirect. A `3xx` answer fails the attempt and
+the delivery records `subscriber answered 301`, or whichever code came
+back, so subscribe the final URL rather than one that forwards, such as
+`https://` rather than `http://`.
+
 A failed delivery is retried with a wait that doubles each time, starting
 at 30 seconds and capped at one hour:
 
@@ -128,6 +133,12 @@ Subscriptions are managed on the graph, with `createWebhook`, `webhooks` and
 belongs to the user who created it, who is the only one who can see or revoke
 it.
 
+Disabling that account stops its subscriptions. Events published while it is
+disabled are not delivered to them, and enabling the account again resumes
+them. A delivery queued earlier that comes due while the account is disabled is
+dropped instead of sent. It fails with `webhook: owner disabled` in its
+`last_error`, and enabling the account again does not bring it back.
+
 ### Creating one
 
 ```graphql
@@ -152,6 +163,13 @@ lost one, revoke the subscription and create another.
 
 An unusable URL or an event name AlphOne does not publish is refused with the
 code `VALIDATION`.
+
+A URL written as an internal IP address, such as `http://127.0.0.1:5678/` or
+`http://10.0.0.5/`, is refused with the code `VALIDATION` and the reason
+`webhook_url_internal`, unless the operator allowed it, see
+[internal addresses](#internal-addresses). A host name is not looked up at this
+point, so a name that points to an internal address is accepted and its
+deliveries are refused later.
 
 ### Listing them
 
@@ -186,6 +204,26 @@ The signing secret is stored so AlphOne can read it, because signing a
 delivery requires the secret itself. That differs from API tokens and
 passwords, which are stored hashed. Treat database backups accordingly.
 
-Any URL is accepted, including private addresses on your own network,
-which is what makes an engine on the same host reachable. AlphOne trusts
-the operator here.
+### Internal addresses
+
+AlphOne refuses to deliver to internal addresses: loopback, the private
+network ranges, link-local and cloud metadata addresses, and their IPv6
+counterparts. Public addresses are reached on any port, apart from a
+few cloud metadata addresses, see
+[Configuration](/self-hosting/configuration/#webhooks).
+
+The check runs on the address AlphOne is about to connect to, after the name
+lookup, so every attempt is checked again. A refused delivery counts as a
+failed attempt and is retried like any other. Its `last_error` names
+`webhook: address refused`, and the log gets a warning,
+`refusing a webhook delivery to an internal address`, naming the host.
+
+To deliver to a service on your own network, such as n8n on the same Docker
+network or on the same machine, list it in `ALPHONE_WEBHOOK_ALLOWED_HOSTS`,
+for example `n8n:5678` or `localhost:5678`. A URL that names no port is
+listed with 80 for `http` or 443 for `https`. Link-local and cloud metadata
+addresses stay refused even when listed. See
+[Configuration](/self-hosting/configuration/#webhooks) for the format.
+
+Deliveries ignore `HTTP_PROXY` and `HTTPS_PROXY` and always connect to the
+subscriber directly.

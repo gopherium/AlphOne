@@ -5,7 +5,7 @@ import { gql } from 'urql'
 import { afterEach, expect, onTestFinished, test, vi } from 'vitest'
 import { pipe, subscribe } from 'wonka'
 
-import { ValidationError } from '../errors'
+import { ValidationError, validationMessage } from '../errors'
 import { rememberFormatLocale } from '../format'
 import { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText } from '../graph'
 import { HttpResponse, graphql, http, server } from '../testing'
@@ -730,6 +730,122 @@ test('fills a template from the text the answer carries as it came', async () =>
 	const result = await graph.client.query(versionQuery, {}).toPromise()
 
 	expect(graphError(result.error)?.message).toBe('Este token no alcanza contacts:write.')
+})
+
+/**
+ * Answers every graph post with a refusal the router sent before the graph read it.
+ * @param body - The answer body.
+ * @param contentType - The media type the answer names.
+ * @param status - The HTTP status the answer carries.
+ */
+function refuseAtTheRouter(body: string, contentType: string, status = 403) {
+	server.use(
+		http.post('/api/graphql', () =>
+			new HttpResponse(body, { status, headers: { 'Content-Type': contentType } })),
+	)
+}
+
+/** The answer the router sends a browser write it judged cross-origin. */
+const crossOriginRefusal = '{"error":"cross-origin request refused","code":"request_cross_origin"}'
+
+test('speaks the template a router refusal names by its code', async () => {
+	configureErrorText({
+		templates: () => ({ request_cross_origin: 'Cambio rechazado desde otro sitio.' }),
+		fallback: () => 'Algo salio mal.',
+	})
+	refuseAtTheRouter(crossOriginRefusal, 'application/json')
+	const { graph } = newClient()
+
+	const result = await graph.client.mutation(createTaskMutation, { input: { title: 'x', dueOn: '2026-08-07' } })
+		.toPromise()
+
+	expect(graphError(result.error)).toBeInstanceOf(ValidationError)
+	expect(validationMessage(graphError(result.error), 'No se ha podido añadir la tarea.'))
+		.toBe('Cambio rechazado desde otro sitio.')
+	expect(graphExtensions(result.error)).toEqual({ code: 'VALIDATION', reason: 'request_cross_origin' })
+	expect((result.error?.response as Response | undefined)?.status).toBe(403)
+})
+
+test('leaves a coded answer on another status as the failure it is', async () => {
+	for (const [status, body] of [
+		[401, '{"error":"no session","code":"session_absent"}'],
+		[429, '{"error":"too many login attempts, try again later","code":"login_rate_limited"}'],
+	] as const) {
+		refuseAtTheRouter(body, 'application/json', status)
+		const { graph } = newClient()
+
+		const result = await graph.client.mutation(createTaskMutation, { input: { title: 'x', dueOn: '2026-08-07' } })
+			.toPromise()
+
+		expect(result.error?.graphQLErrors).toEqual([])
+		expect((result.error?.response as Response | undefined)?.status).toBe(status)
+	}
+})
+
+test('leaves a refusal naming a code beside no message as the failure it is', async () => {
+	refuseAtTheRouter('{"code":"request_cross_origin"}', 'application/json')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(result.error?.graphQLErrors).toEqual([])
+})
+
+test('leaves a refusal sent as another media type as the failure it is', async () => {
+	refuseAtTheRouter(crossOriginRefusal, 'text/plain')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(result.error?.graphQLErrors).toEqual([])
+})
+
+test('speaks the router message for a refusal code no template holds', async () => {
+	configureErrorText({ templates: () => ({}), fallback: () => 'Algo salio mal.' })
+	refuseAtTheRouter(crossOriginRefusal, 'application/json; charset=utf-8')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('cross-origin request refused')
+})
+
+test('leaves a router refusal naming no code as the failure it is', async () => {
+	refuseAtTheRouter('{"error":"tenant deactivated"}', 'application/json')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(result.error?.graphQLErrors).toEqual([])
+	expect((result.error?.response as Response | undefined)?.status).toBe(403)
+})
+
+test('leaves a refusal that is no JSON as the failure it is', async () => {
+	refuseAtTheRouter('forbidden', 'text/plain')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(result.error?.graphQLErrors).toEqual([])
+})
+
+test('leaves a refusal whose JSON cannot be read as the failure it is', async () => {
+	refuseAtTheRouter('{"error":', 'application/json')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(result.error?.graphQLErrors).toEqual([])
+})
+
+test('reads a refusal the graph itself answered as its own errors', async () => {
+	refuseAtTheRouter('{"errors":[{"message":"graph: refused","extensions":{"code":"FORBIDDEN"}}]}', 'application/json')
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(graphError(result.error)?.message).toBe('graph: refused')
+	expect(graphExtensions(result.error)).toEqual({ code: 'FORBIDDEN' })
 })
 
 test('speaks the server message for a reason no template holds', async () => {

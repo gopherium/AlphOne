@@ -23,6 +23,9 @@ import (
 // ErrInvalidURL reports a delivery target that is not an absolute HTTP URL.
 var ErrInvalidURL = errors.New("webhook: invalid url")
 
+// ErrInternalURL reports a delivery target written as an internal address the operator has not allowed.
+var ErrInternalURL = errors.New("webhook: url names an internal address")
+
 // ErrNoEvents reports a subscription naming no events.
 var ErrNoEvents = errors.New("webhook: no events")
 
@@ -123,6 +126,29 @@ func validateURL(raw string) error {
 		return fmt.Errorf("%w: %q", ErrInvalidURL, raw)
 	}
 	return nil
+}
+
+// Admit refuses rawURL when it names an internal IP literal guard does not allow, looking no name up.
+func Admit(guard AddressGuard, rawURL string) error {
+	target, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("%w: %q", ErrInvalidURL, rawURL)
+	}
+	if err := guard.Admit(target.Hostname(), portOf(target)); err != nil {
+		return fmt.Errorf("%w: %q", ErrInternalURL, rawURL)
+	}
+	return nil
+}
+
+// portOf returns the port a URL names, the one its scheme implies when it names none.
+func portOf(target *url.URL) string {
+	if port := target.Port(); port != "" {
+		return port
+	}
+	if target.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 // Delivery statuses.

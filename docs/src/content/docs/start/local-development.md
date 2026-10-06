@@ -192,6 +192,20 @@ unchanged. On Docker Engine for Linux, set `ALPHONE_ADDR=0.0.0.0:8080`
 in your `.env` so the container can reach it, and mind that this exposes
 the API to your network.
 
+### Let AlphOne deliver to it
+
+The scratch n8n hands out webhook addresses on `http://localhost:5678`,
+and AlphOne refuses to deliver to loopback unless you allow it. Add the
+entry to your `.env`, where `.env.example` already carries it commented,
+and restart the backend:
+
+```ini
+ALPHONE_WEBHOOK_ALLOWED_HOSTS=localhost:5678
+```
+
+That opens `http://localhost:5678` and nothing else on your machine. See
+[Configuration](/self-hosting/configuration/#webhooks) for the format.
+
 ### Prove the loop
 
 Activating a workflow that starts with **AlphOne Trigger** is what
@@ -213,7 +227,8 @@ worked. A row stuck `pending` with `subscriber answered 404` means the
 subscription outlived its workflow, which happens when a workflow is
 deleted without being deactivated first. List them with the `webhooks`
 query and remove the stale one with `deleteWebhook`, otherwise it retries
-for a day.
+for a day. A row stuck `pending` with a `last_error` naming
+`webhook: address refused` means the `localhost:5678` entry above is missing.
 
 ## Running the checks
 

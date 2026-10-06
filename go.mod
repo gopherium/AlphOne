@@ -14,7 +14,7 @@ require (
 	github.com/gopherium/framework/pluginkit v0.6.0
 	github.com/gopherium/framework/pluginkit/graphwire v0.4.0
 	github.com/gopherium/gouncer v0.4.0
-	github.com/gopherium/gouncer/authkit v0.15.0
+	github.com/gopherium/gouncer/authkit v0.16.0
 	github.com/gopherium/gouncer/authkit/postgres v0.11.2
 	github.com/gopherium/gouncer/authkit/ratelimit v0.3.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7

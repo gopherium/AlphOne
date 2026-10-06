@@ -28,6 +28,7 @@ import (
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/version"
+	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -81,7 +82,8 @@ func run(
 			fmt.Errorf("compose graph root: %w", err), gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 
-	httpServer := httpServerFrom(settings, server.NewServer(serverConfigOf(settings, built, host, auth, graphRoot)))
+	serverConfig := serverConfigOf(settings, built, host, auth, graphRoot, logger)
+	httpServer := httpServerFrom(settings, server.NewServer(serverConfig))
 	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
 }
 
@@ -103,6 +105,7 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Contacts:      built.contacts,
 		Tasks:         built.tasks,
 		Webhooks:      built.webhooks,
+		WebhookGuard:  built.webhookGuard,
 		Tenants:       built.tenants,
 		Tokens:        built.tokens,
 		Events:        built.events,
@@ -125,9 +128,10 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 	}
 }
 
-// serverConfigOf returns the server settings over what compose built, the plugin host, the logins and the graph root.
+// serverConfigOf returns the server settings over what compose built, the host, the logins, the graph root and logger.
 func serverConfigOf(
 	settings runConfig, built composed, host *pluginkit.Host, auth *authkit.Handlers, graphRoot graph.ResolverRoot,
+	logger *slog.Logger,
 ) server.Config {
 	cfg := settings.serverConfig()
 	cfg.Version = version.Version()
@@ -140,6 +144,7 @@ func serverConfigOf(
 	cfg.PluginPublicPaths = host.PublicPaths()
 	cfg.PluginAreas = pluginAreas(built.registered)
 	cfg.FieldSources = fieldSources(built.registered)
+	cfg.Logger = logger
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
 	}
@@ -255,11 +260,12 @@ type runConfig struct {
 	serving        gonsole.Timeouts
 }
 
-// composeSettings carries the machine grace, the tenant bounds and the mail settings.
+// composeSettings carries the machine grace, the tenant bounds, the mail settings and the webhook allow list.
 type composeSettings struct {
 	machineGrace time.Duration
 	tenants      tenantSettings
 	mail         mailSettings
+	webhookHosts webhook.AllowList
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -420,7 +426,7 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 	}, nil
 }
 
-// loadComposeSettings reads the machine grace, the tenant bounds and the mail settings.
+// loadComposeSettings reads the machine grace, the tenant bounds, the mail settings and the webhook allow list.
 func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	machineGrace, err := env.Duration("TENANT_MACHINE_GRACE", tenant.DefaultMachineGrace, gonsole.AllowZero())
 	if err != nil {
@@ -434,7 +440,11 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
-	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail}, nil
+	webhookHosts, err := gonsole.Parse(env, "WEBHOOK_ALLOWED_HOSTS", webhook.AllowList{}, webhook.ParseAllowList)
+	if err != nil {
+		return composeSettings{}, err
+	}
+	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail, webhookHosts: webhookHosts}, nil
 }
 
 // loadRunConfig reads the server settings from the environment.

@@ -30,6 +30,7 @@ var authenticatingQueries = map[string]bool{
 var workerQueries = map[string]bool{
 	"ClaimWebhookDeliveries": true,
 	"SettleWebhookDelivery":  true,
+	"WebhookOwnerDisabled":   true,
 }
 
 // operatorQueries names the queries an operator command runs across every tenant on purpose.

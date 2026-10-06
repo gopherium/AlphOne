@@ -103,7 +103,7 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}
 
-	cfg := serverConfigOf(settings, built, pluginkit.NewHost(built.registered...), auth, graphRoot)
+	cfg := serverConfigOf(settings, built, pluginkit.NewHost(built.registered...), auth, graphRoot, discardLogger())
 
 	if zero := zeroFields(cfg, unwiredServerFields); len(zero) > 0 {
 		t.Errorf("the server settings leave %v zero, want each one wired or named among %v on purpose",

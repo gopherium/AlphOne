@@ -7,6 +7,7 @@ package server
 import (
 	"context"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -58,6 +59,8 @@ type Config struct {
 	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
 	// set X-Forwarded-For for the graph rate limiter.
 	TrustedProxies []string
+	// Logger receives the line each refused cross-origin write leaves. Nil applies slog.Default.
+	Logger *slog.Logger
 	// MaxStreamLifetime bounds how long an authenticated plugin request or a
 	// graph subscription may stay open. Zero applies the host default.
 	MaxStreamLifetime time.Duration
@@ -92,6 +95,7 @@ func NewServer(cfg Config) http.Handler {
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
 	router := chi.NewRouter()
+	router.Use(authkit.CrossOriginGuard(cfg.Logger))
 	if cfg.GraphRoot != nil {
 		graph := newGraphQLHandler(
 			cfg.GraphRoot, cfg.Tenants, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources, cfg.TenantsHeld)

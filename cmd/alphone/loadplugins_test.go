@@ -100,6 +100,10 @@ func TestLoadPluginsNamesWhatItCannotRead(t *testing.T) {
 			},
 			`ALPHONE_SMTP_PORT: must be a whole number, got "the submission port"`,
 		},
+		"a webhook host without a port": {
+			map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL, "ALPHONE_WEBHOOK_ALLOWED_HOSTS": "n8n"},
+			"ALPHONE_WEBHOOK_ALLOWED_HOSTS: must list CIDR ranges such as 127.0.0.1/32 or host names with a port",
+		},
 		"a database address it cannot parse": {
 			map[string]string{"ALPHONE_DATABASE_URL": "://not-a-url"}, "parse database url",
 		},

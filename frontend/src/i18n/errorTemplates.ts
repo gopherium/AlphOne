@@ -15,6 +15,10 @@ export function errorTemplates(): Record<string, string> {
 		authentication_required: __('Sign in to go on.', DOMAIN),
 		credentials_invalid: __('That email and password do not match an account.', DOMAIN),
 		tenant_deactivated: __('This workspace has been deactivated. Contact your operator.', DOMAIN),
+		request_cross_origin: __(
+			'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+			DOMAIN,
+		),
 		rate_limited: __('Too many attempts. Wait %(retryAfter)s seconds and try again.', DOMAIN),
 		scope_missing: __('This token does not reach %(scope)s.', DOMAIN),
 		capability_missing: __('Your role does not allow %(capability)s.', DOMAIN),
@@ -33,6 +37,7 @@ export function errorTemplates(): Record<string, string> {
 		origin_source_required: __('An event needs the source it came from.', DOMAIN),
 		event_unknown: __('That event name is not one AlphOne knows.', DOMAIN),
 		webhook_url_invalid: __('Write the address as a full URL.', DOMAIN),
+		webhook_url_internal: __('AlphOne sends no webhook to an internal address the operator has not allowed.', DOMAIN),
 		webhook_events_required: __('Choose at least one event to send.', DOMAIN),
 		webhook_not_found: __('That webhook no longer exists.', DOMAIN),
 		first_out_of_range: __('Ask for between %(min)s and %(max)s at a time.', DOMAIN),

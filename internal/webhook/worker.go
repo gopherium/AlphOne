@@ -5,6 +5,7 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -26,11 +27,15 @@ const (
 	requestTimeout = 10 * time.Second
 )
 
-// WorkerQueue hands out due deliveries and records their outcome.
+// WorkerQueue hands out due deliveries, reports their owner's state and records their outcome.
 type WorkerQueue interface {
 	ClaimDueDeliveries(ctx context.Context, due, lease time.Time, limit int) ([]ClaimedDelivery, error)
 	SettleDelivery(ctx context.Context, id uuid.UUID, status string, deliverAfter time.Time, lastError string) error
+	OwnerDisabled(ctx context.Context, subscriptionID uuid.UUID) (bool, error)
 }
+
+// ErrOwnerDisabled reports a delivery dropped because the account owning its subscription is disabled or gone.
+var ErrOwnerDisabled = errors.New("webhook: owner disabled")
 
 // ClaimedDelivery is a delivery together with where to send it.
 type ClaimedDelivery struct {
@@ -51,19 +56,11 @@ type Worker struct {
 	done     chan struct{}
 }
 
-// transportTemplate is the pool settings every delivery client is cloned from.
-var transportTemplate = http.DefaultTransport.(*http.Transport)
-
-// newDeliveryTransport returns the connection pool deliveries are posted over.
-func newDeliveryTransport() http.RoundTripper {
-	return transportTemplate.Clone()
-}
-
-// NewWorker returns a [Worker] draining queue.
-func NewWorker(queue WorkerQueue, logger *slog.Logger) *Worker {
+// NewWorker returns a [Worker] draining queue, posting only to the addresses guard allows.
+func NewWorker(queue WorkerQueue, logger *slog.Logger, guard AddressGuard) *Worker {
 	return &Worker{
 		queue:    queue,
-		client:   &http.Client{Timeout: requestTimeout, Transport: newDeliveryTransport()},
+		client:   guard.Client(requestTimeout),
 		logger:   logger,
 		nudge:    make(chan struct{}, 1),
 		interval: sweepInterval,
@@ -130,11 +127,16 @@ func (w *Worker) Sweep(ctx context.Context) {
 	}
 }
 
-// attempt posts one delivery and records what happened.
+// attempt delivers one delivery and records what happened, failing it unposted when its owner is disabled.
 func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
-	err := w.post(ctx, d)
+	err := w.deliver(ctx, d)
 	if err == nil {
 		w.settle(ctx, d, StatusDelivered, time.Now().UTC(), "")
+		return
+	}
+	if errors.Is(err, ErrOwnerDisabled) {
+		w.logger.InfoContext(ctx, "dropping a webhook delivery of a disabled owner", "delivery", d.ID)
+		w.settle(ctx, d, StatusFailed, time.Now().UTC(), err.Error())
 		return
 	}
 	if Exhausted(d.CreatedAt, time.Now().UTC()) {
@@ -144,6 +146,18 @@ func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
 		return
 	}
 	w.settle(ctx, d, StatusPending, time.Now().UTC().Add(Backoff(d.Attempts)), err.Error())
+}
+
+// deliver posts d once its owner reads as enabled right before the post, reporting [ErrOwnerDisabled] otherwise.
+func (w *Worker) deliver(ctx context.Context, d ClaimedDelivery) error {
+	disabled, err := w.queue.OwnerDisabled(ctx, d.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("reading the owner's state: %w", err)
+	}
+	if disabled {
+		return ErrOwnerDisabled
+	}
+	return w.post(ctx, d)
 }
 
 // post hands the signed payload to the subscriber, reporting any response
@@ -160,6 +174,7 @@ func (w *Worker) post(ctx context.Context, d ClaimedDelivery) error {
 	request.Header.Set("X-AlphOne-Signature-256", Sign(d.Secret, d.Payload))
 	response, err := w.client.Do(request)
 	if err != nil {
+		w.warnRefused(ctx, d, request.URL.Host, err)
 		return fmt.Errorf("posting delivery: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
@@ -167,6 +182,14 @@ func (w *Worker) post(ctx context.Context, d ClaimedDelivery) error {
 		return fmt.Errorf("subscriber answered %d", response.StatusCode)
 	}
 	return nil
+}
+
+// warnRefused tells the operator which host a delivery was refused for when the guard refused it.
+func (w *Worker) warnRefused(ctx context.Context, d ClaimedDelivery, host string, err error) {
+	if errors.Is(err, ErrAddressRefused) {
+		w.logger.WarnContext(ctx, "refusing a webhook delivery to an internal address",
+			"host", host, "delivery", d.ID, "error", err)
+	}
 }
 
 // settle records the outcome of one delivery attempt.

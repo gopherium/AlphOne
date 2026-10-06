@@ -151,6 +151,15 @@ func (s *WebhookStore) ClaimDueDeliveries(
 	return deliveries, nil
 }
 
+// OwnerDisabled reports whether the account owning the subscription is disabled, or gone with the subscription.
+func (s *WebhookStore) OwnerDisabled(ctx context.Context, subscriptionID uuid.UUID) (bool, error) {
+	disabled, err := s.queries.WebhookOwnerDisabled(ctx, subscriptionID)
+	if err != nil {
+		return false, fmt.Errorf("postgres: read webhook owner state: %w", err)
+	}
+	return disabled, nil
+}
+
 // SettleDelivery records the outcome of one delivery attempt.
 func (s *WebhookStore) SettleDelivery(
 	ctx context.Context,

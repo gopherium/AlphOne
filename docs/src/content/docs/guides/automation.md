@@ -96,6 +96,29 @@ Do that only on a development machine, and mind that it exposes the API
 to your network. Docker Desktop forwards loopback for you, so the
 default `localhost:8080` is already reachable there.
 
+## Let AlphOne reach the engine
+
+[Webhooks](/reference/webhooks/) travel the other way, from AlphOne to
+the engine, and AlphOne refuses to deliver to internal addresses unless
+the operator allows them. An engine reached at a public `https` address
+needs nothing. An engine on your own network needs its host and port in
+`ALPHONE_WEBHOOK_ALLOWED_HOSTS` on the AlphOne side, with 80 for `http`
+or 443 for `https` when its address names no port:
+
+| The engine's webhook address | Entry |
+| ---------------------------- | ----- |
+| `http://n8n:5678/...`, both in the same compose project | `n8n:5678` |
+| `http://localhost:5678/...`, both on your machine | `localhost:5678` |
+| `https://n8n.example.com/...`, a public address | none |
+
+Without the entry the subscription is created but every delivery is
+refused, and AlphOne logs
+`refusing a webhook delivery to an internal address` with the host. A
+URL written as an internal IP address, such as `http://10.0.0.5:5678/`,
+is refused when the subscription is created, with the reason
+`webhook_url_internal`. See [Configuration](/self-hosting/configuration/#webhooks)
+for the format.
+
 ## Every call looks the same
 
 AlphOne serves one GraphQL API, so every request is a `POST` to the same

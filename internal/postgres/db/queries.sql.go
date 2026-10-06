@@ -930,10 +930,11 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 }
 
 const listWebhookSubscriptionsForEvent = `-- name: ListWebhookSubscriptionsForEvent :many
-SELECT id, user_id, url, events, secret, created_at, tenant_id
-FROM core.webhook_subscriptions
-WHERE $1::text = ANY (events) AND tenant_id = $2
-ORDER BY id
+SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id
+FROM core.webhook_subscriptions s
+JOIN auth.users u ON u.id = s.user_id AND NOT u.disabled
+WHERE $1::text = ANY (s.events) AND s.tenant_id = $2
+ORDER BY s.id
 `
 
 type ListWebhookSubscriptionsForEventParams struct {
@@ -1364,4 +1365,20 @@ func (q *Queries) UserSetting(ctx context.Context, arg UserSettingParams) ([]str
 		return nil, err
 	}
 	return items, nil
+}
+
+const webhookOwnerDisabled = `-- name: WebhookOwnerDisabled :one
+SELECT COALESCE((
+    SELECT u.disabled
+    FROM core.webhook_subscriptions s
+    JOIN auth.users u ON u.id = s.user_id
+    WHERE s.id = $1
+), TRUE)::boolean AS disabled
+`
+
+func (q *Queries) WebhookOwnerDisabled(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, webhookOwnerDisabled, id)
+	var disabled bool
+	err := row.Scan(&disabled)
+	return disabled, err
 }

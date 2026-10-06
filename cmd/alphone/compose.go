@@ -35,19 +35,20 @@ type composeConfig struct {
 
 // composed is what compose builds over one pool.
 type composed struct {
-	pool       *pgxpool.Pool
-	users      *authkitpg.UserStore
-	contacts   *postgres.ContactStore
-	tasks      *postgres.TaskStore
-	tokens     *postgres.TokenStore
-	webhooks   *postgres.WebhookStore
-	tenants    *postgres.TenantStore
-	worker     *webhook.Worker
-	hub        *event.Hub
-	events     nudgingPublisher
-	mailer     graphres.Mailer
-	registered []sdk.Plugin
-	failed     error
+	pool         *pgxpool.Pool
+	users        *authkitpg.UserStore
+	contacts     *postgres.ContactStore
+	tasks        *postgres.TaskStore
+	tokens       *postgres.TokenStore
+	webhooks     *postgres.WebhookStore
+	webhookGuard webhook.AddressGuard
+	tenants      *postgres.TenantStore
+	worker       *webhook.Worker
+	hub          *event.Hub
+	events       nudgingPublisher
+	mailer       graphres.Mailer
+	registered   []sdk.Plugin
+	failed       error
 }
 
 // compose builds the pool, the stores, the events, the mail and the registered plugins, migrating and starting nothing.
@@ -57,16 +58,18 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		return composed{}, fmt.Errorf("parse database url: %w", err)
 	}
 	webhooks := postgres.NewWebhookStore(pool)
+	guard := webhook.AddressGuard{Allowed: cfg.webhookHosts}
 	built := composed{
-		pool:     pool,
-		users:    authkitpg.NewUserStore(pool),
-		contacts: postgres.NewContactStore(pool),
-		tasks:    postgres.NewTaskStore(pool),
-		tokens:   postgres.NewTokenStore(pool),
-		webhooks: webhooks,
-		tenants:  postgres.NewTenantStore(pool),
-		worker:   webhook.NewWorker(webhooks, cfg.logger),
-		hub:      event.NewHub(),
+		pool:         pool,
+		users:        authkitpg.NewUserStore(pool),
+		contacts:     postgres.NewContactStore(pool),
+		tasks:        postgres.NewTaskStore(pool),
+		tokens:       postgres.NewTokenStore(pool),
+		webhooks:     webhooks,
+		webhookGuard: guard,
+		tenants:      postgres.NewTenantStore(pool),
+		worker:       webhook.NewWorker(webhooks, cfg.logger, guard),
+		hub:          event.NewHub(),
 	}
 	built.events = nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(webhooks, cfg.logger), worker: built.worker, hub: built.hub,

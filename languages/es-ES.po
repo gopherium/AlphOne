@@ -68,6 +68,10 @@ msgid "AlphOne does not speak that language yet."
 msgstr "AlphOne todavía no habla ese idioma."
 
 #, fuzzy
+msgid "AlphOne sends no webhook to an internal address the operator has not allowed."
+msgstr "AlphOne no envía webhooks a una dirección interna que el operador no haya permitido."
+
+#, fuzzy
 msgid "Already on contact %(name)s."
 msgstr "Ya está en el contacto %(name)s."
 
@@ -522,6 +526,10 @@ msgstr "No se ha podido actualizar la tarea."
 #, fuzzy
 msgid "The token could not be created."
 msgstr "No se ha podido crear el token."
+
+#, fuzzy
+msgid "This request came from a page on another site, so it was refused. Open the admin on this site and try again."
+msgstr "Esta petición vino de una página de otro sitio, así que se rechazó. Abre la administración en este sitio e inténtalo de nuevo."
 
 #, fuzzy
 msgid "This token does not reach %(scope)s."

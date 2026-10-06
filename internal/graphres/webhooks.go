@@ -50,6 +50,9 @@ func (m MutationResolvers) CreateWebhook(
 	if err != nil {
 		return nil, err
 	}
+	if err := webhook.Admit(m.root.WebhookGuard, url); err != nil {
+		return nil, err
+	}
 	if err := m.root.Webhooks.CreateSubscription(ctx, sub); err != nil {
 		return nil, err
 	}

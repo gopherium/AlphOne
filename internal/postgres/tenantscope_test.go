@@ -182,7 +182,7 @@ func TestAWebhookSubscriptionFiresForItsTenantAlone(t *testing.T) {
 	acme := seededTenant(t, pool)
 	mine := standingIn(t, acme)
 	sub, err := webhook.NewSubscription(
-		uuid.Must(uuid.NewV7()), "https://example.com/hook", []event.Name{event.TaskCreated},
+		storedOwner(t, pool, "maria@example.com"), "https://example.com/hook", []event.Name{event.TaskCreated},
 	)
 	if err != nil {
 		t.Fatalf("webhook.NewSubscription() error = %v, want nil", err)

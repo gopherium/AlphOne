@@ -173,6 +173,8 @@ type Resolver struct {
 	Tasks TaskStore
 	// Webhooks serves the webhook subscriptions.
 	Webhooks WebhookStore
+	// WebhookGuard decides which internal addresses a webhook may name, none when zero.
+	WebhookGuard webhook.AddressGuard
 	// Tenants serves the caller's own tenant.
 	Tenants TenantStore
 	// Tokens serves the caller's own API tokens.

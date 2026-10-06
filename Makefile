@@ -150,6 +150,7 @@ E2E_TENANT_MACHINE_GRACE ?= 0s
 E2E_WHATSAPP_GRAPH_URL ?= http://127.0.0.1:4791
 E2E_SMTP_PORT ?= 4792
 E2E_PUBLIC_URL ?= http://localhost:8080
+E2E_WEBHOOK_ALLOWED_HOSTS ?= 127.0.0.1/32
 
 e2e-build:
 	pnpm --filter @alphone/frontend build
@@ -168,6 +169,7 @@ e2e-serve: db-up e2e-build
 		ALPHONE_SMTP_FROM=crm@example.com \
 		ALPHONE_SMTP_TLS=none \
 		ALPHONE_PUBLIC_URL="$(E2E_PUBLIC_URL)" \
+		ALPHONE_WEBHOOK_ALLOWED_HOSTS="$(E2E_WEBHOOK_ALLOWED_HOSTS)" \
 		./alphone serve
 
 e2e-db-reset: db-up

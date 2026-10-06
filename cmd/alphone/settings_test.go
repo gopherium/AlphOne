@@ -22,6 +22,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_ADDR":                     "127.0.0.1:9000",
 		"ALPHONE_WEB_DIR":                  "/srv/alphone/web",
 		"ALPHONE_TRUSTED_PROXIES":          "10.0.0.0/8,192.168.0.0/16",
+		"ALPHONE_WEBHOOK_ALLOWED_HOSTS":    "127.0.0.1/32,n8n:5678",
 		"ALPHONE_DEV_GRAPHIQL":             "1",
 		"ALPHONE_TENANT_MACHINE_GRACE":     "72h",
 		"ALPHONE_TENANTS_HELD":             "8",
@@ -226,6 +227,10 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 		"an opening page in words": {"ALPHONE_LIST_PAGE_SIZE", "twenty", "must be a whole number"},
 		"a locale in words": {
 			"ALPHONE_FORMAT_LOCALE", "not a locale", "must be a BCP 47 language tag such as es-ES or en-GB",
+		},
+		"a webhook host without a port": {
+			"ALPHONE_WEBHOOK_ALLOWED_HOSTS", "127.0.0.1/32,n8n",
+			"must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678",
 		},
 	}
 	for testName, tt := range tests {

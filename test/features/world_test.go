@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -60,6 +61,7 @@ type worldKey struct{}
 // world holds everything one scenario needs, torn down when it ends.
 type world struct {
 	t            *testing.T
+	graph        *graphres.Resolver
 	pool         *pgxpool.Pool
 	tasks        *postgres.TaskStore
 	contacts     *postgres.ContactStore
@@ -85,6 +87,7 @@ type world struct {
 	memberValue  string
 	memberID     uuid.UUID
 	status       int
+	cookies      []*http.Cookie
 	relay        *smtpmock.Server
 	invitedValue string
 	entryIDs     map[string]string
@@ -136,7 +139,8 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		t.Fatalf("building the scenario mailer: %v", err)
 	}
 	inviteConfig := authkit.InvitesConfig{Store: users}
-	root, err := graphroot.FromPlugins(&graphres.Resolver{
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	graph := &graphres.Resolver{
 		Version:      "test",
 		Contacts:     contacts,
 		Tasks:        tasks,
@@ -155,8 +159,9 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
-		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
-	}, registered)
+		Logger:       quiet,
+	}
+	root, err := graphroot.FromPlugins(graph, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
 	}
@@ -185,11 +190,13 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Tokens:       tokens,
 		FieldSources: []sdk.FieldSource{fieldsPlugin},
 		Version:      "test",
+		Logger:       quiet,
 	}))
 	t.Cleanup(srv.Close)
 
 	return &world{
 		t:        t,
+		graph:    graph,
 		pool:     pool,
 		tasks:    tasks,
 		contacts: contacts,

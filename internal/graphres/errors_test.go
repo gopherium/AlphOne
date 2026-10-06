@@ -47,6 +47,7 @@ func TestPresentErrorMapsDomainErrors(t *testing.T) {
 		{"invalid priority", task.ErrInvalidPriority, "VALIDATION"},
 		{"empty contact name", contact.ErrEmptyName, "VALIDATION"},
 		{"invalid webhook url", webhook.ErrInvalidURL, "VALIDATION"},
+		{"internal webhook url", webhook.ErrInternalURL, "VALIDATION"},
 		{"unknown event name", event.ErrUnknownName, "VALIDATION"},
 		{"invalid scalar input", fmt.Errorf("%w: bad date", scalar.ErrInvalid), "VALIDATION"},
 		{"contact not found", contact.ErrNotFound, "NOT_FOUND"},
