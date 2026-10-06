@@ -75,6 +75,11 @@ server, because a watcher on `:latest` applies it on its own.
   `Host` through unchanged, or such a browser is refused on AlphOne's
   own pages too. `X-Forwarded-Host` is not read. See
   [Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
+- The command line was rebuilt. The image still starts `serve` by
+  itself, but a `command:` or script of your own that ran `alphone`
+  with no command now only lists the commands, so it needs `serve`.
+  `createadmin` and `grantrole` are refused under their old names, see
+  [Old names](/self-hosting/commands/#old-names).
 
 ## Rolling back
 
