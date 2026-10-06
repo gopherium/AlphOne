@@ -37,6 +37,11 @@ func (emptyQueue) SettleDelivery(context.Context, uuid.UUID, string, time.Time, 
 	return nil
 }
 
+// OwnerDisabled reports every owner enabled.
+func (emptyQueue) OwnerDisabled(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
+}
+
 func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	t.Parallel()
 
