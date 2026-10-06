@@ -22,7 +22,7 @@ licence, and point it at the API.
 
 - An n8n instance you administer, self hosted or cloud
 - AlphOne 0.7.0 or newer, reachable from n8n over HTTP
-- An AlphOne login, to mint a token
+- An AlphOne admin account, to mint the token the trigger uses
 
 :::caution[Version 0.3.0 of the node needs AlphOne 0.7.0]
 From 0.3.0 the node talks to AlphOne over GraphQL, which is one endpoint you
@@ -61,6 +61,14 @@ Those four cover this guide: `meta:read` for the credential test, `webhooks:writ
 for the trigger to register and remove its subscription, `tasks:write` to create
 tasks, and `contacts:read` to look contacts up. Drop any your workflow does not
 need.
+
+The **AlphOne Trigger** node creates, lists and deletes its subscription with
+this token, and `webhooks:write` alone is not enough for that. The token's
+account must also hold the `manage_webhooks` capability, which in a stock
+install means an admin, so mint the token for an admin's account. A member's
+token still works for the **AlphOne** action nodes, such as tasks and
+contacts. To keep those on a member's token, create a second credential with
+an admin's token and pick it on the **AlphOne Trigger** node only.
 
 The secret prints once and is stored only as a hash. Copy it now,
 because it cannot be recovered, only replaced.
@@ -273,6 +281,7 @@ address, see [When n8n runs next to AlphOne](#when-n8n-runs-next-to-alphone).
 | `invalid token` | The token expired, was revoked, or the token id was pasted instead of the secret. Run `alphone token:list -email you@example.com` to see its expiry. Only the value starting `a1_` authenticates |
 | `scope required: contacts:write` | The token was not granted that area. Mint a replacement with the `-scope` it needs, tokens cannot be widened in place |
 | Nothing arrives after publishing | No subscription exists. Ask for `webhooks` and republish |
+| Publishing a workflow with an **AlphOne Trigger** fails with `admin required` | The credential's token belongs to an account without `manage_webhooks`, which in a stock install means it is not an admin. Mint a token for an admin's account and use it in the trigger's credential |
 | A subscription exists but nothing arrives, AlphOne logs `refusing a webhook delivery to an internal address` | n8n's webhook url is on your own network. Add its host and port to `ALPHONE_WEBHOOK_ALLOWED_HOSTS`, see [above](#when-n8n-runs-next-to-alphone) |
 | Publishing fails with `url names an internal address` | n8n's webhook url is an internal IP address. Add that address and its port, such as `10.0.0.5:5678`, to `ALPHONE_WEBHOOK_ALLOWED_HOSTS`, or set `WEBHOOK_URL` to a public `https` address. A host name in its place passes this check, but every delivery is then refused until its entry is listed |
 | Deliveries stuck `pending` with `subscriber answered 301` or another `3xx` | n8n's webhook url forwards somewhere else and AlphOne never follows. Set `WEBHOOK_URL` to the final address |

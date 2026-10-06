@@ -86,6 +86,7 @@ type world struct {
 	sessionValue string
 	memberValue  string
 	memberID     uuid.UUID
+	ownedHooks   map[string]uuid.UUID
 	status       int
 	cookies      []*http.Cookie
 	relay        *smtpmock.Server

@@ -179,7 +179,13 @@ Create an **AlphOne API** credential:
 | Field | Value |
 | ----- | ----- |
 | Base URL | `http://host.docker.internal:8080` |
-| API Token | a secret from `alphone token:create -email you@example.com -name n8n -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read`. Without `-scope` it holds every area, and without `-ttl` it lasts ninety days by default, set with `ALPHONE_TOKEN_TTL_DAYS` |
+| API Token | a secret from `alphone token:create -email admin@example.com -name n8n -scope meta:read -scope webhooks:write -scope tasks:write -scope contacts:read`. Without `-scope` it holds every area, and without `-ttl` it lasts ninety days by default, set with `ALPHONE_TOKEN_TTL_DAYS` |
+
+The token is minted for the seeded admin, `admin@example.com`, because
+registering a trigger needs the `manage_webhooks` capability and only an
+admin holds it. A token for the member `maria@example.com` works for tasks
+and contacts, but activating a trigger with it fails with `admin required`.
+If you created your own admin instead of seeding, use its address.
 
 Press the test button. It asks AlphOne for its version and should report
 success. `localhost` inside the container means the container itself, so

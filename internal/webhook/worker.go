@@ -148,7 +148,7 @@ func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
 	w.settle(ctx, d, StatusPending, time.Now().UTC().Add(Backoff(d.Attempts)), err.Error())
 }
 
-// deliver posts d once its owner reads as enabled right before the post, reporting [ErrOwnerDisabled] otherwise.
+// deliver posts d when its owner is enabled, reporting [ErrOwnerDisabled] when it is not.
 func (w *Worker) deliver(ctx context.Context, d ClaimedDelivery) error {
 	disabled, err := w.queue.OwnerDisabled(ctx, d.SubscriptionID)
 	if err != nil {

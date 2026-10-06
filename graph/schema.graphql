@@ -186,7 +186,7 @@ type Mutation {
 	updateTask(id: UUID!, input: UpdateTaskInput!): Task! @scope(area: "tasks", write: true)
 	apiTokenCreate(name: String!, scopes: [String!]!, ttlDays: Int): ApiTokenSecret! @scope(area: "tokens", write: true)
 	apiTokenRevoke(id: UUID!): Boolean! @scope(area: "tokens", write: true)
-	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true)
+	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true, capability: "manage_webhooks")
 	deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
 	defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition! @scope(area: "fields", write: true)
 	archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
@@ -285,6 +285,12 @@ type Webhook {
 	url: String!
 	events: [String!]!
 	createdAt: DateTime!
+	owner: WebhookOwner
+}
+type WebhookOwner {
+	id: UUID!
+	name: String!
+	email: String!
 }
 type WhatsAppConversation {
 	id: UUID!

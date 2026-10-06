@@ -64,6 +64,19 @@ type Subscription struct {
 	CreatedAt time.Time
 }
 
+// Owner is the account a listed subscription belongs to.
+type Owner struct {
+	ID    uuid.UUID
+	Name  string
+	Email string
+}
+
+// Listed is a subscription together with its owner, nil once the owner's account is gone.
+type Listed struct {
+	Subscription
+	Owner *Owner
+}
+
 // NewSubscription returns a subscription delivering events to rawURL.
 func NewSubscription(userID uuid.UUID, rawURL string, events []event.Name) (Subscription, error) {
 	if err := validateURL(rawURL); err != nil {

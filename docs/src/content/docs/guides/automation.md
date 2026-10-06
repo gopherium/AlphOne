@@ -38,6 +38,9 @@ alphone token:create -email you@example.com -name "n8n production" \
 
 An engine needs `meta:read` for its credential test and `webhooks:write` for any
 trigger that registers a subscription, beside the areas its own steps touch.
+The scope alone does not register one. Creating a subscription also needs the
+`manage_webhooks` capability on the token's account, which in a stock install
+only an admin holds, so mint a trigger's token for an admin's account.
 
 The secret prints once. Copy it now, because it is stored only as a hash
 and cannot be recovered, only replaced.
@@ -46,7 +49,7 @@ Each `-scope` names an area the token may act in, and whether it may
 write there. Area names are exact, so a typo is refused when you mint
 the token. Without `-scope` the token gets every area, though it still
 never reaches further than the person who created it, so a token minted
-by a member does not gain user management. Without `-ttl`
+by a member gains neither user management nor creating webhooks. Without `-ttl`
 it lasts ninety days by default, set with `ALPHONE_TOKEN_TTL_DAYS`, then
 answers `invalid token`. Pass `-ttl never` for a token that does not
 expire.
@@ -177,8 +180,9 @@ Swap the Code node for Slack, Gmail, or Telegram to deliver it.
 
 ## Writing back
 
-A token has the same permissions as the user who created it, so an engine
-can create and update records too:
+A token has the same permissions as the user who created it. A member's
+token can create and update records, and only registering a webhook needs
+an admin's token. Creating a task looks like this:
 
 ```json
 {

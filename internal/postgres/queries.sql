@@ -195,10 +195,20 @@ INSERT INTO core.webhook_subscriptions (id, user_id, url, events, secret, create
 VALUES ($1, $2, $3, $4, $5, $6, @tenant_id);
 
 -- name: ListWebhookSubscriptionsForUser :many
-SELECT id, user_id, url, events, secret, created_at, tenant_id
-FROM core.webhook_subscriptions
-WHERE user_id = $1 AND tenant_id = @tenant_id
-ORDER BY created_at DESC, id DESC;
+SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id,
+    u.name AS owner_name, u.email AS owner_email
+FROM core.webhook_subscriptions s
+LEFT JOIN auth.users u ON u.id = s.user_id
+WHERE s.user_id = $1 AND s.tenant_id = @tenant_id
+ORDER BY s.created_at DESC, s.id DESC;
+
+-- name: ListWorkspaceWebhookSubscriptions :many
+SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id,
+    u.name AS owner_name, u.email AS owner_email
+FROM core.webhook_subscriptions s
+LEFT JOIN auth.users u ON u.id = s.user_id
+WHERE s.tenant_id = @tenant_id
+ORDER BY s.created_at DESC, s.id DESC;
 
 -- name: ListWebhookSubscriptionsForEvent :many
 SELECT s.id, s.user_id, s.url, s.events, s.secret, s.created_at, s.tenant_id
@@ -210,6 +220,10 @@ ORDER BY s.id;
 -- name: DeleteWebhookSubscription :execrows
 DELETE FROM core.webhook_subscriptions
 WHERE id = $1 AND user_id = $2 AND tenant_id = @tenant_id;
+
+-- name: DeleteWorkspaceWebhookSubscription :execrows
+DELETE FROM core.webhook_subscriptions
+WHERE id = $1 AND tenant_id = @tenant_id;
 
 -- name: CreateWebhookDelivery :exec
 INSERT INTO core.webhook_deliveries (

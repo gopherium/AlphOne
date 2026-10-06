@@ -66,11 +66,7 @@ func registerWebhookSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return nil
 	})
 
-	sc.When(`^that token registers a webhook to "([^"]*)"$`, func(ctx context.Context, address string) error {
-		return worldFrom(ctx).postGraphScoped(ctx, fmt.Sprintf(
-			`{"query":"mutation { createWebhook(url: \"%s\", events: [\"task.created\"])`+
-				` { webhook { url } secret } }"}`, address))
-	})
+	registerWebhookCreateSteps(sc)
 
 	sc.Then(`^that token lists no webhook$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
@@ -89,6 +85,15 @@ func registerWebhookSteps(sc *godog.ScenarioContext, t *testing.T) {
 
 	sc.Then(`^the webhook is refused as an internal address$`, func(ctx context.Context) error {
 		return worldFrom(ctx).refusedForReason("VALIDATION", "webhook_url_internal")
+	})
+}
+
+// registerWebhookCreateSteps binds the steps registering a webhook with the scoped token and reading the answer.
+func registerWebhookCreateSteps(sc *godog.ScenarioContext) {
+	sc.When(`^that token registers a webhook to "([^"]*)"$`, func(ctx context.Context, address string) error {
+		return worldFrom(ctx).postGraphScoped(ctx, fmt.Sprintf(
+			`{"query":"mutation { createWebhook(url: \"%s\", events: [\"task.created\"])`+
+				` { webhook { url } secret } }"}`, address))
 	})
 
 	sc.Then(`^the webhook is registered for "([^"]*)"$`, func(ctx context.Context, address string) error {

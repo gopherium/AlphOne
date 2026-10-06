@@ -117,6 +117,26 @@ func TestMigrationsIndexTheContactsByTenantAndCreationTime(t *testing.T) {
 	}
 }
 
+func TestMigrationsIndexTheWebhookSubscriptionsByTenantAndCreationTime(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+
+	var definition string
+	err := db.QueryRow(
+		`SELECT indexdef FROM pg_indexes
+		WHERE schemaname = 'core' AND tablename = 'webhook_subscriptions'
+		AND indexname = 'webhook_subscriptions_tenant_created_id_idx'`,
+	).Scan(&definition)
+	if err != nil {
+		t.Fatalf("reading webhook_subscriptions_tenant_created_id_idx: %v", err)
+	}
+
+	if !strings.HasSuffix(definition, "(tenant_id, created_at DESC, id DESC)") {
+		t.Errorf("index definition = %q, want tenant, then newest first", definition)
+	}
+}
+
 func TestMigrationsStoreContactWithIdentity(t *testing.T) {
 	t.Parallel()
 

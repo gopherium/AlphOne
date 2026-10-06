@@ -31,7 +31,7 @@ var errWriting = errors.New("role unwritable")
 
 // init declares the plugin role once, since the registry a resolver reads is the deployment's.
 func init() {
-	if err := role.Grant(stewardRole, role.ManageUsers, "manage_reports"); err != nil {
+	if err := role.Grant(stewardRole, role.ManageUsers, role.ManageWebhooks, "manage_reports"); err != nil {
 		panic(err)
 	}
 }
@@ -241,8 +241,9 @@ func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
 	}
 	client.MustPost(`{ me { capabilities grantable } }`, &answered)
 
-	if !slices.Equal(answered.Me.Capabilities, []string{string(role.ManageUsers)}) {
-		t.Errorf("capabilities = %v, want the admin's manage_users", answered.Me.Capabilities)
+	want := []string{string(role.ManageUsers), string(role.ManageWebhooks)}
+	if !slices.Equal(answered.Me.Capabilities, want) {
+		t.Errorf("capabilities = %v, want the admin's %v", answered.Me.Capabilities, want)
 	}
 	if !slices.Contains(answered.Me.Grantable, role.Admin.String()) {
 		t.Errorf("grantable = %v, want an admin able to grant admin", answered.Me.Grantable)

@@ -252,10 +252,17 @@ type User struct {
 }
 
 type Webhook struct {
-	ID        uuid.UUID `json:"id"`
-	URL       string    `json:"url"`
-	Events    []string  `json:"events"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        uuid.UUID     `json:"id"`
+	URL       string        `json:"url"`
+	Events    []string      `json:"events"`
+	CreatedAt time.Time     `json:"createdAt"`
+	Owner     *WebhookOwner `json:"owner,omitempty"`
+}
+
+type WebhookOwner struct {
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Email string    `json:"email"`
 }
 
 type WhatsAppConversation struct {

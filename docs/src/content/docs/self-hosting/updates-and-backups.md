@@ -68,6 +68,13 @@ server, because a watcher on `:latest` applies it on its own.
 - A receiver that answers with a redirect, any `3xx`, fails the
   delivery attempt. Subscribe the final address.
 - Disabling an account stops its webhooks.
+- Only admins can create webhooks. A member's session or token is
+  refused with `admin required`, so an n8n trigger whose credential
+  holds a member's token stops activating until the credential holds an
+  admin's token. Webhooks that members created before keep firing, and
+  nothing is deleted. Admins now see and can delete every webhook in
+  their workspace, so review the list with the
+  [`webhooks` query](/reference/webhooks/#listing-them) after the update.
 - A browser write sent from a page at another origin is refused with
   `request_cross_origin`. For a browser that does not send
   `Sec-Fetch-Site`, such as Safari before version 16.4, AlphOne

@@ -18,11 +18,25 @@ func TestAnAdminManagesUsers(t *testing.T) {
 	}
 }
 
+func TestAnAdminManagesWebhooks(t *testing.T) {
+	t.Parallel()
+
+	if !role.Can(role.Admin, role.ManageWebhooks) {
+		t.Error("Can(admin, manage_webhooks) = false, want true")
+	}
+	if got := role.CapabilitiesOf(role.Admin); !slices.Equal(got, []string{"manage_users", "manage_webhooks"}) {
+		t.Errorf("CapabilitiesOf(admin) = %v, want manage_users then manage_webhooks", got)
+	}
+}
+
 func TestAMemberHoldsNoCapability(t *testing.T) {
 	t.Parallel()
 
 	if role.Can(role.Member, role.ManageUsers) {
 		t.Error("Can(member, manage_users) = true, want false")
+	}
+	if role.Can(role.Member, role.ManageWebhooks) {
+		t.Error("Can(member, manage_webhooks) = true, want false")
 	}
 	if got := role.CapabilitiesOf(role.Member); got == nil || len(got) != 0 {
 		t.Errorf("CapabilitiesOf(member) = %v, want an empty list a plugin can range over", got)
@@ -61,11 +75,12 @@ func TestCapabilitiesNamesEveryCapabilityAnyRoleHolds(t *testing.T) {
 		t.Fatalf("Grant() error = %v, want nil", err)
 	}
 
-	if got := registry.Capabilities(); !slices.Equal(got, []role.Capability{"manage_reports", role.ManageUsers}) {
+	want := []role.Capability{"manage_reports", role.ManageUsers, role.ManageWebhooks}
+	if got := registry.Capabilities(); !slices.Equal(got, want) {
 		t.Errorf("Capabilities() = %v, want each capability once, in name order", got)
 	}
-	if got := role.Capabilities(); !slices.Equal(got, []role.Capability{role.ManageUsers}) {
-		t.Errorf("Capabilities() = %v, want the core capability alone", got)
+	if got := role.Capabilities(); !slices.Equal(got, []role.Capability{role.ManageUsers, role.ManageWebhooks}) {
+		t.Errorf("Capabilities() = %v, want the core capabilities alone", got)
 	}
 }
 
@@ -121,8 +136,9 @@ func TestAPluginWidensACoreRole(t *testing.T) {
 	if !registry.Can(role.Admin, role.ManageUsers) {
 		t.Error("Can(admin, manage_users) = false, want the core capability kept")
 	}
-	if got := registry.CapabilitiesOf(role.Admin); !slices.Equal(got, []string{"manage_users", "manage_reports"}) {
-		t.Errorf("CapabilitiesOf(admin) = %v, want the core capability then the added one", got)
+	want := []string{"manage_users", "manage_webhooks", "manage_reports"}
+	if got := registry.CapabilitiesOf(role.Admin); !slices.Equal(got, want) {
+		t.Errorf("CapabilitiesOf(admin) = %v, want the core capabilities then the added one", got)
 	}
 }
 
@@ -158,11 +174,27 @@ func TestGrantRefusesARoleWithNoName(t *testing.T) {
 	}
 }
 
+func TestARoleManagingOnlyUsersNoLongerOutranksAnAdmin(t *testing.T) {
+	t.Parallel()
+
+	registry := role.NewRegistry()
+	if err := registry.Grant("keeper", role.ManageUsers); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+
+	if registry.Outranks("keeper", role.Admin) {
+		t.Error("Outranks(keeper, admin) = true, want a role lacking manage_webhooks below an admin")
+	}
+	if !registry.Outranks(role.Admin, "keeper") {
+		t.Error("Outranks(admin, keeper) = false, want an admin to reach a role holding less")
+	}
+}
+
 func TestOutranksHoldsEveryCapabilityOfTheTarget(t *testing.T) {
 	t.Parallel()
 
 	registry := role.NewRegistry()
-	if err := registry.Grant("steward", role.ManageUsers, "manage_reports"); err != nil {
+	if err := registry.Grant("steward", role.ManageUsers, role.ManageWebhooks, "manage_reports"); err != nil {
 		t.Fatalf("Grant() error = %v, want nil", err)
 	}
 
@@ -191,7 +223,7 @@ func TestGrantableListsTheRolesTheCallerOutranksWidestFirst(t *testing.T) {
 	t.Parallel()
 
 	registry := role.NewRegistry()
-	if err := registry.Grant("steward", role.ManageUsers, "manage_reports"); err != nil {
+	if err := registry.Grant("steward", role.ManageUsers, role.ManageWebhooks, "manage_reports"); err != nil {
 		t.Fatalf("Grant() error = %v, want nil", err)
 	}
 

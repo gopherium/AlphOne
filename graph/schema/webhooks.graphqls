@@ -1,8 +1,15 @@
+type WebhookOwner {
+  id: UUID!
+  name: String!
+  email: String!
+}
+
 type Webhook {
   id: UUID!
   url: String!
   events: [String!]!
   createdAt: DateTime!
+  owner: WebhookOwner
 }
 
 type CreateWebhookPayload {
@@ -16,6 +23,6 @@ extend type Query {
 
 extend type Mutation {
   createWebhook(url: String!, events: [String!]!): CreateWebhookPayload!
-    @scope(area: "webhooks", write: true)
+    @scope(area: "webhooks", write: true, capability: "manage_webhooks")
   deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
 }

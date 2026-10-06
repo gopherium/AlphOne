@@ -44,12 +44,12 @@ func (s *WebhookStore) CreateSubscription(ctx context.Context, sub webhook.Subsc
 	return nil
 }
 
-// ListSubscriptionsForUser returns the subscriptions of one user, newest
+// ListSubscriptionsForUser returns the subscriptions of one user with their owner, newest
 // first.
 func (s *WebhookStore) ListSubscriptionsForUser(
 	ctx context.Context,
 	userID uuid.UUID,
-) ([]webhook.Subscription, error) {
+) ([]webhook.Listed, error) {
 	rows, err := s.queries.ListWebhookSubscriptionsForUser(ctx,
 		db.ListWebhookSubscriptionsForUserParams{
 			UserID: userID, TenantID: sdk.TenantOrDefault(ctx),
@@ -57,7 +57,40 @@ func (s *WebhookStore) ListSubscriptionsForUser(
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list webhook subscriptions: %w", err)
 	}
-	return subscriptionsFromRows(rows), nil
+	listed := make([]webhook.Listed, 0, len(rows))
+	for _, row := range rows {
+		listed = append(listed, listedFromRow(db.ListWorkspaceWebhookSubscriptionsRow(row)))
+	}
+	return listed, nil
+}
+
+// ListWorkspaceSubscriptions returns every subscription of the workspace with its owner, newest first.
+func (s *WebhookStore) ListWorkspaceSubscriptions(ctx context.Context) ([]webhook.Listed, error) {
+	rows, err := s.queries.ListWorkspaceWebhookSubscriptions(ctx, sdk.TenantOrDefault(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("postgres: list workspace webhook subscriptions: %w", err)
+	}
+	listed := make([]webhook.Listed, 0, len(rows))
+	for _, row := range rows {
+		listed = append(listed, listedFromRow(row))
+	}
+	return listed, nil
+}
+
+// listedFromRow maps a listed row onto a subscription and its owner, nil when the owner's account is gone.
+func listedFromRow(row db.ListWorkspaceWebhookSubscriptionsRow) webhook.Listed {
+	listed := webhook.Listed{Subscription: webhook.Subscription{
+		ID:        row.ID,
+		UserID:    row.UserID,
+		URL:       row.Url,
+		Events:    eventNamesFromText(row.Events),
+		Secret:    row.Secret,
+		CreatedAt: row.CreatedAt,
+	}}
+	if row.OwnerEmail.Valid {
+		listed.Owner = &webhook.Owner{ID: row.UserID, Name: row.OwnerName.String, Email: row.OwnerEmail.String}
+	}
+	return listed
 }
 
 // ListSubscriptionsForEvent returns every subscription receiving the named
@@ -86,6 +119,22 @@ func (s *WebhookStore) DeleteSubscription(ctx context.Context, userID, id uuid.U
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: delete webhook subscription: %w", err)
+	}
+	if deleted == 0 {
+		return webhook.ErrNotFound
+	}
+	return nil
+}
+
+// DeleteWorkspaceSubscription removes any subscription of the workspace, or reports
+// [webhook.ErrNotFound] when the workspace holds no such subscription.
+func (s *WebhookStore) DeleteWorkspaceSubscription(ctx context.Context, id uuid.UUID) error {
+	deleted, err := s.queries.DeleteWorkspaceWebhookSubscription(ctx, db.DeleteWorkspaceWebhookSubscriptionParams{
+		ID:       id,
+		TenantID: sdk.TenantOrDefault(ctx),
+	})
+	if err != nil {
+		return fmt.Errorf("postgres: delete workspace webhook subscription: %w", err)
 	}
 	if deleted == 0 {
 		return webhook.ErrNotFound

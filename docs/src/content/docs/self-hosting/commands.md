@@ -332,7 +332,11 @@ is refused, and so is a change to an account whose role carries one,
 with a line such as
 `the role <role> carries <capability>, which the account <address> lacks`.
 With the roles AlphOne ships, an admin reaches every account. A role a
-plugin declares can carry more than admin does.
+plugin declares can carry more than admin does. It reaches an admin's
+account, or gives the admin role, only when it also carries every
+capability admin carries, which are `manage_users` and
+`manage_webhooks`. A plugin role carrying `manage_users` alone can
+change members but not admins.
 
 The last enabled admin always stays. When two changes race, the one that
 would leave no enabled admin is refused with
@@ -503,7 +507,7 @@ a notice first, such as
 | Before | Now |
 | --- | --- |
 | `alphone` alone started the server | `alphone serve`. A run with no command lists the commands. |
-| `alphone createadmin` | `alphone account:create-admin`, which also needs `-role`. The old name exits 2. |
+| `alphone createadmin` | `alphone account:create-admin`. Pass `-role admin`. The old name exits 2. |
 | `alphone grantrole` | `alphone account:grant-role`, which also needs `-as` and `-yes`. The old name exits 2. |
 | `alphone seed` | `alphone seed -yes`. Without `-yes` it only previews. |
 | `alphone token create` | `alphone token:create`. The old spelling still works. |
