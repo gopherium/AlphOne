@@ -191,18 +191,19 @@ is no setting to turn the check off.
 
 A browser write is judged in one of two ways:
 
-- A current browser says where the page stood in `Sec-Fetch-Site`. A
-  write from AlphOne's own pages passes, anything else is refused.
-- A browser from before 2023 does not send that header and is judged by
-  its `Origin`. Its host and port must match the `Host` header of the
-  write. The scheme is not compared.
+- A browser that sends `Sec-Fetch-Site` says there where the page
+  stood. A write from AlphOne's own pages passes, anything else is
+  refused.
+- A browser that does not send that header, such as Safari before
+  version 16.4, is judged by its `Origin`. Its host and port must match
+  the `Host` header of the write. The scheme is not compared.
 
 That second way is why a reverse proxy in front of AlphOne should pass
 the visitor's `Host` header through unchanged. AlphOne never reads
 `X-Forwarded-Host` for this check. Caddy and Traefik keep the `Host`
 header by default, and nginx needs `proxy_set_header Host $http_host`,
 which keeps the port as well. Sending `Strict-Transport-Security` from
-the proxy is optional. It keeps those older browsers from loading one of
+the proxy is optional. It keeps those browsers from loading one of
 your pages over plain `http`, and the [install guide](/self-hosting/install/)
 explains what it commits you to.
 

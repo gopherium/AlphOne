@@ -165,8 +165,9 @@ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 Use `$http_host` rather than `$host`. It passes the port too, which
 matters when AlphOne answers on a port other than 443.
 
-The `Host` header matters only for browsers from before 2023, which do
-not send `Sec-Fetch-Site`. AlphOne compares their `Origin` with `Host`,
+The `Host` header matters only for browsers that do not send
+`Sec-Fetch-Site`, such as Safari before version 16.4. AlphOne compares
+their `Origin` with `Host`,
 so a proxy that renames the host makes AlphOne refuse their saves, see
 [Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
 

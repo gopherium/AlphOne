@@ -69,11 +69,12 @@ server, because a watcher on `:latest` applies it on its own.
   delivery attempt. Subscribe the final address.
 - Disabling an account stops its webhooks.
 - A browser write sent from a page at another origin is refused with
-  `request_cross_origin`. A browser from before 2023 does not send
-  `Sec-Fetch-Site`, so AlphOne compares its `Origin` with the `Host`
-  header. Behind a reverse proxy, the proxy has to pass the visitor's
-  `Host` through unchanged, or such a browser is refused on AlphOne's
-  own pages too. `X-Forwarded-Host` is not read. See
+  `request_cross_origin`. For a browser that does not send
+  `Sec-Fetch-Site`, such as Safari before version 16.4, AlphOne
+  compares its `Origin` with the `Host` header. Behind a reverse proxy,
+  the proxy has to pass the visitor's `Host` through unchanged, or such
+  a browser is refused on AlphOne's own pages too. `X-Forwarded-Host`
+  is not read. See
   [Cross-origin writes](/self-hosting/configuration/#cross-origin-writes).
 - The command line was rebuilt. The image still starts `serve` by
   itself, but a `command:` or script of your own that ran `alphone`
