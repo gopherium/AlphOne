@@ -63,7 +63,7 @@ func roleOf(t *testing.T, databaseURL, email string) string {
 // stewardDeclaring registers one plugin declaring the steward role.
 func stewardDeclaring(sdk.Deps) ([]sdk.Plugin, error) {
 	return []sdk.Plugin{rolePlugin{declared: []sdk.RoleDeclaration{
-		{Name: "steward", Capabilities: []string{string(role.ManageUsers)}},
+		{Name: "steward", Capabilities: []string{string(role.ManageUsers), string(role.ManageWebhooks)}},
 	}}}, nil
 }
 
@@ -428,7 +428,8 @@ func TestTheRoleTableCountsEveryRoleThatManagesUsersAsPrivileged(t *testing.T) {
 	if want := []string{role.Admin.String(), "steward"}; !slices.Equal(held.Privileged, want) {
 		t.Errorf("privileged roles = %v, want %v, every role carrying manage_users", held.Privileged, want)
 	}
-	if want := []string{string(role.ManageUsers)}; !slices.Equal(held.Capabilities["steward"], want) {
+	want := []string{string(role.ManageUsers), string(role.ManageWebhooks)}
+	if !slices.Equal(held.Capabilities["steward"], want) {
 		t.Errorf("the steward role carries %v, want %v", held.Capabilities["steward"], want)
 	}
 }
