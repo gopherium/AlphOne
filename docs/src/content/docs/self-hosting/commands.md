@@ -332,7 +332,11 @@ is refused, and so is a change to an account whose role carries one,
 with a line such as
 `the role <role> carries <capability>, which the account <address> lacks`.
 With the roles AlphOne ships, an admin reaches every account. A role a
-plugin declares can carry more than admin does.
+plugin declares can carry more than admin does. It reaches an admin's
+account, or gives the admin role, only when it also carries every
+capability admin carries, which are `manage_users` and
+`manage_webhooks`. A plugin role carrying `manage_users` alone can
+change members but not admins.
 
 The last enabled admin always stays. When two changes race, the one that
 would leave no enabled admin is refused with

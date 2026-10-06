@@ -100,16 +100,17 @@ Always read `errors`. A 200 does not mean it worked.
 ## Roles
 
 An account holds one role, and the role decides what the account may do. A stock
-deployment names two. An admin manages users. A member works the product, which
-is contacts, tasks, and whatever your plugins add. A plugin may declare roles of
-its own, so do not assume the list stops at two.
+deployment names two. An admin manages users and webhooks. A member works the
+product, which is contacts, tasks, and whatever your plugins add. A plugin may
+declare roles of its own, so do not assume the list stops at two.
 
 An account can also hold no role at all, which happens to accounts made before
 roles existed. `me` answers an empty `role` and an empty `capabilities` for it.
 Such an account still signs in, still reads `me` and `logout`, and still works
-every field that names no capability, which today is the whole product. What it
-cannot reach is the fields a capability guards, which is user management. Give
-it a role and it gains whatever that role holds.
+every field that names no capability, which today is most of the product. What
+it cannot reach is the fields a capability guards, which today are user
+management and creating webhooks. Give it a role and it gains whatever that
+role holds.
 
 What a role may do is a set of named capabilities. `me` answers the ones the
 calling account holds, so a client asks what it may do rather than guessing from
@@ -143,6 +144,13 @@ Three operations need the `manage_users` capability: `createUser`,
   "data": null
 }
 ```
+
+`createWebhook` needs the `manage_webhooks` capability, which the admin role
+holds in a stock install. An account without it is refused the same way, with
+`scope` naming `webhooks:write` and `capability` naming `manage_webhooks`. The
+same capability widens `webhooks` and `deleteWebhook`. A holder lists and
+revokes every webhook of its workspace, and any other account only the ones it
+created, see [webhooks](/reference/webhooks/#managing-subscriptions).
 
 The message reads `admin required` whichever capability was missing, because it
 has said that since before capabilities existed and clients match on it. Read

@@ -129,15 +129,24 @@ lose them.
 
 Subscriptions are managed on the graph, with `createWebhook`, `webhooks` and
 `deleteWebhook`. Every operation needs a credential, see
-[authenticating](/reference/graphql-api/#authenticating). A subscription
-belongs to the user who created it, who is the only one who can see or revoke
-it.
+[authenticating](/reference/graphql-api/#authenticating).
 
-Disabling that account stops its subscriptions. Events published while it is
-disabled are not delivered to them, and enabling the account again resumes
-them. A delivery queued earlier that comes due while the account is disabled is
-dropped instead of sent. It fails with `webhook: owner disabled` in its
-`last_error`, and enabling the account again does not bring it back.
+Creating a subscription needs the `manage_webhooks` capability, which only the
+admin role holds in a stock install, see [roles](/reference/graphql-api/#roles).
+A subscription belongs to the account that created it. An account holding
+`manage_webhooks` sees and revokes every subscription of its workspace. Any
+other account sees and revokes only its own.
+
+A subscription keeps firing whatever its owner's role. One created by an
+account that does not hold `manage_webhooks`, such as a member's from an
+earlier release, still delivers, and an account holding the capability sees it
+and can revoke it.
+
+Disabling the owner's account stops its subscriptions. Events published while
+it is disabled are not delivered to them, and enabling the account again
+resumes them. A delivery queued earlier that comes due while the account is
+disabled is dropped instead of sent. It fails with `webhook: owner disabled` in
+its `last_error`, and enabling the account again does not bring it back.
 
 ### Creating one
 
@@ -161,6 +170,12 @@ mutation {
 The `secret` appears here and nowhere else. Store it now. To replace a
 lost one, revoke the subscription and create another.
 
+An account without `manage_webhooks` is refused with the message
+`admin required`, the code `UNAUTHORIZED` and the reason `capability_missing`.
+The error's `scope` extension names `webhooks:write` and its `capability`
+extension names `manage_webhooks`. A token also needs the `webhooks:write`
+scope, and one without it is refused with `scope required: webhooks:write`.
+
 An unusable URL or an event name AlphOne does not publish is refused with the
 code `VALIDATION`.
 
@@ -180,9 +195,19 @@ query {
     url
     events
     createdAt
+    owner {
+      id
+      name
+      email
+    }
   }
 }
 ```
+
+An account holding `manage_webhooks` lists every subscription of its
+workspace, newest first. Any other account lists only its own. `owner` names
+the account that created each one, and is null once that account no longer
+exists.
 
 Secrets are never listed.
 
@@ -195,8 +220,10 @@ mutation ($id: UUID!) {
 ```
 
 Revoking answers `true` and drops any deliveries still queued for the
-subscription. Revoking someone else's is refused with the code `NOT_FOUND`,
-the same as one that never existed.
+subscription. An account holding `manage_webhooks` revokes any subscription of
+its workspace. Any other account that tries to revoke one it did not create is
+refused with the code `NOT_FOUND` and the reason `webhook_not_found`, the same
+as one that never existed.
 
 ## Notes for self-hosters
 
