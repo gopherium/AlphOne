@@ -35,6 +35,25 @@ type fakeWorkerQueue struct {
 	settled  []settlement
 	claimErr error
 	claims   int
+	disabled map[uuid.UUID]bool
+	ownerErr error
+}
+
+// OwnerDisabled reports whether the subscription's owner was disabled, or the configured lookup failure.
+func (q *fakeWorkerQueue) OwnerDisabled(_ context.Context, subscriptionID uuid.UUID) (bool, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.disabled[subscriptionID], q.ownerErr
+}
+
+// disable marks the owner of the subscription disabled from now on.
+func (q *fakeWorkerQueue) disable(subscriptionID uuid.UUID) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.disabled == nil {
+		q.disabled = map[uuid.UUID]bool{}
+	}
+	q.disabled[subscriptionID] = true
 }
 
 // ClaimDueDeliveries returns the pending deliveries and empties them, or the claim failure.
@@ -327,28 +346,62 @@ func TestWorkerSweepsWhenPoked(t *testing.T) {
 	t.Error("a poke did not drain the queue")
 }
 
-func TestWorkerFailsADeliveryOfADisabledOwnerWithoutPostingIt(t *testing.T) {
+func TestWorkerChecksTheOwnerJustBeforeEachPost(t *testing.T) {
 	t.Parallel()
 
-	subscriber, posts := countingSubscriber(t)
-	stopped := claimed(t, subscriber.URL, "whsec_a", 1)
-	stopped.OwnerDisabled = true
-	queue := &fakeWorkerQueue{pending: []webhook.ClaimedDelivery{stopped}}
+	queue := &fakeWorkerQueue{}
+	later := uuid.Must(uuid.NewV7())
+	var posts atomic.Int32
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		posts.Add(1)
+		queue.disable(later)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+	first := claimed(t, subscriber.URL, "whsec_a", 1)
+	first.SubscriptionID = uuid.Must(uuid.NewV7())
+	second := claimed(t, subscriber.URL, "whsec_a", 1)
+	second.SubscriptionID = later
+	queue.pending = []webhook.ClaimedDelivery{first, second}
 	worker, logged := newWorker(queue)
 
 	worker.Sweep(t.Context())
 
-	if got := posts.Load(); got != 0 {
-		t.Errorf("subscriber saw %d posts, want none for a disabled owner", got)
+	if got := posts.Load(); got != 1 {
+		t.Errorf("subscriber saw %d posts, want only the one sent before its owner was disabled", got)
 	}
 	settled := queue.settlements()
-	if len(settled) != 1 || settled[0].Status != webhook.StatusFailed {
-		t.Fatalf("settlements = %+v, want the delivery settled as failed", settled)
+	if len(settled) != 2 || settled[0].Status != webhook.StatusDelivered || settled[1].Status != webhook.StatusFailed {
+		t.Fatalf("settlements = %+v, want the first delivered and the second failed", settled)
 	}
-	if settled[0].LastError != webhook.ErrOwnerDisabled.Error() {
-		t.Errorf("last_error = %q, want %q", settled[0].LastError, webhook.ErrOwnerDisabled.Error())
+	if settled[1].LastError != webhook.ErrOwnerDisabled.Error() {
+		t.Errorf("last_error = %q, want %q", settled[1].LastError, webhook.ErrOwnerDisabled.Error())
 	}
 	if !strings.Contains(logged.String(), "dropping a webhook delivery of a disabled owner") {
 		t.Errorf("log = %q, want the dropped delivery noted", logged.String())
+	}
+}
+
+func TestWorkerRetriesLaterWhenTheOwnersStateCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	subscriber, posts := countingSubscriber(t)
+	queue := &fakeWorkerQueue{
+		pending:  []webhook.ClaimedDelivery{claimed(t, subscriber.URL, "whsec_a", 1)},
+		ownerErr: errors.New("connection reset"),
+	}
+	worker, _ := newWorker(queue)
+
+	worker.Sweep(t.Context())
+
+	if got := posts.Load(); got != 0 {
+		t.Errorf("subscriber saw %d posts, want none while the owner's state is unknown", got)
+	}
+	settled := queue.settlements()
+	if len(settled) != 1 || settled[0].Status != webhook.StatusPending {
+		t.Fatalf("settlements = %+v, want the delivery left pending for a later attempt", settled)
+	}
+	if !strings.Contains(settled[0].LastError, "connection reset") {
+		t.Errorf("last_error = %q, want the lookup failure recorded", settled[0].LastError)
 	}
 }

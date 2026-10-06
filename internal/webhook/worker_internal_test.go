@@ -34,6 +34,11 @@ func (q *countingQueue) SettleDelivery(_ context.Context, _ uuid.UUID, _ string,
 	return q.settleErr
 }
 
+// OwnerDisabled reports every owner enabled.
+func (q *countingQueue) OwnerDisabled(context.Context, uuid.UUID) (bool, error) {
+	return false, nil
+}
+
 // sweeps returns how many times the queue was claimed from.
 func (q *countingQueue) sweeps() int {
 	q.mu.Lock()

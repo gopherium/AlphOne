@@ -27,10 +27,11 @@ const (
 	requestTimeout = 10 * time.Second
 )
 
-// WorkerQueue hands out due deliveries and records their outcome.
+// WorkerQueue hands out due deliveries, reports their owner's state and records their outcome.
 type WorkerQueue interface {
 	ClaimDueDeliveries(ctx context.Context, due, lease time.Time, limit int) ([]ClaimedDelivery, error)
 	SettleDelivery(ctx context.Context, id uuid.UUID, status string, deliverAfter time.Time, lastError string) error
+	OwnerDisabled(ctx context.Context, subscriptionID uuid.UUID) (bool, error)
 }
 
 // ErrOwnerDisabled reports a delivery dropped because the account owning its subscription is disabled or gone.
@@ -41,8 +42,6 @@ type ClaimedDelivery struct {
 	Delivery
 	URL    string
 	Secret string
-	// OwnerDisabled reports whether the account owning the subscription is disabled or gone.
-	OwnerDisabled bool
 }
 
 // Worker posts queued deliveries to their subscribers until each is
@@ -128,16 +127,16 @@ func (w *Worker) Sweep(ctx context.Context) {
 	}
 }
 
-// attempt posts one delivery and records what happened, failing it unposted when its owner is disabled.
+// attempt delivers one delivery and records what happened, failing it unposted when its owner is disabled.
 func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
-	if d.OwnerDisabled {
-		w.logger.InfoContext(ctx, "dropping a webhook delivery of a disabled owner", "delivery", d.ID)
-		w.settle(ctx, d, StatusFailed, time.Now().UTC(), ErrOwnerDisabled.Error())
-		return
-	}
-	err := w.post(ctx, d)
+	err := w.deliver(ctx, d)
 	if err == nil {
 		w.settle(ctx, d, StatusDelivered, time.Now().UTC(), "")
+		return
+	}
+	if errors.Is(err, ErrOwnerDisabled) {
+		w.logger.InfoContext(ctx, "dropping a webhook delivery of a disabled owner", "delivery", d.ID)
+		w.settle(ctx, d, StatusFailed, time.Now().UTC(), err.Error())
 		return
 	}
 	if Exhausted(d.CreatedAt, time.Now().UTC()) {
@@ -147,6 +146,18 @@ func (w *Worker) attempt(ctx context.Context, d ClaimedDelivery) {
 		return
 	}
 	w.settle(ctx, d, StatusPending, time.Now().UTC().Add(Backoff(d.Attempts)), err.Error())
+}
+
+// deliver posts d once its owner reads as enabled right before the post, reporting [ErrOwnerDisabled] otherwise.
+func (w *Worker) deliver(ctx context.Context, d ClaimedDelivery) error {
+	disabled, err := w.queue.OwnerDisabled(ctx, d.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("reading the owner's state: %w", err)
+	}
+	if disabled {
+		return ErrOwnerDisabled
+	}
+	return w.post(ctx, d)
 }
 
 // post hands the signed payload to the subscriber, reporting any response
