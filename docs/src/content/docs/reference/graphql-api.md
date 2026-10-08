@@ -576,6 +576,9 @@ each code in the reader's language.
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
 
+Every value but the query complexity is the default of a setting the
+operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
+
 Complexity prices a page as the number of rows asked for times the cost of one
 row, so a wide selection over a large page is what trips it:
 

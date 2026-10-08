@@ -103,6 +103,22 @@ deployment serves more than one.
 | `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. `serve` will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
 | `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. `serve` will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
 
+## Graph limits
+
+Each count and byte size is a positive whole number, and each time is a
+duration such as `60s` or `5m`. `serve` will not start on a zero, a
+value in words, or a byte size written with a unit such as `1MiB`.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_GRAPH_OPERATIONS_PER_USER` | How many graph operations one caller runs at once. Defaults to 20. One more is answered `429` with a `Retry-After` header. |
+| `ALPHONE_GRAPH_OPERATION_TIMEOUT` | How long one graph operation may run before it is cancelled. Defaults to `60s`. |
+| `ALPHONE_GRAPH_BODY_MAX_BYTES` | The largest JSON graph request body, in bytes. Defaults to 1048576, which is 1 MiB. |
+| `ALPHONE_GRAPH_UPLOAD_MAX_BYTES` | The largest multipart graph request body, an upload with its form, in bytes. Defaults to 6291456, which is 6 MiB. |
+| `ALPHONE_GRAPH_RETRY_AFTER` | The wait the `Retry-After` header names when every operation slot of a caller is taken. Defaults to `1s`. |
+| `ALPHONE_STREAMS_PER_USER` | How many subscriptions and plugin requests one caller holds open at once. Defaults to 5. |
+| `ALPHONE_STREAM_LIFETIME` | How long one subscription or plugin request stays open. Defaults to `5m`. |
+
 ## Timeouts and shutdown
 
 Each value is written as a duration such as `30s`, `1500ms` or `2m`.
