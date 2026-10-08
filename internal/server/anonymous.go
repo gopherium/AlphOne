@@ -2,7 +2,40 @@
 
 package server
 
-import "sync"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"sync"
+
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	"github.com/gopherium/alphone/internal/graphres"
+)
+
+// admitAnonymous reads the body of a graph request with no identity, refusing it and reporting false past a cap.
+func admitAnonymous(w http.ResponseWriter, r *http.Request, bounds GraphBounds) bool {
+	if carriesForm(r) {
+		refuseAnonymous(w)
+		return false
+	}
+	read, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bounds.AnonymousBodyMaxBytes))
+	if err != nil {
+		refuseAnonymous(w)
+		return false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(read))
+	return true
+}
+
+// refuseAnonymous answers a graph request with no identity the gate's unauthenticated error.
+func refuseAnonymous(w http.ResponseWriter) {
+	refusal, _ := json.Marshal(graphql.Response{Errors: gqlerror.List{graphres.UnauthenticatedError()}})
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(refusal)
+}
 
 // addressLimiter caps the concurrent requests of callers with no identity per client address and across every address.
 type addressLimiter struct {

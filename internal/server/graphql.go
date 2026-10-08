@@ -3,9 +3,7 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -82,9 +80,6 @@ func orDefault[T comparable](value, fallback T) T {
 	}
 	return value
 }
-
-// sessionAbsent is the answer to a caller with no identity sending what only a signed in caller may send.
-var sessionAbsent = authkit.ErrorResponse{Message: "no session", Code: "session_absent"}
 
 // Graph endpoint budget overflow answers.
 const (
@@ -204,11 +199,8 @@ func (p graphPolicy) claim(r *http.Request, user authkit.Identity) (func(), bool
 	return func() { p.limiter.release(user.ID) }, true
 }
 
-// graphBodyLimit returns the body budget the bounds give the request's caller and content type.
+// graphBodyLimit returns the body budget the bounds give a signed in request's content type.
 func graphBodyLimit(r *http.Request, bounds GraphBounds) int64 {
-	if authkit.IdentityFromContext(r.Context()).ID == uuid.Nil {
-		return bounds.AnonymousBodyMaxBytes
-	}
 	if carriesForm(r) {
 		return bounds.UploadMaxBytes
 	}
@@ -253,25 +245,6 @@ func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(accept, "text/event-stream") && !acceptsJSON(accept)
 }
 
-// readAhead returns a body replaying everything read from body, then the error the read ended on.
-func readAhead(body io.ReadCloser) io.ReadCloser {
-	read, err := io.ReadAll(body)
-	if err != nil {
-		return io.NopCloser(io.MultiReader(bytes.NewReader(read), failedRead{err: err}))
-	}
-	return io.NopCloser(bytes.NewReader(read))
-}
-
-// failedRead is a reader answering the error a body read ended on.
-type failedRead struct {
-	err error
-}
-
-// Read answers the error the body read ended on.
-func (f failedRead) Read([]byte) (int, error) {
-	return 0, f.err
-}
-
 // withOperationGuards bounds a graph request's body, lifetime, and per user
 // concurrency under the policy of its kind.
 func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
@@ -281,12 +254,8 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 			policy = streams
 		}
 		user := authkit.IdentityFromContext(r.Context())
-		if user.ID == uuid.Nil && carriesForm(r) {
-			authkit.RespondError(w, http.StatusUnauthorized, sessionAbsent)
+		if user.ID == uuid.Nil && !admitAnonymous(w, r, bounds) {
 			return
-		}
-		if user.ID == uuid.Nil {
-			r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
 		}
 		free, claimed := policy.claim(r, user)
 		if !claimed {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func fillBudget(
 func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	t.Parallel()
 
-	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096, AnonymousBodyMaxBytes: 512}
+	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096}
 	signedIn := uuid.Must(uuid.NewV7())
 
 	jsonRequest := guardedRequest(signedIn)
@@ -115,12 +116,6 @@ func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
 	if got := graphBodyLimit(multipartRequest, bounds); got != 4096 {
 		t.Errorf("signed in multipart budget = %d, want the configured 4096", got)
-	}
-
-	anonymousRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
-	anonymousRequest.Header.Set("Content-Type", "application/json")
-	if got := graphBodyLimit(anonymousRequest, bounds); got != 512 {
-		t.Errorf("anonymous JSON budget = %d, want the configured 512", got)
 	}
 }
 
@@ -135,32 +130,70 @@ func (b *countedBody) Read([]byte) (int, error) {
 	return 0, io.EOF
 }
 
+// refusingGuard returns a guard under the bounds beside its anonymous limiter and a count of what it let through.
+func refusingGuard(bounds GraphBounds) (http.Handler, *addressLimiter, *atomic.Int32) {
+	operations, streams := graphPolicies(bounds.withDefaults(), time.Minute, 5)
+	var passed atomic.Int32
+	counting := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		passed.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	return withOperationGuards(counting, operations, streams, bounds.withDefaults()), operations.anonymous, &passed
+}
+
+// unauthenticatedAnswer is the gate's answer to a caller with no identity sending what only a signed in caller may.
+const unauthenticatedAnswer = `"code":"UNAUTHENTICATED"`
+
 func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
 	t.Parallel()
 
-	anonymous := newAddressLimiter(5, 20)
-	operations := graphPolicy{
-		limiter: newStreamLimiter(5), anonymous: anonymous, lifetime: time.Minute, overflow: overflowOperations,
-	}
-	streams := graphPolicy{
-		limiter: newStreamLimiter(5), anonymous: anonymous, lifetime: time.Minute, overflow: overflowStreams,
-	}
-	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
-	body := &countedBody{}
-	request := httptest.NewRequest(http.MethodPost, "/api/graphql", body)
-	request.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
-	recorder := httptest.NewRecorder()
+	for _, contentType := range []string{
+		"multipart/form-data; boundary=upload",
+	} {
+		guarded, anonymous, passed := refusingGuard(GraphBounds{})
+		body := &countedBody{}
+		request := httptest.NewRequest(http.MethodPost, "/api/graphql", body)
+		request.Header.Set("Content-Type", contentType)
+		recorder := httptest.NewRecorder()
 
-	guarded.ServeHTTP(recorder, request)
+		guarded.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), `"session_absent"`) {
-		t.Errorf("anonymous multipart answered %d %s, want 401 session_absent", recorder.Code, recorder.Body.String())
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", contentType, recorder.Code, recorder.Body.String())
+		}
+		if body.reads != 0 || anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s was read %d times, held %d slots and reached the graph %d times, want none of them",
+				contentType, body.reads, anonymous.total, passed.Load())
+		}
 	}
-	if body.reads != 0 {
-		t.Errorf("the refused body was read %d times, want it left unread", body.reads)
+}
+
+// anonymousPost builds a request with no identity carrying the JSON body.
+func anonymousPost(body string) *http.Request {
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	return request
+}
+
+func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{AnonymousBodyMaxBytes: 16 << 10}
+	tests := map[string]string{
+		"a body over the anonymous limit": `{"query":"` + strings.Repeat(" ", 17<<10) + `{ locale }"}`,
 	}
-	if anonymous.total != 0 {
-		t.Errorf("the refused request held %d slots, want none", anonymous.total)
+	for name, body := range tests {
+		guarded, anonymous, passed := refusingGuard(bounds)
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(body))
+
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", name, recorder.Code, recorder.Body.String())
+		}
+		if anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s held %d slots and reached the graph %d times, want neither", name, anonymous.total, passed.Load())
+		}
 	}
 }
 

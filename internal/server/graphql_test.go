@@ -491,9 +491,9 @@ func TestAnonymousBodyAboveItsLimitIsRefused(t *testing.T) {
 
 	recorder := postGraphQL(t, srv, twentyKiB, nil)
 
-	body := decodeBody[graphqlData](t, recorder)
-	if len(body.Errors) == 0 || !strings.Contains(body.Errors[0].Message, "request body too large") {
-		t.Fatalf("errors = %+v, want a 20 KiB anonymous body refused under the default limit", body.Errors)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"code":"UNAUTHENTICATED"`) {
+		t.Fatalf("a 20 KiB anonymous body answered %d %s, want the gate's UNAUTHENTICATED",
+			recorder.Code, recorder.Body.String())
 	}
 }
 
