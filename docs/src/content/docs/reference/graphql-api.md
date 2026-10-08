@@ -58,15 +58,23 @@ through `contact { tasks { ... } }` without holding `tasks:read`. Grant
 the narrowest set of entry points an integration needs, and read a
 scope as the doorway it opens rather than a fence around one table.
 
-**A session cookie**, for browsers. Call `login` and the reply sets it:
+**A session cookie**, for browsers. Call `login` and the reply sets it.
+Send the address and the password as variables, because a query before sign
+in holds at most 1024 bytes and a long password written into it is refused:
 
 ```graphql
-mutation {
-  login(email: "admin@example.com", password: "password1234") {
+mutation Login($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
     me { id email name }
   }
 }
 ```
+
+```json
+{ "email": "admin@example.com", "password": "password1234" }
+```
+
+The reply:
 
 ```json
 {
@@ -576,10 +584,14 @@ each code in the reader's language.
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
 | Body before sign in | 16 KiB, JSON only |
+| Query before sign in | 64 tokens and 1024 bytes |
 | Concurrent operations before sign in | 5 per client address, 20 in all |
 
-A request's body is read in full before it takes one of its caller's
-operation slots, so a slow upload never holds a slot.
+Before sign in, a request's body is read in full and checked before it takes
+a slot, so a slow body never holds one. A request past the body or query limit
+before sign in gets the `UNAUTHENTICATED` error, and one past the concurrent
+limit gets HTTP 429. A signed in caller takes its slot first and sends its body
+inside it.
 
 Every value but the query complexity is the default of a setting the
 operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
