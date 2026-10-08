@@ -591,7 +591,9 @@ Before sign in, a request's body is read in full and checked before it takes
 a slot, so a slow body never holds one. A request past the body or query limit
 before sign in gets the `UNAUTHENTICATED` error, and one past the concurrent
 limit gets HTTP 429. A signed in caller takes its slot first and sends its body
-inside it.
+inside it. Each write of an answer gets the operation deadline, or the stream
+lifetime for a subscription, to reach the caller, and one the caller does not
+read in time ends the connection.
 
 Every value but the query complexity is the default of a setting the
 operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
