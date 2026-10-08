@@ -257,6 +257,7 @@ type runConfig struct {
 	inviteTTL      time.Duration
 	reset          resetSettings
 	lists          listSettings
+	graph          graphSettings
 	serving        gonsole.Timeouts
 }
 
@@ -293,9 +294,12 @@ type tenantSettings struct {
 // serverConfig returns the server settings the run config carries, for run to complete.
 func (c runConfig) serverConfig() server.Config {
 	return server.Config{
-		TrustedProxies: c.trustedProxies,
-		GraphiQL:       c.graphiql,
-		TenantsHeld:    c.tenants.held,
+		TrustedProxies:    c.trustedProxies,
+		GraphiQL:          c.graphiql,
+		TenantsHeld:       c.tenants.held,
+		Graph:             c.graph.bounds,
+		MaxStreamLifetime: c.graph.streamLifetime,
+		MaxStreamsPerUser: c.graph.streamsPerUser,
 	}
 }
 
@@ -474,6 +478,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	graph, err := loadGraphSettings(env)
+	if err != nil {
+		return runConfig{}, err
+	}
 	serving, err := env.Timeouts(servingDefaults)
 	if err != nil {
 		return runConfig{}, err
@@ -488,6 +496,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		inviteTTL:       inviteTTL,
 		reset:           reset,
 		lists:           lists,
+		graph:           graph,
 		serving:         serving,
 	}, nil
 }
