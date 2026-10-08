@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -175,12 +176,21 @@ func anonymousPost(body string) *http.Request {
 	return request
 }
 
+// queryBody returns the JSON body carrying the query.
+func queryBody(query string) string {
+	encoded, _ := json.Marshal(map[string]string{"query": query})
+	return string(encoded)
+}
+
 func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
 	t.Parallel()
 
-	bounds := GraphBounds{AnonymousBodyMaxBytes: 16 << 10}
+	bounds := GraphBounds{AnonymousMaxTokens: 64, AnonymousQueryMaxBytes: 1024, AnonymousBodyMaxBytes: 16 << 10}
 	tests := map[string]string{
-		"a body over the anonymous limit": `{"query":"` + strings.Repeat(" ", 17<<10) + `{ locale }"}`,
+		"a document over the token cap":     queryBody("{ " + strings.Repeat("x ", 63) + "}"),
+		"a document over the byte cap":      queryBody("{ " + strings.Repeat(strings.Repeat("y", 300)+" ", 4) + "}"),
+		"a body over the anonymous limit":   `{"query":"` + strings.Repeat(" ", 17<<10) + `{ locale }"}`,
+		"a body that is not a JSON request": `{"query": "{ locale }"` + strings.Repeat("\x01", 32),
 	}
 	for name, body := range tests {
 		guarded, anonymous, passed := refusingGuard(bounds)
@@ -193,6 +203,28 @@ func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
 		}
 		if anonymous.total != 0 || passed.Load() != 0 {
 			t.Errorf("%s held %d slots and reached the graph %d times, want neither", name, anonymous.total, passed.Load())
+		}
+	}
+}
+
+func TestAnonymousDocumentsWithinTheirCapsReachTheGraph(t *testing.T) {
+	t.Parallel()
+
+	invitation := "mutation AcceptInvite($token: String!, $password: String!) {\n" +
+		"  acceptInvite(token: $token, password: $password) {\n" +
+		"    me {\n      id\n      email\n      name\n      role\n" +
+		"      capabilities\n      grantable\n      __typename\n    }\n" +
+		"    __typename\n  }\n}"
+	atTheTokenCap := "{ " + strings.Repeat("x ", 62) + "}"
+	atTheByteCap := "{ " + strings.Repeat("y", 1020) + " }"
+	for _, query := range []string{invitation, "query AppLocale {\n  locale\n}", atTheTokenCap, atTheByteCap} {
+		guarded, _, passed := refusingGuard(GraphBounds{})
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(queryBody(query)))
+
+		if recorder.Code != http.StatusNoContent || passed.Load() != 1 {
+			t.Errorf("%q answered %d and reached the graph %d times, want it through once", query, recorder.Code, passed.Load())
 		}
 	}
 }

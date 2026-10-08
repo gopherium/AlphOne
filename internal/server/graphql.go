@@ -43,32 +43,40 @@ type GraphBounds struct {
 	AnonymousPerIP int
 	// AnonymousCeiling caps the graph requests with no identity every address runs at once together.
 	AnonymousCeiling int
+	// AnonymousMaxTokens caps the tokens of the document a graph request with no identity carries.
+	AnonymousMaxTokens int
+	// AnonymousQueryMaxBytes caps the bytes of the document a graph request with no identity carries.
+	AnonymousQueryMaxBytes int64
 }
 
 // DefaultGraphBounds are the graph bounds a zero field falls back to.
 var DefaultGraphBounds = GraphBounds{
-	OperationsPerUser:     20,
-	OperationTimeout:      60 * time.Second,
-	BodyMaxBytes:          1 << 20,
-	UploadMaxBytes:        6 << 20,
-	RetryAfter:            time.Second,
-	AnonymousBodyMaxBytes: 16 << 10,
-	AnonymousPerIP:        5,
-	AnonymousCeiling:      20,
+	OperationsPerUser:      20,
+	OperationTimeout:       60 * time.Second,
+	BodyMaxBytes:           1 << 20,
+	UploadMaxBytes:         6 << 20,
+	RetryAfter:             time.Second,
+	AnonymousBodyMaxBytes:  16 << 10,
+	AnonymousPerIP:         5,
+	AnonymousCeiling:       20,
+	AnonymousMaxTokens:     64,
+	AnonymousQueryMaxBytes: 1024,
 }
 
 // withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
 func (b GraphBounds) withDefaults() GraphBounds {
 	d := DefaultGraphBounds
 	return GraphBounds{
-		OperationsPerUser:     orDefault(b.OperationsPerUser, d.OperationsPerUser),
-		OperationTimeout:      orDefault(b.OperationTimeout, d.OperationTimeout),
-		BodyMaxBytes:          orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
-		UploadMaxBytes:        orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
-		RetryAfter:            orDefault(b.RetryAfter, d.RetryAfter),
-		AnonymousBodyMaxBytes: orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
-		AnonymousPerIP:        orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
-		AnonymousCeiling:      orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
+		OperationsPerUser:      orDefault(b.OperationsPerUser, d.OperationsPerUser),
+		OperationTimeout:       orDefault(b.OperationTimeout, d.OperationTimeout),
+		BodyMaxBytes:           orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
+		UploadMaxBytes:         orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
+		RetryAfter:             orDefault(b.RetryAfter, d.RetryAfter),
+		AnonymousBodyMaxBytes:  orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
+		AnonymousPerIP:         orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
+		AnonymousCeiling:       orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
+		AnonymousMaxTokens:     orDefault(b.AnonymousMaxTokens, d.AnonymousMaxTokens),
+		AnonymousQueryMaxBytes: orDefault(b.AnonymousQueryMaxBytes, d.AnonymousQueryMaxBytes),
 	}
 }
 

@@ -10,7 +10,9 @@ import (
 	"sync"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"github.com/vektah/gqlparser/v2/lexer"
 
 	"github.com/gopherium/alphone/internal/graphres"
 )
@@ -22,12 +24,38 @@ func admitAnonymous(w http.ResponseWriter, r *http.Request, bounds GraphBounds) 
 		return false
 	}
 	read, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bounds.AnonymousBodyMaxBytes))
-	if err != nil {
+	if err != nil || !documentFits(read, bounds) {
 		refuseAnonymous(w)
 		return false
 	}
 	r.Body = io.NopCloser(bytes.NewReader(read))
 	return true
+}
+
+// documentFits reports whether the body is a JSON graph request whose document is within the anonymous caps.
+func documentFits(body []byte, bounds GraphBounds) bool {
+	var request struct {
+		Query string `json:"query"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil {
+		return false
+	}
+	if int64(len(request.Query)) > bounds.AnonymousQueryMaxBytes {
+		return false
+	}
+	return tokensWithin(request.Query, bounds.AnonymousMaxTokens)
+}
+
+// tokensWithin reports whether the document holds at most limit tokens, one the lexer refuses counting as within.
+func tokensWithin(document string, limit int) bool {
+	tokens := lexer.New(&ast.Source{Input: document})
+	for range limit + 1 {
+		token, err := tokens.ReadToken()
+		if err != nil || token.Kind == lexer.EOF {
+			return true
+		}
+	}
+	return false
 }
 
 // refuseAnonymous answers a graph request with no identity the gate's unauthenticated error.

@@ -5,6 +5,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,9 +70,10 @@ func TestFreedAnonymousAddressLeavesNoEntry(t *testing.T) {
 	}
 }
 
-// anonymousFrom builds a request carrying no identity from the address.
+// anonymousFrom builds a locale request carrying no identity from the address.
 func anonymousFrom(remoteAddr string) *http.Request {
-	request := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(`{"query":"{ locale }"}`))
+	request.Header.Set("Content-Type", "application/json")
 	request.RemoteAddr = remoteAddr
 	return request
 }
