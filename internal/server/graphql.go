@@ -41,6 +41,10 @@ type GraphBounds struct {
 	RetryAfter time.Duration
 	// AnonymousBodyMaxBytes caps the body of a graph request that carries no identity.
 	AnonymousBodyMaxBytes int64
+	// AnonymousPerIP caps the graph requests with no identity one client address runs at once.
+	AnonymousPerIP int
+	// AnonymousCeiling caps the graph requests with no identity every address runs at once together.
+	AnonymousCeiling int
 }
 
 // DefaultGraphBounds are the graph bounds a zero field falls back to.
@@ -51,6 +55,8 @@ var DefaultGraphBounds = GraphBounds{
 	UploadMaxBytes:        6 << 20,
 	RetryAfter:            time.Second,
 	AnonymousBodyMaxBytes: 16 << 10,
+	AnonymousPerIP:        5,
+	AnonymousCeiling:      20,
 }
 
 // withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
@@ -72,6 +78,12 @@ func (b GraphBounds) withDefaults() GraphBounds {
 	}
 	if b.AnonymousBodyMaxBytes == 0 {
 		b.AnonymousBodyMaxBytes = DefaultGraphBounds.AnonymousBodyMaxBytes
+	}
+	if b.AnonymousPerIP == 0 {
+		b.AnonymousPerIP = DefaultGraphBounds.AnonymousPerIP
+	}
+	if b.AnonymousCeiling == 0 {
+		b.AnonymousCeiling = DefaultGraphBounds.AnonymousCeiling
 	}
 	return b
 }
@@ -113,6 +125,8 @@ func tenantGraphs(root graph.ResolverRoot, sources []sdk.FieldSource, held int) 
 type graphPolicy struct {
 	// limiter caps concurrent requests of this kind per user.
 	limiter *streamLimiter
+	// anonymous caps the concurrent requests of callers with no identity per client address.
+	anonymous *addressLimiter
 	// lifetime bounds one request of this kind.
 	lifetime time.Duration
 	// retryAfter is how soon a slot of this kind is expected to free.
@@ -164,17 +178,35 @@ func newGraphQLHandler(
 // graphPolicies returns the budget the endpoint holds operations to beside the
 // one it holds streams to.
 func graphPolicies(bounds GraphBounds, streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
+	anonymous := newAddressLimiter(bounds.AnonymousPerIP, bounds.AnonymousCeiling)
 	return graphPolicy{
 		limiter:    newStreamLimiter(bounds.OperationsPerUser),
+		anonymous:  anonymous,
 		lifetime:   bounds.OperationTimeout,
 		retryAfter: bounds.RetryAfter,
 		overflow:   overflowOperations,
 	}, graphPolicy{
 		limiter:    newStreamLimiter(maxStreams),
+		anonymous:  anonymous,
 		lifetime:   streamLifetime,
 		retryAfter: streamLifetime,
 		overflow:   overflowStreams,
 	}
+}
+
+// claim takes a slot for the caller under the policy, answering how to free it, or false when none is free.
+func (p graphPolicy) claim(r *http.Request, user authkit.Identity) (func(), bool) {
+	if user.ID == uuid.Nil {
+		address := ratelimit.ClientIP(r)
+		if !p.anonymous.acquire(address) {
+			return nil, false
+		}
+		return func() { p.anonymous.release(address) }, true
+	}
+	if !p.limiter.acquire(user.ID) {
+		return nil, false
+	}
+	return func() { p.limiter.release(user.ID) }, true
 }
 
 // graphBodyLimit returns the body budget the bounds give the request's caller and content type.
@@ -259,12 +291,13 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 			return
 		}
 		r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
-		if !policy.limiter.acquire(user.ID) {
+		free, claimed := policy.claim(r, user)
+		if !claimed {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
 			authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
 			return
 		}
-		defer policy.limiter.release(user.ID)
+		defer free()
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))

@@ -138,8 +138,13 @@ func (b *countedBody) Read([]byte) (int, error) {
 func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
 	t.Parallel()
 
-	operations := graphPolicy{limiter: newStreamLimiter(5), lifetime: time.Minute, overflow: overflowOperations}
-	streams := graphPolicy{limiter: newStreamLimiter(5), lifetime: time.Minute, overflow: overflowStreams}
+	anonymous := newAddressLimiter(5, 20)
+	operations := graphPolicy{
+		limiter: newStreamLimiter(5), anonymous: anonymous, lifetime: time.Minute, overflow: overflowOperations,
+	}
+	streams := graphPolicy{
+		limiter: newStreamLimiter(5), anonymous: anonymous, lifetime: time.Minute, overflow: overflowStreams,
+	}
 	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	body := &countedBody{}
 	request := httptest.NewRequest(http.MethodPost, "/api/graphql", body)
@@ -154,16 +159,21 @@ func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
 	if body.reads != 0 {
 		t.Errorf("the refused body was read %d times, want it left unread", body.reads)
 	}
-	if held := operations.limiter.counts[uuid.Nil]; held != 0 {
-		t.Errorf("the refused request held %d slots, want none", held)
+	if anonymous.total != 0 {
+		t.Errorf("the refused request held %d slots, want none", anonymous.total)
 	}
 }
 
 func TestOperationGuardsTakeNoSlotWhileTheBodyIsStillArriving(t *testing.T) {
 	t.Parallel()
 
-	operations := graphPolicy{limiter: newStreamLimiter(1), lifetime: time.Minute, overflow: overflowOperations}
-	streams := graphPolicy{limiter: newStreamLimiter(1), lifetime: time.Minute, overflow: overflowStreams}
+	oneAnonymousSlot := newAddressLimiter(1, 1)
+	operations := graphPolicy{
+		limiter: newStreamLimiter(1), anonymous: oneAnonymousSlot, lifetime: time.Minute, overflow: overflowOperations,
+	}
+	streams := graphPolicy{
+		limiter: newStreamLimiter(1), anonymous: oneAnonymousSlot, lifetime: time.Minute, overflow: overflowStreams,
+	}
 	readingTheBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusNoContent)
