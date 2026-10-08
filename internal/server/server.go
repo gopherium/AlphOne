@@ -67,6 +67,8 @@ type Config struct {
 	// MaxStreamsPerUser caps concurrent authenticated plugin requests and
 	// graph subscriptions per user. Zero applies the host default.
 	MaxStreamsPerUser int
+	// Graph bounds the graph operations, a zero field taking its default.
+	Graph GraphBounds
 	// FieldSources lists the plugins serving runtime defined graph fields.
 	FieldSources []sdk.FieldSource
 	// TenantsHeld caps how many tenants' widened graphs the server keeps in memory. Zero or below applies the SDK default.
@@ -97,8 +99,8 @@ func NewServer(cfg Config) http.Handler {
 	router := chi.NewRouter()
 	router.Use(authkit.CrossOriginGuard(cfg.Logger))
 	if cfg.GraphRoot != nil {
-		graph := newGraphQLHandler(
-			cfg.GraphRoot, cfg.Tenants, maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources, cfg.TenantsHeld)
+		graph := newGraphQLHandler(cfg.GraphRoot, cfg.Tenants, cfg.Graph.withDefaults(),
+			maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources, cfg.TenantsHeld)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)

@@ -13,11 +13,10 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 )
 
-// defaultMaxStreamLifetime and defaultMaxStreamsPerUser bound authenticated
-// plugin requests and graph subscriptions when the host config leaves them zero.
+// DefaultMaxStreamLifetime and DefaultMaxStreamsPerUser bound the streams of a config that leaves them zero.
 const (
-	defaultMaxStreamLifetime = 5 * time.Minute
-	defaultMaxStreamsPerUser = 5
+	DefaultMaxStreamLifetime = 5 * time.Minute
+	DefaultMaxStreamsPerUser = 5
 )
 
 // streamDefaults resolves the configured stream bounds, filling zero values
@@ -25,11 +24,11 @@ const (
 func streamDefaults(cfg Config) (time.Duration, int) {
 	lifetime := cfg.MaxStreamLifetime
 	if lifetime == 0 {
-		lifetime = defaultMaxStreamLifetime
+		lifetime = DefaultMaxStreamLifetime
 	}
 	limit := cfg.MaxStreamsPerUser
 	if limit == 0 {
-		limit = defaultMaxStreamsPerUser
+		limit = DefaultMaxStreamsPerUser
 	}
 	return lifetime, limit
 }

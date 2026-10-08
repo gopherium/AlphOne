@@ -54,7 +54,7 @@ func blockingGuard(operations, streams graphPolicy) (http.Handler, *sync.WaitGro
 		<-release
 		w.WriteHeader(http.StatusNoContent)
 	})
-	return withOperationGuards(blocked, operations, streams), &started, func() { close(release) }
+	return withOperationGuards(blocked, operations, streams, DefaultGraphBounds), &started, func() { close(release) }
 }
 
 // fillBudget holds five requests of one kind in flight, returning their group.
@@ -87,16 +87,46 @@ func fillBudget(
 func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	t.Parallel()
 
+	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096}
+
 	jsonRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
 	jsonRequest.Header.Set("Content-Type", "application/json")
-	if got := graphBodyLimit(jsonRequest); got != graphJSONBodyLimit {
-		t.Errorf("JSON budget = %d, want %d", got, graphJSONBodyLimit)
+	if got := graphBodyLimit(jsonRequest, bounds); got != 2048 {
+		t.Errorf("JSON budget = %d, want the configured 2048", got)
 	}
 
 	multipartRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
 	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
-	if got := graphBodyLimit(multipartRequest); got != graphMultipartBodyLimit {
-		t.Errorf("multipart budget = %d, want %d", got, graphMultipartBodyLimit)
+	if got := graphBodyLimit(multipartRequest, bounds); got != 4096 {
+		t.Errorf("multipart budget = %d, want the configured 4096", got)
+	}
+}
+
+func TestGraphBoundsFallBackToTheirDefaults(t *testing.T) {
+	t.Parallel()
+
+	if got := (GraphBounds{}).withDefaults(); got != DefaultGraphBounds {
+		t.Errorf("GraphBounds{}.withDefaults() = %+v, want %+v", got, DefaultGraphBounds)
+	}
+
+	named := GraphBounds{OperationsPerUser: 7}.withDefaults()
+	want := DefaultGraphBounds
+	want.OperationsPerUser = 7
+	if named != want {
+		t.Errorf("a bound named alone gave %+v, want %+v with the rest defaulted", named, want)
+	}
+}
+
+func TestGraphPoliciesFollowTheBounds(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{OperationsPerUser: 7, OperationTimeout: 45 * time.Second, RetryAfter: 3 * time.Second}
+
+	operations, _ := graphPolicies(bounds, 90*time.Second, 3)
+
+	if operations.limiter.limit != 7 || operations.lifetime != 45*time.Second || operations.retryAfter != 3*time.Second {
+		t.Errorf("operation policy = (%d, %v, %v), want (7, 45s, 3s)",
+			operations.limiter.limit, operations.lifetime, operations.retryAfter)
 	}
 }
 
@@ -159,7 +189,7 @@ func TestGraphOperationBudgetFitsAScreenLoad(t *testing.T) {
 	t.Parallel()
 
 	const screenLoad = 8
-	operations, _ := graphPolicies(time.Minute, defaultMaxStreamsPerUser)
+	operations, _ := graphPolicies(DefaultGraphBounds, time.Minute, DefaultMaxStreamsPerUser)
 	user := uuid.Must(uuid.NewV7())
 
 	for i := range screenLoad {
@@ -191,10 +221,10 @@ func TestRetryAfterSecondsRoundsUpToAWholeSecond(t *testing.T) {
 func TestGraphPoliciesHintARetryMatchingHowSoonASlotFrees(t *testing.T) {
 	t.Parallel()
 
-	operations, streams := graphPolicies(90*time.Second, 3)
+	operations, streams := graphPolicies(DefaultGraphBounds, 90*time.Second, 3)
 
-	if operations.retryAfter != graphRetryAfter {
-		t.Errorf("operation retry hint = %v, want %v", operations.retryAfter, graphRetryAfter)
+	if operations.retryAfter != DefaultGraphBounds.RetryAfter {
+		t.Errorf("operation retry hint = %v, want %v", operations.retryAfter, DefaultGraphBounds.RetryAfter)
 	}
 	if operations.retryAfter >= operations.lifetime {
 		t.Errorf("operation retry hint = %v, want well under the %v one operation may hold a slot",
@@ -220,7 +250,7 @@ func TestOperationGuardsHintTheRetryOfTheSpentBudget(t *testing.T) {
 		retryAfter: 90 * time.Second,
 		overflow:   overflowStreams,
 	}
-	guarded := withOperationGuards(noContent(), operations, streams)
+	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	user := uuid.Must(uuid.NewV7())
 
 	refusedOperation := httptest.NewRecorder()
@@ -239,11 +269,12 @@ func TestOperationGuardsHintTheRetryOfTheSpentBudget(t *testing.T) {
 func TestGraphPoliciesGiveStreamsTheHostBounds(t *testing.T) {
 	t.Parallel()
 
-	operations, streams := graphPolicies(90*time.Second, 3)
+	operations, streams := graphPolicies(DefaultGraphBounds, 90*time.Second, 3)
 
-	if operations.lifetime != graphOperationTimeout || operations.limiter.limit != graphMaxConcurrentOps {
-		t.Errorf("operation policy = (%v, %d), want (%v, %d)",
-			operations.lifetime, operations.limiter.limit, graphOperationTimeout, graphMaxConcurrentOps)
+	if operations.lifetime != DefaultGraphBounds.OperationTimeout ||
+		operations.limiter.limit != DefaultGraphBounds.OperationsPerUser {
+		t.Errorf("operation policy = (%v, %d), want (%v, %d)", operations.lifetime, operations.limiter.limit,
+			DefaultGraphBounds.OperationTimeout, DefaultGraphBounds.OperationsPerUser)
 	}
 	if streams.lifetime != 90*time.Second || streams.limiter.limit != 3 {
 		t.Errorf("stream policy = (%v, %d), want (1m30s, 3)", streams.lifetime, streams.limiter.limit)
@@ -273,7 +304,7 @@ func TestOperationGuardsRejectTheSixthConcurrentOperation(t *testing.T) {
 		t.Errorf("sixth operation body = %s, want %q", rejected.Body, overflowOperations)
 	}
 
-	passing := withOperationGuards(noContent(), operations, streams)
+	passing := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	admitted := httptest.NewRecorder()
 	passing.ServeHTTP(admitted, streamingRequest(user))
 	if admitted.Code != http.StatusNoContent {
@@ -307,7 +338,7 @@ func TestOperationGuardsRejectTheSixthConcurrentStream(t *testing.T) {
 		t.Errorf("sixth stream body = %s, want %q", rejected.Body, overflowStreams)
 	}
 
-	passing := withOperationGuards(noContent(), operations, streams)
+	passing := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	admitted := httptest.NewRecorder()
 	passing.ServeHTTP(admitted, guardedRequest(user))
 	if admitted.Code != http.StatusNoContent {
@@ -329,7 +360,7 @@ func TestOperationGuardsDeadlineTheRequestContext(t *testing.T) {
 	})
 	operations, streams := testPolicies()
 	operations.lifetime = 20 * time.Millisecond
-	guarded := withOperationGuards(waiting, operations, streams)
+	guarded := withOperationGuards(waiting, operations, streams, DefaultGraphBounds)
 
 	start := time.Now()
 	guarded.ServeHTTP(httptest.NewRecorder(), guardedRequest(uuid.Must(uuid.NewV7())))
@@ -354,7 +385,7 @@ func TestOperationGuardsHoldAStreamToTheStreamLifetime(t *testing.T) {
 	operations, streams := testPolicies()
 	operations.lifetime = 10 * time.Millisecond
 	streams.lifetime = 150 * time.Millisecond
-	guarded := withOperationGuards(waiting, operations, streams)
+	guarded := withOperationGuards(waiting, operations, streams, DefaultGraphBounds)
 
 	start := time.Now()
 	guarded.ServeHTTP(httptest.NewRecorder(), streamingRequest(uuid.Must(uuid.NewV7())))

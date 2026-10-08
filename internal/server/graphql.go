@@ -25,22 +25,54 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// Graph endpoint guard bounds.
-const (
-	graphOperationTimeout   = 60 * time.Second
-	graphMaxConcurrentOps   = 20
-	graphJSONBodyLimit      = 1 << 20
-	graphMultipartBodyLimit = 6 << 20
-)
+// GraphBounds caps how many graph operations one caller runs at once, how long each runs and how large its body is.
+type GraphBounds struct {
+	// OperationsPerUser caps the graph operations one caller runs at once.
+	OperationsPerUser int
+	// OperationTimeout bounds how long one graph operation runs.
+	OperationTimeout time.Duration
+	// BodyMaxBytes caps the body of a JSON graph request.
+	BodyMaxBytes int64
+	// UploadMaxBytes caps the body of a multipart graph request.
+	UploadMaxBytes int64
+	// RetryAfter is how soon a caller the operation budget refused may try again.
+	RetryAfter time.Duration
+}
+
+// DefaultGraphBounds are the graph bounds a zero field falls back to.
+var DefaultGraphBounds = GraphBounds{
+	OperationsPerUser: 20,
+	OperationTimeout:  60 * time.Second,
+	BodyMaxBytes:      1 << 20,
+	UploadMaxBytes:    6 << 20,
+	RetryAfter:        time.Second,
+}
+
+// withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
+func (b GraphBounds) withDefaults() GraphBounds {
+	if b.OperationsPerUser == 0 {
+		b.OperationsPerUser = DefaultGraphBounds.OperationsPerUser
+	}
+	if b.OperationTimeout == 0 {
+		b.OperationTimeout = DefaultGraphBounds.OperationTimeout
+	}
+	if b.BodyMaxBytes == 0 {
+		b.BodyMaxBytes = DefaultGraphBounds.BodyMaxBytes
+	}
+	if b.UploadMaxBytes == 0 {
+		b.UploadMaxBytes = DefaultGraphBounds.UploadMaxBytes
+	}
+	if b.RetryAfter == 0 {
+		b.RetryAfter = DefaultGraphBounds.RetryAfter
+	}
+	return b
+}
 
 // Graph endpoint budget overflow answers.
 const (
 	overflowOperations = "too many concurrent operations"
 	overflowStreams    = "too many concurrent streams"
 )
-
-// graphRetryAfter is how soon a caller may retry an operation the budget refused.
-const graphRetryAfter = time.Second
 
 // graphServer returns the gqlgen server answering over one executable schema with every graph guard.
 func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *handler.Server {
@@ -91,6 +123,7 @@ func retryAfterSeconds(hint time.Duration) int {
 func newGraphQLHandler(
 	root graph.ResolverRoot,
 	tenants TenantStore,
+	bounds GraphBounds,
 	streamLifetime time.Duration,
 	maxStreams int,
 	sources []sdk.FieldSource,
@@ -113,17 +146,17 @@ func newGraphQLHandler(
 		}
 		answer.ServeHTTP(w, r.WithContext(ctx))
 	})
-	operations, streams := graphPolicies(streamLifetime, maxStreams)
-	return withOperationGuards(loaded, operations, streams)
+	operations, streams := graphPolicies(bounds, streamLifetime, maxStreams)
+	return withOperationGuards(loaded, operations, streams, bounds)
 }
 
 // graphPolicies returns the budget the endpoint holds operations to beside the
 // one it holds streams to.
-func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
+func graphPolicies(bounds GraphBounds, streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
 	return graphPolicy{
-		limiter:    newStreamLimiter(graphMaxConcurrentOps),
-		lifetime:   graphOperationTimeout,
-		retryAfter: graphRetryAfter,
+		limiter:    newStreamLimiter(bounds.OperationsPerUser),
+		lifetime:   bounds.OperationTimeout,
+		retryAfter: bounds.RetryAfter,
 		overflow:   overflowOperations,
 	}, graphPolicy{
 		limiter:    newStreamLimiter(maxStreams),
@@ -133,12 +166,12 @@ func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, g
 	}
 }
 
-// graphBodyLimit returns the body budget of the request content type.
-func graphBodyLimit(r *http.Request) int64 {
+// graphBodyLimit returns the body budget the bounds give the request content type.
+func graphBodyLimit(r *http.Request, bounds GraphBounds) int64 {
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		return graphMultipartBodyLimit
+		return bounds.UploadMaxBytes
 	}
-	return graphJSONBodyLimit
+	return bounds.BodyMaxBytes
 }
 
 // jsonAnswerTypes lists the answer media types a caller offers to read JSON with.
@@ -176,7 +209,7 @@ func acceptsEventStream(r *http.Request) bool {
 
 // withOperationGuards bounds a graph request's body, lifetime, and per user
 // concurrency under the policy of its kind.
-func withOperationGuards(next http.Handler, operations, streams graphPolicy) http.Handler {
+func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		policy := operations
 		if acceptsEventStream(r) {
@@ -189,7 +222,7 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy) htt
 			return
 		}
 		defer policy.limiter.release(user.ID)
-		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r))
+		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))

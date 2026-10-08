@@ -55,6 +55,7 @@ type graphConfig struct {
 	TenantsHeld       int
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
+	Graph             server.GraphBounds
 	GraphiQL          bool
 	TrustedProxies    []string
 	Logger            *slog.Logger
@@ -119,6 +120,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		TenantsHeld:       cfg.TenantsHeld,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
+		Graph:             cfg.Graph,
 		GraphiQL:          cfg.GraphiQL,
 		TrustedProxies:    cfg.TrustedProxies,
 		Logger:            cfg.Logger,
@@ -456,6 +458,26 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 	}
 	if body.Data.Version != "" {
 		t.Error("version resolved, want no execution on an oversized body")
+	}
+}
+
+func TestGraphQLHoldsAJSONBodyToTheConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
+		Graph: server.GraphBounds{BodyMaxBytes: 256},
+	})
+	cookie := loginCookie(t, srv)
+	aboveTheLimit := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 512) + `"}}`
+
+	recorder := postGraphQL(t, srv, aboveTheLimit, cookie)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) == 0 || !strings.Contains(body.Errors[0].Message, "request body too large") {
+		t.Fatalf("errors = %+v, want the configured body limit to refuse a 512 byte pad", body.Errors)
 	}
 }
 
