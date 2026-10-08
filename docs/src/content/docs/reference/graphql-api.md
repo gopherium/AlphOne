@@ -576,6 +576,7 @@ each code in the reader's language.
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
 | Body before sign in | 16 KiB, JSON only |
+| Concurrent operations before sign in | 5 per client address, 20 in all |
 
 A request's body is read in full before it takes one of its caller's
 operation slots, so a slow upload never holds a slot.
