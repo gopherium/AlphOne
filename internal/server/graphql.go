@@ -61,31 +61,26 @@ var DefaultGraphBounds = GraphBounds{
 
 // withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
 func (b GraphBounds) withDefaults() GraphBounds {
-	if b.OperationsPerUser == 0 {
-		b.OperationsPerUser = DefaultGraphBounds.OperationsPerUser
+	d := DefaultGraphBounds
+	return GraphBounds{
+		OperationsPerUser:     orDefault(b.OperationsPerUser, d.OperationsPerUser),
+		OperationTimeout:      orDefault(b.OperationTimeout, d.OperationTimeout),
+		BodyMaxBytes:          orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
+		UploadMaxBytes:        orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
+		RetryAfter:            orDefault(b.RetryAfter, d.RetryAfter),
+		AnonymousBodyMaxBytes: orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
+		AnonymousPerIP:        orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
+		AnonymousCeiling:      orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
 	}
-	if b.OperationTimeout == 0 {
-		b.OperationTimeout = DefaultGraphBounds.OperationTimeout
+}
+
+// orDefault returns value, or fallback when value is zero.
+func orDefault[T comparable](value, fallback T) T {
+	var zero T
+	if value == zero {
+		return fallback
 	}
-	if b.BodyMaxBytes == 0 {
-		b.BodyMaxBytes = DefaultGraphBounds.BodyMaxBytes
-	}
-	if b.UploadMaxBytes == 0 {
-		b.UploadMaxBytes = DefaultGraphBounds.UploadMaxBytes
-	}
-	if b.RetryAfter == 0 {
-		b.RetryAfter = DefaultGraphBounds.RetryAfter
-	}
-	if b.AnonymousBodyMaxBytes == 0 {
-		b.AnonymousBodyMaxBytes = DefaultGraphBounds.AnonymousBodyMaxBytes
-	}
-	if b.AnonymousPerIP == 0 {
-		b.AnonymousPerIP = DefaultGraphBounds.AnonymousPerIP
-	}
-	if b.AnonymousCeiling == 0 {
-		b.AnonymousCeiling = DefaultGraphBounds.AnonymousCeiling
-	}
-	return b
+	return value
 }
 
 // sessionAbsent is the answer to a caller with no identity sending what only a signed in caller may send.
