@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 )
 
 // writePluginIn writes a plugin manifest under the named plugin root.
@@ -42,27 +44,10 @@ func writeTree(t *testing.T, root string) {
 	}
 }
 
-// coverBinary returns the coverage built pluginwire path and its environment, skipping the test when unset.
-func coverBinary(t *testing.T) (string, []string) {
-	t.Helper()
-	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
-	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
-	if bindir == "" || gocoverdir == "" {
-		t.Skip("skipping binary test: run via make cover")
-	}
-	var env []string
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "ALPHONE_") && !strings.HasPrefix(entry, "GOCOVERDIR=") {
-			env = append(env, entry)
-		}
-	}
-	return filepath.Join(bindir, "pluginwire"), append(env, "GOCOVERDIR="+gocoverdir)
-}
-
 func TestMainBinaryGeneratesWiring(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "pluginwire")
 	root := t.TempDir()
 	writeTree(t, root)
 	writePluginIn(t, root, "plugins", "demo", `{
@@ -95,7 +80,7 @@ func TestMainBinaryGeneratesWiring(t *testing.T) {
 func TestMainBinaryWiresTheEnterpriseRoot(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "pluginwire")
 	root := t.TempDir()
 	writeTree(t, root)
 	writePluginIn(t, root, "plugins", "demo", `{
@@ -130,7 +115,7 @@ func TestMainBinaryWiresTheEnterpriseRoot(t *testing.T) {
 func TestMainBinaryEmptyEnterpriseRootReproducesTheCommittedBytes(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "pluginwire")
 	root := t.TempDir()
 	writeTree(t, root)
 	writePluginIn(t, root, "plugins", "demo", `{
@@ -170,7 +155,7 @@ func TestMainBinaryEmptyEnterpriseRootReproducesTheCommittedBytes(t *testing.T) 
 func TestMainBinaryFailsWithoutCoreSchemas(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "pluginwire")
 	root := t.TempDir()
 	writePluginIn(t, root, "plugins", "demo", `{
 		"id": "demo",
@@ -202,7 +187,7 @@ func TestMainBinaryFailsWithoutCoreSchemas(t *testing.T) {
 func TestMainBinaryFailsWithoutPluginsDirectory(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "pluginwire")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = t.TempDir()
