@@ -576,6 +576,9 @@ each code in the reader's language.
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
 
+A request's body is read in full before it takes one of its caller's
+operation slots, so a slow upload never holds a slot.
+
 Every value but the query complexity is the default of a setting the
 operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
 
