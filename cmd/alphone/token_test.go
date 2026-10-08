@@ -41,7 +41,7 @@ func tokenDatabase(t *testing.T) (string, map[string]string) {
 	t.Helper()
 	databaseURL := testDatabaseURL(t)
 	env := map[string]string{"ALPHONE_DATABASE_URL": databaseURL}
-	seedTokenUser(t, testGetenv(env))
+	seedTokenUser(t, testkit.Getenv(env))
 	return databaseURL, env
 }
 
@@ -81,7 +81,7 @@ func storedToken(t *testing.T, databaseURL, secret string) apitoken.Token {
 // placedMember creates maria.perez@example.com and stands it in a fresh tenant, answering the account and the tenant.
 func placedMember(t *testing.T, databaseURL string, env map[string]string) (gouncer.User, uuid.UUID) {
 	t.Helper()
-	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
+	createAccount(t, testkit.Getenv(env), "maria.perez@example.com", role.Member.String())
 	member := accountAt(t, databaseURL, "maria.perez@example.com")
 	return member, placedInNewTenant(t, databaseURL, member.ID)
 }
@@ -118,11 +118,11 @@ func heldTokenIDs(t *testing.T, ctx context.Context, databaseURL string, userID 
 // servedAPI serves the API in process over the database at databaseURL until the test ends, answering its address.
 func servedAPI(t *testing.T, databaseURL string) string {
 	t.Helper()
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 		}), io.Discard, registerPlugins)
@@ -287,7 +287,7 @@ func TestTokenRevokeReachesATokenLeftInTheWorkspaceItsOwnerMovedFrom(t *testing.
 	t.Parallel()
 
 	databaseURL, env := tokenDatabase(t)
-	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
+	createAccount(t, testkit.Getenv(env), "maria.perez@example.com", role.Member.String())
 	minted := testkit.Run(t, bareProgram(env), "",
 		"token:create", "-email", "maria.perez@example.com", "-name", "reporting")
 	if minted.Code != gonsole.ExitDone {
@@ -694,7 +694,7 @@ func TestTokenRevokeRefusesATokenTheOwnerDoesNotHold(t *testing.T) {
 			t.Parallel()
 
 			databaseURL, env := tokenDatabase(t)
-			createAccount(t, testGetenv(env), "maria.perez@example.com", "member")
+			createAccount(t, testkit.Getenv(env), "maria.perez@example.com", "member")
 			own := testkit.Run(t, bareProgram(env), "",
 				"token:create", "-email", "maria.perez@example.com", "-name", "reporting")
 			if own.Code != gonsole.ExitDone {

@@ -87,7 +87,7 @@ func (seedRefusingPlugin) Seed(context.Context) error {
 
 // compiledProgram returns the command line over env and the compiled plugins, their roles in a registry of its own.
 func compiledProgram(env map[string]string) gonsole.Program {
-	return programOver(role.NewRegistry(), testGetenv(env), registerPlugins)
+	return programOver(role.NewRegistry(), testkit.Getenv(env), registerPlugins)
 }
 
 var _ sdk.Seeder = (*stepRecordingPlugin)(nil)
@@ -126,7 +126,7 @@ func TestSeedYesStoresThePluginDemoDataWithoutStartingAPlugin(t *testing.T) {
 	}
 	env := map[string]string{"ALPHONE_DATABASE_URL": databaseURL}
 
-	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), registeringOne), "", "seed", "-yes")
+	got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(env), registeringOne), "", "seed", "-yes")
 
 	if got.Code != gonsole.ExitDone {
 		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
@@ -202,7 +202,7 @@ func TestSeedStandsAMemberBesideTheAdmin(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	var stdout strings.Builder
 
 	if err := seed(t.Context(), getenv, &stdout); err != nil {
@@ -226,7 +226,7 @@ func TestSeedShowsEveryAccountStatusOnce(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	for range 2 {
 		if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 			t.Fatalf("seed() error = %v, want nil", err)
@@ -272,7 +272,7 @@ func TestSeedReportsAStatusAccountItCannotStore(t *testing.T) {
 		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (email <> 'invited@example.com')"); err != nil {
 		t.Fatalf("refusing the invited account: %v", err)
 	}
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	err := seed(t.Context(), getenv, &strings.Builder{})
 
@@ -295,7 +295,7 @@ func TestSeedGivesTheMemberADayOfItsOwn(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 		t.Fatalf("seed() error = %v, want nil", err)
@@ -320,7 +320,7 @@ func TestSeedNamesEveryLoginItCreates(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	pool := testPool(t, databaseURL)
 	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
 		seedAdminEmail, seedAdminName, seedAdminPassword, role.Admin.String()); err != nil {
@@ -343,7 +343,7 @@ func TestSeedLeavesTheSchemaToTheCommandLine(t *testing.T) {
 
 	databaseURL := barePostgres(t)
 
-	err := seed(t.Context(), testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), io.Discard)
+	err := seed(t.Context(), testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}), io.Discard)
 
 	if schemas := extraSchemas(t, databaseURL); err == nil || len(schemas) > 0 {
 		t.Errorf("seed() over a bare database = %v with the schemas %v, want a failure and no schema", err, schemas)
@@ -375,7 +375,7 @@ func TestSeedYesWarnsOnStderrAfterEverySeedSucceeded(t *testing.T) {
 
 			env := map[string]string{"ALPHONE_DATABASE_URL": testDatabaseURL(t)}
 
-			got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), tc.plugins), "", "seed", "-yes")
+			got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(env), tc.plugins), "", "seed", "-yes")
 
 			if got.Code != tc.code || !strings.HasSuffix(got.Stderr, tc.last) ||
 				strings.Count(got.Stdout+got.Stderr, "development only") != tc.warnings {
@@ -413,7 +413,7 @@ func TestSeedStoresADayOfTasks(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 		t.Fatalf("seed() error = %v, want nil", err)
 	}
@@ -483,7 +483,7 @@ func TestSeedLinksATaskDueInThreeDaysToTheHistoryContact(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 		t.Fatalf("seed() error = %v, want nil", err)
 	}
@@ -506,7 +506,7 @@ func TestSeedRaisesOneTaskAboveTheRest(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 		t.Fatalf("seed() error = %v, want nil", err)
 	}
@@ -525,7 +525,7 @@ func TestSeedReportsBrokenTaskStorage(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
@@ -642,7 +642,7 @@ func TestSeedValidatesItsInput(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			if err := seed(t.Context(), testGetenv(env), &strings.Builder{}); err == nil {
+			if err := seed(t.Context(), testkit.Getenv(env), &strings.Builder{}); err == nil {
 				t.Fatal("seed() error = nil, want a failure")
 			}
 		})
@@ -685,7 +685,7 @@ func TestSeedReportsBrokenContactStorage(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
 		t.Fatalf("first seed() error = %v, want nil", err)
 	}
@@ -703,7 +703,7 @@ func TestSeedReportsTheHistoryContactItCannotStore(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("migrating: %v", err)
 	}
@@ -727,7 +727,7 @@ func TestSeedReportsTheColleagueItCannotStore(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	pool := testPool(t, databaseURL)
 	if _, err := authkit.EnsureAdmin(t.Context(), authkitpg.NewUserStore(pool),
 		seedAdminEmail, seedAdminName, seedAdminPassword, role.Admin.String()); err != nil {
@@ -756,7 +756,7 @@ func TestSeedReportsAdminStorageFailure(t *testing.T) {
 		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (false)"); err != nil {
 		t.Fatalf("breaking the users table: %v", err)
 	}
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
 		t.Fatal("seed() error = nil, want an admin storage failure")
@@ -772,7 +772,7 @@ func TestSeedReportsAnUnstorableAccount(t *testing.T) {
 		"ALTER TABLE auth.users ADD CONSTRAINT seed_sabotage CHECK (false)"); err != nil {
 		t.Fatalf("breaking the users table: %v", err)
 	}
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	if err := seed(t.Context(), getenv, &strings.Builder{}); err == nil {
 		t.Fatal("seed() error = nil, want the unstored account reported")

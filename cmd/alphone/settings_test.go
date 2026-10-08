@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 )
 
 // coreSettings returns one valid value for every core setting the server reads, the mail ones legal together.
@@ -97,12 +99,12 @@ func TestPaddedSettingsLoadLikePlainOnes(t *testing.T) {
 	for key, value := range plain {
 		padded[key] = "  " + value + "  "
 	}
-	want, err := loadRunConfig(testGetenv(plain))
+	want, err := loadRunConfig(testkit.Getenv(plain))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over plain values error = %v, want nil", err)
 	}
 
-	got, err := loadRunConfig(testGetenv(padded))
+	got, err := loadRunConfig(testkit.Getenv(padded))
 
 	if err != nil {
 		t.Fatalf("loadRunConfig() over padded values error = %v, want every value read trimmed", err)
@@ -121,12 +123,12 @@ func TestBlankSettingsLoadLikeUnsetOnes(t *testing.T) {
 		blank[key] = "   "
 	}
 	blank["ALPHONE_DATABASE_URL"] = databaseURL
-	want, err := loadRunConfig(testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}))
+	want, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL}))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}
 
-	got, err := loadRunConfig(testGetenv(blank))
+	got, err := loadRunConfig(testkit.Getenv(blank))
 
 	if err != nil {
 		t.Fatalf("loadRunConfig() over blank values error = %v, want every blank value taken as unset", err)
@@ -241,7 +243,7 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 			env[tt.key] = tt.raw
 			want := fmt.Sprintf("%s: %s, got %q", tt.key, tt.reason, tt.raw)
 
-			_, err := loadRunConfig(testGetenv(env))
+			_, err := loadRunConfig(testkit.Getenv(env))
 
 			if err == nil || err.Error() != want {
 				t.Errorf("loadRunConfig() error = %v, want %q", err, want)

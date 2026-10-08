@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -13,7 +15,7 @@ import (
 func TestEveryPluginRouteAreaCanBeMintedIntoAToken(t *testing.T) {
 	t.Parallel()
 
-	registered, err := registerPlugins(sdk.Deps{Getenv: testGetenv(nil), Env: settingsEnv(testGetenv(nil))})
+	registered, err := registerPlugins(sdk.Deps{Getenv: testkit.Getenv(nil), Env: settingsEnv(testkit.Getenv(nil))})
 	if err != nil {
 		t.Fatalf("registerPlugins() error = %v, want nil", err)
 	}

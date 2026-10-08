@@ -35,7 +35,7 @@ var tokenSummaries = map[string]string{
 
 // bareProgram returns the command line over env, its plugins registering nothing into a role registry of its own.
 func bareProgram(env map[string]string) gonsole.Program {
-	return programOver(role.NewRegistry(), testGetenv(env), registeringNothing)
+	return programOver(role.NewRegistry(), testkit.Getenv(env), registeringNothing)
 }
 
 func TestProgramListsEveryCommandWhenNoneIsNamed(t *testing.T) {
@@ -223,7 +223,7 @@ func TestRegisterPluginsCommands(t *testing.T) {
 		t.Fatalf("loadPlugins() = %v with %v failed, want every compiled plugin registered", err, loaded.Failed)
 	}
 	releaseAtEnd(t, loaded)
-	if err := program(testGetenv(nil), registerPlugins).Check(loaded); err != nil {
+	if err := program(testkit.Getenv(nil), registerPlugins).Check(loaded); err != nil {
 		t.Errorf("Check() = %v, want every command a compiled plugin offers within the naming rules", err)
 	}
 }
@@ -240,7 +240,7 @@ func TestACommandStopsThePluginsItRegistered(t *testing.T) {
 		return []sdk.Plugin{stoppingPlugin{stopped: &stopped}}, nil
 	}
 
-	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), stopping), "", "check")
+	got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(env), stopping), "", "check")
 
 	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, errStopFailed.Error()) {
 		t.Errorf("check = %d with stderr %q, want 1 and the failed stop named", got.Code, got.Stderr)
@@ -324,7 +324,7 @@ func TestCheckPassesValidSettingsWithoutReachingTheDatabase(t *testing.T) {
 func TestProgramListsTheTokenCommands(t *testing.T) {
 	t.Parallel()
 
-	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(nil), registerPlugins), "", "list")
+	got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(nil), registerPlugins), "", "list")
 
 	if got.Code != gonsole.ExitDone || !regexp.MustCompile(`(?m)^ token$`).MatchString(got.Stdout) {
 		t.Fatalf("list = %d, stdout %q, stderr %q, want 0 and a token section", got.Code, got.Stdout, got.Stderr)

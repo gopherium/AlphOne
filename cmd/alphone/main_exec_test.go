@@ -11,9 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -29,27 +27,10 @@ import (
 	"github.com/gopherium/alphone/internal/version"
 )
 
-// coverBinary returns the path of the alphone cover binary and the environment to run it with.
-func coverBinary(t *testing.T) (string, []string) {
-	t.Helper()
-	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
-	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
-	if bindir == "" || gocoverdir == "" {
-		t.Skip("skipping binary test: run via make cover")
-	}
-	var env []string
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "ALPHONE_") && !strings.HasPrefix(entry, "GOCOVERDIR=") {
-			env = append(env, entry)
-		}
-	}
-	return filepath.Join(bindir, "alphone"), append(env, "GOCOVERDIR="+gocoverdir)
-}
-
 func TestMainBinaryRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
@@ -73,7 +54,7 @@ const listingBudget = 30 * time.Second
 func TestMainBinaryListsTheCommandsWhenNoneIsNamed(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := barePostgres(t)
 	ctx, cancel := context.WithTimeout(t.Context(), listingBudget)
 	defer cancel()
@@ -86,7 +67,7 @@ func TestMainBinaryListsTheCommandsWhenNoneIsNamed(t *testing.T) {
 
 	err := cmd.Run()
 
-	inProcess := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	inProcess := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	want := testkit.Run(t, programOver(role.NewRegistry(), inProcess, registerPlugins), "")
 	if err != nil || stdout.String() != want.Stdout || stderr.String() != want.Stderr {
 		t.Errorf("alphone = %v, stdout %q, stderr %q, want 0 and the listing the program prints in process %q",
@@ -111,7 +92,7 @@ func TestMainBinaryPrintsWhatTheProgramPrintsInProcess(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			binary, env := coverBinary(t)
+			binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 			var stdout, stderr bytes.Buffer
 			cmd := exec.Command(binary, tc.args...)
 			cmd.Dir = t.TempDir()
@@ -138,7 +119,7 @@ func TestMainBinaryPrintsWhatTheProgramPrintsInProcess(t *testing.T) {
 func TestMainBinaryPrintsHelp(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stdout bytes.Buffer
 	cmd := exec.Command(binary, "--help")
 	cmd.Dir = t.TempDir()
@@ -156,7 +137,7 @@ func TestMainBinaryPrintsHelp(t *testing.T) {
 func TestMainBinaryRefusesAnUnknownArgument(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "not-a-command")
 	cmd.Dir = t.TempDir()
@@ -184,7 +165,7 @@ func TestMainBinaryRefusesTheCommandNamesFromBeforeTheCommandLine(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			binary, env := coverBinary(t)
+			binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 			var stderr bytes.Buffer
 			cmd := exec.Command(binary, name, "-role", "admin")
 			cmd.Dir = t.TempDir()
@@ -207,7 +188,7 @@ func TestMainBinaryRefusesTheCommandNamesFromBeforeTheCommandLine(t *testing.T) 
 func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
@@ -229,7 +210,7 @@ func TestMainBinaryCreateAdminReportsFailure(t *testing.T) {
 func TestMainBinaryCreateAdminWantsItsFlagsBeforeTheDatabase(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "account:create-admin", "-email", "admin@example.com", "-name", "Admin")
 	cmd.Dir = t.TempDir()
@@ -250,7 +231,7 @@ func TestMainBinaryCreateAdminWantsItsFlagsBeforeTheDatabase(t *testing.T) {
 func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
@@ -272,7 +253,7 @@ func TestMainBinaryCreateAdminCreatesUser(t *testing.T) {
 func TestMainBinarySeedReportsFailure(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
@@ -293,7 +274,7 @@ func TestMainBinarySeedReportsFailure(t *testing.T) {
 func TestMainBinarySeedHelpSeedsNothing(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary, "seed", "-h")
@@ -318,7 +299,7 @@ func TestMainBinarySeedHelpSeedsNothing(t *testing.T) {
 func TestMainBinarySeedStoresDemoData(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(binary, "seed", "-yes")
 	cmd.Dir = t.TempDir()
@@ -338,7 +319,7 @@ func TestMainBinarySeedStoresDemoData(t *testing.T) {
 func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
 	seedCmd := exec.Command(binary, "seed", "-yes")
@@ -375,7 +356,7 @@ func TestMainBinarySeedFillsTheDemoImportField(t *testing.T) {
 func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
 	seedCmd := exec.Command(binary, "seed", "-yes")
@@ -413,7 +394,7 @@ func TestMainBinarySeedFillsTheDemoHistoryOnTheFirstRun(t *testing.T) {
 func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
 	seedCmd := exec.Command(binary, "seed", "-yes")
@@ -440,7 +421,7 @@ func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
 	seedCmd := exec.Command(binary, "seed", "-yes")
@@ -476,8 +457,8 @@ func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 func TestMainBinaryServesUntilSignalled(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
-	addr := freeAddr(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
+	addr := testkit.FreeAddr(t)
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "serve")
 	cmd.Dir = t.TempDir()
@@ -686,7 +667,7 @@ func postForm(t *testing.T, addr, secret, contentType string, body io.Reader) gr
 // servedBinary starts the real binary on its own database plus extra settings, answering its address and token.
 func servedBinary(t *testing.T, databaseURL string, extra ...string) (string, string) {
 	t.Helper()
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	createUser := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
@@ -725,7 +706,7 @@ func TestMainBinaryDeliversToAReceiverTheOperatorAllowed(t *testing.T) {
 // servedSeededBinary starts the real binary on a database already holding the admin, adding extra to its environment.
 func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (string, string) {
 	t.Helper()
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var minted bytes.Buffer
 	token := exec.Command(binary, "token:create", "-email", "admin@example.com", "-name", "exec")
 	token.Dir = t.TempDir()
@@ -734,7 +715,7 @@ func servedSeededBinary(t *testing.T, databaseURL string, extra ...string) (stri
 	if err := token.Run(); err != nil {
 		t.Fatalf("token:create: %v", err)
 	}
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
@@ -856,7 +837,7 @@ func TestMainBinaryImportsASpreadsheetColumnIntoAField(t *testing.T) {
 func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	createUser := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
@@ -874,7 +855,7 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 	if err := mint.Run(); err != nil {
 		t.Fatalf("token:create: %v", err)
 	}
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	serve := exec.Command(binary, "serve")
 	serve.Dir = t.TempDir()
 	serve.Env = append(env,
@@ -908,7 +889,7 @@ func TestMainBinaryAdvertisesTheBuildVersionOverMCP(t *testing.T) {
 func TestMainBinaryTokenReportsFailure(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary, "token:list", "-email", "admin@example.com")
 	cmd.Dir = t.TempDir()
@@ -929,7 +910,7 @@ func TestMainBinaryTokenReportsFailure(t *testing.T) {
 func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	createUser := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
@@ -958,7 +939,7 @@ func TestMainBinaryTokenCreatesAToken(t *testing.T) {
 func TestMainBinaryTokenRevokeOnlyPreviewsUntilYes(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	createUser := exec.Command(binary,
@@ -1002,7 +983,7 @@ func TestMainBinaryTokenRevokeOnlyPreviewsUntilYes(t *testing.T) {
 func TestMainBinarySaysAnOldTokenSpellingIsDeprecated(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	createUser := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")

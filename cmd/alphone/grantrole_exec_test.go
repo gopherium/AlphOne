@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/role"
@@ -16,7 +17,7 @@ import (
 func TestMainBinaryGrantsARoleToEveryAccountHoldingNone(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	env = append(env, "ALPHONE_DATABASE_URL="+databaseURL)
 	provision := exec.Command(binary,

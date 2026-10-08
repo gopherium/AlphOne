@@ -42,14 +42,14 @@ func (commandingPlugin) Commands() []sdk.Command {
 
 // describingCall returns a call that only describes commands, over env and writing its progress to stderr.
 func describingCall(env map[string]string, stderr io.Writer) gonsole.Call {
-	return gonsole.Call{Env: settingsEnv(testGetenv(env)), Stderr: stderr, Describe: true}
+	return gonsole.Call{Env: settingsEnv(testkit.Getenv(env)), Stderr: stderr, Describe: true}
 }
 
 // loadingProgram returns a program over env that registers its plugins through loadPlugins and nothing else.
 func loadingProgram(env map[string]string, plugins func(sdk.Deps) ([]sdk.Plugin, error)) gonsole.Program {
 	return gonsole.Program{
 		Name:     "alphone",
-		Env:      settingsEnv(testGetenv(env)),
+		Env:      settingsEnv(testkit.Getenv(env)),
 		Database: "DATABASE_URL",
 		Plugins:  loadPlugins(role.NewRegistry(), plugins),
 	}

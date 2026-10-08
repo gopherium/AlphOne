@@ -310,11 +310,13 @@ alphone: dry run, nothing changed, pass -yes to apply
 set maria@example.com to admin
 ```
 
-Without `-as` the command exits 2 with
+Leaving out `-as`, or giving it only spaces, exits 2. The message names
+the command, so for `account:role` it reads
 `alphone: account:role wants -as <email>`. The acting account must
 exist, be enabled, have been activated and hold a role that carries
-`manage_users`, which in AlphOne is the admin role. Otherwise the
-command exits 1 and changes nothing:
+`manage_users`, which in AlphOne is the admin role. The check runs
+before anything changes, on a dry run too. When it fails, the command
+exits 1 and says why:
 
 | Error | Why |
 | --- | --- |
@@ -325,6 +327,10 @@ command exits 1 and changes nothing:
 | `the account admin@example.com holds no role, so it lacks manage_users` | It holds no role at all. |
 | `the account you@example.com cannot change its own role` | No account changes its own role. |
 | `the account you@example.com cannot disable itself` | No account disables itself. |
+
+`account:role` and `account:disable` refuse to act on the account named
+in `-as`, on a dry run too, even when another admin is left. Name
+another admin in `-as` to make that change.
 
 The acting account also reaches only as far as its own role. A change
 that gives a role carrying a capability the acting account's role lacks
@@ -341,6 +347,10 @@ change members but not admins.
 The last enabled admin always stays. When two changes race, the one that
 would leave no enabled admin is refused with
 `<address> is the last enabled privileged account`.
+
+`-as` asks for no password. It names who answers for the change.
+Anyone who can run commands against the database can name any
+account, so keep access to the server as tight as before.
 
 These four commands need the command records. On a database that does
 not hold them yet, such as one last migrated by a release from before

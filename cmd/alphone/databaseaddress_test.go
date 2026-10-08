@@ -73,9 +73,9 @@ func TestEveryCommandTakesAPaddedDatabaseAddress(t *testing.T) {
 			t.Parallel()
 
 			address := testDatabaseURL(t)
-			createAccount(t, testGetenv(map[string]string{"ALPHONE_DATABASE_URL": address}),
+			createAccount(t, testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": address}),
 				"maria.perez@example.com", role.Admin.String())
-			getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": "  " + address + "  "})
+			getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": "  " + address + "  "})
 
 			if err := read(t, getenv, address); err != nil {
 				t.Errorf("%s over a padded address error = %v, want the address read trimmed", name, err)
@@ -91,7 +91,7 @@ func TestEveryCommandRefusesABlankDatabaseAddressByName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": "   "})
+			getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": "   "})
 
 			err := read(t, getenv, "")
 
