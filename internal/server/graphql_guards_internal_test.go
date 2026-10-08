@@ -150,6 +150,8 @@ func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
 
 	for _, contentType := range []string{
 		"multipart/form-data; boundary=upload",
+		"Multipart/Form-Data; boundary=upload",
+		"MULTIPART/FORM-DATA; boundary=upload",
 	} {
 		guarded, anonymous, passed := refusingGuard(GraphBounds{})
 		body := &countedBody{}

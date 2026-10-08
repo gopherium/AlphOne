@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -215,9 +216,10 @@ func graphBodyLimit(r *http.Request, bounds GraphBounds) int64 {
 	return bounds.BodyMaxBytes
 }
 
-// carriesForm reports whether the request body is a multipart form.
+// carriesForm reports whether the request body is a multipart form, whatever the case of its media type.
 func carriesForm(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && mediaType == "multipart/form-data"
 }
 
 // jsonAnswerTypes lists the answer media types a caller offers to read JSON with.
