@@ -112,12 +112,130 @@ nothing.
 `call.Apply` is true once the line holds `-yes`, and without it the
 binary adds `alphone: dry run, nothing changed, pass -yes to apply`
 after your output. Wrap an error in `sdk.Misuse` when the line itself
-is wrong, such as a missing flag, so the command exits 2 and prints its
-help page. Any other error exits 1.
+is wrong, such as a flag value the command cannot use, so the command
+exits 2 and prints its help page. Any other error exits 1.
 
 A plugin id may not be the name of a base command or of a core
 namespace: `help`, `list`, `version`, `check`, `serve`, `migrate`,
 `seed`, `account` and `token`. `make generate` refuses such an id.
+
+## Flags a run must set
+
+`Flags` declares the command's own flags with Go's standard `flag`
+package, and `Needs` names the ones every run must set. This second
+command brings back the rows archived since the day the line names:
+
+```go
+// restore returns archive:restore, which brings back the rows archived since the day -since names.
+func (p *Plugin) restore() sdk.Command {
+	return sdk.Command{
+		Name:    "archive:restore",
+		Summary: "bring back the rows archived since one day",
+		Flags: func(fs *flag.FlagSet) {
+			fs.String("since", "", "first `day` to bring back, such as 2026-10-01")
+		},
+		Needs:  []string{"since"},
+		Writes: true,
+		Run: func(ctx context.Context, call sdk.Call) error {
+			day := call.Flags["since"]
+			since, err := time.Parse(time.DateOnly, day)
+			if err != nil {
+				return sdk.Misuse(fmt.Errorf("archive:restore: -since %q is not a day like 2026-10-01", day))
+			}
+			return p.bringBack(ctx, call, since)
+		},
+	}
+}
+```
+
+Add `p.restore()` to the list `Commands` returns. A line that leaves
+`-since` out, or gives it empty text or only spaces, exits 2 with
+`alphone: archive:restore wants -since <day>` and the help page. The
+binary checks this as soon as it has read the line, before it calls
+`Run`, so `Run` never has to look for a missing `-since` itself.
+`alphone archive:restore -h` still prints the help page.
+
+The placeholder `day` is the word in backquotes in the flag's usage.
+Without backquotes it names the kind of value, such as `string` or
+`int`, or just `value`.
+
+The binary checks the text the line types for the flag, not the value
+the flag reads back. So a flag declared with `fs.Func`, which keeps no
+value of its own, works in `Needs` too. A default does not count. A
+flag declared as `fs.Int("batch", 500, ...)` and named in `Needs` still
+stops a line that leaves `-batch` out. Each name in `Needs` must be a
+flag that `Flags` declares and that takes a value, unlike a `bool`
+flag. Otherwise the binary drops the command, `alphone check` names it,
+and running it exits 1.
+
+`Needs` only checks that a value is there. To stop a bad value, such as
+`-since soon`, `Run` returns the error wrapped in `sdk.Misuse`, as
+above, so the run exits 2 with the help page the same way.
+[Writing commands](https://docs.gopherium.org/command-line/writing-commands/)
+covers `Needs` in full.
+
+## An acting account
+
+The acting account is the account of the person who runs the command.
+Set `Capability` to one of the capabilities the roles carry, such as
+`manage_users`, and the command wants `-as <email>`:
+
+```go
+// Commands returns the commands the archive plugin offers.
+func (p *Plugin) Commands() []sdk.Command {
+	return []sdk.Command{{
+		Name:       "archive:purge",
+		Summary:    "delete the archived rows older than the keep window",
+		Writes:     true,
+		Capability: "manage_users",
+		Run:        p.purge,
+	}, p.restore()}
+}
+```
+
+A line that leaves `-as` out, or gives it empty text or only spaces,
+exits 2 with `alphone: archive:purge wants -as <email>` and the help
+page. `Run` reads the address as `call.Actor`, exactly as typed, so
+trim it and lower-case it before a lookup.
+
+The `alphone` binary checks the acting account through its `Authorize`
+function, on a dry run too. A command that names a `Capability` is
+refused before `Run` unless the `-as` account exists, is enabled and
+activated, and holds a role with that capability. The run then exits 1
+and says why, such as
+`the account maria@example.com holds the role member, which lacks manage_users`.
+[Changing an account](/self-hosting/commands/#changing-an-account)
+lists every reason.
+
+Each run such a command applies is stored as one record, which
+`alphone account:records` lists. The binary's `Record` function stores
+it once `Run` has made the change. Here `you@example.com` is an admin:
+
+```sh
+alphone archive:purge -as you@example.com
+alphone archive:purge -as you@example.com -yes
+alphone account:records -limit 1
+```
+
+```text
+would delete 12 rows
+alphone: dry run, nothing changed, pass -yes to apply
+deleted 12 rows
+2026-10-08T09:12:40Z  you@example.com  archive:purge
+```
+
+Previews and refused attempts are not recorded. If storing the record
+fails, the run exits 1 with the change already made. The record keeps
+the command's arguments and flags, so take a secret, such as a
+password, only on `call.Stdin`.
+
+The roles AlphOne ships carry two capabilities, `manage_users` and
+`manage_webhooks`, both held by admin. A plugin that implements
+`sdk.RoleProvider` can give a role a capability of its own. Name one no
+role carries, and every account is refused. AlphOne sets `Authorize`
+and `Record` for every plugin, so yours writes neither.
+[Writing commands](https://docs.gopherium.org/command-line/writing-commands/#an-acting-account)
+shows both from the program's side.
 
 ## What the binary expects from a plugin
 
