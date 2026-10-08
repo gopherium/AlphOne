@@ -69,7 +69,7 @@ func loadGraphBounds(env gonsole.Env) (server.GraphBounds, error) {
 	return anonymous, nil
 }
 
-// loadAnonymousBounds reads the body limit and the pools the graph holds callers with no identity to.
+// loadAnonymousBounds reads the caps and the pools the graph holds callers with no identity to.
 func loadAnonymousBounds(env gonsole.Env) (server.GraphBounds, error) {
 	defaults := server.DefaultGraphBounds
 	body, err := env.Count("GRAPH_ANONYMOUS_MAX_BYTES", int(defaults.AnonymousBodyMaxBytes))
@@ -84,5 +84,16 @@ func loadAnonymousBounds(env gonsole.Env) (server.GraphBounds, error) {
 	if err != nil {
 		return server.GraphBounds{}, err
 	}
-	return server.GraphBounds{AnonymousBodyMaxBytes: int64(body), AnonymousPerIP: perIP, AnonymousCeiling: ceiling}, nil
+	tokens, err := env.Count("GRAPH_ANONYMOUS_MAX_TOKENS", defaults.AnonymousMaxTokens)
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
+	query, err := env.Count("GRAPH_ANONYMOUS_QUERY_MAX_BYTES", int(defaults.AnonymousQueryMaxBytes))
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
+	return server.GraphBounds{
+		AnonymousBodyMaxBytes: int64(body), AnonymousPerIP: perIP, AnonymousCeiling: ceiling,
+		AnonymousMaxTokens: tokens, AnonymousQueryMaxBytes: int64(query),
+	}, nil
 }

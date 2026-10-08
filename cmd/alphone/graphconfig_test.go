@@ -35,17 +35,19 @@ func TestTheGraphBoundsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
 	held, err := loadRunConfig(testGetenv(map[string]string{
-		"ALPHONE_DATABASE_URL":              "postgres://localhost/x",
-		"ALPHONE_GRAPH_OPERATIONS_PER_USER": "12",
-		"ALPHONE_GRAPH_OPERATION_TIMEOUT":   "45s",
-		"ALPHONE_GRAPH_BODY_MAX_BYTES":      "524288",
-		"ALPHONE_GRAPH_UPLOAD_MAX_BYTES":    "3145728",
-		"ALPHONE_GRAPH_RETRY_AFTER":         "2s",
-		"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES": "8192",
-		"ALPHONE_GRAPH_ANONYMOUS_PER_IP":    "3",
-		"ALPHONE_GRAPH_ANONYMOUS_CEILING":   "12",
-		"ALPHONE_STREAMS_PER_USER":          "4",
-		"ALPHONE_STREAM_LIFETIME":           "3m",
+		"ALPHONE_DATABASE_URL":                    "postgres://localhost/x",
+		"ALPHONE_GRAPH_OPERATIONS_PER_USER":       "12",
+		"ALPHONE_GRAPH_OPERATION_TIMEOUT":         "45s",
+		"ALPHONE_GRAPH_BODY_MAX_BYTES":            "524288",
+		"ALPHONE_GRAPH_UPLOAD_MAX_BYTES":          "3145728",
+		"ALPHONE_GRAPH_RETRY_AFTER":               "2s",
+		"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES":       "8192",
+		"ALPHONE_GRAPH_ANONYMOUS_PER_IP":          "3",
+		"ALPHONE_GRAPH_ANONYMOUS_CEILING":         "12",
+		"ALPHONE_GRAPH_ANONYMOUS_MAX_TOKENS":      "48",
+		"ALPHONE_GRAPH_ANONYMOUS_QUERY_MAX_BYTES": "768",
+		"ALPHONE_STREAMS_PER_USER":                "4",
+		"ALPHONE_STREAM_LIFETIME":                 "3m",
 	}))
 
 	if err != nil {
@@ -56,6 +58,7 @@ func TestTheGraphBoundsAreReadFromTheEnvironment(t *testing.T) {
 		OperationsPerUser: 12, OperationTimeout: 45 * time.Second,
 		BodyMaxBytes: 524288, UploadMaxBytes: 3145728, RetryAfter: 2 * time.Second,
 		AnonymousBodyMaxBytes: 8192, AnonymousPerIP: 3, AnonymousCeiling: 12,
+		AnonymousMaxTokens: 48, AnonymousQueryMaxBytes: 768,
 	}
 	if cfg.Graph != want {
 		t.Errorf("graph bounds = %+v, want %+v", cfg.Graph, want)
@@ -83,6 +86,8 @@ func TestTheGraphBoundsRefuseAnUnreadableValue(t *testing.T) {
 		"no anonymous body at all":   {"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES", "0"},
 		"no slot for an address":     {"ALPHONE_GRAPH_ANONYMOUS_PER_IP", "0"},
 		"no anonymous ceiling":       {"ALPHONE_GRAPH_ANONYMOUS_CEILING", "0"},
+		"no anonymous token":         {"ALPHONE_GRAPH_ANONYMOUS_MAX_TOKENS", "0"},
+		"no anonymous document":      {"ALPHONE_GRAPH_ANONYMOUS_QUERY_MAX_BYTES", "0"},
 		"no stream slot":             {"ALPHONE_STREAMS_PER_USER", "0"},
 		"no stream time":             {"ALPHONE_STREAM_LIFETIME", "0s"},
 	}
