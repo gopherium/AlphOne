@@ -56,10 +56,10 @@ Feature: Operators run AlphOne from one command line
     And no account change is on record
 
     Examples:
-      | case                                 | actor                   | code | error                    |
-      | it names no acting account           |                         | 2    | wants -as                |
-      | the acting account is a member       | maria.perez@example.com | 1    | which lacks manage_users |
-      | nobody answers to the acting address | nobody@example.com      | 1    | no account answers to    |
+      | case                                 | actor                   | code | error                                    |
+      | it names no acting account           |                         | 2    | account:role wants -as <email>           |
+      | the acting account is a member       | maria.perez@example.com | 1    | which lacks manage_users                 |
+      | nobody answers to the acting address | nobody@example.com      | 1    | no account answers to nobody@example.com |
 
   Scenario: An applied account change is kept on record
     Given the administrator "admin@example.com"
@@ -186,6 +186,7 @@ Feature: Operators run AlphOne from one command line
     And the administrator "maria.perez@example.com"
     When the operator disables "admin@example.com" acting as "admin@example.com"
     Then the command exits with code 1
+    And the error says "the account admin@example.com cannot disable itself"
     And the account "admin@example.com" is still enabled
     And no account change is on record
 
@@ -195,5 +196,6 @@ Feature: Operators run AlphOne from one command line
     And the member "maria.perez@example.com"
     When the operator gives "maria.perez@example.com" the role "steward" acting as "admin@example.com"
     Then the command exits with code 1
+    And the error says "the role steward carries reach_beyond_admin, which the account admin@example.com lacks"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
