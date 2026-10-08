@@ -97,11 +97,11 @@ const (
 )
 
 // graphServer returns the gqlgen server answering over one executable schema with every graph guard.
-func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *handler.Server {
+func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap, bounds GraphBounds) *handler.Server {
 	srv := handler.New(schema)
 	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
-	srv.AddTransport(transport.MultipartForm{})
+	srv.AddTransport(transport.MultipartForm{MaxUploadSize: bounds.UploadMaxBytes})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.AroundOperations(graphres.AnonymousGate)
@@ -111,12 +111,14 @@ func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *han
 }
 
 // tenantGraphs returns the graph servers answering each tenant over its own widened schema.
-func tenantGraphs(root graph.ResolverRoot, sources []sdk.FieldSource, held int) *dyngraph.Graphs[*handler.Server] {
+func tenantGraphs(
+	root graph.ResolverRoot, sources []sdk.FieldSource, held int, bounds GraphBounds,
+) *dyngraph.Graphs[*handler.Server] {
 	scopes := graphres.NewScopeMap(graphres.ExecutableSchema(root).Schema())
 	return dyngraph.New(func(widened *ast.Schema) graphql.ExecutableSchema {
 		return graphres.ExecutableSchemaOver(root, widened)
 	}, func(schema graphql.ExecutableSchema) *handler.Server {
-		return graphServer(schema, scopes)
+		return graphServer(schema, scopes, bounds)
 	}, held, sources...)
 }
 
@@ -153,7 +155,7 @@ func newGraphQLHandler(
 	sources []sdk.FieldSource,
 	held int,
 ) http.Handler {
-	graphs := tenantGraphs(root, sources, held)
+	graphs := tenantGraphs(root, sources, held, bounds)
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))

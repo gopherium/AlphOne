@@ -497,6 +497,32 @@ func TestAnonymousBodyAboveItsLimitIsRefused(t *testing.T) {
 	}
 }
 
+func TestAnUploadAboveThirtyTwoMiBReachesTheParserUnderItsLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
+		Graph: server.GraphBounds{UploadMaxBytes: 40 << 20},
+	})
+	cookie := loginCookie(t, srv)
+	upload := graphForm(t, crmOrigin+"/api/graphql",
+		formPart{name: "operations", value: uploadOperations},
+		formPart{name: "map", value: `{"0":["variables.file"]}`},
+		formPart{name: "0", filename: "contacts.csv", value: strings.Repeat("x", 33<<20)},
+	)
+	upload.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+
+	srv.ServeHTTP(recorder, upload)
+
+	if !strings.Contains(recorder.Body.String(), `"reason":"file_too_large"`) {
+		t.Errorf("a 33 MiB upload under a 40 MiB limit answered %.200s, want the importer's own file_too_large",
+			recorder.Body.String())
+	}
+}
+
 func TestSignedInBodyKeepsItsLimit(t *testing.T) {
 	t.Parallel()
 
