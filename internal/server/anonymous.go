@@ -4,19 +4,92 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/lexer"
 
+	"github.com/gopherium/gouncer/authkit"
+
 	"github.com/gopherium/alphone/internal/graphres"
 )
+
+// serveAnonymous answers a graph request with no identity from a held answer, its slot freed before it is sent.
+func serveAnonymous(next http.Handler, w http.ResponseWriter, r *http.Request, policy graphPolicy, bounds GraphBounds) {
+	if !admitAnonymous(w, r, bounds) {
+		return
+	}
+	free, claimed := policy.claim(r, authkit.Identity{})
+	if !claimed {
+		refuseOverflow(w, policy)
+		return
+	}
+	answer := &heldAnswer{header: http.Header{}, limit: bounds.AnonymousAnswerMaxBytes}
+	holdAnswer(next, answer, r, policy.lifetime, free)
+	answer.send(answerWithin(w, policy.lifetime), r)
+}
+
+// holdAnswer runs the request into the held answer under the lifetime, freeing its slot once it returns.
+func holdAnswer(next http.Handler, answer *heldAnswer, r *http.Request, lifetime time.Duration, free func()) {
+	defer free()
+	ctx, cancel := context.WithTimeout(r.Context(), lifetime)
+	defer cancel()
+	next.ServeHTTP(answer, r.WithContext(ctx))
+}
+
+// heldAnswer is a graph answer held in memory, up to a limit, before it reaches the caller.
+type heldAnswer struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+	limit  int64
+	over   bool
+}
+
+// Header returns the header the held answer carries.
+func (a *heldAnswer) Header() http.Header {
+	return a.header
+}
+
+// WriteHeader holds the status the answer carries.
+func (a *heldAnswer) WriteHeader(status int) {
+	a.status = status
+}
+
+// Write holds p, dropping the whole answer once it outgrows its limit.
+func (a *heldAnswer) Write(p []byte) (int, error) {
+	if a.over || int64(a.body.Len()+len(p)) > a.limit {
+		a.over = true
+		a.body.Reset()
+		return len(p), nil
+	}
+	return a.body.Write(p)
+}
+
+// Flush leaves the held answer whole until it is sent.
+func (a *heldAnswer) Flush() {}
+
+// send writes the held answer to the caller, or the refusal in its place once it outgrew its limit.
+func (a *heldAnswer) send(w http.ResponseWriter, r *http.Request) {
+	if a.over {
+		refuseAnonymous(w, r)
+		return
+	}
+	maps.Copy(w.Header(), a.header)
+	if a.status != 0 {
+		w.WriteHeader(a.status)
+	}
+	_, _ = w.Write(a.body.Bytes())
+}
 
 // admitAnonymous reads the body of a graph request with no identity, refusing it and reporting false past a cap.
 func admitAnonymous(w http.ResponseWriter, r *http.Request, bounds GraphBounds) bool {

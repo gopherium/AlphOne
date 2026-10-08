@@ -15,8 +15,8 @@ import (
 	"github.com/gopherium/alphone/internal/server"
 )
 
-// smallWindowConn dials the address with a tiny receive buffer and small segments.
-func smallWindowConn(t *testing.T, addr string) net.Conn {
+// smallWindowConn dials the address from the local one, any when empty, with a tiny receive buffer and small segments.
+func smallWindowConn(t *testing.T, addr, local string) net.Conn {
 	t.Helper()
 	dialer := net.Dialer{Control: func(_, _ string, raw syscall.RawConn) error {
 		var set error
@@ -30,9 +30,12 @@ func smallWindowConn(t *testing.T, addr string) net.Conn {
 		}
 		return set
 	}}
+	if local != "" {
+		dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(local)}
+	}
 	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
-		t.Fatalf("dialing: %v", err)
+		t.Fatalf("dialing from %q: %v", local, err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 	return conn
@@ -41,7 +44,7 @@ func smallWindowConn(t *testing.T, addr string) net.Conn {
 // unreadLargeAnswer asks over a connection with a small receive buffer for a large answer it never reads.
 func unreadLargeAnswer(t *testing.T, addr string, cookie *http.Cookie) {
 	t.Helper()
-	conn := smallWindowConn(t, addr)
+	conn := smallWindowConn(t, addr, "")
 	var aliases strings.Builder
 	for i := range 2000 {
 		fmt.Fprintf(&aliases, "a%0490d: version ", i)
@@ -86,5 +89,42 @@ func TestAnUnreadAnswerFreesItsSlotAtTheLifetime(t *testing.T) {
 
 	if !awaitVersionStatus(t, client, addr, cookie, http.StatusOK, 8*time.Second) {
 		t.Error("the slot of an unread answer was still held 8s on, want it freed at the 1s lifetime")
+	}
+}
+
+// anonymousEcho is a body with no identity whose one variable the graph echoes into its answer about six times over.
+var anonymousEcho = `{"query":"query($o: SortOrder!) { contactPage(order: $o) { __typename } }",` +
+	`"variables":{"o":"` + strings.Repeat("<", 15<<10) + `"}}`
+
+// stalledEchoes pipelines anonymous echoes from the local address over a tiny receive window and never reads.
+func stalledEchoes(t *testing.T, addr, local string) {
+	t.Helper()
+	conn := smallWindowConn(t, addr, local)
+	if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("bounding the writes: %v", err)
+	}
+	head := "POST /api/graphql HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s"
+	for range 4 {
+		if _, err := fmt.Fprintf(conn, head, addr, len(anonymousEcho), anonymousEcho); err != nil {
+			t.Fatalf("pipelining an echo: %v", err)
+		}
+	}
+}
+
+func TestStalledAnonymousEchoesLeaveSignInOpen(t *testing.T) {
+	t.Parallel()
+
+	addr := servedOverTCP(t, server.GraphBounds{})
+	for address := range 4 {
+		for range 5 {
+			stalledEchoes(t, addr, fmt.Sprintf("127.0.0.%d", address+2))
+		}
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	for attempt := range 10 {
+		if status := signInStatus(t, addr); status != http.StatusOK {
+			t.Fatalf("sign in %d under 20 stalled readers of pipelined echoes answered %d, want 200", attempt+1, status)
+		}
 	}
 }

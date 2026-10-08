@@ -48,36 +48,40 @@ type GraphBounds struct {
 	AnonymousMaxTokens int
 	// AnonymousQueryMaxBytes caps the bytes of the document a graph request with no identity carries.
 	AnonymousQueryMaxBytes int64
+	// AnonymousAnswerMaxBytes caps the answer a graph request with no identity gets.
+	AnonymousAnswerMaxBytes int64
 }
 
 // DefaultGraphBounds are the graph bounds a zero field falls back to.
 var DefaultGraphBounds = GraphBounds{
-	OperationsPerUser:      20,
-	OperationTimeout:       60 * time.Second,
-	BodyMaxBytes:           1 << 20,
-	UploadMaxBytes:         6 << 20,
-	RetryAfter:             time.Second,
-	AnonymousBodyMaxBytes:  16 << 10,
-	AnonymousPerIP:         5,
-	AnonymousCeiling:       20,
-	AnonymousMaxTokens:     64,
-	AnonymousQueryMaxBytes: 1024,
+	OperationsPerUser:       20,
+	OperationTimeout:        60 * time.Second,
+	BodyMaxBytes:            1 << 20,
+	UploadMaxBytes:          6 << 20,
+	RetryAfter:              time.Second,
+	AnonymousBodyMaxBytes:   16 << 10,
+	AnonymousPerIP:          5,
+	AnonymousCeiling:        20,
+	AnonymousMaxTokens:      64,
+	AnonymousQueryMaxBytes:  1024,
+	AnonymousAnswerMaxBytes: 16 << 10,
 }
 
 // withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
 func (b GraphBounds) withDefaults() GraphBounds {
 	d := DefaultGraphBounds
 	return GraphBounds{
-		OperationsPerUser:      orDefault(b.OperationsPerUser, d.OperationsPerUser),
-		OperationTimeout:       orDefault(b.OperationTimeout, d.OperationTimeout),
-		BodyMaxBytes:           orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
-		UploadMaxBytes:         orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
-		RetryAfter:             orDefault(b.RetryAfter, d.RetryAfter),
-		AnonymousBodyMaxBytes:  orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
-		AnonymousPerIP:         orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
-		AnonymousCeiling:       orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
-		AnonymousMaxTokens:     orDefault(b.AnonymousMaxTokens, d.AnonymousMaxTokens),
-		AnonymousQueryMaxBytes: orDefault(b.AnonymousQueryMaxBytes, d.AnonymousQueryMaxBytes),
+		OperationsPerUser:       orDefault(b.OperationsPerUser, d.OperationsPerUser),
+		OperationTimeout:        orDefault(b.OperationTimeout, d.OperationTimeout),
+		BodyMaxBytes:            orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
+		UploadMaxBytes:          orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
+		RetryAfter:              orDefault(b.RetryAfter, d.RetryAfter),
+		AnonymousBodyMaxBytes:   orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
+		AnonymousPerIP:          orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
+		AnonymousCeiling:        orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
+		AnonymousMaxTokens:      orDefault(b.AnonymousMaxTokens, d.AnonymousMaxTokens),
+		AnonymousQueryMaxBytes:  orDefault(b.AnonymousQueryMaxBytes, d.AnonymousQueryMaxBytes),
+		AnonymousAnswerMaxBytes: orDefault(b.AnonymousAnswerMaxBytes, d.AnonymousAnswerMaxBytes),
 	}
 }
 
@@ -261,28 +265,32 @@ func acceptsEventStream(r *http.Request) bool {
 // concurrency under the policy of its kind.
 func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := authkit.IdentityFromContext(r.Context())
+		if user.ID == uuid.Nil {
+			serveAnonymous(next, w, r, operations, bounds)
+			return
+		}
 		policy := operations
 		if acceptsEventStream(r) {
 			policy = streams
 		}
-		user := authkit.IdentityFromContext(r.Context())
-		if user.ID == uuid.Nil && !admitAnonymous(w, r, bounds) {
-			return
-		}
 		free, claimed := policy.claim(r, user)
 		if !claimed {
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
-			authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
+			refuseOverflow(w, policy)
 			return
 		}
 		defer free()
-		if user.ID != uuid.Nil {
-			r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
-		}
+		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(answerWithin(w, policy.lifetime), r.WithContext(ctx))
 	})
+}
+
+// refuseOverflow answers that the budget of the policy is spent.
+func refuseOverflow(w http.ResponseWriter, policy graphPolicy) {
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
+	authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
 }
 
 // answerWithin returns w giving each write of the answer the lifetime to reach the caller.

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -143,5 +144,123 @@ func TestSignedInCallersKeepTheirOwnPool(t *testing.T) {
 	}
 	if signedIn.Code != http.StatusNoContent {
 		t.Errorf("a signed in request under a full anonymous ceiling answered %d, want 204 from its own pool", signedIn.Code)
+	}
+}
+
+// stalledWriter is a response writer whose first write waits until it is let go.
+type stalledWriter struct {
+	header  http.Header
+	writing chan struct{}
+	once    sync.Once
+	letGo   chan struct{}
+}
+
+// Header returns the header of the stalled answer.
+func (s *stalledWriter) Header() http.Header {
+	return s.header
+}
+
+// WriteHeader takes the status of the stalled answer.
+func (s *stalledWriter) WriteHeader(int) {}
+
+// Write reports the first write, then waits until the writer is let go.
+func (s *stalledWriter) Write(p []byte) (int, error) {
+	s.once.Do(func() { close(s.writing) })
+	<-s.letGo
+	return len(p), nil
+}
+
+func TestAnAnonymousSlotFreesBeforeItsAnswerIsWritten(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{AnonymousPerIP: 1}.withDefaults()
+	operations, streams := graphPolicies(bounds, time.Minute, 5)
+	answering := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"locale":"en-US"}}`))
+	})
+	guarded := withOperationGuards(answering, operations, streams, bounds)
+	stalled := &stalledWriter{header: http.Header{}, writing: make(chan struct{}), letGo: make(chan struct{})}
+	answered := make(chan struct{})
+	go func() {
+		guarded.ServeHTTP(stalled, anonymousFrom(heldAddress))
+		close(answered)
+	}()
+	select {
+	case <-stalled.writing:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the answer never reached the caller")
+	}
+
+	freed := operations.anonymous.acquire("198.51.100.1")
+	close(stalled.letGo)
+	<-answered
+
+	if !freed {
+		t.Error("the address held its only slot while its answer waited on the caller, want the slot freed first")
+	}
+}
+
+// sizedAnswer answers with a cookie, a 422 and a body of size bytes written in two halves.
+func sizedAnswer(size int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "held", Value: "1"})
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(strings.Repeat("x", size/2)))
+		_, _ = w.Write([]byte(strings.Repeat("x", size-size/2)))
+	})
+}
+
+func TestAnAnonymousAnswerAtItsLimitReachesTheCallerWhole(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{AnonymousAnswerMaxBytes: 64}.withDefaults()
+	operations, streams := graphPolicies(bounds, time.Minute, 5)
+	recorder := httptest.NewRecorder()
+
+	withOperationGuards(sizedAnswer(64), operations, streams, bounds).ServeHTTP(recorder, anonymousFrom(heldAddress))
+
+	if recorder.Code != http.StatusUnprocessableEntity || recorder.Body.String() != strings.Repeat("x", 64) ||
+		recorder.Header().Get("Set-Cookie") == "" {
+		t.Errorf("an answer at its limit reached the caller as %d %q with cookie %q, want its 422, 64 bytes and cookie",
+			recorder.Code, recorder.Body.String(), recorder.Header().Get("Set-Cookie"))
+	}
+}
+
+func TestAnAnonymousAnswerOverItsLimitIsReplacedByTheRefusal(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{AnonymousAnswerMaxBytes: 64}.withDefaults()
+	operations, streams := graphPolicies(bounds, time.Minute, 5)
+	recorder := httptest.NewRecorder()
+
+	withOperationGuards(sizedAnswer(65), operations, streams, bounds).ServeHTTP(recorder, anonymousFrom(heldAddress))
+
+	answer := recorder.Body.String()
+	if recorder.Code != http.StatusOK || !strings.Contains(answer, unauthenticatedAnswer) ||
+		strings.Contains(answer, "xxx") || recorder.Header().Get("Set-Cookie") != "" {
+		t.Errorf("an answer past its limit reached the caller as %d %q with cookie %q, want only 200 UNAUTHENTICATED",
+			recorder.Code, answer, recorder.Header().Get("Set-Cookie"))
+	}
+}
+
+func TestAnAnonymousStreamRequestRunsOnTheOperationLifetime(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{OperationTimeout: time.Second}.withDefaults()
+	operations, streams := graphPolicies(bounds, time.Hour, 5)
+	var left time.Duration
+	measuring := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if deadline, held := r.Context().Deadline(); held {
+			left = time.Until(deadline)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	request := anonymousFrom(heldAddress)
+	request.Header.Set("Accept", "text/event-stream")
+
+	withOperationGuards(measuring, operations, streams, bounds).ServeHTTP(httptest.NewRecorder(), request)
+
+	if left <= 0 || left > time.Second {
+		t.Errorf("an anonymous stream request ran with %v left, want the operation lifetime of 1s", left)
 	}
 }

@@ -497,6 +497,24 @@ func TestAnonymousBodyAboveItsLimitIsRefused(t *testing.T) {
 	}
 }
 
+func TestAnAnonymousEchoPastTheAnswerLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	echoed := `{"query":"query($o: SortOrder!) { contactPage(order: $o) { __typename } }",` +
+		`"variables":{"o":"` + strings.Repeat("<", 15<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, echoed, nil)
+
+	answer := recorder.Body.String()
+	if recorder.Code != http.StatusOK || !strings.Contains(answer, `"code":"UNAUTHENTICATED"`) || len(answer) > 16<<10 {
+		t.Fatalf("an anonymous variable echo answered %d with %d bytes %.200s, want the gate's UNAUTHENTICATED under 16 KiB",
+			recorder.Code, len(answer), answer)
+	}
+}
+
 func TestAnUploadAboveThirtyTwoMiBReachesTheParserUnderItsLimit(t *testing.T) {
 	t.Parallel()
 
