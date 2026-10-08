@@ -77,8 +77,8 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Given(`^a plugin declares the role "([^"]*)" with a capability the role "([^"]*)" lacks$`,
 			s.declareRoleBeyond)
 		sc.When(`^the operator gives "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.giveRole)
+		sc.When(`^the operator gives "([^"]*)" the role "([^"]*)" with a blank -as$`, s.giveRoleAsBlank)
 		sc.When(`^the operator previews giving "([^"]*)" the role "([^"]*)" acting as "([^"]*)"$`, s.previewRole)
-		sc.When(`^the operator disables "([^"]*)" acting as "([^"]*)"$`, s.disableAccount)
 		sc.Then(`^the account "([^"]*)" still holds the role "([^"]*)"$`, s.holdsRole)
 		sc.Then(`^the account "([^"]*)" is still enabled$`, s.isEnabled)
 		sc.Then(`^no account change is on record$`, s.recordsNothing)
@@ -202,6 +202,11 @@ func (s *operatorScenario) giveRole(email, held, actor string) {
 	s.changeRole(email, held, actor, "-yes")
 }
 
+// giveRoleAsBlank gives the account at email the role with -as holding only spaces.
+func (s *operatorScenario) giveRoleAsBlank(email, held string) {
+	s.giveRole(email, held, "  ")
+}
+
 // previewRole previews giving the account at email the role, acting as actor.
 func (s *operatorScenario) previewRole(email, held, actor string) {
 	s.changeRole(email, held, actor)
@@ -214,11 +219,6 @@ func (s *operatorScenario) changeRole(email, held, actor string, flags ...string
 		args = append(args, "-as", actor)
 	}
 	s.run("", args...)
-}
-
-// disableAccount disables the account at email, acting as actor.
-func (s *operatorScenario) disableAccount(email, actor string) {
-	s.run("", "account:disable", email, "-yes", "-as", actor)
 }
 
 // isEnabled fails unless the account at email is enabled.

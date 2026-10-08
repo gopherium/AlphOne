@@ -78,6 +78,16 @@ Feature: Operators run AlphOne from one command line
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
 
+  @wip
+  Scenario: A blank acting account is refused like a missing one
+    Given the administrator "admin@example.com"
+    And the member "maria.perez@example.com"
+    When the operator gives "maria.perez@example.com" the role "admin" with a blank -as
+    Then the command exits with code 2
+    And the error says "account:role wants -as <email>"
+    And the account "maria.perez@example.com" still holds the role "member"
+    And no account change is on record
+
   Scenario: A token is minted and its secret is shown once
     Given the administrator "admin@example.com"
     When the operator mints a token named "automation" for "admin@example.com"
@@ -181,14 +191,33 @@ Feature: Operators run AlphOne from one command line
     Then the command succeeds
     And the token list of every account no longer shows "reporting"
 
-  Scenario: An acting account cannot disable itself
+  Scenario Outline: An acting account cannot <case>
     Given the administrator "admin@example.com"
     And the administrator "maria.perez@example.com"
-    When the operator disables "admin@example.com" acting as "admin@example.com"
+    When the operator runs "<line> -as admin@example.com"
     Then the command exits with code 1
-    And the error says "the account admin@example.com cannot disable itself"
+    And the error says "the account admin@example.com cannot <error>"
+    And the account "admin@example.com" still holds the role "admin"
     And the account "admin@example.com" is still enabled
     And no account change is on record
+
+    Examples:
+      | case                             | line                                       | error               |
+      | change its own role              | account:role admin@example.com member -yes | change its own role |
+      | preview a change of its own role | account:role admin@example.com member      | change its own role |
+      | disable itself                   | account:disable admin@example.com -yes     | disable itself      |
+      | preview disabling itself         | account:disable admin@example.com          | disable itself      |
+
+  Scenario Outline: An account command refuses a missing flag without a database
+    Given the settings name no database
+    When the operator runs "<line>"
+    Then the command exits with code 2
+    And the error says "<error>"
+
+    Examples:
+      | line                                                       | error                                   |
+      | account:create-admin -email admin@example.com -name Holder | account:create-admin wants -role <role> |
+      | account:grant-role -as admin@example.com -yes              | account:grant-role wants -role <role>   |
 
   Scenario: An account change beyond the acting account's reach is refused
     Given a plugin declares the role "steward" with a capability the role "admin" lacks
