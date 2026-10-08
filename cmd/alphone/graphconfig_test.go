@@ -41,6 +41,7 @@ func TestTheGraphBoundsAreReadFromTheEnvironment(t *testing.T) {
 		"ALPHONE_GRAPH_BODY_MAX_BYTES":      "524288",
 		"ALPHONE_GRAPH_UPLOAD_MAX_BYTES":    "3145728",
 		"ALPHONE_GRAPH_RETRY_AFTER":         "2s",
+		"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES": "8192",
 		"ALPHONE_STREAMS_PER_USER":          "4",
 		"ALPHONE_STREAM_LIFETIME":           "3m",
 	}))
@@ -52,6 +53,7 @@ func TestTheGraphBoundsAreReadFromTheEnvironment(t *testing.T) {
 	want := server.GraphBounds{
 		OperationsPerUser: 12, OperationTimeout: 45 * time.Second,
 		BodyMaxBytes: 524288, UploadMaxBytes: 3145728, RetryAfter: 2 * time.Second,
+		AnonymousBodyMaxBytes: 8192,
 	}
 	if cfg.Graph != want {
 		t.Errorf("graph bounds = %+v, want %+v", cfg.Graph, want)
@@ -76,6 +78,7 @@ func TestTheGraphBoundsRefuseAnUnreadableValue(t *testing.T) {
 		"a body size in units":       {"ALPHONE_GRAPH_BODY_MAX_BYTES", "1MiB"},
 		"no upload at all":           {"ALPHONE_GRAPH_UPLOAD_MAX_BYTES", "0"},
 		"no retry hint":              {"ALPHONE_GRAPH_RETRY_AFTER", "0s"},
+		"no anonymous body at all":   {"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES", "0"},
 		"no stream slot":             {"ALPHONE_STREAMS_PER_USER", "0"},
 		"no stream time":             {"ALPHONE_STREAM_LIFETIME", "0s"},
 	}

@@ -47,6 +47,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_GRAPH_BODY_MAX_BYTES":      "524288",
 		"ALPHONE_GRAPH_UPLOAD_MAX_BYTES":    "3145728",
 		"ALPHONE_GRAPH_RETRY_AFTER":         "2s",
+		"ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES": "8192",
 		"ALPHONE_STREAMS_PER_USER":          "4",
 		"ALPHONE_STREAM_LIFETIME":           "3m",
 		"ALPHONE_TOAST_DURATION":            "9s",

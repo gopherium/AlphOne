@@ -57,11 +57,16 @@ func loadGraphBounds(env gonsole.Env) (server.GraphBounds, error) {
 	if err != nil {
 		return server.GraphBounds{}, err
 	}
+	anonymous, err := env.Count("GRAPH_ANONYMOUS_MAX_BYTES", int(defaults.AnonymousBodyMaxBytes))
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
 	return server.GraphBounds{
-		OperationsPerUser: operations,
-		OperationTimeout:  timeout,
-		BodyMaxBytes:      int64(body),
-		UploadMaxBytes:    int64(upload),
-		RetryAfter:        retryAfter,
+		OperationsPerUser:     operations,
+		OperationTimeout:      timeout,
+		BodyMaxBytes:          int64(body),
+		UploadMaxBytes:        int64(upload),
+		RetryAfter:            retryAfter,
+		AnonymousBodyMaxBytes: int64(anonymous),
 	}, nil
 }
