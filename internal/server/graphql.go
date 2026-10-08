@@ -285,7 +285,9 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 			authkit.RespondError(w, http.StatusUnauthorized, sessionAbsent)
 			return
 		}
-		r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
+		if user.ID == uuid.Nil {
+			r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
+		}
 		free, claimed := policy.claim(r, user)
 		if !claimed {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
@@ -293,6 +295,9 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 			return
 		}
 		defer free()
+		if user.ID != uuid.Nil {
+			r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))

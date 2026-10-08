@@ -164,6 +164,30 @@ func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
 	}
 }
 
+func TestSignedInCallerTakesItsSlotBeforeItsBodyIsRead(t *testing.T) {
+	t.Parallel()
+
+	operations, streams := graphPolicies(GraphBounds{OperationsPerUser: 1}.withDefaults(), time.Minute, 5)
+	user := uuid.Must(uuid.NewV7())
+	if !operations.limiter.acquire(user) {
+		t.Fatal("the only slot of the user was refused")
+	}
+	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
+	body := &countedBody{}
+	request := guardedRequest(user)
+	request.Body = io.NopCloser(body)
+	recorder := httptest.NewRecorder()
+
+	guarded.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("a signed in request over its pool answered %d, want 429", recorder.Code)
+	}
+	if body.reads != 0 {
+		t.Errorf("the refused signed in body was read %d times, want it left unread", body.reads)
+	}
+}
+
 func TestOperationGuardsTakeNoSlotWhileTheBodyIsStillArriving(t *testing.T) {
 	t.Parallel()
 
