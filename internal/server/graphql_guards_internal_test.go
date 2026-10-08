@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +30,20 @@ func streamingRequest(userID uuid.UUID) *http.Request {
 	request := guardedRequest(userID)
 	request.Header.Set("Accept", "text/event-stream")
 	return request
+}
+
+// arrivingBody is a request body that reports its first read and then waits until it is let go.
+type arrivingBody struct {
+	read    chan struct{}
+	once    sync.Once
+	letItGo chan struct{}
+}
+
+// Read reports the first read, then waits for letItGo and ends the body.
+func (b *arrivingBody) Read([]byte) (int, error) {
+	b.once.Do(func() { close(b.read) })
+	<-b.letItGo
+	return 0, io.EOF
 }
 
 // noContent answers every request with 204.
@@ -99,6 +114,42 @@ func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
 	if got := graphBodyLimit(multipartRequest, bounds); got != 4096 {
 		t.Errorf("multipart budget = %d, want the configured 4096", got)
+	}
+}
+
+func TestOperationGuardsTakeNoSlotWhileTheBodyIsStillArriving(t *testing.T) {
+	t.Parallel()
+
+	operations := graphPolicy{limiter: newStreamLimiter(1), lifetime: time.Minute, overflow: overflowOperations}
+	streams := graphPolicy{limiter: newStreamLimiter(1), lifetime: time.Minute, overflow: overflowStreams}
+	readingTheBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	guarded := withOperationGuards(readingTheBody, operations, streams, DefaultGraphBounds)
+	arriving := &arrivingBody{read: make(chan struct{}), letItGo: make(chan struct{})}
+	slow := httptest.NewRequest(http.MethodPost, "/api/graphql", arriving)
+	slow.Header.Set("Content-Type", "application/json")
+	slowDone := make(chan struct{})
+	go func() {
+		guarded.ServeHTTP(httptest.NewRecorder(), slow)
+		close(slowDone)
+	}()
+	select {
+	case <-arriving.read:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the slow request never started reading its body")
+	}
+
+	ready := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(`{"query":"{ version }"}`))
+	ready.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	guarded.ServeHTTP(recorder, ready)
+	close(arriving.letItGo)
+	<-slowDone
+
+	if recorder.Code != http.StatusNoContent {
+		t.Errorf("a ready request behind a body still arriving got %d, want 204 from the one slot", recorder.Code)
 	}
 }
 

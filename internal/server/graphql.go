@@ -3,7 +3,9 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -207,6 +209,25 @@ func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(accept, "text/event-stream") && !acceptsJSON(accept)
 }
 
+// readAhead returns a body replaying everything read from body, then the error the read ended on.
+func readAhead(body io.ReadCloser) io.ReadCloser {
+	read, err := io.ReadAll(body)
+	if err != nil {
+		return io.NopCloser(io.MultiReader(bytes.NewReader(read), failedRead{err: err}))
+	}
+	return io.NopCloser(bytes.NewReader(read))
+}
+
+// failedRead is a reader answering the error a body read ended on.
+type failedRead struct {
+	err error
+}
+
+// Read answers the error the body read ended on.
+func (f failedRead) Read([]byte) (int, error) {
+	return 0, f.err
+}
+
 // withOperationGuards bounds a graph request's body, lifetime, and per user
 // concurrency under the policy of its kind.
 func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
@@ -215,6 +236,7 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 		if acceptsEventStream(r) {
 			policy = streams
 		}
+		r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
 		user := authkit.IdentityFromContext(r.Context())
 		if !policy.limiter.acquire(user.ID) {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
@@ -222,7 +244,6 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 			return
 		}
 		defer policy.limiter.release(user.ID)
-		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))
