@@ -257,7 +257,7 @@ func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(accept, "text/event-stream") && !acceptsJSON(accept)
 }
 
-// withOperationGuards bounds a graph request's body, lifetime, and per user
+// withOperationGuards bounds a graph request's body, lifetime, answer, and per user
 // concurrency under the policy of its kind.
 func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -281,6 +281,29 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(answerWithin(w, policy.lifetime), r.WithContext(ctx))
 	})
+}
+
+// answerWithin returns w giving each write of the answer the lifetime to reach the caller.
+func answerWithin(w http.ResponseWriter, lifetime time.Duration) deadlineWriter {
+	return deadlineWriter{ResponseWriter: w, controller: http.NewResponseController(w), lifetime: lifetime}
+}
+
+// deadlineWriter gives each write of a graph answer the request's lifetime to reach the caller.
+type deadlineWriter struct {
+	http.ResponseWriter
+	controller *http.ResponseController
+	lifetime   time.Duration
+}
+
+// Write sends p to the caller under a write deadline one lifetime away.
+func (d deadlineWriter) Write(p []byte) (int, error) {
+	_ = d.controller.SetWriteDeadline(time.Now().Add(d.lifetime))
+	return d.ResponseWriter.Write(p)
+}
+
+// Flush sends what the answer holds buffered to the caller.
+func (d deadlineWriter) Flush() {
+	_ = d.controller.Flush()
 }
