@@ -92,8 +92,12 @@ func loadAnonymousBounds(env gonsole.Env) (server.GraphBounds, error) {
 	if err != nil {
 		return server.GraphBounds{}, err
 	}
+	answer, err := env.Count("GRAPH_ANONYMOUS_ANSWER_MAX_BYTES", int(defaults.AnonymousAnswerMaxBytes))
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
 	return server.GraphBounds{
 		AnonymousBodyMaxBytes: int64(body), AnonymousPerIP: perIP, AnonymousCeiling: ceiling,
-		AnonymousMaxTokens: tokens, AnonymousQueryMaxBytes: int64(query),
+		AnonymousMaxTokens: tokens, AnonymousQueryMaxBytes: int64(query), AnonymousAnswerMaxBytes: int64(answer),
 	}, nil
 }
