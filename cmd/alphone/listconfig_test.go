@@ -11,13 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/graphres"
 )
 
 func TestTheScreenSettingsFallBackToTheirDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -36,7 +38,7 @@ func TestTheScreenSettingsFallBackToTheirDefaults(t *testing.T) {
 func TestTheScreenSettingsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 		"ALPHONE_TOAST_DURATION":  "9s",
 		"ALPHONE_LIST_PAGE_SIZES": "5, 15,30",
@@ -83,7 +85,7 @@ func TestTheScreenSettingsRefuseAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 				"ALPHONE_TOAST_DURATION":  tt.toast,
 				"ALPHONE_LIST_PAGE_SIZES": tt.sizes,
@@ -100,7 +102,7 @@ func TestTheScreenSettingsRefuseAnUnreadableValue(t *testing.T) {
 func TestTheFormatLocaleFallsBackToTheEuropeanDefault(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -122,7 +124,7 @@ func TestTheFormatLocaleIsReadFromTheEnvironmentInItsCanonicalForm(t *testing.T)
 		"en-GB-u-nu-latn": "en-GB-u-nu-latn",
 		"en-x-foo":        "en-x-foo",
 	} {
-		held, err := loadRunConfig(testGetenv(map[string]string{
+		held, err := loadRunConfig(testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL":  "postgres://localhost/x",
 			"ALPHONE_FORMAT_LOCALE": raw,
 		}))
@@ -138,7 +140,7 @@ func TestAFormatLocaleThatIsNoLanguageTagIsRefusedByName(t *testing.T) {
 	t.Parallel()
 
 	for _, raw := range []string{"not a locale", "xx-YY", "und", "es-ES-", "x-foo", "und-x-i-enochian", "und-ES"} {
-		_, err := loadRunConfig(testGetenv(map[string]string{
+		_, err := loadRunConfig(testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL":  "postgres://localhost/x",
 			"ALPHONE_FORMAT_LOCALE": raw,
 		}))
@@ -157,7 +159,7 @@ func TestTheToastDurationHoldsFromOneMillisecondToTheLargestTimer(t *testing.T) 
 		"1ms":          time.Millisecond,
 		"2147483647ms": math.MaxInt32 * time.Millisecond,
 	} {
-		held, err := loadRunConfig(testGetenv(map[string]string{
+		held, err := loadRunConfig(testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 			"ALPHONE_TOAST_DURATION": raw,
 		}))
@@ -172,7 +174,7 @@ func TestTheToastDurationHoldsFromOneMillisecondToTheLargestTimer(t *testing.T) 
 func TestAnUnreadableToastDurationIsRefusedWithItsBounds(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadRunConfig(testGetenv(map[string]string{
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 		"ALPHONE_TOAST_DURATION": "500us",
 	}))
@@ -187,7 +189,7 @@ func TestAnUnreadableToastDurationIsRefusedWithItsBounds(t *testing.T) {
 func TestPageSizesListedTwiceOrOutOfOrderAreRefusedByTheRule(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadRunConfig(testGetenv(map[string]string{
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 		"ALPHONE_LIST_PAGE_SIZES": "20,10",
 		"ALPHONE_LIST_PAGE_SIZE":  "10",
@@ -228,7 +230,7 @@ func TestABoundSetByAnotherSettingIsRefusedNamingBoth(t *testing.T) {
 			env := map[string]string{"ALPHONE_DATABASE_URL": "postgres://localhost/x"}
 			maps.Copy(env, tt.set)
 
-			_, err := loadRunConfig(testGetenv(env))
+			_, err := loadRunConfig(testkit.Getenv(env))
 
 			if err == nil || err.Error() != tt.want {
 				t.Errorf("loadRunConfig() error = %v, want %q", err, tt.want)
@@ -240,7 +242,7 @@ func TestABoundSetByAnotherSettingIsRefusedNamingBoth(t *testing.T) {
 func TestTheGraphPageBoundsFallBackToTheirDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -256,7 +258,7 @@ func TestTheGraphPageBoundsFallBackToTheirDefaults(t *testing.T) {
 func TestTheGraphPageBoundsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 		"ALPHONE_GRAPH_PAGE_SIZE": "25",
 		"ALPHONE_GRAPH_PAGE_CAP":  "400",
@@ -274,7 +276,7 @@ func TestTheGraphPageCapHoldsExactlyAtTheLargestPricedPage(t *testing.T) {
 	t.Parallel()
 
 	largest := graphres.LargestPricedPage()
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 		"ALPHONE_GRAPH_PAGE_CAP": strconv.Itoa(largest),
 	}))
@@ -291,7 +293,7 @@ func TestAGraphPageCapPastTheLargestPricedPageIsRefusedWithItsBound(t *testing.T
 	t.Parallel()
 
 	largest := graphres.LargestPricedPage()
-	_, err := loadRunConfig(testGetenv(map[string]string{
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 		"ALPHONE_GRAPH_PAGE_CAP": strconv.Itoa(largest + 1),
 	}))
@@ -325,7 +327,7 @@ func TestTheGraphPageBoundsRefuseAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				tt.name:                tt.raw,
 			}))

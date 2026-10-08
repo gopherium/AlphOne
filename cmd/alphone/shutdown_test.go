@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gopherium/framework/gonsole"
+	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -164,7 +165,7 @@ func stoppedWithinTheStopGrace(t *testing.T, plugin *holdingPlugin) {
 // stopGraceEnv returns the settings of a run over a fresh database under the stop grace of the shutdown tests.
 func stopGraceEnv(t *testing.T) func(string) string {
 	t.Helper()
-	return testGetenv(map[string]string{
+	return testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":        testDatabaseURL(t),
 		"ALPHONE_SHUTDOWN_STOP_GRACE": shutdownStopGrace.String(),
 	})
@@ -199,7 +200,7 @@ func awaitRun(t *testing.T, finished <-chan error) error {
 func TestRunNamesAMalformedShutdownGrace(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   unreachableDatabaseURL,
 		"ALPHONE_SHUTDOWN_GRACE": "soon",
 	}), io.Discard, registerPlugins)
@@ -214,8 +215,8 @@ func TestRunGivesThePluginsAFreshStopGraceAfterASlowShutdown(t *testing.T) {
 	t.Parallel()
 
 	plugin := newHoldingPlugin()
-	addr := freeAddr(t)
-	env := testGetenv(map[string]string{
+	addr := testkit.FreeAddr(t)
+	env := testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":        testDatabaseURL(t),
 		"ALPHONE_ADDR":                addr,
 		"ALPHONE_SHUTDOWN_GRACE":      slowShutdownGrace.String(),
@@ -246,7 +247,7 @@ func TestRunGivesThePluginsAFreshStopGraceAfterASlowShutdown(t *testing.T) {
 func TestTheServingSettingsFallBackToTheirDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": unreachableDatabaseURL,
 	}))
 
@@ -265,7 +266,7 @@ func TestTheServingSettingsFallBackToTheirDefaults(t *testing.T) {
 func TestTheServingSettingsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":             unreachableDatabaseURL,
 		"ALPHONE_HTTP_READ_HEADER_TIMEOUT": "4s",
 		"ALPHONE_HTTP_READ_TIMEOUT":        "40s",

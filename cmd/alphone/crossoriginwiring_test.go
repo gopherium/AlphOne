@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 )
 
 // lockedLog is a log sink the server writes while the test reads it.
@@ -59,13 +61,13 @@ func TestRunJudgesAnOlderBrowserWriteOnTheHostHeaderAndLogsARefusal(t *testing.T
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	logged := &lockedLog{}
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL":    databaseURL,
 			"ALPHONE_ADDR":            addr,
 			"ALPHONE_TRUSTED_PROXIES": "127.0.0.0/8,::1/128",

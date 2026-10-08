@@ -7,6 +7,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -26,7 +28,7 @@ func TestRunHandsThePluginsTheirSettingsReader(t *testing.T) {
 	t.Parallel()
 
 	var handed sdk.Deps
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":             testDatabaseURL(t),
 		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": mediaCapSetting["ALPHONE_WHATSAPP_MEDIA_MAX_BYTES"],
 	}), io.Discard, capturingPlugins(&handed))

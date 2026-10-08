@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/gouncer"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
@@ -137,12 +138,12 @@ func TestRunAnswersTheActivationLinkWithoutARelay(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 		}), io.Discard, registerPlugins)
@@ -173,13 +174,13 @@ func TestRunMailsAnInvitationThatActivates(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 	relay := mailRelay(t)
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	const publicURL = "https://crm.example.com"
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 			"ALPHONE_SMTP_HOST":    "127.0.0.1",

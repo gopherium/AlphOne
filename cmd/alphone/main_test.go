@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/gouncer"
 
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
@@ -145,13 +146,6 @@ func failingPlugins(_ sdk.Deps) ([]sdk.Plugin, error) {
 	return []sdk.Plugin{failingPlugin{}}, nil
 }
 
-// testGetenv returns an environment lookup answering from the given values.
-func testGetenv(values map[string]string) func(string) string {
-	return func(key string) string {
-		return values[key]
-	}
-}
-
 // newContactStore returns a contact store over a pool on a fresh test database.
 func newContactStore(t *testing.T) *postgres.ContactStore {
 	t.Helper()
@@ -176,20 +170,6 @@ func testDatabaseURL(t *testing.T) string {
 	return cfg.URL()
 }
 
-// freeAddr returns a localhost address that is free to bind.
-func freeAddr(t *testing.T) string {
-	t.Helper()
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		t.Fatalf("finding a free port: %v", err)
-	}
-	addr := listener.Addr().String()
-	if err := listener.Close(); err != nil {
-		t.Fatalf("releasing the port: %v", err)
-	}
-	return addr
-}
-
 // waitForServer waits until the server at baseURL answers the version probe.
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
@@ -212,7 +192,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func TestRunRequiresDatabaseURL(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(nil), io.Discard, registerPlugins)
+	err := run(t.Context(), testkit.Getenv(nil), io.Discard, registerPlugins)
 
 	if err == nil {
 		t.Fatal("run() error = nil, want a configuration error")
@@ -240,7 +220,7 @@ func TestTrustedProxiesAreReadFromTheSetting(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			held, err := loadRunConfig(testGetenv(map[string]string{
+			held, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 				"ALPHONE_TRUSTED_PROXIES": tc.raw,
 			}))
@@ -264,7 +244,7 @@ func TestTrustedProxiesAreReadFromTheSetting(t *testing.T) {
 func TestRunReportsPluginFailure(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 	}), io.Discard, failingPlugins)
 
@@ -287,7 +267,7 @@ func TestRunHandsPluginsTheMachineGrace(t *testing.T) {
 	t.Parallel()
 
 	var handed sdk.Deps
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":         testDatabaseURL(t),
 		"ALPHONE_TENANT_MACHINE_GRACE": "72h",
 	}), io.Discard, capturingPlugins(&handed))
@@ -304,7 +284,7 @@ func TestRunHandsPluginsTheDefaultMachineGrace(t *testing.T) {
 	t.Parallel()
 
 	var handed sdk.Deps
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 	}), io.Discard, capturingPlugins(&handed))
 
@@ -359,7 +339,7 @@ func TestRegisterPluginsNamesEachPluginThatCannotReadTheDatabaseURL(t *testing.T
 func TestRegisterPluginsReturnsThePluginsThatRegisteredBesideALaterFailure(t *testing.T) {
 	t.Parallel()
 
-	getenv := testGetenv(map[string]string{"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number"})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "not a number"})
 	plugins, err := registerPlugins(sdk.Deps{Getenv: getenv, Env: settingsEnv(getenv)})
 	stopRegistered(t, plugins)
 
@@ -375,7 +355,7 @@ func TestRegisterPluginsReturnsThePluginsThatRegisteredBesideALaterFailure(t *te
 func TestRunReportsAnIncompleteGraphWiring(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 	}), io.Discard, func(_ sdk.Deps) ([]sdk.Plugin, error) {
 		return nil, nil
@@ -391,7 +371,7 @@ var errRegistration = errors.New("registration exploded")
 func TestRunReportsRegistrationFailure(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 	}), io.Discard, func(_ sdk.Deps) ([]sdk.Plugin, error) {
 		return nil, errRegistration
@@ -405,7 +385,7 @@ func TestRunReportsRegistrationFailure(t *testing.T) {
 func TestRunRejectsMalformedDatabaseURL(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "://not-a-url",
 	}), io.Discard, registerPlugins)
 
@@ -417,7 +397,7 @@ func TestRunRejectsMalformedDatabaseURL(t *testing.T) {
 func TestRunRejectsMalformedTrustedProxies(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
 		"ALPHONE_TRUSTED_PROXIES": "not-a-cidr",
 	}), io.Discard, registerPlugins)
@@ -433,7 +413,7 @@ func TestRunRejectsMalformedTrustedProxies(t *testing.T) {
 func TestRunReportsMigrationFailure(t *testing.T) {
 	t.Parallel()
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
 	}), io.Discard, registerPlugins)
 
@@ -463,7 +443,7 @@ func TestRunReportsCoreMigrationFailure(t *testing.T) {
 	databaseURL := testDatabaseURL(t)
 	forgetCoreMigrations(t, databaseURL)
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": databaseURL,
 	}), io.Discard, registerPlugins)
 
@@ -482,7 +462,7 @@ func TestRunReportsBindFailure(t *testing.T) {
 	}
 	defer func() { _ = listener.Close() }()
 
-	err = run(t.Context(), testGetenv(map[string]string{
+	err = run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": testDatabaseURL(t),
 		"ALPHONE_ADDR":         listener.Addr().String(),
 	}), io.Discard, registerPlugins)
@@ -543,7 +523,7 @@ func doAuthed(
 func TestRunServesAPI(t *testing.T) {
 	t.Parallel()
 
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	webDir := t.TempDir()
 	if err := os.WriteFile(webDir+"/index.html", []byte("<!doctype html><title>AlphOne</title>"), 0o644); err != nil {
@@ -552,7 +532,7 @@ func TestRunServesAPI(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL":          databaseURL,
 			"ALPHONE_ADDR":                  addr,
 			"ALPHONE_WEB_DIR":               webDir,

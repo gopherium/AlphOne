@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
 func TestTheTenantBoundsFallBackToTheirDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -30,7 +32,7 @@ func TestTheTenantBoundsFallBackToTheirDefaults(t *testing.T) {
 func TestTheTenantBoundsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 		"ALPHONE_TENANTS_HELD":    "8",
 		"ALPHONE_TENANTS_REFRESH": "30s",
@@ -62,7 +64,7 @@ func TestTheTenantBoundsRefuseAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				tt.name:                tt.raw,
 			}))
@@ -77,7 +79,7 @@ func TestTheTenantBoundsRefuseAnUnreadableValue(t *testing.T) {
 func TestTheServerConfigCarriesTheTenantBound(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    "postgres://localhost/x",
 		"ALPHONE_TENANTS_HELD":    "8",
 		"ALPHONE_TRUSTED_PROXIES": "10.0.0.0/8",
@@ -101,7 +103,7 @@ func TestRunHandsPluginsTheTenantBounds(t *testing.T) {
 	t.Parallel()
 
 	var handed sdk.Deps
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":    testDatabaseURL(t),
 		"ALPHONE_TENANTS_HELD":    "8",
 		"ALPHONE_TENANTS_REFRESH": "30s",

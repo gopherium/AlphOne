@@ -7,13 +7,15 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
 func TestTheWebhookAllowListIsEmptyWhenUnset(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -28,7 +30,7 @@ func TestTheWebhookAllowListIsEmptyWhenUnset(t *testing.T) {
 func TestTheWebhookAllowListIsReadFromTheSetting(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":          "postgres://localhost/x",
 		"ALPHONE_WEBHOOK_ALLOWED_HOSTS": "127.0.0.1/32, n8n:5678",
 	}))

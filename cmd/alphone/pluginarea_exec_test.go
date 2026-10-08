@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 )
 
 // mintScopedSecret returns the secret of a token the real binary mints for the given scope.
@@ -47,7 +49,7 @@ func TestMainBinaryHoldsAPluginRouteToItsDeclaredArea(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	createUser := exec.Command(binary,
 		"account:create-admin", "-email", "admin@example.com", "-name", "Admin", "-role", "admin")
 	createUser.Dir = t.TempDir()
