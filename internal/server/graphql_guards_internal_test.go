@@ -102,18 +102,60 @@ func fillBudget(
 func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	t.Parallel()
 
-	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096}
+	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096, AnonymousBodyMaxBytes: 512}
+	signedIn := uuid.Must(uuid.NewV7())
 
-	jsonRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	jsonRequest := guardedRequest(signedIn)
 	jsonRequest.Header.Set("Content-Type", "application/json")
 	if got := graphBodyLimit(jsonRequest, bounds); got != 2048 {
-		t.Errorf("JSON budget = %d, want the configured 2048", got)
+		t.Errorf("signed in JSON budget = %d, want the configured 2048", got)
 	}
 
-	multipartRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	multipartRequest := guardedRequest(signedIn)
 	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
 	if got := graphBodyLimit(multipartRequest, bounds); got != 4096 {
-		t.Errorf("multipart budget = %d, want the configured 4096", got)
+		t.Errorf("signed in multipart budget = %d, want the configured 4096", got)
+	}
+
+	anonymousRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	anonymousRequest.Header.Set("Content-Type", "application/json")
+	if got := graphBodyLimit(anonymousRequest, bounds); got != 512 {
+		t.Errorf("anonymous JSON budget = %d, want the configured 512", got)
+	}
+}
+
+// countedBody is a request body that counts the reads it serves.
+type countedBody struct {
+	reads int
+}
+
+// Read counts the read and ends the body.
+func (b *countedBody) Read([]byte) (int, error) {
+	b.reads++
+	return 0, io.EOF
+}
+
+func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
+	t.Parallel()
+
+	operations := graphPolicy{limiter: newStreamLimiter(5), lifetime: time.Minute, overflow: overflowOperations}
+	streams := graphPolicy{limiter: newStreamLimiter(5), lifetime: time.Minute, overflow: overflowStreams}
+	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
+	body := &countedBody{}
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", body)
+	request.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
+	recorder := httptest.NewRecorder()
+
+	guarded.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), `"session_absent"`) {
+		t.Errorf("anonymous multipart answered %d %s, want 401 session_absent", recorder.Code, recorder.Body.String())
+	}
+	if body.reads != 0 {
+		t.Errorf("the refused body was read %d times, want it left unread", body.reads)
+	}
+	if held := operations.limiter.counts[uuid.Nil]; held != 0 {
+		t.Errorf("the refused request held %d slots, want none", held)
 	}
 }
 
@@ -158,6 +200,10 @@ func TestGraphBoundsFallBackToTheirDefaults(t *testing.T) {
 
 	if got := (GraphBounds{}).withDefaults(); got != DefaultGraphBounds {
 		t.Errorf("GraphBounds{}.withDefaults() = %+v, want %+v", got, DefaultGraphBounds)
+	}
+
+	if DefaultGraphBounds.AnonymousBodyMaxBytes == 0 {
+		t.Error("DefaultGraphBounds names no anonymous body limit, want one below the JSON limit")
 	}
 
 	named := GraphBounds{OperationsPerUser: 7}.withDefaults()

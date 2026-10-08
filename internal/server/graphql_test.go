@@ -481,6 +481,39 @@ func TestGraphQLHoldsAJSONBodyToTheConfiguredLimit(t *testing.T) {
 	}
 }
 
+func TestAnonymousBodyAboveItsLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	twentyKiB := `{"query":"query AppLocale { locale }","variables":{"pad":"` + strings.Repeat("x", 20<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, twentyKiB, nil)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) == 0 || !strings.Contains(body.Errors[0].Message, "request body too large") {
+		t.Fatalf("errors = %+v, want a 20 KiB anonymous body refused under the default limit", body.Errors)
+	}
+}
+
+func TestSignedInBodyKeepsItsLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	cookie := loginCookie(t, srv)
+	twentyKiB := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 20<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, twentyKiB, cookie)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) != 0 || body.Data.Version != "9.9.9" {
+		t.Errorf("a signed in 20 KiB body answered %+v, want it read under the 1 MiB limit", body)
+	}
+}
+
 func TestGraphStreamPassesUnderTheDefaultStreamBounds(t *testing.T) {
 	t.Parallel()
 

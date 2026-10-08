@@ -39,15 +39,18 @@ type GraphBounds struct {
 	UploadMaxBytes int64
 	// RetryAfter is how soon a caller the operation budget refused may try again.
 	RetryAfter time.Duration
+	// AnonymousBodyMaxBytes caps the body of a graph request that carries no identity.
+	AnonymousBodyMaxBytes int64
 }
 
 // DefaultGraphBounds are the graph bounds a zero field falls back to.
 var DefaultGraphBounds = GraphBounds{
-	OperationsPerUser: 20,
-	OperationTimeout:  60 * time.Second,
-	BodyMaxBytes:      1 << 20,
-	UploadMaxBytes:    6 << 20,
-	RetryAfter:        time.Second,
+	OperationsPerUser:     20,
+	OperationTimeout:      60 * time.Second,
+	BodyMaxBytes:          1 << 20,
+	UploadMaxBytes:        6 << 20,
+	RetryAfter:            time.Second,
+	AnonymousBodyMaxBytes: 16 << 10,
 }
 
 // withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
@@ -67,8 +70,14 @@ func (b GraphBounds) withDefaults() GraphBounds {
 	if b.RetryAfter == 0 {
 		b.RetryAfter = DefaultGraphBounds.RetryAfter
 	}
+	if b.AnonymousBodyMaxBytes == 0 {
+		b.AnonymousBodyMaxBytes = DefaultGraphBounds.AnonymousBodyMaxBytes
+	}
 	return b
 }
+
+// sessionAbsent is the answer to a caller with no identity sending what only a signed in caller may send.
+var sessionAbsent = authkit.ErrorResponse{Message: "no session", Code: "session_absent"}
 
 // Graph endpoint budget overflow answers.
 const (
@@ -168,12 +177,20 @@ func graphPolicies(bounds GraphBounds, streamLifetime time.Duration, maxStreams 
 	}
 }
 
-// graphBodyLimit returns the body budget the bounds give the request content type.
+// graphBodyLimit returns the body budget the bounds give the request's caller and content type.
 func graphBodyLimit(r *http.Request, bounds GraphBounds) int64 {
-	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+	if authkit.IdentityFromContext(r.Context()).ID == uuid.Nil {
+		return bounds.AnonymousBodyMaxBytes
+	}
+	if carriesForm(r) {
 		return bounds.UploadMaxBytes
 	}
 	return bounds.BodyMaxBytes
+}
+
+// carriesForm reports whether the request body is a multipart form.
+func carriesForm(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
 }
 
 // jsonAnswerTypes lists the answer media types a caller offers to read JSON with.
@@ -236,8 +253,12 @@ func withOperationGuards(next http.Handler, operations, streams graphPolicy, bou
 		if acceptsEventStream(r) {
 			policy = streams
 		}
-		r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
 		user := authkit.IdentityFromContext(r.Context())
+		if user.ID == uuid.Nil && carriesForm(r) {
+			authkit.RespondError(w, http.StatusUnauthorized, sessionAbsent)
+			return
+		}
+		r.Body = readAhead(http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds)))
 		if !policy.limiter.acquire(user.ID) {
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
 			authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
