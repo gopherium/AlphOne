@@ -116,6 +116,7 @@ value in words, or a byte size written with a unit such as `1MiB`.
 | `ALPHONE_GRAPH_BODY_MAX_BYTES` | The largest JSON graph request body, in bytes. Defaults to 1048576, which is 1 MiB. |
 | `ALPHONE_GRAPH_UPLOAD_MAX_BYTES` | The largest multipart graph request body, an upload with its form, in bytes. Defaults to 6291456, which is 6 MiB. |
 | `ALPHONE_GRAPH_RETRY_AFTER` | The wait the `Retry-After` header names when every operation slot of a caller is taken. Defaults to `1s`. |
+| `ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES` | The largest graph request body from a caller who is not signed in, in bytes. Defaults to 16384, which is 16 KiB. The longest valid sign in, a 254 character address with a 1024 character password, is under 7000 bytes. Such a caller sends JSON only, and a multipart request from one is answered `401` before its body is read. |
 | `ALPHONE_STREAMS_PER_USER` | How many subscriptions and plugin requests one caller holds open at once. Defaults to 5. |
 | `ALPHONE_STREAM_LIFETIME` | How long one subscription or plugin request stays open. Defaults to `5m`. |
 

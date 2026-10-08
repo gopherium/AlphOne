@@ -575,6 +575,7 @@ each code in the reader's language.
 | Operation deadline | 60 seconds |
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
+| Body before sign in | 16 KiB, JSON only |
 
 A request's body is read in full before it takes one of its caller's
 operation slots, so a slow upload never holds a slot.
