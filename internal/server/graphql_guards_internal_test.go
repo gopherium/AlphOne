@@ -209,6 +209,28 @@ func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
 	}
 }
 
+func TestAnonymousBodiesTheGraphCannotDecodeAreRefusedBeforeASlot(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"variables that are not an object":       `{"query":"{ locale }","variables":"<<<"}`,
+		"extensions that are not an object":      `{"query":"{ locale }","extensions":["<<<"]}`,
+		"an operation name that is not a string": `{"query":"{ locale }","operationName":7}`,
+	} {
+		guarded, anonymous, passed := refusingGuard(GraphBounds{})
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(body))
+
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", name, recorder.Code, recorder.Body.String())
+		}
+		if anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s held %d slots and reached the graph %d times, want neither", name, anonymous.total, passed.Load())
+		}
+	}
+}
+
 func TestAnonymousStreamPastItsCapsIsRefusedAsAnEvent(t *testing.T) {
 	t.Parallel()
 

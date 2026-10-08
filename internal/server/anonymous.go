@@ -33,18 +33,16 @@ func admitAnonymous(w http.ResponseWriter, r *http.Request, bounds GraphBounds) 
 	return true
 }
 
-// documentFits reports whether the body is a JSON graph request whose document is within the anonymous caps.
+// documentFits reports whether the body is a graph request the graph decodes with a document within the anonymous caps.
 func documentFits(body []byte, bounds GraphBounds) bool {
-	var request struct {
-		Query string `json:"query"`
-	}
-	if err := json.Unmarshal(body, &request); err != nil {
+	var params graphql.RawParams
+	if err := json.Unmarshal(body, &params); err != nil {
 		return false
 	}
-	if int64(len(request.Query)) > bounds.AnonymousQueryMaxBytes {
+	if int64(len(params.Query)) > bounds.AnonymousQueryMaxBytes {
 		return false
 	}
-	return tokensWithin(request.Query, bounds.AnonymousMaxTokens)
+	return tokensWithin(params.Query, bounds.AnonymousMaxTokens)
 }
 
 // tokensWithin reports whether the document holds at most limit tokens, one the lexer refuses counting as within.
