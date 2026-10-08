@@ -57,16 +57,32 @@ func loadGraphBounds(env gonsole.Env) (server.GraphBounds, error) {
 	if err != nil {
 		return server.GraphBounds{}, err
 	}
-	anonymous, err := env.Count("GRAPH_ANONYMOUS_MAX_BYTES", int(defaults.AnonymousBodyMaxBytes))
+	anonymous, err := loadAnonymousBounds(env)
 	if err != nil {
 		return server.GraphBounds{}, err
 	}
-	return server.GraphBounds{
-		OperationsPerUser:     operations,
-		OperationTimeout:      timeout,
-		BodyMaxBytes:          int64(body),
-		UploadMaxBytes:        int64(upload),
-		RetryAfter:            retryAfter,
-		AnonymousBodyMaxBytes: int64(anonymous),
-	}, nil
+	anonymous.OperationsPerUser = operations
+	anonymous.OperationTimeout = timeout
+	anonymous.BodyMaxBytes = int64(body)
+	anonymous.UploadMaxBytes = int64(upload)
+	anonymous.RetryAfter = retryAfter
+	return anonymous, nil
+}
+
+// loadAnonymousBounds reads the body limit and the pools the graph holds callers with no identity to.
+func loadAnonymousBounds(env gonsole.Env) (server.GraphBounds, error) {
+	defaults := server.DefaultGraphBounds
+	body, err := env.Count("GRAPH_ANONYMOUS_MAX_BYTES", int(defaults.AnonymousBodyMaxBytes))
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
+	perIP, err := env.Count("GRAPH_ANONYMOUS_PER_IP", defaults.AnonymousPerIP)
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
+	ceiling, err := env.Count("GRAPH_ANONYMOUS_CEILING", defaults.AnonymousCeiling)
+	if err != nil {
+		return server.GraphBounds{}, err
+	}
+	return server.GraphBounds{AnonymousBodyMaxBytes: int64(body), AnonymousPerIP: perIP, AnonymousCeiling: ceiling}, nil
 }
