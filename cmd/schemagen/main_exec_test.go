@@ -5,34 +5,17 @@ package main
 import (
 	"bytes"
 	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
-)
 
-// coverBinary returns the path of the schemagen cover binary and the environment to run it with.
-func coverBinary(t *testing.T) (string, []string) {
-	t.Helper()
-	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
-	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
-	if bindir == "" || gocoverdir == "" {
-		t.Skip("skipping binary test: run via make cover")
-	}
-	var env []string
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "ALPHONE_") && !strings.HasPrefix(entry, "GOCOVERDIR=") {
-			env = append(env, entry)
-		}
-	}
-	return filepath.Join(bindir, "schemagen"), append(env, "GOCOVERDIR="+gocoverdir)
-}
+	"github.com/gopherium/framework/gonsole/testkit"
+)
 
 func TestMainBinaryFailsWithoutTheConfig(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "schemagen")
 	var stderr bytes.Buffer
 	cmd := exec.Command(binary)
 	cmd.Dir = t.TempDir()
