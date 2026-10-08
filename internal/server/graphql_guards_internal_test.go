@@ -207,6 +207,26 @@ func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
 	}
 }
 
+func TestAnonymousStreamPastItsCapsIsRefusedAsAnEvent(t *testing.T) {
+	t.Parallel()
+
+	guarded, anonymous, passed := refusingGuard(GraphBounds{})
+	request := anonymousPost(queryBody("subscription { " + strings.Repeat("x ", 70) + "}"))
+	request.Header.Set("Accept", "text/event-stream")
+	recorder := httptest.NewRecorder()
+
+	guarded.ServeHTTP(recorder, request)
+
+	answer, kind := recorder.Body.String(), recorder.Header().Get("Content-Type")
+	if kind != "text/event-stream" || !strings.HasPrefix(answer, "event: next\ndata: ") ||
+		!strings.Contains(answer, unauthenticatedAnswer) || !strings.HasSuffix(answer, "event: complete\n\n") {
+		t.Errorf("a stream past its caps answered %q as %s, want the UNAUTHENTICATED event and its end", answer, kind)
+	}
+	if anonymous.total != 0 || passed.Load() != 0 {
+		t.Errorf("the stream held %d slots and reached the graph %d times, want neither", anonymous.total, passed.Load())
+	}
+}
+
 func TestAnonymousDocumentsWithinTheirCapsReachTheGraph(t *testing.T) {
 	t.Parallel()
 

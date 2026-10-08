@@ -5,6 +5,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -20,12 +21,12 @@ import (
 // admitAnonymous reads the body of a graph request with no identity, refusing it and reporting false past a cap.
 func admitAnonymous(w http.ResponseWriter, r *http.Request, bounds GraphBounds) bool {
 	if carriesForm(r) {
-		refuseAnonymous(w)
+		refuseAnonymous(w, r)
 		return false
 	}
 	read, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bounds.AnonymousBodyMaxBytes))
 	if err != nil || !documentFits(read, bounds) {
-		refuseAnonymous(w)
+		refuseAnonymous(w, r)
 		return false
 	}
 	r.Body = io.NopCloser(bytes.NewReader(read))
@@ -58,9 +59,14 @@ func tokensWithin(document string, limit int) bool {
 	return false
 }
 
-// refuseAnonymous answers a graph request with no identity the gate's unauthenticated error.
-func refuseAnonymous(w http.ResponseWriter) {
+// refuseAnonymous answers a graph request with no identity the gate's unauthenticated error, as one event to a stream.
+func refuseAnonymous(w http.ResponseWriter, r *http.Request) {
 	refusal, _ := json.Marshal(graphql.Response{Errors: gqlerror.List{graphres.UnauthenticatedError()}})
+	if acceptsEventStream(r) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprintf(w, "event: next\ndata: %s\n\nevent: complete\n\n", refusal)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(refusal)
 }
