@@ -52,8 +52,8 @@ func silentBody(t *testing.T, addr string) {
 	}
 }
 
-// signInStatus posts the login mutation over a fresh connection and answers its status.
-func signInStatus(t *testing.T, addr string) int {
+// signInRefusal signs in over a fresh connection and answers how it was refused, or nothing once a session is set.
+func signInRefusal(t *testing.T, addr string) string {
 	t.Helper()
 	query := `mutation { login(email: "ada@example.com", password: "` + testPassword + `") { me { id } } }`
 	body, err := json.Marshal(map[string]string{"query": query})
@@ -66,8 +66,13 @@ func signInStatus(t *testing.T, addr string) int {
 		t.Fatalf("posting the login: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode
+	answer, _ := io.ReadAll(resp.Body)
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == server.SessionCookieName && resp.StatusCode == http.StatusOK {
+			return ""
+		}
+	}
+	return fmt.Sprintf("%d %s", resp.StatusCode, answer)
 }
 
 // signInCookie signs in over a fresh connection and answers the session cookie.
@@ -144,8 +149,9 @@ func TestSilentAnonymousBodiesNeverHoldOperationSlots(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 
 	for attempt := range 10 {
-		if status := signInStatus(t, addr); status != http.StatusOK {
-			t.Fatalf("sign in %d under 25 silent bodies answered %d, want 200 with no slot held by a body", attempt+1, status)
+		if refusal := signInRefusal(t, addr); refusal != "" {
+			t.Fatalf("sign in %d under 25 silent bodies answered %.200s, want a session with no slot held by a body",
+				attempt+1, refusal)
 		}
 	}
 }

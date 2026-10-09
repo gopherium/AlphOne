@@ -123,8 +123,9 @@ func TestStalledAnonymousEchoesLeaveSignInOpen(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	for attempt := range 10 {
-		if status := signInStatus(t, addr); status != http.StatusOK {
-			t.Fatalf("sign in %d under 20 stalled readers of pipelined echoes answered %d, want 200", attempt+1, status)
+		if refusal := signInRefusal(t, addr); refusal != "" {
+			t.Fatalf("sign in %d under 20 stalled readers of pipelined echoes answered %.200s, want a session",
+				attempt+1, refusal)
 		}
 	}
 }
