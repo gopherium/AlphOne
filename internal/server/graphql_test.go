@@ -55,6 +55,7 @@ type graphConfig struct {
 	TenantsHeld       int
 	MaxStreamLifetime time.Duration
 	MaxStreamsPerUser int
+	Graph             server.GraphBounds
 	GraphiQL          bool
 	TrustedProxies    []string
 	Logger            *slog.Logger
@@ -119,6 +120,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		TenantsHeld:       cfg.TenantsHeld,
 		MaxStreamLifetime: cfg.MaxStreamLifetime,
 		MaxStreamsPerUser: cfg.MaxStreamsPerUser,
+		Graph:             cfg.Graph,
 		GraphiQL:          cfg.GraphiQL,
 		TrustedProxies:    cfg.TrustedProxies,
 		Logger:            cfg.Logger,
@@ -456,6 +458,103 @@ func TestGraphQLRejectsAnOversizedJSONBody(t *testing.T) {
 	}
 	if body.Data.Version != "" {
 		t.Error("version resolved, want no execution on an oversized body")
+	}
+}
+
+func TestGraphQLHoldsAJSONBodyToTheConfiguredLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
+		Graph: server.GraphBounds{BodyMaxBytes: 256},
+	})
+	cookie := loginCookie(t, srv)
+	aboveTheLimit := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 512) + `"}}`
+
+	recorder := postGraphQL(t, srv, aboveTheLimit, cookie)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) == 0 || !strings.Contains(body.Errors[0].Message, "request body too large") {
+		t.Fatalf("errors = %+v, want the configured body limit to refuse a 512 byte pad", body.Errors)
+	}
+}
+
+func TestAnonymousBodyAboveItsLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	twentyKiB := `{"query":"query AppLocale { locale }","variables":{"pad":"` + strings.Repeat("x", 20<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, twentyKiB, nil)
+
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"code":"UNAUTHENTICATED"`) {
+		t.Fatalf("a 20 KiB anonymous body answered %d %s, want the gate's UNAUTHENTICATED",
+			recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAnAnonymousEchoPastTheAnswerLimitIsRefused(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	echoed := `{"query":"query($o: SortOrder!) { contactPage(order: $o) { __typename } }",` +
+		`"variables":{"o":"` + strings.Repeat("<", 15<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, echoed, nil)
+
+	answer := recorder.Body.String()
+	if recorder.Code != http.StatusOK || !strings.Contains(answer, `"code":"UNAUTHENTICATED"`) || len(answer) > 16<<10 {
+		t.Fatalf("an anonymous variable echo answered %d with %d bytes %.200s, want the gate's UNAUTHENTICATED under 16 KiB",
+			recorder.Code, len(answer), answer)
+	}
+}
+
+func TestAnUploadAboveThirtyTwoMiBReachesTheParserUnderItsLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9",
+		Graph: server.GraphBounds{UploadMaxBytes: 40 << 20},
+	})
+	cookie := loginCookie(t, srv)
+	upload := graphForm(t, crmOrigin+"/api/graphql",
+		formPart{name: "operations", value: uploadOperations},
+		formPart{name: "map", value: `{"0":["variables.file"]}`},
+		formPart{name: "0", filename: "contacts.csv", value: strings.Repeat("x", 33<<20)},
+	)
+	upload.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+
+	srv.ServeHTTP(recorder, upload)
+
+	if !strings.Contains(recorder.Body.String(), `"reason":"file_too_large"`) {
+		t.Errorf("a 33 MiB upload under a 40 MiB limit answered %.200s, want the importer's own file_too_large",
+			recorder.Body.String())
+	}
+}
+
+func TestSignedInBodyKeepsItsLimit(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{Contacts: newFakeContactStore(), Users: users, Version: "9.9.9"})
+	cookie := loginCookie(t, srv)
+	twentyKiB := `{"query":"{ version }","variables":{"pad":"` + strings.Repeat("x", 20<<10) + `"}}`
+
+	recorder := postGraphQL(t, srv, twentyKiB, cookie)
+
+	body := decodeBody[graphqlData](t, recorder)
+	if len(body.Errors) != 0 || body.Data.Version != "9.9.9" {
+		t.Errorf("a signed in 20 KiB body answered %+v, want it read under the 1 MiB limit", body)
 	}
 }
 

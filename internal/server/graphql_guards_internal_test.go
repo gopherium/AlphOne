@@ -4,10 +4,13 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +32,20 @@ func streamingRequest(userID uuid.UUID) *http.Request {
 	request := guardedRequest(userID)
 	request.Header.Set("Accept", "text/event-stream")
 	return request
+}
+
+// arrivingBody is a request body that reports its first read and then waits until it is let go.
+type arrivingBody struct {
+	read    chan struct{}
+	once    sync.Once
+	letItGo chan struct{}
+}
+
+// Read reports the first read, then waits for letItGo and ends the body.
+func (b *arrivingBody) Read([]byte) (int, error) {
+	b.once.Do(func() { close(b.read) })
+	<-b.letItGo
+	return 0, io.EOF
 }
 
 // noContent answers every request with 204.
@@ -54,7 +71,7 @@ func blockingGuard(operations, streams graphPolicy) (http.Handler, *sync.WaitGro
 		<-release
 		w.WriteHeader(http.StatusNoContent)
 	})
-	return withOperationGuards(blocked, operations, streams), &started, func() { close(release) }
+	return withOperationGuards(blocked, operations, streams, DefaultGraphBounds), &started, func() { close(release) }
 }
 
 // fillBudget holds five requests of one kind in flight, returning their group.
@@ -87,16 +104,269 @@ func fillBudget(
 func TestGraphBodyLimitSplitsByContentType(t *testing.T) {
 	t.Parallel()
 
-	jsonRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	bounds := GraphBounds{BodyMaxBytes: 2048, UploadMaxBytes: 4096}
+	signedIn := uuid.Must(uuid.NewV7())
+
+	jsonRequest := guardedRequest(signedIn)
 	jsonRequest.Header.Set("Content-Type", "application/json")
-	if got := graphBodyLimit(jsonRequest); got != graphJSONBodyLimit {
-		t.Errorf("JSON budget = %d, want %d", got, graphJSONBodyLimit)
+	if got := graphBodyLimit(jsonRequest, bounds); got != 2048 {
+		t.Errorf("signed in JSON budget = %d, want the configured 2048", got)
 	}
 
-	multipartRequest := httptest.NewRequest(http.MethodPost, "/api/graphql", nil)
+	multipartRequest := guardedRequest(signedIn)
 	multipartRequest.Header.Set("Content-Type", "multipart/form-data; boundary=upload")
-	if got := graphBodyLimit(multipartRequest); got != graphMultipartBodyLimit {
-		t.Errorf("multipart budget = %d, want %d", got, graphMultipartBodyLimit)
+	if got := graphBodyLimit(multipartRequest, bounds); got != 4096 {
+		t.Errorf("signed in multipart budget = %d, want the configured 4096", got)
+	}
+}
+
+// countedBody is a request body that counts the reads it serves.
+type countedBody struct {
+	reads int
+}
+
+// Read counts the read and ends the body.
+func (b *countedBody) Read([]byte) (int, error) {
+	b.reads++
+	return 0, io.EOF
+}
+
+// refusingGuard returns a guard under the bounds beside its anonymous limiter and a count of what it let through.
+func refusingGuard(bounds GraphBounds) (http.Handler, *addressLimiter, *atomic.Int32) {
+	operations, streams := graphPolicies(bounds.withDefaults(), time.Minute, 5)
+	var passed atomic.Int32
+	counting := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		passed.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	return withOperationGuards(counting, operations, streams, bounds.withDefaults()), operations.anonymous, &passed
+}
+
+// unauthenticatedAnswer is the gate's answer to a caller with no identity sending what only a signed in caller may.
+const unauthenticatedAnswer = `"code":"UNAUTHENTICATED"`
+
+func TestAnonymousMultipartIsRefusedBeforeItsBodyOrASlot(t *testing.T) {
+	t.Parallel()
+
+	for _, contentType := range []string{
+		"multipart/form-data; boundary=upload",
+		"Multipart/Form-Data; boundary=upload",
+		"MULTIPART/FORM-DATA; boundary=upload",
+	} {
+		guarded, anonymous, passed := refusingGuard(GraphBounds{})
+		body := &countedBody{}
+		request := httptest.NewRequest(http.MethodPost, "/api/graphql", body)
+		request.Header.Set("Content-Type", contentType)
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", contentType, recorder.Code, recorder.Body.String())
+		}
+		if body.reads != 0 || anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s was read %d times, held %d slots and reached the graph %d times, want none of them",
+				contentType, body.reads, anonymous.total, passed.Load())
+		}
+	}
+}
+
+// anonymousPost builds a request with no identity carrying the JSON body.
+func anonymousPost(body string) *http.Request {
+	request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	return request
+}
+
+// queryBody returns the JSON body carrying the query.
+func queryBody(query string) string {
+	encoded, _ := json.Marshal(map[string]string{"query": query})
+	return string(encoded)
+}
+
+func TestAnonymousRequestsPastTheirCapsAreRefusedBeforeASlot(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{AnonymousMaxTokens: 64, AnonymousQueryMaxBytes: 1024, AnonymousBodyMaxBytes: 16 << 10}
+	tests := map[string]string{
+		"a document over the token cap":     queryBody("{ " + strings.Repeat("x ", 63) + "}"),
+		"a document over the byte cap":      queryBody("{ " + strings.Repeat(strings.Repeat("y", 300)+" ", 4) + "}"),
+		"a body over the anonymous limit":   `{"query":"` + strings.Repeat(" ", 17<<10) + `{ locale }"}`,
+		"a body that is not a JSON request": `{"query": "{ locale }"` + strings.Repeat("\x01", 32),
+	}
+	for name, body := range tests {
+		guarded, anonymous, passed := refusingGuard(bounds)
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(body))
+
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", name, recorder.Code, recorder.Body.String())
+		}
+		if anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s held %d slots and reached the graph %d times, want neither", name, anonymous.total, passed.Load())
+		}
+	}
+}
+
+func TestAnonymousBodiesTheGraphCannotDecodeAreRefusedBeforeASlot(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"variables that are not an object":       `{"query":"{ locale }","variables":"<<<"}`,
+		"extensions that are not an object":      `{"query":"{ locale }","extensions":["<<<"]}`,
+		"an operation name that is not a string": `{"query":"{ locale }","operationName":7}`,
+	} {
+		guarded, anonymous, passed := refusingGuard(GraphBounds{})
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(body))
+
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), unauthenticatedAnswer) {
+			t.Errorf("%s answered %d %s, want 200 UNAUTHENTICATED", name, recorder.Code, recorder.Body.String())
+		}
+		if anonymous.total != 0 || passed.Load() != 0 {
+			t.Errorf("%s held %d slots and reached the graph %d times, want neither", name, anonymous.total, passed.Load())
+		}
+	}
+}
+
+func TestAnonymousStreamPastItsCapsIsRefusedAsAnEvent(t *testing.T) {
+	t.Parallel()
+
+	guarded, anonymous, passed := refusingGuard(GraphBounds{})
+	request := anonymousPost(queryBody("subscription { " + strings.Repeat("x ", 70) + "}"))
+	request.Header.Set("Accept", "text/event-stream")
+	recorder := httptest.NewRecorder()
+
+	guarded.ServeHTTP(recorder, request)
+
+	answer, kind := recorder.Body.String(), recorder.Header().Get("Content-Type")
+	if kind != "text/event-stream" || !strings.HasPrefix(answer, "event: next\ndata: ") ||
+		!strings.Contains(answer, unauthenticatedAnswer) || !strings.HasSuffix(answer, "event: complete\n\n") {
+		t.Errorf("a stream past its caps answered %q as %s, want the UNAUTHENTICATED event and its end", answer, kind)
+	}
+	if anonymous.total != 0 || passed.Load() != 0 {
+		t.Errorf("the stream held %d slots and reached the graph %d times, want neither", anonymous.total, passed.Load())
+	}
+}
+
+func TestAnonymousDocumentsWithinTheirCapsReachTheGraph(t *testing.T) {
+	t.Parallel()
+
+	invitation := "mutation AcceptInvite($token: String!, $password: String!) {\n" +
+		"  acceptInvite(token: $token, password: $password) {\n" +
+		"    me {\n      id\n      email\n      name\n      role\n" +
+		"      capabilities\n      grantable\n      __typename\n    }\n" +
+		"    __typename\n  }\n}"
+	atTheTokenCap := "{ " + strings.Repeat("x ", 62) + "}"
+	atTheByteCap := "{ " + strings.Repeat("y", 1020) + " }"
+	for _, query := range []string{invitation, "query AppLocale {\n  locale\n}", atTheTokenCap, atTheByteCap} {
+		guarded, _, passed := refusingGuard(GraphBounds{})
+		recorder := httptest.NewRecorder()
+
+		guarded.ServeHTTP(recorder, anonymousPost(queryBody(query)))
+
+		if recorder.Code != http.StatusNoContent || passed.Load() != 1 {
+			t.Errorf("%q answered %d and reached the graph %d times, want it through once", query, recorder.Code, passed.Load())
+		}
+	}
+}
+
+func TestSignedInCallerTakesItsSlotBeforeItsBodyIsRead(t *testing.T) {
+	t.Parallel()
+
+	operations, streams := graphPolicies(GraphBounds{OperationsPerUser: 1}.withDefaults(), time.Minute, 5)
+	user := uuid.Must(uuid.NewV7())
+	if !operations.limiter.acquire(user) {
+		t.Fatal("the only slot of the user was refused")
+	}
+	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
+	body := &countedBody{}
+	request := guardedRequest(user)
+	request.Body = io.NopCloser(body)
+	recorder := httptest.NewRecorder()
+
+	guarded.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("a signed in request over its pool answered %d, want 429", recorder.Code)
+	}
+	if body.reads != 0 {
+		t.Errorf("the refused signed in body was read %d times, want it left unread", body.reads)
+	}
+}
+
+func TestOperationGuardsTakeNoSlotWhileTheBodyIsStillArriving(t *testing.T) {
+	t.Parallel()
+
+	oneAnonymousSlot := newAddressLimiter(1, 1)
+	operations := graphPolicy{
+		limiter: newStreamLimiter(1), anonymous: oneAnonymousSlot, lifetime: time.Minute, overflow: overflowOperations,
+	}
+	streams := graphPolicy{
+		limiter: newStreamLimiter(1), anonymous: oneAnonymousSlot, lifetime: time.Minute, overflow: overflowStreams,
+	}
+	readingTheBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	guarded := withOperationGuards(readingTheBody, operations, streams, DefaultGraphBounds)
+	arriving := &arrivingBody{read: make(chan struct{}), letItGo: make(chan struct{})}
+	slow := httptest.NewRequest(http.MethodPost, "/api/graphql", arriving)
+	slow.Header.Set("Content-Type", "application/json")
+	slowDone := make(chan struct{})
+	go func() {
+		guarded.ServeHTTP(httptest.NewRecorder(), slow)
+		close(slowDone)
+	}()
+	select {
+	case <-arriving.read:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the slow request never started reading its body")
+	}
+
+	ready := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(`{"query":"{ version }"}`))
+	ready.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	guarded.ServeHTTP(recorder, ready)
+	close(arriving.letItGo)
+	<-slowDone
+
+	if recorder.Code != http.StatusNoContent {
+		t.Errorf("a ready request behind a body still arriving got %d, want 204 from the one slot", recorder.Code)
+	}
+}
+
+func TestGraphBoundsFallBackToTheirDefaults(t *testing.T) {
+	t.Parallel()
+
+	if got := (GraphBounds{}).withDefaults(); got != DefaultGraphBounds {
+		t.Errorf("GraphBounds{}.withDefaults() = %+v, want %+v", got, DefaultGraphBounds)
+	}
+
+	if DefaultGraphBounds.AnonymousBodyMaxBytes == 0 {
+		t.Error("DefaultGraphBounds names no anonymous body limit, want one below the JSON limit")
+	}
+
+	named := GraphBounds{OperationsPerUser: 7}.withDefaults()
+	want := DefaultGraphBounds
+	want.OperationsPerUser = 7
+	if named != want {
+		t.Errorf("a bound named alone gave %+v, want %+v with the rest defaulted", named, want)
+	}
+}
+
+func TestGraphPoliciesFollowTheBounds(t *testing.T) {
+	t.Parallel()
+
+	bounds := GraphBounds{OperationsPerUser: 7, OperationTimeout: 45 * time.Second, RetryAfter: 3 * time.Second}
+
+	operations, _ := graphPolicies(bounds, 90*time.Second, 3)
+
+	if operations.limiter.limit != 7 || operations.lifetime != 45*time.Second || operations.retryAfter != 3*time.Second {
+		t.Errorf("operation policy = (%d, %v, %v), want (7, 45s, 3s)",
+			operations.limiter.limit, operations.lifetime, operations.retryAfter)
 	}
 }
 
@@ -159,7 +429,7 @@ func TestGraphOperationBudgetFitsAScreenLoad(t *testing.T) {
 	t.Parallel()
 
 	const screenLoad = 8
-	operations, _ := graphPolicies(time.Minute, defaultMaxStreamsPerUser)
+	operations, _ := graphPolicies(DefaultGraphBounds, time.Minute, DefaultMaxStreamsPerUser)
 	user := uuid.Must(uuid.NewV7())
 
 	for i := range screenLoad {
@@ -191,10 +461,10 @@ func TestRetryAfterSecondsRoundsUpToAWholeSecond(t *testing.T) {
 func TestGraphPoliciesHintARetryMatchingHowSoonASlotFrees(t *testing.T) {
 	t.Parallel()
 
-	operations, streams := graphPolicies(90*time.Second, 3)
+	operations, streams := graphPolicies(DefaultGraphBounds, 90*time.Second, 3)
 
-	if operations.retryAfter != graphRetryAfter {
-		t.Errorf("operation retry hint = %v, want %v", operations.retryAfter, graphRetryAfter)
+	if operations.retryAfter != DefaultGraphBounds.RetryAfter {
+		t.Errorf("operation retry hint = %v, want %v", operations.retryAfter, DefaultGraphBounds.RetryAfter)
 	}
 	if operations.retryAfter >= operations.lifetime {
 		t.Errorf("operation retry hint = %v, want well under the %v one operation may hold a slot",
@@ -220,7 +490,7 @@ func TestOperationGuardsHintTheRetryOfTheSpentBudget(t *testing.T) {
 		retryAfter: 90 * time.Second,
 		overflow:   overflowStreams,
 	}
-	guarded := withOperationGuards(noContent(), operations, streams)
+	guarded := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	user := uuid.Must(uuid.NewV7())
 
 	refusedOperation := httptest.NewRecorder()
@@ -239,11 +509,12 @@ func TestOperationGuardsHintTheRetryOfTheSpentBudget(t *testing.T) {
 func TestGraphPoliciesGiveStreamsTheHostBounds(t *testing.T) {
 	t.Parallel()
 
-	operations, streams := graphPolicies(90*time.Second, 3)
+	operations, streams := graphPolicies(DefaultGraphBounds, 90*time.Second, 3)
 
-	if operations.lifetime != graphOperationTimeout || operations.limiter.limit != graphMaxConcurrentOps {
-		t.Errorf("operation policy = (%v, %d), want (%v, %d)",
-			operations.lifetime, operations.limiter.limit, graphOperationTimeout, graphMaxConcurrentOps)
+	if operations.lifetime != DefaultGraphBounds.OperationTimeout ||
+		operations.limiter.limit != DefaultGraphBounds.OperationsPerUser {
+		t.Errorf("operation policy = (%v, %d), want (%v, %d)", operations.lifetime, operations.limiter.limit,
+			DefaultGraphBounds.OperationTimeout, DefaultGraphBounds.OperationsPerUser)
 	}
 	if streams.lifetime != 90*time.Second || streams.limiter.limit != 3 {
 		t.Errorf("stream policy = (%v, %d), want (1m30s, 3)", streams.lifetime, streams.limiter.limit)
@@ -273,7 +544,7 @@ func TestOperationGuardsRejectTheSixthConcurrentOperation(t *testing.T) {
 		t.Errorf("sixth operation body = %s, want %q", rejected.Body, overflowOperations)
 	}
 
-	passing := withOperationGuards(noContent(), operations, streams)
+	passing := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	admitted := httptest.NewRecorder()
 	passing.ServeHTTP(admitted, streamingRequest(user))
 	if admitted.Code != http.StatusNoContent {
@@ -307,7 +578,7 @@ func TestOperationGuardsRejectTheSixthConcurrentStream(t *testing.T) {
 		t.Errorf("sixth stream body = %s, want %q", rejected.Body, overflowStreams)
 	}
 
-	passing := withOperationGuards(noContent(), operations, streams)
+	passing := withOperationGuards(noContent(), operations, streams, DefaultGraphBounds)
 	admitted := httptest.NewRecorder()
 	passing.ServeHTTP(admitted, guardedRequest(user))
 	if admitted.Code != http.StatusNoContent {
@@ -329,7 +600,7 @@ func TestOperationGuardsDeadlineTheRequestContext(t *testing.T) {
 	})
 	operations, streams := testPolicies()
 	operations.lifetime = 20 * time.Millisecond
-	guarded := withOperationGuards(waiting, operations, streams)
+	guarded := withOperationGuards(waiting, operations, streams, DefaultGraphBounds)
 
 	start := time.Now()
 	guarded.ServeHTTP(httptest.NewRecorder(), guardedRequest(uuid.Must(uuid.NewV7())))
@@ -354,7 +625,7 @@ func TestOperationGuardsHoldAStreamToTheStreamLifetime(t *testing.T) {
 	operations, streams := testPolicies()
 	operations.lifetime = 10 * time.Millisecond
 	streams.lifetime = 150 * time.Millisecond
-	guarded := withOperationGuards(waiting, operations, streams)
+	guarded := withOperationGuards(waiting, operations, streams, DefaultGraphBounds)
 
 	start := time.Now()
 	guarded.ServeHTTP(httptest.NewRecorder(), streamingRequest(uuid.Must(uuid.NewV7())))

@@ -42,7 +42,7 @@ seconds and gives up after five minutes.
 | `ALPHONE_DATABASE_URL` | yes | none | PostgreSQL connection string, e.g. `postgres://user:pass@host:5432/alphone?sslmode=disable`. |
 | `ALPHONE_ADDR` | no | `localhost:8080` | Listen address. The container image sets `0.0.0.0:8080`. |
 | `ALPHONE_WEB_DIR` | no | unset | Directory holding the built frontend, served for all non-API paths. The container image sets `/web`. Unset, only the API is served, which suits development behind Vite. |
-| `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is refused. |
+| `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. A peer outside them is limited by its own address, whatever header it sends. A range written in IPv4-mapped form, such as `::ffff:172.18.0.0/112`, counts as the IPv4 range it covers, and one shorter than `/96` stops `serve`. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is refused. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
 ## Mail
@@ -102,6 +102,28 @@ deployment serves more than one.
 | `ALPHONE_LIST_PAGE_SIZES` | The page sizes a list screen offers, comma separated. Defaults to `10,20,50,100`. `serve` will not start unless each size is a positive whole number, listed once from the smallest up, and none is above `ALPHONE_GRAPH_PAGE_CAP`. |
 | `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. `serve` will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
 | `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. `serve` will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
+
+## Graph limits
+
+Each count and byte size is a positive whole number, and each time is a
+duration such as `60s` or `5m`. `serve` will not start on a zero, a
+value in words, or a byte size written with a unit such as `1MiB`.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_GRAPH_OPERATIONS_PER_USER` | How many graph operations one caller runs at once. Defaults to 20. One more is answered `429` with a `Retry-After` header. |
+| `ALPHONE_GRAPH_OPERATION_TIMEOUT` | How long one graph operation may run before it is cancelled. Defaults to `60s`. Each write of an operation's answer also gets this long to reach the caller, and a caller who does not read it in time loses the connection. |
+| `ALPHONE_GRAPH_BODY_MAX_BYTES` | The largest JSON graph request body, in bytes. Defaults to 1048576, which is 1 MiB. |
+| `ALPHONE_GRAPH_UPLOAD_MAX_BYTES` | The largest multipart graph request body, an upload with its form, in bytes. Defaults to 6291456, which is 6 MiB. The importer still holds its file to 5 MiB, whatever this value is. |
+| `ALPHONE_GRAPH_RETRY_AFTER` | The wait the `Retry-After` header names when every operation slot of a caller is taken. Defaults to `1s`. |
+| `ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES` | The largest graph request body from a caller who is not signed in, in bytes. Defaults to 16384, which is 16 KiB. The longest valid sign in, a 254 character address with a 1024 character password, is under 7000 bytes, and about 15500 bytes from a client that escapes every character. Such a caller sends JSON only. A multipart request or a larger body from one gets the `UNAUTHENTICATED` error before it takes a slot. |
+| `ALPHONE_GRAPH_ANONYMOUS_MAX_TOKENS` | The most tokens the query of a caller who is not signed in holds. A token is one name, value, mark such as `{` or `:`, or comment. Defaults to 64. The largest query a screen sends before sign in, the sign in or the one accepting an invitation, holds 38. A longer query gets the `UNAUTHENTICATED` error before it takes a slot. |
+| `ALPHONE_GRAPH_ANONYMOUS_QUERY_MAX_BYTES` | The largest query a caller who is not signed in sends, in bytes. Defaults to 1024. The largest query a screen sends before sign in is 212 bytes. Send credentials as variables, since a long password written into the query goes over this cap. A larger query gets the `UNAUTHENTICATED` error before it takes a slot. |
+| `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES` | The largest answer a caller who is not signed in gets, in bytes. Defaults to 16384, which is 16 KiB. Such an answer is held in memory and its slot freed before it is sent, so a caller who reads slowly never holds a slot. A sign in answer is under 1000 bytes. A larger answer is replaced by the `UNAUTHENTICATED` error. |
+| `ALPHONE_GRAPH_ANONYMOUS_PER_IP` | How many graph requests callers who are not signed in run at once from one client address. Defaults to 5. A signed out screen sends at most two at once, the locale and a sign in. The address is the one `ALPHONE_TRUSTED_PROXIES` names, so behind a proxy that list leaves out, every visitor shares the proxy's address and this one budget. |
+| `ALPHONE_GRAPH_ANONYMOUS_CEILING` | How many graph requests callers who are not signed in run at once from every address together. Defaults to 20. |
+| `ALPHONE_STREAMS_PER_USER` | How many subscriptions one caller holds open at once, and apart from them how many plugin requests. Defaults to 5 of each. |
+| `ALPHONE_STREAM_LIFETIME` | How long one subscription or plugin request stays open. Defaults to `5m`. Each write of a subscription also gets this long to reach the caller. |
 
 ## Timeouts and shutdown
 

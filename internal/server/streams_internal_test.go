@@ -17,8 +17,8 @@ func TestStreamDefaults(t *testing.T) {
 	}{
 		"zero config falls back closed": {
 			cfg:          Config{},
-			wantLifetime: defaultMaxStreamLifetime,
-			wantLimit:    defaultMaxStreamsPerUser,
+			wantLifetime: DefaultMaxStreamLifetime,
+			wantLimit:    DefaultMaxStreamsPerUser,
 		},
 		"explicit values pass through": {
 			cfg:          Config{MaxStreamLifetime: time.Minute, MaxStreamsPerUser: 2},

@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,13 +26,73 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// Graph endpoint guard bounds.
-const (
-	graphOperationTimeout   = 60 * time.Second
-	graphMaxConcurrentOps   = 20
-	graphJSONBodyLimit      = 1 << 20
-	graphMultipartBodyLimit = 6 << 20
-)
+// GraphBounds caps how many graph operations one caller runs at once, how long each runs and how large its body is.
+type GraphBounds struct {
+	// OperationsPerUser caps the graph operations one caller runs at once.
+	OperationsPerUser int
+	// OperationTimeout bounds how long one graph operation runs.
+	OperationTimeout time.Duration
+	// BodyMaxBytes caps the body of a JSON graph request.
+	BodyMaxBytes int64
+	// UploadMaxBytes caps the body of a multipart graph request.
+	UploadMaxBytes int64
+	// RetryAfter is how soon a caller the operation budget refused may try again.
+	RetryAfter time.Duration
+	// AnonymousBodyMaxBytes caps the body of a graph request that carries no identity.
+	AnonymousBodyMaxBytes int64
+	// AnonymousPerIP caps the graph requests with no identity one client address runs at once.
+	AnonymousPerIP int
+	// AnonymousCeiling caps the graph requests with no identity every address runs at once together.
+	AnonymousCeiling int
+	// AnonymousMaxTokens caps the tokens of the document a graph request with no identity carries.
+	AnonymousMaxTokens int
+	// AnonymousQueryMaxBytes caps the bytes of the document a graph request with no identity carries.
+	AnonymousQueryMaxBytes int64
+	// AnonymousAnswerMaxBytes caps the answer a graph request with no identity gets.
+	AnonymousAnswerMaxBytes int64
+}
+
+// DefaultGraphBounds are the graph bounds a zero field falls back to.
+var DefaultGraphBounds = GraphBounds{
+	OperationsPerUser:       20,
+	OperationTimeout:        60 * time.Second,
+	BodyMaxBytes:            1 << 20,
+	UploadMaxBytes:          6 << 20,
+	RetryAfter:              time.Second,
+	AnonymousBodyMaxBytes:   16 << 10,
+	AnonymousPerIP:          5,
+	AnonymousCeiling:        20,
+	AnonymousMaxTokens:      64,
+	AnonymousQueryMaxBytes:  1024,
+	AnonymousAnswerMaxBytes: 16 << 10,
+}
+
+// withDefaults returns the bounds with every zero field taken from DefaultGraphBounds.
+func (b GraphBounds) withDefaults() GraphBounds {
+	d := DefaultGraphBounds
+	return GraphBounds{
+		OperationsPerUser:       orDefault(b.OperationsPerUser, d.OperationsPerUser),
+		OperationTimeout:        orDefault(b.OperationTimeout, d.OperationTimeout),
+		BodyMaxBytes:            orDefault(b.BodyMaxBytes, d.BodyMaxBytes),
+		UploadMaxBytes:          orDefault(b.UploadMaxBytes, d.UploadMaxBytes),
+		RetryAfter:              orDefault(b.RetryAfter, d.RetryAfter),
+		AnonymousBodyMaxBytes:   orDefault(b.AnonymousBodyMaxBytes, d.AnonymousBodyMaxBytes),
+		AnonymousPerIP:          orDefault(b.AnonymousPerIP, d.AnonymousPerIP),
+		AnonymousCeiling:        orDefault(b.AnonymousCeiling, d.AnonymousCeiling),
+		AnonymousMaxTokens:      orDefault(b.AnonymousMaxTokens, d.AnonymousMaxTokens),
+		AnonymousQueryMaxBytes:  orDefault(b.AnonymousQueryMaxBytes, d.AnonymousQueryMaxBytes),
+		AnonymousAnswerMaxBytes: orDefault(b.AnonymousAnswerMaxBytes, d.AnonymousAnswerMaxBytes),
+	}
+}
+
+// orDefault returns value, or fallback when value is zero.
+func orDefault[T comparable](value, fallback T) T {
+	var zero T
+	if value == zero {
+		return fallback
+	}
+	return value
+}
 
 // Graph endpoint budget overflow answers.
 const (
@@ -39,15 +100,12 @@ const (
 	overflowStreams    = "too many concurrent streams"
 )
 
-// graphRetryAfter is how soon a caller may retry an operation the budget refused.
-const graphRetryAfter = time.Second
-
 // graphServer returns the gqlgen server answering over one executable schema with every graph guard.
-func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *handler.Server {
+func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap, bounds GraphBounds) *handler.Server {
 	srv := handler.New(schema)
 	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
-	srv.AddTransport(transport.MultipartForm{})
+	srv.AddTransport(transport.MultipartForm{MaxUploadSize: bounds.UploadMaxBytes})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.AroundOperations(graphres.AnonymousGate)
@@ -57,12 +115,14 @@ func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap) *han
 }
 
 // tenantGraphs returns the graph servers answering each tenant over its own widened schema.
-func tenantGraphs(root graph.ResolverRoot, sources []sdk.FieldSource, held int) *dyngraph.Graphs[*handler.Server] {
+func tenantGraphs(
+	root graph.ResolverRoot, sources []sdk.FieldSource, held int, bounds GraphBounds,
+) *dyngraph.Graphs[*handler.Server] {
 	scopes := graphres.NewScopeMap(graphres.ExecutableSchema(root).Schema())
 	return dyngraph.New(func(widened *ast.Schema) graphql.ExecutableSchema {
 		return graphres.ExecutableSchemaOver(root, widened)
 	}, func(schema graphql.ExecutableSchema) *handler.Server {
-		return graphServer(schema, scopes)
+		return graphServer(schema, scopes, bounds)
 	}, held, sources...)
 }
 
@@ -70,6 +130,8 @@ func tenantGraphs(root graph.ResolverRoot, sources []sdk.FieldSource, held int) 
 type graphPolicy struct {
 	// limiter caps concurrent requests of this kind per user.
 	limiter *streamLimiter
+	// anonymous caps the concurrent requests of callers with no identity per client address.
+	anonymous *addressLimiter
 	// lifetime bounds one request of this kind.
 	lifetime time.Duration
 	// retryAfter is how soon a slot of this kind is expected to free.
@@ -91,12 +153,13 @@ func retryAfterSeconds(hint time.Duration) int {
 func newGraphQLHandler(
 	root graph.ResolverRoot,
 	tenants TenantStore,
+	bounds GraphBounds,
 	streamLifetime time.Duration,
 	maxStreams int,
 	sources []sdk.FieldSource,
 	held int,
 ) http.Handler {
-	graphs := tenantGraphs(root, sources, held)
+	graphs := tenantGraphs(root, sources, held, bounds)
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
@@ -113,32 +176,56 @@ func newGraphQLHandler(
 		}
 		answer.ServeHTTP(w, r.WithContext(ctx))
 	})
-	operations, streams := graphPolicies(streamLifetime, maxStreams)
-	return withOperationGuards(loaded, operations, streams)
+	operations, streams := graphPolicies(bounds, streamLifetime, maxStreams)
+	return withOperationGuards(loaded, operations, streams, bounds)
 }
 
 // graphPolicies returns the budget the endpoint holds operations to beside the
 // one it holds streams to.
-func graphPolicies(streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
+func graphPolicies(bounds GraphBounds, streamLifetime time.Duration, maxStreams int) (graphPolicy, graphPolicy) {
+	anonymous := newAddressLimiter(bounds.AnonymousPerIP, bounds.AnonymousCeiling)
 	return graphPolicy{
-		limiter:    newStreamLimiter(graphMaxConcurrentOps),
-		lifetime:   graphOperationTimeout,
-		retryAfter: graphRetryAfter,
+		limiter:    newStreamLimiter(bounds.OperationsPerUser),
+		anonymous:  anonymous,
+		lifetime:   bounds.OperationTimeout,
+		retryAfter: bounds.RetryAfter,
 		overflow:   overflowOperations,
 	}, graphPolicy{
 		limiter:    newStreamLimiter(maxStreams),
+		anonymous:  anonymous,
 		lifetime:   streamLifetime,
 		retryAfter: streamLifetime,
 		overflow:   overflowStreams,
 	}
 }
 
-// graphBodyLimit returns the body budget of the request content type.
-func graphBodyLimit(r *http.Request) int64 {
-	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		return graphMultipartBodyLimit
+// claim takes a slot for the caller under the policy, answering how to free it, or false when none is free.
+func (p graphPolicy) claim(r *http.Request, user authkit.Identity) (func(), bool) {
+	if user.ID == uuid.Nil {
+		address := ratelimit.ClientIP(r)
+		if !p.anonymous.acquire(address) {
+			return nil, false
+		}
+		return func() { p.anonymous.release(address) }, true
 	}
-	return graphJSONBodyLimit
+	if !p.limiter.acquire(user.ID) {
+		return nil, false
+	}
+	return func() { p.limiter.release(user.ID) }, true
+}
+
+// graphBodyLimit returns the body budget the bounds give a signed in request's content type.
+func graphBodyLimit(r *http.Request, bounds GraphBounds) int64 {
+	if carriesForm(r) {
+		return bounds.UploadMaxBytes
+	}
+	return bounds.BodyMaxBytes
+}
+
+// carriesForm reports whether the request body is a multipart form, whatever the case of its media type.
+func carriesForm(r *http.Request) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && mediaType == "multipart/form-data"
 }
 
 // jsonAnswerTypes lists the answer media types a caller offers to read JSON with.
@@ -174,24 +261,57 @@ func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(accept, "text/event-stream") && !acceptsJSON(accept)
 }
 
-// withOperationGuards bounds a graph request's body, lifetime, and per user
+// withOperationGuards bounds a graph request's body, lifetime, answer, and per user
 // concurrency under the policy of its kind.
-func withOperationGuards(next http.Handler, operations, streams graphPolicy) http.Handler {
+func withOperationGuards(next http.Handler, operations, streams graphPolicy, bounds GraphBounds) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := authkit.IdentityFromContext(r.Context())
+		if user.ID == uuid.Nil {
+			serveAnonymous(next, w, r, operations, bounds)
+			return
+		}
 		policy := operations
 		if acceptsEventStream(r) {
 			policy = streams
 		}
-		user := authkit.IdentityFromContext(r.Context())
-		if !policy.limiter.acquire(user.ID) {
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
-			authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
+		free, claimed := policy.claim(r, user)
+		if !claimed {
+			refuseOverflow(w, policy)
 			return
 		}
-		defer policy.limiter.release(user.ID)
-		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r))
+		defer free()
+		r.Body = http.MaxBytesReader(w, r.Body, graphBodyLimit(r, bounds))
 		ctx, cancel := context.WithTimeout(r.Context(), policy.lifetime)
 		defer cancel()
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(answerWithin(w, policy.lifetime), r.WithContext(ctx))
 	})
+}
+
+// refuseOverflow answers that the budget of the policy is spent.
+func refuseOverflow(w http.ResponseWriter, policy graphPolicy) {
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(policy.retryAfter)))
+	authkit.RespondError(w, http.StatusTooManyRequests, authkit.ErrorResponse{Message: policy.overflow})
+}
+
+// answerWithin returns w giving each write of the answer the lifetime to reach the caller.
+func answerWithin(w http.ResponseWriter, lifetime time.Duration) deadlineWriter {
+	return deadlineWriter{ResponseWriter: w, controller: http.NewResponseController(w), lifetime: lifetime}
+}
+
+// deadlineWriter gives each write of a graph answer the request's lifetime to reach the caller.
+type deadlineWriter struct {
+	http.ResponseWriter
+	controller *http.ResponseController
+	lifetime   time.Duration
+}
+
+// Write sends p to the caller under a write deadline one lifetime away.
+func (d deadlineWriter) Write(p []byte) (int, error) {
+	_ = d.controller.SetWriteDeadline(time.Now().Add(d.lifetime))
+	return d.ResponseWriter.Write(p)
+}
+
+// Flush sends what the answer holds buffered to the caller.
+func (d deadlineWriter) Flush() {
+	_ = d.controller.Flush()
 }

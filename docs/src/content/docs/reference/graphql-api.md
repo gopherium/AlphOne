@@ -58,15 +58,23 @@ through `contact { tasks { ... } }` without holding `tasks:read`. Grant
 the narrowest set of entry points an integration needs, and read a
 scope as the doorway it opens rather than a fence around one table.
 
-**A session cookie**, for browsers. Call `login` and the reply sets it:
+**A session cookie**, for browsers. Call `login` and the reply sets it.
+Send the address and the password as variables, because a query before sign
+in holds at most 1024 bytes and a long password written into it is refused:
 
 ```graphql
-mutation {
-  login(email: "admin@example.com", password: "password1234") {
+mutation Login($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
     me { id email name }
   }
 }
 ```
+
+```json
+{ "email": "admin@example.com", "password": "password1234" }
+```
+
+The reply:
 
 ```json
 {
@@ -575,6 +583,23 @@ each code in the reader's language.
 | Operation deadline | 60 seconds |
 | JSON body | 1 MiB |
 | Multipart body | 6 MiB |
+| Body before sign in | 16 KiB, JSON only |
+| Query before sign in | 64 tokens and 1024 bytes |
+| Answer before sign in | 16 KiB |
+| Concurrent operations before sign in | 5 per client address, 20 in all |
+
+Before sign in, a request's body is read in full and checked before it takes
+a slot, so a slow body never holds one. Its answer is held in memory and its
+slot freed before the answer is sent, so a slow reader never holds one either.
+A request past the body, query or answer limit before sign in gets the
+`UNAUTHENTICATED` error, and one past the concurrent limit gets HTTP 429. A
+signed in caller takes its slot first and sends its body inside it. Each write
+of an answer gets the operation deadline, or the stream lifetime for a
+subscription, to reach the caller, and one the caller does not read in time
+ends the connection.
+
+Every value but the query complexity is the default of a setting the
+operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
 
 Complexity prices a page as the number of rows asked for times the cost of one
 row, so a wide selection over a large page is what trips it:

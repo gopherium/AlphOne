@@ -162,6 +162,33 @@ func TestGraphLoginRateLimitsByClientIP(t *testing.T) {
 	}
 }
 
+func TestGraphLoginLimitsUntrustedPeerRotatingForwardedHeader(t *testing.T) {
+	t.Parallel()
+
+	users := newFakeUserStore()
+	addAda(t, users)
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(), Users: users, Version: "9.9.9", TrustedProxies: []string{"10.42.0.0/16"},
+	})
+	failed := graphBody(t, `mutation { login(email: "nobody@example.com", password: "wrong password") { me { id } } }`)
+
+	code := ""
+	for attempt := range 11 {
+		request := httptest.NewRequest(http.MethodPost, "/api/graphql", strings.NewReader(failed))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-Forwarded-For", fmt.Sprintf("198.51.100.%d", attempt+1))
+		request.RemoteAddr = "203.0.113.9:40000"
+		recorder := httptest.NewRecorder()
+		srv.ServeHTTP(recorder, request)
+		code = graphErrorCode(t, recorder)
+	}
+
+	if code != "RATE_LIMITED" {
+		t.Errorf("the 11th failed login from one untrusted peer forging a new address answered %q, want RATE_LIMITED",
+			code)
+	}
+}
+
 func TestGraphBearerCallersPassTheGate(t *testing.T) {
 	t.Parallel()
 

@@ -19,7 +19,7 @@ import (
 var unwiredResolverFields = []string{"BatchWait"}
 
 // unwiredServerFields names the server settings the server leaves to their defaults on purpose.
-var unwiredServerFields = []string{"MaxStreamLifetime", "MaxStreamsPerUser"}
+var unwiredServerFields []string
 
 // zeroFields returns the exported fields of the struct v holds or points at that are zero, the skipped ones left out.
 func zeroFields(v any, skipped []string) []string {
@@ -109,6 +109,29 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 	if zero := zeroFields(cfg, unwiredServerFields); len(zero) > 0 {
 		t.Errorf("the server settings leave %v zero, want each one wired or named among %v on purpose",
 			zero, unwiredServerFields)
+	}
+}
+
+func TestServerConfigCarriesEveryGraphBound(t *testing.T) {
+	t.Parallel()
+
+	named, err := loadRunConfig(testkit.Getenv(filledSettings()))
+	if err != nil {
+		t.Fatalf("loadRunConfig() over every setting error = %v, want nil", err)
+	}
+	fallback, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
+	if err != nil {
+		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
+	}
+
+	cfg, standing := named.serverConfig(), fallback.serverConfig()
+
+	if unnamed := unnamedFields(cfg.Graph, standing.Graph); len(unnamed) > 0 {
+		t.Errorf("Graph leaves %v zero or at the default, want the values the settings name", unnamed)
+	}
+	if cfg.MaxStreamLifetime == standing.MaxStreamLifetime || cfg.MaxStreamsPerUser == standing.MaxStreamsPerUser {
+		t.Errorf("the stream bounds = (%v, %d), want the values the settings name",
+			cfg.MaxStreamLifetime, cfg.MaxStreamsPerUser)
 	}
 }
 

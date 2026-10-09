@@ -28,7 +28,7 @@ func AnonymousGate(ctx context.Context, next graphql.OperationHandler) graphql.R
 	}
 	operation := graphql.GetOperationContext(ctx).Operation
 	if operation == nil || !anonymousOperation(operation) {
-		return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{unauthenticatedError()}})
+		return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{UnauthenticatedError()}})
 	}
 	return next(ctx)
 }
@@ -76,8 +76,8 @@ func onlyLoginFields(selections ast.SelectionSet) bool {
 	return true
 }
 
-// unauthenticatedError builds the gate's rejection error.
-func unauthenticatedError() *gqlerror.Error {
+// UnauthenticatedError builds the gate's rejection error.
+func UnauthenticatedError() *gqlerror.Error {
 	return &gqlerror.Error{
 		Message:    "authentication required",
 		Extensions: map[string]any{"code": "UNAUTHENTICATED", "reason": "authentication_required"},
