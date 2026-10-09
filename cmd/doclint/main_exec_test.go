@@ -10,24 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-)
 
-// coverBinary returns the built doclint path and a coverage environment, skipping the test outside make cover.
-func coverBinary(t *testing.T) (string, []string) {
-	t.Helper()
-	bindir := os.Getenv("ALPHONE_COVER_BINDIR")
-	gocoverdir := os.Getenv("ALPHONE_COVER_GOCOVERDIR")
-	if bindir == "" || gocoverdir == "" {
-		t.Skip("skipping binary test: run via make cover")
-	}
-	var env []string
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "ALPHONE_") && !strings.HasPrefix(entry, "GOCOVERDIR=") {
-			env = append(env, entry)
-		}
-	}
-	return filepath.Join(bindir, "doclint"), append(env, "GOCOVERDIR="+gocoverdir)
-}
+	"github.com/gopherium/framework/gonsole/testkit"
+)
 
 // writeFixture writes one source file into the given directory.
 func writeFixture(t *testing.T, dir, name, source string) {
@@ -40,7 +25,7 @@ func writeFixture(t *testing.T, dir, name, source string) {
 func TestMainBinaryPassesOnDocumentedTree(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "doclint")
 	dir := t.TempDir()
 	writeFixture(t, dir, "documented.go",
 		"// SPDX-License-Identifier: Elastic-2.0\n\npackage fixture\n\n// Documented does nothing.\nfunc Documented() {}\n")
@@ -58,7 +43,7 @@ func TestMainBinaryPassesOnDocumentedTree(t *testing.T) {
 func TestMainBinaryFailsOnUndocumentedFunction(t *testing.T) {
 	t.Parallel()
 
-	binary, env := coverBinary(t)
+	binary, env := testkit.CoverBinary(t, "ALPHONE_", "doclint")
 	dir := t.TempDir()
 	writeFixture(t, dir, "undocumented.go", "package fixture\n\nfunc Undocumented() {}\n")
 	var stderr bytes.Buffer

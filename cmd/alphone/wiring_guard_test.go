@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
@@ -49,7 +50,7 @@ func unnamedFields(named, fallback any) []string {
 func composedOverEverySetting(t *testing.T) (runConfig, composed) {
 	t.Helper()
 	env := filledSettings()
-	settings, err := loadRunConfig(testGetenv(env))
+	settings, err := loadRunConfig(testkit.Getenv(env))
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
@@ -78,7 +79,7 @@ func TestGraphResolverCarriesEveryListSetting(t *testing.T) {
 	t.Parallel()
 
 	settings, built := composedOverEverySetting(t)
-	fallback, err := loadRunConfig(testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
+	fallback, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}
@@ -137,11 +138,11 @@ func TestServerConfigCarriesEveryGraphBound(t *testing.T) {
 func TestInviteConfigCarriesEverySetting(t *testing.T) {
 	t.Parallel()
 
-	named, err := loadRunConfig(testGetenv(filledSettings()))
+	named, err := loadRunConfig(testkit.Getenv(filledSettings()))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over every setting error = %v, want nil", err)
 	}
-	fallback, err := loadRunConfig(testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
+	fallback, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}

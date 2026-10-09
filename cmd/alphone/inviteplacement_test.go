@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/postgres"
@@ -46,12 +47,12 @@ func TestRunPlacesAnInvitedAccountInTheInvitersTenant(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	addr := freeAddr(t)
+	addr := testkit.FreeAddr(t)
 	databaseURL := testDatabaseURL(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testGetenv(map[string]string{
+		runErr <- run(ctx, testkit.Getenv(map[string]string{
 			"ALPHONE_DATABASE_URL": databaseURL,
 			"ALPHONE_ADDR":         addr,
 		}), io.Discard, registerPlugins)

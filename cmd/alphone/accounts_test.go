@@ -74,8 +74,8 @@ func accountsDatabase(t *testing.T) map[string]string {
 	if got := testkit.Run(t, bareProgram(env), "", "migrate"); got.Code != gonsole.ExitDone {
 		t.Fatalf("migrate = %d with stderr %q, want 0", got.Code, got.Stderr)
 	}
-	createAccount(t, testGetenv(env), "admin@example.com", role.Admin.String())
-	createAccount(t, testGetenv(env), "maria.perez@example.com", role.Member.String())
+	createAccount(t, testkit.Getenv(env), "admin@example.com", role.Admin.String())
+	createAccount(t, testkit.Getenv(env), "maria.perez@example.com", role.Member.String())
 	return env
 }
 
@@ -106,7 +106,7 @@ func TestCreateAdminTakesARoleAPluginDeclares(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 	got := testkit.Run(t, programOver(role.NewRegistry(), getenv, stewardDeclaring), typedPassword+"\n",
 		"account:create-admin", "-email", "admin@example.com", "-name", "Account Holder", "-role", "steward")
@@ -134,7 +134,7 @@ func TestEveryRoleWritingCommandRefusesAPluginItCannotRegister(t *testing.T) {
 
 			databaseURL := testDatabaseURL(t)
 			storeRoleless(t, databaseURL, "maria.perez@example.com")
-			getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+			getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 
 			got := testkit.Run(t, programOver(role.NewRegistry(), getenv, failing), typedPassword+"\n",
 				append([]string{name}, args...)...)
@@ -159,7 +159,7 @@ func TestAccountCommandsRefuseARoleAPluginCannotDeclare(t *testing.T) {
 	refused := func(sdk.Deps) ([]sdk.Plugin, error) {
 		return []sdk.Plugin{rolePlugin{declared: []sdk.RoleDeclaration{{Name: ""}}}}, nil
 	}
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})
 
 	got := testkit.Run(t, programOver(role.NewRegistry(), getenv, refused), "",
 		"account:grant-role", "-role", "admin", "-as", "admin@example.com")
@@ -323,7 +323,7 @@ func TestAnAdminCannotGiveARoleAboveItsOwn(t *testing.T) {
 		}}}, nil
 	}
 
-	got := testkit.Run(t, programOver(role.NewRegistry(), testGetenv(env), above), "",
+	got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(env), above), "",
 		"account:role", "maria.perez@example.com", "steward", "-yes", "-as", "admin@example.com")
 
 	want := "alphone: the role steward carries manage_reports, which the account admin@example.com lacks\n"
@@ -409,7 +409,7 @@ func TestTheRoleTableCountsEveryRoleThatManagesUsersAsPrivileged(t *testing.T) {
 	var held accounts.Roles
 	reading := gonsole.Program{
 		Name:     "alphone",
-		Env:      settingsEnv(testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})),
+		Env:      settingsEnv(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})),
 		Database: "DATABASE_URL",
 		Plugins:  loadPlugins(registry, stewardDeclaring),
 		Commands: []gonsole.Command{{
@@ -438,7 +438,7 @@ func TestAPluginRoleThatManagesUsersCoversTheLastAdministrator(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
 	createAccount(t, getenv, "admin@example.com", role.Admin.String())
 	steward := testkit.Run(t, programOver(role.NewRegistry(), getenv, stewardDeclaring), typedPassword+"\n",
 		"account:create-admin", "-email", "maria.perez@example.com", "-name", "Account Holder", "-role", "steward")

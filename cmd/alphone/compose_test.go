@@ -15,6 +15,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -86,14 +88,14 @@ func filledSettings() map[string]string {
 // composeConfigOf returns what compose reads over env, the roles declared into a registry of the test's own.
 func composeConfigOf(t *testing.T, env map[string]string) composeConfig {
 	t.Helper()
-	settings, err := loadRunConfig(testGetenv(env))
+	settings, err := loadRunConfig(testkit.Getenv(env))
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
 	return composeConfig{
 		composeSettings: settings.composeSettings,
 		databaseURL:     settings.databaseURL,
-		getenv:          testGetenv(env),
+		getenv:          testkit.Getenv(env),
 		roles:           role.NewRegistry(),
 		logger:          discardLogger(),
 	}
@@ -213,7 +215,7 @@ func TestComposeWiresTheCredentialsTheTenantGateAndTheMailSender(t *testing.T) {
 func TestComposeInDescribeModeNeedsNoDatabaseSetting(t *testing.T) {
 	t.Parallel()
 
-	cfg := composeConfig{getenv: testGetenv(nil), roles: role.NewRegistry(), logger: discardLogger()}
+	cfg := composeConfig{getenv: testkit.Getenv(nil), roles: role.NewRegistry(), logger: discardLogger()}
 
 	built, err := compose(t.Context(), cfg, registerPlugins)
 
@@ -284,7 +286,7 @@ func TestMigrateAppliesEveryStepToABareDatabase(t *testing.T) {
 func TestRunNamesTheRegistrationFailureBesideARefusedRole(t *testing.T) {
 	t.Parallel()
 
-	getenv := testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL})
 
 	err := run(t.Context(), getenv, io.Discard, partlyRegisteredWithARefusedRole)
 

@@ -13,6 +13,8 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -42,7 +44,7 @@ const pluginTablesLookup = "SELECT count(*) FROM pg_tables WHERE schemaname = $1
 func registeredOver(t *testing.T, address string) []sdk.Plugin {
 	t.Helper()
 	registered, err := registerPlugins(
-		sdk.Deps{DatabaseURL: address, Getenv: testGetenv(nil), Env: settingsEnv(testGetenv(nil))})
+		sdk.Deps{DatabaseURL: address, Getenv: testkit.Getenv(nil), Env: settingsEnv(testkit.Getenv(nil))})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), pluginStopGrace)
 		defer cancel()

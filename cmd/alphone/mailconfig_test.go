@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/gouncer/authkit"
 )
 
 func TestMailIsOffWhenNoHostIsNamed(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -28,7 +29,7 @@ func TestMailIsOffWhenNoHostIsNamed(t *testing.T) {
 func TestTheMailSettingsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":      "postgres://localhost/x",
 		"ALPHONE_SMTP_HOST":         "mail.example.com",
 		"ALPHONE_SMTP_PORT":         "2525",
@@ -61,7 +62,7 @@ func TestTheMailSettingsAreReadFromTheEnvironment(t *testing.T) {
 func TestTheMailDefaultsApply(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 		"ALPHONE_SMTP_HOST":    "mail.example.com",
 		"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -82,7 +83,7 @@ func TestTheMailDefaultsApply(t *testing.T) {
 func TestTheTokenLifetimesDefaultWithoutAMailer(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -100,7 +101,7 @@ func TestTheTokenLifetimesDefaultWithoutAMailer(t *testing.T) {
 func TestTheTokenLifetimesAreReadWithoutAMailer(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 		"ALPHONE_INVITE_TTL":   "24h",
 		"ALPHONE_RESET_TTL":    "30m",
@@ -134,7 +135,7 @@ func TestTheTokenLifetimesRefuseAnUnreadableValue(t *testing.T) {
 
 			vars["ALPHONE_DATABASE_URL"] = "postgres://localhost/x"
 
-			_, err := loadRunConfig(testGetenv(vars))
+			_, err := loadRunConfig(testkit.Getenv(vars))
 
 			if err == nil {
 				t.Error("loadRunConfig() error = nil, want the lifetime refused")
@@ -164,7 +165,7 @@ func TestAMailerNamesItsRequiredCompanions(t *testing.T) {
 			}
 			delete(vars, tt.unset)
 
-			_, err := loadRunConfig(testGetenv(vars))
+			_, err := loadRunConfig(testkit.Getenv(vars))
 
 			if err == nil {
 				t.Fatalf("loadRunConfig() without %s error = nil, want it required", tt.unset)
@@ -192,7 +193,7 @@ func TestMailSettingsWithoutAHostAreRefused(t *testing.T) {
 
 			vars["ALPHONE_DATABASE_URL"] = "postgres://localhost/x"
 
-			_, err := loadRunConfig(testGetenv(vars))
+			_, err := loadRunConfig(testkit.Getenv(vars))
 
 			if err == nil {
 				t.Error("loadRunConfig() error = nil, want the hostless setting refused")
@@ -217,7 +218,7 @@ func TestTheMailPortRefusesAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				"ALPHONE_SMTP_HOST":    "mail.example.com",
 				"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -239,7 +240,7 @@ func TestTheTransportSecurityAcceptsEveryNamedPolicy(t *testing.T) {
 		t.Run(policy, func(t *testing.T) {
 			t.Parallel()
 
-			held, err := loadRunConfig(testGetenv(map[string]string{
+			held, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				"ALPHONE_SMTP_HOST":    "mail.example.com",
 				"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -260,7 +261,7 @@ func TestTheTransportSecurityAcceptsEveryNamedPolicy(t *testing.T) {
 func TestTheTransportSecurityRefusesAnUnknownPolicy(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadRunConfig(testGetenv(map[string]string{
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 		"ALPHONE_SMTP_HOST":    "mail.example.com",
 		"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -293,7 +294,7 @@ func TestThePublicURLRefusesAMalformedValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				"ALPHONE_SMTP_HOST":    "mail.example.com",
 				"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -310,7 +311,7 @@ func TestThePublicURLRefusesAMalformedValue(t *testing.T) {
 func TestThePublicURLDropsItsTrailingSlash(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 		"ALPHONE_SMTP_HOST":    "mail.example.com",
 		"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -328,7 +329,7 @@ func TestThePublicURLDropsItsTrailingSlash(t *testing.T) {
 func TestTheResetBudgetDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -343,7 +344,7 @@ func TestTheResetBudgetDefaults(t *testing.T) {
 func TestTheResetBudgetIsReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 		"ALPHONE_RESET_ATTEMPTS": "5",
 	}))
@@ -367,7 +368,7 @@ func TestTheResetBudgetRefusesAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 				"ALPHONE_RESET_ATTEMPTS": raw,
 			}))
@@ -392,7 +393,7 @@ func TestTheResetBudgetRidesTheTokenLifetime(t *testing.T) {
 func TestTheResetStackDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -410,7 +411,7 @@ func TestTheResetStackDefaults(t *testing.T) {
 func TestTheResetStackIsReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":   "postgres://localhost/x",
 		"ALPHONE_RESET_LINKS":    "5",
 		"ALPHONE_RESET_COOLDOWN": "30s",
@@ -443,7 +444,7 @@ func TestTheResetStackRefusesAnUnreadableValue(t *testing.T) {
 
 			vars["ALPHONE_DATABASE_URL"] = "postgres://localhost/x"
 
-			if _, err := loadRunConfig(testGetenv(vars)); err == nil {
+			if _, err := loadRunConfig(testkit.Getenv(vars)); err == nil {
 				t.Error("loadRunConfig() error = nil, want the setting refused")
 			}
 		})

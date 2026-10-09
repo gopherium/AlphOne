@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -118,7 +120,7 @@ func TestRunStopsThePluginsWhenTheMailCannotBeBuilt(t *testing.T) {
 	}
 	absentTemplateDir := filepath.Join(t.TempDir(), "absent")
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":        testDatabaseURL(t),
 		"ALPHONE_SHUTDOWN_STOP_GRACE": shutdownStopGrace.String(),
 		"ALPHONE_SMTP_HOST":           "mail.example.com",

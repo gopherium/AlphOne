@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/tenant"
 )
 
 func TestTheGraceWindowFallsBackToItsDefault(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -27,7 +29,7 @@ func TestTheGraceWindowFallsBackToItsDefault(t *testing.T) {
 func TestTheGraceWindowIsReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":         "postgres://localhost/x",
 		"ALPHONE_TENANT_MACHINE_GRACE": "720h",
 	}))
@@ -51,7 +53,7 @@ func TestTheGraceWindowRefusesAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL":         "postgres://localhost/x",
 				"ALPHONE_TENANT_MACHINE_GRACE": raw,
 			}))
@@ -66,7 +68,7 @@ func TestTheGraceWindowRefusesAnUnreadableValue(t *testing.T) {
 func TestAZeroGraceWindowStopsMachineTrafficAtOnce(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":         "postgres://localhost/x",
 		"ALPHONE_TENANT_MACHINE_GRACE": "0",
 	}))

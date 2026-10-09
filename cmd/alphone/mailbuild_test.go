@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gopherium/framework/gonsole/testkit"
 )
 
 // discardLogger returns a logger writing nowhere.
@@ -137,7 +139,7 @@ func TestThePublicURLRefusesAnUnparseableValue(t *testing.T) {
 
 	const unparseablePublicURL = "https://crm.example.com/\x7f"
 
-	_, err := loadRunConfig(testGetenv(map[string]string{
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 		"ALPHONE_SMTP_HOST":    "mail.example.com",
 		"ALPHONE_SMTP_FROM":    "crm@example.com",
@@ -161,9 +163,9 @@ func TestRunStopsWhenTheMailRelayIsRefused(t *testing.T) {
 	}
 	databaseURL := testDatabaseURL(t)
 
-	err := run(t.Context(), testGetenv(map[string]string{
+	err := run(t.Context(), testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": databaseURL,
-		"ALPHONE_ADDR":         freeAddr(t),
+		"ALPHONE_ADDR":         testkit.FreeAddr(t),
 		"ALPHONE_SMTP_HOST":    "mail.example.com",
 		"ALPHONE_SMTP_PORT":    "2525",
 		"ALPHONE_SMTP_FROM":    "not an address",

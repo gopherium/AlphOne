@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -23,7 +25,7 @@ func recordedPublicURL(t *testing.T, env map[string]string) string {
 		return nil, errDepsRecorded
 	}
 
-	err := run(t.Context(), testGetenv(env), io.Discard, recording)
+	err := run(t.Context(), testkit.Getenv(env), io.Discard, recording)
 
 	if !errors.Is(err, errDepsRecorded) {
 		t.Fatalf("run() error = %v, want the recording plugin's own refusal", err)
