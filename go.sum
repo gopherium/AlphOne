@@ -176,8 +176,8 @@ github.com/gopherium/gouncer/authkit v0.16.0 h1:UExNLvPz2baly9qGpCpPqkzwodd0lUIS
 github.com/gopherium/gouncer/authkit v0.16.0/go.mod h1:HD9ZkKl1Inm8Zfkayp8VMogXvQ6qkWx9OuAigcgptg8=
 github.com/gopherium/gouncer/authkit/postgres v0.11.2 h1:ZwGY20+/qfdL8irzNwXMOQC2f5QWq6KFajNWIaGU3qE=
 github.com/gopherium/gouncer/authkit/postgres v0.11.2/go.mod h1:60KQIrXfnltT+92/8wLEdlU5Mfe8FPxPJ5NFj73vxL8=
-github.com/gopherium/gouncer/authkit/ratelimit v0.3.0 h1:K4e8kwzO9XRJB95TErMVV4CuskTtG2c2CwL7nLAI/Ko=
-github.com/gopherium/gouncer/authkit/ratelimit v0.3.0/go.mod h1:Nezx00JuDgpuM62iF09HIfYD6nE4X22VvciY8wu3W3E=
+github.com/gopherium/gouncer/authkit/ratelimit v0.3.1 h1:l+YGVBqG1FDxIl/G1WaoIPS/jbsUicQRg0p1NYWxk9s=
+github.com/gopherium/gouncer/authkit/ratelimit v0.3.1/go.mod h1:BXea+ZZJUypviIcWmb788rQSBpqW5VcGvovlJPOblqw=
 github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
 github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
 github.com/hairyhenderson/go-codeowners v0.7.0 h1:s0W4wF8bdsBEjTWzwzSlsatSthWtTAF2xLgo4a4RwAo=
