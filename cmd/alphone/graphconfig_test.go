@@ -7,13 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/gonsole/testkit"
+
 	"github.com/gopherium/alphone/internal/server"
 )
 
 func TestTheGraphBoundsFallBackToTheirDefaults(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 	}))
 
@@ -34,7 +36,7 @@ func TestTheGraphBoundsFallBackToTheirDefaults(t *testing.T) {
 func TestTheGraphBoundsAreReadFromTheEnvironment(t *testing.T) {
 	t.Parallel()
 
-	held, err := loadRunConfig(testGetenv(map[string]string{
+	held, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":                     "postgres://localhost/x",
 		"ALPHONE_GRAPH_OPERATIONS_PER_USER":        "12",
 		"ALPHONE_GRAPH_OPERATION_TIMEOUT":          "45s",
@@ -97,7 +99,7 @@ func TestTheGraphBoundsRefuseAnUnreadableValue(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := loadRunConfig(testGetenv(map[string]string{
+			_, err := loadRunConfig(testkit.Getenv(map[string]string{
 				"ALPHONE_DATABASE_URL": "postgres://localhost/x",
 				tt.named:               tt.value,
 			}))

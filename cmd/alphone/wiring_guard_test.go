@@ -115,11 +115,11 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 func TestServerConfigCarriesEveryGraphBound(t *testing.T) {
 	t.Parallel()
 
-	named, err := loadRunConfig(testGetenv(filledSettings()))
+	named, err := loadRunConfig(testkit.Getenv(filledSettings()))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over every setting error = %v, want nil", err)
 	}
-	fallback, err := loadRunConfig(testGetenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
+	fallback, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}
