@@ -26,7 +26,6 @@ Feature: An agent reads contacts
     And the answer carries the whatsapp identity "184467235"
     And the answer lists the open task "Call Maria Perez back"
 
-  @wip
   Scenario: A contact's raised open task lists first
     Given a contact "Maria Perez"
     And an open task "Send Maria Perez the quote" due today linked to that contact

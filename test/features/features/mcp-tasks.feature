@@ -35,7 +35,6 @@ Feature: An agent lists tasks
     Then the answer lists 1 task
     And the task "Book the courier" is listed
 
-  @wip
   Scenario: A raised task lists above the normal work of its day
     Given an open task "Send the quote" due today
     And an open task "Approve the pricing" due today with priority 1
@@ -45,7 +44,6 @@ Feature: An agent lists tasks
       | Approve the pricing |
       | Send the quote      |
 
-  @wip
   Scenario: A higher priority lists above a lower one
     Given an open task "Renew the license" due today with priority 1
     And an open task "Restore the backup" due today with priority 9
@@ -57,7 +55,6 @@ Feature: An agent lists tasks
       | Renew the license  |
       | Send the quote     |
 
-  @wip
   Scenario: The overdue backlog lists raised work first across every late day
     Given an open task "Chase the invoice" due on 2020-01-10
     And an open task "Renew the contract" due yesterday with priority 1
@@ -69,7 +66,6 @@ Feature: An agent lists tasks
       | Chase the invoice  |
       | File the report    |
 
-  @wip
   Scenario: Done work keeps the order it was created in
     Given a done task "Book the courier" due today
     And a done task "File the receipt" due today with priority 1
