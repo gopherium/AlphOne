@@ -50,7 +50,6 @@ Feature: A list pages through the contact directory
       | Maria Perez |
     And the page counts 1 contact
 
-  @wip
   Scenario: A percent sign in a search matches only itself
     Given these contacts, created in this order:
       | name          |
@@ -62,7 +61,6 @@ Feature: A list pages through the contact directory
       | Promo 50% off |
     And the page counts 1 contact
 
-  @wip
   Scenario: An underscore in a search matches only itself
     Given these contacts, created in this order:
       | name      |
