@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/peterldowns/pgtestdb"
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/gopherium/alphone/internal/testdb"
@@ -36,7 +35,7 @@ func newUnmigratedPlugin(t *testing.T) (*Plugin, string) {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	address := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator()).URL()
+	address := testdb.New(t, testdb.Migrator())
 	p, err := Register(sdk.Deps{DatabaseURL: address})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)

@@ -57,10 +57,10 @@ func postEvent(t *testing.T, routes http.Handler, signature string, body []byte)
 // newIngestingPlugin returns a migrated plugin holding a secret and a phone number, beside its pool.
 func newIngestingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
-	p := newPlugin(t, cfg.URL(), resolver, map[string]string{
+	p := newPlugin(t, address, resolver, map[string]string{
 		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
 		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "555000111",
 	})
@@ -351,10 +351,10 @@ func routingEnv(extra map[string]string) map[string]string {
 // newRoutingPlugin returns a migrated plugin holding a sealing key, beside its pool.
 func newRoutingPlugin(t *testing.T, extra map[string]string) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
-	p := newPlugin(t, cfg.URL(), resolver, routingEnv(extra))
+	p := newPlugin(t, address, resolver, routingEnv(extra))
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}

@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -49,13 +48,13 @@ const uniqueViolation = "23505"
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
 
-// newTestDatabase returns a config for a core migrated database, skipping the test in short mode.
-func newTestDatabase(t *testing.T) *pgtestdb.Config {
+// newTestDatabase returns the address of a core migrated database, skipping the test in short mode.
+func newTestDatabase(t *testing.T) string {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
+	return testdb.New(t, testdb.Migrator())
 }
 
 // newAssertionPool opens a pool on the given url and closes it at cleanup.
@@ -191,9 +190,9 @@ func TestPluginIdentityAndLifecycle(t *testing.T) {
 func TestMigrateCreatesMessagingTables(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
-	p := newPlugin(t, cfg.URL(), nil, nil)
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
+	p := newPlugin(t, address, nil, nil)
 
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)

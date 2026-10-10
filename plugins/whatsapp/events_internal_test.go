@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -24,8 +23,8 @@ func newMigratedPlugin(t *testing.T) *Plugin {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	address := testdb.New(t, testdb.Migrator())
+	pool, err := pgxpool.New(t.Context(), address)
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
 	}
