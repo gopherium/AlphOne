@@ -178,6 +178,59 @@ func TestContactPagesAndTheirCountAgreeOnTheFilter(t *testing.T) {
 	}
 }
 
+func TestContactSearchesTakePatternCharactersLiterally(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+	ctx := t.Context()
+	storedInOrder(t, store, "Promo 50% off", "Promo 500 off", "team_lead", "team lead", `back\slash`, "backslash")
+	displayNames := map[string]string{"percent display name": "Sale 30% now", "digit display name": "Sale 300 now"}
+	for name, displayName := range displayNames {
+		held := mustContact(t, name)
+		identity, err := contact.NewIdentity(held.ID, "email", strings.Fields(name)[0]+"@example.com", displayName)
+		if err != nil {
+			t.Fatalf("NewIdentity() error = %v, want nil", err)
+		}
+		if err := store.CreateContactWithIdentity(ctx, held, identity); err != nil {
+			t.Fatalf("seeding %s: %v", name, err)
+		}
+	}
+
+	searches := map[string]struct {
+		query string
+		want  []string
+	}{
+		"a percent sign":                   {"50%", []string{"Promo 50% off"}},
+		"an underscore":                    {"m_l", []string{"team_lead"}},
+		"a backslash":                      {`k\s`, []string{`back\slash`}},
+		"a percent sign in a display name": {"30%", []string{"percent display name"}},
+	}
+	for name, tt := range searches {
+		filter := contact.Filter{Query: tt.query}
+		if got := pagedNames(t, store, filter, contact.Page{Limit: 10}); !slices.Equal(got, tt.want) {
+			t.Errorf("%s pages %v, want %v", name, got, tt.want)
+		}
+		total, err := store.CountContacts(ctx, filter)
+		if err != nil {
+			t.Fatalf("%s CountContacts() error = %v, want nil", name, err)
+		}
+		if total != len(tt.want) {
+			t.Errorf("%s counts %d, want %d", name, total, len(tt.want))
+		}
+		listed, err := store.ListContacts(ctx, tt.query, "", "", uuid.Nil, 10)
+		if err != nil {
+			t.Fatalf("%s ListContacts() error = %v, want nil", name, err)
+		}
+		names := make([]string, 0, len(listed))
+		for _, held := range listed {
+			names = append(names, held.Name)
+		}
+		if !slices.Equal(names, tt.want) {
+			t.Errorf("%s lists %v, want %v", name, names, tt.want)
+		}
+	}
+}
+
 func TestAContactPageStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
