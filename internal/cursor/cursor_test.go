@@ -68,8 +68,10 @@ func TestTaskCursorRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	followUp := task.Task{
-		ID:    uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
-		DueOn: time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+		ID:       uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
+		DueOn:    time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+		Status:   task.StatusOpen,
+		Priority: 1,
 	}
 
 	page, err := cursor.DecodeTask(cursor.EncodeTask(followUp))
@@ -77,8 +79,8 @@ func TestTaskCursorRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeTask() error = %v, want nil", err)
 	}
-	if !page.AfterDueOn.Equal(followUp.DueOn) || page.AfterID != followUp.ID {
-		t.Errorf("page = %+v, want after (%s, %s)", page, followUp.DueOn, followUp.ID)
+	if page.AfterRank != followUp.Rank() || !page.AfterDueOn.Equal(followUp.DueOn) || page.AfterID != followUp.ID {
+		t.Errorf("page = %+v, want after (%d, %s, %s)", page, followUp.Rank(), followUp.DueOn, followUp.ID)
 	}
 }
 
@@ -86,8 +88,10 @@ func TestTaskCursorPinsTheWireShape(t *testing.T) {
 	t.Parallel()
 
 	followUp := task.Task{
-		ID:    uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
-		DueOn: time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+		ID:       uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
+		DueOn:    time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
+		Status:   task.StatusOpen,
+		Priority: 1,
 	}
 
 	decoded, err := base64.RawURLEncoding.DecodeString(cursor.EncodeTask(followUp))
@@ -95,7 +99,7 @@ func TestTaskCursorPinsTheWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decoding the cursor token: %v", err)
 	}
-	want := `{"due_on":"2026-08-05","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
+	want := `{"rank":-1,"due_on":"2026-08-05","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
 	if string(decoded) != want {
 		t.Errorf("cursor payload = %s, want %s", decoded, want)
 	}
@@ -109,7 +113,13 @@ func TestTaskCursorAbsentAndMalformed(t *testing.T) {
 		t.Errorf("DecodeTask(empty) = (%+v, %v), want a zero page and nil", page, err)
 	}
 
-	badDatePayload := `{"due_on":"soon","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
+	ranklessPayload := `{"due_on":"2026-08-05","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
+	rankless := base64.RawURLEncoding.EncodeToString([]byte(ranklessPayload))
+	if _, err := cursor.DecodeTask(rankless); !errors.Is(err, cursor.ErrMalformed) {
+		t.Errorf("DecodeTask(no rank) error = %v, want ErrMalformed", err)
+	}
+
+	badDatePayload := `{"rank":0,"due_on":"soon","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
 	badDate := base64.RawURLEncoding.EncodeToString([]byte(badDatePayload))
 	if _, err := cursor.DecodeTask(badDate); !errors.Is(err, cursor.ErrMalformed) {
 		t.Errorf("DecodeTask(bad date) error = %v, want ErrMalformed", err)
