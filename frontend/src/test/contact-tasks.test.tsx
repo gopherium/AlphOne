@@ -421,17 +421,18 @@ test('says when a contact has nothing open', async () => {
 	expect(await screen.findByText('No open tasks.')).toBeInTheDocument()
 })
 
-test('loads more contact tasks through the cursor', async () => {
+test('loads more contact tasks by asking for a bigger window', async () => {
 	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({
+		graphql.query('ContactDetail', ({ variables }) => {
+			const called = taskRow(callID, 'Call her back', today)
+			return HttpResponse.json({
 				data: {
-					contact: variables.after
-						? contactDetail(String(variables.id), [taskRow(quoteID, 'Send the quote', tomorrow)])
-						: contactDetail(String(variables.id), [taskRow(callID, 'Call her back', today)], 'CUR1'),
+					contact: Number(variables.first) > 50
+						? contactDetail(String(variables.id), [called, taskRow(quoteID, 'Send the quote', tomorrow)])
+						: contactDetail(String(variables.id), [called], 'CUR1'),
 				},
-			}),
-		),
+			})
+		}),
 	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByText('Call her back')
