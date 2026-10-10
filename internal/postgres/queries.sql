@@ -9,11 +9,11 @@ SELECT id, name, created_at, tenant_id
 FROM core.contacts c
 WHERE c.tenant_id = @tenant_id
     AND (c.name, c.id) > (@after_name::text, @after_id::uuid)
-    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
+    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
-                AND (i.display_name ILIKE '%' || @query || '%'
+                AND (i.display_name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
                     OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
 ORDER BY c.name, c.id
 LIMIT @row_limit;
@@ -22,11 +22,11 @@ LIMIT @row_limit;
 SELECT c.id, c.name, c.created_at, c.tenant_id
 FROM core.contacts c
 WHERE c.tenant_id = @tenant_id
-    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
+    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
-                AND (i.display_name ILIKE '%' || @query || '%'
+                AND (i.display_name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
                     OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
     AND (coalesce(cardinality(@channels::text[]), 0) = 0 OR EXISTS (
         SELECT 1 FROM core.contact_identities r
@@ -44,11 +44,11 @@ LIMIT @row_limit::bigint OFFSET @row_offset::bigint;
 SELECT count(*)
 FROM core.contacts c
 WHERE c.tenant_id = @tenant_id
-    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%'
+    AND (@query::text = '' OR c.name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = @tenant_id
-                AND (i.display_name ILIKE '%' || @query || '%'
+                AND (i.display_name ILIKE '%' || @query || '%' ESCAPE @like_escape::text
                     OR (@digits::text <> '' AND i.identifier LIKE '%' || @digits || '%'))))
     AND (coalesce(cardinality(@channels::text[]), 0) = 0 OR EXISTS (
         SELECT 1 FROM core.contact_identities r

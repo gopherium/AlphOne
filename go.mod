@@ -8,6 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
+	github.com/gopherium/framework/dbkit v0.2.0
 	github.com/gopherium/framework/gonsole v0.6.1
 	github.com/gopherium/framework/gonsole/auth v0.4.1
 	github.com/gopherium/framework/mailkit v0.1.0

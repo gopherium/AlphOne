@@ -140,28 +140,30 @@ const countContacts = `-- name: CountContacts :one
 SELECT count(*)
 FROM core.contacts c
 WHERE c.tenant_id = $1
-    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%'
+    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%' ESCAPE $3::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = $1
-                AND (i.display_name ILIKE '%' || $2 || '%'
-                    OR ($3::text <> '' AND i.identifier LIKE '%' || $3 || '%'))))
-    AND (coalesce(cardinality($4::text[]), 0) = 0 OR EXISTS (
+                AND (i.display_name ILIKE '%' || $2 || '%' ESCAPE $3::text
+                    OR ($4::text <> '' AND i.identifier LIKE '%' || $4 || '%'))))
+    AND (coalesce(cardinality($5::text[]), 0) = 0 OR EXISTS (
         SELECT 1 FROM core.contact_identities r
-        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($4::text[])))
+        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($5::text[])))
 `
 
 type CountContactsParams struct {
-	TenantID uuid.UUID
-	Query    string
-	Digits   string
-	Channels []string
+	TenantID   uuid.UUID
+	Query      string
+	LikeEscape string
+	Digits     string
+	Channels   []string
 }
 
 func (q *Queries) CountContacts(ctx context.Context, arg CountContactsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countContacts,
 		arg.TenantID,
 		arg.Query,
+		arg.LikeEscape,
 		arg.Digits,
 		arg.Channels,
 	)
@@ -638,23 +640,24 @@ SELECT id, name, created_at, tenant_id
 FROM core.contacts c
 WHERE c.tenant_id = $1
     AND (c.name, c.id) > ($2::text, $3::uuid)
-    AND ($4::text = '' OR c.name ILIKE '%' || $4 || '%'
+    AND ($4::text = '' OR c.name ILIKE '%' || $4 || '%' ESCAPE $5::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = $1
-                AND (i.display_name ILIKE '%' || $4 || '%'
-                    OR ($5::text <> '' AND i.identifier LIKE '%' || $5 || '%'))))
+                AND (i.display_name ILIKE '%' || $4 || '%' ESCAPE $5::text
+                    OR ($6::text <> '' AND i.identifier LIKE '%' || $6 || '%'))))
 ORDER BY c.name, c.id
-LIMIT $6
+LIMIT $7
 `
 
 type ListContactsParams struct {
-	TenantID  uuid.UUID
-	AfterName string
-	AfterID   uuid.UUID
-	Query     string
-	Digits    string
-	RowLimit  int32
+	TenantID   uuid.UUID
+	AfterName  string
+	AfterID    uuid.UUID
+	Query      string
+	LikeEscape string
+	Digits     string
+	RowLimit   int32
 }
 
 func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]CoreContact, error) {
@@ -663,6 +666,7 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 		arg.AfterName,
 		arg.AfterID,
 		arg.Query,
+		arg.LikeEscape,
 		arg.Digits,
 		arg.RowLimit,
 	)
@@ -1099,28 +1103,29 @@ const pageContacts = `-- name: PageContacts :many
 SELECT c.id, c.name, c.created_at, c.tenant_id
 FROM core.contacts c
 WHERE c.tenant_id = $1
-    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%'
+    AND ($2::text = '' OR c.name ILIKE '%' || $2 || '%' ESCAPE $3::text
         OR EXISTS (
             SELECT 1 FROM core.contact_identities i
             WHERE i.contact_id = c.id AND i.tenant_id = $1
-                AND (i.display_name ILIKE '%' || $2 || '%'
-                    OR ($3::text <> '' AND i.identifier LIKE '%' || $3 || '%'))))
-    AND (coalesce(cardinality($4::text[]), 0) = 0 OR EXISTS (
+                AND (i.display_name ILIKE '%' || $2 || '%' ESCAPE $3::text
+                    OR ($4::text <> '' AND i.identifier LIKE '%' || $4 || '%'))))
+    AND (coalesce(cardinality($5::text[]), 0) = 0 OR EXISTS (
         SELECT 1 FROM core.contact_identities r
-        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($4::text[])))
+        WHERE r.contact_id = c.id AND r.tenant_id = $1 AND r.channel = ANY ($5::text[])))
 ORDER BY
-    CASE WHEN NOT $5::boolean AND NOT $6::boolean THEN c.name END,
-    CASE WHEN NOT $5::boolean AND $6::boolean THEN c.name END DESC,
-    CASE WHEN $5::boolean AND NOT $6::boolean THEN c.created_at END,
-    CASE WHEN $5::boolean AND $6::boolean THEN c.created_at END DESC,
-    CASE WHEN $6::boolean THEN c.id END DESC,
+    CASE WHEN NOT $6::boolean AND NOT $7::boolean THEN c.name END,
+    CASE WHEN NOT $6::boolean AND $7::boolean THEN c.name END DESC,
+    CASE WHEN $6::boolean AND NOT $7::boolean THEN c.created_at END,
+    CASE WHEN $6::boolean AND $7::boolean THEN c.created_at END DESC,
+    CASE WHEN $7::boolean THEN c.id END DESC,
     c.id
-LIMIT $8::bigint OFFSET $7::bigint
+LIMIT $9::bigint OFFSET $8::bigint
 `
 
 type PageContactsParams struct {
 	TenantID   uuid.UUID
 	Query      string
+	LikeEscape string
 	Digits     string
 	Channels   []string
 	ByCreated  bool
@@ -1133,6 +1138,7 @@ func (q *Queries) PageContacts(ctx context.Context, arg PageContactsParams) ([]C
 	rows, err := q.db.Query(ctx, pageContacts,
 		arg.TenantID,
 		arg.Query,
+		arg.LikeEscape,
 		arg.Digits,
 		arg.Channels,
 		arg.ByCreated,

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/gopherium/framework/dbkit"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -17,6 +18,9 @@ import (
 )
 
 var _ contact.Store = (*ContactStore)(nil)
+
+// likeEscape is the escape character [dbkit.EscapeLike] writes before each LIKE pattern character.
+const likeEscape = `\`
 
 // ContactStore persists contacts in the core schema.
 type ContactStore struct {
@@ -66,12 +70,13 @@ func (s *ContactStore) ListContacts(
 	ctx context.Context, query, digits, afterName string, afterID uuid.UUID, limit int,
 ) ([]contact.Contact, error) {
 	rows, err := s.queries.ListContacts(ctx, db.ListContactsParams{
-		AfterName: afterName,
-		AfterID:   afterID,
-		Query:     query,
-		Digits:    digits,
-		RowLimit:  int32(limit),
-		TenantID:  sdk.TenantOrDefault(ctx),
+		AfterName:  afterName,
+		AfterID:    afterID,
+		Query:      dbkit.EscapeLike(query),
+		LikeEscape: likeEscape,
+		Digits:     digits,
+		RowLimit:   int32(limit),
+		TenantID:   sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("postgres: list contacts: %w", err)
@@ -89,7 +94,8 @@ func (s *ContactStore) PageContacts(
 ) ([]contact.Contact, error) {
 	rows, err := s.queries.PageContacts(ctx, db.PageContactsParams{
 		TenantID:   sdk.TenantOrDefault(ctx),
-		Query:      filter.Query,
+		Query:      dbkit.EscapeLike(filter.Query),
+		LikeEscape: likeEscape,
 		Digits:     filter.Digits,
 		Channels:   filter.Channels,
 		ByCreated:  page.ByCreated,
@@ -110,10 +116,11 @@ func (s *ContactStore) PageContacts(
 // CountContacts returns how many contacts filter matches.
 func (s *ContactStore) CountContacts(ctx context.Context, filter contact.Filter) (int, error) {
 	total, err := s.queries.CountContacts(ctx, db.CountContactsParams{
-		TenantID: sdk.TenantOrDefault(ctx),
-		Query:    filter.Query,
-		Digits:   filter.Digits,
-		Channels: filter.Channels,
+		TenantID:   sdk.TenantOrDefault(ctx),
+		Query:      dbkit.EscapeLike(filter.Query),
+		LikeEscape: likeEscape,
+		Digits:     filter.Digits,
+		Channels:   filter.Channels,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("postgres: count contacts: %w", err)
