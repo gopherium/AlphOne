@@ -19,7 +19,7 @@ require (
 	github.com/gopherium/gouncer/authkit/postgres v0.11.2
 	github.com/gopherium/gouncer/authkit/ratelimit v0.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mocktools/go-smtp-mock/v2 v2.5.4
 	github.com/modelcontextprotocol/go-sdk v1.7.0
