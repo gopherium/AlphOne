@@ -10,6 +10,9 @@ const doneGroup = /^Done \(\d+\)$/
 /** levelDay is the day the row geometry checks list their tasks on, kept clear of the days other tests fill. */
 const levelDay = '2125-03-10'
 
+/** orderDay is the day the priority order check lists its tasks on, kept clear of the days other tests fill. */
+const orderDay = '2125-04-14'
+
 /** LinkedPair names a task linked to a contact and a task with no contact, titled alike. */
 type LinkedPair = { linked: string; unlinked: string }
 
@@ -180,6 +183,24 @@ test('adds a task with a due date and a priority from the tasks screen', async (
 	const row = openTasks.getByRole('listitem', { name: title, exact: true })
 	await expect(row).toBeVisible()
 	await expect(row.getByText('High', { exact: true })).toBeVisible()
+})
+
+test('lists a high task above the normal work of its day', async ({ page, request }) => {
+	const stamp = Date.now()
+	const normal = `Send the quote ${stamp}`
+	const raised = `Approve the pricing ${stamp}`
+	await createTask(request, { title: normal, dueOn: orderDay })
+	await createTask(request, { title: raised, dueOn: orderDay, priority: 1 })
+
+	await page.goto(`/tasks?date=${orderDay}`)
+
+	const openTasks = page.getByRole('list', { name: 'Open tasks', exact: true })
+	await expect(openTasks.getByRole('listitem', { name: normal, exact: true })).toBeVisible()
+	const titles = await openTasks
+		.getByRole('listitem')
+		.evaluateAll((rows) => rows.map((row) => row.getAttribute('aria-label')))
+	expect(titles.indexOf(raised)).toBeGreaterThanOrEqual(0)
+	expect(titles.indexOf(raised)).toBeLessThan(titles.indexOf(normal))
 })
 
 test('opens the contact of a task from the person icon on its row', async ({ page, request }) => {
