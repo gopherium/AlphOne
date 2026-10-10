@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,20 +18,21 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 )
 
-// seedTask stores one named task for the owner and returns it.
+// seedTask stores one named task for the owner at normal priority.
 func (w *world) seedTask(ctx context.Context, title string, due time.Time, status string, contactID uuid.UUID) error {
-	created, err := task.New(task.Input{
-		Title:      title,
-		DueOn:      due,
-		AssigneeID: w.ownerID,
-		ContactID:  contactID,
-	})
+	return w.seedInput(ctx, task.Input{Title: title, DueOn: due, ContactID: contactID}, status)
+}
+
+// seedInput stores one task for the owner from the given input, in the given status.
+func (w *world) seedInput(ctx context.Context, input task.Input, status string) error {
+	input.AssigneeID = w.ownerID
+	created, err := task.New(input)
 	if err != nil {
-		return fmt.Errorf("building %q: %w", title, err)
+		return fmt.Errorf("building %q: %w", input.Title, err)
 	}
 	created.Status = status
 	if _, _, err := w.tasks.Create(ctx, created); err != nil {
-		return fmt.Errorf("storing %q: %w", title, err)
+		return fmt.Errorf("storing %q: %w", input.Title, err)
 	}
 	return nil
 }
@@ -97,6 +99,31 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return worldFrom(ctx).seedTask(ctx, title, today(), task.StatusDone, uuid.Nil)
 	})
 
+	sc.Given(`^an open task "([^"]*)" due today with priority (\d)$`,
+		func(ctx context.Context, title string, priority int) error {
+			raised := task.Input{Title: title, DueOn: today(), Priority: priority}
+			return worldFrom(ctx).seedInput(ctx, raised, task.StatusOpen)
+		})
+
+	sc.Given(`^an open task "([^"]*)" due yesterday with priority (\d)$`,
+		func(ctx context.Context, title string, priority int) error {
+			raised := task.Input{Title: title, DueOn: today().AddDate(0, 0, -1), Priority: priority}
+			return worldFrom(ctx).seedInput(ctx, raised, task.StatusOpen)
+		})
+
+	sc.Given(`^a done task "([^"]*)" due today with priority (\d)$`,
+		func(ctx context.Context, title string, priority int) error {
+			raised := task.Input{Title: title, DueOn: today(), Priority: priority}
+			return worldFrom(ctx).seedInput(ctx, raised, task.StatusDone)
+		})
+
+	sc.Given(`^an open task "([^"]*)" due tomorrow linked to that contact with priority (\d)$`,
+		func(ctx context.Context, title string, priority int) error {
+			w := worldFrom(ctx)
+			raised := task.Input{Title: title, DueOn: today().AddDate(0, 0, 1), Priority: priority, ContactID: w.lastContact}
+			return w.seedInput(ctx, raised, task.StatusOpen)
+		})
+
 	sc.When(`^the agent calls list_my_tasks$`, func(ctx context.Context) error {
 		return worldFrom(ctx).callTool(ctx, "list_my_tasks", nil)
 	})
@@ -129,6 +156,21 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 		}
 		if len(out.Tasks) != count {
 			return fmt.Errorf("listed %d tasks, want %d", len(out.Tasks), count)
+		}
+		return nil
+	})
+
+	sc.Then(`^the answer lists the tasks in order:$`, func(ctx context.Context, table *godog.Table) error {
+		out, err := worldFrom(ctx).tasksAnswer()
+		if err != nil {
+			return err
+		}
+		titles := make([]string, 0, len(out.Tasks))
+		for _, item := range out.Tasks {
+			titles = append(titles, item.Title)
+		}
+		if want := tableColumn(table); !slices.Equal(titles, want) {
+			return fmt.Errorf("tasks = %v, want %v", titles, want)
 		}
 		return nil
 	})
