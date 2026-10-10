@@ -13,7 +13,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 	"github.com/pressly/goose/v3"
 
 	"github.com/gopherium/gouncer"
@@ -407,8 +406,8 @@ func TestMigrationGrantsFullScopeToATokenMintedBeforeScopesExisted(t *testing.T)
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	db, err := sql.Open("pgx", cfg.URL())
+	databaseURL := testdb.New(t, testdb.Migrator())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
@@ -450,8 +449,8 @@ func TestRollingTheScopesMigrationBackRevokesEveryToken(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	db, err := sql.Open("pgx", cfg.URL())
+	databaseURL := testdb.New(t, testdb.Migrator())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}

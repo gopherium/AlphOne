@@ -11,7 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -24,8 +23,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	pool, err := pgxpool.New(t.Context(), testdb.New(t, testdb.Migrator()))
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
 	}

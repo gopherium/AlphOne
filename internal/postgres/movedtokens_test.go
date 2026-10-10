@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/peterldowns/pgtestdb"
 	"github.com/pressly/goose/v3"
 
 	"github.com/gopherium/alphone/internal/tenant"
@@ -23,7 +22,7 @@ func beforeTheTokenMove(t *testing.T) (*sql.DB, *goose.Provider) {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	db := openDatabase(t, pgtestdb.Custom(t, testdb.Config(), testdb.Migrator()).URL())
+	db := openDatabase(t, testdb.New(t, testdb.Migrator()))
 	provider := coreProvider(t, db)
 	if _, err := provider.DownTo(t.Context(), movedTokensVersion-1); err != nil {
 		t.Fatalf("rolling back to the schema before the token move: %v", err)

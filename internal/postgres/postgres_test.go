@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -28,7 +27,7 @@ func newTestDB(t *testing.T) *sql.DB {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.New(t, testdb.Config(), testdb.Migrator())
+	return openDatabase(t, testdb.New(t, testdb.Migrator()))
 }
 
 // mustContact returns a new contact with the given name, failing the test on any error.
