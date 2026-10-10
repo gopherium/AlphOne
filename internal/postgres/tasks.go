@@ -111,6 +111,7 @@ func (s *TaskStore) ListForDay(
 		AssigneeID: assigneeID,
 		DueOn:      dueOn,
 		Status:     status,
+		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
@@ -131,6 +132,7 @@ func (s *TaskStore) ListDueBefore(
 		AssigneeID: assigneeID,
 		DueBefore:  dueBefore,
 		Status:     status,
+		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
@@ -150,6 +152,7 @@ func (s *TaskStore) ListForContact(
 	rows, err := s.queries.ListTasksForContact(ctx, db.ListTasksForContactParams{
 		ContactID:  contactID,
 		Status:     status,
+		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
