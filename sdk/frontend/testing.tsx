@@ -111,6 +111,7 @@ export function fakeGraphClient(): FakeGraph {
 		graph: {
 			client,
 			refetch: vi.fn(doorbell.refetch),
+			onRefetch: doorbell.onRefetch,
 			onStreamOpen: (listener) => {
 				listeners.add(listener)
 				return () => {

@@ -542,6 +542,18 @@ test('reruns an active query when the doorbell names its operation', async () =>
 	watch.subscription.unsubscribe()
 })
 
+test('tells each refetch listener which operations the doorbell names until it is removed', () => {
+	const { graph } = newClient()
+	const heard: (readonly string[])[] = []
+	const remove = graph.onRefetch((operations) => heard.push(operations))
+
+	graph.refetch(['DayTasks', 'OverdueTasks'])
+	remove()
+	graph.refetch(['DayTasks'])
+
+	expect(heard).toEqual([['DayTasks', 'OverdueTasks']])
+})
+
 test('leaves an active query alone when the doorbell names another operation', async () => {
 	const watch = watchVersion()
 	await vi.waitFor(() => expect(watch.served()).toBe(1))

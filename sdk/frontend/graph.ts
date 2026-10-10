@@ -178,6 +178,8 @@ export interface GraphClient {
 	client: Client
 	/** refetch reruns the named active queries against the network. */
 	refetch: (operations: readonly string[]) => void
+	/** onRefetch calls the listener with the operations every refetch names, returning its removal. */
+	onRefetch: (listener: (operations: readonly string[]) => void) => () => void
 	/** onStreamOpen calls the listener on every event stream connection, returning its removal. */
 	onStreamOpen: (listener: () => void) => () => void
 }
@@ -280,11 +282,16 @@ export function graphCacheExchange(): Exchange {
 }
 
 /**
- * Returns an exchange tracking active queries beside the trigger rerunning them.
- * @returns The exchange and the trigger naming which queries to rerun.
+ * Returns an exchange tracking active queries beside the trigger rerunning them and its listener registrar.
+ * @returns The exchange, the trigger naming which queries to rerun, and the registrar told of each trigger.
  */
-export function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['refetch'] } {
+export function doorbellExchange(): {
+	exchange: Exchange
+	refetch: GraphClient['refetch']
+	onRefetch: GraphClient['onRefetch']
+} {
 	const active = new Map<number, Operation>()
+	const listeners = new Set<(operations: readonly string[]) => void>()
 	let graphClient!: Client
 	const exchange: Exchange = ({ client, forward }) => {
 		graphClient = client
@@ -314,8 +321,17 @@ export function doorbellExchange(): { exchange: Exchange; refetch: GraphClient['
 				)
 			}
 		}
+		for (const listener of listeners) {
+			listener(operations)
+		}
 	}
-	return { exchange, refetch }
+	const onRefetch: GraphClient['onRefetch'] = (listener) => {
+		listeners.add(listener)
+		return () => {
+			listeners.delete(listener)
+		}
+	}
+	return { exchange, refetch, onRefetch }
 }
 
 /** RouterRefusal is the JSON answer a route refuses a request with before the graph reads it. */
@@ -387,5 +403,5 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 			fetchExchange,
 		],
 	})
-	return { client, refetch: doorbell.refetch, onStreamOpen: stream.onStreamOpen }
+	return { client, refetch: doorbell.refetch, onRefetch: doorbell.onRefetch, onStreamOpen: stream.onStreamOpen }
 }
