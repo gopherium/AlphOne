@@ -18,7 +18,7 @@ import {
 	inbox,
 	sprintf,
 } from '@alphone/frontend-sdk'
-import { useAdminSettings, useConnection } from '@alphone/frontend-sdk'
+import { useConnection } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
 import { Link, useNavigate } from '@tanstack/react-router'
 
@@ -37,25 +37,21 @@ const tasksPageSize = 50
  * @returns The tasks screen.
  */
 export function TasksScreen({ date, today }: { date: string; today: string }) {
-	const ceiling = useAdminSettings().settings?.contactPageCap
 	const tasks = useConnection({
 		query: dayTasksQuery,
 		variables: { date, status: 'open', first: tasksPageSize },
 		select: (data) => data.tasks,
-		ceiling,
 	})
 	const done = useConnection({
 		query: dayTasksQuery,
 		variables: { date, status: 'done', first: tasksPageSize },
 		select: (data) => data.tasks,
-		ceiling,
 	})
 	const overdue = useConnection({
 		query: overdueTasksQuery,
 		variables: { dueBefore: today, status: 'open', first: tasksPageSize },
 		select: (data) => data.tasks,
 		pause: date !== today,
-		ceiling,
 	})
 	const { controls, failed } = useRowControls(today)
 	const navigate = useNavigate()

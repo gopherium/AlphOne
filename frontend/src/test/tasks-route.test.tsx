@@ -691,13 +691,13 @@ test('shows an empty state when the day has no tasks', async () => {
 	expect(await screen.findByText('Nothing due today.')).toBeInTheDocument()
 })
 
-test('loads more tasks by asking for a bigger window', async () => {
+test('loads more tasks through the cursor', async () => {
 	server.use(
 		graphql.query('DayTasks', ({ variables }) =>
 			HttpResponse.json({
 				data: {
-					tasks: Number(variables.first) > 50
-						? taskPage([taskRow(callID, 'Call the supplier'), taskRow(quoteID, 'Send the quote')])
+					tasks: variables.after
+						? taskPage([taskRow(quoteID, 'Send the quote')])
 						: taskPage([taskRow(callID, 'Call the supplier')], 'CUR1'),
 				},
 			}),
@@ -711,17 +711,18 @@ test('loads more tasks by asking for a bigger window', async () => {
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
 
-/** Serves each day list as the first rows the screen asks for, higher priority first. */
+/** Serves each day list a page at a time after the cursor it names, higher priority first. */
 function serveRanked() {
 	server.use(
 		graphql.query('DayTasks', ({ variables }) => {
 			const listed = tasks
 				.filter((row) => row.status === String(variables.status))
 				.toSorted((first, second) => second.priority - first.priority)
-			const first = Number(variables.first)
-			const shown = listed.slice(0, first)
+			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
+			const end = start + Number(variables.first)
+			const shown = listed.slice(start, end)
 			return HttpResponse.json({
-				data: { tasks: taskPage(shown, listed.length > first ? (shown.at(-1)?.id ?? null) : null) },
+				data: { tasks: taskPage(shown, end < listed.length ? (shown.at(-1)?.id ?? null) : null) },
 			})
 		}),
 	)
@@ -753,32 +754,6 @@ test('shows a high task added after loading more at the top of the day', async (
 	const open = screen.getByRole('list', { name: 'Open tasks' })
 	await waitFor(() => expect(within(open).getAllByRole('listitem')).toHaveLength(52))
 	expect(within(open).getAllByRole('listitem')[0]).toHaveAttribute('aria-label', 'Approve the pricing')
-})
-
-test('offers no more tasks past the page cap', async () => {
-	server.use(
-		graphql.query('AdminSettings', () =>
-			HttpResponse.json({
-				data: {
-					adminSettings: {
-						__typename: 'AdminSettings',
-						toastMilliseconds: 6000,
-						listPageSizes: [10, 20, 50],
-						listPageSize: 20,
-						contactPageCap: 50,
-						formatLocale: 'es-ES',
-					},
-				},
-			}),
-		),
-	)
-	tasks = routineTasks(51)
-	serveRanked()
-
-	renderAt('/tasks')
-
-	await screen.findByText('Routine task 50')
-	expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
 })
 
 test('shows open work even when finished tasks fill the first page, counting them in the format locale', async () => {
@@ -822,18 +797,17 @@ test('keeps the day usable when the done group cannot be loaded', async () => {
 	expect(screen.queryByRole('button', { name: /^Done \(/ })).not.toBeInTheDocument()
 })
 
-test('loads more done tasks through their own window', async () => {
+test('loads more done tasks through their own cursor', async () => {
 	server.use(
 		graphql.query('DayTasks', ({ variables }) => {
 			if (variables.status !== 'done') {
 				return HttpResponse.json({ data: { tasks: taskPage([]) } })
 			}
-			const booked = taskRow(doneID, 'Book the courier', 'done')
 			return HttpResponse.json({
 				data: {
-					tasks: Number(variables.first) > 50
-						? taskPage([booked, taskRow(oldID, 'File the customs form', 'done')])
-						: taskPage([booked], 'D1'),
+					tasks: variables.after
+						? taskPage([taskRow(oldID, 'File the customs form', 'done')])
+						: taskPage([taskRow(doneID, 'Book the courier', 'done')], 'D1'),
 				},
 			})
 		}),
@@ -1142,18 +1116,17 @@ test('pushes a task on a future day to the day after it', async () => {
 	expect(patched[0]).toEqual({ id: callID, body: { due_on: localDate(2) } })
 })
 
-test('loads more overdue work through its own window', async () => {
+test('loads more overdue work through the cursor', async () => {
 	server.use(
-		graphql.query('OverdueTasks', ({ variables }) => {
-			const chased = { ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }
-			return HttpResponse.json({
+		graphql.query('OverdueTasks', ({ variables }) =>
+			HttpResponse.json({
 				data: {
-					tasks: Number(variables.first) > 50
-						? taskPage([chased, { ...taskRow(refileID, 'Refile the paperwork'), due_on: yesterday }])
-						: taskPage([chased], 'CUR1'),
+					tasks: variables.after
+						? taskPage([{ ...taskRow(refileID, 'Refile the paperwork'), due_on: yesterday }])
+						: taskPage([{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday }], 'CUR1'),
 				},
-			})
-		}),
+			}),
+		),
 	)
 	renderAt('/tasks')
 	await screen.findByText('Chase the invoice')

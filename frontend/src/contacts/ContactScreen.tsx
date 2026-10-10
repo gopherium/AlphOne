@@ -20,7 +20,6 @@ import {
 	sprintf,
 	graphExtensions,
 	trash,
-	useAdminSettings,
 	useConnection,
 	useGraph,
 	useGraphMutation,
@@ -67,7 +66,6 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		query: contactDetailQuery,
 		variables: { id: contactId, first: contactTasksPageSize },
 		select: (data) => data.contact?.tasks,
-		ceiling: useAdminSettings().settings?.contactPageCap,
 	})
 	const identitiesHeading = useId()
 	const contact = detail.data?.contact
