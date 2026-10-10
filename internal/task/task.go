@@ -52,9 +52,18 @@ type Origin struct {
 
 // Page bounds one keyset paginated page of a task listing.
 type Page struct {
+	AfterRank  int
 	AfterDueOn time.Time
 	AfterID    uuid.UUID
 	Limit      int
+}
+
+// StartRank returns the rank p starts after, below every rank when p names no position.
+func (p Page) StartRank() int {
+	if p.AfterID == uuid.Nil {
+		return -maxPriority - 1
+	}
+	return p.AfterRank
 }
 
 // Input carries the values a new [Task] is built from.
@@ -78,6 +87,14 @@ type Task struct {
 	DueOn      time.Time
 	Origin     Origin
 	CreatedAt  time.Time
+}
+
+// Rank returns the place t takes in a listing, higher priority open work first and done work at zero.
+func (t Task) Rank() int {
+	if t.Status == StatusOpen {
+		return -t.Priority
+	}
+	return 0
 }
 
 // New returns an open [Task] built from in, with its title trimmed of
