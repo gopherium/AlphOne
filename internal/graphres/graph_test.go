@@ -17,7 +17,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/gouncer/authkit"
 
@@ -62,8 +61,8 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	address := testdb.New(t, testdb.Migrator())
+	pool, err := pgxpool.New(t.Context(), address)
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
 	}
