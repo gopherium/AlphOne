@@ -28,7 +28,7 @@ jobs:
       - run: make cover GOTESTFLAGS=-race
       - run: make test-uncovered GOTESTFLAGS=-race
       - run: go vet ./...
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: .covdata/cover.out
           flags: backend
@@ -56,7 +56,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm lint:css
       - run: pnpm cover
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
