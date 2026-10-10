@@ -16,7 +16,8 @@ appears whenever you are looking at another day.
 Everything on the screen belongs to you. Tasks are owned by the person
 they are assigned to, and the day list only shows your own.
 
-High priority tasks come first, then the rest in the order they were added.
+Higher priority tasks come first, and tasks of the same priority keep the
+order they were added.
 
 ## Adding work
 
@@ -40,9 +41,9 @@ the finished pile is visible at the end of the day.
 ## Overdue work
 
 Open tasks from earlier days appear in an **Overdue** section above
-today's list, each showing the date it was originally due. High priority
-work from every earlier day comes first, oldest first, then the rest, oldest
-first. They are never
+today's list, each showing the date it was originally due. Higher priority
+work from every earlier day comes first, and work of the same priority lists
+oldest first. They are never
 folded silently into today. Moving them forward is something you do, not
 something the app does behind your back.
 
@@ -58,10 +59,11 @@ For any other date, open the task and edit its due date directly.
 ## Tasks on a contact
 
 A contact's page lists the open tasks linked to that person, across
-everyone on the team, high priority first, and has its own form for adding
+everyone on the team, higher priority first, and has its own form for adding
 one. It answers the question you have while looking at somebody: what do we
 owe them.
 
-Type a title, pick the day it is due and its priority, and press **Add task**. The date
-starts on today and goes back to today after each task, so a follow-up for
-Friday takes one extra click, not a trip to the task's own page.
+Type a title, pick the day it is due and its priority, and press
+**Add task**. The date starts on today and goes back to today after each
+task, so a follow-up for Friday takes one extra click, not a trip to the
+task's own page.

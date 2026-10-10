@@ -288,7 +288,8 @@ can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
 none or two answers `VALIDATION`. Open tasks come with the higher priority
 first, then by due date, then in the order they were created. Done tasks keep
-due date and creation order.
+due date and creation order. With `status: "all"`, raised open tasks come
+first, then every other task, done ones included, by due date and creation.
 
 ### Pages with a total
 
