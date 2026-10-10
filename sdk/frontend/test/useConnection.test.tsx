@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { gql } from 'urql'
@@ -7,16 +5,17 @@ import { expect, test, vi } from 'vitest'
 
 import { GraphProvider } from '../GraphProvider'
 import { createGraphClient } from '../graph'
-import { HttpResponse, graphql, server } from '../testing'
+import type { GraphClient } from '../graph'
+import { HttpResponse, delay, graphql, server } from '../testing'
 import { useConnection } from '../useConnection'
 
-const contactsQuery = gql`
-	query Contacts($q: String, $first: Int, $after: String) {
-		contacts(q: $q, first: $first, after: $after) {
+const tasksQuery = gql`
+	query Tasks($status: String, $first: Int, $after: String) {
+		tasks(date: "2026-10-10", status: $status, first: $first, after: $after) {
 			edges {
 				node {
 					id
-					name
+					title
 				}
 				cursor
 			}
@@ -28,90 +27,151 @@ const contactsQuery = gql`
 	}
 `
 
-interface ContactNode {
+interface TaskNode {
 	id: string
-	name: string
+	title: string
 }
 
-/** Returns one contacts page as the graph serializes it. */
-function page(node: ContactNode, hasNextPage: boolean, endCursor: string) {
+/** Returns the first rows of a list as one connection the graph serializes. */
+function windowOf(rows: TaskNode[], first: number) {
+	const shown = rows.slice(0, first)
 	return {
-		__typename: 'ContactConnection',
-		edges: [
-			{
-				__typename: 'ContactEdge',
-				node: { __typename: 'Contact', ...node },
-				cursor: endCursor,
-			},
-		],
-		pageInfo: { __typename: 'PageInfo', hasNextPage, endCursor },
+		__typename: 'TaskConnection',
+		edges: shown.map((row) => ({
+			__typename: 'TaskEdge',
+			node: { __typename: 'Task', ...row },
+			cursor: row.id,
+		})),
+		pageInfo: { __typename: 'PageInfo', hasNextPage: rows.length > first, endCursor: shown.at(-1)?.id ?? null },
 	}
 }
 
-/** Answers the contacts query from a cursor keyed set of pages. */
-function servePages(pages: Record<string, ReturnType<typeof page>>) {
-	const served: (string | undefined)[] = []
+/** Answers the tasks query with as many of the listed rows as it asks for, recording each size. */
+function serveWindow(list: () => TaskNode[]) {
+	const asked: number[] = []
 	server.use(
-		graphql.query('Contacts', ({ variables }) => {
-			served.push(variables.after as string | undefined)
-			const key = (variables.after as string | undefined) ?? 'first'
-			return HttpResponse.json({ data: { contacts: pages[key] } })
+		graphql.query('Tasks', ({ variables }) => {
+			const first = Number(variables.first)
+			asked.push(first)
+			return HttpResponse.json({ data: { tasks: windowOf(list(), first) } })
 		}),
 	)
-	return served
+	return asked
 }
 
-/** Renders the hook inside a fresh graph client. */
-function renderConnection(variables: Record<string, unknown> = {}) {
-	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+/** Lists the given titles as task rows. */
+function rowsOf(...titles: string[]): TaskNode[] {
+	return titles.map((title, at) => ({ id: `id-${at}-${title}`, title }))
+}
+
+/** Renders the hook inside the given graph client. */
+function renderConnection(
+	variables: Record<string, unknown>,
+	options: { ceiling?: number; graph?: GraphClient } = {},
+) {
+	const graph = options.graph ?? createGraphClient({ onSessionExpired: vi.fn() })
 	function Wrapper({ children }: { children: ReactNode }) {
 		return <GraphProvider graph={graph}>{children}</GraphProvider>
 	}
 	return renderHook(
 		(props: { variables: Record<string, unknown> }) =>
 			useConnection({
-				query: contactsQuery,
-				variables: props.variables,
-				select: (data: { contacts: unknown }) =>
-					data.contacts as { edges: { node: ContactNode }[]; pageInfo: never },
+				query: tasksQuery,
+				variables: props.variables as { first: number },
+				ceiling: options.ceiling,
+				select: (data: { tasks: unknown }) => data.tasks as { edges: { node: TaskNode }[]; pageInfo: never },
 			}),
 		{ wrapper: Wrapper, initialProps: { variables } },
 	)
 }
 
-test('exposes the rows of the first page', async () => {
-	servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, false, 'cursor-ada') })
+/** Returns the titles the hook exposes. */
+function titles(rows: TaskNode[]) {
+	return rows.map((row) => row.title)
+}
+
+test('exposes the rows of the first window', async () => {
+	serveWindow(() => rowsOf('Call the supplier'))
 
 	const { result } = renderConnection({ first: 50 })
 
 	await waitFor(() => expect(result.current.isPending).toBe(false))
-	expect(result.current.rows.map((row) => row.name)).toEqual(['Ada Lovelace'])
+	expect(titles(result.current.rows)).toEqual(['Call the supplier'])
 	expect(result.current.hasNextPage).toBe(false)
 	expect(result.current.isError).toBe(false)
 })
 
-test('appends the next page and stops offering more at the end', async () => {
-	const served = servePages({
-		first: page({ id: 'id-ada', name: 'Ada Lovelace' }, true, 'cursor-ada'),
-		'cursor-ada': page({ id: 'id-maria', name: 'Maria Perez' }, false, 'cursor-maria'),
-	})
+test('grows the window by one page and stops offering more at the end', async () => {
+	const asked = serveWindow(() => rowsOf('Call the supplier', 'Send the quote', 'Book the courier'))
 
-	const { result } = renderConnection({ first: 50 })
+	const { result } = renderConnection({ first: 2 })
 	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
 	void result.current.fetchNextPage()
 
-	await waitFor(() => expect(result.current.rows).toHaveLength(2))
-	expect(result.current.rows.map((row) => row.name)).toEqual(['Ada Lovelace', 'Maria Perez'])
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+	expect(titles(result.current.rows)).toEqual(['Call the supplier', 'Send the quote', 'Book the courier'])
 	expect(result.current.hasNextPage).toBe(false)
-	expect(served).toEqual([undefined, 'cursor-ada'])
+	expect(asked).toEqual([2, 4])
 })
 
-test('reports the failure when the page cannot be loaded', async () => {
+test('keeps the loaded rows while a bigger window loads', async () => {
+	let slow = false
+	const listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier')
 	server.use(
-		graphql.query('Contacts', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'boom' }] }),
-		),
+		graphql.query('Tasks', async ({ variables }) => {
+			if (slow) {
+				await delay('infinite')
+			}
+			return HttpResponse.json({ data: { tasks: windowOf(listed, Number(variables.first)) } })
+		}),
 	)
+	const { result } = renderConnection({ first: 2 })
+	await waitFor(() => expect(result.current.rows).toHaveLength(2))
+
+	slow = true
+	void result.current.fetchNextPage()
+
+	await waitFor(() => expect(result.current.isFetchingNextPage).toBe(true))
+	expect(titles(result.current.rows)).toEqual(['Call the supplier', 'Send the quote'])
+	expect(result.current.isPending).toBe(false)
+})
+
+test('asks for no more than the ceiling and stops offering more there', async () => {
+	const asked = serveWindow(() => rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report'))
+
+	const { result } = renderConnection({ first: 2 }, { ceiling: 3 })
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+	expect(result.current.hasNextPage).toBe(false)
+	expect(asked).toEqual([2, 3])
+})
+
+test('reads every loaded row again when the list is refetched', async () => {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier')
+	const asked = serveWindow(() => listed)
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	const { result } = renderConnection({ first: 2 }, { graph })
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+
+	listed = [{ id: 'id-raised', title: 'Approve the pricing' }, ...listed]
+	graph.refetch(['Tasks'])
+
+	await waitFor(() => expect(result.current.rows).toHaveLength(4))
+	expect(titles(result.current.rows)).toEqual([
+		'Approve the pricing',
+		'Call the supplier',
+		'Send the quote',
+		'Book the courier',
+	])
+	expect(asked).toEqual([2, 4, 4])
+})
+
+test('reports the failure when the window cannot be loaded', async () => {
+	server.use(graphql.query('Tasks', () => HttpResponse.json({ data: null, errors: [{ message: 'boom' }] })))
 
 	const { result } = renderConnection({ first: 50 })
 
@@ -120,92 +180,72 @@ test('reports the failure when the page cannot be loaded', async () => {
 	expect(result.current.isPending).toBe(false)
 })
 
-test('pages from the start again when the variables change', async () => {
-	const served = servePages({
-		first: page({ id: 'id-ada', name: 'Ada Lovelace' }, true, 'cursor-ada'),
-		'cursor-ada': page({ id: 'id-maria', name: 'Maria Perez' }, false, 'cursor-maria'),
-	})
-	const { result, rerender } = renderConnection({ first: 50, q: '' })
+test('starts from one page again when the variables change', async () => {
+	const asked = serveWindow(() => rowsOf('Call the supplier', 'Send the quote', 'Book the courier'))
+	const { result, rerender } = renderConnection({ first: 2, status: 'open' })
 	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
 	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+
+	rerender({ variables: { first: 2, status: 'done' } })
+
+	await waitFor(() => expect(asked.at(-1)).toBe(2))
 	await waitFor(() => expect(result.current.rows).toHaveLength(2))
-
-	rerender({ variables: { first: 50, q: 'ada' } })
-
-	await waitFor(() => expect(result.current.rows).toHaveLength(1))
-	expect(served.at(-1)).toBeUndefined()
 })
 
 test('runs no query while it is paused', async () => {
-	const served = servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, false, 'c') })
+	const asked = serveWindow(() => rowsOf('Call the supplier'))
 	const graph = createGraphClient({ onSessionExpired: vi.fn() })
 
 	const { result } = renderHook(
 		() =>
 			useConnection({
-				query: contactsQuery,
+				query: tasksQuery,
 				variables: { first: 50 },
 				pause: true,
-				select: (data: { contacts: unknown }) =>
-					data.contacts as { edges: { node: ContactNode }[]; pageInfo: never },
+				select: (data: { tasks: unknown }) => data.tasks as { edges: { node: TaskNode }[]; pageInfo: never },
 			}),
 		{
-			wrapper: ({ children }: { children: ReactNode }) => (
-				<GraphProvider graph={graph}>{children}</GraphProvider>
-			),
+			wrapper: ({ children }: { children: ReactNode }) => <GraphProvider graph={graph}>{children}</GraphProvider>,
 		},
 	)
 
 	await new Promise((resolve) => setTimeout(resolve, 20))
-	expect(served).toEqual([])
+	expect(asked).toEqual([])
 	expect(result.current.rows).toEqual([])
 	expect(result.current.isPending).toBe(false)
 })
 
 test('refreshes from the network when the list is mounted again', async () => {
-	let name = 'Ada Lovelace'
-	server.use(
-		graphql.query('Contacts', () =>
-			HttpResponse.json({ data: { contacts: page({ id: 'id-ada', name }, false, 'cursor-ada') } }),
-		),
-	)
+	let title = 'Call the supplier'
+	serveWindow(() => [{ id: 'id-call', title }])
 	const graph = createGraphClient({ onSessionExpired: vi.fn() })
-	function Wrapper({ children }: { children: ReactNode }) {
-		return <GraphProvider graph={graph}>{children}</GraphProvider>
-	}
-	const useProbe = () =>
-		useConnection({
-			query: contactsQuery,
-			variables: { first: 50 },
-			select: (data: { contacts: unknown }) =>
-				data.contacts as { edges: { node: ContactNode }[]; pageInfo: never },
-		})
 
-	const first = renderHook(useProbe, { wrapper: Wrapper })
+	const first = renderConnection({ first: 50 }, { graph })
 	await waitFor(() => expect(first.result.current.rows).toHaveLength(1))
 	first.unmount()
-	name = 'Ada Lovelace Ltd'
-	const second = renderHook(useProbe, { wrapper: Wrapper })
+	title = 'Call the supplier back'
+	const second = renderConnection({ first: 50 }, { graph })
 
-	await waitFor(() => expect(second.result.current.rows[0]?.name).toBe('Ada Lovelace Ltd'))
+	await waitFor(() => expect(second.result.current.rows[0]?.title).toBe('Call the supplier back'))
 })
 
-test('carries the whole document beside the paged rows', async () => {
-	servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, false, 'cursor-ada') })
+test('carries the whole document beside the rows', async () => {
+	serveWindow(() => rowsOf('Call the supplier'))
 
 	const { result } = renderConnection({ first: 50 })
 
 	await waitFor(() => expect(result.current.rows).toHaveLength(1))
-	const data = result.current.data as { contacts: { edges: unknown[] } } | undefined
-	expect(data?.contacts.edges).toHaveLength(1)
+	const data = result.current.data as { tasks: { edges: unknown[] } } | undefined
+	expect(data?.tasks.edges).toHaveLength(1)
 })
 
-test('stays on the first page when asked for more before any page arrives', async () => {
-	const served = servePages({ first: page({ id: 'id-ada', name: 'Ada Lovelace' }, true, 'cursor-ada') })
-	const { result } = renderConnection({ first: 50 })
+test('stays on the first window when asked for more before any rows arrive', async () => {
+	const asked = serveWindow(() => rowsOf('Call the supplier', 'Send the quote'))
+	const { result } = renderConnection({ first: 1 })
 
 	void result.current.fetchNextPage()
 
 	await waitFor(() => expect(result.current.rows).toHaveLength(1))
-	expect(served).toEqual([undefined])
+	expect(asked).toEqual([1])
 })

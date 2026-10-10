@@ -274,10 +274,6 @@ export function graphCacheExchange(): Exchange {
 		resolvers: {
 			Query: {
 				contacts: relayPagination(),
-				tasks: relayPagination(),
-			},
-			Contact: {
-				tasks: relayPagination(),
 			},
 		},
 	})
