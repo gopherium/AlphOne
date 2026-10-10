@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getOperationName, useQuery } from 'urql'
-import type { AnyVariables, Client, TypedDocumentNode } from 'urql'
+import type { AnyVariables, Client, TypedDocumentNode, UseQueryState } from 'urql'
 
 import { useGraph } from './GraphProvider'
 
@@ -46,6 +46,22 @@ interface laterPages<TNode> {
 	failed: boolean
 }
 
+/** pageLoader reads one connection's pages past the first one job at a time, a burst of rereads run as one. */
+interface pageLoader<TNode> extends laterPages<TNode> {
+	generation: number
+	running: boolean
+	wantMore: boolean
+	wantReread: boolean
+}
+
+/** loaderInput is what a loader reads with: the graph client, the options, the first page and the pause flag. */
+interface loaderInput<TData, TVariables extends AnyVariables, TNode> {
+	client: Client
+	options: ConnectionOptions<TData, TVariables, TNode>
+	head: ConnectionPage<TNode> | undefined
+	paused: boolean
+}
+
 /**
  * Pages one Relay connection by cursor, reading every loaded page again in order whenever its list is refetched.
  * @param options - The document, its variables, the page selector, and the pause flag.
@@ -56,73 +72,150 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(
 ): ConnectionResult<TNode, TData> {
 	const key = JSON.stringify(options.variables)
 	const graph = useGraph()
+	const variables = { ...options.variables, after: undefined }
 	const [result] = useQuery<TData, TVariables>({
 		query: options.query,
-		variables: { ...options.variables, after: undefined },
+		variables,
 		pause: options.pause,
 		requestPolicy: 'cache-and-network',
 	})
-	const head = pageIn(result.data, options.select)
+	const shown = pageIn(result.data, options.select)
+	const head = answers(result, variables) ? shown : undefined
 	const [later, setLater] = useState<laterPages<TNode>>(() => noLaterPages(key))
+	const input = useRef<loaderInput<TData, TVariables, TNode>>({ client: graph.client, options, head, paused: false })
+	const loader = usePageLoader<TData, TVariables, TNode>(graph, options.query, key, input, setLater)
+	useEffect(() => {
+		input.current = { client: graph.client, options, head, paused: options.pause === true }
+	})
 	const current = later.key === key ? later : noLaterPages<TNode>(key)
-	useRereadOnRefetch(graph, options, key, current.pages.length, setLater)
 	const last = current.pages.at(-1) ?? head
 	return {
-		rows: rowsOf([head, ...current.pages]),
+		rows: rowsOf([shown, ...current.pages]),
 		data: result.data,
-		isPending: result.fetching && head === undefined,
+		isPending: result.fetching && shown === undefined,
 		isError: result.error !== undefined || current.failed,
-		hasNextPage: last?.pageInfo.hasNextPage ?? false,
+		hasNextPage: last?.pageInfo.hasNextPage === true,
 		isFetchingNextPage: current.fetching,
 		fetchNextPage: async () => {
-			if (!last?.pageInfo.hasNextPage || current.fetching) {
-				return
-			}
-			setLater({ ...current, fetching: true })
-			const page = await readPage(graph.client, options, last.pageInfo.endCursor)
-			setLater((now) => (now.key === key ? appended(now, page) : now))
+			loader.wantMore = true
+			await drain(loader, input, () => setLater(snapshot(loader)))
 		},
 	}
 }
 
 /**
- * Reads every loaded page again from the first whenever the doorbell names this connection's document.
+ * Keeps one loader per connection, cleared when the variables change and asked to reread on every refetch of its list.
  * @param graph - The graph client whose doorbell is heard.
- * @param options - The connection's document, variables and page selector.
- * @param key - The variables the loaded pages belong to.
- * @param count - How many pages past the first are loaded.
+ * @param query - The connection's document.
+ * @param key - The variables the loader's pages belong to.
+ * @param input - What the loader reads with, kept current every render.
  * @param setLater - The setter of the pages past the first.
+ * @returns The loader.
  */
-function useRereadOnRefetch<TData, TVariables extends AnyVariables, TNode>(
-	graph: { client: Client; onRefetch: (listener: (operations: readonly string[]) => void) => () => void },
-	options: ConnectionOptions<TData, TVariables, TNode>,
+function usePageLoader<TData, TVariables extends AnyVariables, TNode>(
+	graph: { onRefetch: (listener: (operations: readonly string[]) => void) => () => void },
+	query: TypedDocumentNode<TData, TVariables>,
 	key: string,
-	count: number,
-	setLater: (update: (now: laterPages<TNode>) => laterPages<TNode>) => void,
-) {
-	const latest = useRef({ options, key, count })
-	const generation = useRef(0)
+	input: { current: loaderInput<TData, TVariables, TNode> },
+	setLater: (later: laterPages<TNode>) => void,
+): pageLoader<TNode> {
+	const [loader] = useState<pageLoader<TNode>>(() => newLoader(key))
 	useEffect(() => {
-		latest.current = { options, key, count }
-	})
-	const name = getOperationName(options.query)
+		if (loader.key !== key) {
+			reset(loader, key)
+			setLater(snapshot(loader))
+		}
+	}, [loader, key, setLater])
+	const name = getOperationName(query)
 	useEffect(
 		() =>
 			graph.onRefetch((operations) => {
-				const held = latest.current
-				if (held.count === 0 || name === undefined || !operations.includes(name)) {
-					return
+				if (name !== undefined && operations.includes(name) && !input.current.paused) {
+					loader.wantReread = true
+					void drain(loader, input, () => setLater(snapshot(loader)))
 				}
-				generation.current += 1
-				const walk = generation.current
-				void rereadPages(graph.client, held.options, held.count).then((pages) => {
-					if (walk === generation.current) {
-						setLater((now) => (now.key === held.key ? reread(now, pages) : now))
-					}
-				})
 			}),
-		[graph, name, setLater],
+		[graph, name, loader, input, setLater],
 	)
+	return loader
+}
+
+/**
+ * Runs the loader's waiting jobs one at a time, a reread before a further page, until none waits.
+ * @param loader - The loader.
+ * @param input - What the loader reads with.
+ * @param publish - Shows the loader's pages to the screen.
+ */
+async function drain<TData, TVariables extends AnyVariables, TNode>(
+	loader: pageLoader<TNode>,
+	input: { current: loaderInput<TData, TVariables, TNode> },
+	publish: () => void,
+) {
+	if (loader.running) {
+		return
+	}
+	loader.running = true
+	const generation = loader.generation
+	while (generation === loader.generation && (loader.wantReread || loader.wantMore)) {
+		if (loader.wantReread) {
+			loader.wantReread = false
+			await reread(loader, input.current)
+		} else {
+			loader.wantMore = false
+			await readMore(loader, input, publish)
+		}
+		publish()
+	}
+	if (generation === loader.generation) {
+		loader.running = false
+	}
+}
+
+/**
+ * Reads every loaded page again from the first, keeping the pages and marking the failure when a read fails.
+ * @param loader - The loader.
+ * @param input - What the loader reads with.
+ */
+async function reread<TData, TVariables extends AnyVariables, TNode>(
+	loader: pageLoader<TNode>,
+	input: loaderInput<TData, TVariables, TNode>,
+) {
+	const generation = loader.generation
+	if (loader.pages.length === 0) {
+		loader.failed = false
+		return
+	}
+	const pages = await rereadPages(input.client, input.options, loader.pages.length)
+	if (generation === loader.generation) {
+		loader.failed = pages === undefined
+		loader.pages = pages ?? loader.pages
+	}
+}
+
+/**
+ * Reads the page after the last one loaded, from the first page only once it answers the current variables.
+ * @param loader - The loader.
+ * @param input - What the loader reads with.
+ * @param publish - Shows the loader's pages to the screen.
+ */
+async function readMore<TData, TVariables extends AnyVariables, TNode>(
+	loader: pageLoader<TNode>,
+	input: { current: loaderInput<TData, TVariables, TNode> },
+	publish: () => void,
+) {
+	const generation = loader.generation
+	const last = loader.pages.at(-1) ?? input.current.head
+	if (!last?.pageInfo.hasNextPage) {
+		return
+	}
+	loader.fetching = true
+	publish()
+	const page = await readPage(input.current.client, input.current.options, last.pageInfo.endCursor)
+	loader.fetching = false
+	if (generation === loader.generation) {
+		loader.failed = page === undefined
+		loader.pages = page === undefined ? loader.pages : [...loader.pages, page]
+	}
 }
 
 /**
@@ -171,6 +264,16 @@ async function readPage<TData, TVariables extends AnyVariables, TNode>(
 }
 
 /**
+ * Reports whether a query state answers the given variables rather than ones the query ran with before.
+ * @param result - The query state.
+ * @param variables - The variables the query runs with now.
+ * @returns Whether the state belongs to them.
+ */
+function answers<TData>(result: UseQueryState<TData>, variables: object): boolean {
+	return JSON.stringify(result.operation?.variables) === JSON.stringify(variables)
+}
+
+/**
  * Returns the page a document carries, undefined when the document or its connection is missing.
  * @param data - The document, if one arrived.
  * @param select - The page selector.
@@ -181,32 +284,6 @@ function pageIn<TData, TNode>(
 	select: (data: TData) => ConnectionPage<TNode> | null | undefined,
 ): ConnectionPage<TNode> | undefined {
 	return data ? (select(data) ?? undefined) : undefined
-}
-
-/**
- * Returns the pages past the first after a reread, kept as they were and marked failed when it could not be read.
- * @param now - The pages loaded so far.
- * @param pages - The pages read again, undefined when a read failed.
- * @returns The updated pages.
- */
-function reread<TNode>(now: laterPages<TNode>, pages: ConnectionPage<TNode>[] | undefined): laterPages<TNode> {
-	if (pages === undefined) {
-		return { ...now, failed: true }
-	}
-	return { ...now, pages, failed: false }
-}
-
-/**
- * Returns the pages past the first with one more page appended, or marked failed when it could not be read.
- * @param now - The pages loaded so far.
- * @param page - The page read, undefined when the read failed.
- * @returns The updated pages.
- */
-function appended<TNode>(now: laterPages<TNode>, page: ConnectionPage<TNode> | undefined): laterPages<TNode> {
-	if (page === undefined) {
-		return { ...now, fetching: false, failed: true }
-	}
-	return { ...now, pages: [...now.pages, page], fetching: false, failed: false }
 }
 
 /**
@@ -225,6 +302,34 @@ function rowsOf<TNode>(pages: (ConnectionPage<TNode> | undefined)[]): TNode[] {
 		}
 	}
 	return rows
+}
+
+/**
+ * Returns a loader holding no page past the first.
+ * @param key - The variables the loader belongs to.
+ * @returns The loader.
+ */
+function newLoader<TNode>(key: string): pageLoader<TNode> {
+	return { ...noLaterPages<TNode>(key), generation: 0, running: false, wantMore: false, wantReread: false }
+}
+
+/**
+ * Points the loader at new variables, dropping its pages, its waiting jobs and the run and read in flight.
+ * @param loader - The loader.
+ * @param key - The new variables.
+ */
+function reset<TNode>(loader: pageLoader<TNode>, key: string) {
+	Object.assign(loader, noLaterPages<TNode>(key), { running: false, wantMore: false, wantReread: false })
+	loader.generation += 1
+}
+
+/**
+ * Returns the state the screen shows of a loader.
+ * @param loader - The loader.
+ * @returns The pages past the first beside the flags.
+ */
+function snapshot<TNode>(loader: pageLoader<TNode>): laterPages<TNode> {
+	return { key: loader.key, pages: loader.pages, fetching: loader.fetching, failed: loader.failed }
 }
 
 /**
