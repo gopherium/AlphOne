@@ -160,6 +160,8 @@ github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/gopherium/framework/dbkit v0.2.0 h1:V+Di+B8oGvdmQKPx5q/a/PbgfHOvRAHhCFfQ5g8DojM=
+github.com/gopherium/framework/dbkit v0.2.0/go.mod h1:sGsNkpbHe1LRW7k1qEjTzqbeHVYOnoCI5e1l/81TAvQ=
 github.com/gopherium/framework/gonsole v0.6.1 h1:yi0te8BDJLuotbrd24bQDMWSJ0KgIhSIAfOjF0jpDnQ=
 github.com/gopherium/framework/gonsole v0.6.1/go.mod h1:n0aJzbwPGPryrWKZ8WzDVub+6R+GUBzeHSzvhMvZR64=
 github.com/gopherium/framework/gonsole/auth v0.4.1 h1:0bzXtMIUv15FK3KmLIEPlriNbZKPVZgFpcx9v4QKrDU=
