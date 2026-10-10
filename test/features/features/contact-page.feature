@@ -50,6 +50,30 @@ Feature: A list pages through the contact directory
       | Maria Perez |
     And the page counts 1 contact
 
+  @wip
+  Scenario: A percent sign in a search matches only itself
+    Given these contacts, created in this order:
+      | name          |
+      | Promo 50% off |
+      | Promo 500 off |
+    When the caller searches the contact page for "50%"
+    Then the page lists:
+      | name          |
+      | Promo 50% off |
+    And the page counts 1 contact
+
+  @wip
+  Scenario: An underscore in a search matches only itself
+    Given these contacts, created in this order:
+      | name      |
+      | team_lead |
+      | team lead |
+    When the caller searches the contact page for "m_l"
+    Then the page lists:
+      | name      |
+      | team_lead |
+    And the page counts 1 contact
+
   Scenario: A channel filter keeps the contacts reachable on it
     Given a contact "Maria Perez" reachable on whatsapp as "184467235"
     And a contact "Ada Lovelace" reachable on email as "ada@example.com"
