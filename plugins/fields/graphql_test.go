@@ -14,7 +14,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
@@ -39,13 +38,13 @@ func newFieldsClientWith(t *testing.T, getenv func(string) string) *gqlclient.Cl
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	pool, err := pgxpool.New(t.Context(), cfg.URL())
+	address := testdb.New(t, testdb.Migrator())
+	pool, err := pgxpool.New(t.Context(), address)
 	if err != nil {
 		t.Fatalf("connecting the test pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	plugin, err := fields.Register(sdk.Deps{DatabaseURL: cfg.URL(), Env: sdk.Env{Prefix: "ALPHONE_", Getenv: getenv}})
+	plugin, err := fields.Register(sdk.Deps{DatabaseURL: address, Env: sdk.Env{Prefix: "ALPHONE_", Getenv: getenv}})
 	if err != nil {
 		t.Fatalf("fields.Register() error = %v, want nil", err)
 	}

@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
@@ -26,8 +25,7 @@ func newMigratedPlugin(t *testing.T) *Plugin {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	p, err := Register(sdk.Deps{DatabaseURL: cfg.URL()})
+	p, err := Register(sdk.Deps{DatabaseURL: testdb.New(t, testdb.Migrator())})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}
