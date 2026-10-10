@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/peterldowns/pgtestdb"
 
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 
@@ -111,8 +110,8 @@ func newImportWorld(t *testing.T) *world {
 // bootWorld boots one scenario, running the importer live only when asked.
 func bootWorld(t *testing.T, liveImports bool) *world {
 	t.Helper()
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	pool, err := pgxpool.New(context.Background(), sparingly(cfg.URL()))
+	databaseURL := testdb.New(t, testdb.Migrator())
+	pool, err := pgxpool.New(context.Background(), sparingly(databaseURL))
 	if err != nil {
 		t.Fatalf("connecting the scenario pool: %v", err)
 	}
@@ -127,10 +126,10 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
 
 	resolver := contact.NewResolver(contacts)
-	fieldsPlugin := livePlugin(t, cfg.URL())
+	fieldsPlugin := livePlugin(t, databaseURL)
 	registered := append(inertPlugins(t), fieldsPlugin)
 	if liveImports {
-		importerPlugin := liveImporter(t, cfg.URL(), scenarioDirectory{resolver: resolver})
+		importerPlugin := liveImporter(t, databaseURL, scenarioDirectory{resolver: resolver})
 		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
 		registered = append(registered, importerPlugin)
 	}
