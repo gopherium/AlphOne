@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/testdb"
 	"github.com/gopherium/alphone/sdk"
@@ -30,8 +29,8 @@ func newMigratedPool(t *testing.T) *pgxpool.Pool {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	p, err := Register(sdk.Deps{DatabaseURL: cfg.URL()})
+	address := testdb.New(t, testdb.Migrator())
+	p, err := Register(sdk.Deps{DatabaseURL: address})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}

@@ -190,8 +190,7 @@ func TestSeedRunsWithoutTheClaimingContact(t *testing.T) {
 func TestSeedReportsALookupFailure(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestDatabase(t)
-	p := newPlugin(t, cfg.URL())
+	p := newPlugin(t, newTestDatabase(t))
 
 	if err := p.Seed(t.Context()); err == nil {
 		t.Fatal("Seed() without the importer schema error = nil, want an error")
