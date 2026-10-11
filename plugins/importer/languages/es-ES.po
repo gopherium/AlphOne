@@ -7,6 +7,7 @@ msgstr ""
 "X-Domain: alphone-importer\n"
 "Project-Id-Version: AlphOne Importer Plugin\n"
 "Language: es\n"
+"Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 
 #, fuzzy
 msgid "%(ownerName)s already holds an address in this row."
