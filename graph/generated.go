@@ -201,7 +201,7 @@ type ComplexityRoot struct {
 		APITokenCreate          func(childComplexity int, name string, scopes []string, ttlDays *int) int
 		APITokenRevoke          func(childComplexity int, id uuid.UUID) int
 		AcceptInvite            func(childComplexity int, token string, password string) int
-		AddContactFieldEntry    func(childComplexity int, contactID uuid.UUID, field string, entry interface{}) int
+		AddContactFieldEntry    func(childComplexity int, contactID uuid.UUID, field string, entry any) int
 		AddContactIdentity      func(childComplexity int, contactID uuid.UUID, identity model.ContactIdentityInput) int
 		ArchiveField            func(childComplexity int, id uuid.UUID) int
 		CreateContact           func(childComplexity int, name string, identities []*model.ContactIdentityInput) int
@@ -225,10 +225,10 @@ type ComplexityRoot struct {
 		SetLocale               func(childComplexity int, locale string) int
 		SetUserDisabled         func(childComplexity int, id uuid.UUID, disabled bool) int
 		SetUserRole             func(childComplexity int, id uuid.UUID, role string) int
-		UpdateContactFieldEntry func(childComplexity int, contactID uuid.UUID, field string, entryID uuid.UUID, entry interface{}) int
+		UpdateContactFieldEntry func(childComplexity int, contactID uuid.UUID, field string, entryID uuid.UUID, entry any) int
 		UpdateTask              func(childComplexity int, id uuid.UUID, input model.UpdateTaskInput) int
 		WhatsAppSendMessage     func(childComplexity int, conversationID uuid.UUID, content string) int
-		WriteContactFields      func(childComplexity int, contactID uuid.UUID, values interface{}) int
+		WriteContactFields      func(childComplexity int, contactID uuid.UUID, values any) int
 	}
 
 	PageInfo struct {
@@ -362,7 +362,7 @@ type ContactResolver interface {
 	CreatedAt(ctx context.Context, obj *model.Contact) (*time.Time, error)
 	Identities(ctx context.Context, obj *model.Contact) ([]*model.ContactIdentity, error)
 	Tasks(ctx context.Context, obj *model.Contact, status *string, first *int, after *string) (*model.TaskConnection, error)
-	Field(ctx context.Context, obj *model.Contact, name string) (interface{}, error)
+	Field(ctx context.Context, obj *model.Contact, name string) (any, error)
 	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
 type ImportJobResolver interface {
@@ -393,9 +393,9 @@ type MutationResolver interface {
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
 	OrderFields(ctx context.Context, ids []uuid.UUID) (bool, error)
-	WriteContactFields(ctx context.Context, contactID uuid.UUID, values interface{}) (bool, error)
-	AddContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entry interface{}) (interface{}, error)
-	UpdateContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID, entry interface{}) (interface{}, error)
+	WriteContactFields(ctx context.Context, contactID uuid.UUID, values any) (bool, error)
+	AddContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entry any) (any, error)
+	UpdateContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID, entry any) (any, error)
 	DeleteContactFieldEntry(ctx context.Context, contactID uuid.UUID, field string, entryID uuid.UUID) (bool, error)
 	ImportUpload(ctx context.Context, file graphql.Upload) (*model.ImportJob, error)
 	ImportSetMapping(ctx context.Context, id uuid.UUID, assignments []*model.ImportAssignmentInput) (*model.ImportJob, error)
@@ -1052,7 +1052,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AddContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entry"].(interface{})), true
+		return e.ComplexityRoot.Mutation.AddContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entry"].(any)), true
 	case "Mutation.addContactIdentity":
 		if e.ComplexityRoot.Mutation.AddContactIdentity == nil {
 			break
@@ -1311,7 +1311,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entryId"].(uuid.UUID), args["entry"].(interface{})), true
+		return e.ComplexityRoot.Mutation.UpdateContactFieldEntry(childComplexity, args["contactId"].(uuid.UUID), args["field"].(string), args["entryId"].(uuid.UUID), args["entry"].(any)), true
 	case "Mutation.updateTask":
 		if e.ComplexityRoot.Mutation.UpdateTask == nil {
 			break
@@ -1344,7 +1344,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.WriteContactFields(childComplexity, args["contactId"].(uuid.UUID), args["values"].(interface{})), true
+		return e.ComplexityRoot.Mutation.WriteContactFields(childComplexity, args["contactId"].(uuid.UUID), args["values"].(any)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -14364,10 +14364,6 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAdminSettings2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAdminSettings(ctx context.Context, sel ast.SelectionSet, v model.AdminSettings) graphql.Marshaler {
-	return ec._AdminSettings(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNAdminSettings2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAdminSettings(ctx context.Context, sel ast.SelectionSet, v *model.AdminSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14404,10 +14400,6 @@ func (ec *executionContext) marshalNApiToken2ᚖgithubᚗcomᚋgopheriumᚋalpho
 	return ec._ApiToken(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNApiTokenSecret2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenSecret(ctx context.Context, sel ast.SelectionSet, v model.APITokenSecret) graphql.Marshaler {
-	return ec._ApiTokenSecret(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNApiTokenSecret2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐAPITokenSecret(ctx context.Context, sel ast.SelectionSet, v *model.APITokenSecret) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14434,10 +14426,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNContact2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContact(ctx context.Context, sel ast.SelectionSet, v model.Contact) graphql.Marshaler {
-	return ec._Contact(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNContact2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Contact) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -14462,10 +14450,6 @@ func (ec *executionContext) marshalNContact2ᚖgithubᚗcomᚋgopheriumᚋalphon
 		return graphql.Null
 	}
 	return ec._Contact(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNContactConnection2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactConnection(ctx context.Context, sel ast.SelectionSet, v model.ContactConnection) graphql.Marshaler {
-	return ec._ContactConnection(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNContactConnection2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactConnection(ctx context.Context, sel ast.SelectionSet, v *model.ContactConnection) graphql.Marshaler {
@@ -14502,10 +14486,6 @@ func (ec *executionContext) marshalNContactEdge2ᚖgithubᚗcomᚋgopheriumᚋal
 		return graphql.Null
 	}
 	return ec._ContactEdge(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNContactIdentity2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentity(ctx context.Context, sel ast.SelectionSet, v model.ContactIdentity) graphql.Marshaler {
-	return ec._ContactIdentity(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNContactIdentity2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactIdentityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ContactIdentity) graphql.Marshaler {
@@ -14554,10 +14534,6 @@ func (ec *executionContext) marshalNContactOrderBy2githubᚗcomᚋgopheriumᚋal
 	return v
 }
 
-func (ec *executionContext) marshalNContactPage2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactPage(ctx context.Context, sel ast.SelectionSet, v model.ContactPage) graphql.Marshaler {
-	return ec._ContactPage(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNContactPage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐContactPage(ctx context.Context, sel ast.SelectionSet, v *model.ContactPage) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14573,10 +14549,6 @@ func (ec *executionContext) unmarshalNCreateTaskInput2githubᚗcomᚋgopherium�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNCreateTaskPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskPayload(ctx context.Context, sel ast.SelectionSet, v model.CreateTaskPayload) graphql.Marshaler {
-	return ec._CreateTaskPayload(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNCreateTaskPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateTaskPayload(ctx context.Context, sel ast.SelectionSet, v *model.CreateTaskPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14585,10 +14557,6 @@ func (ec *executionContext) marshalNCreateTaskPayload2ᚖgithubᚗcomᚋgopheriu
 		return graphql.Null
 	}
 	return ec._CreateTaskPayload(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNCreateWebhookPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, v model.CreateWebhookPayload) graphql.Marshaler {
-	return ec._CreateWebhookPayload(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNCreateWebhookPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐCreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, v *model.CreateWebhookPayload) graphql.Marshaler {
@@ -14653,10 +14621,6 @@ func (ec *executionContext) marshalNDateTime2ᚖtimeᚐTime(ctx context.Context,
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) marshalNFieldDefinition2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinition(ctx context.Context, sel ast.SelectionSet, v model.FieldDefinition) graphql.Marshaler {
-	return ec._FieldDefinition(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNFieldDefinition2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FieldDefinition) graphql.Marshaler {
@@ -14726,10 +14690,6 @@ func (ec *executionContext) unmarshalNFieldSubFieldInput2ᚖgithubᚗcomᚋgophe
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNIdentity2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐIdentity(ctx context.Context, sel ast.SelectionSet, v model.Identity) graphql.Marshaler {
-	return ec._Identity(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNIdentity2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐIdentity(ctx context.Context, sel ast.SelectionSet, v *model.Identity) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14783,10 +14743,6 @@ func (ec *executionContext) unmarshalNImportAssignmentInput2ᚕᚖgithubᚗcom�
 func (ec *executionContext) unmarshalNImportAssignmentInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportAssignmentInput(ctx context.Context, v any) (*model.ImportAssignmentInput, error) {
 	res, err := ec.unmarshalInputImportAssignmentInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNImportCommitPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportCommitPayload(ctx context.Context, sel ast.SelectionSet, v model.ImportCommitPayload) graphql.Marshaler {
-	return ec._ImportCommitPayload(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNImportCommitPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportCommitPayload(ctx context.Context, sel ast.SelectionSet, v *model.ImportCommitPayload) graphql.Marshaler {
@@ -14849,10 +14805,6 @@ func (ec *executionContext) marshalNImportField2ᚖgithubᚗcomᚋgopheriumᚋal
 		return graphql.Null
 	}
 	return ec._ImportField(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNImportJob2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportJob(ctx context.Context, sel ast.SelectionSet, v model.ImportJob) graphql.Marshaler {
-	return ec._ImportJob(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNImportJob2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ImportJob) graphql.Marshaler {
@@ -14952,10 +14904,6 @@ func (ec *executionContext) marshalNInt2ᚕintᚄ(ctx context.Context, sel ast.S
 	return ret
 }
 
-func (ec *executionContext) marshalNInvitePayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐInvitePayload(ctx context.Context, sel ast.SelectionSet, v model.InvitePayload) graphql.Marshaler {
-	return ec._InvitePayload(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNInvitePayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐInvitePayload(ctx context.Context, sel ast.SelectionSet, v *model.InvitePayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14986,10 +14934,6 @@ func (ec *executionContext) marshalNJSON2interface(ctx context.Context, sel ast.
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) marshalNLoginPayload2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐLoginPayload(ctx context.Context, sel ast.SelectionSet, v model.LoginPayload) graphql.Marshaler {
-	return ec._LoginPayload(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNLoginPayload2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐLoginPayload(ctx context.Context, sel ast.SelectionSet, v *model.LoginPayload) graphql.Marshaler {
@@ -15067,10 +15011,6 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNTask2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx context.Context, sel ast.SelectionSet, v model.Task) graphql.Marshaler {
-	return ec._Task(ctx, sel, &v)
-}
-
 func (ec *executionContext) marshalNTask2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTask(ctx context.Context, sel ast.SelectionSet, v *model.Task) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -15079,10 +15019,6 @@ func (ec *executionContext) marshalNTask2ᚖgithubᚗcomᚋgopheriumᚋalphone�
 		return graphql.Null
 	}
 	return ec._Task(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNTaskConnection2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTaskConnection(ctx context.Context, sel ast.SelectionSet, v model.TaskConnection) graphql.Marshaler {
-	return ec._TaskConnection(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNTaskConnection2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTaskConnection(ctx context.Context, sel ast.SelectionSet, v *model.TaskConnection) graphql.Marshaler {
@@ -15119,10 +15055,6 @@ func (ec *executionContext) marshalNTaskEdge2ᚖgithubᚗcomᚋgopheriumᚋalpho
 		return graphql.Null
 	}
 	return ec._TaskEdge(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNTenant2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTenant(ctx context.Context, sel ast.SelectionSet, v model.Tenant) graphql.Marshaler {
-	return ec._Tenant(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNTenant2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐTenant(ctx context.Context, sel ast.SelectionSet, v *model.Tenant) graphql.Marshaler {
@@ -15277,10 +15209,6 @@ func (ec *executionContext) marshalNWhatsAppConversation2ᚖgithubᚗcomᚋgophe
 		return graphql.Null
 	}
 	return ec._WhatsAppConversation(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNWhatsAppMessage2githubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessage(ctx context.Context, sel ast.SelectionSet, v model.WhatsAppMessage) graphql.Marshaler {
-	return ec._WhatsAppMessage(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNWhatsAppMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WhatsAppMessage) graphql.Marshaler {
