@@ -54,8 +54,8 @@ func newSendingHarness(
 	t *testing.T, envOverrides map[string]string,
 ) (*whatsapp.Plugin, *graphStub, *pgxpool.Pool) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
 	stub := newGraphStub(t)
 	env := map[string]string{
@@ -67,7 +67,7 @@ func newSendingHarness(
 	for key, value := range envOverrides {
 		env[key] = value
 	}
-	p := newPlugin(t, cfg.URL(), resolver, env)
+	p := newPlugin(t, address, resolver, env)
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}

@@ -70,8 +70,10 @@ func coreSettings() map[string]string {
 	}
 }
 
-// settingsReadElsewhere names the settings of the example file that a plugin or a command reads, not the server.
+// settingsReadElsewhere names the example file settings that a plugin, a command or the Go tests read, not the server.
 var settingsReadElsewhere = []string{
+	"ALPHONE_TEST_DATABASE_URL",
+	"ALPHONE_TEST_DATABASE_MAX_AGE",
 	"ALPHONE_COMMAND_RECORD_TIMEOUT",
 	"ALPHONE_COMMAND_RECORDS_LIMIT",
 	"ALPHONE_TOKEN_TTL_DAYS",

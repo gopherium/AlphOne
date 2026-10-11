@@ -130,11 +130,11 @@ func newCommittingPlugin(t *testing.T) (
 	*importer.Plugin, *pgxpool.Pool, *directory, *recorder,
 ) {
 	t.Helper()
-	cfg := newTestDatabase(t)
+	address := newTestDatabase(t)
 	contacts := newDirectory()
 	events := &recorder{}
 	p, err := importer.Register(sdk.Deps{
-		DatabaseURL: cfg.URL(),
+		DatabaseURL: address,
 		Contacts:    contacts,
 		Events:      events,
 	})
@@ -145,7 +145,7 @@ func newCommittingPlugin(t *testing.T) (
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
-	pool := newAssertionPool(t, cfg.URL())
+	pool := newAssertionPool(t, address)
 	contacts.pool = pool
 	return p, pool, contacts, events
 }
@@ -566,9 +566,9 @@ func TestCommitReportsAFailureAtEachWrite(t *testing.T) {
 func TestCommitWorksWithoutAPublisher(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestDatabase(t)
+	address := newTestDatabase(t)
 	contacts := newDirectory()
-	p, err := importer.Register(sdk.Deps{DatabaseURL: cfg.URL(), Contacts: contacts})
+	p, err := importer.Register(sdk.Deps{DatabaseURL: address, Contacts: contacts})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
 	}
@@ -576,7 +576,7 @@ func TestCommitWorksWithoutAPublisher(t *testing.T) {
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
-	contacts.pool = newAssertionPool(t, cfg.URL())
+	contacts.pool = newAssertionPool(t, address)
 	id := uploadNamed(t, p, "quiet.csv", "Name,Email\nMaria Perez,maria@example.com\n")
 	mapNameAndEmail(t, p, id)
 

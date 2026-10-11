@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -51,8 +50,8 @@ func TestMigrationMovesEveryTierOntoTheAccount(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	db, err := sql.Open("pgx", cfg.URL())
+	databaseURL := testdb.New(t, testdb.Migrator())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
@@ -88,8 +87,8 @@ func TestMigrationLeavesNoRolesTableBehind(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	db, err := sql.Open("pgx", cfg.URL())
+	databaseURL := testdb.New(t, testdb.Migrator())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}
@@ -115,8 +114,8 @@ func TestMigrationRestoresTheRolesTableGoingDown(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	db, err := sql.Open("pgx", cfg.URL())
+	databaseURL := testdb.New(t, testdb.Migrator())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening the database: %v", err)
 	}

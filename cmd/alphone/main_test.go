@@ -22,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/gouncer"
@@ -166,8 +165,7 @@ func testDatabaseURL(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
-	return cfg.URL()
+	return testdb.New(t, testdb.Migrator())
 }
 
 // waitForServer waits until the server at baseURL answers the version probe.

@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/peterldowns/pgtestdb"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/testdb"
@@ -31,13 +30,13 @@ const checkViolation = "23514"
 
 const unreachableDatabaseURL = "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1"
 
-// newTestDatabase returns a config for a core migrated database, skipping the test in short mode.
-func newTestDatabase(t *testing.T) *pgtestdb.Config {
+// newTestDatabase returns the address of a core migrated database, skipping the test in short mode.
+func newTestDatabase(t *testing.T) string {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.Custom(t, testdb.Config(), testdb.Migrator())
+	return testdb.New(t, testdb.Migrator())
 }
 
 // newAssertionPool opens a pool on the given url and closes it at cleanup.
@@ -66,12 +65,12 @@ func newPlugin(t *testing.T, databaseURL string) *importer.Plugin {
 // core and importer schemas.
 func newMigratedDatabase(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	p := newPlugin(t, cfg.URL())
+	address := newTestDatabase(t)
+	p := newPlugin(t, address)
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
-	return newAssertionPool(t, cfg.URL())
+	return newAssertionPool(t, address)
 }
 
 // seedImport stores one import with one pending row linked to a contact and
@@ -158,9 +157,9 @@ func TestStopWithoutStartReleasesThePlugin(t *testing.T) {
 func TestMigrateCreatesTheImportTables(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
-	p := newPlugin(t, cfg.URL())
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
+	p := newPlugin(t, address)
 
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)

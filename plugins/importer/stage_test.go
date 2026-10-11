@@ -19,12 +19,12 @@ import (
 // newUploadPlugin returns a migrated plugin and an assertion pool over its database.
 func newUploadPlugin(t *testing.T) (*importer.Plugin, *pgxpool.Pool) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	p := newPlugin(t, cfg.URL())
+	address := newTestDatabase(t)
+	p := newPlugin(t, address)
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
-	return p, newAssertionPool(t, cfg.URL())
+	return p, newAssertionPool(t, address)
 }
 
 // uploadNamed stages one CSV under the given filename and returns its import id.

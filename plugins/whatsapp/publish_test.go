@@ -38,11 +38,11 @@ func (p *recordingPublisher) names() []string {
 // newPublishingPlugin returns a plugin announcing to the returned recorder.
 func newPublishingPlugin(t *testing.T) (*whatsapp.Plugin, *recordingPublisher) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
 	publisher := &recordingPublisher{}
 	p, err := whatsapp.Register(sdk.Deps{
-		DatabaseURL: cfg.URL(),
+		DatabaseURL: address,
 		Resolver:    resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))},
 		Env: sdk.Env{Prefix: "ALPHONE_", Getenv: func(key string) string {
 			return map[string]string{

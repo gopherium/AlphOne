@@ -31,11 +31,11 @@ func authMigrated(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	cfg := pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{})
-	if err := authkitpg.Migrate(t.Context(), cfg.URL()); err != nil {
+	databaseURL := testdb.New(t, pgtestdb.NoopMigrator{})
+	if err := authkitpg.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("migrating the auth schema: %v", err)
 	}
-	return cfg.URL()
+	return databaseURL
 }
 
 // openDatabase returns a handle on the database at databaseURL that is closed when the test ends.
@@ -104,19 +104,19 @@ func TestMigrateCreatesCoreSchema(t *testing.T) {
 		t.Skip("skipping database test in short mode")
 	}
 
-	cfg := pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{})
-	if err := authkitpg.Migrate(t.Context(), cfg.URL()); err != nil {
+	databaseURL := testdb.New(t, pgtestdb.NoopMigrator{})
+	if err := authkitpg.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("migrating the auth schema: %v", err)
 	}
 
-	if err := postgres.Migrate(t.Context(), cfg.URL()); err != nil {
+	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}
-	if err := postgres.Migrate(t.Context(), cfg.URL()); err != nil {
+	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
 		t.Fatalf("second Migrate() error = %v, want idempotent nil", err)
 	}
 
-	db, err := sql.Open("pgx", cfg.URL())
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

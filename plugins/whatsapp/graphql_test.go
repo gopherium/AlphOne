@@ -66,9 +66,9 @@ func newScopelessGraphQLClient(t *testing.T, p *whatsapp.Plugin, pool *pgxpool.P
 // newMessagingPlugin returns a migrated plugin with its assertion pool.
 func newMessagingPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
-	cfg := newTestDatabase(t)
-	pool := newAssertionPool(t, cfg.URL())
-	p := newPlugin(t, cfg.URL(), nil, nil)
+	address := newTestDatabase(t)
+	pool := newAssertionPool(t, address)
+	p := newPlugin(t, address, nil, nil)
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}

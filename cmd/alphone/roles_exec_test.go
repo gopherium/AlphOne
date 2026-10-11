@@ -20,7 +20,7 @@ func barePostgres(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-	return pgtestdb.Custom(t, testdb.Config(), pgtestdb.NoopMigrator{}).URL()
+	return testdb.New(t, pgtestdb.NoopMigrator{})
 }
 
 func TestCreateAdminProvisionsAnAdminOnABareDatabase(t *testing.T) {

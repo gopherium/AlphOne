@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      ALPHONE_TEST_DATABASE_URL: postgres://postgres:alphone@localhost:5433/postgres?sslmode=disable
+      ALPHONE_TEST_DATABASE_MAX_AGE: 1h
     services:
       postgres:
         image: postgres:18
