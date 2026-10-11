@@ -7,6 +7,7 @@ msgstr ""
 "X-Domain: alphone-fields\n"
 "Project-Id-Version: AlphOne Fields Plugin\n"
 "Language: es\n"
+"Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 
 #, fuzzy
 msgid "%(label)s: %(value)s"
