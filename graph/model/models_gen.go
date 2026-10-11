@@ -335,7 +335,7 @@ func (e *ContactOrderBy) UnmarshalGQL(v any) error {
 }
 
 func (e ContactOrderBy) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *ContactOrderBy) UnmarshalJSON(b []byte) error {
@@ -400,7 +400,7 @@ func (e *FieldKind) UnmarshalGQL(v any) error {
 }
 
 func (e FieldKind) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *FieldKind) UnmarshalJSON(b []byte) error {
@@ -455,7 +455,7 @@ func (e *SortOrder) UnmarshalGQL(v any) error {
 }
 
 func (e SortOrder) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *SortOrder) UnmarshalJSON(b []byte) error {
