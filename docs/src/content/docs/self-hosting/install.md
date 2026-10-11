@@ -110,6 +110,11 @@ ALPHONE_WHATSAPP_PHONE_NUMBER_ID=<from Meta>
 # ALPHONE_WEBHOOK_ALLOWED_HOSTS=n8n:5678
 ```
 
+Make `POSTGRES_PASSWORD` letters and digits only, for example the output of
+`openssl rand -hex 32`. The compose file writes the same value into the
+database address, where a sign such as `@` ends the password early and
+stops AlphOne at start.
+
 `ALPHONE_TRUSTED_PROXIES` deserves a moment of attention. The login rate
 limiter counts failed attempts per client address, and behind a proxy the
 real address arrives in the `X-Forwarded-For` header. AlphOne only trusts
