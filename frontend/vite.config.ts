@@ -8,7 +8,7 @@ import react from '@vitejs/plugin-react'
 import dsTokenFallbacks from '@wordpress/theme/vite-plugins/vite-ds-token-fallbacks'
 import { defineConfig, normalizePath } from 'vite'
 
-/** Resolves a repository path to the absolute glob coverage matching needs. */
+/** Resolves a repository path to an absolute path. */
 function repoGlob(pattern: string): string {
 	return normalizePath(fileURLToPath(new URL(`../${pattern}`, import.meta.url)))
 }
@@ -45,10 +45,10 @@ export default defineConfig({
 		],
 		coverage: {
 			include: [
-				repoGlob('frontend/src/**'),
-				repoGlob('sdk/*/**/*.{ts,tsx}'),
-				repoGlob('plugins/*/frontend/**/*.{ts,tsx}'),
-				repoGlob('enterprise/*/frontend/**/*.{ts,tsx}'),
+				'frontend/src/**',
+				'sdk/*/**/*.{ts,tsx}',
+				'plugins/*/frontend/**/*.{ts,tsx}',
+				'enterprise/*/frontend/**/*.{ts,tsx}',
 			],
 			exclude: ['frontend/src/main.tsx', '**/gql/**', '**/test/**', '**/node_modules/**', '**/*.d.ts'],
 			allowExternal: true,

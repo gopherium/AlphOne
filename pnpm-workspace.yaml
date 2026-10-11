@@ -25,6 +25,7 @@ peerDependencyRules:
     '@types/react': '19'
     typescript: '6'
     graphql: '17'
+    yargs: '17'
 
 allowBuilds:
   esbuild: false
