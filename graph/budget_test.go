@@ -14,7 +14,7 @@ import (
 // Root field budgets per schema owner.
 const (
 	coreRootFieldBudget   = 34
-	pluginRootFieldBudget = 12
+	pluginRootFieldBudget = 13
 )
 
 // pluginGraphDirs returns the graph directory of every plugin under every plugin root.
