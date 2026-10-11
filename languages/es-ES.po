@@ -7,6 +7,7 @@ msgstr ""
 "X-Domain: alphone\n"
 "Project-Id-Version: AlphOne\n"
 "Language: es\n"
+"Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 
 msgid "30 days"
 msgstr "30 días"
@@ -751,25 +752,29 @@ msgstr "Deshacer"
 msgid "%s user could not be disabled."
 msgid_plural "%s users could not be disabled."
 msgstr[0] "No se ha podido desactivar %s usuario."
-msgstr[1] "No se han podido desactivar %s usuarios."
+msgstr[1] "No se han podido desactivar %s de usuarios."
+msgstr[2] "No se han podido desactivar %s usuarios."
 
 #, fuzzy
 msgid "%s user could not be enabled."
 msgid_plural "%s users could not be enabled."
 msgstr[0] "No se ha podido reactivar %s usuario."
-msgstr[1] "No se han podido reactivar %s usuarios."
+msgstr[1] "No se han podido reactivar %s de usuarios."
+msgstr[2] "No se han podido reactivar %s usuarios."
 
 #, fuzzy
 msgid "%s user disabled."
 msgid_plural "%s users disabled."
 msgstr[0] "%s usuario desactivado."
-msgstr[1] "%s usuarios desactivados."
+msgstr[1] "%s de usuarios desactivados."
+msgstr[2] "%s usuarios desactivados."
 
 #, fuzzy
 msgid "%s user enabled."
 msgid_plural "%s users enabled."
 msgstr[0] "%s usuario reactivado."
-msgstr[1] "%s usuarios reactivados."
+msgstr[1] "%s de usuarios reactivados."
+msgstr[2] "%s usuarios reactivados."
 
 #, fuzzy
 msgid "Cancel"
@@ -839,13 +844,15 @@ msgstr "Avatar"
 msgid "%s token could not be revoked."
 msgid_plural "%s tokens could not be revoked."
 msgstr[0] "No se ha podido revocar %s token."
-msgstr[1] "No se han podido revocar %s tokens."
+msgstr[1] "No se han podido revocar %s de tokens."
+msgstr[2] "No se han podido revocar %s tokens."
 
 #, fuzzy
 msgid "%s token revoked."
 msgid_plural "%s tokens revoked."
 msgstr[0] "%s token revocado."
-msgstr[1] "%s tokens revocados."
+msgstr[1] "%s de tokens revocados."
+msgstr[2] "%s tokens revocados."
 
 #, fuzzy
 msgid "No tokens found."
@@ -855,7 +862,8 @@ msgstr "No se ha encontrado ningún token."
 msgid "Revoke %s token? Anything using it stops working at once."
 msgid_plural "Revoke %s tokens? Anything using them stops working at once."
 msgstr[0] "¿Revocar %s token? Todo lo que lo use dejará de funcionar al momento."
-msgstr[1] "¿Revocar %s tokens? Todo lo que los use dejará de funcionar al momento."
+msgstr[1] "¿Revocar %s de tokens? Todo lo que los use dejará de funcionar al momento."
+msgstr[2] "¿Revocar %s tokens? Todo lo que los use dejará de funcionar al momento."
 
 #, fuzzy
 msgid "Revoke the token %(name)s? Anything using it stops working at once."
@@ -866,6 +874,7 @@ msgid "Revoke token"
 msgid_plural "Revoke tokens"
 msgstr[0] "Revocar token"
 msgstr[1] "Revocar tokens"
+msgstr[2] "Revocar tokens"
 
 #, fuzzy
 msgid "Search tokens…"
