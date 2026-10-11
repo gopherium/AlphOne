@@ -194,8 +194,10 @@ belong to.
 Form fields go inside `godmin-form`, which stacks them and keeps the
 column readable.
 
-For cursor paginated queries, `LoadMore` renders the next page button
-and hides itself once every page is loaded.
+For a list read with `useConnection`, `LoadMore` renders the next page
+button and hides itself once every page is loaded. When the list is
+refetched, every loaded page is read again from the first, so the rows keep
+their current order.
 
 ```tsx
 <LoadMore query={invoices}>Load more</LoadMore>

@@ -22,6 +22,38 @@ func (failingReader) Read([]byte) (int, error) {
 	return 0, errEntropy
 }
 
+func TestRankPutsHigherPriorityOpenWorkFirst(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		held task.Task
+		want int
+	}{
+		"open at normal priority": {task.Task{Status: task.StatusOpen}, 0},
+		"open at priority 1":      {task.Task{Status: task.StatusOpen, Priority: 1}, -1},
+		"open at priority 9":      {task.Task{Status: task.StatusOpen, Priority: 9}, -9},
+		"done at priority 5":      {task.Task{Status: task.StatusDone, Priority: 5}, 0},
+	}
+	for name, tc := range tests {
+		if got := tc.held.Rank(); got != tc.want {
+			t.Errorf("%s: Rank() = %d, want %d", name, got, tc.want)
+		}
+	}
+}
+
+func TestAPageStartsBelowEveryRankOnlyWithoutAPosition(t *testing.T) {
+	t.Parallel()
+
+	highest := task.Task{Status: task.StatusOpen, Priority: 9}
+	if start := (task.Page{}).StartRank(); start >= highest.Rank() {
+		t.Errorf("first page StartRank() = %d, want below %d", start, highest.Rank())
+	}
+	after := task.Page{AfterRank: -3, AfterID: uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f")}
+	if start := after.StartRank(); start != -3 {
+		t.Errorf("later page StartRank() = %d, want -3", start)
+	}
+}
+
 func TestNewBuildsAnOpenTask(t *testing.T) {
 	t.Parallel()
 

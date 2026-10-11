@@ -773,9 +773,10 @@ WHERE t.tenant_id = $1
     AND t.assignee_id = $2::uuid
     AND t.due_on < $3::date
     AND ($4::text = 'all' OR t.status = $4::text)
-    AND (t.due_on, t.id) > ($5::date, $6::uuid)
-ORDER BY t.due_on, t.id
-LIMIT $7
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > ($5::integer, $6::date, $7::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+LIMIT $8
 `
 
 type ListTasksDueBeforeParams struct {
@@ -783,6 +784,7 @@ type ListTasksDueBeforeParams struct {
 	AssigneeID uuid.UUID
 	DueBefore  time.Time
 	Status     string
+	AfterRank  int32
 	AfterDueOn time.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
@@ -794,6 +796,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 		arg.AssigneeID,
 		arg.DueBefore,
 		arg.Status,
+		arg.AfterRank,
 		arg.AfterDueOn,
 		arg.AfterID,
 		arg.RowLimit,
@@ -835,15 +838,17 @@ FROM core.tasks t
 WHERE t.tenant_id = $1
     AND t.contact_id = $2::uuid
     AND ($3::text = 'all' OR t.status = $3::text)
-    AND (t.due_on, t.id) > ($4::date, $5::uuid)
-ORDER BY t.due_on, t.id
-LIMIT $6
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > ($4::integer, $5::date, $6::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+LIMIT $7
 `
 
 type ListTasksForContactParams struct {
 	TenantID   uuid.UUID
 	ContactID  uuid.UUID
 	Status     string
+	AfterRank  int32
 	AfterDueOn time.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
@@ -854,6 +859,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 		arg.TenantID,
 		arg.ContactID,
 		arg.Status,
+		arg.AfterRank,
 		arg.AfterDueOn,
 		arg.AfterID,
 		arg.RowLimit,
@@ -896,9 +902,10 @@ WHERE t.tenant_id = $1
     AND t.assignee_id = $2::uuid
     AND t.due_on = $3::date
     AND ($4::text = 'all' OR t.status = $4::text)
-    AND (t.due_on, t.id) > ($5::date, $6::uuid)
-ORDER BY t.due_on, t.id
-LIMIT $7
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > ($5::integer, $6::date, $7::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+LIMIT $8
 `
 
 type ListTasksForDayParams struct {
@@ -906,6 +913,7 @@ type ListTasksForDayParams struct {
 	AssigneeID uuid.UUID
 	DueOn      time.Time
 	Status     string
+	AfterRank  int32
 	AfterDueOn time.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
@@ -917,6 +925,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 		arg.AssigneeID,
 		arg.DueOn,
 		arg.Status,
+		arg.AfterRank,
 		arg.AfterDueOn,
 		arg.AfterID,
 		arg.RowLimit,

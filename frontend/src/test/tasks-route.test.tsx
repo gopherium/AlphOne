@@ -711,6 +711,51 @@ test('loads more tasks through the cursor', async () => {
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
 
+/** Serves each day list a page at a time after the cursor it names, higher priority first. */
+function serveRanked() {
+	server.use(
+		graphql.query('DayTasks', ({ variables }) => {
+			const listed = tasks
+				.filter((row) => row.status === String(variables.status))
+				.toSorted((first, second) => second.priority - first.priority)
+			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
+			const end = start + Number(variables.first)
+			const shown = listed.slice(start, end)
+			return HttpResponse.json({
+				data: { tasks: taskPage(shown, end < listed.length ? (shown.at(-1)?.id ?? null) : null) },
+			})
+		}),
+	)
+}
+
+/**
+ * Lists the given number of open routine tasks due today.
+ * @param count - How many tasks to list.
+ * @returns The task rows.
+ */
+function routineTasks(count: number) {
+	return Array.from({ length: count }, (_, at) =>
+		taskRow(`0198c000-0000-7000-8000-${String(1000 + at).padStart(12, '0')}`, `Routine task ${at + 1}`),
+	)
+}
+
+test('shows a high task added after loading more at the top of the day', async () => {
+	tasks = routineTasks(51)
+	serveRanked()
+	renderAt('/tasks')
+	await screen.findByText('Routine task 1')
+	await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+	await screen.findByText('Routine task 51')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Approve the pricing')
+	await pickHigh()
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	const open = screen.getByRole('list', { name: 'Open tasks' })
+	await waitFor(() => expect(within(open).getAllByRole('listitem')).toHaveLength(52))
+	expect(within(open).getAllByRole('listitem')[0]).toHaveAttribute('aria-label', 'Approve the pricing')
+})
+
 test('shows open work even when finished tasks fill the first page, counting them in the format locale', async () => {
 	rememberFormatLocale('es-ES-u-nu-deva')
 	const finished = [

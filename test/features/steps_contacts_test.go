@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -161,6 +162,21 @@ func registerContactSteps(sc *godog.ScenarioContext, t *testing.T) {
 			}
 		}
 		return fmt.Errorf("open tasks = %+v, want one titled %q", out.OpenTasks, title)
+	})
+
+	sc.Then(`^the answer lists the open tasks in order:$`, func(ctx context.Context, table *godog.Table) error {
+		out, err := worldFrom(ctx).contactAnswer()
+		if err != nil {
+			return err
+		}
+		titles := make([]string, 0, len(out.OpenTasks))
+		for _, held := range out.OpenTasks {
+			titles = append(titles, held.Title)
+		}
+		if want := tableColumn(table); !slices.Equal(titles, want) {
+			return fmt.Errorf("open tasks = %v, want %v", titles, want)
+		}
+		return nil
 	})
 
 	sc.Then(`^the tool fails with a not found error$`, func(ctx context.Context) error {

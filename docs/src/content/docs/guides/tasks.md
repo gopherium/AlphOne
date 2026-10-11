@@ -16,14 +16,17 @@ appears whenever you are looking at another day.
 Everything on the screen belongs to you. Tasks are owned by the person
 they are assigned to, and the day list only shows your own.
 
+Higher priority tasks come first, and tasks of the same priority keep the
+order they were added.
+
 ## Adding work
 
 The **Task title** field above the list adds a task to the day on screen.
-Type a title and press Enter. That is the fast path, meant for capturing
-work while you are on the phone.
+Type a title and press Enter, or pick a due date and a priority first. That
+is the fast path, meant for capturing work while you are on the phone.
 
 The **New task** button at the top of the screen opens the full form,
-where a task also gets a due date, a priority and an optional contact.
+where a task can also get a contact.
 Search for the person by name and pick them, and the task is linked to
 them from both sides. **Add task** in a contact's row of the contact list
 opens the same form with that contact already picked.
@@ -38,7 +41,9 @@ the finished pile is visible at the end of the day.
 ## Overdue work
 
 Open tasks from earlier days appear in an **Overdue** section above
-today's list, each showing the date it was originally due. They are never
+today's list, each showing the date it was originally due. Higher priority
+work from every earlier day comes first, and work of the same priority lists
+oldest first. They are never
 folded silently into today. Moving them forward is something you do, not
 something the app does behind your back.
 
@@ -54,9 +59,11 @@ For any other date, open the task and edit its due date directly.
 ## Tasks on a contact
 
 A contact's page lists the open tasks linked to that person, across
-everyone on the team, and has its own form for adding one. It answers
-the question you have while looking at somebody: what do we owe them.
+everyone on the team, higher priority first, and has its own form for adding
+one. It answers the question you have while looking at somebody: what do we
+owe them.
 
-Type a title, pick the day it is due, and press **Add task**. The date
-starts on today and goes back to today after each task, so a follow-up for
-Friday takes one extra click, not a trip to the task's own page.
+Type a title, pick the day it is due and its priority, and press
+**Add task**. The date starts on today and goes back to today after each
+task, so a follow-up for Friday takes one extra click, not a trip to the
+task's own page.

@@ -26,6 +26,16 @@ Feature: An agent reads contacts
     And the answer carries the whatsapp identity "184467235"
     And the answer lists the open task "Call Maria Perez back"
 
+  Scenario: A contact's raised open task lists first
+    Given a contact "Maria Perez"
+    And an open task "Send Maria Perez the quote" due today linked to that contact
+    And an open task "Call Maria Perez back" due tomorrow linked to that contact with priority 1
+    When the agent calls get_contact for that contact
+    Then the answer lists the open tasks in order:
+      | title                      |
+      | Call Maria Perez back      |
+      | Send Maria Perez the quote |
+
   Scenario: An unknown contact id is refused as not found
     When the agent calls get_contact with an id no contact holds
     Then the tool fails with a not found error

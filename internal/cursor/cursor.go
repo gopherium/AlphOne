@@ -45,14 +45,19 @@ func DecodeContact(raw string) (string, uuid.UUID, error) {
 	return decoded.Name, decoded.ID, nil
 }
 
+// errRankless reports a task cursor written before tasks were listed by rank.
+var errRankless = errors.New("the cursor names no rank")
+
 type taskCursor struct {
+	Rank  *int      `json:"rank"`
 	DueOn string    `json:"due_on"`
 	ID    uuid.UUID `json:"id"`
 }
 
 // EncodeTask renders the position after t as an opaque cursor.
 func EncodeTask(t task.Task) string {
-	encoded, _ := json.Marshal(taskCursor{DueOn: t.DueOn.Format(dueDateLayout), ID: t.ID})
+	rank := t.Rank()
+	encoded, _ := json.Marshal(taskCursor{Rank: &rank, DueOn: t.DueOn.Format(dueDateLayout), ID: t.ID})
 	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
@@ -65,11 +70,14 @@ func DecodeTask(raw string) (task.Page, error) {
 	if err := decodePayload(raw, &decoded); err != nil {
 		return task.Page{}, err
 	}
+	if decoded.Rank == nil {
+		return task.Page{}, fmt.Errorf("%w: %v", ErrMalformed, errRankless)
+	}
 	dueOn, err := time.Parse(dueDateLayout, decoded.DueOn)
 	if err != nil {
 		return task.Page{}, fmt.Errorf("%w: %v", ErrMalformed, err)
 	}
-	return task.Page{AfterDueOn: dueOn, AfterID: decoded.ID}, nil
+	return task.Page{AfterRank: *decoded.Rank, AfterDueOn: dueOn, AfterID: decoded.ID}, nil
 }
 
 // decodePayload parses a base64url JSON cursor token into target.

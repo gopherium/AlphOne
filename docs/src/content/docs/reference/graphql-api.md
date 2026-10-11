@@ -260,7 +260,7 @@ query($before: Date!, $first: Int!, $after: String) {
     "tasks": {
       "edges": [
         {
-          "cursor": "eyJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ",
+          "cursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ",
           "node": {
             "id": "0198d000-0000-7000-8000-000000000001",
             "title": "Chase the overdue invoice",
@@ -271,7 +271,7 @@ query($before: Date!, $first: Int!, $after: String) {
       ],
       "pageInfo": {
         "hasNextPage": true,
-        "endCursor": "eyJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ"
+        "endCursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ"
       }
     }
   }
@@ -286,7 +286,10 @@ can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
 `first_out_of_range` naming the range.
 
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
-none or two answers `VALIDATION`.
+none or two answers `VALIDATION`. Open tasks come with the higher priority
+first, then by due date, then in the order they were created. Done tasks keep
+due date and creation order. With `status: "all"`, raised open tasks come
+first, then every other task, done ones included, by due date and creation.
 
 ### Pages with a total
 

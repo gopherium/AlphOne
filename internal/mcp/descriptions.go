@@ -23,7 +23,9 @@ Naming both is refused. Naming neither lists today.
 
 Dates are calendar days written YYYY-MM-DD, for example 2026-08-14. Status is
 open, done, or all, and defaults to open. Priority runs 0 to 9 where higher
-is more urgent and 0 is the normal default. Each task carries its contact's
+is more urgent and 0 is the normal default. Open tasks come higher priority
+first, then by due date, then in the order they were created, and done tasks
+keep due date and creation order. Each task carries its contact's
 name beside the contact id when it is linked to one, so there is no need to
 look the contact up separately. Every task here belongs to the caller, so
 assignee_id is always the caller's own user id, which is how to tell the
@@ -51,6 +53,8 @@ not hold is refused.
 Open tasks span every user, not only the caller, and each carries the
 assignee_id of the user it belongs to. Compare it against the caller's own
 assignee_id from list_my_tasks to tell whose work is whose. Priority runs
-0 to 9 where higher is more urgent and 0 is the normal default. When
+0 to 9 where higher is more urgent and 0 is the normal default. Open tasks
+come higher priority first, then by due date, then in the order they were
+created. When
 open_tasks_capped is true the contact holds more open tasks than this answer
 carries.`

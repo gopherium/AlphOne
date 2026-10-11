@@ -442,6 +442,35 @@ test('loads more contact tasks through the cursor', async () => {
 	expect(screen.getByText('Call her back')).toBeInTheDocument()
 })
 
+test('shows a high task added after loading more at the top of the contact tasks', async () => {
+	tasks = Array.from({ length: 51 }, (_, at) =>
+		taskRow(`0198c000-0000-7000-8000-${String(2000 + at).padStart(12, '0')}`, `Routine task ${at + 1}`, today),
+	)
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) => {
+			const listed = tasks.toSorted((first, second) => second.priority - first.priority)
+			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
+			const end = start + Number(variables.first)
+			const shown = listed.slice(start, end)
+			const endCursor = end < listed.length ? (shown.at(-1)?.id ?? null) : null
+			return HttpResponse.json({ data: { contact: contactDetail(String(variables.id), shown, endCursor) } })
+		}),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByText('Routine task 1')
+	await userEvent.click(screen.getByRole('button', { name: 'Load more tasks' }))
+	await screen.findByText('Routine task 51')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Approve the pricing')
+	await userEvent.click(screen.getByLabelText('Priority'))
+	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	const listed = screen.getByRole('list', { name: 'Contact tasks' })
+	await waitFor(() => expect(within(listed).getAllByRole('listitem')).toHaveLength(52))
+	expect(within(listed).getAllByRole('listitem')[0]).toHaveAttribute('aria-label', 'Approve the pricing')
+})
+
 test('reports when the contact detail cannot be loaded', async () => {
 	server.use(
 		graphql.query('ContactDetail', () =>

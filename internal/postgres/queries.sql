@@ -117,8 +117,9 @@ WHERE t.tenant_id = @tenant_id
     AND t.assignee_id = @assignee_id::uuid
     AND t.due_on = @due_on::date
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
-ORDER BY t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
 LIMIT @row_limit;
 
 -- name: ListTasksDueBefore :many
@@ -129,8 +130,9 @@ WHERE t.tenant_id = @tenant_id
     AND t.assignee_id = @assignee_id::uuid
     AND t.due_on < @due_before::date
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
-ORDER BY t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
 LIMIT @row_limit;
 
 -- name: ListTasksForContact :many
@@ -140,8 +142,9 @@ FROM core.tasks t
 WHERE t.tenant_id = @tenant_id
     AND t.contact_id = @contact_id::uuid
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (t.due_on, t.id) > (@after_due_on::date, @after_id::uuid)
-ORDER BY t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
 LIMIT @row_limit;
 
 -- name: UpdateTask :one
