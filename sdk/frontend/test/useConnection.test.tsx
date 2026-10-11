@@ -276,6 +276,52 @@ test('drops a next page that lands after the variables changed', async () => {
 	expect(titles(result.current.rows)).toEqual(['Book the courier', 'File the receipt'])
 })
 
+/** Answers the open and done lists a row at a time, holding each list's later pages until that list is released. */
+function serveHeldLaterPages() {
+	const releases = { open: () => {}, done: () => {} }
+	const held = {
+		open: new Promise<void>((resolve) => {
+			releases.open = resolve
+		}),
+		done: new Promise<void>((resolve) => {
+			releases.done = resolve
+		}),
+	}
+	server.use(
+		graphql.query('Tasks', async ({ variables }) => {
+			const status = variables.status === 'done' ? 'done' : 'open'
+			if (variables.after) {
+				await held[status]
+			}
+			const listed =
+				status === 'done' ? rowsOf('Book the courier', 'File the receipt') : rowsOf('Call the supplier', 'Send the quote')
+			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
+			return HttpResponse.json({ data: { tasks: pageOf(listed.slice(start, start + 1), start + 1 < listed.length) } })
+		}),
+	)
+	return releases
+}
+
+test('keeps the next page of the new list loading when a next page of the old list lands', async () => {
+	const release = serveHeldLaterPages()
+	const { result, rerender } = renderConnection({ first: 1, status: 'open' })
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.isFetchingNextPage).toBe(true))
+
+	rerender({ variables: { first: 1, status: 'done' } })
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(['Book the courier']))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.isFetchingNextPage).toBe(true))
+	release.open()
+	await settle()
+
+	expect(result.current.isFetchingNextPage).toBe(true)
+	release.done()
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(['Book the courier', 'File the receipt']))
+	expect(result.current.isFetchingNextPage).toBe(false)
+})
+
 test('lists nothing when the document holds no connection', async () => {
 	server.use(graphql.query('Tasks', () => HttpResponse.json({ data: { tasks: null } })))
 
@@ -598,6 +644,44 @@ test('reads nothing while paused when its list is refetched', async () => {
 	await settle()
 
 	expect(gate.reads.slice(before)).toEqual([])
+})
+
+test('reads its loaded pages again once it resumes after its list was refetched while paused', async () => {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier')
+	serveHeld(() => listed)
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	const { result, rerender } = renderSwitchable({ variables: { first: 2 }, pause: false }, graph)
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+
+	rerender({ variables: { first: 2 }, pause: true })
+	await settle()
+	listed = rowsOf('Call the supplier', 'Send the quote', 'File the report')
+	graph.refetch(['Tasks'])
+	await settle()
+	rerender({ variables: { first: 2 }, pause: false })
+
+	await waitFor(() =>
+		expect(titles(result.current.rows)).toEqual(['Call the supplier', 'Send the quote', 'File the report']),
+	)
+})
+
+test('reads nothing on resume when its list was not refetched while paused', async () => {
+	const gate = serveHeld(() => rowsOf('Call the supplier', 'Send the quote', 'Book the courier'))
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	const { result, rerender } = renderSwitchable({ variables: { first: 2 }, pause: false }, graph)
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.rows).toHaveLength(3))
+
+	rerender({ variables: { first: 2 }, pause: true })
+	await settle()
+	const before = gate.reads.length
+	rerender({ variables: { first: 2 }, pause: false })
+	await settle()
+
+	expect(gate.reads.slice(before).filter((read) => read.after !== null)).toEqual([])
 })
 
 test('settles a burst of refetches on the newest list with one walk at a time', async () => {

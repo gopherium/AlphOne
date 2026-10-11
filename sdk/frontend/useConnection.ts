@@ -82,11 +82,12 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(
 	const shown = pageIn(result.data, options.select)
 	const head = answers(result, variables) ? shown : undefined
 	const [later, setLater] = useState<laterPages<TNode>>(() => noLaterPages(key))
-	const input = useRef<loaderInput<TData, TVariables, TNode>>({ client: graph.client, options, head, paused: false })
-	const loader = usePageLoader<TData, TVariables, TNode>(graph, options.query, key, input, setLater)
+	const paused = options.pause === true
+	const input = useRef<loaderInput<TData, TVariables, TNode>>({ client: graph.client, options, head, paused })
 	useEffect(() => {
-		input.current = { client: graph.client, options, head, paused: options.pause === true }
+		input.current = { client: graph.client, options, head, paused }
 	})
+	const loader = usePageLoader<TData, TVariables, TNode>(graph, options.query, key, paused, input, setLater)
 	const current = later.key === key ? later : noLaterPages<TNode>(key)
 	const last = current.pages.at(-1) ?? head
 	return {
@@ -104,10 +105,11 @@ export function useConnection<TData, TVariables extends AnyVariables, TNode>(
 }
 
 /**
- * Keeps one loader per connection, cleared when the variables change and asked to reread on every refetch of its list.
+ * Keeps one loader per connection, reset on new variables, rereading after each refetch of its list once unpaused.
  * @param graph - The graph client whose doorbell is heard.
  * @param query - The connection's document.
  * @param key - The variables the loader's pages belong to.
+ * @param paused - Whether the connection is paused.
  * @param input - What the loader reads with, kept current every render.
  * @param setLater - The setter of the pages past the first.
  * @returns The loader.
@@ -116,6 +118,7 @@ function usePageLoader<TData, TVariables extends AnyVariables, TNode>(
 	graph: { onRefetch: (listener: (operations: readonly string[]) => void) => () => void },
 	query: TypedDocumentNode<TData, TVariables>,
 	key: string,
+	paused: boolean,
 	input: { current: loaderInput<TData, TVariables, TNode> },
 	setLater: (later: laterPages<TNode>) => void,
 ): pageLoader<TNode> {
@@ -130,13 +133,20 @@ function usePageLoader<TData, TVariables extends AnyVariables, TNode>(
 	useEffect(
 		() =>
 			graph.onRefetch((operations) => {
-				if (name !== undefined && operations.includes(name) && !input.current.paused) {
+				if (name !== undefined && operations.includes(name)) {
 					loader.wantReread = true
-					void drain(loader, input, () => setLater(snapshot(loader)))
+					if (!input.current.paused) {
+						void drain(loader, input, () => setLater(snapshot(loader)))
+					}
 				}
 			}),
 		[graph, name, loader, input, setLater],
 	)
+	useEffect(() => {
+		if (!paused && loader.wantReread) {
+			void drain(loader, input, () => setLater(snapshot(loader)))
+		}
+	}, [paused, loader, input, setLater])
 	return loader
 }
 
@@ -211,8 +221,8 @@ async function readMore<TData, TVariables extends AnyVariables, TNode>(
 	loader.fetching = true
 	publish()
 	const page = await readPage(input.current.client, input.current.options, last.pageInfo.endCursor)
-	loader.fetching = false
 	if (generation === loader.generation) {
+		loader.fetching = false
 		loader.failed = page === undefined
 		loader.pages = page === undefined ? loader.pages : [...loader.pages, page]
 	}
