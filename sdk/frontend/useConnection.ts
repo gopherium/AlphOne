@@ -151,7 +151,7 @@ function usePageLoader<TData, TVariables extends AnyVariables, TNode>(
 }
 
 /**
- * Runs the loader's waiting jobs one at a time, a reread before a further page, until none waits.
+ * Runs the loader's waiting jobs one at a time, a reread first, until none waits or a reread meets a pause.
  * @param loader - The loader.
  * @param input - What the loader reads with.
  * @param publish - Shows the loader's pages to the screen.
@@ -167,6 +167,9 @@ async function drain<TData, TVariables extends AnyVariables, TNode>(
 	loader.running = true
 	const generation = loader.generation
 	while (generation === loader.generation && (loader.wantReread || loader.wantMore)) {
+		if (loader.wantReread && input.current.paused) {
+			break
+		}
 		if (loader.wantReread) {
 			loader.wantReread = false
 			await reread(loader, input.current)

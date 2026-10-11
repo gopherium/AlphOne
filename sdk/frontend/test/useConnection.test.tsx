@@ -667,6 +667,31 @@ test('reads its loaded pages again once it resumes after its list was refetched 
 	)
 })
 
+test('leaves a refetch heard while paused to the resume when a next page lands in between', async () => {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier')
+	const gate = serveHeld(() => listed)
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	const { result, rerender } = renderSwitchable({ variables: { first: 2 }, pause: false }, graph)
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	gate.holdIf = (read) => read.after !== null
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(gate.reads.some((read) => read.after !== null)).toBe(true))
+
+	rerender({ variables: { first: 2 }, pause: true })
+	await settle()
+	graph.refetch(['Tasks'])
+	const before = gate.reads.length
+	gate.release()
+	await settle()
+
+	expect(gate.reads.slice(before)).toEqual([])
+	listed = rowsOf('Call the supplier', 'Send the quote', 'File the report')
+	rerender({ variables: { first: 2 }, pause: false })
+	await waitFor(() =>
+		expect(titles(result.current.rows)).toEqual(['Call the supplier', 'Send the quote', 'File the report']),
+	)
+})
+
 test('reads nothing on resume when its list was not refetched while paused', async () => {
 	const gate = serveHeld(() => rowsOf('Call the supplier', 'Send the quote', 'Book the courier'))
 	const graph = createGraphClient({ onSessionExpired: vi.fn() })
