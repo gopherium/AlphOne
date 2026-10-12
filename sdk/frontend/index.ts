@@ -47,6 +47,7 @@ export interface FrontendPlugin {
 export {
 	Badge,
 	Button,
+	ButtonLink,
 	Card,
 	Checkbox,
 	Collapsible,
