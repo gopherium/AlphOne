@@ -3,6 +3,7 @@ services:
   postgres:
     image: postgres:18
     command: ["postgres", "-c", "max_connections=300"]
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
     environment:
       POSTGRES_PASSWORD: alphone
     ports:
