@@ -88,7 +88,7 @@ async function tokenColor(page: Page, token: string): Promise<string> {
  * Measures where the contact link of a linked row sits against its title.
  * @param page - The page showing the row.
  * @param title - The title of the linked task.
- * @returns Whether the link sits below the title, its height with margins, and its text start from the title start.
+ * @returns Whether the link sits below the title, its height, its icon offset from the title and name from icon.
  */
 async function contactPlacement(page: Page, title: string) {
 	const row = page.getByRole('listitem', { name: title, exact: true })
@@ -100,16 +100,23 @@ async function contactPlacement(page: Page, title: string) {
 	const box = await contact.evaluate((link) => {
 		const rect = link.getBoundingClientRect()
 		const style = getComputedStyle(link)
+		const icon = link.querySelector('svg') as SVGSVGElement
+		const drawn = icon.getBoundingClientRect()
+		const room = getComputedStyle(icon)
+		const name = link.querySelector('.alphone-tasks__contact-name') as HTMLElement
 		return {
 			middle: rect.top + rect.height / 2,
 			outer: rect.height + Number.parseFloat(style.marginTop) + Number.parseFloat(style.marginBottom),
-			text: rect.left + Number.parseFloat(style.paddingInlineStart),
+			icon: drawn.left - Number.parseFloat(room.marginInlineStart),
+			name: name.getBoundingClientRect().left,
+			afterIcon: drawn.right + Number.parseFloat(room.marginInlineEnd) + Number.parseFloat(style.columnGap),
 		}
 	})
 	return {
 		ownLine: box.middle > (lines.at(-1)?.bottom ?? 0),
 		outer: box.outer,
-		inset: box.text - (lines[0]?.left ?? 0),
+		iconInset: box.icon - (lines[0]?.left ?? 0),
+		nameShift: box.name - box.afterIcon,
 	}
 }
 
@@ -130,6 +137,7 @@ async function expectLevelRows(page: Page, pair: LinkedPair, lines: number) {
 	expect(unlinked.lines, 'the unlinked title wraps as asked').toBe(lines)
 	expect(linked.height, 'the contact name grows the row past its own line').toBeCloseTo(unlinked.height + ownLine, 0)
 	expect(linked.titleTop, 'the contact name moves the title').toBeCloseTo(unlinked.titleTop, 0)
+	expect(placement.nameShift, 'the contact name drifts from its icon').toBeCloseTo(0, 0)
 	return placement
 }
 
@@ -315,7 +323,7 @@ test('puts the contact name on its own line under a wrapped title, flush with it
 
 	const placement = await expectLevelRows(page, titles, 2)
 	expect(placement.ownLine, 'the contact name shares a title line').toBe(true)
-	expect(placement.inset, 'the contact name is indented from the title').toBeCloseTo(0, 0)
+	expect(placement.iconInset, 'the person icon is indented from the title').toBeCloseTo(0, 0)
 })
 
 test('strikes through a done title but not its contact name, on a phone', async ({ page, request }) => {
