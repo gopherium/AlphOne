@@ -529,8 +529,8 @@
 	.alphone-tasks__open-contact {
 		display: flex;
 		width: fit-content;
-		max-width: calc(100% + var(--wpds-dimension-padding-sm));
-		margin-inline-start: calc(-1 * var(--wpds-dimension-padding-sm));
+		max-width: calc(100% + var(--wpds-dimension-padding-sm) + var(--wpds-border-width-xs));
+		margin-inline-start: calc(-1 * (var(--wpds-dimension-padding-sm) + var(--wpds-border-width-xs)));
 		margin-block: var(--wpds-dimension-gap-xs) 0;
 	}
 

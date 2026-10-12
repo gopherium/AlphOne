@@ -50,15 +50,16 @@ test('darkens the contact name while it is pointed at, pressed or focused, like 
 	})
 })
 
-test('puts the contact name on its own line under the title on a phone, its text flush with the title', () => {
+test('puts the contact name on its own line under the title on a phone, its icon flush with the title', () => {
 	const padding = '--wpds-dimension-padding-sm'
+	const border = '--wpds-border-width-xs'
 	const gap = '--wpds-dimension-gap-xs'
 
 	expect(declarations('.alphone-tasks__open-contact', '(max-width: 639px)')).toEqual({
 		display: 'flex',
 		width: 'fit-content',
-		'max-width': `calc(100% + var(${padding}))`,
-		'margin-inline-start': `calc(-1 * var(${padding}))`,
+		'max-width': `calc(100% + var(${padding}) + var(${border}))`,
+		'margin-inline-start': `calc(-1 * (var(${padding}) + var(${border})))`,
 		'margin-block': `var(${gap}) 0`,
 	})
 })
