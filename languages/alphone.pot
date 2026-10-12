@@ -352,9 +352,6 @@ msgstr ""
 msgid "Nothing due today."
 msgstr ""
 
-msgid "Open %(name)s"
-msgstr ""
-
 msgid "Open tasks"
 msgstr ""
 
