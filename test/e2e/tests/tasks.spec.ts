@@ -68,22 +68,69 @@ async function rowGeometry(page: Page, title: string) {
 }
 
 /**
- * Checks that the linked row matches the unlinked row in height and title top, both titles on the given lines.
+ * Reads the colour a design token resolves to on the page.
+ * @param page - The page carrying the design tokens.
+ * @param token - The name of the colour token.
+ * @returns The computed colour.
+ */
+async function tokenColor(page: Page, token: string): Promise<string> {
+	return page.evaluate((name) => {
+		const probe = document.createElement('span')
+		probe.style.color = `var(${name})`
+		document.body.append(probe)
+		const color = getComputedStyle(probe).color
+		probe.remove()
+		return color
+	}, token)
+}
+
+/**
+ * Measures where the contact link of a linked row sits against its title.
+ * @param page - The page showing the row.
+ * @param title - The title of the linked task.
+ * @returns Whether the link sits below the title, its height with margins, and its text start from the title start.
+ */
+async function contactPlacement(page: Page, title: string) {
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	const contact = row.getByRole('link', { name: /^Maria Perez / })
+	await expect(contact).toBeVisible()
+	const lines = await row
+		.getByRole('link', { name: title, exact: true })
+		.evaluate((link) => [...link.getClientRects()].map((line) => ({ left: line.left, bottom: line.bottom })))
+	const box = await contact.evaluate((link) => {
+		const rect = link.getBoundingClientRect()
+		const style = getComputedStyle(link)
+		return {
+			middle: rect.top + rect.height / 2,
+			outer: rect.height + Number.parseFloat(style.marginTop) + Number.parseFloat(style.marginBottom),
+			text: rect.left + Number.parseFloat(style.paddingInlineStart),
+		}
+	})
+	return {
+		ownLine: box.middle > (lines.at(-1)?.bottom ?? 0),
+		outer: box.outer,
+		inset: box.text - (lines[0]?.left ?? 0),
+	}
+}
+
+/**
+ * Checks that the linked row keeps its title level with the unlinked row and grows by the contact line alone.
  * @param page - The page showing both rows.
  * @param pair - The titles of the linked and the unlinked task.
  * @param lines - How many lines each title wraps to.
+ * @returns Where the contact link sits.
  */
 async function expectLevelRows(page: Page, pair: LinkedPair, lines: number) {
-	await expect(
-		page.getByRole('listitem', { name: pair.linked, exact: true }).getByRole('link', { name: /^Open / }),
-	).toBeVisible()
+	const placement = await contactPlacement(page, pair.linked)
 	const linked = await rowGeometry(page, pair.linked)
 	const unlinked = await rowGeometry(page, pair.unlinked)
+	const ownLine = placement.ownLine ? placement.outer : 0
 
 	expect(linked.lines, 'the linked title wraps as asked').toBe(lines)
 	expect(unlinked.lines, 'the unlinked title wraps as asked').toBe(lines)
-	expect(linked.height, 'the person icon grows the row').toBeCloseTo(unlinked.height, 0)
-	expect(linked.titleTop, 'the person icon moves the title').toBeCloseTo(unlinked.titleTop, 0)
+	expect(linked.height, 'the contact name grows the row past its own line').toBeCloseTo(unlinked.height + ownLine, 0)
+	expect(linked.titleTop, 'the contact name moves the title').toBeCloseTo(unlinked.titleTop, 0)
+	return placement
 }
 
 test('adds, completes, and reopens a task', async ({ page }) => {
@@ -203,7 +250,7 @@ test('lists a high task above the normal work of its day', async ({ page, reques
 	expect(titles.indexOf(raised)).toBeLessThan(titles.indexOf(normal))
 })
 
-test('opens the contact of a task from the person icon on its row', async ({ page, request }) => {
+test('opens the contact of a task from its name on the row', async ({ page, request }) => {
 	const stamp = Date.now()
 	const contact = `Maria Perez ${stamp}`
 	const title = `Call ${contact} back`
@@ -221,13 +268,13 @@ test('opens the contact of a task from the person icon on its row', async ({ pag
 
 	await page.goto('/tasks')
 	const row = page.getByRole('listitem', { name: title, exact: true })
-	await row.getByRole('link', { name: `Open ${contact}`, exact: true }).click()
+	await row.getByRole('link', { name: contact, exact: true }).click()
 
 	await expect(page).toHaveURL(new RegExp(`/contacts/${created.createContact.id}$`))
 	await expect(page.getByRole('heading', { level: 1, name: contact, exact: true })).toBeVisible()
 })
 
-test('keeps a row with the person icon as tall as a row without, titles level, on a desktop', async ({
+test('keeps a row with the contact name as tall as a row without, titles level, on a desktop', async ({
 	page,
 	request,
 }) => {
@@ -236,10 +283,28 @@ test('keeps a row with the person icon as tall as a row without, titles level, o
 	await page.setViewportSize({ width: 1280, height: 800 })
 	await page.goto(`/tasks?date=${levelDay}`)
 
-	await expectLevelRows(page, titles, 1)
+	expect((await expectLevelRows(page, titles, 1)).ownLine, 'the contact name leaves the title line').toBe(false)
 })
 
-test('keeps a wrapped row with the person icon as tall as a wrapped row without, titles level, on a phone', async ({
+test('draws the contact name in the weak text colour, darker while pointed at, on a desktop', async ({
+	page,
+	request,
+}) => {
+	const titles = await seedLinkedPair(request, 'Check the stock count')
+
+	await page.setViewportSize({ width: 1280, height: 800 })
+	await page.goto(`/tasks?date=${levelDay}`)
+
+	const link = page
+		.getByRole('listitem', { name: titles.linked, exact: true })
+		.getByRole('link', { name: /^Maria Perez / })
+	await expect(link).toBeVisible()
+	await expect(link).toHaveCSS('color', await tokenColor(page, '--wpds-color-foreground-content-neutral-weak'))
+	await link.hover()
+	await expect(link).toHaveCSS('color', await tokenColor(page, '--wpds-color-foreground-interactive-neutral-active'))
+})
+
+test('puts the contact name on its own line under a wrapped title, flush with it, titles level, on a phone', async ({
 	page,
 	request,
 }) => {
@@ -248,7 +313,70 @@ test('keeps a wrapped row with the person icon as tall as a wrapped row without,
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/tasks?date=${levelDay}`)
 
-	await expectLevelRows(page, titles, 2)
+	const placement = await expectLevelRows(page, titles, 2)
+	expect(placement.ownLine, 'the contact name shares a title line').toBe(true)
+	expect(placement.inset, 'the contact name is indented from the title').toBeCloseTo(0, 0)
+})
+
+test('strikes through a done title but not its contact name, on a phone', async ({ page, request }) => {
+	const stamp = Date.now()
+	const title = `Approve the pricing ${stamp}`
+	const created = await graph<{ createContact: { id: string } }>(
+		request,
+		'mutation($name: String!) { createContact(name: $name) { id } }',
+		{ name: `Maria Perez ${stamp}` },
+	)
+	const task = await createTask(request, { title, dueOn: levelDay, contactId: created.createContact.id })
+	await graph(
+		request,
+		'mutation($id: UUID!, $input: UpdateTaskInput!) { updateTask(id: $id, input: $input) { id } }',
+		{ id: task.id, input: { status: 'done' } },
+	)
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto(`/tasks?date=${levelDay}`)
+	await page.getByRole('button', { name: doneGroup }).click()
+
+	const row = page.getByRole('list', { name: 'Done tasks' }).getByRole('listitem', { name: title, exact: true })
+	await expect(row.getByRole('link', { name: title, exact: true })).toHaveCSS('text-decoration-line', 'line-through')
+	await expect(row.locator('.alphone-tasks__title')).toHaveCSS('text-decoration-line', 'none')
+})
+
+test('cuts a long contact name short on one line inside the title, on a phone', async ({ page, request }) => {
+	const stamp = Date.now()
+	const contact = `Maria Perez from the northern warehouse returns team ${stamp}`
+	const title = `Book the returns pickup ${stamp}`
+	const created = await graph<{ createContact: { id: string } }>(
+		request,
+		'mutation($name: String!) { createContact(name: $name) { id } }',
+		{ name: contact },
+	)
+	await createTask(request, { title, dueOn: levelDay, contactId: created.createContact.id })
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto(`/tasks?date=${levelDay}`)
+
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	const link = row.getByRole('link', { name: contact, exact: true })
+	await expect(link).toBeVisible()
+	const fit = await link.evaluate((node) => {
+		const name = node.querySelector('.alphone-tasks__contact-name')
+		const icon = node.querySelector('svg')
+		const cell = node.closest('.alphone-tasks__title')
+		return {
+			height: node.getBoundingClientRect().height,
+			minHeight: Number.parseFloat(getComputedStyle(node).minHeight),
+			cut: name !== null && name.scrollWidth > name.clientWidth,
+			overflow: node.getBoundingClientRect().right - (cell?.getBoundingClientRect().right ?? 0),
+			icon: icon?.getBoundingClientRect().width ?? 0,
+			iconSize: Number(icon?.getAttribute('width')),
+		}
+	})
+
+	expect(fit.cut, 'the long name is cut short').toBe(true)
+	expect(fit.height, 'the long name wraps').toBeCloseTo(fit.minHeight, 0)
+	expect(fit.overflow, 'the long name runs past the title').toBeLessThanOrEqual(0)
+	expect(fit.icon, 'the long name squeezes the person icon').toBeCloseTo(fit.iconSize, 0)
 })
 
 test('opens a task from the day list', async ({ page }) => {
