@@ -340,7 +340,7 @@ test('marks a raised priority on the row', async () => {
 	expect(within(row).getByText('High')).toBeInTheDocument()
 })
 
-test('opens the linked contact from the person icon after the task title', async () => {
+test('opens the linked contact from its name after the task title', async () => {
 	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
 	server.use(
 		graphql.query('ContactDetail', () =>
@@ -360,61 +360,69 @@ test('opens the linked contact from the person icon after the task title', async
 	renderAt('/tasks')
 	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
 
-	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	const open = within(row).getByRole('link', { name: 'Maria Perez' })
 	expect(open).toHaveAttribute('href', `/contacts/${contactID}`)
 	await userEvent.click(open)
 
 	expect(await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })).toBeInTheDocument()
 })
 
-test('shows the person icon only on a task linked to a contact', async () => {
+test('shows the contact name only on a task linked to a contact', async () => {
 	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }, taskRow(quoteID, 'Send the quote')]
 
 	renderAt('/tasks')
 
 	const linked = await screen.findByRole('listitem', { name: 'Call the supplier' })
-	expect(within(linked).getByRole('link', { name: 'Open Maria Perez' })).toBeInTheDocument()
+	expect(within(linked).getByRole('link', { name: 'Maria Perez' })).toBeInTheDocument()
 	const unlinked = screen.getByRole('listitem', { name: 'Send the quote' })
 	expect(within(unlinked).getAllByRole('link')).toHaveLength(1)
 	expect(within(unlinked).getByRole('link', { name: 'Send the quote' })).toBeInTheDocument()
 })
 
-test('sets the person icon right after the task title, as a small button', async () => {
+test('sets the contact name right after the task title, as a small quiet button with the person icon', async () => {
 	const small = buttonClasses('solid', 'small').filter((token) => !buttonClasses('solid').includes(token))
+	const quiet = buttonClasses('minimal', 'small').filter((token) => !buttonClasses('solid', 'small').includes(token))
 	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
 
 	renderAt('/tasks')
 
 	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
 	const title = within(row).getByRole('link', { name: 'Call the supplier' })
-	const open = within(row).getByRole('link', { name: 'Open Maria Perez' })
+	const open = within(row).getByRole('link', { name: 'Maria Perez' })
 	const cell = row.querySelector('.alphone-tasks__title')
 	expect(cell).toContainElement(title)
 	expect(cell).toContainElement(open)
+	expect(title).toHaveClass('alphone-tasks__title-link')
+	expect(title).not.toContainElement(open)
 	expect(title.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 	expect(small.length).toBeGreaterThan(0)
-	expect([...open.classList]).toEqual(expect.arrayContaining(small))
+	expect(quiet.length).toBeGreaterThan(0)
+	expect([...open.classList]).toEqual(expect.arrayContaining([...small, ...quiet]))
 	expect(open).toHaveClass('alphone-tasks__open-contact')
-	expect(open.querySelector('svg')).not.toBeNull()
+	expect(open.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+	expect(open.querySelector('svg')).toHaveClass('alphone-tasks__contact-icon')
+	expect(open.querySelector('svg')?.compareDocumentPosition(within(open).getByText('Maria Perez'))).toBe(
+		Node.DOCUMENT_POSITION_FOLLOWING,
+	)
 })
 
-test('names the contact in the person icon tooltip', async () => {
+test('writes the contact name in a part that keeps a long name on one line', async () => {
 	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
+
 	renderAt('/tasks')
+
 	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
-
-	await userEvent.hover(within(row).getByRole('link', { name: 'Open Maria Perez' }))
-
-	expect(await screen.findByText('Open Maria Perez')).toBeInTheDocument()
+	const open = within(row).getByRole('link', { name: 'Maria Perez' })
+	expect(within(open).getByText('Maria Perez')).toHaveClass('alphone-tasks__contact-name')
 })
 
-test('shows the person icon on overdue work linked to a contact', async () => {
+test('shows the contact name on overdue work linked to a contact', async () => {
 	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday, contact: linkedContact }]
 
 	renderAt('/tasks')
 
 	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
-	expect(within(row).getByRole('link', { name: 'Open Maria Perez' })).toHaveAttribute(
+	expect(within(row).getByRole('link', { name: 'Maria Perez' })).toHaveAttribute(
 		'href',
 		`/contacts/${contactID}`,
 	)
