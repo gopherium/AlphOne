@@ -3,15 +3,14 @@
 import {
 	Badge,
 	Button,
+	ButtonLink,
 	Checkbox,
-	IconButton,
 	Link,
 	Stack,
 	Text,
 	__,
 	_x,
 	commentAuthorAvatar,
-	sprintf,
 } from '@alphone/frontend-sdk'
 import { Link as RouterLink } from '@tanstack/react-router'
 
@@ -103,6 +102,7 @@ function TaskRow({
 			>
 				<Link
 					variant="unstyled"
+					className="alphone-tasks__title-link"
 					render={<RouterLink to="/tasks/$taskId" params={{ taskId: task.id }} />}
 				>
 					{task.title}
@@ -131,21 +131,20 @@ function TaskRow({
 }
 
 /**
- * Renders the person icon that opens the contact a task is linked to.
- * @returns The contact icon link.
+ * Renders the person icon and name that open the contact a task is linked to.
+ * @returns The contact link.
  */
 function OpenContact({ contact }: { contact: { id: string; name: string } }) {
 	return (
-		<IconButton
-			icon={commentAuthorAvatar}
-			label={sprintf(__('Open %(name)s', 'alphone'), { name: contact.name })}
+		<ButtonLink
 			variant="minimal"
 			tone="neutral"
 			size="small"
 			className="alphone-tasks__open-contact"
-			nativeButton={false}
-			role="link"
 			render={<RouterLink to="/contacts/$contactId" params={{ contactId: contact.id }} />}
-		/>
+		>
+			<ButtonLink.Icon icon={commentAuthorAvatar} className="alphone-tasks__contact-icon" />
+			<span className="alphone-tasks__contact-name">{contact.name}</span>
+		</ButtonLink>
 	)
 }

@@ -401,14 +401,39 @@
 }
 
 .alphone-tasks__title--done {
-	text-decoration: line-through;
 	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.alphone-tasks__title--done .alphone-tasks__title-link {
+	text-decoration: line-through;
 }
 
 .alphone-tasks__open-contact {
 	vertical-align: top;
-	margin-inline-start: var(--wpds-dimension-gap-xs);
+	max-width: calc(100% - var(--wpds-dimension-gap-sm));
+	margin-inline-start: var(--wpds-dimension-gap-sm);
 	margin-block: calc((var(--wpds-typography-line-height-sm) - var(--wpds-dimension-size-sm)) / 2);
+	font-size: var(--wpds-typography-font-size-sm);
+	font-weight: var(--wpds-typography-font-weight-default);
+}
+
+.alphone-tasks__title .alphone-tasks__open-contact {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+.alphone-tasks__title .alphone-tasks__open-contact:is(:hover, :active, :focus) {
+	color: var(--wpds-color-foreground-interactive-neutral-active);
+}
+
+.alphone-tasks__contact-icon {
+	flex: none;
+}
+
+.alphone-tasks__contact-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .alphone-tasks__due {
@@ -499,6 +524,14 @@
 
 	.alphone-tasks__push {
 		margin-left: auto;
+	}
+
+	.alphone-tasks__open-contact {
+		display: flex;
+		width: fit-content;
+		max-width: calc(100% + var(--wpds-dimension-padding-sm) + var(--wpds-border-width-xs));
+		margin-inline-start: calc(-1 * (var(--wpds-dimension-padding-sm) + var(--wpds-border-width-xs)));
+		margin-block: var(--wpds-dimension-gap-xs) 0;
 	}
 
 	.alphone-tasks__add .godmin-form__grow {

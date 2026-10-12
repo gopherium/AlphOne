@@ -147,12 +147,12 @@ test('lists the open tasks of a contact with their due dates', async () => {
 	expect(contactFilters).toContain(contactID)
 })
 
-test('leaves the person icon off the tasks on their own contact page', async () => {
+test('leaves the contact name off the tasks on their own contact page', async () => {
 	renderAt(`/contacts/${contactID}`)
 
 	const list = await screen.findByRole('list', { name: 'Contact tasks' })
 	expect(within(list).getByRole('link', { name: 'Call her back' })).toBeInTheDocument()
-	expect(within(list).queryByRole('link', { name: 'Open Maria Perez' })).not.toBeInTheDocument()
+	expect(within(list).queryByRole('link', { name: 'Maria Perez' })).not.toBeInTheDocument()
 	expect(within(list).getAllByRole('link')).toHaveLength(2)
 })
 
