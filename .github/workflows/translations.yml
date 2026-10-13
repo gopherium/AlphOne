@@ -48,4 +48,5 @@ jobs:
             Every catalogue here was compiled from its source, so the byte
             comparison gate proves the shipped files match.
           commit-message: "chore(i18n): carry the translations that arrived"
+          sign-commits: true
           delete-branch: true
