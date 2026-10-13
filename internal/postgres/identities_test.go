@@ -35,6 +35,33 @@ func TestContactStoreLookupIdentityRoundTrip(t *testing.T) {
 	}
 }
 
+func TestResolverOverTheStoreKeepsOneContactForAnAddressInAnotherCase(t *testing.T) {
+	t.Parallel()
+
+	store := postgres.NewContactStore(newTestPool(t))
+	resolver := contact.NewResolver(store)
+	first, err := resolver.Resolve(t.Context(), "email", "Maria.Perez@Example.com", "María Pérez")
+	if err != nil {
+		t.Fatalf("first Resolve() error = %v, want nil", err)
+	}
+
+	again, err := resolver.Resolve(t.Context(), "email", "MARIA.PEREZ@example.com", "María Pérez")
+
+	if err != nil {
+		t.Fatalf("second Resolve() error = %v, want nil", err)
+	}
+	if again.ID != first.ID {
+		t.Errorf("second Resolve().ID = %s, want the first contact %s", again.ID, first.ID)
+	}
+	stored, err := store.LookupIdentity(t.Context(), "email", "maria.perez@example.com")
+	if err != nil {
+		t.Fatalf("LookupIdentity() error = %v, want nil", err)
+	}
+	if stored.ContactID != first.ID {
+		t.Errorf("stored identity.ContactID = %s, want %s", stored.ContactID, first.ID)
+	}
+}
+
 func TestContactStoreLookupIdentityMissing(t *testing.T) {
 	t.Parallel()
 
