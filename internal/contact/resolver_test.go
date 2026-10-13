@@ -243,6 +243,49 @@ func TestResolveReturnsRaceWinner(t *testing.T) {
 	}
 }
 
+func TestResolveReturnsTheRaceWinnerOfAnIdentityWrittenInAnotherForm(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		channel contact.Channel
+		stored  string
+		given   string
+	}{
+		"email in another case": {
+			channel: "email", stored: "maria.perez@example.com", given: "Maria.Perez@Example.COM",
+		},
+		"phone with spaces and dashes": {
+			channel: "phone", stored: "+184467235", given: "+1 844-672-35",
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			var winner contact.Contact
+			store.beforeCreate = func() {
+				store.beforeCreate = nil
+				winner = seedContact(t, store, "María Pérez", tc.channel, tc.stored)
+			}
+			resolver := contact.NewResolver(store)
+
+			got, err := resolver.Resolve(t.Context(), tc.channel, tc.given, "Loser Draft")
+
+			if err != nil {
+				t.Fatalf("Resolve(%q) error = %v, want nil", tc.given, err)
+			}
+			if got.ID != winner.ID {
+				t.Errorf("Resolve(%q).ID = %s, want race winner %s", tc.given, got.ID, winner.ID)
+			}
+			if len(store.contacts) != 1 {
+				t.Errorf("store holds %d contacts, want only the winner", len(store.contacts))
+			}
+		})
+	}
+}
+
 func TestResolveFindsAnIdentityWrittenInAnotherForm(t *testing.T) {
 	t.Parallel()
 
