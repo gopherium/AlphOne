@@ -1,6 +1,7 @@
 # AlphOne
 
 [![codecov](https://codecov.io/github/gopherium/AlphOne/graph/badge.svg?token=FGCAJXGLE7)](https://codecov.io/github/gopherium/AlphOne)
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20chat-5865F2?logo=discord&logoColor=white)](https://discord.com/invite/gopherium)
 
 A plugin-first CRM. Go backend exposing a JSON API, React SPA frontend.
 
