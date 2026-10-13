@@ -61,23 +61,19 @@ func (r *Resolver) publish(ctx context.Context, frame event.Frame, data map[stri
 // identifier, creating both when unknown. A new contact is named after
 // displayName, or after identifier when displayName is blank.
 func (r *Resolver) Resolve(ctx context.Context, channel Channel, identifier, displayName string) (Contact, error) {
-	normalizedChannel := normalizeChannel(channel)
-	if normalizedChannel == "" {
-		return Contact{}, ErrEmptyChannel
-	}
-	trimmedIdentifier := strings.TrimSpace(identifier)
-	if trimmedIdentifier == "" {
-		return Contact{}, ErrEmptyIdentifier
+	normalizedChannel, normalizedIdentifier, err := identityKey(channel, identifier)
+	if err != nil {
+		return Contact{}, err
 	}
 
-	owner, err := r.owner(ctx, normalizedChannel, trimmedIdentifier)
+	owner, err := r.owner(ctx, normalizedChannel, normalizedIdentifier)
 	if err == nil {
 		return owner, nil
 	}
 	if !errors.Is(err, ErrIdentityNotFound) {
 		return Contact{}, err
 	}
-	return r.createOwner(ctx, normalizedChannel, trimmedIdentifier, displayName)
+	return r.createOwner(ctx, normalizedChannel, strings.TrimSpace(identifier), displayName)
 }
 
 // createOwner stores a new contact owning the identity for channel and identifier.
@@ -92,7 +88,7 @@ func (r *Resolver) createOwner(ctx context.Context, channel Channel, identifier,
 	}
 	err = r.store.CreateContactWithIdentity(ctx, created, identity)
 	if errors.Is(err, ErrIdentityExists) {
-		return r.owner(ctx, channel, identifier)
+		return r.owner(ctx, identity.Channel, identity.Identifier)
 	}
 	if err != nil {
 		return Contact{}, err
