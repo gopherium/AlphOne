@@ -236,7 +236,7 @@ test('draws a disabled account with the outline badge, white inside a grey borde
 	expect([...badge.classList]).toEqual(badgeClasses('none'))
 })
 
-test('reads each status in Spanish so it agrees with the user, and offers to reactivate a disabled one', async () => {
+test('reads each status in Spanish so it agrees with the user, and offers to activate a disabled one', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
 	await startAppLocale()
 	onTestFinished(() => resetLocale())
@@ -247,7 +247,7 @@ test('reads each status in Spanish so it agrees with the user, and offers to rea
 	expect((await rowOf('Ana Lopez')).getByText('Desactivado')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('Invitado')).toBeInTheDocument()
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' }))
-	expect(await screen.findByRole('menuitem', { name: 'Reactivar' })).toBeInTheDocument()
+	expect(await screen.findByRole('menuitem', { name: 'Activar' })).toBeInTheDocument()
 })
 
 test('reads the role every account holds by its label', async () => {
