@@ -4,6 +4,8 @@ package graphres
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/99designs/gqlgen/complexity"
@@ -82,11 +84,71 @@ func ExecutableSchemaOver(root graph.ResolverRoot, schema *ast.Schema) graphql.E
 	cfg.Complexity.Contact.Tasks = func(child int, _ *string, first *int, _ *string) int {
 		return pageCost(first, unsized) * child
 	}
-	cfg.Complexity.Query.WhatsAppConversations = func(child int, limit *int) int {
-		return pageCost(limit, DefaultPageSize) * child
+	inner := graph.NewExecutableSchema(cfg)
+	return pricedSchema{ExecutableSchema: inner, sizes: listSizesOf(inner.Schema()), unsized: unsized}
+}
+
+// listSizeDirective names the directive a list field prices itself with.
+const listSizeDirective = "listSize"
+
+// pricedSchema prices every list field the schema marks with @listSize by the rows it asks for.
+type pricedSchema struct {
+	graphql.ExecutableSchema
+	sizes   map[string][]string
+	unsized int
+}
+
+// Complexity prices a marked list as its page times its row, and any other field as the generated schema does.
+func (s pricedSchema) Complexity(
+	ctx context.Context, typeName, field string, child int, args map[string]any,
+) (int, bool) {
+	slicing, marked := s.sizes[typeName+"."+field]
+	if !marked {
+		return s.ExecutableSchema.Complexity(ctx, typeName, field, child, args)
 	}
-	cfg.Complexity.WhatsAppConversation.Messages = func(child int, limit *int) int {
-		return pageCost(limit, DefaultPageSize) * child
+	return saturatedProduct(pageOf(slicing, args, s.unsized), child), true
+}
+
+// listSizesOf maps every field the schema marks with @listSize to the arguments that size its page.
+func listSizesOf(schema *ast.Schema) map[string][]string {
+	sizes := map[string][]string{}
+	for _, def := range schema.Types {
+		for _, field := range def.Fields {
+			if sized := field.Directives.ForName(listSizeDirective); sized != nil {
+				sizes[def.Name+"."+field.Name] = slicingArguments(sized)
+			}
+		}
 	}
-	return graph.NewExecutableSchema(cfg)
+	return sizes
+}
+
+// slicingArguments returns the argument names a @listSize directive sizes its page by.
+func slicingArguments(sized *ast.Directive) []string {
+	listed, _ := sized.ArgumentMap(nil)["slicingArguments"].([]any)
+	names := make([]string, len(listed))
+	for i, name := range listed {
+		names[i] = fmt.Sprint(name)
+	}
+	return names
+}
+
+// pageOf returns the largest page the slicing arguments ask for, the unsized page when they ask for none.
+func pageOf(slicing []string, args map[string]any, unsized int) int {
+	page := 0
+	for _, name := range slicing {
+		asked, _ := graphql.UnmarshalInt(args[name])
+		page = max(page, asked)
+	}
+	if page < 1 {
+		return unsized
+	}
+	return page
+}
+
+// saturatedProduct multiplies a page by its row cost, answering the largest price instead of overflowing.
+func saturatedProduct(page, row int) int {
+	if row > 0 && page > math.MaxInt/row {
+		return math.MaxInt
+	}
+	return page * row
 }

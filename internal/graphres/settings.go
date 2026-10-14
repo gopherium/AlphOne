@@ -14,8 +14,8 @@ import (
 
 // Page bounds and screen settings served when the environment names none.
 const (
-	DefaultPageSize      = 50
-	DefaultPageCap       = 200
+	DefaultPageSize      = sdk.DefaultPageSize
+	DefaultPageCap       = sdk.DefaultPageCap
 	DefaultToastDuration = 6 * time.Second
 	DefaultListPageSize  = 20
 	DefaultFormatLocale  = "es-ES"

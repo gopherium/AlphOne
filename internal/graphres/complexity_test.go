@@ -117,6 +117,22 @@ func unsizedAndSized() map[string][2]string {
 			`{ contact(id: "00000000-0000-0000-0000-000000000001") { tasks { edges { node { id } } } } }`,
 			`{ contact(id: "00000000-0000-0000-0000-000000000001") { tasks(first: 200) { edges { node { id } } } } }`,
 		},
+		"whatsapp conversations": {
+			`{ whatsAppConversations { id } }`,
+			`{ whatsAppConversations(limit: 200) { id } }`,
+		},
+		"whatsapp messages": {
+			`{ whatsAppConversation(id: "00000000-0000-0000-0000-000000000001") { messages { id } } }`,
+			`{ whatsAppConversation(id: "00000000-0000-0000-0000-000000000001") { messages(limit: 200) { id } } }`,
+		},
+		"import rows": {
+			`{ importJob(id: "00000000-0000-0000-0000-000000000001") { rows { id } } }`,
+			`{ importJob(id: "00000000-0000-0000-0000-000000000001") { rows(limit: 200) { id } } }`,
+		},
+		"import contacts": {
+			`{ importJob(id: "00000000-0000-0000-0000-000000000001") { contacts { rowId } } }`,
+			`{ importJob(id: "00000000-0000-0000-0000-000000000001") { contacts(limit: 200) { rowId } } }`,
+		},
 	}
 }
 
