@@ -243,6 +243,131 @@ func TestResolveReturnsRaceWinner(t *testing.T) {
 	}
 }
 
+func TestResolveReturnsTheRaceWinnerOfAnIdentityWrittenInAnotherForm(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		channel contact.Channel
+		stored  string
+		given   string
+	}{
+		"email in another case": {
+			channel: "email", stored: "maria.perez@example.com", given: "Maria.Perez@Example.COM",
+		},
+		"phone with spaces and dashes": {
+			channel: "phone", stored: "+184467235", given: "+1 844-672-35",
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			var winner contact.Contact
+			store.beforeCreate = func() {
+				store.beforeCreate = nil
+				winner = seedContact(t, store, "María Pérez", tc.channel, tc.stored)
+			}
+			resolver := contact.NewResolver(store)
+
+			got, err := resolver.Resolve(t.Context(), tc.channel, tc.given, "Loser Draft")
+
+			if err != nil {
+				t.Fatalf("Resolve(%q) error = %v, want nil", tc.given, err)
+			}
+			if got.ID != winner.ID {
+				t.Errorf("Resolve(%q).ID = %s, want race winner %s", tc.given, got.ID, winner.ID)
+			}
+			if len(store.contacts) != 1 {
+				t.Errorf("store holds %d contacts, want only the winner", len(store.contacts))
+			}
+		})
+	}
+}
+
+func TestResolveFindsAnIdentityWrittenInAnotherForm(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		channel contact.Channel
+		stored  string
+		given   string
+	}{
+		"email in another case": {
+			channel: "email", stored: "maria.perez@example.com", given: "Maria.Perez@Example.COM",
+		},
+		"email typed by hand in caps": {
+			channel: "email", stored: "maria.perez@example.com", given: " MARIA.PEREZ@EXAMPLE.COM ",
+		},
+		"phone with spaces and dashes": {
+			channel: "phone", stored: "+184467235", given: "+1 844-672-35",
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			store := newFakeStore()
+			maria := seedContact(t, store, "María Pérez", tc.channel, tc.stored)
+			resolver := contact.NewResolver(store)
+
+			got, err := resolver.Resolve(t.Context(), tc.channel, tc.given, "ignored")
+
+			if err != nil {
+				t.Fatalf("Resolve(%q) error = %v, want nil", tc.given, err)
+			}
+			if got.ID != maria.ID {
+				t.Errorf("Resolve(%q).ID = %s, want existing contact %s", tc.given, got.ID, maria.ID)
+			}
+			if len(store.contacts) != 1 {
+				t.Errorf("store holds %d contacts, want 1", len(store.contacts))
+			}
+		})
+	}
+}
+
+func TestResolveKeepsOneContactForAnAddressRepeatedInAnotherCase(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	resolver := contact.NewResolver(store)
+	first, err := resolver.Resolve(t.Context(), "email", "Maria.Perez@Example.com", "María Pérez")
+	if err != nil {
+		t.Fatalf("first Resolve() error = %v, want nil", err)
+	}
+
+	again, err := resolver.Resolve(t.Context(), "email", "Maria.Perez@Example.com", "María Pérez")
+
+	if err != nil {
+		t.Fatalf("second Resolve() error = %v, want nil", err)
+	}
+	if again.ID != first.ID || len(store.contacts) != 1 {
+		t.Errorf("second Resolve() ID = %s with %d contacts, want %s with 1", again.ID, len(store.contacts), first.ID)
+	}
+}
+
+func TestResolveKeepsAnIdentifierOfAnotherChannelVerbatim(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	maria := seedContact(t, store, "María Pérez", "whatsapp", "184467235@lid")
+	resolver := contact.NewResolver(store)
+
+	got, err := resolver.Resolve(t.Context(), "whatsapp", "184467235@LID", "Another Sender")
+
+	if err != nil {
+		t.Fatalf("Resolve() error = %v, want nil", err)
+	}
+	if got.ID == maria.ID || len(store.contacts) != 2 {
+		t.Errorf(
+			"Resolve() ID = %s with %d contacts, want a second contact apart from %s",
+			got.ID, len(store.contacts), maria.ID,
+		)
+	}
+}
+
 func TestResolveReportsStoreFailures(t *testing.T) {
 	t.Parallel()
 
