@@ -35,7 +35,7 @@ type Grants = Record<string, 'read' | 'write' | undefined>
  */
 function scopesOf(areas: readonly TokenArea[], grants: Grants): string[] {
 	return areas
-		.filter((area) => grants[area.value] !== undefined)
+		.filter((area) => grants[area.value] === 'read' || grants[area.value] === 'write')
 		.map((area) => `${area.value}:${grants[area.value]}`)
 }
 
