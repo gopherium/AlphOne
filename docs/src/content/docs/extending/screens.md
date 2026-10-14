@@ -349,6 +349,29 @@ Give every list that must show changes made somewhere else
 cached page at once, asks the server anyway, and swaps in the fresh
 page when it arrives.
 
+### Types without an id
+
+The cache files every answer by its type and its `id`. A type of yours
+that has no `id`, such as `InvoicePage`, needs a key on `graphKeys`, or
+the browser console warns `Invalid key` each time one arrives. Answer
+`null` to keep the value inside the answer that holds it, or a field
+that tells two of them apart:
+
+```ts
+graphKeys: {
+	InvoicePage: () => null,
+	InvoiceStatus: (data) => String(data.code),
+},
+```
+
+The core keys its own types, such as `AdminSettings`. A plugin that keys
+a type the core or another plugin already keys stops the app from
+starting, with an error naming both.
+
+`renderPluginAt` hands your plugin's keys to the fake graph client. A
+test that builds a client itself passes the plugin too, with
+`fakeGraphClient([plugin])`.
+
 ### Bulk actions
 
 An action with `supportsBulk: true` runs on every row the reader
@@ -451,6 +474,28 @@ channels: [
 	},
 ],
 ```
+
+### Token areas
+
+An API token is granted areas, such as `tasks:read`. Your plugin offers
+its own area on the New token screen with `tokenAreas`. The value is the
+`area` your schema's `@scope` names, and the label is how it reads in a
+sentence, so write it as a getter too:
+
+```ts
+tokenAreas: [
+	{
+		value: 'invoices',
+		get label() {
+			return _x('invoices', 'token area', 'alphone-invoices')
+		},
+	},
+],
+```
+
+The screen lists the core areas and every plugin's in order of their
+values. An area the core or another plugin already offers stops the
+screen with an error naming both.
 
 ### Testing a list screen
 

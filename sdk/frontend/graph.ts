@@ -12,6 +12,7 @@ import { pipe, tap } from 'wonka'
 
 import { ValidationError } from './errors'
 import { formatNumber } from './format'
+import type { FrontendPlugin } from './index'
 
 /** The graph endpoint every operation is posted to. */
 const graphEndpoint = '/api/graphql'
@@ -253,26 +254,55 @@ export function graphRetryExchange(): Exchange {
 	})
 }
 
+/** GraphKeys names how the cache tells apart each GraphQL type without an id, by type name. */
+export type GraphKeys = Record<string, (data: Record<string, unknown>) => string | null>
+
+/** GraphKeyedPlugin is a plugin as the cache reads it, by its id and the types it keys. */
+type GraphKeyedPlugin = Pick<FrontendPlugin, 'id' | 'graphKeys'>
+
 /**
- * Returns the normalized cache exchange configured for the AlphOne schema.
+ * Returns the keys of the core types the graph returns without an id.
+ * @returns A fresh map of the core keys.
+ */
+function coreGraphKeys(): GraphKeys {
+	return {
+		AdminSettings: () => null,
+		ContactPage: () => null,
+		CreateTaskPayload: () => null,
+		CreateWebhookPayload: () => null,
+		LoginPayload: () => null,
+	}
+}
+
+/**
+ * Returns the core keys beside every key the plugins declare, refusing a type keyed twice.
+ * @param plugins - The plugins whose keys join the core ones.
+ * @returns A fresh map of every key.
+ */
+export function graphKeysOf(plugins: readonly GraphKeyedPlugin[]): GraphKeys {
+	const keys = coreGraphKeys()
+	const owners = new Map(Object.keys(keys).map((typename) => [typename, 'the core']))
+	for (const plugin of plugins) {
+		for (const [typename, key] of Object.entries(plugin.graphKeys ?? {})) {
+			const owner = owners.get(typename)
+			if (owner !== undefined) {
+				throw new Error(`graph: ${plugin.id} keys ${typename}, which ${owner} already keys`)
+			}
+			owners.set(typename, plugin.id)
+			keys[typename] = key
+		}
+	}
+	return keys
+}
+
+/**
+ * Returns the normalized cache exchange configured for the AlphOne schema and the plugins' types.
+ * @param plugins - The plugins whose types the cache keys beside the core ones.
  * @returns The cache exchange.
  */
-export function graphCacheExchange(): Exchange {
+export function graphCacheExchange(plugins: readonly GraphKeyedPlugin[] = []): Exchange {
 	return cacheExchange({
-		keys: {
-			AdminSettings: () => null,
-			ContactPage: () => null,
-			CreateTaskPayload: () => null,
-			CreateWebhookPayload: () => null,
-			ImportCommitPayload: () => null,
-			LoginPayload: () => null,
-			ImportAssignment: () => null,
-			ImportRowReason: () => null,
-			WhatsAppMedia: () => null,
-			FieldSubField: () => null,
-			ImportContact: (data) => data.rowId as string,
-			ImportField: (data) => data.name as string,
-		},
+		keys: graphKeysOf(plugins),
 		resolvers: {
 			Query: {
 				contacts: relayPagination(),
@@ -383,10 +413,13 @@ async function graphFetch(input: RequestInfo | URL, init?: RequestInit): Promise
 
 /**
  * Returns the configured graph client every screen and plugin shares.
- * @param options - The session expiry callback bridging to the auth layer.
+ * @param options - The session expiry callback bridging to the auth layer, beside the plugins whose types it keys.
  * @returns The client beside its doorbell trigger.
  */
-export function createGraphClient(options: { onSessionExpired: () => void }): GraphClient {
+export function createGraphClient(options: {
+	onSessionExpired: () => void
+	plugins?: readonly GraphKeyedPlugin[]
+}): GraphClient {
 	const doorbell = doorbellExchange()
 	const stream = eventStreamExchange()
 	const client = new Client({
@@ -396,7 +429,7 @@ export function createGraphClient(options: { onSessionExpired: () => void }): Gr
 		preferGetMethod: false,
 		exchanges: [
 			doorbell.exchange,
-			graphCacheExchange(),
+			graphCacheExchange(options.plugins),
 			sessionExchange(options.onSessionExpired),
 			stream.exchange,
 			graphRetryExchange(),

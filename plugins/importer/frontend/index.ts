@@ -23,6 +23,19 @@ export const plugin: FrontendPlugin = {
 		to: '/import',
 		icon: importerIcon,
 	}],
+	tokenAreas: [{
+		value: 'imports',
+		get label() {
+			return _x('imports', 'token area', 'alphone-importer')
+		},
+	}],
+	graphKeys: {
+		ImportAssignment: () => null,
+		ImportCommitPayload: () => null,
+		ImportContact: (data) => String(data.rowId),
+		ImportField: (data) => String(data.name),
+		ImportRowReason: () => null,
+	},
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 	errorTemplates,
 }

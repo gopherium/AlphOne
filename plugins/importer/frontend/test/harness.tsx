@@ -36,7 +36,7 @@ export async function inSpanish() {
 export function hosting() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
 	seedSession(client, adminSession)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 	/**
 	 * Wraps a tree in the query and graph providers.
 	 * @returns The wrapped tree.

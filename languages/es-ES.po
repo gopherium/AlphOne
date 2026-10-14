@@ -920,16 +920,6 @@ msgstr "eventos"
 
 #, fuzzy
 msgctxt "token area"
-msgid "fields"
-msgstr "campos"
-
-#, fuzzy
-msgctxt "token area"
-msgid "imports"
-msgstr "importaciones"
-
-#, fuzzy
-msgctxt "token area"
 msgid "meta"
 msgstr "metadatos"
 

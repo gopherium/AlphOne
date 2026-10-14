@@ -171,6 +171,19 @@ test('grants writing without ticking reading, because writing implies it', async
 	expect(seen.asked?.scopes).toEqual(['tasks:write'])
 })
 
+test('asks for a plugin area and a core one in order of their names, whatever order they were ticked in', async () => {
+	const seen = servingMint()
+	renderAt('/users/tokens/new')
+
+	await userEvent.type(await screen.findByLabelText('Name'), 'automation')
+	await userEvent.click(screen.getByRole('checkbox', { name: 'Write WhatsApp' }))
+	await userEvent.click(screen.getByRole('checkbox', { name: 'Read contacts' }))
+	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
+
+	await screen.findByText(secret)
+	expect(seen.asked?.scopes).toEqual(['contacts:read', 'whatsapp:write'])
+})
+
 test('mints a token that never expires when asked', async () => {
 	const seen = servingMint()
 	renderAt('/users/tokens/new')

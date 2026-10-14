@@ -29,6 +29,8 @@ export const plugin: FrontendPlugin = {
 			return _x('WhatsApp', 'contact channel', 'alphone-whatsapp')
 		},
 	}],
+	tokenAreas: [{ value: 'whatsapp', label: 'WhatsApp' }],
+	graphKeys: { WhatsAppMedia: () => null },
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 	errorTemplates,
 }

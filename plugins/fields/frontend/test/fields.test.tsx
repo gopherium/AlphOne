@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
+import { plugin } from '../index'
 import { capture, hold, refusal, renderHosted, speakTemplates } from './harness'
 
 /** scrolled records every scroll into view an element asks for. */
@@ -46,7 +47,7 @@ const birthDate = {
  * @param graph - The graph client the screen reads through.
  * @returns The render result.
  */
-function renderScreen(graph = fakeGraphClient().graph) {
+function renderScreen(graph = fakeGraphClient([plugin]).graph) {
 	return renderHosted(<FieldsScreen />, graph)
 }
 
@@ -275,7 +276,7 @@ test('a second visit reads the catalogue from the server again', async () => {
 			return HttpResponse.json({ data: { fields: [], every: [], reservedFieldNames: RESERVED } })
 		}),
 	)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	const first = renderScreen(graph)
 	await screen.findByText(/No fields yet/i)
@@ -400,7 +401,7 @@ test('a refusal that is not a race sends the same name again', async () => {
 test('a define lost on the way keeps the form and its draft', async () => {
 	serveFieldCatalogue([])
 	server.use(graphql.mutation('DefineField', () => HttpResponse.error()))
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await defineLabelled('Anniversary')
@@ -1071,7 +1072,7 @@ test('a move shows the new order at once and sends only the live fields in it', 
 
 test('a move while an order is unanswered waits for its answer, sends the latest order, then reads once', async () => {
 	const store = serveFieldStore([birthDate, shoeSize, nickname])
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1094,7 +1095,7 @@ test('a move while an order is unanswered waits for its answer, sends the latest
 
 test('a move pressed as an order answer lands sends the order it shows', async () => {
 	const store = serveFieldStore([birthDate, shoeSize, nickname])
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 	const refetch = vi.mocked(graph.refetch)
 	const read = refetch.getMockImplementation() as typeof graph.refetch
 	refetch.mockImplementationOnce((operations) => {
@@ -1123,7 +1124,7 @@ test('a refused order drops the moves made while it was unanswered and shows the
 		),
 	)
 	const refused = hold('OrderFields', refusal('CONFLICT', 'field_order_incomplete'))
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1157,7 +1158,7 @@ test('an order lost after an earlier one was saved keeps the order the earlier o
 			return HttpResponse.json(accepted)
 		}),
 	)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1215,7 +1216,7 @@ test('a saved order reads the catalogue again and shows what the server answers'
 			return HttpResponse.json(accepted)
 		}),
 	)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1269,7 +1270,7 @@ test('a refused order says it was not saved and shows the server order at once',
 test('a refused order reads the catalogue again', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	server.use(graphql.mutation('OrderFields', () => HttpResponse.json(refusal('CONFLICT', 'field_order_incomplete'))))
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1281,7 +1282,7 @@ test('a refused order reads the catalogue again', async () => {
 test('an order lost on the way puts the rows back without reading the catalogue again', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	server.use(graphql.mutation('OrderFields', () => HttpResponse.error()))
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
@@ -1345,7 +1346,7 @@ test('a second press on Archive before the archive is answered sends nothing mor
 			return HttpResponse.json({ data: { archiveField: true } })
 		}),
 	)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
@@ -1386,7 +1387,7 @@ test('the archive question stays open and locked until the read drops the row', 
 			return HttpResponse.json({ data: { archiveField: true } })
 		}),
 	)
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await archiveField('Shoe size')
@@ -1438,7 +1439,7 @@ test.each([
 
 test('a row a read drops hands focus to the same arrow in the next row', async () => {
 	const store = serveFieldStore([birthDate, shoeSize, nickname])
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	const down = await screen.findByRole('button', { name: 'Move Shoe size down' })
@@ -1477,7 +1478,7 @@ test('a field brought back after the reader archived it shows again', async () =
 
 test('a field that leaves and comes back after Keep leaves focus where the reader is', async () => {
 	const store = serveFieldStore([birthDate, shoeSize])
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
