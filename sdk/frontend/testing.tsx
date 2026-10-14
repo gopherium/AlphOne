@@ -73,9 +73,10 @@ export interface FakeGraph {
 
 /**
  * Returns a graph client whose subscription frames and connections a test drives.
+ * @param plugins - The plugins whose types the client's cache keys beside the core ones.
  * @returns The fake client beside the controls driving it.
  */
-export function fakeGraphClient(): FakeGraph {
+export function fakeGraphClient(plugins: readonly Pick<FrontendPlugin, 'id' | 'graphKeys'>[] = []): FakeGraph {
 	const sinks: { next: (value: { data: Record<string, unknown> }) => void }[] = []
 	const documents: string[] = []
 	const listeners = new Set<() => void>()
@@ -87,7 +88,7 @@ export function fakeGraphClient(): FakeGraph {
 		preferGetMethod: false,
 		exchanges: [
 			doorbell.exchange,
-			graphCacheExchange(),
+			graphCacheExchange(plugins),
 			subscriptionExchange({
 				forwardSubscription: (request) => {
 					documents.push(String(request.query))
@@ -289,7 +290,7 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string, options: Pl
 		history: createMemoryHistory({ initialEntries: [path] }),
 	})
 	const client = hostQueryClient(options.session)
-	const fake = fakeGraphClient()
+	const fake = fakeGraphClient([plugin])
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>

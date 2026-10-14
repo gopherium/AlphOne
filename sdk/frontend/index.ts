@@ -4,6 +4,7 @@ import type { Catalog } from '@gopherium/gottext'
 import type { AnyRoute } from '@tanstack/react-router'
 import type { ComponentProps, ComponentType, ReactElement } from 'react'
 
+import type { GraphKeys } from './graph'
 import type { Capability } from './session'
 
 declare module '@tanstack/react-router' {
@@ -34,12 +35,19 @@ export interface ChannelName {
 	label: string
 }
 
+export interface TokenArea {
+	value: string
+	label: string
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: NavItem[]
 	contactPanels?: ContactPanel[]
 	channels?: ChannelName[]
+	tokenAreas?: TokenArea[]
+	graphKeys?: GraphKeys
 	locale?: PluginLocale
 	errorTemplates?: () => Record<string, string>
 }
@@ -126,7 +134,7 @@ export { MANAGE_USERS, can, useSession } from './session'
 export type { Capability, Role, Session } from './session'
 export { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText } from './graph'
 export type { ErrorCopy, StoredReason } from './graph'
-export type { GraphClient } from './graph'
+export type { GraphClient, GraphKeys } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'
 export type { ConnectionPage, ConnectionResult } from './useConnection'

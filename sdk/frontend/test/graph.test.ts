@@ -256,63 +256,6 @@ test('pages a connection into one cached list rather than replacing it', async (
 	expect(page.pageInfo.hasNextPage).toBe(false)
 })
 
-const importJobQuery = gql`
-	query ImportJob($id: UUID!) {
-		importJob(id: $id) {
-			id
-			mapping {
-				column
-				field
-			}
-			rows {
-				id
-				reason {
-					code
-					meta
-				}
-			}
-			contacts {
-				contactId
-				name
-				rowId
-			}
-		}
-		importFields {
-			name
-			label
-			required
-		}
-	}
-`
-
-const conversationsQuery = gql`
-	query WhatsAppConversations {
-		whatsAppConversations {
-			id
-			messages {
-				id
-				media {
-					status
-					downloadPath
-				}
-			}
-		}
-	}
-`
-
-const fieldsQuery = gql`
-	query Fields {
-		fields {
-			id
-			subFields {
-				name
-				label
-				kind
-			}
-		}
-	}
-`
-
 const createTaskMutation = gql`
 	mutation CreateTask($input: CreateTaskInput!) {
 		createTask(input: $input) {
@@ -321,15 +264,6 @@ const createTaskMutation = gql`
 				title
 			}
 			replay
-		}
-	}
-`
-
-const importCommitMutation = gql`
-	mutation ImportCommit($id: UUID!) {
-		importCommit(id: $id) {
-			id
-			imported
 		}
 	}
 `
@@ -366,84 +300,13 @@ const adminSettingsQuery = gql`
 	}
 `
 
-test('keys every embedded type the graph returns without warning', async () => {
+test('keys every embedded core type the graph returns without warning', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 	server.use(
 		graphql.query('AdminSettings', () =>
 			HttpResponse.json({
 				data: {
 					adminSettings: { __typename: 'AdminSettings', toastMilliseconds: 6000, listPageSizes: [10, 20] },
-				},
-			}),
-		),
-		graphql.query('ImportJob', () =>
-			HttpResponse.json({
-				data: {
-					importJob: {
-						__typename: 'ImportJob',
-						id: 'id-import',
-						mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
-						rows: [
-							{
-								__typename: 'ImportRow',
-								id: 'id-row',
-								reason: {
-									__typename: 'ImportRowReason',
-									code: 'identity_taken_by',
-									meta: { ownerName: 'Maria Perez' },
-								},
-							},
-						],
-						contacts: [
-							{
-								__typename: 'ImportContact',
-								contactId: 'id-maria',
-								name: 'Maria Perez',
-								rowId: 'id-row',
-							},
-						],
-					},
-					importFields: [
-						{ __typename: 'ImportField', name: 'name', label: 'Name', required: true },
-					],
-				},
-			}),
-		),
-		graphql.query('WhatsAppConversations', () =>
-			HttpResponse.json({
-				data: {
-					whatsAppConversations: [
-						{
-							__typename: 'WhatsAppConversation',
-							id: 'id-conversation',
-							messages: [
-								{
-									__typename: 'WhatsAppMessage',
-									id: 'id-message',
-									media: {
-										__typename: 'WhatsAppMedia',
-										status: 'stored',
-										downloadPath: '/api/plugins/whatsapp/media',
-									},
-								},
-							],
-						},
-					],
-				},
-			}),
-		),
-		graphql.query('Fields', () =>
-			HttpResponse.json({
-				data: {
-					fields: [
-						{
-							__typename: 'FieldDefinition',
-							id: 'id-history',
-							subFields: [
-								{ __typename: 'FieldSubField', name: 'date', label: 'Date', kind: 'DATE' },
-							],
-						},
-					],
 				},
 			}),
 		),
@@ -455,13 +318,6 @@ test('keys every embedded type the graph returns without warning', async () => {
 						task: { __typename: 'Task', id: 'id-task', title: 'Call Maria Perez' },
 						replay: false,
 					},
-				},
-			}),
-		),
-		graphql.mutation('ImportCommit', () =>
-			HttpResponse.json({
-				data: {
-					importCommit: { __typename: 'ImportCommitPayload', id: 'id-import', imported: 2 },
 				},
 			}),
 		),
@@ -490,11 +346,7 @@ test('keys every embedded type the graph returns without warning', async () => {
 	const { graph } = newClient()
 
 	const results = [
-		await graph.client.query(importJobQuery, { id: 'id-import' }).toPromise(),
-		await graph.client.query(conversationsQuery, {}).toPromise(),
-		await graph.client.query(fieldsQuery, {}).toPromise(),
 		await graph.client.mutation(createTaskMutation, { input: { title: 'x', dueOn: '2026-08-07' } }).toPromise(),
-		await graph.client.mutation(importCommitMutation, { id: 'id-import' }).toPromise(),
 		await graph.client
 			.mutation(loginMutation, { email: 'maria@example.com', password: 'password1234' })
 			.toPromise(),
