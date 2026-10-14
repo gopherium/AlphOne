@@ -15,6 +15,17 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// probeEvent names the plugin event the publisher tests announce.
+const probeEvent = "probe.message.received"
+
+// declareProbeEvent declares probeEvent for a probe plugin.
+func declareProbeEvent(t *testing.T) {
+	t.Helper()
+	if err := event.Declare("probe", probeEvent); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
+	}
+}
+
 type emptyQueue struct{}
 
 // ListSubscriptionsForEvent returns no subscriptions.
@@ -89,13 +100,13 @@ func TestAPluginEventStaysInsideTheCallersTenant(t *testing.T) {
 		hub:        hub,
 	}}
 
-	publisher.Publish(sdk.WithTenant(t.Context(), acme),
-		string(event.WhatsAppMessageReceived), map[string]any{"id": "abc"})
+	declareProbeEvent(t)
+	publisher.Publish(sdk.WithTenant(t.Context(), acme), probeEvent, map[string]any{"id": "abc"})
 
 	select {
 	case got := <-near:
-		if got != event.WhatsAppMessageReceived {
-			t.Errorf("hub delivered %q, want %q", got, event.WhatsAppMessageReceived)
+		if got != event.Name(probeEvent) {
+			t.Errorf("hub delivered %q, want %q", got, probeEvent)
 		}
 	default:
 		t.Error("hub delivered nothing to the caller's tenant, want the published name")
@@ -117,11 +128,12 @@ func TestAHeadlessPluginPublishLandsInTheDefaultTenant(t *testing.T) {
 		hub:        hub,
 	}}
 
-	publisher.Publish(t.Context(), "whatsapp.message.received", map[string]any{"id": "abc"})
+	declareProbeEvent(t)
+	publisher.Publish(t.Context(), probeEvent, map[string]any{"id": "abc"})
 
 	select {
 	case got := <-elsewhere:
-		if got != event.Name("whatsapp.message.received") {
+		if got != event.Name(probeEvent) {
 			t.Errorf("hub delivered %q, want the plugin event", got)
 		}
 	default:

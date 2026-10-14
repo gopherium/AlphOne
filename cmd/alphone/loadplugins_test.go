@@ -177,8 +177,8 @@ func TestLoadPluginsKeepsInfoLinesOffStderrAndShowsErrors(t *testing.T) {
 	if strings.Contains(stderr.String(), "no mail relay configured") {
 		t.Errorf("stderr = %q, want the info lines of compose kept off a command's stderr", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "refusing to publish") {
-		t.Errorf("stderr = %q, want the refused publish shown as an error", stderr.String())
+	if !strings.Contains(stderr.String(), `level=ERROR msg="a plugin published an event it never declared"`) {
+		t.Errorf("stderr = %q, want the dropped publish shown as an error", stderr.String())
 	}
 }
 

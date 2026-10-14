@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -29,12 +30,29 @@ func (n nudgingPublisher) Publish(ctx context.Context, frame event.Frame, data m
 // pluginPublisher maps a plugin's untyped event name onto the core publisher.
 type pluginPublisher struct {
 	publisher nudgingPublisher
+	logger    *slog.Logger
 }
 
-// Publish announces a plugin's event under its core name in the caller's tenant.
+// Publish announces a declared plugin event under its core name in the caller's tenant, dropping an undeclared one.
 func (p pluginPublisher) Publish(ctx context.Context, name string, data map[string]any) {
+	if !event.Name(name).Valid() {
+		p.logger.ErrorContext(ctx, "a plugin published an event it never declared", "event", name)
+		return
+	}
 	p.publisher.Publish(ctx, event.Frame{
 		Name:   event.Name(name),
 		Tenant: sdk.TenantOrDefault(ctx),
 	}, data)
+}
+
+// declareEvents records the event names every registered plugin publishes, refusing a clash.
+func declareEvents(registered []sdk.Plugin) error {
+	for _, plugin := range registered {
+		if provider, ok := plugin.(sdk.EventProvider); ok {
+			if err := event.Declare(plugin.ID(), provider.Events()...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
