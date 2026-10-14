@@ -32,6 +32,7 @@ export const plugin: FrontendPlugin = {
 	graphKeys: {
 		ImportAssignment: () => null,
 		ImportCommitPayload: () => null,
+		ImportContact: (data) => String(data.rowId),
 		ImportField: (data) => String(data.name),
 		ImportRowReason: () => null,
 	},

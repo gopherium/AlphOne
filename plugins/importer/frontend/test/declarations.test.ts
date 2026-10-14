@@ -17,10 +17,11 @@ test('names its area in Spanish in its own catalogue', async () => {
 	expect((catalog?.['token area\u0004imports'] as string[] | undefined)?.[0]).toBe('importaciones')
 })
 
-test('keys the import types that carry no id, a field by its name', () => {
+test('keys the import types that carry no id, a field by its name and a created contact by its row', () => {
 	expect(Object.keys(plugin.graphKeys ?? {}).sort()).toEqual([
 		'ImportAssignment',
 		'ImportCommitPayload',
+		'ImportContact',
 		'ImportField',
 		'ImportRowReason',
 	])
@@ -28,6 +29,7 @@ test('keys the import types that carry no id, a field by its name', () => {
 	expect(plugin.graphKeys?.ImportCommitPayload({})).toBeNull()
 	expect(plugin.graphKeys?.ImportRowReason({})).toBeNull()
 	expect(plugin.graphKeys?.ImportField({ name: 'email' })).toBe('email')
+	expect(plugin.graphKeys?.ImportContact({ rowId: 'id-row' })).toBe('id-row')
 })
 
 test('a client keying the plugin caches an import, its rows and its commit without warning', async () => {
