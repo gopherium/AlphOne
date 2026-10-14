@@ -39,7 +39,7 @@ browser's Back button brings you back to the same place.
 ## Renaming
 
 Open the actions menu at the end of a contact's row and choose
-**Rename**. Type the new name and press **Rename**. You can also open the
+**Rename…**. Type the new name and press **Rename**. You can also open the
 contact and edit the name field there. The new name applies everywhere
 immediately, including past conversations in the WhatsApp inbox, because
 conversations reference the contact rather than copying its name.
@@ -49,7 +49,8 @@ number, then rename the contact to the person's real name.
 
 ## Adding a task
 
-The same actions menu offers **Add task**. It opens the New task form with
+**Add task** shows at the end of a contact's row when you point at it, and
+the same actions menu offers it too. It opens the New task form with
 the contact already linked, so the task shows on the contact's page once
 you create it.
 
