@@ -10,9 +10,9 @@
   "devDependencies": {
     "@graphql-inspector/cli": "^7.0.0",
     "@playwright/test": "1.63.0",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "@types/smtp-server": "^3.5.13",
     "graphql": "^17.0.2",
-    "smtp-server": "^3.19.18"
+    "smtp-server": "^3.19.21"
   }
 }

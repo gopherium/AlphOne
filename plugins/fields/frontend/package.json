@@ -8,19 +8,19 @@
 	},
 	"dependencies": {
 		"@alphone/frontend-sdk": "workspace:*",
-		"@tanstack/react-router": "^1.170.41",
+		"@tanstack/react-router": "^1.170.42",
 		"graphql": "^17.0.2",
 		"react": "^19.3.0"
 	},
 	"devDependencies": {
 		"@graphql-typed-document-node/core": "^3.2.0",
-		"@tanstack/react-query": "^5.104.1",
+		"@tanstack/react-query": "^5.104.2",
 		"@testing-library/react": "^16.3.3",
 		"@testing-library/user-event": "^14.6.7",
-		"@types/node": "^26.6.4",
+		"@types/node": "^26.6.5",
 		"@types/react": "^19.3.0",
 		"jsdom": "^30.1.2",
 		"msw": "^2.15.0",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.4"
 	}
 }
