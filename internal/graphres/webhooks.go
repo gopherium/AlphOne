@@ -60,6 +60,16 @@ func (q QueryResolvers) Webhooks(ctx context.Context) ([]*model.Webhook, error) 
 	return listing, nil
 }
 
+// WebhookEvents lists every event name a webhook can carry, the core ones first.
+func (q QueryResolvers) WebhookEvents(_ context.Context) ([]string, error) {
+	names := event.Names()
+	listed := make([]string, len(names))
+	for i, name := range names {
+		listed[i] = string(name)
+	}
+	return listed, nil
+}
+
 // CreateWebhook subscribes an endpoint, answering the signing secret exactly once.
 func (m MutationResolvers) CreateWebhook(
 	ctx context.Context, url string, events []string,
