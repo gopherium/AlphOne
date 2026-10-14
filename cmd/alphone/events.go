@@ -33,9 +33,9 @@ type pluginPublisher struct {
 	logger    *slog.Logger
 }
 
-// Publish announces a declared plugin event under its core name in the caller's tenant, dropping an undeclared one.
+// Publish announces an event a plugin declared in the caller's tenant, dropping a core or undeclared name.
 func (p pluginPublisher) Publish(ctx context.Context, name string, data map[string]any) {
-	if !event.Name(name).Valid() {
+	if !event.Name(name).Declared() {
 		p.logger.ErrorContext(ctx, "a plugin published an event it never declared", "event", name)
 		return
 	}

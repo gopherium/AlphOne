@@ -42,56 +42,89 @@ func TestComposeDeclaresThePluginEvents(t *testing.T) {
 	}
 }
 
-func TestComposeRefusesAPluginEventCoreOwns(t *testing.T) {
+func TestComposeRefusesAPluginEventItCannotClaim(t *testing.T) {
 	t.Parallel()
 
-	rogue := eventDeclaringPlugin{inertPlugin{id: "rogue"}, []string{string(event.TaskCreated)}}
+	for claim, tc := range map[string]struct {
+		plugins []sdk.Plugin
+		named   string
+	}{
+		"a core event": {
+			plugins: []sdk.Plugin{eventDeclaringPlugin{inertPlugin{id: "rogue"}, []string{string(event.TaskCreated)}}},
+			named:   "rogue",
+		},
+		"an event another plugin claimed": {
+			plugins: []sdk.Plugin{
+				eventDeclaringPlugin{inertPlugin{id: "left"}, []string{"shared.event.fired"}},
+				eventDeclaringPlugin{inertPlugin{id: "right"}, []string{"shared.event.fired"}},
+			},
+			named: "right",
+		},
+	} {
+		t.Run(claim, func(t *testing.T) {
+			t.Parallel()
 
-	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), func(sdk.Deps) ([]sdk.Plugin, error) {
-		return []sdk.Plugin{rogue}, nil
-	})
-	abandonAtEnd(t, built)
+			built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), func(sdk.Deps) ([]sdk.Plugin, error) {
+				return tc.plugins, nil
+			})
+			abandonAtEnd(t, built)
 
-	if !errors.Is(err, event.ErrNameTaken) || !strings.Contains(err.Error(), "rogue") {
-		t.Errorf("compose() error = %v, want the core event refused naming the plugin", err)
+			if !errors.Is(err, event.ErrNameTaken) || !strings.Contains(err.Error(), tc.named) {
+				t.Errorf("compose() error = %v, want %s refused naming the plugin %s", err, claim, tc.named)
+			}
+		})
 	}
 }
 
-func TestComposeRefusesTwoPluginsClaimingOneEvent(t *testing.T) {
-	t.Parallel()
-
-	left := eventDeclaringPlugin{inertPlugin{id: "left"}, []string{"shared.event.fired"}}
-	right := eventDeclaringPlugin{inertPlugin{id: "right"}, []string{"shared.event.fired"}}
-
-	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), func(sdk.Deps) ([]sdk.Plugin, error) {
-		return []sdk.Plugin{left, right}, nil
-	})
-	abandonAtEnd(t, built)
-
-	if !errors.Is(err, event.ErrNameTaken) || !strings.Contains(err.Error(), "right") {
-		t.Errorf("compose() error = %v, want the second claim refused naming its plugin", err)
-	}
-}
-
-func TestAPluginEventNobodyDeclaredIsDropped(t *testing.T) {
-	t.Parallel()
-
-	var logged strings.Builder
-	logger := slog.New(slog.NewTextHandler(&logged, nil))
+// listenedPublisher returns a plugin publisher over a hub with one default tenant listener, logging into the builder.
+func listenedPublisher(logged *strings.Builder) (pluginPublisher, chan event.Name) {
+	logger := slog.New(slog.NewTextHandler(logged, nil))
 	hub := event.NewHub()
 	listener := hub.Subscribe(uuid.Must(uuid.NewV7()), sdk.DefaultTenantID)
-	publisher := pluginPublisher{publisher: nudgingPublisher{
+	return pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
 		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
 		hub:        hub,
-	}, logger: logger}
+	}, logger: logger}, listener
+}
 
-	publisher.Publish(t.Context(), "never.declared.event", map[string]any{"id": "abc"})
+func TestAPluginPublishingANameNoPluginDeclaredIsDropped(t *testing.T) {
+	t.Parallel()
 
-	if len(listener) != 0 {
-		t.Errorf("the hub carried %d frames for an undeclared event, want none", len(listener))
+	for kind, name := range map[string]string{
+		"a name nobody declared": "never.declared.event",
+		"a core name":            string(event.TaskCreated),
+	} {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+
+			var logged strings.Builder
+			publisher, listener := listenedPublisher(&logged)
+
+			publisher.Publish(t.Context(), name, map[string]any{"id": "abc"})
+
+			if len(listener) != 0 {
+				t.Errorf("the hub carried %d frames for %s, want none", len(listener), kind)
+			}
+			if !strings.Contains(logged.String(), name) {
+				t.Errorf("logged %q, want %s named", logged.String(), name)
+			}
+		})
 	}
-	if !strings.Contains(logged.String(), "never.declared.event") {
-		t.Errorf("logged %q, want the undeclared event named", logged.String())
+}
+
+func TestADeclaredPluginEventReachesTheHub(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare("relay", "relay.message.passed"); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
+	}
+	var logged strings.Builder
+	publisher, listener := listenedPublisher(&logged)
+
+	publisher.Publish(t.Context(), "relay.message.passed", map[string]any{"id": "abc"})
+
+	if len(listener) != 1 {
+		t.Errorf("the hub carried %d frames for a declared plugin event, want one", len(listener))
 	}
 }
