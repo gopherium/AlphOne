@@ -70,6 +70,11 @@ type Publisher interface {
 	Publish(ctx context.Context, name string, data map[string]any)
 }
 
+// EventProvider is implemented by plugins declaring the event names they publish.
+type EventProvider interface {
+	Events() []string
+}
+
 // AreaProvider is implemented by plugins holding their protected routes to one scope area.
 type AreaProvider interface {
 	Area() string
