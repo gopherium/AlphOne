@@ -25,6 +25,13 @@ export const plugin: FrontendPlugin = {
 		icon: fieldsIcon,
 	}],
 	contactPanels: [{ id: 'fields', Panel: ContactFieldsPanel }],
+	tokenAreas: [{
+		value: 'fields',
+		get label() {
+			return _x('fields', 'token area', 'alphone-fields')
+		},
+	}],
+	graphKeys: { FieldSubField: () => null },
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 	errorTemplates,
 }

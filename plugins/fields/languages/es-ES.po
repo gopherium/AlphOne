@@ -343,3 +343,8 @@ msgstr "Texto"
 msgctxt "field kind"
 msgid "Yes or no"
 msgstr "Sí o no"
+
+#, fuzzy
+msgctxt "token area"
+msgid "fields"
+msgstr "campos"

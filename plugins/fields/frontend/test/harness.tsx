@@ -10,6 +10,7 @@ import { vi } from 'vitest'
 
 import { ContactFieldsPanel } from '../ContactFieldsPanel'
 import { errorTemplates } from '../errorTemplates'
+import { plugin } from '../index'
 
 /** contactID is the contact every panel test renders. */
 export const contactID = '0198c000-0000-7000-8000-000000000401'
@@ -90,7 +91,7 @@ export const followUpName = '18/09/2026, Follow-up call.'
  * @param graph - The graph client the tree reads through.
  * @returns The render result, the graph client and a rerender that keeps the providers.
  */
-export function renderHosted(tree: ReactNode, graph: GraphClient = fakeGraphClient().graph) {
+export function renderHosted(tree: ReactNode, graph: GraphClient = fakeGraphClient([plugin]).graph) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 	const hosted = (inner: ReactNode) => (
 		<QueryClientProvider client={client}>

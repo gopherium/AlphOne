@@ -260,3 +260,7 @@ msgstr ""
 msgctxt "field kind"
 msgid "Yes or no"
 msgstr ""
+
+msgctxt "token area"
+msgid "fields"
+msgstr ""
