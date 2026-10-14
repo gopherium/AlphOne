@@ -82,6 +82,24 @@ func TestDeclareMakesAPluginEventValid(t *testing.T) {
 	}
 }
 
+func TestDeclaredHoldsOnlyForANamePluginsDeclared(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare("echo", "echo.thing.happened"); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
+	}
+
+	if !event.Name("echo.thing.happened").Declared() {
+		t.Error("a name a plugin declared reported undeclared")
+	}
+	if event.TaskCreated.Declared() {
+		t.Error("a core name reported declared by a plugin")
+	}
+	if event.Name("echo.never.declared").Declared() {
+		t.Error("a name nobody declared reported declared")
+	}
+}
+
 func TestDeclareAcceptsTheSameOwnerAgain(t *testing.T) {
 	t.Parallel()
 

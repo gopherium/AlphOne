@@ -74,9 +74,11 @@ func Names() []Name {
 
 // Valid reports whether core or a declared plugin publishes the name.
 func (n Name) Valid() bool {
-	if slices.Contains(core, n) {
-		return true
-	}
+	return slices.Contains(core, n) || n.Declared()
+}
+
+// Declared reports whether a plugin declared the name, which a core name never is.
+func (n Name) Declared() bool {
 	catalog.RLock()
 	defer catalog.RUnlock()
 	_, declared := catalog.owners[n]
