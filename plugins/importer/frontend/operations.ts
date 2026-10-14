@@ -28,7 +28,20 @@ export const importDetailQuery = graphql(`
 				column
 				field
 			}
-			rows {
+		}
+		importFields {
+			name
+			label
+			required
+		}
+	}
+`)
+
+export const importRowsQuery = graphql(`
+	query ImportRows($id: UUID!, $limit: Int, $offset: Int!) {
+		importJob(id: $id) {
+			id
+			rows(limit: $limit, offset: $offset) {
 				id
 				position
 				cells
@@ -38,11 +51,6 @@ export const importDetailQuery = graphql(`
 					meta
 				}
 			}
-		}
-		importFields {
-			name
-			label
-			required
 		}
 	}
 `)

@@ -8,9 +8,7 @@ import { columnLabel } from './column'
 import { fieldLabeller } from './fieldLabels'
 import type { ImportField, StoredImport } from './ImportScreen'
 import { rowReasonText } from './rowReasons'
-
-/** ImportRow is one staged row as the detail document selects it. */
-type ImportRow = StoredImport['rows'][number]
+import type { ImportRow } from './useImportRows'
 
 /** PreviewRow is one staged row as the preview table shows it. */
 type PreviewRow = {

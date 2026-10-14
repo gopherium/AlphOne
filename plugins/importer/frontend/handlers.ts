@@ -16,6 +16,23 @@ export async function multipartBody(request: Request): Promise<string> {
 
 export const importID = '019f5a00-0000-7000-8000-000000000001'
 
+/** defaultRowsPage is the rows a fixture page answers when the request names no limit. */
+const defaultRowsPage = 50
+
+/**
+ * Returns one page of the staged rows the way the server pages them, its own page for a request naming no limit.
+ * @param rows - Every staged row of the import.
+ * @param variables - The limit and the offset the request asks for.
+ * @returns The rows document body for that page.
+ */
+export function rowsPage(
+	rows: readonly Record<string, unknown>[],
+	variables: { limit?: number | null; offset: number },
+) {
+	const end = variables.offset + (variables.limit ?? defaultRowsPage)
+	return { data: { importJob: { __typename: 'ImportJob', id: importID, rows: rows.slice(variables.offset, end) } } }
+}
+
 const importFields = [
 	{ __typename: 'ImportField', name: 'name', label: 'Name', required: true },
 	{ __typename: 'ImportField', name: 'email', label: 'Email', required: false },
@@ -71,10 +88,12 @@ export const handlers = [
 					state: 'ready',
 					columns: ['Name', 'Email'],
 					mapping: [],
-					rows: stagedRows,
 				},
 				importFields,
 			},
 		}),
+	),
+	graphql.query('ImportRows', ({ variables }) =>
+		HttpResponse.json(rowsPage(stagedRows, variables as { limit?: number | null; offset: number })),
 	),
 ]

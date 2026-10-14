@@ -30,19 +30,37 @@ export async function inSpanish() {
 }
 
 /**
+ * Returns the query and graph providers a signed-in admin's tree runs inside, beside the graph they read through.
+ * @returns The provider component and its graph.
+ */
+export function hosting() {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+	seedSession(client, adminSession)
+	const { graph } = fakeGraphClient()
+	/**
+	 * Wraps a tree in the query and graph providers.
+	 * @returns The wrapped tree.
+	 */
+	function Hosted({ children }: { children: ReactNode }) {
+		return (
+			<QueryClientProvider client={client}>
+				<GraphProvider graph={graph}>{children}</GraphProvider>
+			</QueryClientProvider>
+		)
+	}
+	return { Hosted, graph }
+}
+
+/**
  * Renders a tree for a signed-in admin inside the query, graph and toast providers.
  * @param tree - The tree to render.
  */
 export function renderHosted(tree: ReactNode) {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-	seedSession(client, adminSession)
-	const { graph } = fakeGraphClient()
+	const { Hosted } = hosting()
 	render(
-		<QueryClientProvider client={client}>
-			<GraphProvider graph={graph}>
-				<Toaster>{tree}</Toaster>
-			</GraphProvider>
-		</QueryClientProvider>,
+		<Hosted>
+			<Toaster>{tree}</Toaster>
+		</Hosted>,
 	)
 }
 
