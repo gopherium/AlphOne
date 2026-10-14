@@ -88,10 +88,13 @@ export {
 	pencil,
 	people,
 	trash,
+	upload,
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export {
+	ConfirmBody,
 	ErrorNotice,
+	FileButton,
 	InitialsAvatar,
 	keyFromLabel,
 	LoadingRows,
@@ -106,6 +109,7 @@ export {
 	PageTitle,
 	pageWindow,
 	paginationOf,
+	RenameBody,
 	RepeatRows,
 	RowControls,
 	runEach,

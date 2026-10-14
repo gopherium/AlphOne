@@ -166,17 +166,19 @@ export function badgeClasses(intent: ComponentProps<typeof Badge>['intent']): st
 }
 
 /**
- * Returns the classes a Button renders at the given variant and size.
+ * Returns the classes a Button renders at the given variant, size and tone.
  * @param variant - The button variant to sample.
  * @param size - The button size, the default one when absent.
+ * @param tone - The button tone, the brand one when absent.
  * @returns The class names, in order.
  */
 export function buttonClasses(
 	variant: ComponentProps<typeof Button>['variant'],
 	size?: ComponentProps<typeof Button>['size'],
+	tone?: ComponentProps<typeof Button>['tone'],
 ): string[] {
 	return classesOf(
-		<Button variant={variant} size={size}>
+		<Button variant={variant} size={size} tone={tone}>
 			probe
 		</Button>,
 	)
