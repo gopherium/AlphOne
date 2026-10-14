@@ -6,6 +6,8 @@ directive @goField(
 
 directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capability: String) on FIELD_DEFINITION
 
+directive @listSize(slicingArguments: [String!]!) on FIELD_DEFINITION
+
 scalar UUID
 scalar DateTime
 scalar Date

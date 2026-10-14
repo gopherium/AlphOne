@@ -160,7 +160,7 @@ type ComplexityRoot struct {
 
 	ImportJob struct {
 		Columns       func(childComplexity int) int
-		Contacts      func(childComplexity int) int
+		Contacts      func(childComplexity int, limit *int, offset *int) int
 		CreatedAt     func(childComplexity int) int
 		FailedCount   func(childComplexity int) int
 		Filename      func(childComplexity int) int
@@ -168,7 +168,7 @@ type ComplexityRoot struct {
 		ImportedCount func(childComplexity int) int
 		Mapping       func(childComplexity int) int
 		RowCount      func(childComplexity int) int
-		Rows          func(childComplexity int, limit *int) int
+		Rows          func(childComplexity int, limit *int, offset *int) int
 		SkippedCount  func(childComplexity int) int
 		State         func(childComplexity int) int
 		UserID        func(childComplexity int) int
@@ -367,8 +367,8 @@ type ContactResolver interface {
 	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
 type ImportJobResolver interface {
-	Rows(ctx context.Context, obj *model.ImportJob, limit *int) ([]*model.ImportRow, error)
-	Contacts(ctx context.Context, obj *model.ImportJob) ([]*model.ImportContact, error)
+	Rows(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportRow, error)
+	Contacts(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportContact, error)
 }
 type MutationResolver interface {
 	CreateContact(ctx context.Context, name string, identities []*model.ContactIdentityInput) (*model.Contact, error)
@@ -868,7 +868,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.ImportJob.Contacts(childComplexity), true
+		args, err := ec.field_ImportJob_contacts_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.ImportJob.Contacts(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 	case "ImportJob.createdAt":
 		if e.ComplexityRoot.ImportJob.CreatedAt == nil {
 			break
@@ -921,7 +926,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.ImportJob.Rows(childComplexity, args["limit"].(*int)), true
+		return e.ComplexityRoot.ImportJob.Rows(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 	case "ImportJob.skippedCount":
 		if e.ComplexityRoot.ImportJob.SkippedCount == nil {
 			break
@@ -2114,8 +2119,12 @@ type ImportJob {
   createdAt: DateTime!
   columns: [String!]!
   mapping: [ImportAssignment!]!
-  rows(limit: Int): [ImportRow!]! @goField(forceResolver: true)
-  contacts: [ImportContact!]! @goField(forceResolver: true)
+  rows(limit: Int, offset: Int): [ImportRow!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+  contacts(limit: Int, offset: Int): [ImportContact!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
 }
 
 type ImportRow {
@@ -2169,7 +2178,9 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../plugins/whatsapp/graph/schema.graphqls", Input: `extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+    @scope(area: "whatsapp", write: false)
+    @listSize(slicingArguments: ["limit"])
   whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 
@@ -2180,7 +2191,9 @@ type WhatsAppConversation {
   lastActivityAt: DateTime!
   lastMessagePreview: String
   contact: Contact! @goField(forceResolver: true)
-  messages(limit: Int): [WhatsAppMessage!]! @goField(forceResolver: true)
+  messages(limit: Int): [WhatsAppMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
 }
 
 type WhatsAppMessage {
@@ -2875,6 +2888,28 @@ func (ec *executionContext) field_Contact_tasks_args(ctx context.Context, rawArg
 	return args, nil
 }
 
+func (ec *executionContext) field_ImportJob_contacts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_ImportJob_rows_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2886,6 +2921,14 @@ func (ec *executionContext) field_ImportJob_rows_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -5687,7 +5730,7 @@ func (ec *executionContext) _ImportJob_rows(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.ImportJob().Rows(ctx, obj, fc.Args["limit"].(*int))
+			return ec.Resolvers.ImportJob().Rows(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ImportRow) graphql.Marshaler {
@@ -5730,7 +5773,8 @@ func (ec *executionContext) _ImportJob_contacts(ctx context.Context, field graph
 			return ec.fieldContext_ImportJob_contacts(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.ImportJob().Contacts(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.ImportJob().Contacts(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ImportContact) graphql.Marshaler {
@@ -5740,7 +5784,7 @@ func (ec *executionContext) _ImportJob_contacts(ctx context.Context, field graph
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_ImportJob_contacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ImportJob_contacts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ImportJob",
 		Field:      field,
@@ -5749,6 +5793,17 @@ func (ec *executionContext) fieldContext_ImportJob_contacts(_ context.Context, f
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ImportContact(ctx, field)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_ImportJob_contacts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
