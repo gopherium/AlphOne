@@ -63,13 +63,13 @@ test('the users list marks an invited account and resends its invitation', async
 	await expect(row.getByText('Invited', { exact: true })).toBeVisible()
 
 	await row.getByRole('button', { name: 'Actions' }).click()
-	await page.getByRole('menuitem', { name: 'Resend invitation' }).click()
+	await page.getByRole('menuitem', { name: 'Resend invitation…' }).click()
 	const modal = page.getByRole('dialog', { name: 'Resend invitation' })
 	await modal.getByRole('button', { name: 'Resend invitation' }).click()
 
-	await expect(page.locator('.godmin-toasts').getByText('Invitation sent.')).toBeVisible()
+	await expect(page.locator('.godmin-toasts').getByText('Invitation sent to "Maria Perez".')).toBeVisible()
 	await expect(modal).toBeHidden()
-	await expect(row.getByText('Invitation sent.')).toBeHidden()
+	await expect(row.getByText(/Invitation sent/)).toBeHidden()
 	const resent = await sink.waitFor('pending@example.com')
 	expect(resent).toContain('/activate?token=')
 })

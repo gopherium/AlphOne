@@ -32,7 +32,7 @@ test('disabling a user revokes their live session', async ({ page, browser }) =>
 
 	await row.getByRole('button', { name: 'Actions' }).click()
 	await page.getByRole('menuitem', { name: 'Disable' }).click()
-	await expect(page.locator('.godmin-toasts').getByText('User disabled.')).toBeVisible()
+	await expect(page.locator('.godmin-toasts').getByText(`"${name}" disabled.`)).toBeVisible()
 	await expect(row.getByText('Disabled')).toBeVisible()
 
 	await victimPage.reload()

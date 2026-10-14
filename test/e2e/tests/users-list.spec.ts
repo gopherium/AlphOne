@@ -108,16 +108,16 @@ test('changes the role of a user in a modal and confirms it with a toast', async
 	const row = rowOf(page, email)
 	await expect(row.getByRole('cell', { name: 'Member', exact: true })).toBeVisible()
 	await row.getByRole('button', { name: 'Actions' }).click()
-	await page.getByRole('menuitem', { name: 'Change role' }).click()
+	await page.getByRole('menuitem', { name: 'Change role…' }).click()
 	const modal = page.getByRole('dialog', { name: 'Change role' })
 	await expect(modal.getByText('Choose the role of Maria Perez.')).toBeVisible()
 	await modal.getByRole('combobox', { name: 'Role' }).click()
-	await page.getByRole('option', { name: 'Admin', exact: true }).click()
+	await page.getByRole('option', { name: 'Administrator', exact: true }).click()
 	await modal.getByRole('button', { name: 'Change role' }).click()
 
-	await expect(page.locator('.godmin-toasts').getByText('Role changed.')).toBeVisible()
+	await expect(page.locator('.godmin-toasts').getByText('Role changed for "Maria Perez".')).toBeVisible()
 	await expect(modal).toBeHidden()
-	await expect(row.getByRole('cell', { name: 'Admin', exact: true })).toBeVisible()
+	await expect(row.getByRole('cell', { name: 'Administrator', exact: true })).toBeVisible()
 })
 
 test('disables and enables several users at once, one toast each time', async ({ page, request }) => {
@@ -128,14 +128,15 @@ test('disables and enables several users at once, one toast each time', async ({
 	await expect(page.getByText('2 Items')).toBeVisible()
 	await page.getByRole('checkbox', { name: 'Ana Lopez' }).check()
 	await page.getByRole('checkbox', { name: 'Maria Perez' }).check()
-	await page.getByRole('button', { name: 'Disable', exact: true }).click()
+	const bulkBar = page.locator('.dataviews-bulk-actions-footer__action-buttons')
+	await bulkBar.getByRole('button', { name: 'Disable', exact: true }).click()
 
 	await expect(page.locator('.godmin-toasts').getByText('2 users disabled.')).toBeVisible()
 	await expect(rowOf(page, first).getByText('Disabled')).toBeVisible()
 	await expect(rowOf(page, second).getByText('Disabled')).toBeVisible()
 
 	await expect(page.getByText('2 Items selected')).toBeVisible()
-	await page.getByRole('button', { name: 'Enable', exact: true }).click()
+	await bulkBar.getByRole('button', { name: 'Enable', exact: true }).click()
 
 	await expect(page.locator('.godmin-toasts').getByText('2 users enabled.')).toBeVisible()
 	await expect(rowOf(page, first).getByText('Invited', { exact: true })).toBeVisible()
