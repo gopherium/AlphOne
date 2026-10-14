@@ -7,7 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"regexp"
 	"slices"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,22 +20,36 @@ import (
 // ErrUnknownName reports an event name AlphOne does not publish.
 var ErrUnknownName = errors.New("event: unknown name")
 
+// ErrMalformedName reports an event name that is not lowercase words joined by dots.
+var ErrMalformedName = errors.New("event: malformed name")
+
+// ErrNameTaken reports an event name core or another plugin already publishes.
+var ErrNameTaken = errors.New("event: name taken")
+
+// ErrEmptyOwner reports a declaration that names no owner.
+var ErrEmptyOwner = errors.New("event: empty owner")
+
 // Name identifies a published event and is part of the public API.
 type Name string
 
-// Published event names.
+// Event names core publishes.
 const (
-	TaskCreated             Name = "task.created"
-	TaskCompleted           Name = "task.completed"
-	ContactCreated          Name = "contact.created"
-	WhatsAppMessageReceived Name = "whatsapp.message.received"
-	ImportCompleted         Name = "import.completed"
+	TaskCreated    Name = "task.created"
+	TaskCompleted  Name = "task.completed"
+	ContactCreated Name = "contact.created"
 )
 
-// published lists the event names AlphOne publishes.
-var published = []Name{
-	TaskCreated, TaskCompleted, ContactCreated, WhatsAppMessageReceived, ImportCompleted,
-}
+// core lists the event names core publishes, in the order they are listed.
+var core = []Name{TaskCreated, TaskCompleted, ContactCreated}
+
+// wellFormed matches lowercase words joined by dots, at least two of them.
+var wellFormed = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
+
+// catalog holds every event name a plugin declared, with the plugin that declared it.
+var catalog = struct {
+	sync.RWMutex
+	owners map[Name]string
+}{owners: map[Name]string{}}
 
 // Event is one thing that happened, delivered to matching subscribers.
 type Event struct {
@@ -41,14 +59,71 @@ type Event struct {
 	Data       map[string]any
 }
 
-// Names returns every event name AlphOne publishes.
-func Names() []Name {
-	return slices.Clone(published)
+// CoreNames returns the event names core publishes.
+func CoreNames() []Name {
+	return slices.Clone(core)
 }
 
-// Valid reports whether AlphOne publishes the name.
+// Names returns every published event name, the core ones first and then the declared ones in order.
+func Names() []Name {
+	catalog.RLock()
+	declared := slices.Sorted(maps.Keys(catalog.owners))
+	catalog.RUnlock()
+	return append(slices.Clone(core), declared...)
+}
+
+// Valid reports whether core or a declared plugin publishes the name.
 func (n Name) Valid() bool {
-	return slices.Contains(published, n)
+	if slices.Contains(core, n) {
+		return true
+	}
+	catalog.RLock()
+	defer catalog.RUnlock()
+	_, declared := catalog.owners[n]
+	return declared
+}
+
+// Declare records that owner publishes the named events, refusing the whole declaration on one bad name.
+func Declare(owner string, names ...string) error {
+	owner = strings.TrimSpace(owner)
+	if owner == "" {
+		return ErrEmptyOwner
+	}
+	if err := wellFormedNames(owner, names); err != nil {
+		return err
+	}
+	catalog.Lock()
+	defer catalog.Unlock()
+	if err := claimable(owner, names); err != nil {
+		return err
+	}
+	for _, name := range names {
+		catalog.owners[Name(name)] = owner
+	}
+	return nil
+}
+
+// wellFormedNames refuses the first name owner declared that is not lowercase words joined by dots.
+func wellFormedNames(owner string, names []string) error {
+	for _, name := range names {
+		if !wellFormed.MatchString(name) {
+			return fmt.Errorf("%w: %q declared by %s", ErrMalformedName, name, owner)
+		}
+	}
+	return nil
+}
+
+// claimable refuses the first name owner declared that core or another plugin publishes, under the catalog lock.
+func claimable(owner string, names []string) error {
+	for _, name := range names {
+		if slices.Contains(core, Name(name)) {
+			return fmt.Errorf("%w: %q declared by %s is a core event", ErrNameTaken, name, owner)
+		}
+		if holder, held := catalog.owners[Name(name)]; held && holder != owner {
+			return fmt.Errorf("%w: %q declared by %s is held by %s", ErrNameTaken, name, owner, holder)
+		}
+	}
+	return nil
 }
 
 // New returns an event named name carrying data.

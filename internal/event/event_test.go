@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -42,25 +43,111 @@ func TestNewRejectsAnUnpublishedName(t *testing.T) {
 	}
 }
 
-func TestNamesListsEveryPublishedEvent(t *testing.T) {
+func TestNamesListsTheCoreEventsFirst(t *testing.T) {
 	t.Parallel()
 
 	names := event.Names()
 
-	want := []event.Name{
-		event.TaskCreated,
-		event.TaskCompleted,
-		event.ContactCreated,
-		event.WhatsAppMessageReceived,
-		event.ImportCompleted,
+	want := []event.Name{event.TaskCreated, event.TaskCompleted, event.ContactCreated}
+	if len(names) < len(want) || !slices.Equal(names[:len(want)], want) {
+		t.Errorf("Names() = %v, want the core events %v first, the core budget is deliberate", names, want)
 	}
-	for _, name := range want {
-		if !slices.Contains(names, name) {
-			t.Errorf("Names() is missing %q", name)
+}
+
+func TestCoreNamesNoPluginEvent(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []event.Name{"whatsapp.message.received", "import.completed"} {
+		if slices.Contains(event.CoreNames(), name) {
+			t.Errorf("CoreNames() holds the plugin event %q, want only events core publishes", name)
 		}
 	}
-	if len(names) != len(want) {
-		t.Errorf("Names() has %d entries, want %d, the event budget is deliberate", len(names), len(want))
+}
+
+func TestDeclareMakesAPluginEventValid(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare("alpha", "alpha.thing.happened"); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
+	}
+
+	if !event.Name("alpha.thing.happened").Valid() {
+		t.Error("a declared event reported invalid")
+	}
+	if !slices.Contains(event.Names(), event.Name("alpha.thing.happened")) {
+		t.Errorf("Names() = %v, want the declared event listed", event.Names())
+	}
+	if _, err := event.New("alpha.thing.happened", nil); err != nil {
+		t.Errorf("New() error = %v, want a declared event built", err)
+	}
+}
+
+func TestDeclareAcceptsTheSameOwnerAgain(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare("bravo", "bravo.thing.happened"); err != nil {
+		t.Fatalf("first Declare() error = %v, want nil", err)
+	}
+
+	if err := event.Declare("bravo", "bravo.thing.happened"); err != nil {
+		t.Errorf("second Declare() error = %v, want the same owner accepted again", err)
+	}
+}
+
+func TestDeclareRefusesANameAnotherOwnerHolds(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare("charlie", "shared.thing.happened"); err != nil {
+		t.Fatalf("first Declare() error = %v, want nil", err)
+	}
+
+	err := event.Declare("delta", "shared.thing.happened")
+
+	if !errors.Is(err, event.ErrNameTaken) {
+		t.Fatalf("Declare() error = %v, want %v", err, event.ErrNameTaken)
+	}
+	if !strings.Contains(err.Error(), "charlie") || !strings.Contains(err.Error(), "delta") {
+		t.Errorf("Declare() error = %q, want both owners named", err)
+	}
+}
+
+func TestDeclareRefusesACoreName(t *testing.T) {
+	t.Parallel()
+
+	err := event.Declare("echo", string(event.TaskCreated))
+
+	if !errors.Is(err, event.ErrNameTaken) {
+		t.Errorf("Declare() error = %v, want %v", err, event.ErrNameTaken)
+	}
+}
+
+func TestDeclareRefusesAMalformedNameAndKeepsTheOthers(t *testing.T) {
+	t.Parallel()
+
+	malformedNames := []string{
+		"", "foxtrot", "Foxtrot.Created", "foxtrot..created", " foxtrot.created", "foxtrot.created.", ".foxtrot",
+	}
+	for _, malformed := range malformedNames {
+		t.Run(malformed, func(t *testing.T) {
+			t.Parallel()
+
+			err := event.Declare("foxtrot", "foxtrot.kept.event", malformed)
+
+			if !errors.Is(err, event.ErrMalformedName) {
+				t.Errorf("Declare(%q) error = %v, want %v", malformed, err, event.ErrMalformedName)
+			}
+			if event.Name("foxtrot.kept.event").Valid() {
+				t.Error("a well formed name declared beside a malformed one became valid, want the whole declaration refused")
+			}
+		})
+	}
+}
+
+func TestDeclareRefusesAnEmptyOwner(t *testing.T) {
+	t.Parallel()
+
+	if err := event.Declare(" ", "golf.thing.happened"); !errors.Is(err, event.ErrEmptyOwner) {
+		t.Errorf("Declare() error = %v, want %v", err, event.ErrEmptyOwner)
 	}
 }
 
