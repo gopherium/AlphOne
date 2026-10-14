@@ -164,6 +164,22 @@ func TestComposeHandsThePluginsEveryDependency(t *testing.T) {
 	}
 }
 
+func TestComposeHandsThePluginsTheConfiguredPageBounds(t *testing.T) {
+	t.Parallel()
+
+	var handed sdk.Deps
+
+	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), capturingPlugins(&handed))
+
+	if err != nil {
+		t.Fatalf("compose() error = %v, want nil", err)
+	}
+	abandonAtEnd(t, built)
+	if want := (sdk.PageBounds{Size: 25, Cap: 400}); handed.Pages != want {
+		t.Errorf("Deps.Pages = %+v, want the configured %+v", handed.Pages, want)
+	}
+}
+
 func TestComposeWiresTheFieldProviders(t *testing.T) {
 	t.Parallel()
 

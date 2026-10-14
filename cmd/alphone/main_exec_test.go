@@ -560,6 +560,11 @@ type graphAnswer struct {
 		SetLocale     string   `json:"setLocale"`
 		Locale        string   `json:"locale"`
 		WebhookEvents []string `json:"webhookEvents"`
+		ImportJob     struct {
+			Rows []struct {
+				Position int `json:"position"`
+			} `json:"rows"`
+		} `json:"importJob"`
 		CreateWebhook struct {
 			Webhook struct {
 				Events []string `json:"events"`
@@ -811,6 +816,21 @@ func TestMainBinaryAnswersTheCallersRole(t *testing.T) {
 
 	if read.Data.Me.Role != role.Admin.String() {
 		t.Errorf("role = %q, want %q carried by the running binary", read.Data.Me.Role, role.Admin.String())
+	}
+}
+
+func TestMainBinaryHandsThePluginsTheConfiguredPageSize(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t), "ALPHONE_GRAPH_PAGE_SIZE=2")
+	uploaded := uploadCSV(t, addr, secret,
+		"Name\nRow One\nRow Two\nRow Three\n")
+
+	read := postGraph(t, addr, secret, `{"query":"{ importJob(id: \"`+uploaded.Data.ImportUpload.ID+
+		`\") { rows { position } } }"}`)
+
+	if got := len(read.Data.ImportJob.Rows); got != 2 {
+		t.Errorf("rows without a limit = %d, want the configured page of 2", got)
 	}
 }
 

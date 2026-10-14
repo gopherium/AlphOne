@@ -17,25 +17,6 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 )
 
-// listSettings bounds the pages the graph answers and the lists the admin screens draw.
-type listSettings struct {
-	paging  graphres.Paging
-	screens graphres.Screens
-}
-
-// loadListSettings reads the graph page bounds and the admin screen settings from the environment.
-func loadListSettings(env gonsole.Env) (listSettings, error) {
-	paging, err := loadPaging(env)
-	if err != nil {
-		return listSettings{}, err
-	}
-	screens, err := loadScreens(env, paging.Cap)
-	if err != nil {
-		return listSettings{}, err
-	}
-	return listSettings{paging: paging, screens: screens}, nil
-}
-
 // loadPaging reads the page the graph answers by default and the largest one it answers.
 func loadPaging(env gonsole.Env) (graphres.Paging, error) {
 	size, err := env.Count("GRAPH_PAGE_SIZE", graphres.DefaultPageSize)

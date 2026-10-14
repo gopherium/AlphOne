@@ -123,8 +123,8 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		ResetLimiter:  ratelimit.NewLimiter(resetBudget(settings)),
 		ResetCooldown: ratelimit.NewLimiter(resetCooldownBudget(settings)),
 		Logger:        logger,
-		Paging:        settings.lists.paging,
-		Screens:       settings.lists.screens,
+		Paging:        settings.paging,
+		Screens:       settings.screens,
 	}
 }
 
@@ -256,17 +256,18 @@ type runConfig struct {
 	graphiql       bool
 	inviteTTL      time.Duration
 	reset          resetSettings
-	lists          listSettings
+	screens        graphres.Screens
 	graph          graphSettings
 	serving        gonsole.Timeouts
 }
 
-// composeSettings carries the machine grace, the tenant bounds, the mail settings and the webhook allow list.
+// composeSettings carries the settings compose hands the plugins and the stores it builds.
 type composeSettings struct {
 	machineGrace time.Duration
 	tenants      tenantSettings
 	mail         mailSettings
 	webhookHosts webhook.AllowList
+	paging       graphres.Paging
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -430,7 +431,7 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 	}, nil
 }
 
-// loadComposeSettings reads the machine grace, the tenant bounds, the mail settings and the webhook allow list.
+// loadComposeSettings reads the settings compose hands the plugins and the stores it builds.
 func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	machineGrace, err := env.Duration("TENANT_MACHINE_GRACE", tenant.DefaultMachineGrace, gonsole.AllowZero())
 	if err != nil {
@@ -448,7 +449,13 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
-	return composeSettings{machineGrace: machineGrace, tenants: tenants, mail: mail, webhookHosts: webhookHosts}, nil
+	paging, err := loadPaging(env)
+	if err != nil {
+		return composeSettings{}, err
+	}
+	return composeSettings{
+		machineGrace: machineGrace, tenants: tenants, mail: mail, webhookHosts: webhookHosts, paging: paging,
+	}, nil
 }
 
 // loadRunConfig reads the server settings from the environment.
@@ -474,7 +481,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
-	lists, err := loadListSettings(env)
+	screens, err := loadScreens(env, shared.paging.Cap)
 	if err != nil {
 		return runConfig{}, err
 	}
@@ -495,7 +502,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		graphiql:        env.Value("DEV_GRAPHIQL") != "",
 		inviteTTL:       inviteTTL,
 		reset:           reset,
-		lists:           lists,
+		screens:         screens,
 		graph:           graph,
 		serving:         serving,
 	}, nil

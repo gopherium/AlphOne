@@ -86,10 +86,10 @@ func TestGraphResolverCarriesEveryListSetting(t *testing.T) {
 
 	resolver := graphResolver(settings, built, authkit.New(authConfig(built.users)), discardLogger())
 
-	if unnamed := unnamedFields(resolver.Paging, fallback.lists.paging); len(unnamed) > 0 {
+	if unnamed := unnamedFields(resolver.Paging, fallback.paging); len(unnamed) > 0 {
 		t.Errorf("Paging leaves %v zero or at the default, want the values the settings name", unnamed)
 	}
-	if unnamed := unnamedFields(resolver.Screens, fallback.lists.screens); len(unnamed) > 0 {
+	if unnamed := unnamedFields(resolver.Screens, fallback.screens); len(unnamed) > 0 {
 		t.Errorf("Screens leaves %v zero or at the default, want the values the settings name", unnamed)
 	}
 }

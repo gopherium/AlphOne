@@ -26,7 +26,7 @@ func TestTheScreenSettingsFallBackToTheirDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	screens := held.lists.screens
+	screens := held.screens
 	if screens.ToastDuration != graphres.DefaultToastDuration || screens.PageSize != graphres.DefaultListPageSize {
 		t.Errorf("screens = %+v, want the default toast time and list page", screens)
 	}
@@ -48,7 +48,7 @@ func TestTheScreenSettingsAreReadFromTheEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	screens := held.lists.screens
+	screens := held.screens
 	if screens.ToastDuration != 9*time.Second || screens.PageSize != 15 {
 		t.Errorf("screens = %+v, want toasts for 9s and lists opening on 15", screens)
 	}
@@ -109,7 +109,7 @@ func TestTheFormatLocaleFallsBackToTheEuropeanDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	if got := held.lists.screens.FormatLocale; got != "es-ES" {
+	if got := held.screens.FormatLocale; got != "es-ES" {
 		t.Errorf("format locale = %q, want the default es-ES", got)
 	}
 }
@@ -129,9 +129,9 @@ func TestTheFormatLocaleIsReadFromTheEnvironmentInItsCanonicalForm(t *testing.T)
 			"ALPHONE_FORMAT_LOCALE": raw,
 		}))
 
-		if err != nil || held.lists.screens.FormatLocale != want {
+		if err != nil || held.screens.FormatLocale != want {
 			t.Errorf("ALPHONE_FORMAT_LOCALE=%s holds %q with error %v, want %q", raw,
-				held.lists.screens.FormatLocale, err, want)
+				held.screens.FormatLocale, err, want)
 		}
 	}
 }
@@ -164,9 +164,9 @@ func TestTheToastDurationHoldsFromOneMillisecondToTheLargestTimer(t *testing.T) 
 			"ALPHONE_TOAST_DURATION": raw,
 		}))
 
-		if err != nil || held.lists.screens.ToastDuration != want {
+		if err != nil || held.screens.ToastDuration != want {
 			t.Errorf("ALPHONE_TOAST_DURATION=%s holds %v with error %v, want %v", raw,
-				held.lists.screens.ToastDuration, err, want)
+				held.screens.ToastDuration, err, want)
 		}
 	}
 }
@@ -250,8 +250,8 @@ func TestTheGraphPageBoundsFallBackToTheirDefaults(t *testing.T) {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
 	want := graphres.Paging{Size: graphres.DefaultPageSize, Cap: graphres.DefaultPageCap}
-	if held.lists.paging != want {
-		t.Errorf("paging = %+v, want the graph defaults %+v", held.lists.paging, want)
+	if held.paging != want {
+		t.Errorf("paging = %+v, want the graph defaults %+v", held.paging, want)
 	}
 }
 
@@ -267,8 +267,8 @@ func TestTheGraphPageBoundsAreReadFromTheEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	if want := (graphres.Paging{Size: 25, Cap: 400}); held.lists.paging != want {
-		t.Errorf("paging = %+v, want %+v", held.lists.paging, want)
+	if want := (graphres.Paging{Size: 25, Cap: 400}); held.paging != want {
+		t.Errorf("paging = %+v, want %+v", held.paging, want)
 	}
 }
 
@@ -284,8 +284,8 @@ func TestTheGraphPageCapHoldsExactlyAtTheLargestPricedPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want the cap at the largest priced page accepted", err)
 	}
-	if held.lists.paging.Cap != largest {
-		t.Errorf("paging cap = %d, want the largest priced page %d", held.lists.paging.Cap, largest)
+	if held.paging.Cap != largest {
+		t.Errorf("paging cap = %d, want the largest priced page %d", held.paging.Cap, largest)
 	}
 }
 
