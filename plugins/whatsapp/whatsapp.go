@@ -47,6 +47,7 @@ type Plugin struct {
 	events         *broadcaster
 	fetcher        *mediaFetcher
 	publisher      sdk.Publisher
+	pages          sdk.PageBounds
 }
 
 // transportTemplate is the pool settings every outbound client is cloned from.
@@ -80,6 +81,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		pool:        pool,
 		resolver:    deps.Resolver,
 		publisher:   deps.Events,
+		pages:       deps.Pages,
 		verifyToken: env.Value("VERIFY_TOKEN"),
 		appSecret:   env.Value("APP_SECRET"),
 		key:         key,

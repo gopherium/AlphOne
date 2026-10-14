@@ -81,6 +81,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		MachineGrace:   cfg.machineGrace,
 		TenantsHeld:    cfg.tenants.held,
 		TenantsRefresh: cfg.tenants.refresh,
+		Pages:          sdk.PageBounds{Size: cfg.paging.Size, Cap: cfg.paging.Cap},
 		Resolver:       resolverBridge{resolver: resolver},
 		Contacts:       directoryBridge{resolver: resolver},
 		Events:         pluginPublisher{publisher: built.events, logger: cfg.logger},

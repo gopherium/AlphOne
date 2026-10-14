@@ -130,6 +130,14 @@ func newCommittingPlugin(t *testing.T) (
 	*importer.Plugin, *pgxpool.Pool, *directory, *recorder,
 ) {
 	t.Helper()
+	return newCommittingPluginWithin(t, sdk.PageBounds{})
+}
+
+// newCommittingPluginWithin returns a migrated importer answering pages within bounds, with its directory and recorder.
+func newCommittingPluginWithin(t *testing.T, bounds sdk.PageBounds) (
+	*importer.Plugin, *pgxpool.Pool, *directory, *recorder,
+) {
+	t.Helper()
 	address := newTestDatabase(t)
 	contacts := newDirectory()
 	events := &recorder{}
@@ -137,6 +145,7 @@ func newCommittingPlugin(t *testing.T) (
 		DatabaseURL: address,
 		Contacts:    contacts,
 		Events:      events,
+		Pages:       bounds,
 	})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)

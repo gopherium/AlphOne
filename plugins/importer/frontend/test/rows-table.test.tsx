@@ -8,10 +8,11 @@ import { expect, test } from 'vitest'
 
 import type { ImportField, StoredImport } from '../ImportScreen'
 import RowsTable from '../RowsTable'
+import type { ImportRow } from '../useImportRows'
 import { inSpanish, renderHosted } from './harness'
 
-/** StagedRow is one staged row as the detail document selects it. */
-type StagedRow = StoredImport['rows'][number]
+/** StagedRow is one staged row as the rows document selects it. */
+type StagedRow = ImportRow
 
 /**
  * Builds one staged row.
@@ -41,7 +42,7 @@ const lucia = rowOf(3, ['Lucia Gomez', 'lucia@example.com'], {
 	reason: { code: 'row_quote_misplaced', meta: { line: 4 } },
 })
 
-const rows: StoredImport['rows'] = [maria, ana]
+const rows: StagedRow[] = [maria, ana]
 
 const stored: StoredImport = {
 	id: '019f5a00-0000-7000-8000-000000000001',
@@ -49,7 +50,6 @@ const stored: StoredImport = {
 	state: 'ready',
 	columns: ['Name', ''],
 	mapping: [],
-	rows,
 }
 
 /**

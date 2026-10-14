@@ -762,10 +762,10 @@ func TestGraphImportStoreFailuresSurface(t *testing.T) {
 		t.Errorf("upload code = %q, want INTERNAL", got)
 	}
 	stagedJob := &model.ImportJob{ID: uuid.MustParse(staged.ID)}
-	if _, err := p.ImportJobResolvers().Rows(t.Context(), stagedJob, nil); err == nil {
+	if _, err := p.ImportJobResolvers().Rows(t.Context(), stagedJob, nil, nil); err == nil {
 		t.Error("Rows() on a dropped schema error = nil, want error")
 	}
-	if _, err := p.ImportJobResolvers().Contacts(t.Context(), stagedJob); err == nil {
+	if _, err := p.ImportJobResolvers().Contacts(t.Context(), stagedJob, nil, nil); err == nil {
 		t.Error("Contacts() on a dropped schema error = nil, want error")
 	}
 }

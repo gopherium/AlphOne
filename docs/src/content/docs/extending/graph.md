@@ -180,6 +180,48 @@ your own types do not need it.
 your schema, works out which ones you owe, and writes an interface you have to
 satisfy. Miss one and the build names it.
 
+## Lists
+
+A field that answers a list and takes a `limit` names it as the argument that
+sizes the list:
+
+```graphql
+extend type Query {
+  noteEntries(limit: Int, offset: Int): [NoteEntry!]!
+    @scope(area: "notes", write: false)
+    @listSize(slicingArguments: ["limit"])
+}
+```
+
+Every query has a cost limit, see
+[Limits](/reference/graphql-api/#limits). `@listSize` prices the field as the
+rows it asks for times the cost of one row. A call with no `limit` is priced
+at `ALPHONE_GRAPH_PAGE_SIZE` rows, the same page the core lists answer.
+`go test ./graph/` fails when a plugin list takes a `limit` without
+`@listSize`, or names an argument the field does not take.
+
+Answer the same page the price assumes. `deps.Pages` carries the page size and
+the largest page from `ALPHONE_GRAPH_PAGE_SIZE` and `ALPHONE_GRAPH_PAGE_CAP`.
+Keep it from `Register` and resolve each call through it:
+
+```go
+// NoteEntries lists one page of the notes, newest first.
+func (q QueryResolvers) NoteEntries(
+	ctx context.Context, limit, offset *int,
+) ([]*model.NoteEntry, error) {
+	size, err := q.plugin.pages.Limit(limit)
+	if err != nil {
+		return nil, err
+	}
+	return q.plugin.store.listNotes(ctx, size, sdk.Offset(offset))
+}
+```
+
+`Limit` answers the page size for a call with no `limit`. A `limit` below 1 or
+past the largest page is refused with the code `VALIDATION` and the reason
+`first_out_of_range`, the way the core lists refuse it. `sdk.Offset` answers 0
+for a missing or negative `offset`.
+
 ## Going further
 
 - **Returning a core type.** Build it with `id` and `name` only. The rest of
@@ -202,4 +244,5 @@ satisfy. Miss one and the build names it.
 | The build names a resolver set you have not written | Your schema asks for it, add the struct and the method returning it |
 | `graphql plugins require a backend` | `plugin.json` says `graphql: true` with no `backend` |
 | `go test ./graph/` names your type | It does not start with your plugin id |
+| `go test ./graph/` says your list takes a limit without `@listSize` | Add `@listSize(slicingArguments: ["limit"])` to the field |
 | Your field is missing from `graph/schema.graphql` | `make generate` was not run after the schema change |

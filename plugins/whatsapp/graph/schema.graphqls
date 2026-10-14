@@ -1,5 +1,7 @@
 extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false)
+  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+    @scope(area: "whatsapp", write: false)
+    @listSize(slicingArguments: ["limit"])
   whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
 }
 
@@ -10,7 +12,9 @@ type WhatsAppConversation {
   lastActivityAt: DateTime!
   lastMessagePreview: String
   contact: Contact! @goField(forceResolver: true)
-  messages(limit: Int): [WhatsAppMessage!]! @goField(forceResolver: true)
+  messages(limit: Int): [WhatsAppMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
 }
 
 type WhatsAppMessage {

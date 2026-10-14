@@ -57,10 +57,12 @@ type Deps struct {
 	TenantsHeld int
 	// TenantsRefresh is how long a plugin keeps a tenant's state before reading it again, zero or below for the default.
 	TenantsRefresh time.Duration
-	Resolver       ContactResolver
-	Contacts       ContactDirectory
-	Getenv         func(string) string
-	Events         Publisher
+	// Pages bounds the pages a plugin list answers, the same bounds the core lists answer.
+	Pages    PageBounds
+	Resolver ContactResolver
+	Contacts ContactDirectory
+	Getenv   func(string) string
+	Events   Publisher
 	// Env reads the settings under the program prefix, each value trimmed.
 	Env Env
 }

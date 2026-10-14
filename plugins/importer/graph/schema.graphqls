@@ -16,8 +16,12 @@ type ImportJob {
   createdAt: DateTime!
   columns: [String!]!
   mapping: [ImportAssignment!]!
-  rows(limit: Int): [ImportRow!]! @goField(forceResolver: true)
-  contacts: [ImportContact!]! @goField(forceResolver: true)
+  rows(limit: Int, offset: Int): [ImportRow!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+  contacts(limit: Int, offset: Int): [ImportContact!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
 }
 
 type ImportRow {

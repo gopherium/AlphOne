@@ -3,30 +3,8 @@
 package importer
 
 import (
-	"errors"
 	"testing"
-
-	"github.com/gopherium/alphone/sdk"
 )
-
-func TestGraphRowLimitBounds(t *testing.T) {
-	t.Parallel()
-
-	if got, err := graphRowLimit(nil); err != nil || got != maxRows {
-		t.Errorf("graphRowLimit(nil) = %d, %v, want the cap %d", got, err, maxRows)
-	}
-	top := maxRows
-	if got, err := graphRowLimit(&top); err != nil || got != maxRows {
-		t.Errorf("graphRowLimit(%d) = %d, %v, want it accepted", maxRows, got, err)
-	}
-	for _, invalid := range []int{0, -1, maxRows + 1} {
-		_, err := graphRowLimit(&invalid)
-		var coded sdk.GraphError
-		if !errors.As(err, &coded) || coded.Code != "VALIDATION" {
-			t.Errorf("graphRowLimit(%d) error = %v, want a VALIDATION graph error", invalid, err)
-		}
-	}
-}
 
 func TestToGraphMappingOrdersAndSkipsMalformedKeys(t *testing.T) {
 	t.Parallel()

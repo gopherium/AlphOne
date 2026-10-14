@@ -79,7 +79,7 @@ func TestStagedRowsStayInsideTheirTenant(t *testing.T) {
 	acme := inTenant(t, pool)
 	held := stagedImport(t, s, acme, "acme.csv")
 
-	rows, err := s.listRows(t.Context(), held, 10)
+	rows, err := s.listRows(t.Context(), held, 10, 0)
 
 	if err != nil {
 		t.Fatalf("listRows() error = %v, want nil", err)

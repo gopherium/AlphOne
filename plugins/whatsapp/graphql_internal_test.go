@@ -26,21 +26,31 @@ func newBrokenPlugin(t *testing.T) *Plugin {
 	return p
 }
 
-func TestGraphListLimitBounds(t *testing.T) {
+func TestTheListsAnswerWithinTheHostPageBounds(t *testing.T) {
 	t.Parallel()
 
-	if got, err := graphListLimit(nil); err != nil || got != defaultListLimit {
-		t.Errorf("graphListLimit(nil) = %d, %v, want the default %d", got, err, defaultListLimit)
+	p, err := Register(sdk.Deps{
+		DatabaseURL: "postgres://postgres:alphone@localhost:9/postgres?sslmode=disable&connect_timeout=1",
+		Pages:       sdk.PageBounds{Size: 2, Cap: 3},
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
 	}
-	top := maxListLimit
-	if got, err := graphListLimit(&top); err != nil || got != maxListLimit {
-		t.Errorf("graphListLimit(%d) = %d, %v, want it accepted", maxListLimit, got, err)
-	}
-	for _, invalid := range []int{0, -1, maxListLimit + 1} {
-		_, err := graphListLimit(&invalid)
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+	past := 4
+
+	_, conversations := p.QueryResolvers().WhatsAppConversations(t.Context(), &past)
+	_, messages := p.WhatsAppConversationResolvers().Messages(t.Context(),
+		&model.WhatsAppConversation{ID: uuid.Must(uuid.NewV7())}, &past)
+
+	for name, err := range map[string]error{"conversations": conversations, "messages": messages} {
 		var coded sdk.GraphError
-		if !errors.As(err, &coded) || coded.Code != "VALIDATION" {
-			t.Errorf("graphListLimit(%d) error = %v, want a VALIDATION graph error", invalid, err)
+		if !errors.As(err, &coded) {
+			t.Errorf("%s past the host cap error = %v, want a graph error", name, err)
+			continue
+		}
+		if coded.Reason != "first_out_of_range" || coded.Meta["max"] != 3 {
+			t.Errorf("%s past the host cap = %s %v, want first_out_of_range naming the cap 3", name, coded.Reason, coded.Meta)
 		}
 	}
 }

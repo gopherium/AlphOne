@@ -130,7 +130,7 @@ func TestSeedIsReadableThroughTheGraph(t *testing.T) {
 	if len(history) != 1 || history[0].Filename != "spring-leads.csv" {
 		t.Fatalf("history = %+v, want the demo import listed", history)
 	}
-	rows, err := p.ImportJobResolvers().Rows(t.Context(), history[0], nil)
+	rows, err := p.ImportJobResolvers().Rows(t.Context(), history[0], nil, nil)
 	if err != nil {
 		t.Fatalf("Rows() error = %v, want nil", err)
 	}

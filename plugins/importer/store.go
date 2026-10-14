@@ -98,14 +98,14 @@ func (s *store) importByID(ctx context.Context, id uuid.UUID) (importRow, error)
 	return stored, nil
 }
 
-// listRows returns up to limit staged rows of one import in position order.
-func (s *store) listRows(ctx context.Context, importID uuid.UUID, limit int) ([]stagedRow, error) {
+// listRows returns up to limit staged rows of one import in position order, skipping the first offset.
+func (s *store) listRows(ctx context.Context, importID uuid.UUID, limit, offset int) ([]stagedRow, error) {
 	rows, _ := s.pool.Query(ctx,
 		`SELECT id, position, cells, outcome, reason, contact_id
 		FROM plugin_importer.import_rows
 		WHERE import_id = $1 AND tenant_id = $3
 		ORDER BY position
-		LIMIT $2`, importID, limit, sdk.TenantOrDefault(ctx))
+		LIMIT $2 OFFSET $4`, importID, limit, sdk.TenantOrDefault(ctx), offset)
 	staged, err := pgx.CollectRows(rows, pgx.RowToStructByName[stagedRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list rows: %w", err)
@@ -113,14 +113,17 @@ func (s *store) listRows(ctx context.Context, importID uuid.UUID, limit int) ([]
 	return staged, nil
 }
 
-// listImportContacts returns the contacts an import created, in row order.
-func (s *store) listImportContacts(ctx context.Context, importID uuid.UUID) ([]importContactRow, error) {
+// listImportContacts returns up to limit contacts an import created in row order, skipping the first offset.
+func (s *store) listImportContacts(
+	ctx context.Context, importID uuid.UUID, limit, offset int,
+) ([]importContactRow, error) {
 	rows, _ := s.pool.Query(ctx,
 		`SELECT c.id AS contact_id, c.name, r.id AS row_id
 		FROM plugin_importer.import_rows r
 		JOIN core.contacts c ON c.id = r.contact_id AND c.tenant_id = r.tenant_id
 		WHERE r.import_id = $1 AND r.outcome = $2 AND r.tenant_id = $3
-		ORDER BY r.position`, importID, outcomeImported, sdk.TenantOrDefault(ctx))
+		ORDER BY r.position
+		LIMIT $4 OFFSET $5`, importID, outcomeImported, sdk.TenantOrDefault(ctx), limit, offset)
 	linked, err := pgx.CollectRows(rows, pgx.RowToStructByName[importContactRow])
 	if err != nil {
 		return nil, fmt.Errorf("importer: list import contacts: %w", err)

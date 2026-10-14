@@ -33,7 +33,6 @@ function detailOf(job: Record<string, unknown> = {}) {
 						state: 'ready',
 						columns: ['Name', 'Email'],
 						mapping: [],
-						rows: [],
 						...job,
 					},
 					importFields: importFields,
@@ -329,7 +328,6 @@ test('a stored mapping arrives already chosen', async () => {
 						state: 'ready',
 						columns: ['Name', ''],
 						mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
-						rows: [],
 					},
 					importFields,
 				},
@@ -356,7 +354,6 @@ test('offers the contact fields by the names the interface gives them, a defined
 						state: 'ready',
 						columns: ['Name'],
 						mapping: [],
-						rows: [],
 					},
 					importFields: [
 						{ __typename: 'ImportField', name: 'name', label: 'Full name', required: true },
@@ -374,6 +371,33 @@ test('offers the contact fields by the names the interface gives them, a defined
 
 	const offered = within(await screen.findByRole('listbox')).getAllByRole('option').map((option) => option.textContent)
 	expect(offered).toEqual(['Not imported', 'Name', 'Email', 'Phone', 'Joined on'])
+})
+
+test('the rows section shows a loading row until every page of rows is read', async () => {
+	server.use(graphql.query('ImportRows', () => new Promise(() => {})))
+	renderScreen()
+
+	await screen.findByRole('heading', { name: 'contacts.csv' })
+
+	expect(screen.getByRole('status')).toHaveTextContent('Loading the preview…')
+	expect(screen.queryByRole('table')).not.toBeInTheDocument()
+})
+
+test('the rows section reports rows it cannot read, keeping the mapping', async () => {
+	server.use(graphql.query('ImportRows', () => HttpResponse.json({ data: null, errors: [{ message: 'gone' }] })))
+	renderScreen()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
+	expect(screen.getByRole('button', { name: 'Save mapping' })).toBeInTheDocument()
+})
+
+test('the rows section shows every staged row once they are read', async () => {
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+
+	expect(within(table).getByText('Maria Perez')).toBeInTheDocument()
+	expect(within(table).getByText('Ana Lopez')).toBeInTheDocument()
 })
 
 test('the screen reports an import it cannot read', async () => {

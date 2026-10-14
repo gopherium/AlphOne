@@ -245,12 +245,24 @@ Subscribe to `import.completed`. It carries the import `id`, so the next
 step reads what that import produced:
 
 ```graphql
-query($id: UUID!) {
+query($id: UUID!, $limit: Int!, $offset: Int!) {
   importJob(id: $id) {
-    contacts { contactId name rowId }
+    contacts(limit: $limit, offset: $offset) { contactId name rowId }
   }
 }
 ```
+
+The contacts come a page at a time, in the order of the file. Pick one
+`limit` of 200, or `ALPHONE_GRAPH_PAGE_CAP` when that is lower, since a
+larger one is refused. Start with `offset` 0 and add the page's length each
+time, until a page comes back shorter than that same `limit`. A read with no
+`limit` answers `ALPHONE_GRAPH_PAGE_SIZE` contacts.
+
+A page also has to fit the query cost limit, see
+[Limits](/reference/graphql-api/#limits). Each contact costs 3 for its three
+fields, so a page of more than about 830 is refused with the code
+`COMPLEXITY_LIMIT_EXCEEDED` even when the cap allows it. Ask for a smaller
+page when that happens.
 
 Every entry carries `contactId`, `name`, and `rowId`, the row of the file
 that created the contact:

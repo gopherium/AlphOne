@@ -15,23 +15,8 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// Graph resolver errors.
-var (
-	errInvalidListLimit    = errors.New("whatsapp: limit must be between 1 and 200")
-	errMissingContactStash = errors.New("whatsapp: conversation carries no contact")
-)
-
-// graphListLimit resolves a limit argument against the list bounds.
-func graphListLimit(limit *int) (int, error) {
-	if limit == nil {
-		return defaultListLimit, nil
-	}
-	if *limit < 1 || *limit > maxListLimit {
-		return 0, sdk.GraphError{Code: "VALIDATION", Reason: "first_out_of_range",
-			Meta: map[string]any{"min": 1, "max": maxListLimit}, Err: errInvalidListLimit}
-	}
-	return *limit, nil
-}
+// errMissingContactStash reports a conversation read without the contact its row carries.
+var errMissingContactStash = errors.New("whatsapp: conversation carries no contact")
 
 // toGraphConversation maps a conversation row onto its graph model.
 func toGraphConversation(row conversationRow) *model.WhatsAppConversation {
@@ -102,7 +87,7 @@ func (p *Plugin) QueryResolvers() QueryResolvers {
 func (q QueryResolvers) WhatsAppConversations(
 	ctx context.Context, limit *int,
 ) ([]*model.WhatsAppConversation, error) {
-	bounded, err := graphListLimit(limit)
+	bounded, err := q.plugin.pages.Limit(limit)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +207,7 @@ func (w WhatsAppConversationResolvers) Contact(
 func (w WhatsAppConversationResolvers) Messages(
 	ctx context.Context, obj *model.WhatsAppConversation, limit *int,
 ) ([]*model.WhatsAppMessage, error) {
-	bounded, err := graphListLimit(limit)
+	bounded, err := w.plugin.pages.Limit(limit)
 	if err != nil {
 		return nil, err
 	}

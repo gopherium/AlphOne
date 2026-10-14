@@ -30,6 +30,8 @@ import {
 	importDetailQuery,
 	importSetMappingMutation,
 } from './operations'
+import { useImportRows } from './useImportRows'
+import type { ImportRowsRead } from './useImportRows'
 
 const RowsTable = lazy(() => import('./RowsTable'))
 
@@ -48,6 +50,7 @@ const unmapped = 'not-imported'
  */
 export function ImportScreen({ importId }: { importId: string }) {
 	const [detail] = useGraphQuery({ query: importDetailQuery, variables: { id: importId } })
+	const staged = useImportRows(importId)
 
 	if (detail.error) {
 		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
@@ -67,10 +70,35 @@ export function ImportScreen({ importId }: { importId: string }) {
 		<PageScreen title={stored.filename}>
 			<MappingForm stored={stored} fields={importFields} />
 			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
-			<Suspense fallback={<LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />}>
-				<RowsTable stored={stored} rows={stored.rows} fields={importFields} />
-			</Suspense>
+			<StagedRows stored={stored} staged={staged} fields={importFields} />
 		</PageScreen>
+	)
+}
+
+/**
+ * Renders the staged rows once every page of them is read, or why they are not shown.
+ * @returns The rows table, its loading state, or the failure.
+ */
+function StagedRows({
+	stored,
+	staged,
+	fields,
+}: {
+	stored: StoredImport
+	staged: ImportRowsRead
+	fields: readonly ImportField[]
+}) {
+	const loading = <LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />
+	if (staged.failed) {
+		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
+	}
+	if (staged.rows === undefined) {
+		return loading
+	}
+	return (
+		<Suspense fallback={loading}>
+			<RowsTable stored={stored} rows={staged.rows} fields={fields} />
+		</Suspense>
 	)
 }
 
