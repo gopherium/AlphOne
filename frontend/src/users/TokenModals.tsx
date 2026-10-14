@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	Button,
-	Stack,
-	Text,
+	ConfirmBody,
 	__,
 	_n,
 	formatNumber,
@@ -33,31 +31,31 @@ export interface RevokeHandlers {
 /**
  * Returns the question the revoke modal asks.
  * @param tokens - The tokens the reader picked.
+ * @param name - The name of the first token, cut to the length a toast shows.
  * @returns The question, naming the token when only one was picked.
  */
-function revokeQuestion(tokens: ApiToken[]): string {
+function revokeQuestion(tokens: ApiToken[], name: string): string {
 	if (tokens.length === 1) {
-		return sprintf(__('Revoke the token %(name)s? Anything using it stops working at once.', 'alphone'), {
-			name: tokens[0].name,
-		})
+		return sprintf(__('Revoke "%(name)s"? This cannot be undone.', 'alphone'), { name })
 	}
-	const template = _n(
-		'Revoke %s token? Anything using it stops working at once.',
-		'Revoke %s tokens? Anything using them stops working at once.',
+	const many = _n(
+		'Revoke %s token? This cannot be undone.',
+		'Revoke %s tokens? This cannot be undone.',
 		tokens.length,
 		'alphone',
 	)
-	return sprintf(template, formatNumber(tokens.length))
+	return sprintf(many, formatNumber(tokens.length))
 }
 
 /**
  * Returns the toast confirming the tokens one revoke reached.
  * @param outcome - What the revoke reached.
- * @returns The confirmation.
+ * @param name - The name of the first token, cut to the length a toast shows.
+ * @returns The confirmation, naming the token when only one was asked.
  */
-function revokedMessage({ asked, done }: RevokeOutcome): string {
+function revokedMessage({ asked, done }: RevokeOutcome, name: string): string {
 	if (asked === 1) {
-		return __('Token revoked.', 'alphone')
+		return sprintf(__('"%(name)s" revoked.', 'alphone'), { name })
 	}
 	return sprintf(_n('%s token revoked.', '%s tokens revoked.', done, 'alphone'), formatNumber(done))
 }
@@ -85,6 +83,7 @@ export function RevokeModal({ items, closeModal, onFailure, onRevoked }: RenderM
 	const graph = useGraph()
 	const toaster = useToaster()
 	const [busy, setBusy] = useState(false)
+	const name = toaster.name(items[0].name)
 	const submit = async () => {
 		setBusy(true)
 		onFailure(undefined)
@@ -93,7 +92,7 @@ export function RevokeModal({ items, closeModal, onFailure, onRevoked }: RenderM
 		)
 		onRevoked()
 		if (outcome.done > 0) {
-			toaster.show(revokedMessage(outcome))
+			toaster.show(revokedMessage(outcome, name))
 		}
 		if (outcome.failures.length > 0) {
 			onFailure(unrevokedMessage(outcome))
@@ -102,16 +101,14 @@ export function RevokeModal({ items, closeModal, onFailure, onRevoked }: RenderM
 	}
 
 	return (
-		<Stack direction="column" gap="lg">
-			<Text>{revokeQuestion(items)}</Text>
-			<Stack direction="row" gap="sm" justify="flex-end">
-				<Button variant="minimal" onClick={closeModal}>
-					{__('Cancel', 'alphone')}
-				</Button>
-				<Button loading={busy} onClick={() => void submit()}>
-					{__('Revoke', 'alphone')}
-				</Button>
-			</Stack>
-		</Stack>
+		<ConfirmBody
+			confirmLabel={__('Revoke', 'alphone')}
+			cancelLabel={__('Cancel', 'alphone')}
+			busy={busy}
+			onConfirm={() => void submit()}
+			onCancel={busy ? undefined : closeModal}
+		>
+			{revokeQuestion(items, name)}
+		</ConfirmBody>
 	)
 }

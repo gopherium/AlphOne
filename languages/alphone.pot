@@ -7,6 +7,15 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone\n"
 
+msgid "\"%(name)s\" disabled."
+msgstr ""
+
+msgid "\"%(name)s\" enabled."
+msgstr ""
+
+msgid "\"%(name)s\" revoked."
+msgstr ""
+
 msgid "%s token could not be revoked."
 msgid_plural "%s tokens could not be revoked."
 msgstr[0] ""
@@ -136,6 +145,9 @@ msgstr ""
 msgid "Change role"
 msgstr ""
 
+msgid "Change role…"
+msgstr ""
+
 msgid "Channel"
 msgstr ""
 
@@ -161,9 +173,6 @@ msgid "Contact"
 msgstr ""
 
 msgid "Contact added."
-msgstr ""
-
-msgid "Contact renamed."
 msgstr ""
 
 msgid "Contact tasks"
@@ -244,6 +253,9 @@ msgstr ""
 msgid "Identity removed."
 msgstr ""
 
+msgid "Invitation sent to \"%(name)s\"."
+msgstr ""
+
 msgid "Invitation sent."
 msgstr ""
 
@@ -295,6 +307,9 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
+msgid "Name updated."
+msgstr ""
+
 msgid "Navigation"
 msgstr ""
 
@@ -335,9 +350,6 @@ msgid "No mail server is configured. Deliver the activation link by hand."
 msgstr ""
 
 msgid "No open tasks."
-msgstr ""
-
-msgid "No role"
 msgstr ""
 
 msgid "No tokens found."
@@ -388,7 +400,7 @@ msgstr ""
 msgid "Rename"
 msgstr ""
 
-msgid "Rename contact"
+msgid "Rename…"
 msgstr ""
 
 msgid "Reopen"
@@ -397,26 +409,27 @@ msgstr ""
 msgid "Resend invitation"
 msgstr ""
 
+msgid "Resend invitation…"
+msgstr ""
+
 msgid "Revoke"
 msgstr ""
 
-msgid "Revoke %s token? Anything using it stops working at once."
-msgid_plural "Revoke %s tokens? Anything using them stops working at once."
-msgstr[0] ""
-msgstr[1] ""
-
-msgid "Revoke the token %(name)s? Anything using it stops working at once."
+msgid "Revoke \"%(name)s\"? This cannot be undone."
 msgstr ""
 
-msgid "Revoke token"
-msgid_plural "Revoke tokens"
+msgid "Revoke %s token? This cannot be undone."
+msgid_plural "Revoke %s tokens? This cannot be undone."
 msgstr[0] ""
 msgstr[1] ""
+
+msgid "Revoke…"
+msgstr ""
 
 msgid "Role"
 msgstr ""
 
-msgid "Role changed."
+msgid "Role changed for \"%(name)s\"."
 msgstr ""
 
 msgid "Save"
@@ -434,7 +447,7 @@ msgstr ""
 msgid "Search users…"
 msgstr ""
 
-msgid "Send a new invitation to %(name)s (%(email)s)? The link sent before stops working."
+msgid "Send a new invitation to \"%(name)s\" (%(email)s)? The link sent before stops working."
 msgstr ""
 
 msgid "Send invitation"
@@ -539,9 +552,6 @@ msgstr ""
 msgid "The contact could not be loaded."
 msgstr ""
 
-msgid "The contact could not be renamed."
-msgstr ""
-
 msgid "The identity could not be added."
 msgstr ""
 
@@ -555,6 +565,9 @@ msgid "The language changes when the page next loads."
 msgstr ""
 
 msgid "The languages could not be read."
+msgstr ""
+
+msgid "The name could not be updated."
 msgstr ""
 
 msgid "The role could not be changed."
@@ -605,9 +618,6 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
-msgid "Token revoked."
-msgstr ""
-
 msgid "Tokens could not be loaded."
 msgstr ""
 
@@ -615,12 +625,6 @@ msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
 msgstr ""
 
 msgid "Undo"
-msgstr ""
-
-msgid "User disabled."
-msgstr ""
-
-msgid "User enabled."
 msgstr ""
 
 msgid "User sections"
@@ -684,6 +688,18 @@ msgstr ""
 
 msgctxt "day heading"
 msgid "%(weekday)s, %(date)s"
+msgstr ""
+
+msgctxt "role"
+msgid "Administrator"
+msgstr ""
+
+msgctxt "role"
+msgid "Member"
+msgstr ""
+
+msgctxt "role"
+msgid "No role"
 msgstr ""
 
 msgctxt "task priority"

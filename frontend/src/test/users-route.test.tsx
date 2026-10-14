@@ -255,8 +255,27 @@ test('reads the role every account holds by its label', async () => {
 	renderAt('/users')
 
 	expect((await rowOf('Ada Lovelace')).getByText('Member')).toBeInTheDocument()
-	expect((await rowOf('Grace Hopper')).getByText('Admin')).toBeInTheDocument()
+	expect((await rowOf('Grace Hopper')).getByText('Administrator')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('No role')).toBeInTheDocument()
+})
+
+test('reads each core role in Spanish, the way the user reads every other label', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	holding([signedIn, colleague, accountOf('fc', 'Maria Perez', { role: '' })])
+	renderAt('/users')
+
+	expect((await rowOf('Ada Lovelace')).getByText('Miembro')).toBeInTheDocument()
+	expect((await rowOf('Grace Hopper')).getByText('Administrador')).toBeInTheDocument()
+	expect((await rowOf('Maria Perez')).getByText('Sin rol')).toBeInTheDocument()
+})
+
+test('reads a role a plugin adds by its stored name with a capital first letter', async () => {
+	holding([signedIn, accountOf('fc', 'Maria Perez', { role: 'provisioner' })])
+	renderAt('/users')
+
+	expect((await rowOf('Maria Perez')).getByText('Provisioner')).toBeInTheDocument()
 })
 
 test('shows each account email under its name, in the name column', async () => {
@@ -376,7 +395,7 @@ test('offers as roles only the ones the accounts hold, by their labels from A to
 	await userEvent.click(await screen.findByRole('button', { name: 'Role', pressed: false }))
 
 	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
-	expect(offered).toEqual(['Admin', 'Member', 'No role'])
+	expect(offered).toEqual(['Administrator', 'Member', 'No role'])
 })
 
 test('pages the accounts by the page size the admin settings name', async () => {
@@ -457,6 +476,16 @@ test('offers no enable on the signed-in account, even while it reads disabled', 
 	const own = await rowOf('Grace Hopper')
 	expect(own.getByText('Disabled')).toBeInTheDocument()
 	expect(own.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
+	expect(own.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
+})
+
+test('draws Enable on a disabled row as its primary action, and never Disable', async () => {
+	renderAt('/users')
+
+	expect((await rowOf('Ana Lopez')).getByRole('button', { name: 'Enable' })).toBeInTheDocument()
+	const active = await rowOf('Ada Lovelace')
+	expect(active.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
+	expect(active.queryByRole('button', { name: 'Disable' })).not.toBeInTheDocument()
 })
 
 test('offers a member no user management at all', async () => {
@@ -518,25 +547,57 @@ function writesDisabled() {
 	return writes
 }
 
-test('disables an account from its row actions and confirms it with a toast', async () => {
+test('disables an account from its row actions and names it in a toast', async () => {
 	const writes = writesDisabled()
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Disable')
 
-	expect(await screen.findByText('User disabled.')).toBeInTheDocument()
+	expect(await screen.findByText('"Ada Lovelace" disabled.')).toBeInTheDocument()
 	expect(writes).toEqual([{ id: colleague.id, disabled: true }])
 	await waitFor(async () => expect((await rowOf('Ada Lovelace')).getByText('Disabled')).toBeInTheDocument())
 })
 
-test('enables a disabled account from its row actions and confirms it with a toast', async () => {
+test('enables a disabled account from its row actions and names it in a toast', async () => {
 	const writes = writesDisabled()
 	renderAt('/users')
 
 	await act('Ana Lopez', 'Enable')
 
-	expect(await screen.findByText('User enabled.')).toBeInTheDocument()
+	expect(await screen.findByText('"Ana Lopez" enabled.')).toBeInTheDocument()
 	expect(writes).toEqual([{ id: barred.id, disabled: false }])
+})
+
+test('enables a disabled account from the Enable its row draws', async () => {
+	const writes = writesDisabled()
+	renderAt('/users')
+
+	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Enable' }))
+
+	expect(await screen.findByText('"Ana Lopez" enabled.')).toBeInTheDocument()
+	expect(writes).toEqual([{ id: barred.id, disabled: false }])
+})
+
+test('cuts a long account name short in the toast', async () => {
+	holding([signedIn, accountOf('fd', 'Maria Perez of the accounting and payroll office team')])
+	writesDisabled()
+	renderAt('/users')
+
+	await act('Maria Perez', 'Disable')
+
+	expect(await screen.findByText('"Maria Perez of the accounting and payroll off…" disabled.')).toBeInTheDocument()
+})
+
+test('names a disabled account in a Spanish toast', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	writesDisabled()
+	renderAt('/users')
+
+	await act('Ada Lovelace', 'Desactivar')
+
+	expect(await screen.findByText('«Ada Lovelace» se ha desactivado.')).toBeInTheDocument()
 })
 
 test('shows why an account could not be disabled in the words the reason names', async () => {
@@ -560,7 +621,7 @@ test('shows why an account could not be disabled in the words the reason names',
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('Somebody must be able to manage users.')
 	expect(screen.queryByText(/cannot be disabled$/)).not.toBeInTheDocument()
-	expect(screen.queryByText('User disabled.')).not.toBeInTheDocument()
+	expect(screen.queryByText('"Ada Lovelace" disabled.')).not.toBeInTheDocument()
 })
 
 test('says plainly that an account could not be enabled when the server names no reason', async () => {
@@ -587,6 +648,20 @@ async function select(...names: string[]) {
 	}
 }
 
+/**
+ * Returns the buttons of the bar that acts on the selected accounts.
+ * @returns The bar queries.
+ */
+async function bulkBar() {
+	return within(
+		await waitFor(() => {
+			const bar = document.querySelector<HTMLElement>('.dataviews-bulk-actions-footer__action-buttons')
+			expect(bar).not.toBeNull()
+			return bar as HTMLElement
+		}),
+	)
+}
+
 test('disables every selected account at once with one toast counting them in the format locale', async () => {
 	rememberFormatLocale('es-ES-u-nu-deva')
 	holding([signedIn, colleague, accountOf('fd', 'Maria Perez')])
@@ -594,7 +669,7 @@ test('disables every selected account at once with one toast counting them in th
 	renderAt('/users')
 
 	await select('Ada Lovelace', 'Maria Perez')
-	await userEvent.click(await screen.findByRole('button', { name: 'Disable' }))
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Disable' }))
 
 	expect(await screen.findByText('२ users disabled.')).toBeInTheDocument()
 	expect(writes.map((write) => write.disabled)).toEqual([true, true])
@@ -605,8 +680,9 @@ test('offers Enable before Disable in the bulk bar, the one that locks accounts 
 
 	await select('Ada Lovelace', 'Ana Lopez')
 
-	const enable = await screen.findByRole('button', { name: 'Enable' })
-	const disable = screen.getByRole('button', { name: 'Disable' })
+	const bar = await bulkBar()
+	const enable = await bar.findByRole('button', { name: 'Enable' })
+	const disable = bar.getByRole('button', { name: 'Disable' })
 	expect(enable.compareDocumentPosition(disable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
@@ -622,7 +698,7 @@ test('names the accounts a bulk action could not change in one notice', async ()
 	renderAt('/users')
 
 	await select('Ada Lovelace', 'Maria Perez')
-	await userEvent.click(await screen.findByRole('button', { name: 'Disable' }))
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Disable' }))
 
 	expect(await screen.findByText('1 user disabled.')).toBeInTheDocument()
 	expect(await screen.findByRole('alert')).toHaveTextContent('1 user could not be disabled.')
@@ -634,7 +710,7 @@ test('enables every selected account at once with one toast', async () => {
 	renderAt('/users')
 
 	await select('Ana Lopez', 'Maria Perez')
-	await userEvent.click(await screen.findByRole('button', { name: 'Enable' }))
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Enable' }))
 
 	expect(await screen.findByText('2 users enabled.')).toBeInTheDocument()
 })
@@ -650,7 +726,7 @@ test('names the accounts a bulk enable could not change in one notice counting t
 	renderAt('/users')
 
 	await select('Ana Lopez', 'Maria Perez')
-	await userEvent.click(await screen.findByRole('button', { name: 'Enable' }))
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Enable' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('२ users could not be enabled.')
 })
@@ -668,7 +744,7 @@ test('clears an earlier failure once the next action starts', async () => {
 
 	await act('Ada Lovelace', 'Disable')
 
-	expect(await screen.findByText('User disabled.')).toBeInTheDocument()
+	expect(await screen.findByText('"Ada Lovelace" disabled.')).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
@@ -689,57 +765,59 @@ function writesRole() {
 	return asked
 }
 
-test('changes the role of another account in a modal and confirms it with a toast', async () => {
+test('changes the role of another account in a modal and names the account in a toast', async () => {
 	const asked = writesRole()
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	const dialog = within(await screen.findByRole('dialog', { name: 'Change role' }))
 	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
-	expect(await screen.findByText('Role changed.')).toBeInTheDocument()
+	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
 	expect(asked).toEqual(['admin'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-	expect((await rowOf('Ada Lovelace')).getByText('Admin')).toBeInTheDocument()
+	expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument()
 })
 
 test('offers only the roles the reader may grant', async () => {
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	await userEvent.click(await screen.findByRole('combobox', { name: 'Role' }))
 
 	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
-	expect(offered).toEqual(['Admin', 'Member'])
+	expect(offered).toEqual(['Administrator', 'Member'])
 })
 
 test('lifts the role choices into the overlay slot that stacks above the modal', async () => {
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	await userEvent.click(await screen.findByRole('combobox', { name: 'Role' }))
 
-	const choice = await screen.findByRole('option', { name: 'Admin' })
+	const choice = await screen.findByRole('option', { name: 'Administrator' })
 	expect(choice.closest('[data-wp-compat-overlay-slot]')).not.toBeNull()
 })
 
-test('opens the role change in a small modal naming the account, with Cancel as a text button', async () => {
+test('opens the role change in a small modal naming the account, with Cancel as a neutral text button', async () => {
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 
 	const dialog = await screen.findByRole('dialog', { name: 'Change role' })
 	expect(dialog).toHaveClass('has-size-small')
 	expect(within(dialog).getByText('Choose the role of Ada Lovelace.')).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('minimal', undefined, 'neutral'),
+	)
 })
 
 test('waits for another role before it writes one', async () => {
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 
 	expect(await screen.findByRole('button', { name: 'Change role' })).toHaveAttribute('aria-disabled', 'true')
 })
@@ -748,7 +826,7 @@ test('closes the role modal without writing when the reader cancels', async () =
 	const asked = writesRole()
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -772,14 +850,14 @@ test('shows why a role could not be changed inside the modal', async () => {
 	)
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	const dialog = within(await screen.findByRole('dialog'))
 	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
 	expect(await dialog.findByRole('alert')).toHaveTextContent('That role holds more than your own.')
-	expect(screen.queryByText('Role changed.')).not.toBeInTheDocument()
+	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
 })
 
 test('says plainly that a role could not be changed when the server names no reason', async () => {
@@ -790,10 +868,10 @@ test('says plainly that a role could not be changed when the server names no rea
 	)
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role')
+	await act('Ada Lovelace', 'Change role…')
 	const dialog = within(await screen.findByRole('dialog'))
 	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Admin' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
 	expect(await dialog.findByRole('alert')).toHaveTextContent('The role could not be changed.')

@@ -631,13 +631,22 @@ test('opens the contact a tap lands on in the list a phone shows', async () => {
 	expect(await screen.findByRole('heading', { level: 1, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
 })
 
-test('offers Rename before Add task in the row menu, the modal first', async () => {
+test('offers Add task before Rename… in the row menu, the one click primary action first', async () => {
 	renderAt('/contacts')
 
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' }))
 
 	const offered = (await screen.findAllByRole('menuitem')).map((item) => item.textContent)
-	expect(offered).toEqual(['Rename', 'Add task'])
+	expect(offered).toEqual(['Add task', 'Rename…'])
+})
+
+test('offers Add task as the button a contact row shows, never the rename', async () => {
+	renderAt('/contacts')
+
+	const row = await rowOf('Ana Lopez')
+
+	expect(row.getByRole('button', { name: 'Add task' })).toBeInTheDocument()
+	expect(row.queryByRole('button', { name: /^Rename/ })).not.toBeInTheDocument()
 })
 
 /**
@@ -659,32 +668,34 @@ function writesName() {
 	return names
 }
 
-test('renames a contact in a small modal and confirms it with a toast', async () => {
+test('renames a contact in a modal and confirms it with a toast', async () => {
 	const names = writesName()
 	renderAt('/contacts?sort=name&order=asc')
 
-	await act('Ana Lopez', 'Rename')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename contact' }))
+	await act('Ana Lopez', 'Rename…')
+	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
 	const name = dialog.getByRole('textbox', { name: 'Name' })
 	expect(name).toHaveValue('Ana Lopez')
 	await userEvent.clear(name)
 	await userEvent.type(name, 'Zoe Lopez')
 	await userEvent.click(dialog.getByRole('button', { name: 'Rename' }))
 
-	expect(await screen.findByText('Contact renamed.')).toBeInTheDocument()
+	expect(await screen.findByText('Name updated.')).toBeInTheDocument()
 	expect(names).toEqual(['Zoe Lopez'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace', 'Maria Perez', 'Zoe Lopez']))
 })
 
-test('opens the rename in a small modal with Cancel as a text button', async () => {
+test('opens the rename at the default medium width with Cancel as a neutral text button', async () => {
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename')
+	await act('Ana Lopez', 'Rename…')
 
-	const dialog = await screen.findByRole('dialog', { name: 'Rename contact' })
-	expect(dialog).toHaveClass('has-size-small')
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
+	const dialog = await screen.findByRole('dialog', { name: 'Rename' })
+	expect(dialog).toHaveClass('has-size-medium')
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('minimal', undefined, 'neutral'),
+	)
 })
 
 test('puts the cursor in the name when the rename opens, as the WordPress rename does', async () => {
@@ -694,17 +705,17 @@ test('puts the cursor in the name when the rename opens, as the WordPress rename
 	onTestFinished(() => laidOut.mockRestore())
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename')
+	await act('Ana Lopez', 'Rename…')
 
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename contact' }))
+	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
 	await waitFor(() => expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveFocus())
 })
 
 test('waits for another name before it renames', async () => {
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename contact' }))
+	await act('Ana Lopez', 'Rename…')
+	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
 	const rename = dialog.getByRole('button', { name: 'Rename' })
 	expect(rename).toHaveAttribute('aria-disabled', 'true')
 
@@ -718,7 +729,7 @@ test('closes the rename modal without writing when the reader cancels', async ()
 	const names = writesName()
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename')
+	await act('Ana Lopez', 'Rename…')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -733,8 +744,8 @@ test('closes the rename modal without writing when the reader cancels', async ()
 async function failRename(error: Record<string, unknown>) {
 	server.use(graphql.mutation('RenameContact', () => HttpResponse.json({ data: null, errors: [error] })))
 	renderAt('/contacts')
-	await act('Ana Lopez', 'Rename')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename contact' }))
+	await act('Ana Lopez', 'Rename…')
+	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
 	await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), ' Ltd')
 	await userEvent.click(dialog.getByRole('button', { name: 'Rename' }))
 	return dialog
@@ -749,13 +760,13 @@ test('shows why a contact could not be renamed inside the modal', async () => {
 	})
 
 	expect(await dialog.findByRole('alert')).toHaveTextContent('A contact needs a name.')
-	expect(screen.queryByText('Contact renamed.')).not.toBeInTheDocument()
+	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
 })
 
 test('says plainly that a contact could not be renamed when the server names no reason', async () => {
 	const dialog = await failRename({ message: 'internal error' })
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('The contact could not be renamed.')
+	expect(await dialog.findByRole('alert')).toHaveTextContent('The name could not be updated.')
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 

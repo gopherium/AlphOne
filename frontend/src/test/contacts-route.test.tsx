@@ -651,7 +651,7 @@ test('renames a contact', async () => {
 	expect(
 		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
 	).toBeInTheDocument()
-	expect(screen.getByText('Contact renamed.')).toBeInTheDocument()
+	expect(screen.getByText('Name updated.')).toBeInTheDocument()
 })
 
 test('lays the name and Save on one form row', async () => {
@@ -663,7 +663,7 @@ test('lays the name and Save on one form row', async () => {
 	renderAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-	const text = await screen.findByText('The contact could not be renamed.')
+	const text = await screen.findByText('The name could not be updated.')
 	const notice = text.closest('[role="alert"]') as HTMLElement
 
 	const save = screen.getByRole('button', { name: 'Save' })
@@ -719,9 +719,9 @@ test('reports a generic message when the rename fails otherwise', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
 	expect(
-		await screen.findByText('The contact could not be renamed.'),
+		await screen.findByText('The name could not be updated.'),
 	).toBeInTheDocument()
-	expect(screen.queryByText('Contact renamed.')).not.toBeInTheDocument()
+	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
 })
 
 test('surfaces the backend message for unreadable rename rejections', async () => {

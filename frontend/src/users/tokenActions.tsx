@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, _n, trash } from '@alphone/frontend-sdk'
+import { __, trash } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 import { useMemo } from 'react'
 
@@ -22,11 +22,11 @@ export function useTokenActions(
 		() => [
 			{
 				id: 'revoke',
-				label: __('Revoke', 'alphone'),
+				label: __('Revoke…', 'alphone'),
 				icon: trash,
 				supportsBulk: true,
-				modalHeader: (tokens) => _n('Revoke token', 'Revoke tokens', tokens.length, 'alphone'),
-				modalSize: 'small',
+				hideModalHeader: true,
+				modalFocusOnMount: 'firstContentElement',
 				RenderModal: (props) => <RevokeModal {...props} onFailure={onFailure} onRevoked={onRevoked} />,
 			},
 		],

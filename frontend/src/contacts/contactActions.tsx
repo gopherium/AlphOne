@@ -9,7 +9,7 @@ import { RenameModal } from './ContactModals'
 import type { ContactRow } from './contactFields'
 
 /**
- * Returns the actions the contacts list offers on every row, the modal first and the one click action last.
+ * Returns the actions the contacts list offers on every row, the one click Add task first as the primary action.
  * @returns The row actions.
  */
 export function useContactActions(): Action<ContactRow>[] {
@@ -18,17 +18,17 @@ export function useContactActions(): Action<ContactRow>[] {
 	return useMemo(
 		() => [
 			{
-				id: 'rename',
-				label: __('Rename', 'alphone'),
-				modalHeader: __('Rename contact', 'alphone'),
-				modalSize: 'small',
-				modalFocusOnMount: 'firstContentElement',
-				RenderModal: RenameModal,
-			},
-			{
 				id: 'add-task',
 				label: __('Add task', 'alphone'),
+				isPrimary: true,
 				callback: ([contact]) => void navigate({ to: '/tasks/new', search: { contactId: contact.id } }),
+			},
+			{
+				id: 'rename',
+				label: __('Rename…', 'alphone'),
+				modalHeader: __('Rename', 'alphone'),
+				modalFocusOnMount: 'firstContentElement',
+				RenderModal: RenameModal,
 			},
 		],
 		[navigate],

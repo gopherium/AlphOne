@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
@@ -82,6 +82,12 @@ test('draws each bulk action with an icon, the only part of it a medium screen s
 	await userEvent.click((await rowOf('Ada Lovelace')).getByRole('checkbox'))
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('checkbox'))
 
-	expect((await screen.findByRole('button', { name: 'Disable' })).querySelector('svg')).not.toBeNull()
-	expect(screen.getByRole('button', { name: 'Enable' }).querySelector('svg')).not.toBeNull()
+	const footer = await waitFor(() => {
+		const found = document.querySelector<HTMLElement>('.dataviews-bulk-actions-footer__action-buttons')
+		expect(found).not.toBeNull()
+		return found as HTMLElement
+	})
+	const bar = within(footer)
+	expect((await bar.findByRole('button', { name: 'Disable' })).querySelector('svg')).not.toBeNull()
+	expect(bar.getByRole('button', { name: 'Enable' }).querySelector('svg')).not.toBeNull()
 })

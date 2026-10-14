@@ -7,7 +7,7 @@ import { resetLocale } from '@gopherium/gottext/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { beforeAll, beforeEach, expect, onTestFinished, test } from 'vitest'
+import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
@@ -401,72 +401,111 @@ test('returns to the users tab from the tokens tab', async () => {
 	expect(shown.getByRole('link', { name: 'API tokens' })).not.toHaveAttribute('aria-current')
 })
 
-test('keeps Revoke in the row actions menu, never as a button in the row', async () => {
+test('keeps Revoke… in the row actions menu, never as a button in the row', async () => {
 	renderAt('/users/tokens')
 
 	const row = await rowOf('n8n production')
 	expect(row.queryByRole('button', { name: /Revoke/ })).not.toBeInTheDocument()
 	await userEvent.click(row.getByRole('button', { name: 'Actions' }))
-	expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
+	expect(await screen.findByRole('menuitem', { name: 'Revoke…' })).toBeInTheDocument()
 })
 
 test('offers a member the revoke of the tokens the member holds', async () => {
 	renderAt('/users/tokens', memberSession)
 
 	await userEvent.click((await rowOf('n8n production')).getByRole('button', { name: 'Actions' }))
-	expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
+	expect(await screen.findByRole('menuitem', { name: 'Revoke…' })).toBeInTheDocument()
 })
 
-test('asks before it revokes, in a small modal naming the token, with Cancel as a text button', async () => {
+test('asks before it revokes in a medium modal with no title or close button, as a WordPress delete does', async () => {
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke')
+	await act('n8n production', 'Revoke…')
 
-	const dialog = await screen.findByRole('dialog', { name: 'Revoke token' })
-	expect(dialog).toHaveClass('has-size-small')
+	const dialog = await screen.findByRole('dialog')
+	expect(dialog).toHaveClass('has-size-medium')
+	expect(within(dialog).queryByRole('heading')).not.toBeInTheDocument()
+	expect(within(dialog).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+	expect(within(dialog).getByText('Revoke "n8n production"? This cannot be undone.')).toBeInTheDocument()
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('minimal', undefined, 'neutral'),
+	)
+})
+
+test('puts the focus on Cancel when the revoke opens, as a WordPress delete does', async () => {
+	const laidOut = vi
+		.spyOn(HTMLElement.prototype, 'getClientRects')
+		.mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList)
+	onTestFinished(() => laidOut.mockRestore())
+	renderAt('/users/tokens')
+
+	await act('n8n production', 'Revoke…')
+
+	const dialog = within(await screen.findByRole('dialog'))
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveFocus())
+})
+
+test('greys Cancel out while the revoke runs', async () => {
+	server.use(graphql.mutation('ApiTokenRevoke', () => new Promise(() => {})))
+	renderAt('/users/tokens')
+
+	await act('n8n production', 'Revoke…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
+})
+
+test('cuts a long token name short in the question', async () => {
+	holding([tokenOf('a1', 'Nightly export of every contact to the accounting system')])
+	renderAt('/users/tokens')
+
+	await act('Nightly export', 'Revoke…')
+
+	const dialog = within(await screen.findByRole('dialog'))
 	expect(
-		within(dialog).getByText('Revoke the token n8n production? Anything using it stops working at once.'),
+		dialog.getByText('Revoke "Nightly export of every contact to the accoun…"? This cannot be undone.'),
 	).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
 test('closes the revoke modal without revoking when the reader cancels', async () => {
 	const asked = revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke')
+	await act('n8n production', 'Revoke…')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	expect(asked).toEqual([])
 })
 
-test('revokes a token once confirmed, drops it from the list and confirms it with a toast', async () => {
+test('revokes a token once confirmed, drops it from the list and names it in a toast', async () => {
 	const asked = revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Revoke token' }))
+	await act('n8n production', 'Revoke…')
+	const dialog = within(await screen.findByRole('dialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
-	expect(await screen.findByText('Token revoked.')).toBeInTheDocument()
+	expect(await screen.findByText('"n8n production" revoked.')).toBeInTheDocument()
 	expect(asked).toEqual([production.id])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	await waitFor(async () => expect(await shownNames()).toEqual(['Zapier sync', 'Monthly report']))
 })
 
-test('confirms a revoke with a toast in Spanish', async () => {
+test('asks and confirms a revoke in Spanish', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
 	await startAppLocale()
 	onTestFinished(() => resetLocale())
 	revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revocar')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Revocar token' }))
+	await act('n8n production', 'Revocar…')
+	const dialog = within(await screen.findByRole('dialog'))
+	expect(dialog.getByText('¿Revocar «n8n production»? Esto no se puede deshacer.')).toBeInTheDocument()
 	await userEvent.click(dialog.getByRole('button', { name: 'Revocar' }))
 
-	expect(await screen.findByText('Token revocado.')).toBeInTheDocument()
+	expect(await screen.findByText('«n8n production» revocado.')).toBeInTheDocument()
 })
 
 test('shows why a token could not be revoked above the list, without a toast', async () => {
@@ -478,12 +517,12 @@ test('shows why a token could not be revoked above the list, without a toast', a
 	)
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke')
+	await act('n8n production', 'Revoke…')
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The token could not be revoked.')
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
-	expect(screen.queryByText('Token revoked.')).not.toBeInTheDocument()
+	expect(screen.queryByText('"n8n production" revoked.')).not.toBeInTheDocument()
 	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
@@ -493,9 +532,9 @@ test('revokes every selected token after one question with one toast, counted in
 	renderAt('/users/tokens')
 
 	await select('n8n production', 'Zapier sync')
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
-	const dialog = within(await screen.findByRole('dialog', { name: 'Revoke tokens' }))
-	expect(dialog.getByText('Revoke २ tokens? Anything using them stops working at once.')).toBeInTheDocument()
+	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
+	const dialog = within(await screen.findByRole('dialog'))
+	expect(dialog.getByText('Revoke २ tokens? This cannot be undone.')).toBeInTheDocument()
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('२ tokens revoked.')).toBeInTheDocument()
@@ -515,7 +554,7 @@ test('names the tokens a bulk revoke could not reach in one notice counting them
 	renderAt('/users/tokens')
 
 	await select('n8n production', 'Zapier sync')
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('१ token revoked.')).toBeInTheDocument()
@@ -529,14 +568,14 @@ test('clears an earlier failure once the next revoke starts', async () => {
 		),
 	)
 	renderAt('/users/tokens')
-	await act('n8n production', 'Revoke')
+	await act('n8n production', 'Revoke…')
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 	expect(await screen.findByRole('alert')).toHaveTextContent('The token could not be revoked.')
 	revokes()
 
-	await act('n8n production', 'Revoke')
+	await act('n8n production', 'Revoke…')
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 
-	expect(await screen.findByText('Token revoked.')).toBeInTheDocument()
+	expect(await screen.findByText('"n8n production" revoked.')).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
