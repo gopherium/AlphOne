@@ -300,3 +300,8 @@ msgstr "Pendiente"
 msgctxt "row outcome"
 msgid "Skipped"
 msgstr "Omitida"
+
+#, fuzzy
+msgctxt "token area"
+msgid "imports"
+msgstr "importaciones"

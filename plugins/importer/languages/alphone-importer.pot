@@ -231,3 +231,7 @@ msgstr ""
 msgctxt "row outcome"
 msgid "Skipped"
 msgstr ""
+
+msgctxt "token area"
+msgid "imports"
+msgstr ""
