@@ -72,7 +72,7 @@ export function RoleModal({
 					</ErrorNotice>
 				) : null}
 				<Stack direction="row" gap="sm" justify="flex-end">
-					<Button variant="minimal" tone="neutral" onClick={closeModal}>
+					<Button variant="minimal" onClick={closeModal}>
 						{__('Cancel', 'alphone')}
 					</Button>
 					<Button type="submit" loading={written.fetching} disabled={chosen === user.role}>

@@ -801,7 +801,7 @@ test('lifts the role choices into the overlay slot that stacks above the modal',
 	expect(choice.closest('[data-wp-compat-overlay-slot]')).not.toBeNull()
 })
 
-test('opens the role change in a small modal naming the account, with Cancel as a neutral text button', async () => {
+test('opens the role change in a small modal naming the account, with Cancel as an accent text button', async () => {
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
@@ -809,9 +809,7 @@ test('opens the role change in a small modal naming the account, with Cancel as 
 	const dialog = await screen.findByRole('dialog', { name: 'Change role' })
 	expect(dialog).toHaveClass('has-size-small')
 	expect(within(dialog).getByText('Choose the role of Ada Lovelace.')).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
-		buttonClasses('minimal', undefined, 'neutral'),
-	)
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
 test('waits for another role before it writes one', async () => {
