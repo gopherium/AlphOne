@@ -141,6 +141,74 @@ test('reports the rows unread when a page fails', async () => {
 	expect(result.current.rows).toBeUndefined()
 })
 
+/** tooCostly is the answer the server gives a page past the query cost limit. */
+const tooCostly = {
+	data: null,
+	errors: [
+		{
+			message: 'operation has complexity 4500, which exceeds the limit of 2500',
+			extensions: { code: 'COMPLEXITY_LIMIT_EXCEEDED' },
+		},
+	],
+}
+
+test('halves the page while the server refuses it as too costly, keeping the page that fits', async () => {
+	paging([8], 8)
+	const asked: pageAsked[] = []
+	server.use(
+		graphql.query('ImportRows', ({ variables }) => {
+			const page = variables as pageAsked
+			asked.push(page)
+			return (page.limit ?? 0) > 2 ? HttpResponse.json(tooCostly) : HttpResponse.json(rowsPage(stagedRows(5), page))
+		}),
+	)
+
+	const { result } = hostRows()
+
+	await waitFor(() => expect(positionsOf(result.current.rows)).toEqual([1, 2, 3, 4, 5]))
+	expect(asked.map((page) => [page.limit, page.offset])).toEqual([
+		[8, 0],
+		[4, 0],
+		[2, 0],
+		[2, 2],
+		[2, 4],
+	])
+})
+
+test('reports the rows unread when even a one row page is too costly', async () => {
+	paging([2], 2)
+	const asked: pageAsked[] = []
+	server.use(
+		graphql.query('ImportRows', ({ variables }) => {
+			asked.push(variables as pageAsked)
+			return HttpResponse.json(tooCostly)
+		}),
+	)
+
+	const { result } = hostRows()
+
+	await waitFor(() => expect(result.current.failed).toBe(true))
+	expect(asked.map((page) => page.limit)).toEqual([2, 1])
+})
+
+test('reports the rows unread when the page the server chose is too costly, having no page to halve', async () => {
+	server.use(
+		graphql.query('AdminSettings', () => HttpResponse.json({ data: null, errors: [{ message: 'down' }] })),
+	)
+	const asked: pageAsked[] = []
+	server.use(
+		graphql.query('ImportRows', ({ variables }) => {
+			asked.push(variables as pageAsked)
+			return HttpResponse.json(tooCostly)
+		}),
+	)
+
+	const { result } = hostRows()
+
+	await waitFor(() => expect(result.current.failed).toBe(true))
+	expect(asked.map((page) => page.limit ?? 'unset')).toEqual(['unset'])
+})
+
 test('reads no rows for an import that is gone', async () => {
 	server.use(graphql.query('ImportRows', () => HttpResponse.json({ data: { importJob: null } })))
 

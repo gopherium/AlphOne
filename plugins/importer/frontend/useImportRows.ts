@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useAdminSettings, useGraph } from '@alphone/frontend-sdk'
-import type { GraphClient } from '@alphone/frontend-sdk'
+import { graphExtensions, useAdminSettings, useGraph } from '@alphone/frontend-sdk'
+import type { GraphClient, GraphFailure } from '@alphone/frontend-sdk'
 import { useEffect, useRef, useState } from 'react'
 
 import type { ImportRowsQuery } from './gql/graphql'
@@ -108,11 +108,28 @@ async function readFrom(pages: pageReader, read: ImportRow[]): Promise<ImportRow
 		)
 		.toPromise()
 	if (result.error !== undefined) {
-		throw result.error
+		const smaller = smallerChunk(result.error, pages.chunk)
+		if (smaller === undefined) {
+			throw result.error
+		}
+		return readFrom({ ...pages, chunk: smaller }, read)
 	}
 	const page = result.data?.importJob?.rows ?? []
 	const rows = [...read, ...page]
 	return isLastPage(page.length, pages.chunk) || !pages.isLive() ? rows : readFrom(pages, rows)
+}
+
+/**
+ * Returns half the page a refusal for its query cost leaves to try, none for another refusal or a page of one row.
+ * @param error - The refusal the page met.
+ * @param chunk - The rows the refused page asked for, undefined when the server chose.
+ * @returns The smaller page, or undefined when there is none to try.
+ */
+function smallerChunk(error: GraphFailure, chunk: number | undefined): number | undefined {
+	if (graphExtensions(error).code !== 'COMPLEXITY_LIMIT_EXCEEDED') {
+		return undefined
+	}
+	return chunk === undefined || chunk < 2 ? undefined : Math.floor(chunk / 2)
 }
 
 /**
