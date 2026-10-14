@@ -42,7 +42,8 @@ with another plugin's. `archive.rows.purged` follows both rules.
 ## Publish one
 
 `deps.Events` publishes an event. Keep it from `Register`, then call
-`Publish` with the name and the data a subscriber reads:
+`Publish` from `Start` onwards, or while serving a request, with the
+name and the data a subscriber reads:
 
 ```go
 p.events.Publish(ctx, eventPurged, map[string]any{
@@ -58,7 +59,10 @@ rest through the API.
 Use the same constant in `Events` and in `Publish`, so the two cannot
 drift apart. A name no plugin declared is dropped, and the log gets an
 error, `a plugin published an event it never declared`, naming the
-event.
+event. A core event such as `task.created` is dropped the same way,
+because only AlphOne itself publishes those. So is an event published
+inside `Register`, since AlphOne reads the declarations only after every
+plugin has registered.
 
 ## When a declaration is refused
 
