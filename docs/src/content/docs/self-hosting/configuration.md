@@ -20,6 +20,7 @@ When a variable holds a value AlphOne refuses:
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
   [Webhooks](#webhooks), [Fields plugin](#fields-plugin) or
   [WhatsApp plugin](#whatsapp-plugin),
+  in `ALPHONE_GRAPH_PAGE_SIZE` or `ALPHONE_GRAPH_PAGE_CAP`,
   or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops the account commands
   that take `-as`, before they change anything. It stops `migrate`,
   `seed -yes` and `account:create-admin` too, but only once they have
@@ -96,8 +97,8 @@ deployment serves more than one.
 
 | Variable | Purpose |
 | --- | --- |
-| `ALPHONE_GRAPH_PAGE_SIZE` | Rows a core graph list (`contacts`, `tasks`, `contactPage`) answers when the caller names no size. Defaults to 50. `serve` will not start if the value is not a positive whole number or is above `ALPHONE_GRAPH_PAGE_CAP`. |
-| `ALPHONE_GRAPH_PAGE_CAP` | The most rows one core graph list answers. Defaults to 200. A request for more is refused, and `serve` will not start if the value is not a positive whole number or is above 1250. Reading even one field of each row costs 2 a row, so 1250 rows is the largest page that fits the query cost limit of 2500. A wider read of a large page can still be refused by that limit, see [Limits](/reference/graphql-api/#limits). |
+| `ALPHONE_GRAPH_PAGE_SIZE` | Rows a graph list answers when the caller names no size, the core lists (`contacts`, `tasks`, `contactPage`) and the plugin lists alike, such as the WhatsApp conversations and the rows of an import. Defaults to 50. A value that is not a positive whole number or is above `ALPHONE_GRAPH_PAGE_CAP` stops `serve` and the other commands listed at the top of this page. |
+| `ALPHONE_GRAPH_PAGE_CAP` | The most rows one graph list answers, core and plugin lists alike. Defaults to 200. A request for more is refused. A value that is not a positive whole number or is above 1250 stops `serve` and the other commands listed at the top of this page. Reading even one field of each row costs 2 a row, so 1250 rows is the largest page that fits the query cost limit of 2500. A wider read of a large page can still be refused by that limit, see [Limits](/reference/graphql-api/#limits). |
 | `ALPHONE_TOAST_DURATION` | How long a confirmation toast stays on screen, written as a duration such as `6s` or `1500ms`. Defaults to `6s`. `serve` will not start unless the value is whole milliseconds from `1ms` to `2147483647ms`. |
 | `ALPHONE_LIST_PAGE_SIZES` | The page sizes a list screen offers, comma separated. Defaults to `10,20,50,100`. `serve` will not start unless each size is a positive whole number, listed once from the smallest up, and none is above `ALPHONE_GRAPH_PAGE_CAP`. |
 | `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on. Defaults to 20. `serve` will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |

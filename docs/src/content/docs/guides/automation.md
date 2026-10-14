@@ -245,12 +245,18 @@ Subscribe to `import.completed`. It carries the import `id`, so the next
 step reads what that import produced:
 
 ```graphql
-query($id: UUID!) {
+query($id: UUID!, $offset: Int!) {
   importJob(id: $id) {
-    contacts { contactId name rowId }
+    contacts(limit: 200, offset: $offset) { contactId name rowId }
   }
 }
 ```
+
+The contacts come a page at a time, in the order of the file. Start with
+`offset` 0 and add the page's length each time, until a page comes back
+shorter than its `limit`. A `limit` above `ALPHONE_GRAPH_PAGE_CAP`, 200 by
+default, is refused, and a read with no `limit` answers
+`ALPHONE_GRAPH_PAGE_SIZE` contacts.
 
 Every entry carries `contactId`, `name`, and `rowId`, the row of the file
 that created the contact:

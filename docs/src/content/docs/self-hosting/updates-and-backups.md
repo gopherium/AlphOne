@@ -88,6 +88,17 @@ server, because a watcher on `:latest` applies it on its own.
   with no command now only lists the commands, so it needs `serve`.
   `createadmin` and `grantrole` are refused under their old names, see
   [Old names](/self-hosting/commands/#old-names).
+- The rows and the contacts of an import come a page at a time. A read
+  of `importJob.rows` or `importJob.contacts` that names no `limit`
+  answers `ALPHONE_GRAPH_PAGE_SIZE` entries, 50 by default, instead of
+  every one, and a `limit` above `ALPHONE_GRAPH_PAGE_CAP` is refused. A
+  workflow that reads the contacts of an import, such as the n8n node's
+  Get the contacts of an import, sees only the first page until it reads
+  the rest, see
+  [Turning an import into a call list](/guides/automation/#turning-an-import-into-a-call-list).
+- The WhatsApp conversation and message lists follow
+  `ALPHONE_GRAPH_PAGE_SIZE` and `ALPHONE_GRAPH_PAGE_CAP` instead of a
+  fixed 50 and 200.
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and

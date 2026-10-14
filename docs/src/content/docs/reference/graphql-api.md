@@ -605,7 +605,10 @@ Every value but the query complexity is the default of a setting the
 operator can change, see [Graph limits](/self-hosting/configuration/#graph-limits).
 
 Complexity prices a page as the number of rows asked for times the cost of one
-row, so a wide selection over a large page is what trips it:
+row, so a wide selection over a large page is what trips it. A list read that
+names no size is priced at `ALPHONE_GRAPH_PAGE_SIZE` rows. The plugin lists are
+priced the same way, such as `whatsAppConversations` and the `rows` and
+`contacts` of an import:
 
 ```json
 {
