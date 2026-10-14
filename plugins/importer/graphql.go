@@ -21,22 +21,9 @@ import (
 
 // Graph resolver errors.
 var (
-	errImportNotFound  = errors.New("importer: import not found")
-	errInvalidRowLimit = fmt.Errorf("importer: limit must be between 1 and %d", maxRows)
-	errNoUploader      = errors.New("importer: the request carries no user")
+	errImportNotFound = errors.New("importer: import not found")
+	errNoUploader     = errors.New("importer: the request carries no user")
 )
-
-// graphRowLimit resolves a rows limit argument against the staging cap.
-func graphRowLimit(limit *int) (int, error) {
-	if limit == nil {
-		return maxRows, nil
-	}
-	if *limit < 1 || *limit > maxRows {
-		return 0, sdk.GraphError{Code: "VALIDATION", Reason: "first_out_of_range",
-			Meta: map[string]any{"min": 1, "max": maxRows}, Err: errInvalidRowLimit}
-	}
-	return *limit, nil
-}
 
 // toGraphImport maps a stored import onto its graph model.
 func toGraphImport(stored importRow) *model.ImportJob {
@@ -160,38 +147,46 @@ func (p *Plugin) ImportJobResolvers() ImportJobResolvers {
 	return ImportJobResolvers{plugin: p}
 }
 
-// Rows lists the staged rows of the import in position order.
+// Rows lists one page of the staged rows of the import in position order.
 func (j ImportJobResolvers) Rows(
-	ctx context.Context, obj *model.ImportJob, limit *int,
+	ctx context.Context, obj *model.ImportJob, limit, offset *int,
 ) ([]*model.ImportRow, error) {
-	bounded, err := graphRowLimit(limit)
-	if err != nil {
-		return nil, err
-	}
-	staged, err := j.plugin.store.listRows(ctx, obj.ID, bounded)
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]*model.ImportRow, len(staged))
-	for i, one := range staged {
-		rows[i] = toGraphRow(one)
-	}
-	return rows, nil
+	return pageOf(j.plugin.pages, limit, offset, func(size, skip int) ([]stagedRow, error) {
+		return j.plugin.store.listRows(ctx, obj.ID, size, skip)
+	}, toGraphRow)
 }
 
-// Contacts lists the contacts the import created, in row order.
+// Contacts lists one page of the contacts the import created, in row order.
 func (j ImportJobResolvers) Contacts(
-	ctx context.Context, obj *model.ImportJob,
+	ctx context.Context, obj *model.ImportJob, limit, offset *int,
 ) ([]*model.ImportContact, error) {
-	linked, err := j.plugin.store.listImportContacts(ctx, obj.ID)
+	return pageOf(j.plugin.pages, limit, offset, func(size, skip int) ([]importContactRow, error) {
+		return j.plugin.store.listImportContacts(ctx, obj.ID, size, skip)
+	}, toGraphContact)
+}
+
+// pageOf reads the page a limit and an offset name within the bounds, mapping each stored entry onto its graph model.
+func pageOf[Stored, Graph any](
+	pages sdk.PageBounds, limit, offset *int, list func(size, skip int) ([]Stored, error), toGraph func(Stored) Graph,
+) ([]Graph, error) {
+	size, err := pages.Limit(limit)
 	if err != nil {
 		return nil, err
 	}
-	contacts := make([]*model.ImportContact, len(linked))
-	for i, one := range linked {
-		contacts[i] = &model.ImportContact{ContactID: one.ContactID, Name: one.Name, RowID: one.RowID}
+	stored, err := list(size, sdk.Offset(offset))
+	if err != nil {
+		return nil, err
 	}
-	return contacts, nil
+	page := make([]Graph, len(stored))
+	for i, one := range stored {
+		page[i] = toGraph(one)
+	}
+	return page, nil
+}
+
+// toGraphContact maps a contact the import created onto its graph model.
+func toGraphContact(linked importContactRow) *model.ImportContact {
+	return &model.ImportContact{ContactID: linked.ContactID, Name: linked.Name, RowID: linked.RowID}
 }
 
 // MutationResolvers serves the plugin's Mutation root fields.

@@ -35,6 +35,7 @@ type Plugin struct {
 	store     *store
 	contacts  sdk.ContactDirectory
 	events    sdk.Publisher
+	pages     sdk.PageBounds
 	providers []sdk.FieldProvider
 }
 
@@ -49,6 +50,7 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		store:    &store{pool: pool},
 		contacts: deps.Contacts,
 		events:   deps.Events,
+		pages:    deps.Pages,
 	}, nil
 }
 
