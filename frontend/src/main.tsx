@@ -23,6 +23,7 @@ import { BootLoading } from './boot'
 import { configureAppChannelNames } from './contacts/channel'
 import { configureAppErrorText } from './i18n/errors'
 import { startAppLocale } from './i18n/start'
+import { plugins } from './plugins'
 import { createAppRouter } from './router'
 
 await startAppLocale()
@@ -33,6 +34,7 @@ configureAuthTransport(graphAuthTransport)
 const queryClient = createAuthQueryClient()
 const graph = createGraphClient({
 	onSessionExpired: () => queryClient.setQueryData(sessionQueryKey, null),
+	plugins,
 })
 const router = createAppRouter()
 const publicScreen = publicAuthScreen(new URL(window.location.href), () => {

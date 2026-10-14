@@ -707,14 +707,6 @@ msgid "events"
 msgstr ""
 
 msgctxt "token area"
-msgid "fields"
-msgstr ""
-
-msgctxt "token area"
-msgid "imports"
-msgstr ""
-
-msgctxt "token area"
 msgid "meta"
 msgstr ""
 

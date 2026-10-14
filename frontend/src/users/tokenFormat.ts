@@ -1,36 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { _x, __, formatDate } from '@alphone/frontend-sdk'
+import type { FrontendPlugin, TokenArea } from '@alphone/frontend-sdk'
 
-/** grantableAreas lists the areas a token may be granted, in menu order. */
-export const grantableAreas = [
-	'contacts',
-	'events',
-	'fields',
-	'imports',
-	'meta',
-	'tasks',
-	'users',
-	'webhooks',
-	'whatsapp',
-] as const
+import { plugins as wired } from '../plugins'
 
 /**
- * Returns the name each grantable area reads under in a sentence, read fresh so the loaded catalogue answers.
- * @returns The names, keyed by area.
+ * Returns the areas the core grants a token, each named the way it reads in a sentence, read fresh.
+ * @returns The core areas.
  */
-export function areaLabels(): Record<(typeof grantableAreas)[number], string> {
-	return {
-		contacts: _x('contacts', 'token area', 'alphone'),
-		events: _x('events', 'token area', 'alphone'),
-		fields: _x('fields', 'token area', 'alphone'),
-		imports: _x('imports', 'token area', 'alphone'),
-		meta: _x('meta', 'token area', 'alphone'),
-		tasks: _x('tasks', 'token area', 'alphone'),
-		users: _x('users', 'token area', 'alphone'),
-		webhooks: _x('webhooks', 'token area', 'alphone'),
-		whatsapp: 'WhatsApp',
+function coreAreas(): TokenArea[] {
+	return [
+		{ value: 'contacts', label: _x('contacts', 'token area', 'alphone') },
+		{ value: 'events', label: _x('events', 'token area', 'alphone') },
+		{ value: 'meta', label: _x('meta', 'token area', 'alphone') },
+		{ value: 'tasks', label: _x('tasks', 'token area', 'alphone') },
+		{ value: 'users', label: _x('users', 'token area', 'alphone') },
+		{ value: 'webhooks', label: _x('webhooks', 'token area', 'alphone') },
+	]
+}
+
+/**
+ * Returns every area a token may be granted, the core ones and each plugin's, in order of their names.
+ * @param plugins - The plugins whose areas join the core ones, the wired ones by default.
+ * @returns The areas, refusing one granted twice.
+ */
+export function grantableAreas(plugins: readonly Pick<FrontendPlugin, 'id' | 'tokenAreas'>[] = wired): TokenArea[] {
+	const areas = coreAreas()
+	const owners = new Map(areas.map((area) => [area.value, 'the core']))
+	for (const plugin of plugins) {
+		for (const area of plugin.tokenAreas ?? []) {
+			const owner = owners.get(area.value)
+			if (owner !== undefined) {
+				throw new Error(`tokens: ${plugin.id} grants the area ${area.value}, which ${owner} already grants`)
+			}
+			owners.set(area.value, plugin.id)
+			areas.push(area)
+		}
 	}
+	return areas.sort((left, right) => (left.value < right.value ? -1 : 1))
 }
 
 /**

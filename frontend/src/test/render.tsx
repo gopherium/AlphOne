@@ -20,6 +20,7 @@ import { act, render } from '@testing-library/react'
 import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
 import { configureAppChannelNames } from '../contacts/channel'
+import { plugins } from '../plugins'
 import { createAppRouter } from '../router'
 
 export { badgeClasses, buttonClasses }
@@ -111,6 +112,7 @@ export function renderAt(
 	seedSession(client, user)
 	const graph = createGraphClient({
 		onSessionExpired: () => client.setQueryData(sessionQueryKey, null),
+		plugins,
 	})
 	server.use(
 		graphql.query('Version', () =>

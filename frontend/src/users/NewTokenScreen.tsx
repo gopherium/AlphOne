@@ -13,10 +13,10 @@ import {
 	useGraphMutation,
 	validationMessage,
 } from '@alphone/frontend-sdk'
+import type { TokenArea } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
 import {
-	areaLabels,
 	defaultLifetime,
 	grantableAreas,
 	lifetimeChoices,
@@ -29,13 +29,14 @@ type Grants = Record<string, 'read' | 'write' | undefined>
 
 /**
  * Returns the scopes the ticked areas ask for.
+ * @param areas - The areas the form offers, in order.
  * @param grants - The access ticked per area.
  * @returns The scope strings, sorted by area.
  */
-function scopesOf(grants: Grants): string[] {
-	return grantableAreas
-		.filter((area) => grants[area] !== undefined)
-		.map((area) => `${area}:${grants[area]}`)
+function scopesOf(areas: readonly TokenArea[], grants: Grants): string[] {
+	return areas
+		.filter((area) => grants[area.value] !== undefined)
+		.map((area) => `${area.value}:${grants[area.value]}`)
 }
 
 /**
@@ -112,8 +113,8 @@ export function NewTokenScreen() {
 	const [lifetime, setLifetime] = useState(defaultLifetime)
 	const [secret, setSecret] = useState<string | null>(null)
 	const [mint, runMint] = useGraphMutation(apiTokenCreateMutation)
-	const scopes = scopesOf(grants)
-	const labels = areaLabels()
+	const areas = grantableAreas()
+	const scopes = scopesOf(areas, grants)
 	const submit = async () => {
 		const result = await runMint({ name, scopes, ttlDays: lifetimeDays(lifetime) })
 		if (result.data) {
@@ -144,18 +145,18 @@ export function NewTokenScreen() {
 				/>
 				<fieldset>
 					<legend>{__('Areas', 'alphone')}</legend>
-					{grantableAreas.map((area) => (
-						<Stack key={area} direction="row" gap="sm">
+					{areas.map((area) => (
+						<Stack key={area.value} direction="row" gap="sm">
 							<GrantBox
-								area={area}
-								areaLabel={labels[area]}
+								area={area.value}
+								areaLabel={area.label}
 								access="read"
 								grants={grants}
 								onGrant={setGrants}
 							/>
 							<GrantBox
-								area={area}
-								areaLabel={labels[area]}
+								area={area.value}
+								areaLabel={area.label}
 								access="write"
 								grants={grants}
 								onGrant={setGrants}
