@@ -57,6 +57,11 @@ func (p *Plugin) ID() string {
 	return "importer"
 }
 
+// Events declares the event names the plugin publishes.
+func (p *Plugin) Events() []string {
+	return []string{eventImportCompleted}
+}
+
 // Start reports the plugin ready.
 func (p *Plugin) Start(_ context.Context) error {
 	return nil
