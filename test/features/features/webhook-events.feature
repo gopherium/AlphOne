@@ -17,9 +17,9 @@ Feature: Plugins declare the events a webhook can carry
     Then the webhook is refused as an unknown event
     And that token lists no webhook
 
-  Scenario: The event list names the core events and every plugin event
+  Scenario: The event list names the core events first and then every plugin event
     When that token lists the webhook events
-    Then the event list names
+    Then the event list names, in order
       | task.created              |
       | task.completed            |
       | contact.created           |

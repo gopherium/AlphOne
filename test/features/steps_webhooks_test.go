@@ -112,8 +112,8 @@ func registerWebhookEventSteps(sc *godog.ScenarioContext) {
 		return worldFrom(ctx).postGraphScoped(ctx, `{"query":"{ webhookEvents }"}`)
 	})
 
-	sc.Then(`^the event list names$`, func(ctx context.Context, table *godog.Table) error {
-		return worldFrom(ctx).listedExactly(table)
+	sc.Then(`^the event list names, in order$`, func(ctx context.Context, table *godog.Table) error {
+		return worldFrom(ctx).listedInOrder(table)
 	})
 }
 
@@ -132,8 +132,8 @@ func (w *world) registeredForEvent(name string) error {
 	return nil
 }
 
-// listedExactly reports whether the last operation listed exactly the event names of table, in any order.
-func (w *world) listedExactly(table *godog.Table) error {
+// listedInOrder reports whether the last operation listed exactly the event names of table, in its order.
+func (w *world) listedInOrder(table *godog.Table) error {
 	if err := w.answeredWithoutError(); err != nil {
 		return err
 	}
@@ -145,8 +145,8 @@ func (w *world) listedExactly(table *godog.Table) error {
 	for _, row := range table.Rows {
 		want = append(want, row.Cells[0].Value)
 	}
-	if !slices.Equal(slices.Sorted(slices.Values(listed.Data.WebhookEvents)), slices.Sorted(slices.Values(want))) {
-		return fmt.Errorf("webhookEvents = %v, want exactly %v", listed.Data.WebhookEvents, want)
+	if !slices.Equal(listed.Data.WebhookEvents, want) {
+		return fmt.Errorf("webhookEvents = %v, want exactly %v in that order", listed.Data.WebhookEvents, want)
 	}
 	return nil
 }
