@@ -51,11 +51,17 @@ func slicingProblems(owner string, field *ast.FieldDefinition, sized *ast.Direct
 		return []string{fmt.Sprintf("%s.%s names no list of slicing arguments", owner, field.Name)}
 	}
 	var problems []string
+	sizedByLimit := false
 	for _, named := range slicing {
+		sizedByLimit = sizedByLimit || named.Value.Raw == "limit"
 		if field.Arguments.ForName(named.Value.Raw) == nil {
 			problems = append(problems,
 				fmt.Sprintf("%s.%s is sized by %q, which it does not take", owner, field.Name, named.Value.Raw))
 		}
+	}
+	if !sizedByLimit && field.Arguments.ForName("limit") != nil {
+		problems = append(problems,
+			fmt.Sprintf("%s.%s takes a limit its @%s does not size it by", owner, field.Name, listSizeDirective))
 	}
 	return problems
 }
@@ -110,13 +116,16 @@ extend type Query { typo(limit: Int): [Thing!]! @listSize(slicingArguments: ["li
 type Thing { single(limit: Int): [Thing!]! @listSize(slicingArguments: "limit") }
 type Other { empty(limit: Int): [Thing!]! @listSize(slicingArguments: []) }
 type Bare { bare(limit: Int): [Thing!]! @listSize }
+type Offsetted { wrong(limit: Int, offset: Int): [Thing!]! @listSize(slicingArguments: ["offset"]) }
 `
 	want := []string{
 		"Query.unpriced takes a limit without @listSize",
 		`Query.typo is sized by "limt", which it does not take`,
+		`Query.typo takes a limit its @listSize does not size it by`,
 		"Thing.single names no list of slicing arguments",
 		"Other.empty names no list of slicing arguments",
 		"Bare.bare names no list of slicing arguments",
+		"Offsetted.wrong takes a limit its @listSize does not size it by",
 	}
 
 	got := listSizeProblemsIn(t, "synthetic", synthetic)
