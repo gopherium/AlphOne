@@ -83,12 +83,15 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		TenantsRefresh: cfg.tenants.refresh,
 		Resolver:       resolverBridge{resolver: resolver},
 		Contacts:       directoryBridge{resolver: resolver},
-		Events:         pluginPublisher{publisher: built.events},
+		Events:         pluginPublisher{publisher: built.events, logger: cfg.logger},
 		Getenv:         cfg.getenv,
 		Env:            settingsEnv(cfg.getenv),
 	})
 	if err := declareRoles(cfg.roles, built.registered); err != nil {
 		return built, fmt.Errorf("declare plugin roles: %w", err)
+	}
+	if err := declareEvents(built.registered); err != nil {
+		return built, fmt.Errorf("declare plugin events: %w", err)
 	}
 	sender, mailer, err := buildMail(cfg.mail, cfg.logger)
 	if err != nil {

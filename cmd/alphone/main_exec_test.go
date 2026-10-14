@@ -557,8 +557,14 @@ type graphAnswer struct {
 				Node map[string]any `json:"node"`
 			} `json:"edges"`
 		} `json:"contacts"`
-		SetLocale     string `json:"setLocale"`
-		Locale        string `json:"locale"`
+		SetLocale     string   `json:"setLocale"`
+		Locale        string   `json:"locale"`
+		WebhookEvents []string `json:"webhookEvents"`
+		CreateWebhook struct {
+			Webhook struct {
+				Events []string `json:"events"`
+			} `json:"webhook"`
+		} `json:"createWebhook"`
 		AdminSettings struct {
 			ToastMilliseconds int    `json:"toastMilliseconds"`
 			ListPageSizes     []int  `json:"listPageSizes"`
@@ -700,6 +706,23 @@ func TestMainBinaryDeliversToAReceiverTheOperatorAllowed(t *testing.T) {
 	}
 	if got := posts.Load(); got != 1 {
 		t.Errorf("the receiver saw %d deliveries, want the allowed loopback receiver served once", got)
+	}
+}
+
+func TestMainBinaryAcceptsAWebhookForAPluginEvent(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedBinary(t, testDatabaseURL(t))
+
+	listed := postGraph(t, addr, secret, `{"query":"{ webhookEvents }"}`)
+	created := postGraph(t, addr, secret, `{"query":"mutation { createWebhook(url: \"https://example.com/hook\", `+
+		`events: [\"whatsapp.message.received\"]) { webhook { events } } }"}`)
+
+	if !slices.Contains(listed.Data.WebhookEvents, "whatsapp.message.received") {
+		t.Errorf("webhookEvents = %v, want the event the WhatsApp plugin declares", listed.Data.WebhookEvents)
+	}
+	if got := created.Data.CreateWebhook.Webhook.Events; !slices.Equal(got, []string{"whatsapp.message.received"}) {
+		t.Errorf("the webhook carries %v, want the plugin event", got)
 	}
 }
 

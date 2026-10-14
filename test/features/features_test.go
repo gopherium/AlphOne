@@ -197,6 +197,10 @@ func TestWebhooks(t *testing.T) {
 	runFeature(t, "features/webhooks.feature", initializeWebhooks(t))
 }
 
+func TestWebhookEvents(t *testing.T) {
+	runFeature(t, "features/webhook-events.feature", initializeWebhooks(t))
+}
+
 func TestWebhookManagement(t *testing.T) {
 	runFeature(t, "features/webhook-management.feature", initializeWebhookManagement(t))
 }

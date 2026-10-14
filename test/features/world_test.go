@@ -353,6 +353,11 @@ func inertPlugins(t *testing.T) []sdk.Plugin {
 	}
 	for _, plugin := range registered {
 		t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+		if provider, ok := plugin.(sdk.EventProvider); ok {
+			if err := event.Declare(plugin.ID(), provider.Events()...); err != nil {
+				t.Fatalf("declaring the events of %s: %v", plugin.ID(), err)
+			}
+		}
 	}
 	return registered
 }

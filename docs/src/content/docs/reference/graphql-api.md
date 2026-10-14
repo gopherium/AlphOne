@@ -668,7 +668,7 @@ cannot drift. Point a client at the endpoint, or read
 | Users | `users` | `invite`, `resendInvite`, `setUserDisabled`, `setUserRole` |
 | Contacts | `contacts`, `contactPage`, `contact` | `createContact`, `renameContact`, `addContactIdentity`, `deleteContactIdentity` |
 | Tasks | `tasks`, `task` | `createTask`, `updateTask` |
-| Webhooks | `webhooks` | `createWebhook`, `deleteWebhook` |
+| Webhooks | `webhooks`, `webhookEvents` | `createWebhook`, `deleteWebhook` |
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |

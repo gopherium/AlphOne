@@ -12,16 +12,25 @@ Nothing here is specific to any engine, see the
 
 ## Events
 
-Five events are published. The list is deliberately short, because every
-name is a public promise:
+A stock install publishes five events. The list is deliberately short,
+because every name is a public promise. Three come from AlphOne itself,
+and two from the plugins it ships:
 
-| Event | Published when |
-| ----- | -------------- |
-| `task.created` | A task is created, by a person or by an integration |
-| `task.completed` | A task moves into `done` |
-| `contact.created` | A contact is created, including one created by an inbound message from an unknown number |
-| `whatsapp.message.received` | An inbound WhatsApp message is stored |
-| `import.completed` | An import finishes turning its rows into contacts |
+| Event | From | Published when |
+| ----- | ---- | -------------- |
+| `task.created` | core | A task is created, by a person or by an integration |
+| `task.completed` | core | A task moves into `done` |
+| `contact.created` | core | A contact is created, including one created by an inbound message from an unknown number |
+| `whatsapp.message.received` | the `whatsapp` plugin | An inbound WhatsApp message is stored |
+| `import.completed` | the `importer` plugin | An import finishes turning its rows into contacts |
+
+Other plugins can add events of their own, see
+[extending events](/extending/events/). The `webhookEvents` query lists
+every name the running instance publishes, the core ones first:
+
+```graphql
+query { webhookEvents }
+```
 
 `task.completed` fires on the move into `done`, not on the state. Patching
 a task that is already done publishes nothing, so an automation cannot
@@ -127,8 +136,8 @@ lose them.
 
 ## Managing subscriptions
 
-Subscriptions are managed on the graph, with `createWebhook`, `webhooks` and
-`deleteWebhook`. Every operation needs a credential, see
+Subscriptions are managed on the graph, with `createWebhook`, `webhooks`,
+`webhookEvents` and `deleteWebhook`. Every operation needs a credential, see
 [authenticating](/reference/graphql-api/#authenticating).
 
 Creating a subscription needs the `manage_webhooks` capability, which only the
@@ -178,7 +187,8 @@ extension names `manage_webhooks`. A token also needs the `webhooks:write`
 scope, and one without it is refused with `scope required: webhooks:write`.
 
 An unusable URL or an event name AlphOne does not publish is refused with the
-code `VALIDATION`.
+code `VALIDATION`. An unknown event name carries the reason `event_unknown`, and
+`webhookEvents` lists the names that are accepted.
 
 A URL written as an internal IP address, such as `http://127.0.0.1:5678/` or
 `http://10.0.0.5/`, is refused with the code `VALIDATION` and the reason

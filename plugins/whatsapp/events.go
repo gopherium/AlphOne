@@ -20,6 +20,9 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// eventMessageReceived names the event a stored inbound message announces.
+const eventMessageReceived = "whatsapp.message.received"
+
 type inboundMessage struct {
 	externalID    string
 	sender        string
@@ -399,7 +402,7 @@ func (p *Plugin) publish(ctx context.Context, owner sdk.Contact, conversationID 
 	if p.publisher == nil {
 		return
 	}
-	p.publisher.Publish(ctx, "whatsapp.message.received", map[string]any{
+	p.publisher.Publish(ctx, eventMessageReceived, map[string]any{
 		"conversation_id": conversationID.String(),
 		"contact_id":      owner.ID.String(),
 		"contact_name":    owner.Name,
