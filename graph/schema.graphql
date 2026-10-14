@@ -221,6 +221,7 @@ type Query {
 	task(id: UUID!): Task @scope(area: "tasks", write: false)
 	apiTokens: [ApiToken!]! @scope(area: "tokens", write: false)
 	webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
+	webhookEvents: [String!]! @scope(area: "webhooks", write: false)
 	fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 	reservedFieldNames: [String!]! @scope(area: "fields", write: false)
 	imports: [ImportJob!]! @scope(area: "imports", write: false)

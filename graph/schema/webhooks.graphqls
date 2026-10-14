@@ -19,6 +19,7 @@ type CreateWebhookPayload {
 
 extend type Query {
   webhooks: [Webhook!]! @scope(area: "webhooks", write: false)
+  webhookEvents: [String!]! @scope(area: "webhooks", write: false)
 }
 
 extend type Mutation {
