@@ -8,6 +8,7 @@ import { HttpResponse, graphql, http } from 'msw'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers } from '../handlers'
+import { plugin } from '../index'
 import { Thread } from '../Thread'
 
 const conversationId = '019f4a00-0000-7000-8000-000000000001'
@@ -127,7 +128,7 @@ function renderThread(): QueryClient {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
-	const { graph } = fakeGraphClient()
+	const { graph } = fakeGraphClient([plugin])
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>

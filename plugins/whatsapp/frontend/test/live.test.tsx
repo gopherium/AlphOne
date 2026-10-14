@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render } from '@testing-library/react'
 import { expect, test } from 'vitest'
 
+import { plugin } from '../index'
 import { useLiveUpdates } from '../live'
 
 /** Renders a probe running the plugin's live updates, settling its subscription. */
@@ -28,7 +29,7 @@ async function renderProbe(fake: FakeGraph) {
 }
 
 test('reruns the plugin queries when a conversation event arrives', async () => {
-	const fake = fakeGraphClient()
+	const fake = fakeGraphClient([plugin])
 	await renderProbe(fake)
 
 	expect(fake.documents[0]).toContain('whatsAppConversationEvent')
@@ -39,7 +40,7 @@ test('reruns the plugin queries when a conversation event arrives', async () => 
 })
 
 test('ends the subscription on unmount', async () => {
-	const fake = fakeGraphClient()
+	const fake = fakeGraphClient([plugin])
 	const { view } = await renderProbe(fake)
 
 	view.unmount()

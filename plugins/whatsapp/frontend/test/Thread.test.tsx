@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers } from '../handlers'
+import { plugin } from '../index'
 import { Thread } from '../Thread'
 
 const conversationId = '019f4a00-0000-7000-8000-000000000001'
@@ -60,7 +61,7 @@ function renderThread(): FakeGraph {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
-	const fake = fakeGraphClient()
+	const fake = fakeGraphClient([plugin])
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>
