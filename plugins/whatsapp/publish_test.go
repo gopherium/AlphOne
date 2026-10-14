@@ -5,6 +5,7 @@ package whatsapp_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
+
+var _ sdk.EventProvider = (*whatsapp.Plugin)(nil)
 
 type recordingPublisher struct {
 	mu        sync.Mutex
@@ -82,6 +85,34 @@ func TestInboundMessagePublishesItsArrival(t *testing.T) {
 	}
 	if publisher.data[0]["text"] != "Hello there" {
 		t.Errorf("data.text = %v, want the message body", publisher.data[0]["text"])
+	}
+}
+
+func TestThePluginDeclaresTheEventItPublishes(t *testing.T) {
+	t.Parallel()
+
+	if got := (&whatsapp.Plugin{}).Events(); !slices.Equal(got, []string{"whatsapp.message.received"}) {
+		t.Errorf("Events() = %v, want [whatsapp.message.received]", got)
+	}
+}
+
+func TestEveryPublishedEventIsDeclared(t *testing.T) {
+	t.Parallel()
+
+	p, publisher := newPublishingPlugin(t)
+	body := eventBody("wamid.declared", "184467235", "Maria Perez", "1751791000", "Hello there")
+	if recorder := postEvent(t, p.Routes(), sign("app-secret", body), body); recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	names := publisher.names()
+	if len(names) == 0 {
+		t.Fatal("published nothing, want the inbound message announced")
+	}
+	for _, name := range names {
+		if !slices.Contains(p.Events(), name) {
+			t.Errorf("published %q, which Events() = %v never declares", name, p.Events())
+		}
 	}
 }
 

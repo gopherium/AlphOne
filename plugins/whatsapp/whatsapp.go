@@ -148,6 +148,11 @@ func (p *Plugin) Area() string {
 	return "whatsapp"
 }
 
+// Events declares the event names the plugin publishes.
+func (p *Plugin) Events() []string {
+	return []string{eventMessageReceived}
+}
+
 // PublicPaths declares the webhook as reachable without a login session;
 // Meta authenticates it with its own signature instead.
 func (p *Plugin) PublicPaths() []string {
