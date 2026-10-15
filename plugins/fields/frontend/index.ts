@@ -2,8 +2,8 @@
 
 import { _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
+import { lazyRouteComponent } from '@tanstack/react-router'
 
-import { ContactFieldsPanel } from './ContactFieldsPanel'
 import { errorTemplates } from './errorTemplates'
 import { fieldsIcon } from './icon'
 import { routes } from './routes'
@@ -24,7 +24,10 @@ export const plugin: FrontendPlugin = {
 		to: '/fields',
 		icon: fieldsIcon,
 	}],
-	contactPanels: [{ id: 'fields', Panel: ContactFieldsPanel }],
+	contactPanels: [{
+		id: 'fields',
+		Panel: lazyRouteComponent(() => import('./ContactFieldsPanel'), 'ContactFieldsPanel'),
+	}],
 	tokenAreas: [{
 		value: 'fields',
 		get label() {
