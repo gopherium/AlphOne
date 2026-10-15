@@ -51,6 +51,27 @@ Give every button in `actions` the compact size, `size="compact"`. It
 is 32px tall, like the buttons of a WordPress page header, and the
 title and its subtitle stay where every other page puts them.
 
+Mount the screen on your plugin's route with `lazyRouteComponent`,
+rather than importing it at the top of the routes file. The second
+argument names the export to load.
+
+```tsx
+import { createRoute, lazyRouteComponent } from '@tanstack/react-router'
+
+createRoute({
+	getParentRoute: () => parent,
+	path: '/invoices',
+	component: lazyRouteComponent(() => import('./InvoicesScreen'), 'InvoicesScreen'),
+})
+```
+
+Plugin screens load on demand. The browser fetches a screen's code the
+first time a reader opens it, so the first paint stays small however
+many plugins are installed. The bundle check,
+`test/e2e/tests/bundle.spec.ts`, enforces this. It fails when the code
+loaded before first paint grows past its ceiling, or carries a screen
+it names. Name your screen there too.
+
 When one page has sections that each need their own address, give it
 tabs. The Users page does this: the Users tab lists the accounts and
 the API tokens tab lists the tokens. Both screens keep the title Users
@@ -96,6 +117,20 @@ room.
 
 A plugin's contact panel always renders in the contact page's aside, so
 design it for a 320px column.
+
+A panel may load on demand too. Hand `contactPanels` a
+`lazyRouteComponent`, as `plugins/fields/frontend/index.ts` does:
+
+```ts
+contactPanels: [{
+	id: 'invoices',
+	Panel: lazyRouteComponent(() => import('./ContactInvoicesPanel'), 'ContactInvoicesPanel'),
+}],
+```
+
+The host starts loading every such panel as the contact page opens, so
+its code arrives while the contact itself loads. Until it arrives, the
+panel takes no room.
 
 Put navigation and creation controls in `actions`. A form's submit
 button belongs at the bottom of the form, not in the header.
@@ -616,7 +651,7 @@ to edge, like a chat thread, opts out through its route.
 createRoute({
 	getParentRoute: () => parent,
 	path: 'threads/$threadId',
-	component: ThreadScreen,
+	component: lazyRouteComponent(() => import('./ThreadScreen'), 'ThreadScreen'),
 	staticData: { canvas: 'bleed' },
 })
 ```
@@ -642,6 +677,26 @@ component on its route, and that component uses
 `SidebarNavigationScreen`. It renders the back link, the section title,
 and optional description, actions, and footer, and it moves focus to the
 title on arrival.
+
+A sidebar may load on demand as a `lazyRouteComponent`. Give the
+section route a `loader` that preloads it, as
+`plugins/whatsapp/frontend/routes.tsx` does:
+
+```tsx
+const Sidebar = lazyRouteComponent(() => import('./InvoicesSidebar'), 'InvoicesSidebar')
+
+createRoute({
+	getParentRoute: () => parent,
+	path: '/invoices',
+	staticData: { Sidebar },
+	loader: () => Sidebar.preload?.(),
+})
+```
+
+The router waits for the loader before it shows the section, so the
+rail swaps the main menu for your sidebar in one step. Without the
+loader, the rail stays empty for a moment while the sidebar's code
+arrives.
 
 ## What not to do
 
