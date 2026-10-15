@@ -20,6 +20,7 @@ import {
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
+import { useParams } from '@tanstack/react-router'
 import { Suspense, lazy, useState } from 'react'
 
 import { columnLabel } from './column'
@@ -43,6 +44,15 @@ export type ImportField = ImportDetailQuery['importFields'][number]
 
 // unmapped is the select value a column carries until a field is chosen.
 const unmapped = 'not-imported'
+
+/**
+ * Renders the import named in the route path.
+ * @returns The import screen.
+ */
+export function ImportRouteScreen() {
+	const { importId } = useParams({ from: '/import/$importId' })
+	return <ImportScreen importId={importId} />
+}
 
 /**
  * Renders one import: its column mapping, its staged rows, and the commit.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
+import { createRootRoute } from '@tanstack/react-router'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
@@ -8,6 +9,7 @@ import { beforeEach, expect, test } from 'vitest'
 import { ImportScreen } from '../ImportScreen'
 import { handlers, importID } from '../handlers'
 import { plugin } from '../index'
+import { routes } from '../routes'
 import { inSpanish, renderHosted } from './harness'
 
 /**
@@ -69,6 +71,12 @@ async function chooseField(column: string, field: string) {
 
 beforeEach(() => {
 	server.use(...handlers)
+})
+
+test('loads the import screen in a chunk of its own, off the first paint', () => {
+	const [, detail] = routes(createRootRoute())
+
+	expect(typeof (detail.options.component as { preload?: unknown }).preload).toBe('function')
 })
 
 test('keeps the page chrome while the import is on its way', async () => {
