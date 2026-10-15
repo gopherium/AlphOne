@@ -17,6 +17,9 @@ const entryCeiling = 1240 * 1024
 // listCeiling bounds the lazy chunk every DataViews screen shares.
 const listCeiling = 1900 * 1024
 
+// graphqlPrinter is a text only the graphql-js printer holds.
+const graphqlPrinter = 'extend interface'
+
 /**
  * Returns the built asset whose name starts with the given prefix.
  * @param prefix - The chunk name before its hash.
@@ -60,6 +63,14 @@ test('nothing loaded before first paint carries DataViews', () => {
 	}
 })
 
+test('nothing loaded before first paint carries the graphql-js printer', () => {
+	const carrying = eagerScripts().filter((name) =>
+		readFileSync(join(assets, name), 'utf8').includes(graphqlPrinter),
+	)
+
+	expect(carrying, 'eager scripts carrying the graphql-js printer').toEqual([])
+})
+
 test('everything loaded before first paint stays under the entry ceiling', () => {
 	const scripts = eagerScripts()
 
@@ -91,6 +102,18 @@ test('the users list, the tokens list, the imports list and the import preview e
 		const lazy = chunk(screen, '.js')
 		expect(eagerScripts()).not.toContain(lazy)
 		expect(readFileSync(join(assets, lazy), 'utf8'), lazy).toContain(shared)
+	}
+})
+
+test('the fields, WhatsApp and import screens each load on demand', () => {
+	for (const screen of ['FieldsScreen-', 'ThreadScreen-', 'ImportScreen-']) {
+		expect(eagerScripts()).not.toContain(chunk(screen, '.js'))
+	}
+})
+
+test('the WhatsApp sidebar and the contact fields panel each load on demand', () => {
+	for (const part of ['WhatsAppSidebar-', 'ContactFieldsPanel-']) {
+		expect(eagerScripts()).not.toContain(chunk(part, '.js'))
 	}
 })
 
