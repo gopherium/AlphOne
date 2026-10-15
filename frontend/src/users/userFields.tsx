@@ -46,15 +46,24 @@ function statusLabels(): Record<UserStatus, string> {
 }
 
 /**
- * Returns the label a role reads as, falling back to what the server stored.
+ * Returns the label each core role reads as, read fresh so the loaded catalogue answers.
+ * @returns The labels, keyed by the role the server stores.
+ */
+function coreRoleLabels(): Map<string, string> {
+	return new Map<string, string>([
+		['admin', _x('Administrator', 'role', 'alphone')],
+		['member', _x('Member', 'role', 'alphone')],
+		['', _x('No role', 'role', 'alphone')],
+	])
+}
+
+/**
+ * Returns the label a role reads as, a role a plugin adds reading as its stored name with a capital first letter.
  * @param role - The role the account holds.
  * @returns The label.
  */
 export function roleLabel(role: string): string {
-	if (role === '') {
-		return __('No role', 'alphone')
-	}
-	return role.charAt(0).toUpperCase() + role.slice(1)
+	return coreRoleLabels().get(role) ?? role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 /**

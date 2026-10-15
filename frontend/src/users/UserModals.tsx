@@ -2,6 +2,7 @@
 
 import {
 	Button,
+	ConfirmBody,
 	ErrorNotice,
 	InputControl,
 	SelectControl,
@@ -46,7 +47,7 @@ export function RoleModal({
 			return
 		}
 		await queryClient.invalidateQueries({ queryKey: usersQueryKey })
-		toaster.show(__('Role changed.', 'alphone'))
+		toaster.show(sprintf(__('Role changed for "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
 		closeModal?.()
 	}
 
@@ -95,7 +96,7 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 	const submit = async () => {
 		const result = await send({ email: user.email })
 		if (result.data?.resendInvite.delivered) {
-			toaster.show(__('Invitation sent.', 'alphone'))
+			toaster.show(sprintf(__('Invitation sent to "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
 			closeModal?.()
 		}
 	}
@@ -112,26 +113,22 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 		)
 	}
 	return (
-		<Stack direction="column" gap="lg">
-			<Text>
-				{sprintf(
-					__('Send a new invitation to %(name)s (%(email)s)? The link sent before stops working.', 'alphone'),
-					{ name: user.name, email: user.email },
-				)}
-			</Text>
-			{sent.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(sent.error), __('The invitation could not be sent.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
-			<Stack direction="row" gap="sm" justify="flex-end">
-				<Button variant="minimal" onClick={closeModal}>
-					{__('Cancel', 'alphone')}
-				</Button>
-				<Button loading={sent.fetching} onClick={() => void submit()}>
-					{__('Resend invitation', 'alphone')}
-				</Button>
-			</Stack>
-		</Stack>
+		<ConfirmBody
+			confirmLabel={__('Resend invitation', 'alphone')}
+			cancelLabel={__('Cancel', 'alphone')}
+			busy={sent.fetching}
+			failure={
+				sent.error
+					? validationMessage(graphError(sent.error), __('The invitation could not be sent.', 'alphone'))
+					: undefined
+			}
+			onConfirm={() => void submit()}
+			onCancel={sent.fetching ? undefined : closeModal}
+		>
+			{sprintf(__('Send a new invitation to "%(name)s" (%(email)s)? The link sent before stops working.', 'alphone'), {
+				name: toaster.name(user.name),
+				email: user.email,
+			})}
+		</ConfirmBody>
 	)
 }

@@ -30,11 +30,13 @@ import { ResendModal, RoleModal } from './UserModals'
  * @param disabled - Whether the accounts were disabled rather than enabled.
  * @param asked - How many accounts the action was asked to change.
  * @param done - How many of them changed.
- * @returns The confirmation.
+ * @param name - The name of the first account, cut to the length a toast shows.
+ * @returns The confirmation, naming the account when only one was asked.
  */
-function switchedMessage(disabled: boolean, asked: number, done: number): string {
+function switchedMessage(disabled: boolean, asked: number, done: number, name: string): string {
 	if (asked === 1) {
-		return disabled ? __('User disabled.', 'alphone') : __('User enabled.', 'alphone')
+		const template = disabled ? __('"%(name)s" disabled.', 'alphone') : __('"%(name)s" enabled.', 'alphone')
+		return sprintf(template, { name })
 	}
 	const template = disabled
 		? _n('%s user disabled.', '%s users disabled.', done, 'alphone')
@@ -63,7 +65,7 @@ function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailu
 }
 
 /**
- * Returns the actions the users list offers a reader who manages users, none on their own row.
+ * Returns the actions the users list offers a reader who manages users, none on their own row, Enable primary.
  * @param session - The signed-in account.
  * @param onFailure - Shows the failure of a disable or enable above the list, or clears it.
  * @returns The row and bulk actions, none for a reader who may not manage users.
@@ -88,7 +90,7 @@ export function useUserActions(
 			)
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			if (done > 0) {
-				toaster.show(switchedMessage(disabled, items.length, done))
+				toaster.show(switchedMessage(disabled, items.length, done, toaster.name(items[0].name)))
 			}
 			if (failures.length > 0) {
 				onFailure(unswitchedMessage(disabled, items.length, failures))
@@ -97,7 +99,7 @@ export function useUserActions(
 		const actions: Action<Account>[] = [
 			{
 				id: 'change-role',
-				label: __('Change role', 'alphone'),
+				label: __('Change role…', 'alphone'),
 				modalHeader: __('Change role', 'alphone'),
 				modalSize: 'small',
 				isEligible: others,
@@ -105,9 +107,9 @@ export function useUserActions(
 			},
 			{
 				id: 'resend-invitation',
-				label: __('Resend invitation', 'alphone'),
+				label: __('Resend invitation…', 'alphone'),
 				modalHeader: __('Resend invitation', 'alphone'),
-				modalSize: 'small',
+				modalFocusOnMount: 'firstContentElement',
 				isEligible: (user) => !user.confirmed && !user.disabled,
 				RenderModal: ResendModal,
 			},
@@ -115,6 +117,7 @@ export function useUserActions(
 				id: 'enable',
 				label: __('Enable', 'alphone'),
 				icon: check,
+				isPrimary: true,
 				supportsBulk: true,
 				isEligible: (user) => others(user) && user.disabled,
 				callback: (items) => switchAccounts(items, false),

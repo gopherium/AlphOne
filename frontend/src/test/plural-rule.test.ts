@@ -27,8 +27,7 @@ const pluralMessages = [
 	'%s user enabled.',
 	'%s token could not be revoked.',
 	'%s token revoked.',
-	'Revoke %s token? Anything using it stops working at once.',
-	'Revoke token',
+	'Revoke %s token? This cannot be undone.',
 ]
 
 /** threeFormExport is a platform export carrying the Spanish rule and its three forms filled. */

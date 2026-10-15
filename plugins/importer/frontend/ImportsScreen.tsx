@@ -3,6 +3,7 @@
 import {
 	EmptyState,
 	ErrorNotice,
+	FileButton,
 	PageScreen,
 	__,
 	_x,
@@ -13,6 +14,7 @@ import {
 	useGraphMutation,
 	useGraphQuery,
 	useListView,
+	upload as uploadIcon,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
@@ -24,7 +26,6 @@ import { importerIcon } from './icon'
 import { importFields } from './importFields'
 import type { ImportSummary } from './importFields'
 import { importUploadMutation, importsQuery } from './operations'
-import { UploadButton } from './UploadButton'
 
 /** noImports stands in for the list until the imports arrive. */
 const noImports: ImportSummary[] = []
@@ -103,7 +104,17 @@ export function ImportsScreen() {
 		<PageScreen
 			title={_x('Import', 'admin section', 'alphone-importer')}
 			subtitle={__('Bring contacts in from CSV and Excel files.', 'alphone-importer')}
-			actions={<UploadButton busy={upload.fetching} onChoose={(file) => void start(file)} />}
+			actions={
+				<FileButton
+					accept=".csv,.xlsx"
+					icon={uploadIcon}
+					busy={upload.fetching}
+					inputLabel={__('Contacts file', 'alphone-importer')}
+					onChoose={([file]) => void start(file)}
+				>
+					{__('Upload', 'alphone-importer')}
+				</FileButton>
+			}
 			list
 		>
 			{upload.error ? (

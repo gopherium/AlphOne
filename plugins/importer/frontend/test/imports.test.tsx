@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { rememberFormatLocale } from '@alphone/frontend-sdk'
+import { rememberFormatLocale, upload as uploadIcon } from '@alphone/frontend-sdk'
 import {
 	http,
 	HttpResponse,
@@ -12,13 +12,12 @@ import {
 	setViewport,
 } from '@alphone/frontend-sdk/testing'
 import { createRootRoute } from '@tanstack/react-router'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, test } from 'vitest'
 
 import { handlers, importID, multipartBody } from '../handlers'
 import { importerIcon } from '../icon'
-import { uploadChosen } from '../UploadButton'
 import { routes } from '../routes'
 import { plugin } from '../index'
 import { inSpanish, renderAt } from './harness'
@@ -231,6 +230,19 @@ test('draws Upload as a compact button, as a WordPress page header does', async 
 	const upload = await screen.findByRole('button', { name: 'Upload' })
 	expect([...upload.classList]).toEqual(buttonClasses('solid', 'compact'))
 	expect(upload.closest('header')).not.toBeNull()
+})
+
+test('draws the upload icon before the Upload words', async () => {
+	const { container, unmount } = render(uploadIcon)
+	const drawing = container.querySelector('path')?.getAttribute('d')
+	unmount()
+	renderAt('/import')
+
+	const upload = await screen.findByRole('button', { name: 'Upload' })
+
+	expect(upload.firstElementChild?.tagName.toLowerCase()).toBe('svg')
+	expect(upload.querySelector('svg path')?.getAttribute('d')).toBe(drawing)
+	expect(upload).toHaveTextContent('Upload')
 })
 
 test('lines the list up with the title, out to the canvas edges', async () => {
@@ -541,21 +553,13 @@ test('clears an earlier upload failure once the next upload starts', async () =>
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('cancelling the file dialog uploads nothing', () => {
-	let count = 0
-	const upload = () => count++
+test('a file dialog closed with no file chosen uploads nothing', async () => {
+	const count = accepting()
+	renderAt('/import')
+	await screen.findByRole('button', { name: 'Upload' })
 
-	uploadChosen(null, upload)
-	uploadChosen([] as unknown as FileList, upload)
+	fireEvent.change(fileInput(), { target: { files: [] } })
 
-	expect(count).toBe(0)
-})
-
-test('choosing a file hands it to the upload', () => {
-	const chosen: File[] = []
-	const file = new File(['Name\n'], 'contacts.csv')
-
-	uploadChosen([file] as unknown as FileList, (picked) => chosen.push(picked))
-
-	expect(chosen).toEqual([file])
+	await new Promise((resolve) => setTimeout(resolve, 20))
+	expect(count()).toBe(0)
 })

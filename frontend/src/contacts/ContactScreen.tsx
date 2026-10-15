@@ -266,7 +266,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 	const submitRename = async () => {
 		const result = await runRename({ id: contact.id, name })
 		if (result.data) {
-			toaster.show(__('Contact renamed.', 'alphone'))
+			toaster.show(__('Name updated.', 'alphone'))
 			settled()
 		}
 	}
@@ -295,7 +295,7 @@ function RenameForm({ contact }: { contact: ContactDetail }) {
 			</div>
 			{rename.error ? (
 				<ErrorNotice>
-					{validationMessage(graphError(rename.error), __('The contact could not be renamed.', 'alphone'))}
+					{validationMessage(graphError(rename.error), __('The name could not be updated.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 		</form>
