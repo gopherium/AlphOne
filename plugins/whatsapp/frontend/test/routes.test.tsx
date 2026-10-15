@@ -1,14 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { renderPluginAt, server } from '@alphone/frontend-sdk/testing'
+import { createRootRoute, createRouter } from '@tanstack/react-router'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from '../handlers'
 import { plugin } from '../index'
+import { routes } from '../routes'
 
 beforeEach(() => server.use(...handlers))
+
+test('loads the thread screen in a chunk of its own, off the first paint', () => {
+	const rootRoute = createRootRoute()
+	const router = createRouter({ routeTree: rootRoute.addChildren(routes(rootRoute)) })
+	const { component } = router.routesById['/whatsapp/conversations/$conversationId'].options
+
+	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
+})
+
+test('loads the conversation sidebar on demand, off the first paint', () => {
+	const [section] = routes(createRootRoute())
+	const sidebar = section.options.staticData?.Sidebar as { preload?: unknown } | undefined
+
+	expect(typeof sidebar?.preload).toBe('function')
+})
 
 test('contributes a WhatsApp entry to the host navigation', async () => {
 	renderPluginAt(plugin, '/')
