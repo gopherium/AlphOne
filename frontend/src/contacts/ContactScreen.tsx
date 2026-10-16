@@ -29,7 +29,6 @@ import {
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useId, useState } from 'react'
 
-import { plugins } from '../plugins'
 import { ContactTasks } from '../tasks/ContactTasks'
 import { ContactPanels } from './ContactPanels'
 import { channelItemOf, channelItems } from './channel'
@@ -39,8 +38,8 @@ import {
 	deleteContactIdentityMutation,
 	renameContactMutation,
 } from './operations'
+import { contactPanels } from './panels'
 
-const contactPanels = plugins.flatMap((plugin) => plugin.contactPanels ?? [])
 const contactTasksPageSize = 50
 const contactDetailOperation = 'ContactDetail'
 

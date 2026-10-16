@@ -26,6 +26,7 @@ import type { AnyRouter } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
 import { Badge, Button, Text } from '@wordpress/ui'
 import { graphql } from 'msw'
+import { Suspense } from 'react'
 import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
@@ -261,15 +262,17 @@ export function renderPluginAt(plugin: FrontendPlugin, path: string, options: Pl
 			return (
 				<>
 					<nav aria-label="Navigation">
-						{Sidebar ? (
-							<Sidebar />
-						) : (
-							plugin.nav.map((item) => (
-								<Link key={item.to} to={item.to}>
-									{item.label}
-								</Link>
-							))
-						)}
+						<Suspense fallback={null}>
+							{Sidebar ? (
+								<Sidebar />
+							) : (
+								plugin.nav.map((item) => (
+									<Link key={item.to} to={item.to}>
+										{item.label}
+									</Link>
+								))
+							)}
+						</Suspense>
 					</nav>
 					<Outlet />
 				</>

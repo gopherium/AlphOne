@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { ContactPanel } from '@alphone/frontend-sdk'
+import { Suspense } from 'react'
 
 /**
  * Renders every plugin contributed panel of one contact.
@@ -17,7 +18,9 @@ export function ContactPanels({
 	return (
 		<>
 			{panels.map(({ id, Panel }) => (
-				<Panel key={id} contactId={contactId} />
+				<Suspense key={id} fallback={null}>
+					<Panel contactId={contactId} />
+				</Suspense>
 			))}
 		</>
 	)

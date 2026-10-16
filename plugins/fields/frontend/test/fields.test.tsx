@@ -8,12 +8,14 @@ import {
 	server,
 	textClasses,
 } from '@alphone/frontend-sdk/testing'
+import { createRootRoute } from '@tanstack/react-router'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { FieldsScreen } from '../FieldsScreen'
 import { plugin } from '../index'
+import { routes } from '../routes'
 import { capture, hold, refusal, renderHosted, speakTemplates } from './harness'
 
 /** scrolled records every scroll into view an element asks for. */
@@ -99,6 +101,12 @@ async function sentName(defined: ReturnType<typeof vi.fn>) {
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
 	return defined.mock.calls[0][0].name
 }
+
+test('loads the fields screen in a chunk of its own, off the first paint', () => {
+	const [screenRoute] = routes(createRootRoute())
+
+	expect(typeof (screenRoute.options.component as { preload?: unknown }).preload).toBe('function')
+})
 
 test('the catalogue lists every defined field in a table', async () => {
 	serveFieldCatalogue([birthDate])

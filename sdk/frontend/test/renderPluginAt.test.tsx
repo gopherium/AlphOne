@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createRoute } from '@tanstack/react-router'
 import { act, screen } from '@testing-library/react'
+import { lazy } from 'react'
 import { expect, onTestFinished, test } from 'vitest'
 
 import { useSession } from '../index'
@@ -93,6 +94,32 @@ test('lets a plugin query go stale as usual when the host holds a session', asyn
 	await act(() => router.navigate({ to: '/probe' }))
 
 	expect(await screen.findByText('Probe read 2')).toBeInTheDocument()
+})
+
+/** Renders the canvas of a section whose sidebar is still loading. */
+function SectionScreen() {
+	return <p>Section canvas</p>
+}
+
+/** A plugin mounting a section at /section, its sidebar never done loading. */
+const loadingSidebarPlugin: FrontendPlugin = {
+	id: 'section',
+	nav: [],
+	routes: (parent) => [
+		createRoute({
+			getParentRoute: () => parent,
+			path: '/section',
+			staticData: { Sidebar: lazy(() => new Promise<never>(() => {})) },
+			component: SectionScreen,
+		}),
+	],
+}
+
+test('keeps a plugin screen on the canvas while its section sidebar loads', async () => {
+	renderPluginAt(loadingSidebarPlugin, '/section', { session: adminSession })
+
+	expect(await screen.findByText('Section canvas')).toBeInTheDocument()
+	expect(screen.getByRole('navigation', { name: 'Navigation' })).toBeEmptyDOMElement()
 })
 
 test('hands back the router the plugin screen is mounted in', async () => {

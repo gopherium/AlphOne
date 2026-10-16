@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { printGraphDocument } from '@alphone/frontend-sdk'
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core'
-import { print } from 'graphql'
 
 import {
 	InvalidCredentialsError,
@@ -58,7 +58,7 @@ async function execute<TData, TVariables>(
 	const response = await fetch('/api/graphql', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ query: print(document), variables }),
+		body: JSON.stringify({ query: printGraphDocument(document), variables }),
 		signal,
 	})
 	if (response.status === 429) {

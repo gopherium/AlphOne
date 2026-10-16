@@ -11,6 +11,7 @@ import {
 import type { RouterHistory } from '@tanstack/react-router'
 
 import { ContactRoute, NewContactRoute } from './contactRoutes'
+import { contactPanels, preloadContactPanels } from './contacts/panels'
 import { LanguageScreen } from './i18n/LanguageScreen'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
@@ -67,6 +68,7 @@ const newContactRoute = createRoute({
 const contactRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/contacts/$contactId',
+	loader: () => preloadContactPanels(contactPanels),
 	component: ContactRoute,
 })
 

@@ -2,6 +2,7 @@
 
 import type { ContactPanel } from '@alphone/frontend-sdk'
 import { render, screen } from '@testing-library/react'
+import { lazy } from 'react'
 import { expect, test } from 'vitest'
 
 import { ContactPanels } from '../ContactPanels'
@@ -18,6 +19,14 @@ test('every contributed panel renders for the contact', () => {
 	)
 
 	expect(screen.getByText(`fields for ${contactID}`)).toBeInTheDocument()
+	expect(screen.getByText(`notes for ${contactID}`)).toBeInTheDocument()
+})
+
+test('keeps every other panel on screen while one panel loads', () => {
+	const loading: ContactPanel = { id: 'fields', Panel: lazy(() => new Promise<never>(() => {})) }
+
+	render(<ContactPanels contactId={contactID} panels={[loading, panel('notes')]} />)
+
 	expect(screen.getByText(`notes for ${contactID}`)).toBeInTheDocument()
 })
 

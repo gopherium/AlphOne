@@ -5,6 +5,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 
+import { plugin } from '../index'
 import {
 	captureWrite,
 	contactID,
@@ -25,6 +26,12 @@ const birthDate = {
 	kind: 'DATE',
 	subFields: [],
 }
+
+test('loads the contact panel on demand, off the first paint', () => {
+	const [{ Panel }] = plugin.contactPanels ?? []
+
+	expect(typeof Panel.preload).toBe('function')
+})
 
 test('a defined field renders with its stored value', async () => {
 	serveCatalogue([birthDate])

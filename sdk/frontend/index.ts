@@ -22,7 +22,7 @@ export interface NavItem {
 
 export interface ContactPanel {
 	id: string
-	Panel: ComponentType<{ contactId: string }>
+	Panel: ComponentType<{ contactId: string }> & { preload?: () => Promise<void> | undefined }
 }
 
 export interface PluginLocale {
@@ -148,6 +148,7 @@ export { useAdminSettings } from './adminSettings'
 export { FormatLocaleGate } from './FormatLocaleGate'
 export type { AdminSettings, AdminSettingsRead } from './adminSettings'
 export {
+	stringifyDocument as printGraphDocument,
 	useQuery as useGraphQuery,
 	useMutation as useGraphMutation,
 	useSubscription as useGraphSubscription,

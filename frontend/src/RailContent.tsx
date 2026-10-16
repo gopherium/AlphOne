@@ -4,6 +4,7 @@ import {
 	__, sprintf, Stack, Text } from '@alphone/frontend-sdk'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, useRouterState } from '@tanstack/react-router'
+import { Suspense } from 'react'
 
 import { MainMenu } from './menu/MainMenu'
 import { useAppVersion } from './version'
@@ -27,7 +28,7 @@ export function RailContent() {
 					<Text variant="heading-lg">{'AlphOne'}</Text>
 				</Link>
 				<nav aria-label={__('Navigation', 'alphone')}>
-					{Sidebar ? <Sidebar /> : <MainMenu />}
+					<Suspense fallback={null}>{Sidebar ? <Sidebar /> : <MainMenu />}</Suspense>
 				</nav>
 			</Stack>
 			<AccountPanel className="alphone-rail__account" />
