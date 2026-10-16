@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, __, _x, formatDate, formatNumber, formatTime } from '@alphone/frontend-sdk'
+import { Badge, __, _x, formatNumber } from '@alphone/frontend-sdk'
+import { listDate } from '@alphone/frontend-sdk/dataviews'
 import type { Field } from '@alphone/frontend-sdk/dataviews'
 import { Link } from '@tanstack/react-router'
 
@@ -35,15 +36,6 @@ function stateLabels(): Record<string, string> {
 		committing: _x('Importing', 'import state', 'alphone-importer'),
 		committed: _x('Imported', 'import state', 'alphone-importer'),
 	}
-}
-
-/**
- * Returns the moment an import started, written as a day and a time in the format locale.
- * @param at - The moment the import was stored.
- * @returns The moment, such as 03/08/2026 09:05.
- */
-function startedAt(at: string): string {
-	return `${formatDate(at)} ${formatTime(at)}`
 }
 
 /**
@@ -103,7 +95,7 @@ export function importFields(): Field<ImportSummary>[] {
 			id: 'started',
 			label: __('Started', 'alphone-importer'),
 			getValue: ({ item }) => new Date(item.createdAt).getTime(),
-			render: ({ item }) => startedAt(item.createdAt),
+			render: ({ item }) => listDate(item.createdAt),
 			filterBy: false,
 		},
 	]
