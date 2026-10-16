@@ -373,10 +373,10 @@ test('names a channel nobody names by its key', async () => {
 	expect((await rowOf('Maria Perez')).getByText('telegram')).toBeInTheDocument()
 })
 
-test('dates every contact in the format locale', async () => {
+test('dates every contact in the page language', async () => {
 	renderAt('/contacts')
 
-	expect((await rowOf('Ana Lopez')).getByText('08/07/2026')).toBeInTheDocument()
+	expect((await rowOf('Ana Lopez')).getByText('Jul 8, 2026 10:00 am')).toBeInTheDocument()
 })
 
 test('sorts the contacts by when they were created, newest first, when the address names no order', async () => {

@@ -1,16 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, formatDate } from '@alphone/frontend-sdk'
+import { _x, __ } from '@alphone/frontend-sdk'
+import { listDate } from '@alphone/frontend-sdk/dataviews'
 import type { Field } from '@alphone/frontend-sdk/dataviews'
 
 import type { ApiTokensQuery } from '../gql/graphql'
-import { formatExpiry, formatLastUsed } from './tokenFormat'
 
 /** ApiToken is one token as the tokens list shows it. */
 export type ApiToken = ApiTokensQuery['apiTokens'][number]
 
 /** endless stands in for the end of a token that never expires. */
 const endless = Number.MAX_SAFE_INTEGER
+
+/**
+ * Formats the moment a token was last presented.
+ * @param at - The moment, or null when it never acted.
+ * @returns The list date, or a plain statement that it never acted.
+ */
+function formatLastUsed(at: string | null | undefined): string {
+	return at === null || at === undefined ? __('Never used', 'alphone') : listDate(at)
+}
+
+/**
+ * Formats the moment a token ends.
+ * @param at - The moment, or null when it never ends.
+ * @param now - The moment to judge a lapsed token against.
+ * @returns The list date, or a plain statement of an endless or lapsed token.
+ */
+function formatExpiry(at: string | null | undefined, now: Date): string {
+	if (at === null || at === undefined) {
+		return __('Never expires', 'alphone')
+	}
+	const ends = new Date(at)
+	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : listDate(ends)
+}
 
 /**
  * Returns the moment as milliseconds, or the fallback when the moment is absent.
@@ -52,7 +75,7 @@ export function tokenFields(tokens: readonly ApiToken[]): Field<ApiToken>[] {
 			id: 'created',
 			label: __('Created', 'alphone'),
 			getValue: ({ item }) => new Date(item.createdAt).getTime(),
-			render: ({ item }) => formatDate(item.createdAt),
+			render: ({ item }) => listDate(item.createdAt),
 			filterBy: false,
 		},
 		{

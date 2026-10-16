@@ -317,7 +317,7 @@ test('draws the initials avatar before every name in the list a phone shows', as
 test('dates every account in the page language', async () => {
 	renderAt('/users')
 
-	expect((await rowOf('Ana Lopez')).getByText('08/07/2026')).toBeInTheDocument()
+	expect((await rowOf('Ana Lopez')).getByText('Jul 8, 2026 10:00 am')).toBeInTheDocument()
 })
 
 test('sorts the accounts by when they were created, newest first, when the address names no order', async () => {

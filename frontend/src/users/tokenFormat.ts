@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, __, formatDate } from '@alphone/frontend-sdk'
+import { _x, __ } from '@alphone/frontend-sdk'
 import type { FrontendPlugin, TokenArea } from '@alphone/frontend-sdk'
 
 import { plugins as wired } from '../plugins'
@@ -56,29 +56,6 @@ export function lifetimeChoices(): { value: string; label: string }[] {
 
 /** defaultLifetime is the lifetime the mint form starts on. */
 export const defaultLifetime = '90'
-
-/**
- * Formats the moment a token was last presented.
- * @param at - The moment, or null when it never acted.
- * @returns The date, or a plain statement that it never acted.
- */
-export function formatLastUsed(at: string | null | undefined): string {
-	return at === null || at === undefined ? __('Never used', 'alphone') : formatDate(at)
-}
-
-/**
- * Formats the moment a token ends.
- * @param at - The moment, or null when it never ends.
- * @param now - The moment to judge a lapsed token against.
- * @returns The date, or a plain statement of an endless or lapsed token.
- */
-export function formatExpiry(at: string | null | undefined, now: Date): string {
-	if (at === null || at === undefined) {
-		return __('Never expires', 'alphone')
-	}
-	const ends = new Date(at)
-	return ends.getTime() <= now.getTime() ? _x('Expired', 'token expiry', 'alphone') : formatDate(ends)
-}
 
 /**
  * Returns the lifetime in days the given choice asks for.
