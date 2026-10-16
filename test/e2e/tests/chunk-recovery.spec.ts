@@ -6,18 +6,40 @@ import type { Page } from '@playwright/test'
 import { graph } from '../graph'
 
 /**
- * Fails every request for one lazy chunk until the page loads again, like a tab opened before a release.
- * @param page - The page that loses the chunk.
- * @param prefix - The chunk name before its hash.
+ * Counts the documents the page loads in its main frame.
+ * @param page - The page to watch.
+ * @returns A function giving the number of documents loaded so far.
  */
-async function loseChunkUntilReload(page: Page, prefix: string) {
+function documentsLoaded(page: Page): () => number {
 	let documents = 0
 	page.on('request', (request) => {
 		if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
 			documents += 1
 		}
 	})
-	await page.route(`**/assets/${prefix}*.js`, (route) => (documents < 2 ? route.abort() : route.continue()))
+	return () => documents
+}
+
+/**
+ * Fails every request for one lazy chunk until the page loads again, like a tab opened before a release.
+ * @param page - The page that loses the chunk.
+ * @param prefix - The chunk name before its hash.
+ */
+async function loseChunkUntilReload(page: Page, prefix: string) {
+	const documents = documentsLoaded(page)
+	await page.route(`**/assets/${prefix}*.js`, (route) => (documents() < 2 ? route.abort() : route.continue()))
+}
+
+/**
+ * Fails every request for one lazy chunk, like a chunk a release removed for good.
+ * @param page - The page that loses the chunk.
+ * @param prefix - The chunk name before its hash.
+ * @returns A function giving the number of documents loaded so far.
+ */
+async function loseChunkForGood(page: Page, prefix: string): Promise<() => number> {
+	const documents = documentsLoaded(page)
+	await page.route(`**/assets/${prefix}*.js`, (route) => route.abort())
+	return documents
 }
 
 test('the contact page reloads once and shows the fields panel when its chunk is gone', async ({
@@ -55,4 +77,15 @@ test('the WhatsApp section reloads once and shows its sidebar when the sidebar c
 	const nav = page.getByRole('navigation', { name: 'Navigation' })
 	await expect(nav.getByRole('heading', { name: 'WhatsApp' })).toBeVisible()
 	await expect(page.getByText('No conversation selected.')).toBeVisible()
+})
+
+test('the WhatsApp section reloads only once and then shows the error when the sidebar chunk stays gone', async ({
+	page,
+}) => {
+	const documents = await loseChunkForGood(page, 'WhatsAppSidebar-')
+
+	await page.goto('/whatsapp')
+
+	await expect(page.getByText('Something went wrong!')).toBeVisible()
+	expect(documents()).toBe(2)
 })
