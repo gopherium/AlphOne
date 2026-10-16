@@ -34,7 +34,14 @@ export default defineConfig({
 		environment: 'jsdom',
 		env: { TZ: 'UTC' },
 		server: {
-			deps: { inline: ['@wordpress/i18n', '@gopherium/gottext', '@gopherium/react-auth'] },
+			deps: {
+				inline: [
+					'@wordpress/i18n',
+					'@gopherium/gottext',
+					'@gopherium/godmin',
+					'@gopherium/react-auth',
+				],
+			},
 		},
 		setupFiles: [repoGlob('frontend/src/test/setup.ts')],
 		include: [
