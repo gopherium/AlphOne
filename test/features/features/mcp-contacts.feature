@@ -36,7 +36,6 @@ Feature: An agent reads contacts
       | Call Maria Perez back      |
       | Send Maria Perez the quote |
 
-  @wip
   Scenario: A contact's open tasks of one day list by the hour
     Given a contact "Maria Perez"
     And an open task "Update the address of Maria Perez" due today linked to that contact

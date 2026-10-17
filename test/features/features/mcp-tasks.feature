@@ -75,7 +75,6 @@ Feature: An agent lists tasks
       | Book the courier |
       | File the receipt |
 
-  @wip
   Scenario: Priority comes first and the earlier hour next
     Given an open task "Approve the pricing" due today at 11:00 with priority 1
     And an open task "Send the quote" due today at 09:00
@@ -87,7 +86,6 @@ Feature: An agent lists tasks
       | Approve the pricing |
       | Send the quote      |
 
-  @wip
   Scenario: Work with no time lists after the timed work of its priority
     Given an open task "Update the contact list" due today
     And an open task "Send the quote" due today at 10:30
@@ -99,7 +97,6 @@ Feature: An agent lists tasks
       | Send the quote          |
       | Update the contact list |
 
-  @wip
   Scenario: The overdue backlog lists by priority, then day, then hour
     Given an open task "Approve the pricing" due on 2020-01-12 at 15:00 with priority 1
     And an open task "Renew the contract" due on 2020-01-12 at 09:00 with priority 1
@@ -115,7 +112,6 @@ Feature: An agent lists tasks
       | File the report     |
       | Chase the invoice   |
 
-  @wip
   Scenario: Done work keeps the order it was created in whatever its hour
     Given a done task "Book the courier" due today at 11:00
     And a done task "File the receipt" due today at 09:00
