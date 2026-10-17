@@ -6,6 +6,7 @@ type Task {
   status: String!
   priority: Int!
   dueOn: Date!
+  dueTime: LocalTime
   originSource: String
   originEventId: UUID
   createdAt: DateTime!
@@ -31,6 +32,7 @@ extend type Query {
 input CreateTaskInput {
   title: String!
   dueOn: Date!
+  dueTime: LocalTime
   priority: Int
   contactId: UUID
   originEventId: UUID
@@ -44,6 +46,7 @@ type CreateTaskPayload {
 input UpdateTaskInput {
   title: String
   dueOn: Date
+  dueTime: LocalTime @goField(omittable: true)
   status: String
   priority: Int
 }

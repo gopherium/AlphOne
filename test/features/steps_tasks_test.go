@@ -66,7 +66,15 @@ func findTask(out alphonemcp.TasksOutput, title string) (alphonemcp.TaskItem, bo
 // registerTaskSteps binds the task listing steps.
 func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerWorkloadSteps(sc, t)
+	registerTimedTaskSteps(sc)
+	registerTaskSeedSteps(sc)
+	registerTaskCallSteps(sc)
+	registerTaskAnswerSteps(sc)
+	registerTaskDetailSteps(sc)
+}
 
+// registerTaskSeedSteps binds the steps that seed a contact and tasks with no time of day.
+func registerTaskSeedSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^a contact "([^"]*)"$`, func(ctx context.Context, name string) error {
 		_, err := worldFrom(ctx).seedContact(ctx, name)
 		return err
@@ -123,7 +131,10 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 			raised := task.Input{Title: title, DueOn: today().AddDate(0, 0, 1), Priority: priority, ContactID: w.lastContact}
 			return w.seedInput(ctx, raised, task.StatusOpen)
 		})
+}
 
+// registerTaskCallSteps binds the steps that call list_my_tasks.
+func registerTaskCallSteps(sc *godog.ScenarioContext) {
 	sc.When(`^the agent calls list_my_tasks$`, func(ctx context.Context) error {
 		return worldFrom(ctx).callTool(ctx, "list_my_tasks", nil)
 	})
@@ -148,7 +159,10 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 		return worldFrom(ctx).callTool(ctx, "list_my_tasks",
 			map[string]any{"date": day, "due_before": day})
 	})
+}
 
+// registerTaskAnswerSteps binds the steps that read which tasks the answer lists and in what order.
+func registerTaskAnswerSteps(sc *godog.ScenarioContext) {
 	sc.Then(`^the answer lists (\d+) tasks?$`, func(ctx context.Context, count int) error {
 		out, err := worldFrom(ctx).tasksAnswer()
 		if err != nil {
@@ -185,7 +199,10 @@ func registerTaskSteps(sc *godog.ScenarioContext, t *testing.T) {
 		}
 		return nil
 	})
+}
 
+// registerTaskDetailSteps binds the steps that read the contact of a listed task and a refused call.
+func registerTaskDetailSteps(sc *godog.ScenarioContext) {
 	sc.Then(`^the task "([^"]*)" names its contact "([^"]*)"$`,
 		func(ctx context.Context, title, name string) error {
 			out, err := worldFrom(ctx).tasksAnswer()

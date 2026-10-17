@@ -6,6 +6,7 @@ const scalars = {
 	UUID: 'string',
 	DateTime: 'string',
 	Date: 'string',
+	LocalTime: 'string',
 	Upload: 'File',
 }
 

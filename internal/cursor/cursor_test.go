@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/contact"
@@ -51,8 +52,11 @@ func TestContactCursorAbsentAndMalformed(t *testing.T) {
 	t.Parallel()
 
 	name, id, err := cursor.DecodeContact("")
-	if err != nil || name != "" || id != uuid.Nil {
-		t.Errorf("DecodeContact(empty) = (%q, %s, %v), want zero values and nil", name, id, err)
+	if err != nil {
+		t.Errorf("DecodeContact(empty) error = %v, want nil", err)
+	}
+	if name != "" || id != uuid.Nil {
+		t.Errorf("DecodeContact(empty) = (%q, %s), want zero values", name, id)
 	}
 
 	if _, _, err := cursor.DecodeContact("%%%"); !errors.Is(err, cursor.ErrMalformed) {
@@ -64,44 +68,102 @@ func TestContactCursorAbsentAndMalformed(t *testing.T) {
 	}
 }
 
-func TestTaskCursorRoundTrip(t *testing.T) {
-	t.Parallel()
+// heldID is the id of every task the task cursor tests encode.
+const heldID = "3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"
 
+// heldTasks returns one task of each sort clock shape, keyed by what it holds.
+func heldTasks() map[string]task.Task {
 	followUp := task.Task{
-		ID:       uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
+		ID:       uuid.MustParse(heldID),
 		DueOn:    time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
 		Status:   task.StatusOpen,
 		Priority: 1,
 	}
-
-	page, err := cursor.DecodeTask(cursor.EncodeTask(followUp))
-
-	if err != nil {
-		t.Fatalf("DecodeTask() error = %v, want nil", err)
+	midnight := followUp
+	midnight.DueTime = task.Clock{Set: true}
+	timed := followUp
+	timed.DueTime = task.Clock{Minutes: 570, Set: true}
+	done := timed
+	done.Status = task.StatusDone
+	return map[string]task.Task{
+		"open with no time":      followUp,
+		"open at midnight":       midnight,
+		"open at half past nine": timed,
+		"done at half past nine": done,
 	}
-	if page.AfterRank != followUp.Rank() || !page.AfterDueOn.Equal(followUp.DueOn) || page.AfterID != followUp.ID {
-		t.Errorf("page = %+v, want after (%d, %s, %s)", page, followUp.Rank(), followUp.DueOn, followUp.ID)
+}
+
+// encodedPayload decodes the token, failing the test when it is not base64url.
+func encodedPayload(t *testing.T, token string) string {
+	t.Helper()
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		t.Fatalf("decoding the cursor token: %v", err)
+	}
+	return string(decoded)
+}
+
+// tokenOf encodes a cursor payload as base64url.
+func tokenOf(payload string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(payload))
+}
+
+func TestTaskCursorRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for name, held := range heldTasks() {
+		page, err := cursor.DecodeTask(cursor.EncodeTask(held))
+
+		if err != nil {
+			t.Fatalf("%s: DecodeTask() error = %v, want nil", name, err)
+		}
+		if diff := cmp.Diff(task.PageAfter(held, 0), page); diff != "" {
+			t.Errorf("%s: page mismatch, want the page after the task (-want +got):\n%s", name, diff)
+		}
 	}
 }
 
 func TestTaskCursorPinsTheWireShape(t *testing.T) {
 	t.Parallel()
 
-	followUp := task.Task{
-		ID:       uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"),
-		DueOn:    time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC),
-		Status:   task.StatusOpen,
-		Priority: 1,
+	want := map[string]string{
+		"open with no time":      `{"rank":-1,"due_on":"2026-08-05","clock":"24:00","id":"` + heldID + `"}`,
+		"open at midnight":       `{"rank":-1,"due_on":"2026-08-05","clock":"00:00","id":"` + heldID + `"}`,
+		"open at half past nine": `{"rank":-1,"due_on":"2026-08-05","clock":"09:30","id":"` + heldID + `"}`,
+		"done at half past nine": `{"rank":0,"due_on":"2026-08-05","clock":"24:00","id":"` + heldID + `"}`,
 	}
 
-	decoded, err := base64.RawURLEncoding.DecodeString(cursor.EncodeTask(followUp))
+	for name, held := range heldTasks() {
+		if got := encodedPayload(t, cursor.EncodeTask(held)); got != want[name] {
+			t.Errorf("%s: cursor payload = %s, want %s", name, got, want[name])
+		}
+	}
+}
+
+func TestTaskCursorWithoutAClockStartsAfterTheUntimedTasks(t *testing.T) {
+	t.Parallel()
+
+	written := tokenOf(`{"rank":-1,"due_on":"2026-08-05","id":"` + heldID + `"}`)
+
+	page, err := cursor.DecodeTask(written)
 
 	if err != nil {
-		t.Fatalf("decoding the cursor token: %v", err)
+		t.Fatalf("DecodeTask() error = %v, want nil", err)
 	}
-	want := `{"rank":-1,"due_on":"2026-08-05","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`
-	if string(decoded) != want {
-		t.Errorf("cursor payload = %s, want %s", decoded, want)
+	if diff := cmp.Diff(task.PageAfter(heldTasks()["open with no time"], 0), page); diff != "" {
+		t.Errorf("page mismatch, want the page after an untimed task (-want +got):\n%s", diff)
+	}
+}
+
+func TestTaskCursorRefusesAMalformedClock(t *testing.T) {
+	t.Parallel()
+
+	for _, clock := range []string{`""`, `"9:00"`, `"24:01"`, `"25:00"`, `"11:60"`, `"09:00:30"`, `"noon"`, `930`} {
+		written := tokenOf(`{"rank":0,"due_on":"2026-08-05","clock":` + clock + `,"id":"` + heldID + `"}`)
+
+		if _, err := cursor.DecodeTask(written); !errors.Is(err, cursor.ErrMalformed) {
+			t.Errorf("DecodeTask(clock %s) error = %v, want ErrMalformed", clock, err)
+		}
 	}
 }
 
@@ -109,8 +171,8 @@ func TestTaskCursorAbsentAndMalformed(t *testing.T) {
 	t.Parallel()
 
 	page, err := cursor.DecodeTask("")
-	if err != nil || !page.AfterDueOn.IsZero() || page.AfterID != uuid.Nil {
-		t.Errorf("DecodeTask(empty) = (%+v, %v), want a zero page and nil", page, err)
+	if err != nil || page != (task.Page{}) {
+		t.Errorf("DecodeTask(empty) = (%#v, %v), want a zero page and nil", page, err)
 	}
 
 	ranklessPayload := `{"due_on":"2026-08-05","id":"3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f"}`

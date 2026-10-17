@@ -48,16 +48,26 @@ func DecodeContact(raw string) (string, uuid.UUID, error) {
 // errRankless reports a task cursor written before tasks were listed by rank.
 var errRankless = errors.New("the cursor names no rank")
 
+// endOfDay is the wire form of the sort clock of a position that holds no time.
+const endOfDay = "24:00"
+
 type taskCursor struct {
 	Rank  *int      `json:"rank"`
 	DueOn string    `json:"due_on"`
+	Clock *string   `json:"clock"`
 	ID    uuid.UUID `json:"id"`
 }
 
 // EncodeTask renders the position after t as an opaque cursor.
 func EncodeTask(t task.Task) string {
-	rank := t.Rank()
-	encoded, _ := json.Marshal(taskCursor{Rank: &rank, DueOn: t.DueOn.Format(dueDateLayout), ID: t.ID})
+	after := task.PageAfter(t, 0)
+	clock := clockText(after.AfterClock)
+	encoded, _ := json.Marshal(taskCursor{
+		Rank:  &after.AfterRank,
+		DueOn: after.AfterDueOn.Format(dueDateLayout),
+		Clock: &clock,
+		ID:    after.AfterID,
+	})
 	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
@@ -77,7 +87,27 @@ func DecodeTask(raw string) (task.Page, error) {
 	if err != nil {
 		return task.Page{}, fmt.Errorf("%w: %v", ErrMalformed, err)
 	}
-	return task.Page{AfterRank: *decoded.Rank, AfterDueOn: dueOn, AfterID: decoded.ID}, nil
+	clock, err := readClock(decoded.Clock)
+	if err != nil {
+		return task.Page{}, fmt.Errorf("%w: %v", ErrMalformed, err)
+	}
+	return task.Page{AfterRank: *decoded.Rank, AfterDueOn: dueOn, AfterClock: clock, AfterID: decoded.ID}, nil
+}
+
+// clockText writes a sort clock as HH:MM, 24:00 for no time.
+func clockText(clock task.Clock) string {
+	if !clock.Set {
+		return endOfDay
+	}
+	return clock.String()
+}
+
+// readClock reads the sort clock a cursor names, no time for an absent clock or 24:00.
+func readClock(text *string) (task.Clock, error) {
+	if text == nil || *text == endOfDay {
+		return task.Clock{}, nil
+	}
+	return task.ParseClock(*text)
 }
 
 // decodePayload parses a base64url JSON cursor token into target.

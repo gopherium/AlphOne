@@ -59,6 +59,7 @@ type CoreTask struct {
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
 	TenantID      uuid.UUID
+	DueTime       pgtype.Time
 }
 
 type CoreTenant struct {

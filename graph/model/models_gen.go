@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 )
 
@@ -76,6 +77,7 @@ type ContactPage struct {
 type CreateTaskInput struct {
 	Title         string     `json:"title"`
 	DueOn         time.Time  `json:"dueOn"`
+	DueTime       *string    `json:"dueTime,omitempty"`
 	Priority      *int       `json:"priority,omitempty"`
 	ContactID     *uuid.UUID `json:"contactId,omitempty"`
 	OriginEventID *uuid.UUID `json:"originEventId,omitempty"`
@@ -213,6 +215,7 @@ type Task struct {
 	Status        string     `json:"status"`
 	Priority      int        `json:"priority"`
 	DueOn         time.Time  `json:"dueOn"`
+	DueTime       *string    `json:"dueTime,omitempty"`
 	OriginSource  *string    `json:"originSource,omitempty"`
 	OriginEventID *uuid.UUID `json:"originEventId,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
@@ -235,10 +238,11 @@ type Tenant struct {
 }
 
 type UpdateTaskInput struct {
-	Title    *string    `json:"title,omitempty"`
-	DueOn    *time.Time `json:"dueOn,omitempty"`
-	Status   *string    `json:"status,omitempty"`
-	Priority *int       `json:"priority,omitempty"`
+	Title    *string                    `json:"title,omitempty"`
+	DueOn    *time.Time                 `json:"dueOn,omitempty"`
+	DueTime  graphql.Omittable[*string] `json:"dueTime,omitempty"`
+	Status   *string                    `json:"status,omitempty"`
+	Priority *int                       `json:"priority,omitempty"`
 }
 
 type User struct {

@@ -275,6 +275,7 @@ type ComplexityRoot struct {
 		ContactID     func(childComplexity int) int
 		CreatedAt     func(childComplexity int) int
 		DueOn         func(childComplexity int) int
+		DueTime       func(childComplexity int) int
 		ID            func(childComplexity int) int
 		OriginEventID func(childComplexity int) int
 		OriginSource  func(childComplexity int) int
@@ -1611,6 +1612,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Task.DueOn(childComplexity), true
+	case "Task.dueTime":
+		if e.ComplexityRoot.Task.DueTime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Task.DueTime(childComplexity), true
 	case "Task.id":
 		if e.ComplexityRoot.Task.ID == nil {
 			break
@@ -2574,6 +2581,8 @@ func (ec *executionContext) childFields_Task(ctx context.Context, field graphql.
 		return ec.fieldContext_Task_priority(ctx, field)
 	case "dueOn":
 		return ec.fieldContext_Task_dueOn(ctx, field)
+	case "dueTime":
+		return ec.fieldContext_Task_dueTime(ctx, field)
 	case "originSource":
 		return ec.fieldContext_Task_originSource(ctx, field)
 	case "originEventId":
@@ -8626,6 +8635,29 @@ func (ec *executionContext) fieldContext_Task_dueOn(_ context.Context, field gra
 	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type Date does not have child fields"))
 }
 
+func (ec *executionContext) _Task_dueTime(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Task_dueTime(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DueTime, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOLocalTime2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Task_dueTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type LocalTime does not have child fields"))
+}
+
 func (ec *executionContext) _Task_originSource(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10928,7 +10960,7 @@ func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "dueOn", "priority", "contactId", "originEventId"}
+	fieldsInOrder := [...]string{"title", "dueOn", "dueTime", "priority", "contactId", "originEventId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -10949,6 +10981,13 @@ func (ec *executionContext) unmarshalInputCreateTaskInput(ctx context.Context, o
 				return it, err
 			}
 			it.DueOn = data
+		case "dueTime":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueTime"))
+			data, err := ec.unmarshalOLocalTime2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DueTime = data
 		case "priority":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -11067,7 +11106,7 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "dueOn", "status", "priority"}
+	fieldsInOrder := [...]string{"title", "dueOn", "dueTime", "status", "priority"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -11088,6 +11127,13 @@ func (ec *executionContext) unmarshalInputUpdateTaskInput(ctx context.Context, o
 				return it, err
 			}
 			it.DueOn = data
+		case "dueTime":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueTime"))
+			data, err := ec.unmarshalOLocalTime2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DueTime = graphql.OmittableOf(data)
 		case "status":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -13423,6 +13469,11 @@ func (ec *executionContext) _Task(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "dueTime":
+			out.Values[i] = ec._Task_dueTime(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "originSource":
 			out.Values[i] = ec._Task_originSource(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -15639,6 +15690,24 @@ func (ec *executionContext) marshalOJSON2interface(ctx context.Context, sel ast.
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalAny(v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOLocalTime2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalLocalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOLocalTime2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalLocalTime(*v)
 	return res
 }
 

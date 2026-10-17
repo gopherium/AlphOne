@@ -16,8 +16,9 @@ appears whenever you are looking at another day.
 Everything on the screen belongs to you. Tasks are owned by the person
 they are assigned to, and the day list only shows your own.
 
-Higher priority tasks come first, and tasks of the same priority keep the
-order they were added.
+Higher priority tasks come first. Within one priority, tasks with a time of
+day come before those without, the earliest time first. Tasks with no time
+keep the order they were added.
 
 ## Adding work
 

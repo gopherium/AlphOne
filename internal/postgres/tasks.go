@@ -18,6 +18,9 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
+// endOfDay is the sort clock of a task that holds no time, after every time of day.
+const endOfDay = 24 * time.Hour
+
 // TaskStore persists tasks in the core schema.
 type TaskStore struct {
 	pool    *pgxpool.Pool
@@ -44,6 +47,7 @@ func (s *TaskStore) Create(ctx context.Context, t task.Task) (task.Task, bool, e
 		OriginEventID: optionalUUID(t.Origin.EventID),
 		CreatedAt:     t.CreatedAt,
 		TenantID:      sdk.TenantOrDefault(ctx),
+		DueTime:       optionalClock(t.DueTime),
 	})
 	if err != nil {
 		return task.Task{}, false, fmt.Errorf("postgres: create task: %w", err)
@@ -64,6 +68,7 @@ func createdRow(row db.CreateTaskRow) db.CoreTask {
 		OriginSource:  row.OriginSource,
 		OriginEventID: row.OriginEventID,
 		CreatedAt:     row.CreatedAt,
+		DueTime:       row.DueTime,
 	}
 }
 
@@ -91,6 +96,7 @@ func (s *TaskStore) Update(ctx context.Context, t task.Task) (task.Task, error) 
 		Status:   t.Status,
 		Priority: int16(t.Priority),
 		DueOn:    t.DueOn,
+		DueTime:  optionalClock(t.DueTime),
 		TenantID: sdk.TenantOrDefault(ctx),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -113,6 +119,7 @@ func (s *TaskStore) ListForDay(
 		Status:     status,
 		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
+		AfterClock: clockKey(page),
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
 		TenantID:   sdk.TenantOrDefault(ctx),
@@ -134,6 +141,7 @@ func (s *TaskStore) ListDueBefore(
 		Status:     status,
 		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
+		AfterClock: clockKey(page),
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
 		TenantID:   sdk.TenantOrDefault(ctx),
@@ -154,6 +162,7 @@ func (s *TaskStore) ListForContact(
 		Status:     status,
 		AfterRank:  int32(page.StartRank()),
 		AfterDueOn: page.AfterDueOn,
+		AfterClock: clockKey(page),
 		AfterID:    page.AfterID,
 		RowLimit:   int32(page.Limit),
 		TenantID:   sdk.TenantOrDefault(ctx),
@@ -183,12 +192,43 @@ func taskFromRow(row db.CoreTask) task.Task {
 		Status:     row.Status,
 		Priority:   int(row.Priority),
 		DueOn:      row.DueOn,
+		DueTime:    storedClock(row.DueTime),
 		Origin: task.Origin{
 			Source:  row.OriginSource.String,
 			EventID: storedUUID(row.OriginEventID),
 		},
 		CreatedAt: row.CreatedAt,
 	}
+}
+
+// clockKey returns the sort clock a page starts after, the end of the day when the page names no time.
+func clockKey(page task.Page) pgtype.Time {
+	if !page.AfterClock.Set {
+		return pgtype.Time{Microseconds: endOfDay.Microseconds(), Valid: true}
+	}
+	return optionalClock(page.AfterClock)
+}
+
+// optionalClock converts a time of day to a nullable column value, treating no time as absent.
+func optionalClock(clock task.Clock) pgtype.Time {
+	if !clock.Set {
+		return pgtype.Time{}
+	}
+	return pgtype.Time{Microseconds: clockDuration(clock).Microseconds(), Valid: true}
+}
+
+// storedClock converts a nullable column value to a time of day, reporting an absent value as no time.
+func storedClock(value pgtype.Time) task.Clock {
+	if !value.Valid {
+		return task.Clock{}
+	}
+	sinceMidnight := time.Duration(value.Microseconds) * time.Microsecond
+	return task.Clock{Minutes: int(sinceMidnight / time.Minute), Set: true}
+}
+
+// clockDuration returns how long after midnight the time of day falls.
+func clockDuration(clock task.Clock) time.Duration {
+	return time.Duration(clock.Minutes) * time.Minute
 }
 
 // optionalUUID converts an id to a nullable column value, treating

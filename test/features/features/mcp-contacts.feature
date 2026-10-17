@@ -36,6 +36,20 @@ Feature: An agent reads contacts
       | Call Maria Perez back      |
       | Send Maria Perez the quote |
 
+  Scenario: A contact's open tasks of one day list by time of day
+    Given a contact "Maria Perez"
+    And an open task "Update the address of Maria Perez" due today linked to that contact
+    And an open task "Send Maria Perez the quote" due today at 11:00 linked to that contact
+    And an open task "Call Maria Perez back" due today at 09:00 linked to that contact
+    When the agent calls get_contact for that contact
+    Then the answer lists the open tasks in order:
+      | title                             |
+      | Call Maria Perez back             |
+      | Send Maria Perez the quote        |
+      | Update the address of Maria Perez |
+    And the answer gives "Call Maria Perez back" the time "09:00"
+    And the answer gives "Update the address of Maria Perez" no time
+
   Scenario: An unknown contact id is refused as not found
     When the agent calls get_contact with an id no contact holds
     Then the tool fails with a not found error

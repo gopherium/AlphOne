@@ -65,6 +65,10 @@ func toTask(t task.Task) *model.Task {
 		DueOn:      t.DueOn,
 		CreatedAt:  t.CreatedAt.UTC(),
 	}
+	if t.DueTime.Set {
+		dueTime := t.DueTime.String()
+		mapped.DueTime = &dueTime
+	}
 	if t.ContactID != uuid.Nil {
 		contactID := t.ContactID
 		mapped.ContactID = &contactID
@@ -197,11 +201,24 @@ func uuidOf(raw *uuid.UUID) uuid.UUID {
 	return *raw
 }
 
+// mustClockOf reads a LocalTime argument as a [task.Clock], zero when nil, and panics on a time the domain refuses.
+func mustClockOf(raw *string) task.Clock {
+	if raw == nil {
+		return task.Clock{}
+	}
+	clock, err := task.ParseClock(*raw)
+	if err != nil {
+		panic(err)
+	}
+	return clock
+}
+
 // graphTaskInput builds the domain input a create mutation stands for.
 func graphTaskInput(ctx context.Context, input model.CreateTaskInput) task.Input {
 	return task.Input{
 		Title:      input.Title,
 		DueOn:      input.DueOn,
+		DueTime:    mustClockOf(input.DueTime),
 		Priority:   intOf(input.Priority),
 		AssigneeID: authkit.IdentityFromContext(ctx).ID,
 		ContactID:  uuidOf(input.ContactID),
@@ -235,12 +252,21 @@ func (m MutationResolvers) UpdateTask(
 	if err != nil {
 		return nil, err
 	}
-	changes := task.Changes{Title: input.Title, DueOn: input.DueOn, Status: input.Status, Priority: input.Priority}
-	updated, err := m.patchTask(ctx, stored, changes)
+	updated, err := m.patchTask(ctx, stored, taskChanges(input))
 	if err != nil {
 		return nil, err
 	}
 	return toTask(updated), nil
+}
+
+// taskChanges builds the domain changes an update mutation stands for.
+func taskChanges(input model.UpdateTaskInput) task.Changes {
+	changes := task.Changes{Title: input.Title, DueOn: input.DueOn, Status: input.Status, Priority: input.Priority}
+	if dueTime, given := input.DueTime.ValueOK(); given {
+		clock := mustClockOf(dueTime)
+		changes.DueTime = &clock
+	}
+	return changes
 }
 
 // completesTask reports whether the update closed an open task.

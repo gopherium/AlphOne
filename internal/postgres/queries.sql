@@ -95,64 +95,70 @@ WHERE id = $1 AND contact_id = $2 AND tenant_id = @tenant_id;
 
 -- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id)
+    origin_source, origin_event_id, created_at, tenant_id, due_time)
 VALUES (@id, @assignee_id, @contact_id, @title, @status, @priority, @due_on,
-    @origin_source, @origin_event_id, @created_at, @tenant_id)
+    @origin_source, @origin_event_id, @created_at, @tenant_id, @due_time)
 ON CONFLICT (tenant_id, assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, (xmax = 0) AS created;
+    origin_source, origin_event_id, created_at, due_time, (xmax = 0) AS created;
 
 -- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks
 WHERE id = $1 AND tenant_id = @tenant_id;
 
 -- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = @tenant_id
     AND t.assignee_id = @assignee_id::uuid
     AND t.due_on = @due_on::date
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_clock::time, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
 LIMIT @row_limit;
 
 -- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = @tenant_id
     AND t.assignee_id = @assignee_id::uuid
     AND t.due_on < @due_before::date
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_clock::time, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
 LIMIT @row_limit;
 
 -- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = @tenant_id
     AND t.contact_id = @contact_id::uuid
     AND (@status::text = 'all' OR t.status = @status::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > (@after_rank::integer, @after_due_on::date, @after_id::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > (@after_rank::integer, @after_due_on::date, @after_clock::time, @after_id::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
 LIMIT @row_limit;
 
 -- name: UpdateTask :one
 UPDATE core.tasks
-SET title = $2, status = $3, priority = $4, due_on = $5
+SET title = $2, status = $3, priority = $4, due_on = $5, due_time = @due_time
 WHERE id = $1 AND tenant_id = @tenant_id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id;
+    origin_source, origin_event_id, created_at, tenant_id, due_time;
 
 -- name: CreateAPIToken :exec
 INSERT INTO core.api_tokens
