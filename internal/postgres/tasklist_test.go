@@ -61,14 +61,29 @@ func TestTaskStoreListsADay(t *testing.T) {
 	})
 	storeTask(t, store, task.Input{Title: "Someone else's day", DueOn: taskDay, AssigneeID: other})
 
-	listed, err := store.ListForDay(t.Context(), assignee, taskDay, "all", task.Page{Limit: 10})
+	listed := firstTitles(t, func(page task.Page) ([]task.Task, error) {
+		return store.ListForDay(t.Context(), assignee, taskDay, "all", page)
+	})
 
-	if err != nil {
-		t.Fatalf("ListForDay() error = %v, want nil", err)
+	wantTitles(t, "titles", listed, []string{"Today first", "Today second"})
+}
+
+// wantEachStatus fails the test unless list answers the open task for open, the done one for done and both for all.
+func wantEachStatus(t *testing.T, list func(status string) ([]task.Task, error), open, done task.Task) {
+	t.Helper()
+	tests := map[string][]string{
+		task.StatusOpen: {open.Title},
+		task.StatusDone: {done.Title},
+		"all":           {open.Title, done.Title},
 	}
-	want := []string{"Today first", "Today second"}
-	if got := titlesOf(listed); !slices.Equal(got, want) {
-		t.Errorf("titles = %v, want %v", got, want)
+	for status, want := range tests {
+		t.Run(status, func(t *testing.T) {
+			listed, err := list(status)
+			if err != nil {
+				t.Fatalf("listing %s error = %v, want nil", status, err)
+			}
+			wantTitles(t, "titles", titlesOf(listed), want)
+		})
 	}
 }
 
@@ -82,27 +97,9 @@ func TestTaskStoreFiltersADayByStatus(t *testing.T) {
 	done := storeTask(t, store, task.Input{Title: "Already done", DueOn: taskDay, AssigneeID: assignee})
 	completed(t, pool, done.ID)
 
-	tests := map[string]struct {
-		status string
-		want   []string
-	}{
-		"open": {status: task.StatusOpen, want: []string{open.Title}},
-		"done": {status: task.StatusDone, want: []string{done.Title}},
-		"all":  {status: "all", want: []string{open.Title, done.Title}},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			listed, err := store.ListForDay(t.Context(), assignee, taskDay, tc.status, task.Page{Limit: 10})
-
-			if err != nil {
-				t.Fatalf("ListForDay() error = %v, want nil", err)
-			}
-			if got := titlesOf(listed); !slices.Equal(got, tc.want) {
-				t.Errorf("titles = %v, want %v", got, tc.want)
-			}
-		})
-	}
+	wantEachStatus(t, func(status string) ([]task.Task, error) {
+		return store.ListForDay(t.Context(), assignee, taskDay, status, task.Page{Limit: 10})
+	}, open, done)
 }
 
 func TestTaskStoreWalksADayByPages(t *testing.T) {
@@ -118,7 +115,7 @@ func TestTaskStoreWalksADayByPages(t *testing.T) {
 	var walked []string
 	var sizes []int
 	page := task.Page{Limit: 2}
-	for {
+	for range maxWalkedPages {
 		listed, err := store.ListForDay(t.Context(), assignee, taskDay, "all", page)
 		if err != nil {
 			t.Fatalf("ListForDay() error = %v, want nil", err)
@@ -128,8 +125,7 @@ func TestTaskStoreWalksADayByPages(t *testing.T) {
 			break
 		}
 		walked = append(walked, titlesOf(listed)...)
-		last := listed[len(listed)-1]
-		page = task.Page{AfterDueOn: last.DueOn, AfterID: last.ID, Limit: 2}
+		page = task.PageAfter(listed[len(listed)-1], 2)
 	}
 
 	if !slices.Equal(walked, want) {
@@ -206,8 +202,7 @@ func TestTaskStoreWalksTheOtherModesByPages(t *testing.T) {
 				t.Fatalf("first page = %v, want [Oldest Middle]", got)
 			}
 
-			last := first[len(first)-1]
-			second, err := list(task.Page{AfterDueOn: last.DueOn, AfterID: last.ID, Limit: 2})
+			second, err := list(task.PageAfter(first[len(first)-1], 2))
 
 			if err != nil {
 				t.Fatalf("second page error = %v, want nil", err)
@@ -237,27 +232,9 @@ func TestTaskStoreFiltersAContactByStatus(t *testing.T) {
 	})
 	completed(t, pool, done.ID)
 
-	tests := map[string]struct {
-		status string
-		want   []string
-	}{
-		"open": {status: task.StatusOpen, want: []string{open.Title}},
-		"done": {status: task.StatusDone, want: []string{done.Title}},
-		"all":  {status: "all", want: []string{open.Title, done.Title}},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			listed, err := store.ListForContact(t.Context(), owner.ID, tc.status, task.Page{Limit: 10})
-
-			if err != nil {
-				t.Fatalf("ListForContact() error = %v, want nil", err)
-			}
-			if got := titlesOf(listed); !slices.Equal(got, tc.want) {
-				t.Errorf("titles = %v, want %v", got, tc.want)
-			}
-		})
-	}
+	wantEachStatus(t, func(status string) ([]task.Task, error) {
+		return store.ListForContact(t.Context(), owner.ID, status, task.Page{Limit: 10})
+	}, open, done)
 }
 
 func TestTaskStoreListsWhatIsDueBefore(t *testing.T) {
@@ -282,15 +259,11 @@ func TestTaskStoreListsWhatIsDueBefore(t *testing.T) {
 	})
 	completed(t, pool, closed.ID)
 
-	listed, err := store.ListDueBefore(t.Context(), assignee, taskDay, task.StatusOpen, task.Page{Limit: 10})
+	listed := firstTitles(t, func(page task.Page) ([]task.Task, error) {
+		return store.ListDueBefore(t.Context(), assignee, taskDay, task.StatusOpen, page)
+	})
 
-	if err != nil {
-		t.Fatalf("ListDueBefore() error = %v, want nil", err)
-	}
-	want := []string{"Two days ago", "Yesterday"}
-	if got := titlesOf(listed); !slices.Equal(got, want) {
-		t.Errorf("titles = %v, want %v", got, want)
-	}
+	wantTitles(t, "titles", listed, []string{"Two days ago", "Yesterday"})
 }
 
 func TestTaskStoreListsAContactAcrossAssignees(t *testing.T) {

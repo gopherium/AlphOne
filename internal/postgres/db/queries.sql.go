@@ -231,13 +231,13 @@ func (q *Queries) CreateContact(ctx context.Context, arg CreateContactParams) er
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id)
+    origin_source, origin_event_id, created_at, tenant_id, due_time)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-    $8, $9, $10, $11)
+    $8, $9, $10, $11, $12)
 ON CONFLICT (tenant_id, assignee_id, origin_source, origin_event_id) WHERE origin_event_id IS NOT NULL
 DO UPDATE SET id = core.tasks.id
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, (xmax = 0) AS created
+    origin_source, origin_event_id, created_at, due_time, (xmax = 0) AS created
 `
 
 type CreateTaskParams struct {
@@ -252,6 +252,7 @@ type CreateTaskParams struct {
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
 	TenantID      uuid.UUID
+	DueTime       pgtype.Time
 }
 
 type CreateTaskRow struct {
@@ -265,6 +266,7 @@ type CreateTaskRow struct {
 	OriginSource  pgtype.Text
 	OriginEventID pgtype.UUID
 	CreatedAt     time.Time
+	DueTime       pgtype.Time
 	Created       bool
 }
 
@@ -281,6 +283,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 		arg.OriginEventID,
 		arg.CreatedAt,
 		arg.TenantID,
+		arg.DueTime,
 	)
 	var i CreateTaskRow
 	err := row.Scan(
@@ -294,6 +297,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (CreateT
 		&i.OriginSource,
 		&i.OriginEventID,
 		&i.CreatedAt,
+		&i.DueTime,
 		&i.Created,
 	)
 	return i, err
@@ -524,7 +528,7 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreC
 
 const getTask = `-- name: GetTask :one
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks
 WHERE id = $1 AND tenant_id = $2
 `
@@ -549,6 +553,7 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (CoreTask, err
 		&i.OriginEventID,
 		&i.CreatedAt,
 		&i.TenantID,
+		&i.DueTime,
 	)
 	return i, err
 }
@@ -767,16 +772,18 @@ func (q *Queries) ListEveryAPIToken(ctx context.Context) ([]CoreApiToken, error)
 
 const listTasksDueBefore = `-- name: ListTasksDueBefore :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = $1
     AND t.assignee_id = $2::uuid
     AND t.due_on < $3::date
     AND ($4::text = 'all' OR t.status = $4::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > ($5::integer, $6::date, $7::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
-LIMIT $8
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > ($5::integer, $6::date, $7::time, $8::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
+LIMIT $9
 `
 
 type ListTasksDueBeforeParams struct {
@@ -786,6 +793,7 @@ type ListTasksDueBeforeParams struct {
 	Status     string
 	AfterRank  int32
 	AfterDueOn time.Time
+	AfterClock pgtype.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
 }
@@ -798,6 +806,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 		arg.Status,
 		arg.AfterRank,
 		arg.AfterDueOn,
+		arg.AfterClock,
 		arg.AfterID,
 		arg.RowLimit,
 	)
@@ -820,6 +829,7 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 			&i.OriginEventID,
 			&i.CreatedAt,
 			&i.TenantID,
+			&i.DueTime,
 		); err != nil {
 			return nil, err
 		}
@@ -833,15 +843,17 @@ func (q *Queries) ListTasksDueBefore(ctx context.Context, arg ListTasksDueBefore
 
 const listTasksForContact = `-- name: ListTasksForContact :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = $1
     AND t.contact_id = $2::uuid
     AND ($3::text = 'all' OR t.status = $3::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > ($4::integer, $5::date, $6::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
-LIMIT $7
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > ($4::integer, $5::date, $6::time, $7::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
+LIMIT $8
 `
 
 type ListTasksForContactParams struct {
@@ -850,6 +862,7 @@ type ListTasksForContactParams struct {
 	Status     string
 	AfterRank  int32
 	AfterDueOn time.Time
+	AfterClock pgtype.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
 }
@@ -861,6 +874,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 		arg.Status,
 		arg.AfterRank,
 		arg.AfterDueOn,
+		arg.AfterClock,
 		arg.AfterID,
 		arg.RowLimit,
 	)
@@ -883,6 +897,7 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 			&i.OriginEventID,
 			&i.CreatedAt,
 			&i.TenantID,
+			&i.DueTime,
 		); err != nil {
 			return nil, err
 		}
@@ -896,16 +911,18 @@ func (q *Queries) ListTasksForContact(ctx context.Context, arg ListTasksForConta
 
 const listTasksForDay = `-- name: ListTasksForDay :many
 SELECT id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 FROM core.tasks t
 WHERE t.tenant_id = $1
     AND t.assignee_id = $2::uuid
     AND t.due_on = $3::date
     AND ($4::text = 'all' OR t.status = $4::text)
-    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id)
-        > ($5::integer, $6::date, $7::uuid)
-ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on, t.id
-LIMIT $8
+    AND (CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+        CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id)
+        > ($5::integer, $6::date, $7::time, $8::uuid)
+ORDER BY CASE WHEN t.status = 'open' THEN -t.priority ELSE 0 END, t.due_on,
+    CASE WHEN t.status = 'open' THEN COALESCE(t.due_time, '24:00'::time) ELSE '24:00'::time END, t.id
+LIMIT $9
 `
 
 type ListTasksForDayParams struct {
@@ -915,6 +932,7 @@ type ListTasksForDayParams struct {
 	Status     string
 	AfterRank  int32
 	AfterDueOn time.Time
+	AfterClock pgtype.Time
 	AfterID    uuid.UUID
 	RowLimit   int32
 }
@@ -927,6 +945,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 		arg.Status,
 		arg.AfterRank,
 		arg.AfterDueOn,
+		arg.AfterClock,
 		arg.AfterID,
 		arg.RowLimit,
 	)
@@ -949,6 +968,7 @@ func (q *Queries) ListTasksForDay(ctx context.Context, arg ListTasksForDayParams
 			&i.OriginEventID,
 			&i.CreatedAt,
 			&i.TenantID,
+			&i.DueTime,
 		); err != nil {
 			return nil, err
 		}
@@ -1394,10 +1414,10 @@ func (q *Queries) UpdateContactName(ctx context.Context, arg UpdateContactNamePa
 
 const updateTask = `-- name: UpdateTask :one
 UPDATE core.tasks
-SET title = $2, status = $3, priority = $4, due_on = $5
-WHERE id = $1 AND tenant_id = $6
+SET title = $2, status = $3, priority = $4, due_on = $5, due_time = $6
+WHERE id = $1 AND tenant_id = $7
 RETURNING id, assignee_id, contact_id, title, status, priority, due_on,
-    origin_source, origin_event_id, created_at, tenant_id
+    origin_source, origin_event_id, created_at, tenant_id, due_time
 `
 
 type UpdateTaskParams struct {
@@ -1406,6 +1426,7 @@ type UpdateTaskParams struct {
 	Status   string
 	Priority int16
 	DueOn    time.Time
+	DueTime  pgtype.Time
 	TenantID uuid.UUID
 }
 
@@ -1416,6 +1437,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		arg.Status,
 		arg.Priority,
 		arg.DueOn,
+		arg.DueTime,
 		arg.TenantID,
 	)
 	var i CoreTask
@@ -1431,6 +1453,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (CoreTas
 		&i.OriginEventID,
 		&i.CreatedAt,
 		&i.TenantID,
+		&i.DueTime,
 	)
 	return i, err
 }

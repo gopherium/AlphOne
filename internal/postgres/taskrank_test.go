@@ -12,15 +12,34 @@ import (
 	"github.com/gopherium/alphone/internal/task"
 )
 
+// maxWalkedPages bounds every page walk of a task listing.
+const maxWalkedPages = 10
+
 // rankedLister reads one page of a task listing.
 type rankedLister func(page task.Page) ([]task.Task, error)
 
 // walkRanked reads every page of a listing two tasks at a time and returns the titles in order.
 func walkRanked(t *testing.T, list rankedLister) []string {
 	t.Helper()
+	return walkPages(t, list, 2)
+}
+
+// firstTitles reads the first page of up to ten tasks of a listing and returns their titles in order.
+func firstTitles(t *testing.T, list rankedLister) []string {
+	t.Helper()
+	listed, err := list(task.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("listing the first page: %v", err)
+	}
+	return titlesOf(listed)
+}
+
+// walkPages reads every page of a listing limit tasks at a time and returns the titles in order.
+func walkPages(t *testing.T, list rankedLister, limit int) []string {
+	t.Helper()
 	var walked []string
-	page := task.Page{Limit: 2}
-	for range 10 {
+	page := task.Page{Limit: limit}
+	for range maxWalkedPages {
 		listed, err := list(page)
 		if err != nil {
 			t.Fatalf("listing a page: %v", err)
@@ -29,52 +48,52 @@ func walkRanked(t *testing.T, list rankedLister) []string {
 			return walked
 		}
 		walked = append(walked, titlesOf(listed)...)
-		last := listed[len(listed)-1]
-		page = task.Page{AfterRank: last.Rank(), AfterDueOn: last.DueOn, AfterID: last.ID, Limit: 2}
+		page = task.PageAfter(listed[len(listed)-1], limit)
 	}
 	t.Fatalf("the walk never ended, walked %v", walked)
 	return nil
 }
 
-func TestTaskStoreListsHigherPriorityFirstInADay(t *testing.T) {
+func TestTaskStoreListsHigherPriorityFirstInADayAndAcrossTheBacklog(t *testing.T) {
 	t.Parallel()
 
 	store := postgres.NewTaskStore(newTestPool(t))
-	assignee := uuid.Must(uuid.NewV7())
-	storeTask(t, store, task.Input{Title: "Send the quote", DueOn: taskDay, AssigneeID: assignee})
-	storeTask(t, store, task.Input{Title: "Renew the license", DueOn: taskDay, Priority: 1, AssigneeID: assignee})
-	storeTask(t, store, task.Input{Title: "Restore the backup", DueOn: taskDay, Priority: 9, AssigneeID: assignee})
-
-	listed, err := store.ListForDay(t.Context(), assignee, taskDay, task.StatusOpen, task.Page{Limit: 10})
-
-	if err != nil {
-		t.Fatalf("ListForDay() error = %v, want nil", err)
+	tests := map[string]struct {
+		held []task.Input
+		list func(assignee uuid.UUID, page task.Page) ([]task.Task, error)
+		want []string
+	}{
+		"in a day": {
+			held: []task.Input{
+				{Title: "Send the quote", DueOn: taskDay},
+				{Title: "Renew the license", DueOn: taskDay, Priority: 1},
+				{Title: "Restore the backup", DueOn: taskDay, Priority: 9},
+			},
+			list: func(assignee uuid.UUID, page task.Page) ([]task.Task, error) {
+				return store.ListForDay(t.Context(), assignee, taskDay, task.StatusOpen, page)
+			},
+			want: []string{"Restore the backup", "Renew the license", "Send the quote"},
+		},
+		"across the backlog": {
+			held: []task.Input{
+				{Title: "Chase the invoice", DueOn: taskDay.AddDate(0, 0, -10)},
+				{Title: "Renew the contract", DueOn: taskDay.AddDate(0, 0, -1), Priority: 1},
+				{Title: "File the report", DueOn: taskDay.AddDate(0, 0, -8)},
+			},
+			list: func(assignee uuid.UUID, page task.Page) ([]task.Task, error) {
+				return store.ListDueBefore(t.Context(), assignee, taskDay, task.StatusOpen, page)
+			},
+			want: []string{"Renew the contract", "Chase the invoice", "File the report"},
+		},
 	}
-	want := []string{"Restore the backup", "Renew the license", "Send the quote"}
-	if got := titlesOf(listed); !slices.Equal(got, want) {
-		t.Errorf("titles = %v, want %v", got, want)
-	}
-}
 
-func TestTaskStoreListsTheBacklogByPriorityAcrossDays(t *testing.T) {
-	t.Parallel()
+	for name, tc := range tests {
+		assignee := uuid.Must(uuid.NewV7())
+		storeAll(t, store, assignee, tc.held)
 
-	store := postgres.NewTaskStore(newTestPool(t))
-	assignee := uuid.Must(uuid.NewV7())
-	storeTask(t, store, task.Input{Title: "Chase the invoice", DueOn: taskDay.AddDate(0, 0, -10), AssigneeID: assignee})
-	storeTask(t, store, task.Input{
-		Title: "Renew the contract", DueOn: taskDay.AddDate(0, 0, -1), Priority: 1, AssigneeID: assignee,
-	})
-	storeTask(t, store, task.Input{Title: "File the report", DueOn: taskDay.AddDate(0, 0, -8), AssigneeID: assignee})
+		listed := firstTitles(t, func(page task.Page) ([]task.Task, error) { return tc.list(assignee, page) })
 
-	listed, err := store.ListDueBefore(t.Context(), assignee, taskDay, task.StatusOpen, task.Page{Limit: 10})
-
-	if err != nil {
-		t.Fatalf("ListDueBefore() error = %v, want nil", err)
-	}
-	want := []string{"Renew the contract", "Chase the invoice", "File the report"}
-	if got := titlesOf(listed); !slices.Equal(got, want) {
-		t.Errorf("titles = %v, want %v", got, want)
+		wantTitles(t, name, listed, tc.want)
 	}
 }
 
