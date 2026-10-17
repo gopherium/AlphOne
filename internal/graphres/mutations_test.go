@@ -384,34 +384,47 @@ type createdTask struct {
 func TestCreateTaskPublishesThePinnedPayload(t *testing.T) {
 	t.Parallel()
 
-	h := newMutationHarness(t)
+	tests := map[string]struct {
+		dueTime string
+		want    any
+	}{
+		"with no time": {want: nil},
+		"at eleven":    {dueTime: `, dueTime: "11:00"`, want: "11:00"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	var created createdTask
-	h.client.MustPost(`mutation { createTask(input: {
-		title: "Call Maria", dueOn: "2026-08-07", priority: 2
-	}) { task { id status dueOn } replay } }`, &created)
+			h := newMutationHarness(t)
+			var created createdTask
+			h.client.MustPost(`mutation { createTask(input: {
+				title: "Call Maria", dueOn: "2026-08-07", priority: 2`+tc.dueTime+`
+			}) { task { id status dueOn } replay } }`, &created)
 
-	if created.CreateTask.Replay {
-		t.Error("replay = true, want false on a first create")
-	}
-	if created.CreateTask.Task.Status != "open" || created.CreateTask.Task.DueOn != "2026-08-07" {
-		t.Errorf("task = %+v, want open on 2026-08-07", created.CreateTask.Task)
-	}
-	wantPayload := map[string]any{
-		"id":       created.CreateTask.Task.ID,
-		"title":    "Call Maria",
-		"status":   "open",
-		"due_on":   "2026-08-07",
-		"priority": 2,
-	}
-	if h.events.countOf(event.TaskCreated) != 1 {
-		t.Fatalf("task.created count = %d, want 1", h.events.countOf(event.TaskCreated))
-	}
-	if diff := cmp.Diff(wantPayload, h.events.payloads[0]); diff != "" {
-		t.Errorf("task.created payload mismatch (-want +got):\n%s", diff)
-	}
-	if h.events.audiences[0] != h.assignee {
-		t.Errorf("task.created audience = %s, want the assignee %s", h.events.audiences[0], h.assignee)
+			if created.CreateTask.Replay {
+				t.Error("replay = true, want false on a first create")
+			}
+			if created.CreateTask.Task.Status != "open" || created.CreateTask.Task.DueOn != "2026-08-07" {
+				t.Errorf("task = %+v, want open on 2026-08-07", created.CreateTask.Task)
+			}
+			wantPayload := map[string]any{
+				"id":       created.CreateTask.Task.ID,
+				"title":    "Call Maria",
+				"status":   "open",
+				"due_on":   "2026-08-07",
+				"due_time": tc.want,
+				"priority": 2,
+			}
+			if h.events.countOf(event.TaskCreated) != 1 {
+				t.Fatalf("task.created count = %d, want 1", h.events.countOf(event.TaskCreated))
+			}
+			if diff := cmp.Diff(wantPayload, h.events.payloads[0]); diff != "" {
+				t.Errorf("task.created payload mismatch (-want +got):\n%s", diff)
+			}
+			if h.events.audiences[0] != h.assignee {
+				t.Errorf("task.created audience = %s, want the assignee %s", h.events.audiences[0], h.assignee)
+			}
+		})
 	}
 }
 
@@ -632,6 +645,68 @@ func TestUpdateTaskKeepsAnAbsentTimeAndClearsOnlyOnAnExplicitNull(t *testing.T) 
 					update.name, source, answeredTime(got.DueTime), update.wantTime)
 			}
 		}
+	}
+}
+
+// taskFields is a task as the graph answers every field updateTask writes.
+type taskFields struct {
+	Title    string  `json:"title"`
+	DueOn    string  `json:"dueOn"`
+	DueTime  *string `json:"dueTime"`
+	Status   string  `json:"status"`
+	Priority int     `json:"priority"`
+}
+
+func TestUpdateTaskKeepsEveryFieldButTheTimeSentAsNull(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	var created createdTask
+	h.client.MustPost(`mutation { createTask(input: {
+		title: "Call Maria", dueOn: "2026-08-07", dueTime: "11:00", priority: 2
+	}) { task { id } replay } }`, &created)
+	id := created.CreateTask.Task.ID
+
+	var updated struct {
+		UpdateTask taskFields `json:"updateTask"`
+	}
+	h.client.MustPost(fmt.Sprintf(`mutation { updateTask(id: %q, input: {
+		title: null, dueOn: null, status: null, priority: null
+	}) { title dueOn dueTime status priority } }`, id), &updated)
+	var read struct {
+		Task taskFields `json:"task"`
+	}
+	h.client.MustPost(fmt.Sprintf(`{ task(id: %q) { title dueOn dueTime status priority } }`, id), &read)
+
+	eleven := "11:00"
+	want := taskFields{Title: "Call Maria", DueOn: "2026-08-07", DueTime: &eleven, Status: "open", Priority: 2}
+	for source, got := range map[string]taskFields{"answered": updated.UpdateTask, "stored": read.Task} {
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("%s task after a null on every field but the time (-want +got):\n%s", source, diff)
+		}
+	}
+}
+
+func TestCreateTaskReplayAnswersTheTaskAsItIsStoredNow(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	tokenClient := h.originClient(t, "n8n production")
+	create := fmt.Sprintf(`mutation($dueTime: LocalTime) { createTask(input: {
+		title: "Automated", dueOn: "2026-08-07", dueTime: $dueTime, originEventId: %q
+	}) { task { id dueTime } replay } }`, uuid.Must(uuid.NewV7()))
+
+	var first createdTask
+	tokenClient.MustPost(create, &first, gqlclient.Var("dueTime", "11:00"))
+	h.updateTimedTask(t, first.CreateTask.Task.ID, timeUpdate{name: "a new time", input: `{dueTime: "15:00"}`})
+	var replayed createdTask
+	tokenClient.MustPost(create, &replayed, gqlclient.Var("dueTime", "09:00"))
+
+	if !replayed.CreateTask.Replay || replayed.CreateTask.Task.ID != first.CreateTask.Task.ID {
+		t.Errorf("replayed = %+v, want a replay of the first task %s", replayed.CreateTask, first.CreateTask.Task.ID)
+	}
+	if got := answeredTime(replayed.CreateTask.Task.DueTime); got != "15:00" {
+		t.Errorf("replayed dueTime = %s, want 15:00, the time stored now", got)
 	}
 }
 
