@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/task"
@@ -41,6 +43,56 @@ func TestRankPutsHigherPriorityOpenWorkFirst(t *testing.T) {
 	}
 }
 
+func TestSortClockKeepsTheTimeOfOpenTimedWorkOnly(t *testing.T) {
+	t.Parallel()
+
+	nine := task.Clock{Minutes: 540, Set: true}
+	tests := map[string]struct {
+		held task.Task
+		want task.Clock
+	}{
+		"open at nine":      {task.Task{Status: task.StatusOpen, DueTime: nine}, nine},
+		"open with no time": {task.Task{Status: task.StatusOpen}, task.Clock{}},
+		"done at nine":      {task.Task{Status: task.StatusDone, DueTime: nine}, task.Clock{}},
+		"done with no time": {task.Task{Status: task.StatusDone}, task.Clock{}},
+	}
+	for name, tc := range tests {
+		if got := tc.held.SortClock(); got != tc.want {
+			t.Errorf("%s: SortClock() = %#v, want %#v", name, got, tc.want)
+		}
+	}
+}
+
+func TestPageAfterStartsAfterTheLastTask(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.MustParse("3b1f4d5e-6a7b-4c8d-9e0f-1a2b3c4d5e6f")
+	day := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	nine := task.Clock{Minutes: 540, Set: true}
+	tests := map[string]struct {
+		last task.Task
+		want task.Page
+	}{
+		"open raised at nine": {
+			last: task.Task{ID: id, Status: task.StatusOpen, Priority: 1, DueOn: day, DueTime: nine},
+			want: task.Page{AfterRank: -1, AfterDueOn: day, AfterClock: nine, AfterID: id, Limit: 7},
+		},
+		"open with no time": {
+			last: task.Task{ID: id, Status: task.StatusOpen, DueOn: day},
+			want: task.Page{AfterDueOn: day, AfterID: id, Limit: 7},
+		},
+		"done at nine": {
+			last: task.Task{ID: id, Status: task.StatusDone, Priority: 1, DueOn: day, DueTime: nine},
+			want: task.Page{AfterDueOn: day, AfterID: id, Limit: 7},
+		},
+	}
+	for name, tc := range tests {
+		if got := task.PageAfter(tc.last, 7); got != tc.want {
+			t.Errorf("%s: PageAfter() = %#v, want %#v", name, got, tc.want)
+		}
+	}
+}
+
 func TestAPageStartsBelowEveryRankOnlyWithoutAPosition(t *testing.T) {
 	t.Parallel()
 
@@ -60,10 +112,12 @@ func TestNewBuildsAnOpenTask(t *testing.T) {
 	assignee := uuid.Must(uuid.NewV7())
 	contactID := uuid.Must(uuid.NewV7())
 	dueOn := time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
+	eleven := task.Clock{Minutes: 660, Set: true}
 
 	created, err := task.New(task.Input{
 		Title:      "  Call María about the wicker lamp  ",
 		DueOn:      dueOn,
+		DueTime:    eleven,
 		Priority:   1,
 		AssigneeID: assignee,
 		ContactID:  contactID,
@@ -72,26 +126,17 @@ func TestNewBuildsAnOpenTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	if created.Title != "Call María about the wicker lamp" {
-		t.Errorf("Title = %q, want it trimmed", created.Title)
+	want := task.Task{
+		AssigneeID: assignee,
+		ContactID:  contactID,
+		Title:      "Call María about the wicker lamp",
+		Status:     task.StatusOpen,
+		Priority:   1,
+		DueOn:      dueOn,
+		DueTime:    eleven,
 	}
-	if created.Status != task.StatusOpen {
-		t.Errorf("Status = %q, want %q", created.Status, task.StatusOpen)
-	}
-	if created.Priority != 1 {
-		t.Errorf("Priority = %d, want 1", created.Priority)
-	}
-	if !created.DueOn.Equal(dueOn) {
-		t.Errorf("DueOn = %v, want %v", created.DueOn, dueOn)
-	}
-	if created.AssigneeID != assignee {
-		t.Errorf("AssigneeID = %v, want %v", created.AssigneeID, assignee)
-	}
-	if created.ContactID != contactID {
-		t.Errorf("ContactID = %v, want %v", created.ContactID, contactID)
-	}
-	if created.Origin != (task.Origin{}) {
-		t.Errorf("Origin = %+v, want zero", created.Origin)
+	if diff := cmp.Diff(want, created, cmpopts.IgnoreFields(task.Task{}, "ID", "CreatedAt")); diff != "" {
+		t.Errorf("New() mismatch, want the title trimmed and every other value kept (-want +got):\n%s", diff)
 	}
 	if created.ID == uuid.Nil {
 		t.Error("ID = uuid.Nil, want a generated id")
