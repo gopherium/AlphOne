@@ -22,5 +22,7 @@ models:
     model: github.com/gopherium/alphone/graph/scalar.DateTime
   Date:
     model: github.com/gopherium/alphone/graph/scalar.Date
+  LocalTime:
+    model: github.com/gopherium/alphone/graph/scalar.LocalTime
   JSON:
     model: github.com/99designs/gqlgen/graphql.Any

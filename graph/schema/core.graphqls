@@ -11,6 +11,7 @@ directive @listSize(slicingArguments: [String!]!) on FIELD_DEFINITION
 scalar UUID
 scalar DateTime
 scalar Date
+scalar LocalTime
 scalar Upload
 scalar JSON
 
