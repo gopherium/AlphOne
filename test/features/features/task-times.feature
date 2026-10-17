@@ -6,35 +6,29 @@ Feature: A task keeps a time of day
   Background:
     Given a running AlphOne holding a user with an API token
 
-  @wip
   Scenario: A new task keeps the time it was given
     When the owner creates the task "Call Ada" due on 2030-05-20 at 11:00
     Then the task "Call Ada" is due on 2030-05-20 at 11:00
 
-  @wip
   Scenario: A new task given no time carries none
     When the owner creates the task "Send the quote" due on 2030-05-20
     Then the task "Send the quote" is due on 2030-05-20 with no time
 
-  @wip
   Scenario: Moving a task to another day keeps its time
     Given the owner created the task "Call Ada" due on 2030-05-20 at 11:00
     When the owner moves the task "Call Ada" to 2030-05-21
     Then the task "Call Ada" is due on 2030-05-21 at 11:00
 
-  @wip
   Scenario: A new time replaces the old one
     Given the owner created the task "Call Ada" due on 2030-05-20 at 11:00
     When the owner sets the time of the task "Call Ada" to 09:30
     Then the task "Call Ada" is due on 2030-05-20 at 09:30
 
-  @wip
   Scenario: An explicit null clears the time
     Given the owner created the task "Call Ada" due on 2030-05-20 at 11:00
     When the owner clears the time of the task "Call Ada"
     Then the task "Call Ada" is due on 2030-05-20 with no time
 
-  @wip
   Scenario Outline: A time that is not a wall clock minute is refused
     When the owner creates the task "Call Ada" due on 2030-05-20 at "<time>"
     Then the graph refuses the value as malformed

@@ -4,6 +4,7 @@ package features_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,6 +12,49 @@ import (
 
 	"github.com/gopherium/alphone/internal/task"
 )
+
+// createTaskDocument creates a task through the graph.
+const createTaskDocument = `mutation($input: CreateTaskInput!) { createTask(input: $input) { task { id } } }`
+
+// updateTaskDocument updates a task through the graph.
+const updateTaskDocument = `mutation($id: UUID!, $input: UpdateTaskInput!) {
+	updateTask(id: $id, input: $input) { id }
+}`
+
+// heldTasksQuery reads every task the owner holds through the graph.
+const heldTasksQuery = `query { tasks(dueBefore: "9999-12-31", status: "all") {
+	edges { node { id title dueOn dueTime } }
+} }`
+
+// noTime is how a step writes the time of a task that holds none.
+const noTime = "no time"
+
+// timedTask is one task by its title, day and time of day.
+type timedTask struct {
+	ID      string  `json:"id"`
+	Title   string  `json:"title"`
+	DueOn   string  `json:"dueOn"`
+	DueTime *string `json:"dueTime"`
+}
+
+// clock returns the time of day the task holds, or [noTime].
+func (t timedTask) clock() string {
+	if t.DueTime == nil {
+		return noTime
+	}
+	return *t.DueTime
+}
+
+// heldTasksAnswer is the envelope the task time steps read the owner's tasks from.
+type heldTasksAnswer struct {
+	Data struct {
+		Tasks struct {
+			Edges []struct {
+				Node timedTask `json:"node"`
+			} `json:"edges"`
+		} `json:"tasks"`
+	} `json:"data"`
+}
 
 // seedTimed stores one task for the owner from the input, due at the HH:MM time clock names, in the given status.
 func (w *world) seedTimed(ctx context.Context, input task.Input, clock, status string) error {
@@ -32,8 +76,75 @@ func (w *world) seedDated(ctx context.Context, input task.Input, day, clock stri
 	return w.seedTimed(ctx, input, clock, task.StatusOpen)
 }
 
-// registerTimedTaskSteps binds the steps that seed tasks due at a time of day.
+// createVariables returns the variables of a create of the task want describes.
+func createVariables(want timedTask) map[string]any {
+	input := map[string]any{"title": want.Title, "dueOn": want.DueOn}
+	if want.DueTime != nil {
+		input["dueTime"] = *want.DueTime
+	}
+	return map[string]any{"input": input}
+}
+
+// acceptedWrite posts a graph write as the owner and reports any error the graph answers with.
+func (w *world) acceptedWrite(ctx context.Context, document string, variables map[string]any) error {
+	answer, err := w.operation(ctx, document, variables)
+	if err != nil {
+		return err
+	}
+	if len(answer.Errors) > 0 {
+		return fmt.Errorf("the graph refused the write, answered %s", w.answered)
+	}
+	return nil
+}
+
+// heldTaskTitled reads the owner's task titled title through the graph.
+func (w *world) heldTaskTitled(ctx context.Context, title string) (timedTask, error) {
+	if _, err := w.operation(ctx, heldTasksQuery, map[string]any{}); err != nil {
+		return timedTask{}, err
+	}
+	var answer heldTasksAnswer
+	if err := json.Unmarshal(w.answered, &answer); err != nil {
+		return timedTask{}, fmt.Errorf("decoding %s: %w", w.answered, err)
+	}
+	for _, edge := range answer.Data.Tasks.Edges {
+		if edge.Node.Title == title {
+			return edge.Node, nil
+		}
+	}
+	return timedTask{}, fmt.Errorf("the owner holds no task titled %q, answered %s", title, w.answered)
+}
+
+// updateHeldTask applies the update input to the owner's task titled title through the graph.
+func (w *world) updateHeldTask(ctx context.Context, title string, input map[string]any) error {
+	held, err := w.heldTaskTitled(ctx, title)
+	if err != nil {
+		return err
+	}
+	return w.acceptedWrite(ctx, updateTaskDocument, map[string]any{"id": held.ID, "input": input})
+}
+
+// wantTaskDue checks through the graph that the owner's task titled as want is due on its day at its time.
+func (w *world) wantTaskDue(ctx context.Context, want timedTask) error {
+	held, err := w.heldTaskTitled(ctx, want.Title)
+	if err != nil {
+		return err
+	}
+	if held.DueOn != want.DueOn || held.clock() != want.clock() {
+		return fmt.Errorf("task %q is due on %s at %s, want %s at %s",
+			want.Title, held.DueOn, held.clock(), want.DueOn, want.clock())
+	}
+	return nil
+}
+
+// registerTimedTaskSteps binds the steps that seed, write and read tasks due at a time of day.
 func registerTimedTaskSteps(sc *godog.ScenarioContext) {
+	registerTimedSeedSteps(sc)
+	registerTimedWriteSteps(sc)
+	registerTimedReadSteps(sc)
+}
+
+// registerTimedSeedSteps binds the steps that seed tasks due at a time of day.
+func registerTimedSeedSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^an open task "([^"]*)" due today at (\d{2}:\d{2})$`,
 		func(ctx context.Context, title, clock string) error {
 			return worldFrom(ctx).seedTimed(ctx, task.Input{Title: title, DueOn: today()}, clock, task.StatusOpen)
@@ -66,4 +177,59 @@ func registerTimedTaskSteps(sc *godog.ScenarioContext) {
 		func(ctx context.Context, title, clock string) error {
 			return worldFrom(ctx).seedTimed(ctx, task.Input{Title: title, DueOn: today()}, clock, task.StatusDone)
 		})
+}
+
+// registerTimedWriteSteps binds the steps that create and update tasks with a time of day through the graph.
+func registerTimedWriteSteps(sc *godog.ScenarioContext) {
+	sc.When(`^the owner creates the task "([^"]*)" due on (\d{4}-\d{2}-\d{2})$`,
+		func(ctx context.Context, title, day string) error {
+			created := createVariables(timedTask{Title: title, DueOn: day})
+			_, err := worldFrom(ctx).operation(ctx, createTaskDocument, created)
+			return err
+		})
+
+	createTimed := func(ctx context.Context, title, day, clock string) error {
+		created := createVariables(timedTask{Title: title, DueOn: day, DueTime: &clock})
+		_, err := worldFrom(ctx).operation(ctx, createTaskDocument, created)
+		return err
+	}
+	sc.When(`^the owner creates the task "([^"]*)" due on (\d{4}-\d{2}-\d{2}) at (\d{2}:\d{2})$`, createTimed)
+	sc.When(`^the owner creates the task "([^"]*)" due on (\d{4}-\d{2}-\d{2}) at "([^"]*)"$`, createTimed)
+
+	sc.Given(`^the owner created the task "([^"]*)" due on (\d{4}-\d{2}-\d{2}) at (\d{2}:\d{2})$`,
+		func(ctx context.Context, title, day, clock string) error {
+			created := createVariables(timedTask{Title: title, DueOn: day, DueTime: &clock})
+			return worldFrom(ctx).acceptedWrite(ctx, createTaskDocument, created)
+		})
+
+	sc.When(`^the owner moves the task "([^"]*)" to (\d{4}-\d{2}-\d{2})$`,
+		func(ctx context.Context, title, day string) error {
+			return worldFrom(ctx).updateHeldTask(ctx, title, map[string]any{"dueOn": day})
+		})
+
+	sc.When(`^the owner sets the time of the task "([^"]*)" to (\d{2}:\d{2})$`,
+		func(ctx context.Context, title, clock string) error {
+			return worldFrom(ctx).updateHeldTask(ctx, title, map[string]any{"dueTime": clock})
+		})
+
+	sc.When(`^the owner clears the time of the task "([^"]*)"$`, func(ctx context.Context, title string) error {
+		return worldFrom(ctx).updateHeldTask(ctx, title, map[string]any{"dueTime": nil})
+	})
+}
+
+// registerTimedReadSteps binds the steps that read the day and time of a task and a refused time through the graph.
+func registerTimedReadSteps(sc *godog.ScenarioContext) {
+	sc.Then(`^the task "([^"]*)" is due on (\d{4}-\d{2}-\d{2}) at (\d{2}:\d{2})$`,
+		func(ctx context.Context, title, day, clock string) error {
+			return worldFrom(ctx).wantTaskDue(ctx, timedTask{Title: title, DueOn: day, DueTime: &clock})
+		})
+
+	sc.Then(`^the task "([^"]*)" is due on (\d{4}-\d{2}-\d{2}) with no time$`,
+		func(ctx context.Context, title, day string) error {
+			return worldFrom(ctx).wantTaskDue(ctx, timedTask{Title: title, DueOn: day})
+		})
+
+	sc.Then(`^the graph refuses the value as malformed$`, func(ctx context.Context) error {
+		return worldFrom(ctx).refusedForReason("VALIDATION", "value_malformed")
+	})
 }
