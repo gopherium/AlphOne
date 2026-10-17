@@ -12,7 +12,7 @@
 		"@gopherium/godmin": "0.20.0",
 		"@gopherium/gottext": "0.6.0",
 		"@gopherium/react-auth": "0.12.0",
-		"@tanstack/react-query": "^5.104.1",
+		"@tanstack/react-query": "^5.104.3",
 		"@urql/exchange-graphcache": "9.0.2",
 		"@urql/exchange-retry": "2.0.0",
 		"@wordpress/components": "42.0.0",
@@ -24,18 +24,18 @@
 		"@wordpress/ui": "0.24.0",
 		"graphql": "^17.0.2",
 		"graphql-sse": "2.6.2",
-		"react": "^19.3.0",
+		"react": "^19.3.1",
 		"urql": "5.0.4",
 		"wonka": "^6.3.6"
 	},
 	"devDependencies": {
-		"@tanstack/react-router": "^1.170.41",
+		"@tanstack/react-router": "^1.170.44",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",
-		"@types/node": "^26.6.4",
+		"@types/node": "^26.6.5",
 		"@types/react": "^19.3.0",
-		"jsdom": "^30.1.2",
+		"jsdom": "^30.1.3",
 		"msw": "^2.15.0",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.5"
 	}
 }
