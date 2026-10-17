@@ -242,9 +242,9 @@ their current order.
 
 A short table you fill yourself fits the part above. A list a reader
 searches, sorts, filters and pages through is a WordPress DataViews
-list, like Contacts and Users. Import `DataViews` and its types from
-`@alphone/frontend-sdk/dataviews`, and everything else from
-`@alphone/frontend-sdk`.
+list, like Contacts and Users. Import `DataViews`, its types and
+`listDate` from `@alphone/frontend-sdk/dataviews`, and everything else
+from `@alphone/frontend-sdk`.
 
 ### The view lives in the address
 
@@ -607,6 +607,16 @@ heading such as Wednesday, 30/09/2026. `formatList` joins words the way the
 reader's language writes a list, such as Birth date, Shoe size. Keep dates
 ISO in your queries, mutations and events, and format them only where a
 reader sees them.
+
+A date column in a DataViews list is the one exception. Render it with
+`listDate`, which writes the date and time the way WordPress lists do, in
+the reader's language, such as Oct 13, 2026 5:04 pm:
+
+```tsx
+import { listDate } from '@alphone/frontend-sdk/dataviews'
+
+render: ({ item }) => listDate(item.createdAt)
+```
 
 ## Failures in forms
 

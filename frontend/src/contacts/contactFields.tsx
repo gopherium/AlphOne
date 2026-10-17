@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, InitialsAvatar, Stack, __, channelName, formatDate } from '@alphone/frontend-sdk'
+import { Badge, InitialsAvatar, Stack, __, channelName } from '@alphone/frontend-sdk'
+import { listDate } from '@alphone/frontend-sdk/dataviews'
 import type { Field } from '@alphone/frontend-sdk/dataviews'
 
 import type { ContactPageQuery } from '../gql/graphql'
@@ -65,7 +66,7 @@ export function contactFields(): Field<ContactRow>[] {
 		{
 			id: 'created',
 			label: __('Created', 'alphone'),
-			render: ({ item }) => formatDate(item.createdAt),
+			render: ({ item }) => listDate(item.createdAt),
 			filterBy: false,
 		},
 	]

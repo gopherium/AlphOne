@@ -20,6 +20,8 @@ const listCeiling = 1900 * 1024
 // graphqlPrinter is a text only the graphql-js printer holds.
 const graphqlPrinter = 'extend interface'
 
+const momentLibrary = 'moment construction falls back'
+
 /**
  * Returns the built asset whose name starts with the given prefix.
  * @param prefix - The chunk name before its hash.
@@ -69,6 +71,14 @@ test('nothing loaded before first paint carries the graphql-js printer', () => {
 	)
 
 	expect(carrying, 'eager scripts carrying the graphql-js printer').toEqual([])
+})
+
+test('nothing loaded before first paint carries moment', () => {
+	const carrying = eagerScripts().filter((name) =>
+		readFileSync(join(assets, name), 'utf8').includes(momentLibrary),
+	)
+
+	expect(carrying, 'eager scripts carrying moment').toEqual([])
 })
 
 test('everything loaded before first paint stays under the entry ceiling', () => {

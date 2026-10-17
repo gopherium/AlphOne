@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, InitialsAvatar, __, _x, formatDate } from '@alphone/frontend-sdk'
+import { Badge, InitialsAvatar, __, _x } from '@alphone/frontend-sdk'
+import { listDate } from '@alphone/frontend-sdk/dataviews'
 import type { Field } from '@alphone/frontend-sdk/dataviews'
 
 import type { Account } from '../auth/graphTransport'
@@ -114,7 +115,7 @@ export function userFields(users: readonly Account[]): Field<Account>[] {
 			id: 'created',
 			label: __('Created', 'alphone'),
 			getValue: ({ item }) => item.created_at.getTime(),
-			render: ({ item }) => formatDate(item.created_at),
+			render: ({ item }) => listDate(item.created_at),
 			filterBy: false,
 		},
 	]

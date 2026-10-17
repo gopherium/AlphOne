@@ -293,11 +293,11 @@ test('reads a state the interface does not know as the server named it, in the o
 	expect([...(await rowOf('archived.csv')).getByText('archived').classList]).toEqual(badgeClasses('none'))
 })
 
-test('writes its counts in the format locale and its start as a day and a time', async () => {
+test('writes its counts in the format locale and its start as a list date in the page language', async () => {
 	renderAt('/import')
 
 	const cells = (await rowOf('customers.xlsx')).getAllByRole('cell').map((cell) => cell.textContent)
-	expect(cells).toEqual(['customers.xlsx', 'Imported', '1.234', '1.200', '30', '4', '03/08/2026 09:05'])
+	expect(cells).toEqual(['customers.xlsx', 'Imported', '1.234', '1.200', '30', '4', 'Aug 3, 2026 9:05 am'])
 })
 
 test('asks for the imports again on every visit, so the counts of a commit made meanwhile show on return', async () => {
@@ -316,7 +316,7 @@ test('asks for the imports again on every visit, so the counts of a commit made 
 			'1',
 			'1',
 			'0',
-			'01/08/2026 10:00',
+			'Aug 1, 2026 10:00 am',
 		]),
 	)
 })

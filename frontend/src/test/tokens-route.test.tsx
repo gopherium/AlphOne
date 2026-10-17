@@ -229,9 +229,9 @@ test('shows every token with its dates', async () => {
 	renderAt('/users/tokens')
 
 	const row = await rowOf('n8n production')
-	expect(row.getByText('06/07/2026')).toBeInTheDocument()
-	expect(row.getByText('01/08/2026')).toBeInTheDocument()
-	expect(row.getByText('04/11/2026')).toBeInTheDocument()
+	expect(row.getByText('Jul 6, 2026 10:00 am')).toBeInTheDocument()
+	expect(row.getByText('Aug 1, 2026 9:30 am')).toBeInTheDocument()
+	expect(row.getByText('Nov 4, 2026 10:00 am')).toBeInTheDocument()
 })
 
 test('says plainly when a token never expires and was never used', async () => {
