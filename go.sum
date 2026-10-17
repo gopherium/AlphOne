@@ -164,8 +164,8 @@ github.com/gopherium/framework/dbkit v0.2.0 h1:V+Di+B8oGvdmQKPx5q/a/PbgfHOvRAHhC
 github.com/gopherium/framework/dbkit v0.2.0/go.mod h1:sGsNkpbHe1LRW7k1qEjTzqbeHVYOnoCI5e1l/81TAvQ=
 github.com/gopherium/framework/dbkit/postgres v0.2.0 h1:me2xl+MdtitkwCUxVxrnXH0WJbGvi8tWHv4R0+PeESs=
 github.com/gopherium/framework/dbkit/postgres v0.2.0/go.mod h1:ZUsvp2lOkhX+08sstBErt+jN6FM5HkhxV7hXgToRd+A=
-github.com/gopherium/framework/gonsole v0.6.1 h1:yi0te8BDJLuotbrd24bQDMWSJ0KgIhSIAfOjF0jpDnQ=
-github.com/gopherium/framework/gonsole v0.6.1/go.mod h1:n0aJzbwPGPryrWKZ8WzDVub+6R+GUBzeHSzvhMvZR64=
+github.com/gopherium/framework/gonsole v0.7.0 h1:JluS72WcE6LXcBihJB+5zdhX7IUiLZxv0g059z8T3/U=
+github.com/gopherium/framework/gonsole v0.7.0/go.mod h1:6ZLlrT2q5W8Pk2BrD7WgorL6b68nx2n2OX1Rg8FKwAo=
 github.com/gopherium/framework/gonsole/auth v0.4.1 h1:0bzXtMIUv15FK3KmLIEPlriNbZKPVZgFpcx9v4QKrDU=
 github.com/gopherium/framework/gonsole/auth v0.4.1/go.mod h1:yJki2uBbVE7DPEv5azg358Cfi2vP4I/MLfVZj/iYkXQ=
 github.com/gopherium/framework/mailkit v0.1.0 h1:A1xm46dpo/zYrzV+Owa2W4Y0QJ1TBDNLkz8qwHF6238=
