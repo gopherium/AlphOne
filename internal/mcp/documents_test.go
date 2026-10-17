@@ -3,11 +3,13 @@
 package mcp
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/99designs/gqlgen/complexity"
 	"github.com/99designs/gqlgen/graphql"
 	gqlparser "github.com/vektah/gqlparser/v2"
+	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/validator/rules"
 
 	"github.com/gopherium/alphone/internal/graphres"
@@ -93,5 +95,40 @@ func TestEveryToolDocumentFitsUnderTheComplexityCap(t *testing.T) {
 				t.Errorf("%s prices at %d, want under the cap of %d", name, total, graphres.ComplexityLimit)
 			}
 		})
+	}
+}
+
+// selectedPaths returns the dotted path of every field the selection set picks, nested fields included.
+func selectedPaths(set ast.SelectionSet, prefix string) []string {
+	var paths []string
+	for _, selection := range set {
+		field, ok := selection.(*ast.Field)
+		if !ok {
+			continue
+		}
+		path := prefix + field.Name
+		paths = append(paths, path)
+		paths = append(paths, selectedPaths(field.SelectionSet, path+".")...)
+	}
+	return paths
+}
+
+func TestTaskDocumentsSelectTheTimeOfDay(t *testing.T) {
+	t.Parallel()
+
+	schema := composedSchema(t)
+	documents := toolDocuments()
+
+	for name, path := range map[string]string{
+		"list_my_tasks": "tasks.edges.node.dueTime",
+		"get_contact":   "contact.tasks.edges.node.dueTime",
+	} {
+		query, err := gqlparser.LoadQueryWithRules(schema.Schema(), documents[name].document, rules.NewDefaultRules())
+		if err != nil {
+			t.Fatalf("parsing the %s document: %v", name, err)
+		}
+		if paths := selectedPaths(query.Operations[0].SelectionSet, ""); !slices.Contains(paths, path) {
+			t.Errorf("the %s document selects %v, want %s", name, paths, path)
+		}
 	}
 }

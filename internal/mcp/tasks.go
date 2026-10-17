@@ -18,7 +18,7 @@ const taskPageMax = 100
 // tasksDocument reads one page of the caller's tasks with their contacts.
 const tasksDocument = `query($date: Date, $dueBefore: Date, $status: String, $first: Int!) {
 	tasks(date: $date, dueBefore: $dueBefore, status: $status, first: $first) {
-		edges { node { id title dueOn status priority assigneeId contactId contact { id name } } }
+		edges { node { id title dueOn dueTime status priority assigneeId contactId contact { id name } } }
 	}
 }`
 
@@ -27,6 +27,7 @@ type taskNode struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
 	DueOn      string `json:"dueOn"`
+	DueTime    string `json:"dueTime"`
 	Status     string `json:"status"`
 	Priority   int    `json:"priority"`
 	AssigneeID string `json:"assigneeId"`
@@ -91,6 +92,7 @@ func toTaskItem(node taskNode) TaskItem {
 		ID:         node.ID,
 		Title:      node.Title,
 		DueOn:      node.DueOn,
+		DueTime:    node.DueTime,
 		Status:     node.Status,
 		Priority:   node.Priority,
 		AssigneeID: node.AssigneeID,

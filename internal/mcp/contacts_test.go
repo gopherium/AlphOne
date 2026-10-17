@@ -5,6 +5,8 @@ package mcp
 import (
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // searchGraph answers a contact search with one busy and one free contact.
@@ -129,7 +131,7 @@ func TestContactReadsOneContactInFull(t *testing.T) {
 		"id":"c1","name":"Maria Perez","createdAt":"2026-08-01T10:00:00Z",
 		"identities":[{"channel":"whatsapp","identifier":"184467235","displayName":""}],
 		"tasks":{"edges":[{"node":{"id":"t1","title":"Call Maria Perez back",
-			"dueOn":"2026-08-11","status":"open","priority":1,"assigneeId":"u2"}}]}
+			"dueOn":"2026-08-11","dueTime":"11:00","status":"open","priority":1,"assigneeId":"u2"}}]}
 	}}}`)}
 
 	_, out, err := run.contact(t.Context(), ContactInput{ContactID: "c1"})
@@ -137,20 +139,17 @@ func TestContactReadsOneContactInFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("contact() error = %v, want nil", err)
 	}
-	if out.Name != "Maria Perez" || out.CreatedAt != "2026-08-01T10:00:00Z" {
-		t.Errorf("contact = %+v, want the named contact", out)
+	want := ContactOutput{
+		ID: "c1", Name: "Maria Perez", CreatedAt: "2026-08-01T10:00:00Z",
+		Identities: []Identity{{Channel: "whatsapp", Identifier: "184467235"}},
+		OpenTasks: []TaskItem{{
+			ID: "t1", Title: "Call Maria Perez back", DueOn: "2026-08-11", DueTime: "11:00",
+			Status: "open", Priority: 1, AssigneeID: "u2",
+		}},
+		OpenTasksCapped: false,
 	}
-	if len(out.Identities) != 1 || out.Identities[0].Channel != "whatsapp" {
-		t.Errorf("identities = %+v, want the whatsapp address", out.Identities)
-	}
-	if len(out.OpenTasks) != 1 || out.OpenTasks[0].Title != "Call Maria Perez back" {
-		t.Errorf("open tasks = %+v, want the linked task", out.OpenTasks)
-	}
-	if out.OpenTasks[0].AssigneeID != "u2" {
-		t.Errorf("assignee_id = %q, want the task holder's id", out.OpenTasks[0].AssigneeID)
-	}
-	if out.OpenTasksCapped {
-		t.Error("open_tasks_capped = true, want false when no next page exists")
+	if diff := cmp.Diff(want, out); diff != "" {
+		t.Errorf("contact mismatch (-want +got):\n%s", diff)
 	}
 }
 

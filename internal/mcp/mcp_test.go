@@ -99,6 +99,54 @@ func TestTaskAnswersTeachThePriorityScale(t *testing.T) {
 	}
 }
 
+// missingPhrases returns the phrases text does not hold with its line breaks read as spaces, in the order given.
+func missingPhrases(text string, phrases ...string) []string {
+	flowed := strings.Join(strings.Fields(text), " ")
+	var missing []string
+	for _, phrase := range phrases {
+		if !strings.Contains(flowed, phrase) {
+			missing = append(missing, phrase)
+		}
+	}
+	return missing
+}
+
+func TestTaskAnswersTeachTheTimeOfDayAndTheOrder(t *testing.T) {
+	t.Parallel()
+
+	session := connect(t, stubGraph())
+
+	listed, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v, want nil", err)
+	}
+	teaches := map[string][]string{
+		"list_my_tasks": {
+			"HH:MM", "then by time of day", "no time comes after",
+			"With status all", "the open ones with a time come first by time of day", "the done tasks together",
+		},
+		"get_contact": {"HH:MM", "then by time of day", "no time comes after"},
+	}
+	for _, tool := range listed.Tools {
+		wants, ok := teaches[tool.Name]
+		if !ok {
+			continue
+		}
+		schema, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("marshalling the %s output schema: %v", tool.Name, err)
+		}
+		untaught := missingPhrases(string(schema),
+			`"due_time"`, "wall clock time as HH:MM", "absent when the task has no time")
+		if len(untaught) > 0 {
+			t.Errorf("the %s output schema does not teach %q", tool.Name, untaught)
+		}
+		if unsaid := missingPhrases(tool.Description, wants...); len(unsaid) > 0 {
+			t.Errorf("the %s description does not say %q", tool.Name, unsaid)
+		}
+	}
+}
+
 func TestHandlerServesTheSessionOverHTTP(t *testing.T) {
 	t.Parallel()
 
@@ -208,15 +256,12 @@ func canonical(t *testing.T, raw string) string {
 	return string(encoded)
 }
 
-func TestListMyTasksAnswersItemsThroughTheSession(t *testing.T) {
-	t.Parallel()
-
+// listedStructured calls list_my_tasks over a graph answering with tasks and returns the structured answer.
+func listedStructured(t *testing.T, tasks string) string {
+	t.Helper()
 	listing := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"tasks":{"edges":[{"node":{
-			"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","status":"open",
-			"priority":0,"contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
-		}}]}}}`))
+		_, _ = w.Write([]byte(`{"data":{"tasks":{"edges":[{"node":` + tasks + `}]}}}`))
 	})
 	session := connect(t, listing)
 
@@ -232,10 +277,35 @@ func TestListMyTasksAnswersItemsThroughTheSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encoding the structured answer: %v", err)
 	}
-	for _, want := range []string{`"contact_name":"Maria Perez"`, `"contact_id":"c1"`, `"due_on":"2026-08-11"`} {
-		if !strings.Contains(string(structured), want) {
+	return string(structured)
+}
+
+func TestListMyTasksAnswersItemsThroughTheSession(t *testing.T) {
+	t.Parallel()
+
+	structured := listedStructured(t, `{
+		"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","dueTime":"09:30","status":"open",
+		"priority":0,"contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
+	}`)
+
+	for _, want := range []string{
+		`"contact_name":"Maria Perez"`, `"contact_id":"c1"`, `"due_on":"2026-08-11"`, `"due_time":"09:30"`,
+	} {
+		if !strings.Contains(structured, want) {
 			t.Errorf("structured = %s, want it to carry %s", structured, want)
 		}
+	}
+}
+
+func TestListMyTasksLeavesTheTimeOutOfAnUntimedTask(t *testing.T) {
+	t.Parallel()
+
+	structured := listedStructured(t, `{
+		"id":"t1","title":"Send the quote","dueOn":"2026-08-11","dueTime":null,"status":"open","priority":0
+	}`)
+
+	if strings.Contains(structured, "due_time") || !strings.Contains(structured, `"due_on":"2026-08-11"`) {
+		t.Errorf("structured = %s, want the day and no due_time key", structured)
 	}
 }
 
