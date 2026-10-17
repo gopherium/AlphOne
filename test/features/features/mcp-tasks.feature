@@ -121,7 +121,6 @@ Feature: An agent lists tasks
       | Book the courier |
       | File the receipt |
 
-  @wip
   Scenario: The answer gives each task its time
     Given an open task "Send the quote" due today at 09:30
     And an open task "Update the contact list" due today

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/cucumber/godog"
@@ -136,11 +137,59 @@ func (w *world) wantTaskDue(ctx context.Context, want timedTask) error {
 	return nil
 }
 
+// answeredTaskFields returns the keys the last task list or contact answer gives the task titled title.
+func (w *world) answeredTaskFields(title string) (map[string]any, error) {
+	raw, err := w.structuredAnswer()
+	if err != nil {
+		return nil, err
+	}
+	var answer struct {
+		Tasks     []map[string]any `json:"tasks"`
+		OpenTasks []map[string]any `json:"open_tasks"`
+	}
+	if err := json.Unmarshal(raw, &answer); err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", raw, err)
+	}
+	for _, fields := range slices.Concat(answer.Tasks, answer.OpenTasks) {
+		if fields["title"] == title {
+			return fields, nil
+		}
+	}
+	return nil, fmt.Errorf("the answer holds no task titled %q, answered %s", title, raw)
+}
+
 // registerTimedTaskSteps binds the steps that seed, write and read tasks due at a time of day.
 func registerTimedTaskSteps(sc *godog.ScenarioContext) {
 	registerTimedSeedSteps(sc)
 	registerTimedWriteSteps(sc)
 	registerTimedReadSteps(sc)
+	registerTimedAnswerSteps(sc)
+}
+
+// registerTimedAnswerSteps binds the steps that read the time of day a tool answer gives a task.
+func registerTimedAnswerSteps(sc *godog.ScenarioContext) {
+	sc.Then(`^the answer gives "([^"]*)" the time "(\d{2}:\d{2})"$`,
+		func(ctx context.Context, title, clock string) error {
+			fields, err := worldFrom(ctx).answeredTaskFields(title)
+			if err != nil {
+				return err
+			}
+			if fields["due_time"] != clock {
+				return fmt.Errorf("task %q answers due_time %v, want %s", title, fields["due_time"], clock)
+			}
+			return nil
+		})
+
+	sc.Then(`^the answer gives "([^"]*)" no time$`, func(ctx context.Context, title string) error {
+		fields, err := worldFrom(ctx).answeredTaskFields(title)
+		if err != nil {
+			return err
+		}
+		if dueTime, held := fields["due_time"]; held {
+			return fmt.Errorf("task %q answers due_time %v, want no due_time key", title, dueTime)
+		}
+		return nil
+	})
 }
 
 // registerTimedSeedSteps binds the steps that seed tasks due at a time of day.
