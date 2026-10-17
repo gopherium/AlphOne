@@ -5,11 +5,15 @@ package graphres_test
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
+	"time"
 
+	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/graphres"
+	"github.com/gopherium/alphone/internal/task"
 )
 
 // refusedRange reads the reason, the upper bound and the message of the first error in a raw response.
@@ -95,5 +99,95 @@ func TestAnUnconfiguredResolverBoundsPagesByTheDefaults(t *testing.T) {
 	}
 	if _, most, _ := refusedRange(t, response.Errors); most != graphres.DefaultPageCap {
 		t.Errorf("refused up to %v, want the default cap %d", most, graphres.DefaultPageCap)
+	}
+}
+
+// maxWalkedPages bounds every walk through a connection.
+const maxWalkedPages = 10
+
+// taskDayPage reads one page of the open tasks due on 2026-08-06.
+const taskDayPage = `query($first: Int, $after: String) {
+	tasks(date: "2026-08-06", first: $first, after: $after) {
+		edges { node { title dueTime } }
+		pageInfo { hasNextPage endCursor }
+	}
+}`
+
+// walkTaskDay reads every open task due on 2026-08-06 through the connection, size tasks a page.
+func walkTaskDay(t *testing.T, client *gqlclient.Client, size int) []string {
+	t.Helper()
+	var walked []string
+	var after *string
+	for range maxWalkedPages {
+		var page struct {
+			Tasks struct {
+				Edges []struct {
+					Node struct {
+						Title   string  `json:"title"`
+						DueTime *string `json:"dueTime"`
+					} `json:"node"`
+				} `json:"edges"`
+				PageInfo struct {
+					HasNextPage bool    `json:"hasNextPage"`
+					EndCursor   *string `json:"endCursor"`
+				} `json:"pageInfo"`
+			} `json:"tasks"`
+		}
+		if err := client.Post(taskDayPage, &page, gqlclient.Var("first", size), gqlclient.Var("after", after)); err != nil {
+			t.Fatalf("tasks(first: %d) error = %v, want nil", size, err)
+		}
+		for _, edge := range page.Tasks.Edges {
+			walked = append(walked, fmt.Sprintf("%s (%s)", edge.Node.Title, answeredTime(edge.Node.DueTime)))
+		}
+		if !page.Tasks.PageInfo.HasNextPage {
+			return walked
+		}
+		after = page.Tasks.PageInfo.EndCursor
+	}
+	t.Fatalf("the walk at %d a page passed %d pages, walked %v", size, maxWalkedPages, walked)
+	return nil
+}
+
+// mustClock returns the time of day text spells.
+func mustClock(t *testing.T, text string) task.Clock {
+	t.Helper()
+	clock, err := task.ParseClock(text)
+	if err != nil {
+		t.Fatalf("ParseClock(%q) error = %v, want nil", text, err)
+	}
+	return clock
+}
+
+func TestTasksWalkTheTimedWorkOfADayBeforeTheUntimedWorkThroughTheCursor(t *testing.T) {
+	t.Parallel()
+
+	resolver, _, tasks := newDBResolver(t)
+	assignee := uuid.Must(uuid.NewV7())
+	day := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+	for _, seeded := range []task.Input{
+		{Title: "No time first"},
+		{Title: "At eleven", DueTime: mustClock(t, "11:00")},
+		{Title: "At midnight", DueTime: mustClock(t, "00:00")},
+		{Title: "No time second"},
+		{Title: "At nine", DueTime: mustClock(t, "09:00")},
+		{Title: "Raised with no time", Priority: 1},
+	} {
+		seeded.DueOn, seeded.AssigneeID = day, assignee
+		mustSeedTask(t, tasks, seeded)
+	}
+	client := newGraphClient(t, resolver, assignee)
+	want := []string{
+		"Raised with no time (none)",
+		"At midnight (00:00)",
+		"At nine (09:00)",
+		"At eleven (11:00)",
+		"No time first (none)",
+		"No time second (none)",
+	}
+
+	for _, size := range []int{1, 2, 4} {
+		if walked := walkTaskDay(t, client, size); !slices.Equal(walked, want) {
+			t.Errorf("walked %d a page = %v, want %v", size, walked, want)
+		}
 	}
 }

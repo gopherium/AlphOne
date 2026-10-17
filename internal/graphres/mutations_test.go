@@ -96,6 +96,16 @@ func (h mutationHarness) originClient(t *testing.T, tokenName string) *gqlclient
 	})
 }
 
+// refusedCode posts document and returns the extensions code of the first error it answers.
+func refusedCode(t *testing.T, client *gqlclient.Client, document string) string {
+	t.Helper()
+	response, err := client.RawPost(document)
+	if err != nil {
+		t.Fatalf("RawPost() error = %v, want nil", err)
+	}
+	return firstErrorCode(t, response.Errors)
+}
+
 // firstErrorExtensions returns the first error's extensions of a raw response.
 func firstErrorExtensions(t *testing.T, raw json.RawMessage) map[string]any {
 	t.Helper()
@@ -362,9 +372,10 @@ func TestAnIdentityWriteShowsInALaterReadOfTheSameDocument(t *testing.T) {
 type createdTask struct {
 	CreateTask struct {
 		Task struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
-			DueOn  string `json:"dueOn"`
+			ID      string  `json:"id"`
+			Status  string  `json:"status"`
+			DueOn   string  `json:"dueOn"`
+			DueTime *string `json:"dueTime"`
 		} `json:"task"`
 		Replay bool `json:"replay"`
 	} `json:"createTask"`
@@ -423,22 +434,25 @@ func TestCreateTaskOriginRules(t *testing.T) {
 	tokenClient := h.originClient(t, "n8n production")
 	var first createdTask
 	tokenClient.MustPost(fmt.Sprintf(`mutation { createTask(input: {
-		title: "Automated", dueOn: "2026-08-07", originEventId: %q
-	}) { task { id } replay } }`, originEventID), &first)
+		title: "Automated", dueOn: "2026-08-07", dueTime: "11:00", originEventId: %q
+	}) { task { id dueTime } replay } }`, originEventID), &first)
 	if first.CreateTask.Replay {
 		t.Error("first origin create replay = true, want false")
 	}
 
 	var replayed createdTask
 	tokenClient.MustPost(fmt.Sprintf(`mutation { createTask(input: {
-		title: "Automated", dueOn: "2026-08-07", originEventId: %q
-	}) { task { id } replay } }`, originEventID), &replayed)
+		title: "Automated", dueOn: "2026-08-07", dueTime: "09:00", originEventId: %q
+	}) { task { id dueTime } replay } }`, originEventID), &replayed)
 
 	if !replayed.CreateTask.Replay {
 		t.Error("replayed create replay = false, want true")
 	}
 	if replayed.CreateTask.Task.ID != first.CreateTask.Task.ID {
 		t.Errorf("replayed id = %s, want the first task %s", replayed.CreateTask.Task.ID, first.CreateTask.Task.ID)
+	}
+	if got := answeredTime(replayed.CreateTask.Task.DueTime); got != "11:00" {
+		t.Errorf("replayed dueTime = %s, want the first time 11:00", got)
 	}
 	if got := h.events.countOf(event.TaskCreated); got != 1 {
 		t.Errorf("task.created count = %d, want 1, a replay never republishes", got)
@@ -481,24 +495,181 @@ func TestUpdateTaskLifecycle(t *testing.T) {
 		t.Errorf("task.completed count after a title edit = %d, want still 1", got)
 	}
 
-	badStatus, err := h.client.RawPost(fmt.Sprintf(
+	if got := refusedCode(t, h.client, fmt.Sprintf(
 		`mutation { updateTask(id: %q, input: {status: "paused"}) { status } }`, taskID,
-	))
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, badStatus.Errors); got != "VALIDATION" {
+	)); got != "VALIDATION" {
 		t.Errorf("bad status code = %q, want VALIDATION", got)
 	}
 
-	missing, err := h.client.RawPost(fmt.Sprintf(
+	if got := refusedCode(t, h.client, fmt.Sprintf(
 		`mutation { updateTask(id: %q, input: {status: "done"}) { status } }`, uuid.Must(uuid.NewV7()),
-	))
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if got := firstErrorCode(t, missing.Errors); got != "NOT_FOUND" {
+	)); got != "NOT_FOUND" {
 		t.Errorf("missing task code = %q, want NOT_FOUND", got)
+	}
+}
+
+// timedTask is a task as the graph answers its day and time of day.
+type timedTask struct {
+	ID      string  `json:"id"`
+	DueOn   string  `json:"dueOn"`
+	DueTime *string `json:"dueTime"`
+}
+
+// answeredTime returns the time of day a graph answer holds, or none.
+func answeredTime(dueTime *string) string {
+	if dueTime == nil {
+		return "none"
+	}
+	return *dueTime
+}
+
+// createTimedTask creates a task due on 2026-08-07 with the extra input fields and answers it.
+func (h mutationHarness) createTimedTask(t *testing.T, fields string) timedTask {
+	t.Helper()
+	var created struct {
+		CreateTask struct {
+			Task timedTask `json:"task"`
+		} `json:"createTask"`
+	}
+	document := fmt.Sprintf(`mutation { createTask(input: {title: "Call Maria", dueOn: "2026-08-07" %s}) {
+		task { id dueOn dueTime } } }`, fields)
+	if err := h.client.Post(document, &created); err != nil {
+		t.Fatalf("createTask(%s) error = %v, want nil", fields, err)
+	}
+	return created.CreateTask.Task
+}
+
+// readTimedTask reads the task id back through the graph.
+func (h mutationHarness) readTimedTask(t *testing.T, id string) timedTask {
+	t.Helper()
+	var read struct {
+		Task timedTask `json:"task"`
+	}
+	if err := h.client.Post(fmt.Sprintf(`{ task(id: %q) { id dueOn dueTime } }`, id), &read); err != nil {
+		t.Fatalf("task(%s) error = %v, want nil", id, err)
+	}
+	return read.Task
+}
+
+// timeUpdate is one update of a task's day or time and the day and time it leaves.
+type timeUpdate struct {
+	name      string
+	variables string
+	input     string
+	options   []gqlclient.Option
+	wantDay   string
+	wantTime  string
+}
+
+// updateTimedTask applies the update to the task id and answers the task.
+func (h mutationHarness) updateTimedTask(t *testing.T, id string, update timeUpdate) timedTask {
+	t.Helper()
+	var updated struct {
+		UpdateTask timedTask `json:"updateTask"`
+	}
+	document := fmt.Sprintf(`mutation($id: UUID!%s) { updateTask(id: $id, input: %s) { id dueOn dueTime } }`,
+		update.variables, update.input)
+	options := append([]gqlclient.Option{gqlclient.Var("id", id)}, update.options...)
+	if err := h.client.Post(document, &updated, options...); err != nil {
+		t.Fatalf("%s: updateTask error = %v, want nil", update.name, err)
+	}
+	return updated.UpdateTask
+}
+
+func TestCreateTaskAnswersAndStoresTheTimeItWasGiven(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+
+	for name, tt := range map[string]struct{ fields, want string }{
+		"at eleven":   {`, dueTime: "11:00"`, "11:00"},
+		"at midnight": {`, dueTime: "00:00"`, "00:00"},
+		"a null time": {`, dueTime: null`, "none"},
+		"no time":     {``, "none"},
+	} {
+		created := h.createTimedTask(t, tt.fields)
+		if got := answeredTime(created.DueTime); got != tt.want {
+			t.Errorf("%s: created dueTime = %s, want %s", name, got, tt.want)
+		}
+		if got := answeredTime(h.readTimedTask(t, created.ID).DueTime); got != tt.want {
+			t.Errorf("%s: stored dueTime = %s, want %s", name, got, tt.want)
+		}
+	}
+}
+
+func TestUpdateTaskKeepsAnAbsentTimeAndClearsOnlyOnAnExplicitNull(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	id := h.createTimedTask(t, `, dueTime: "11:00"`).ID
+	input := ", $input: UpdateTaskInput!"
+
+	for _, update := range []timeUpdate{
+		{name: "a day move", input: `{dueOn: "2026-08-08"}`, wantDay: "2026-08-08", wantTime: "11:00"},
+		{name: "a title edit", input: `{title: "Call Maria Perez"}`, wantDay: "2026-08-08", wantTime: "11:00"},
+		{name: "a new time", input: `{dueTime: "09:30"}`, wantDay: "2026-08-08", wantTime: "09:30"},
+		{name: "an explicit null", input: `{dueTime: null}`, wantDay: "2026-08-08", wantTime: "none"},
+		{name: "midnight", input: `{dueTime: "00:00"}`, wantDay: "2026-08-08", wantTime: "00:00"},
+		{name: "an unset variable", variables: ", $dueTime: LocalTime", input: `{dueTime: $dueTime}`,
+			wantDay: "2026-08-08", wantTime: "00:00"},
+		{name: "a variable time", variables: input, input: "$input",
+			options: []gqlclient.Option{gqlclient.Var("input", map[string]any{"dueTime": "17:45"})},
+			wantDay: "2026-08-08", wantTime: "17:45"},
+		{name: "a completion", input: `{status: "done"}`, wantDay: "2026-08-08", wantTime: "17:45"},
+		{name: "a variable null with a day move", variables: input, input: "$input",
+			options: []gqlclient.Option{gqlclient.Var("input", map[string]any{"dueOn": "2026-08-09", "dueTime": nil})},
+			wantDay: "2026-08-09", wantTime: "none"},
+		{name: "a new time on a done task", input: `{dueTime: "08:15"}`, wantDay: "2026-08-09", wantTime: "08:15"},
+	} {
+		answered := h.updateTimedTask(t, id, update)
+		stored := h.readTimedTask(t, id)
+		for source, got := range map[string]timedTask{"answered": answered, "stored": stored} {
+			if got.DueOn != update.wantDay {
+				t.Errorf("after %s: %s dueOn = %s, want %s", update.name, source, got.DueOn, update.wantDay)
+			}
+			if answeredTime(got.DueTime) != update.wantTime {
+				t.Errorf("after %s: %s dueTime = %s, want %s",
+					update.name, source, answeredTime(got.DueTime), update.wantTime)
+			}
+		}
+	}
+}
+
+func TestATimeThatIsNotAWallClockMinuteIsRefusedAsMalformed(t *testing.T) {
+	t.Parallel()
+
+	h := newMutationHarness(t)
+	id := h.createTimedTask(t, `, dueTime: "11:00"`).ID
+	createInput := `mutation($input: CreateTaskInput!) { createTask(input: $input) { task { id } } }`
+
+	for _, refused := range []struct {
+		name     string
+		document string
+		options  []gqlclient.Option
+	}{
+		{"a create at 24:00", `mutation { createTask(input: {
+			title: "Call Maria", dueOn: "2026-08-07", dueTime: "24:00"}) { task { id } } }`, nil},
+		{"a create at 09:00:30 in a variable", createInput, []gqlclient.Option{gqlclient.Var("input",
+			map[string]any{"title": "Call Maria", "dueOn": "2026-08-07", "dueTime": "09:00:30"})}},
+		{"an update to 9:00", fmt.Sprintf(`mutation { updateTask(id: %q, input: {dueTime: "9:00"}) { id } }`, id), nil},
+		{"an update to 11:60", fmt.Sprintf(`mutation { updateTask(id: %q, input: {dueTime: "11:60"}) { id } }`, id), nil},
+	} {
+		response, err := h.client.RawPost(refused.document, refused.options...)
+		if err != nil {
+			t.Fatalf("%s: RawPost() error = %v, want nil", refused.name, err)
+		}
+		if got := firstErrorCode(t, response.Errors); got != "VALIDATION" {
+			t.Errorf("%s: code = %q, want VALIDATION", refused.name, got)
+		}
+		if got := firstErrorReason(t, response.Errors); got != "value_malformed" {
+			t.Errorf("%s: reason = %q, want value_malformed", refused.name, got)
+		}
+	}
+	if got := answeredTime(h.readTimedTask(t, id).DueTime); got != "11:00" {
+		t.Errorf("stored dueTime = %s, want the refused updates to keep 11:00", got)
+	}
+	if got := h.events.countOf(event.TaskCreated); got != 1 {
+		t.Errorf("task.created count = %d, want only the accepted create", got)
 	}
 }
 
