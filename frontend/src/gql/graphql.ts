@@ -17,6 +17,7 @@ export type ContactOrderBy =
 export type CreateTaskInput = {
   contactId?: string | null | undefined;
   dueOn: string;
+  dueTime?: string | null | undefined;
   originEventId?: string | null | undefined;
   priority?: number | null | undefined;
   title: string;
@@ -28,6 +29,7 @@ export type SortOrder =
 
 export type UpdateTaskInput = {
   dueOn?: string | null | undefined;
+  dueTime?: string | null | undefined;
   priority?: number | null | undefined;
   status?: string | null | undefined;
   title?: string | null | undefined;
