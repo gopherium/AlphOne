@@ -221,19 +221,36 @@ func TestEventDataCarriesTheTaskFields(t *testing.T) {
 
 	id := uuid.Must(uuid.NewV7())
 	day := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+	eleven := task.Clock{Minutes: 11 * 60, Set: true}
 
-	fields := task.EventData(task.Task{
-		ID: id, Title: "Call the supplier", Status: task.StatusOpen, DueOn: day, Priority: 3,
-	})
-
-	want := map[string]any{
-		"id":       id.String(),
-		"title":    "Call the supplier",
-		"status":   task.StatusOpen,
-		"due_on":   "2026-08-06",
-		"priority": 3,
+	tests := map[string]struct {
+		status  string
+		dueTime task.Clock
+		want    any
+	}{
+		"open with no time": {status: task.StatusOpen, want: nil},
+		"open at eleven":    {status: task.StatusOpen, dueTime: eleven, want: "11:00"},
+		"done at eleven":    {status: task.StatusDone, dueTime: eleven, want: "11:00"},
 	}
-	if !reflect.DeepEqual(fields, want) {
-		t.Errorf("EventData() = %#v, want %#v", fields, want)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fields := task.EventData(task.Task{
+				ID: id, Title: "Call the supplier", Status: tc.status, DueOn: day, DueTime: tc.dueTime, Priority: 3,
+			})
+
+			want := map[string]any{
+				"id":       id.String(),
+				"title":    "Call the supplier",
+				"status":   tc.status,
+				"due_on":   "2026-08-06",
+				"due_time": tc.want,
+				"priority": 3,
+			}
+			if !reflect.DeepEqual(fields, want) {
+				t.Errorf("EventData() = %#v, want %#v", fields, want)
+			}
+		})
 	}
 }

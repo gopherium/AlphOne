@@ -26,11 +26,16 @@ var ErrUnattributedOrigin = errors.New("task: origin event without a source")
 
 // EventData returns the fields a task event carries.
 func EventData(t Task) map[string]any {
+	var dueTime any
+	if t.DueTime.Set {
+		dueTime = t.DueTime.String()
+	}
 	return map[string]any{
 		"id":       t.ID.String(),
 		"title":    t.Title,
 		"status":   t.Status,
 		"due_on":   t.DueOn.Format(time.DateOnly),
+		"due_time": dueTime,
 		"priority": t.Priority,
 	}
 }
