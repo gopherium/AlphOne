@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,27 +35,31 @@ func TestUUIDRoundTrip(t *testing.T) {
 	}
 }
 
-func TestUUIDRejectsInvalidInput(t *testing.T) {
-	t.Parallel()
-
-	if _, err := scalar.UnmarshalUUID("not-a-uuid"); !errors.Is(err, scalar.ErrInvalid) {
-		t.Errorf("UnmarshalUUID(not-a-uuid) error = %v, want ErrInvalid", err)
-	}
-	wrongTypeInput := 42
-	if _, err := scalar.UnmarshalUUID(wrongTypeInput); !errors.Is(err, scalar.ErrInvalid) {
-		t.Errorf("UnmarshalUUID(42) error = %v, want ErrInvalid", err)
+// refusalOf returns the error unmarshal answers for a value.
+func refusalOf[T any](unmarshal func(any) (T, error)) func(any) error {
+	return func(value any) error {
+		_, err := unmarshal(value)
+		return err
 	}
 }
 
-func TestDateScalarsRejectNonStringInput(t *testing.T) {
+func TestUUIDAndDateScalarsRejectInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	wrongTypeInput := 42
-	if _, err := scalar.UnmarshalDateTime(wrongTypeInput); !errors.Is(err, scalar.ErrInvalid) {
-		t.Errorf("UnmarshalDateTime(42) error = %v, want ErrInvalid", err)
-	}
-	if _, err := scalar.UnmarshalDate(wrongTypeInput); !errors.Is(err, scalar.ErrInvalid) {
-		t.Errorf("UnmarshalDate(42) error = %v, want ErrInvalid", err)
+	for _, tt := range []struct {
+		name  string
+		input any
+		read  func(any) error
+	}{
+		{"UnmarshalUUID", "not-a-uuid", refusalOf(scalar.UnmarshalUUID)},
+		{"UnmarshalUUID", wrongTypeInput, refusalOf(scalar.UnmarshalUUID)},
+		{"UnmarshalDateTime", wrongTypeInput, refusalOf(scalar.UnmarshalDateTime)},
+		{"UnmarshalDate", wrongTypeInput, refusalOf(scalar.UnmarshalDate)},
+	} {
+		if err := tt.read(tt.input); !errors.Is(err, scalar.ErrInvalid) {
+			t.Errorf("%s(%#v) error = %v, want ErrInvalid", tt.name, tt.input, err)
+		}
 	}
 }
 
@@ -118,5 +123,38 @@ func TestDateRoundTrip(t *testing.T) {
 	europeanFormat := "05/08/2026"
 	if _, err := scalar.UnmarshalDate(europeanFormat); !errors.Is(err, scalar.ErrInvalid) {
 		t.Errorf("UnmarshalDate(%s) error = %v, want ErrInvalid", europeanFormat, err)
+	}
+}
+
+func TestLocalTimeRoundTripsEveryEdgeOfTheDay(t *testing.T) {
+	t.Parallel()
+
+	for _, clock := range []string{"00:00", "09:05", "19:59", "20:00", "23:59"} {
+		parsed, err := scalar.UnmarshalLocalTime(clock)
+		if err != nil {
+			t.Fatalf("UnmarshalLocalTime(%q) error = %v, want nil", clock, err)
+		}
+		if parsed != clock {
+			t.Errorf("unmarshaled time = %q, want %q", parsed, clock)
+		}
+
+		var buf bytes.Buffer
+		scalar.MarshalLocalTime(parsed).MarshalGQL(&buf)
+		if got, want := buf.String(), strconv.Quote(clock); got != want {
+			t.Errorf("marshaled time = %s, want %s", got, want)
+		}
+	}
+}
+
+func TestLocalTimeRefusesAnythingButAWallClockMinute(t *testing.T) {
+	t.Parallel()
+
+	wrongTypeInput := 930
+	for _, malformed := range []any{
+		"9:00", "24:00", "09:00:30", "11:60", "", "0900", " 09:00", "09:00\n", wrongTypeInput,
+	} {
+		if _, err := scalar.UnmarshalLocalTime(malformed); !errors.Is(err, scalar.ErrInvalid) {
+			t.Errorf("UnmarshalLocalTime(%#v) error = %v, want ErrInvalid", malformed, err)
+		}
 	}
 }

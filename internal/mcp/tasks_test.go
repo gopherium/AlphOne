@@ -9,7 +9,7 @@ import (
 
 // oneTaskGraph answers the task document with a single linked task.
 const oneTaskGraph = `{"data":{"tasks":{"edges":[{"node":{
-	"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","status":"open","priority":2,
+	"id":"t1","title":"Call Maria Perez back","dueOn":"2026-08-11","dueTime":"09:30","status":"open","priority":2,
 	"assigneeId":"u1","contactId":"c1","contact":{"id":"c1","name":"Maria Perez"}
 }}]}}}`
 
@@ -31,11 +31,31 @@ func TestTasksReadsTheListedTasks(t *testing.T) {
 	}
 	got := out.Tasks[0]
 	want := TaskItem{
-		ID: "t1", Title: "Call Maria Perez back", DueOn: "2026-08-11", Status: "open",
+		ID: "t1", Title: "Call Maria Perez back", DueOn: "2026-08-11", DueTime: "09:30", Status: "open",
 		Priority: 2, AssigneeID: "u1", ContactID: "c1", ContactName: "Maria Perez",
 	}
 	if got != want {
 		t.Errorf("task = %+v, want %+v", got, want)
+	}
+}
+
+func TestTasksLeavesAnUntimedTaskWithoutATime(t *testing.T) {
+	t.Parallel()
+
+	const untimed = `{"data":{"tasks":{"edges":[{"node":{
+		"id":"t1","title":"Send the quote","dueOn":"2026-08-11","dueTime":null,"status":"open","priority":0,
+		"assigneeId":"u1","contactId":null,"contact":null
+	}}]}}}`
+	run := &tools{graph: answering(untimed)}
+
+	_, out, err := run.tasks(t.Context(), TasksInput{})
+
+	if err != nil {
+		t.Fatalf("tasks() error = %v, want nil", err)
+	}
+	want := TaskItem{ID: "t1", Title: "Send the quote", DueOn: "2026-08-11", Status: "open", AssigneeID: "u1"}
+	if len(out.Tasks) != 1 || out.Tasks[0] != want {
+		t.Errorf("tasks = %+v, want only %+v", out.Tasks, want)
 	}
 }
 

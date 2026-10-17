@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/gopherium/alphone/internal/task"
@@ -32,12 +33,14 @@ func TestApplyReplacesTheGivenFields(t *testing.T) {
 	original := openTask(t)
 	title := "  Call the supplier back  "
 	dueOn := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	dueTime := task.Clock{Minutes: 570, Set: true}
 	status := task.StatusDone
 	priority := 2
 
 	updated, err := original.Apply(task.Changes{
 		Title:    &title,
 		DueOn:    &dueOn,
+		DueTime:  &dueTime,
 		Status:   &status,
 		Priority: &priority,
 	})
@@ -45,23 +48,14 @@ func TestApplyReplacesTheGivenFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply() error = %v, want nil", err)
 	}
-	if updated.Title != "Call the supplier back" {
-		t.Errorf("Title = %q, want it trimmed", updated.Title)
-	}
-	if !updated.DueOn.Equal(dueOn) {
-		t.Errorf("DueOn = %v, want %v", updated.DueOn, dueOn)
-	}
-	if updated.Status != task.StatusDone {
-		t.Errorf("Status = %q, want %q", updated.Status, task.StatusDone)
-	}
-	if updated.Priority != priority {
-		t.Errorf("Priority = %d, want %d", updated.Priority, priority)
-	}
-	if updated.ID != original.ID || updated.AssigneeID != original.AssigneeID {
-		t.Error("Apply() changed the task identity, want it preserved")
-	}
-	if !updated.CreatedAt.Equal(original.CreatedAt) {
-		t.Error("Apply() changed the creation time, want it preserved")
+	want := original
+	want.Title = "Call the supplier back"
+	want.DueOn = dueOn
+	want.DueTime = dueTime
+	want.Status = task.StatusDone
+	want.Priority = priority
+	if diff := cmp.Diff(want, updated); diff != "" {
+		t.Errorf("Apply() mismatch, want the title trimmed and identity and creation kept (-want +got):\n%s", diff)
 	}
 }
 
@@ -102,6 +96,40 @@ func TestApplyWithoutChangesReturnsTheSameTask(t *testing.T) {
 	}
 	if updated != original {
 		t.Errorf("Apply() = %+v, want %+v", updated, original)
+	}
+}
+
+func TestApplySetsKeepsAndClearsTheTime(t *testing.T) {
+	t.Parallel()
+
+	eleven := task.Clock{Minutes: 660, Set: true}
+	half := task.Clock{Minutes: 570, Set: true}
+	tests := map[string]struct {
+		changes task.Changes
+		want    task.Clock
+	}{
+		"left out":  {changes: task.Changes{}, want: eleven},
+		"new time":  {changes: task.Changes{DueTime: &half}, want: half},
+		"no time":   {changes: task.Changes{DueTime: &task.Clock{}}, want: task.Clock{}},
+		"day moved": {changes: task.Changes{DueOn: new(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))}, want: eleven},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			held := openTask(t)
+			held.DueTime = eleven
+
+			updated, err := held.Apply(tc.changes)
+
+			if err != nil {
+				t.Fatalf("Apply() error = %v, want nil", err)
+			}
+			if updated.DueTime != tc.want {
+				t.Errorf("DueTime = %#v, want %#v", updated.DueTime, tc.want)
+			}
+		})
 	}
 }
 

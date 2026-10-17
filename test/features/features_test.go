@@ -153,6 +153,10 @@ func TestMCPContacts(t *testing.T) {
 	runFeature(t, "features/mcp-contacts.feature", initializeContacts(t))
 }
 
+func TestTaskTimes(t *testing.T) {
+	runFeature(t, "features/task-times.feature", initializeTasks(t))
+}
+
 func TestFieldsCatalog(t *testing.T) {
 	runFeature(t, "features/fields-catalog.feature", initializeFieldsCatalog(t))
 }

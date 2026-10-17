@@ -50,6 +50,7 @@ Every delivery is a JSON body with the same four fields:
     "title": "Call Maria about the renewal",
     "status": "open",
     "due_on": "2026-08-01",
+    "due_time": "09:30",
     "priority": 0
   }
 }
@@ -61,11 +62,13 @@ delivery, so store it and drop anything you have already processed.
 `data` carries enough to identify the subject and read it at a glance.
 For anything more, refetch through the API with `data.id`.
 
-- `task.created` and `task.completed` carry `id`, `title`, `status`
-- `due_on`, and `priority`. `contact.created` carries `id` and `name`.
+- `task.created` and `task.completed` carry `id`, `title`, `status`,
+`due_on`, `due_time`, and `priority`. `due_time` is the time of day as
+`HH:MM`, such as `09:30`, and `null` when the task has no time.
+- `contact.created` carries `id` and `name`.
 - `whatsapp.message.received` carries `conversation_id`, `contact_id`,
 `contact_name`, `external_id`, and `text`.
-- `import.completed` carries `id`, `imported`, and `skipped`, so an automation 
+- `import.completed` carries `id`, `imported`, and `skipped`, so an automation
 can react to the contacts an import produced by refetching its rows.
 
 ## Headers

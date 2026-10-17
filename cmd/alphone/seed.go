@@ -197,6 +197,7 @@ type demoTask struct {
 	id       string
 	title    string
 	offset   int
+	dueTime  task.Clock
 	priority int
 	done     bool
 	contact  string
@@ -204,12 +205,23 @@ type demoTask struct {
 	member   bool
 }
 
+// demoClock returns the time of day at the start of hour.
+func demoClock(hour int) task.Clock {
+	return task.Clock{Minutes: hour * 60, Set: true}
+}
+
 // demoTasks returns the scripted tasks stored by [seedTasks].
 func demoTasks() []demoTask {
 	return []demoTask{
 		{id: "0198d000-0000-7000-8000-000000000001", title: "Chase the overdue invoice", offset: -1},
-		{id: "0198d000-0000-7000-8000-000000000002", title: "Call Ada about the renewal", contact: "ada@example.com"},
-		{id: "0198d000-0000-7000-8000-000000000003", title: "Approve the new pricing", priority: 1},
+		{
+			id:       "0198d000-0000-7000-8000-000000000002",
+			title:    "Call Ada about the renewal",
+			dueTime:  demoClock(11),
+			priority: 1,
+			contact:  "ada@example.com",
+		},
+		{id: "0198d000-0000-7000-8000-000000000003", title: "Approve the new pricing", dueTime: demoClock(9), priority: 1},
 		{id: "0198d000-0000-7000-8000-000000000004", title: "File the delivery notes", done: true},
 		{
 			id:     "0198d000-0000-7000-8000-000000000005",
@@ -228,6 +240,8 @@ func demoTasks() []demoTask {
 			offset:  3,
 			contact: "maria.perez@example.com",
 		},
+		{id: "0198d000-0000-7000-8000-000000000008", title: "Tidy the shared inbox"},
+		{id: "0198d000-0000-7000-8000-000000000009", title: "Review the support queue", dueTime: demoClock(10)},
 	}
 }
 
@@ -283,6 +297,7 @@ func buildDemoTask(
 	in := task.Input{
 		Title:      scripted.title,
 		DueOn:      today.AddDate(0, 0, scripted.offset),
+		DueTime:    scripted.dueTime,
 		Priority:   scripted.priority,
 		AssigneeID: assigneeID,
 	}

@@ -38,7 +38,7 @@ const contactDocument = `query($id: UUID!, $first: Int!) {
 		id name createdAt
 		identities { channel identifier displayName }
 		tasks(status: "open", first: $first) {
-			edges { node { id title dueOn status priority assigneeId } }
+			edges { node { id title dueOn dueTime status priority assigneeId } }
 			pageInfo { hasNextPage }
 		}
 	}

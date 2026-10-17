@@ -21,15 +21,24 @@ Reads only the tasks of the user whose token opened this session. Give date to
 list one day, or due_before to list everything still open from before that day.
 Naming both is refused. Naming neither lists today.
 
-Dates are calendar days written YYYY-MM-DD, for example 2026-08-14. Status is
-open, done, or all, and defaults to open. Priority runs 0 to 9 where higher
-is more urgent and 0 is the normal default. Open tasks come higher priority
-first, then by due date, then in the order they were created, and done tasks
-keep due date and creation order. Each task carries its contact's
-name beside the contact id when it is linked to one, so there is no need to
-look the contact up separately. Every task here belongs to the caller, so
-assignee_id is always the caller's own user id, which is how to tell the
-caller's work apart in contact answers.`
+Dates are calendar days written YYYY-MM-DD, for example 2026-08-14. A task
+with a time of day carries it in due_time as HH:MM, for example 09:30, a wall
+clock time with no time zone. A task with no time leaves due_time out. Status
+is open, done, or all, and defaults to open. Priority runs 0 to 9 where higher
+is more urgent and 0 is the normal default.
+
+Open tasks come higher priority first, then by due date, then by time of day,
+then in the order they were created. A task with no time comes after the timed
+tasks of its priority and day. Done tasks keep due date and creation order
+whatever their time. With status all, raised open tasks come first. The normal
+open tasks and the done tasks follow by due date. Within one day the open ones
+with a time come first by time of day, then the open ones with no time and the
+done tasks together, in the order they were created.
+
+Each task carries its contact's name beside the contact id when it is linked
+to one, so there is no need to look the contact up separately. Every task here
+belongs to the caller, so assignee_id is always the caller's own user id,
+which is how to tell the caller's work apart in contact answers.`
 
 // contactsDescription tells an agent what find_contacts answers.
 const contactsDescription = `Search the contact directory and report who holds open work.
@@ -53,8 +62,11 @@ not hold is refused.
 Open tasks span every user, not only the caller, and each carries the
 assignee_id of the user it belongs to. Compare it against the caller's own
 assignee_id from list_my_tasks to tell whose work is whose. Priority runs
-0 to 9 where higher is more urgent and 0 is the normal default. Open tasks
-come higher priority first, then by due date, then in the order they were
-created. When
-open_tasks_capped is true the contact holds more open tasks than this answer
-carries.`
+0 to 9 where higher is more urgent and 0 is the normal default. A task with a
+time of day carries it in due_time as HH:MM, for example 09:30, and a task
+with no time leaves due_time out.
+
+Open tasks come higher priority first, then by due date, then by time of day,
+then in the order they were created. A task with no time comes after the timed
+tasks of its priority and day. When open_tasks_capped is true the contact holds
+more open tasks than this answer carries.`

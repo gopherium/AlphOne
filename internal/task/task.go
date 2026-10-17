@@ -26,11 +26,16 @@ var ErrUnattributedOrigin = errors.New("task: origin event without a source")
 
 // EventData returns the fields a task event carries.
 func EventData(t Task) map[string]any {
+	var dueTime any
+	if t.DueTime.Set {
+		dueTime = t.DueTime.String()
+	}
 	return map[string]any{
 		"id":       t.ID.String(),
 		"title":    t.Title,
 		"status":   t.Status,
 		"due_on":   t.DueOn.Format(time.DateOnly),
+		"due_time": dueTime,
 		"priority": t.Priority,
 	}
 }
@@ -54,8 +59,20 @@ type Origin struct {
 type Page struct {
 	AfterRank  int
 	AfterDueOn time.Time
+	AfterClock Clock
 	AfterID    uuid.UUID
 	Limit      int
+}
+
+// PageAfter returns the page of at most limit tasks that follows last in a listing.
+func PageAfter(last Task, limit int) Page {
+	return Page{
+		AfterRank:  last.Rank(),
+		AfterDueOn: last.DueOn,
+		AfterClock: last.SortClock(),
+		AfterID:    last.ID,
+		Limit:      limit,
+	}
 }
 
 // StartRank returns the rank p starts after, below every rank when p names no position.
@@ -70,6 +87,7 @@ func (p Page) StartRank() int {
 type Input struct {
 	Title      string
 	DueOn      time.Time
+	DueTime    Clock
 	Priority   int
 	AssigneeID uuid.UUID
 	ContactID  uuid.UUID
@@ -85,6 +103,7 @@ type Task struct {
 	Status     string
 	Priority   int
 	DueOn      time.Time
+	DueTime    Clock
 	Origin     Origin
 	CreatedAt  time.Time
 }
@@ -95,6 +114,14 @@ func (t Task) Rank() int {
 		return -t.Priority
 	}
 	return 0
+}
+
+// SortClock returns the time of day t takes in a listing, its due time while open and no time once done.
+func (t Task) SortClock() Clock {
+	if t.Status == StatusOpen {
+		return t.DueTime
+	}
+	return Clock{}
 }
 
 // New returns an open [Task] built from in, with its title trimmed of
@@ -122,6 +149,7 @@ func New(in Input) (Task, error) {
 		Status:     StatusOpen,
 		Priority:   in.Priority,
 		DueOn:      in.DueOn,
+		DueTime:    in.DueTime,
 		Origin:     in.Origin,
 		CreatedAt:  time.Now().UTC(),
 	}, nil

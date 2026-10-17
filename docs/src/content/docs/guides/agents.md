@@ -95,10 +95,17 @@ Every tool answers structured data, never a written sentence. The wording of
 an answer is the agent's, which is why the same tool reads naturally in any
 language the agent speaks.
 
-Two details worth knowing when you read an answer:
+Three details worth knowing when you read an answer:
 
 **Counts stop at 200.** When there are more, the answer sets `capped` to
 true and the number means at least that many.
+
+**Open tasks come in priority, date and time order.** `list_my_tasks` lists
+higher priority tasks first, then by due date, then by time of day, then in the
+order they were created. A task with no time comes after the timed ones of its
+priority and day. Done tasks keep due date and creation order. A timed task
+carries its time in `due_time`, such as `09:30`, and a task with no time leaves
+`due_time` out.
 
 **Task lists are yours, contact answers are shared.** `workload_summary` and
 `list_my_tasks` read only the token owner's tasks. The two contact tools show

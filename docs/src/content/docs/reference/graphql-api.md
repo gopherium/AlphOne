@@ -236,6 +236,7 @@ mutation { setLocale(locale: "es-ES") }
 | `UUID` | RFC 4122 text | `0198d000-0000-7000-8000-000000000001` |
 | `DateTime` | RFC 3339 in UTC | `2026-08-09T16:21:31Z` |
 | `Date` | calendar day, no time | `2026-08-06` |
+| `LocalTime` | wall clock time of day as `HH:MM`, from `00:00` to `23:59`, no time zone | `09:30` |
 | `Upload` | multipart file part | see uploads below |
 
 ## Paging
@@ -247,7 +248,7 @@ query($before: Date!, $first: Int!, $after: String) {
   tasks(dueBefore: $before, status: "all", first: $first, after: $after) {
     edges {
       cursor
-      node { id title dueOn status }
+      node { id title dueOn dueTime status }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -260,18 +261,19 @@ query($before: Date!, $first: Int!, $after: String) {
     "tasks": {
       "edges": [
         {
-          "cursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ",
+          "cursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiY2xvY2siOiIwOTozMCIsImlkIjoiMDE5OGQwMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMDAxIn0",
           "node": {
             "id": "0198d000-0000-7000-8000-000000000001",
             "title": "Chase the overdue invoice",
             "dueOn": "2026-08-06",
+            "dueTime": "09:30",
             "status": "open"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
-        "endCursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiaWQiOiIwMTk4ZDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDEifQ"
+        "endCursor": "eyJyYW5rIjowLCJkdWVfb24iOiIyMDI2LTA4LTA2IiwiY2xvY2siOiIwOTozMCIsImlkIjoiMDE5OGQwMDAtMDAwMC03MDAwLTgwMDAtMDAwMDAwMDAwMDAxIn0"
       }
     }
   }
@@ -287,9 +289,14 @@ can move both numbers with `ALPHONE_GRAPH_PAGE_SIZE` and
 
 Listing tasks takes exactly one of `date`, `dueBefore` or `contactId`. Sending
 none or two answers `VALIDATION`. Open tasks come with the higher priority
-first, then by due date, then in the order they were created. Done tasks keep
-due date and creation order. With `status: "all"`, raised open tasks come
-first, then every other task, done ones included, by due date and creation.
+first, then by due date, then by time of day, then in the order they were
+created. A task with no time comes after the timed tasks of its priority and
+day. Done tasks keep due date and creation order, whatever their time.
+
+With `status: "all"`, raised open tasks come first. Every other task follows by
+due date, done ones included. Within one day, the normal open tasks with a time
+come first, by time of day. Then come the normal open tasks with no time and
+the done tasks together, in the order they were created.
 
 ### Pages with a total
 
@@ -371,7 +378,17 @@ mutation and event.
 mutation($input: CreateTaskInput!) {
   createTask(input: $input) {
     replay
-    task { id title dueOn status }
+    task { id title dueOn dueTime status }
+  }
+}
+```
+
+```json
+{
+  "input": {
+    "title": "Read the reference",
+    "dueOn": "2026-08-10",
+    "dueTime": "11:00"
   }
 }
 ```
@@ -385,6 +402,7 @@ mutation($input: CreateTaskInput!) {
         "id": "019fe75e-4cc1-715f-8a50-dfeff9695b98",
         "title": "Read the reference",
         "dueOn": "2026-08-10",
+        "dueTime": "11:00",
         "status": "open"
       }
     }
@@ -392,9 +410,27 @@ mutation($input: CreateTaskInput!) {
 }
 ```
 
+`dueTime` is optional. Leave it out, or send `null`, for a task with no time,
+and the task answers `dueTime: null`. A time with seconds, such as `11:00:30`,
+or one outside `00:00` to `23:59`, such as `24:00`, is refused with the code
+`VALIDATION` and the reason `value_malformed`.
+
+`updateTask` changes only the fields you send. A field you leave out keeps its
+value, and so does a field you send as `null`. `dueTime` is the one exception,
+`dueTime: null` clears the time. Leaving `dueTime` out keeps it, so moving a
+task to another day with `dueOn` alone keeps its time.
+
+```graphql
+mutation($id: UUID!) {
+  updateTask(id: $id, input: { dueTime: null }) { id dueOn dueTime }
+}
+```
+
 Give `CreateTaskInput` an `originEventId` and the creation becomes repeatable.
 A second create with the same origin returns the task already stored and
-`replay: true`, rather than a duplicate.
+`replay: true`, rather than a duplicate. The replay answers the task as it is
+stored now, its time included, and ignores the `dueTime` the second create
+names.
 
 ## Errors
 

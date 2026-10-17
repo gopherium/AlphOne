@@ -24,6 +24,7 @@ import (
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -163,7 +164,7 @@ func TestSeedYesPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [7]int{71, 7, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{71, 9, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -468,8 +469,8 @@ func TestSeedStoresADayOfTasks(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("reading tasks: %v", err)
 	}
-	if overdue != 1 || done != 1 || dueToday != 3 {
-		t.Errorf("overdue = %d, done = %d, due today = %d, want 1, 1, 3", overdue, done, dueToday)
+	if overdue != 1 || done != 1 || dueToday != 5 {
+		t.Errorf("overdue = %d, done = %d, due today = %d, want 1, 1, 5", overdue, done, dueToday)
 	}
 	if linked != 1 {
 		t.Errorf("tasks linked to Ada Lovelace = %d, want 1", linked)
@@ -502,7 +503,7 @@ func TestSeedLinksATaskDueInThreeDaysToTheHistoryContact(t *testing.T) {
 	}
 }
 
-func TestSeedRaisesOneTaskAboveTheRest(t *testing.T) {
+func TestSeedRaisesTwoTasksAboveTheRest(t *testing.T) {
 	t.Parallel()
 
 	databaseURL := testDatabaseURL(t)
@@ -516,8 +517,54 @@ func TestSeedRaisesOneTaskAboveTheRest(t *testing.T) {
 	err := pool.QueryRow(t.Context(),
 		"SELECT count(*) FROM core.tasks WHERE priority > 0").Scan(&high)
 
-	if err != nil || high != 1 {
-		t.Errorf("high priority tasks = %d (err %v), want 1", high, err)
+	if err != nil || high != 2 {
+		t.Errorf("high priority tasks = %d (err %v), want 2", high, err)
+	}
+}
+
+// seededTask is one listed demo task by its title, priority and time of day.
+type seededTask struct {
+	title    string
+	priority int
+	dueTime  string
+}
+
+func TestSeedTimesTheAdminsDayToShowTheOrder(t *testing.T) {
+	t.Parallel()
+
+	databaseURL := testDatabaseURL(t)
+	getenv := testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": databaseURL})
+	if err := seed(t.Context(), getenv, &strings.Builder{}); err != nil {
+		t.Fatalf("seed() error = %v, want nil", err)
+	}
+	pool := testPool(t, databaseURL)
+	admin, err := authkitpg.NewUserStore(pool).UserByEmail(t.Context(), seedAdminEmail)
+	if err != nil {
+		t.Fatalf("UserByEmail() error = %v, want the seeded admin", err)
+	}
+
+	listed, err := postgres.NewTaskStore(pool).ListForDay(t.Context(), admin.ID,
+		time.Now().UTC().Truncate(24*time.Hour), task.StatusOpen, task.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListForDay() error = %v, want nil", err)
+	}
+	day := make([]seededTask, 0, len(listed))
+	for _, held := range listed {
+		day = append(day, seededTask{held.Title, held.Priority, held.DueTime.String()})
+	}
+	want := []seededTask{
+		{"Approve the new pricing", 1, "09:00"},
+		{"Call Ada about the renewal", 1, "11:00"},
+		{"Review the support queue", 0, "10:00"},
+		{"Tidy the shared inbox", 0, ""},
+	}
+	if !slices.Equal(day, want) {
+		t.Errorf("the admin's open day = %+v, want %+v", day, want)
+	}
+	var timed int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM core.tasks WHERE due_time IS NOT NULL").Scan(&timed); err != nil || timed != 3 {
+		t.Errorf("tasks with a time = %d (err %v), want only the 3 timed tasks of the admin's day", timed, err)
 	}
 }
 
@@ -618,7 +665,7 @@ func TestSeedYesIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [7]int{71, 7, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [7]int{71, 9, 3, 8, 1, 1, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.Stdout, "admin@example.com already exists") {
