@@ -129,7 +129,7 @@ test('lists the primary one click action first, as a WordPress row menu does', a
 	expect(await actionsOf('ana@example.com')).toEqual(['Enable', 'Change role…'])
 })
 
-test('opens the resend at the default medium width under its title, with Cancel as a neutral text button', async () => {
+test('opens the resend at the default medium width under its title, with Cancel as an accent text button', async () => {
 	renderAt('/users')
 	const modal = await openResend()
 
@@ -139,9 +139,7 @@ test('opens the resend at the default medium width under its title, with Cancel 
 	expect(
 		modal.getByText('Send a new invitation to "Maria Perez" (maria@example.com)? The link sent before stops working.'),
 	).toBeInTheDocument()
-	expect([...modal.getByRole('button', { name: 'Cancel' }).classList]).toEqual(
-		buttonClasses('minimal', undefined, 'neutral'),
-	)
+	expect([...modal.getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 	expect(modal.getByRole('button', { name: 'Resend invitation' })).toBeInTheDocument()
 })
 

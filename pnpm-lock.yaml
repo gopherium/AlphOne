@@ -156,14 +156,14 @@ importers:
         specifier: workspace:*
         version: link:../plugins/whatsapp/frontend
       '@gopherium/godmin':
-        specifier: 0.20.0
-        version: 0.20.0(03bc14b912dbe0787054e99546eef2a5)
+        specifier: 0.22.0
+        version: 0.22.0(ae7b62fe769256d59dfae560e1915eb3)
       '@gopherium/gottext':
         specifier: 0.6.0
         version: 0.6.0(@wordpress/i18n@6.30.0)(gettext-extractor@4.0.6)(react@19.3.1)
       '@gopherium/react-auth':
-        specifier: 0.12.0
-        version: 0.12.0(5aa1bd7160a06326a4ce8b691c9c4a30)
+        specifier: 0.13.0
+        version: 0.13.0(5aa1bd7160a06326a4ce8b691c9c4a30)
       '@tanstack/react-query':
         specifier: ^5.104.3
         version: 5.104.3(react@19.3.1)
@@ -364,14 +364,14 @@ importers:
   sdk/frontend:
     dependencies:
       '@gopherium/godmin':
-        specifier: 0.20.0
-        version: 0.20.0(03bc14b912dbe0787054e99546eef2a5)
+        specifier: 0.22.0
+        version: 0.22.0(ae7b62fe769256d59dfae560e1915eb3)
       '@gopherium/gottext':
         specifier: 0.6.0
         version: 0.6.0(@wordpress/i18n@6.30.0)(gettext-extractor@4.0.6)(react@19.3.1)
       '@gopherium/react-auth':
-        specifier: 0.12.0
-        version: 0.12.0(fd95a81f7a4c0511fff33619fd3e8fd1)
+        specifier: 0.13.0
+        version: 0.13.0(fd95a81f7a4c0511fff33619fd3e8fd1)
       '@tanstack/react-query':
         specifier: ^5.104.3
         version: 5.104.3(react@19.3.1)
@@ -1037,12 +1037,14 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@gopherium/godmin@0.20.0':
-    resolution: {integrity: sha512-FAUoO/CDq2ALn+2KYT2Yvacq6HXFGIaR/rQrkpAYTXa2xzMzIuEIlQ0uBpqpe9fEqPqRwx1E1+nWsMy0Q3+y9A==}
+  '@gopherium/godmin@0.22.0':
+    resolution: {integrity: sha512-QxLDCZw+T2k139sY0rbFHJTlcXQcnazqLUHeyuf1CSqF4oy4yOGKelsdHNIHvU0ZC3DTMh6LY+kDdIW8dfMzNQ==}
     peerDependencies:
       '@tanstack/react-router': ^1.170.0
       '@testing-library/react': ^16.3.2
       '@wordpress/a11y': '>=4.57.0 <5.0.0'
+      '@wordpress/components': '>=42.0.0 <43.0.0'
+      '@wordpress/dataviews': '>=20.0.0 <21.0.0'
       '@wordpress/date': '>=5.57.0 <6.0.0'
       '@wordpress/i18n': '>=6.30.0 <7.0.0'
       '@wordpress/icons': '>=18.0.0 <19.0.0'
@@ -1056,6 +1058,10 @@ packages:
       '@tanstack/react-router':
         optional: true
       '@testing-library/react':
+        optional: true
+      '@wordpress/components':
+        optional: true
+      '@wordpress/dataviews':
         optional: true
       '@wordpress/date':
         optional: true
@@ -1079,8 +1085,8 @@ packages:
       react:
         optional: true
 
-  '@gopherium/react-auth@0.12.0':
-    resolution: {integrity: sha512-nrxTW09vbl0i8C76Rd33q50PBz9eRQWpnWVaehVSFczzQIoqP9FU4RJOwxgjThulAfGHyuTzaGXkr/MaePQKrw==}
+  '@gopherium/react-auth@0.13.0':
+    resolution: {integrity: sha512-Ho1aB6x24NEpHkRmTJ3EywpLrNSJJ8El+tz5wQdTRc6bdxt0JLQEAF9RSripvdMUEXrD2p6zG3rIb8H1srWnpw==}
     peerDependencies:
       '@tanstack/react-query': ^5.101.2
       '@testing-library/jest-dom': ^6.9.1 || ^7.0.0
@@ -4932,9 +4938,6 @@ packages:
     resolution: {integrity: sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==}
     engines: {node: '>=18'}
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -5492,7 +5495,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@gopherium/godmin@0.20.0(03bc14b912dbe0787054e99546eef2a5)':
+  '@gopherium/godmin@0.22.0(ae7b62fe769256d59dfae560e1915eb3)':
     dependencies:
       '@wordpress/a11y': 4.57.0
       '@wordpress/icons': 18.0.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -5503,6 +5506,8 @@ snapshots:
     optionalDependencies:
       '@tanstack/react-router': 1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@wordpress/components': 42.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.29)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(supports-color@10.2.2)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      '@wordpress/dataviews': 20.0.0(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.29)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(supports-color@10.2.2)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/date': 5.57.0
       '@wordpress/i18n': 6.30.0
       stylelint: 17.16.0(supports-color@10.2.2)(typescript@6.0.3)
@@ -5516,12 +5521,12 @@ snapshots:
       gettext-extractor: 4.0.6
       react: 19.3.1
 
-  '@gopherium/react-auth@0.12.0(5aa1bd7160a06326a4ce8b691c9c4a30)':
+  '@gopherium/react-auth@0.13.0(5aa1bd7160a06326a4ce8b691c9c4a30)':
     dependencies:
       '@tanstack/react-query': 5.104.3(react@19.3.1)
       '@wordpress/i18n': 6.30.0
       react: 19.3.1
-      zod: 4.4.3
+      zod: 4.6.7
     optionalDependencies:
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -5530,12 +5535,12 @@ snapshots:
       msw: 2.15.0(@types/node@26.6.5)(typescript@6.0.3)
       vitest: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(msw@2.15.0(@types/node@26.6.5)(typescript@6.0.3))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/react-auth@0.12.0(fd95a81f7a4c0511fff33619fd3e8fd1)':
+  '@gopherium/react-auth@0.13.0(fd95a81f7a4c0511fff33619fd3e8fd1)':
     dependencies:
       '@tanstack/react-query': 5.104.3(react@19.3.1)
       '@wordpress/i18n': 6.30.0
       react: 19.3.1
-      zod: 4.4.3
+      zod: 4.6.7
     optionalDependencies:
       '@testing-library/jest-dom': 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.5)
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -9461,7 +9466,5 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yoctocolors@2.2.0: {}
-
-  zod@4.4.3: {}
 
   zod@4.6.7: {}

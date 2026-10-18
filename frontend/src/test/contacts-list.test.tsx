@@ -686,16 +686,14 @@ test('renames a contact in a modal and confirms it with a toast', async () => {
 	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace', 'Maria Perez', 'Zoe Lopez']))
 })
 
-test('opens the rename at the default medium width with Cancel as a neutral text button', async () => {
+test('opens the rename at the default medium width with Cancel as an accent text button', async () => {
 	renderAt('/contacts')
 
 	await act('Ana Lopez', 'Rename…')
 
 	const dialog = await screen.findByRole('dialog', { name: 'Rename' })
 	expect(dialog).toHaveClass('has-size-medium')
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
-		buttonClasses('minimal', undefined, 'neutral'),
-	)
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
 test('puts the cursor in the name when the rename opens, as the WordPress rename does', async () => {

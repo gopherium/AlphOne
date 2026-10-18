@@ -91,7 +91,7 @@ test('a forgotten password is reset from the login screen', async ({ page, brows
 	const reset = await forgotten.newPage()
 	await reset.goto('/')
 
-	await reset.getByRole('button', { name: 'Forgot your password?' }).click()
+	await reset.getByRole('button', { name: 'Lost your password?' }).click()
 	await reset.getByLabel('Email').fill('maria@example.com')
 	await reset.getByRole('button', { name: 'Send reset link' }).click()
 	await expect(
