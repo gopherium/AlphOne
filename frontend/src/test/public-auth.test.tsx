@@ -84,7 +84,7 @@ test('a link carrying no token still renders its screen', async () => {
 test('the login slot offers the way to a password reset and back', async () => {
 	renderScreen(<LoginSlot onLogin={vi.fn()} />)
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Forgot your password?' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Lost your password?' }))
 
 	expect(await screen.findByRole('button', { name: 'Send reset link' })).toBeInTheDocument()
 
