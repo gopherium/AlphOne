@@ -83,6 +83,12 @@ identities and the tasks, which is where the work happens. The right one
 holds the date the contact was created and the custom fields. On a narrow
 screen the right column moves under the tasks.
 
+The tasks have their own **Add task** form. Type a title, pick the
+**Due date**, a **Time** if the task has one and the **Priority**, then
+press **Add task**. Leave the time empty for a task that only has to happen
+some time that day. Each task shows its time before the title and the date
+it is due after it. See [Tasks](/guides/tasks/) for how the list is ordered.
+
 ## Storing more about a contact
 
 A contact holds only a name and its identities out of the box. To store an
