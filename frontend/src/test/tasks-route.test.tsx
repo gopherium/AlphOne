@@ -9,176 +9,44 @@ import { beforeEach, expect, test } from 'vitest'
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
 import { busyClasses, buttonClasses, compactClasses, liveStream, renderAt } from './render'
+import {
+	addedID,
+	addedToast,
+	callID,
+	contactID,
+	dayTasks,
+	doneID,
+	dueLabel,
+	linkedContact,
+	localDate,
+	movedToast,
+	oldID,
+	pickDue,
+	pickHigh,
+	quoteID,
+	refileID,
+	taskNode,
+	taskPage,
+	taskRow,
+	taskServer,
+	today,
+	tomorrow,
+	yesterday,
+} from './tasksScreen'
+import type { TaskRow } from './tasksScreen'
 
-const callID = '0198c000-0000-7000-8000-000000000101'
-const quoteID = '0198c000-0000-7000-8000-000000000102'
-const doneID = '0198c000-0000-7000-8000-000000000103'
-const addedID = '0198c000-0000-7000-8000-000000000104'
-const oldID = '0198c000-0000-7000-8000-000000000105'
-const refileID = '0198c000-0000-7000-8000-000000000106'
-const contactID = '0198c000-0000-7000-8000-000000000107'
-const linkedContact = { id: contactID, name: 'Maria Perez' }
-
-// These dates are computed independently of the screen's own date helpers.
-function localDate(offsetDays: number) {
-	const at = new Date()
-	at.setDate(at.getDate() + offsetDays)
-	return at.toLocaleDateString('en-CA')
-}
-
-function dueLabel(iso: string) {
-	return `Due ${iso.split('-').reverse().join('/')}`
-}
-
-/**
- * Returns the toast a postpone to the given day raises.
- * @param iso - The day the task moved to as YYYY-MM-DD.
- * @returns The toast text.
- */
-function movedToast(iso: string) {
-	return `Task moved to ${iso.split('-').reverse().join('/')}.`
-}
-
-/**
- * Returns the toast a quick add for a day other than the one shown raises.
- * @param iso - The day the task was added for as YYYY-MM-DD.
- * @returns The toast text.
- */
-function addedToast(iso: string) {
-	return `Task added for ${iso.split('-').reverse().join('/')}.`
-}
-
-const today = localDate(0)
-const tomorrow = localDate(1)
-const yesterday = localDate(-1)
-
-function taskRow(id: string, title: string, status = 'open', priority = 0) {
-	return {
-		id,
-		title,
-		status,
-		priority,
-		due_on: today,
-		contact: null as typeof linkedContact | null,
-	}
-}
-
-function taskNode(row: ReturnType<typeof taskRow>) {
-	return {
-		__typename: 'Task',
-		id: row.id,
-		title: row.title,
-		status: row.status,
-		priority: row.priority,
-		dueOn: row.due_on,
-	}
-}
-
-function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
-	return {
-		__typename: 'TaskConnection',
-		edges: rows.map((row) => ({
-			__typename: 'TaskEdge',
-			node: {
-				__typename: 'Task',
-				id: row.id,
-				title: row.title,
-				status: row.status,
-				priority: row.priority,
-				dueOn: row.due_on,
-				contact: row.contact === null ? null : { __typename: 'Contact', ...row.contact },
-			},
-			cursor: row.id,
-		})),
-		pageInfo: { __typename: 'PageInfo', hasNextPage: endCursor !== null, endCursor },
-	}
-}
-
-let listedDates: string[] = []
-let overdueBefore: string[] = []
-let patched: { id: string; body: Record<string, unknown> }[] = []
-let created: Record<string, unknown>[] = []
-let tasks: ReturnType<typeof taskRow>[] = []
-let overdue: ReturnType<typeof taskRow>[] = []
+let tasks: TaskRow[] = []
+let overdue: TaskRow[] = []
+const { created, listedDates, overdueBefore, patched, serveDay, servePerDay, serveRanked } = taskServer(
+	() => tasks,
+	() => overdue,
+)
 
 beforeEach(() => {
-	listedDates = []
-	overdueBefore = []
-	patched = []
-	created = []
 	overdue = []
-	tasks = [
-		taskRow(callID, 'Call the supplier'),
-		taskRow(quoteID, 'Send the quote'),
-		taskRow(doneID, 'Book the courier', 'done'),
-	]
-	server.use(
-		graphql.query('DayTasks', ({ variables }) => {
-			listedDates.push(String(variables.date))
-			const status = String(variables.status)
-			return HttpResponse.json({
-				data: { tasks: taskPage(tasks.filter((row) => row.status === status)) },
-			})
-		}),
-		graphql.query('OverdueTasks', ({ variables }) => {
-			const dueBefore = String(variables.dueBefore)
-			overdueBefore.push(dueBefore)
-			return HttpResponse.json({ data: { tasks: taskPage(overdue.filter((row) => row.due_on < dueBefore)) } })
-		}),
-		graphql.mutation('UpdateTask', ({ variables }) => {
-			const input = variables.input as { status?: string; dueOn?: string }
-			const id = String(variables.id)
-			patched.push({ id, body: { status: input.status, due_on: input.dueOn } })
-			const stored = [...tasks, ...overdue].find((row) => row.id === id)
-			if (stored === undefined) {
-				return HttpResponse.json({ data: null, errors: [{ message: 'task: not found' }] })
-			}
-			const updated = {
-				...stored,
-				status: input.status ?? stored.status,
-				due_on: input.dueOn ?? stored.due_on,
-			}
-			tasks = tasks.map((row) => (row.id === updated.id ? updated : row))
-			overdue = overdue.map((row) => (row.id === updated.id ? updated : row))
-			return HttpResponse.json({ data: { updateTask: taskNode(updated) } })
-		}),
-		graphql.mutation('CreateTask', ({ variables }) => {
-			const input = variables.input as { title: string; dueOn: string; priority?: number }
-			created.push({ ...input })
-			const row = { ...taskRow(addedID, input.title, 'open', input.priority ?? 0), due_on: input.dueOn }
-			tasks = [...tasks, row]
-			return HttpResponse.json({
-				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
-			})
-		}),
-	)
+	tasks = dayTasks()
+	serveDay()
 })
-
-/** Serves the open and done lists of each day from the tasks due on it. */
-function servePerDay() {
-	server.use(
-		graphql.query('DayTasks', ({ variables }) => {
-			const date = String(variables.date)
-			const status = String(variables.status)
-			return HttpResponse.json({
-				data: { tasks: taskPage(tasks.filter((row) => row.due_on === date && row.status === status)) },
-			})
-		}),
-	)
-}
-
-/** Picks a day in the quick add due date field. */
-async function pickDue(day: string) {
-	const due = screen.getByLabelText('Due date')
-	await userEvent.clear(due)
-	await userEvent.type(due, day)
-}
-
-/** Picks the High priority in the quick add priority field. */
-async function pickHigh() {
-	await userEvent.click(screen.getByLabelText('Priority'))
-	await userEvent.click(await screen.findByRole('option', { name: 'High' }))
-}
 
 test('shows the add button busy and still refuses a second submit', async () => {
 	const busy = busyClasses()
@@ -456,6 +324,7 @@ test('names the quick add fields as the New task screen does', async () => {
 	await screen.findByText('Call the supplier')
 
 	expect(screen.getByText('Due date', { selector: 'label' })).toBeInTheDocument()
+	expect(screen.getByText('Time', { selector: 'label' })).toBeInTheDocument()
 	expect(screen.getByText('Priority', { selector: 'label' })).toBeInTheDocument()
 })
 
@@ -628,7 +497,7 @@ test('does not add a task without a title', async () => {
 	)
 })
 
-test('lays the task title, the due date, the priority and Add task on one form row', async () => {
+test('lays the task title, the due date, the time, the priority and Add task on one form row', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -638,6 +507,7 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	await screen.findByText('Call the supplier')
 	const title = screen.getByRole('textbox', { name: 'Task title' })
 	const due = screen.getByLabelText('Due date')
+	const time = screen.getByLabelText('Time')
 	const priority = screen.getByLabelText('Priority')
 	const add = screen.getByRole('button', { name: 'Add task' })
 
@@ -645,10 +515,11 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	expect(row).not.toBeNull()
 	expect(row?.parentElement).toHaveClass('godmin-form')
 	const cells = [...(row as Element).children]
-	expect(cells).toHaveLength(4)
-	const fieldCells = [title, due, priority].map((field) => cells.find((cell) => cell.contains(field)))
+	expect(cells).toHaveLength(5)
+	const fieldCells = [title, due, time, priority].map((field) => cells.find((cell) => cell.contains(field)))
 	expect(fieldCells).not.toContain(undefined)
-	expect(new Set(fieldCells).size).toBe(3)
+	expect(new Set(fieldCells).size).toBe(4)
+	expect(fieldCells.map((cell) => cells.indexOf(cell as Element))).toEqual([0, 1, 2, 3])
 	expect(fieldCells).not.toContain(add)
 	expect(add.parentElement).toBe(row)
 	expect(cells.at(-1)).toBe(add)
@@ -718,23 +589,6 @@ test('loads more tasks through the cursor', async () => {
 
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
-
-/** Serves each day list a page at a time after the cursor it names, higher priority first. */
-function serveRanked() {
-	server.use(
-		graphql.query('DayTasks', ({ variables }) => {
-			const listed = tasks
-				.filter((row) => row.status === String(variables.status))
-				.toSorted((first, second) => second.priority - first.priority)
-			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
-			const end = start + Number(variables.first)
-			const shown = listed.slice(start, end)
-			return HttpResponse.json({
-				data: { tasks: taskPage(shown, end < listed.length ? (shown.at(-1)?.id ?? null) : null) },
-			})
-		}),
-	)
-}
 
 /**
  * Lists the given number of open routine tasks due today.

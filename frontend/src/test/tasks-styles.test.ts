@@ -73,6 +73,37 @@ test('keeps a long contact name on one line, cut short with an ellipsis', () => 
 	})
 })
 
+test('gives the time column one width on every row, the widest times of the format locale held in it unseen', () => {
+	const weak = '--wpds-color-foreground-content-neutral-weak'
+
+	expect(declarations('.alphone-tasks__time')).toEqual({
+		display: 'flex',
+		flex: 'none',
+		'flex-direction': 'column',
+		color: `var(${weak})`,
+		'font-variant-numeric': 'tabular-nums',
+		'white-space': 'nowrap',
+	})
+	expect(declarations('.alphone-tasks__time::before')).toEqual({ content: 'attr(data-morning)' })
+	expect(declarations('.alphone-tasks__time::after')).toEqual({ content: 'attr(data-evening)' })
+	expect(declarations('.alphone-tasks__time::before,\n.alphone-tasks__time::after')).toEqual({
+		height: '0',
+		overflow: 'hidden',
+		visibility: 'hidden',
+	})
+})
+
+test('gives the time and the title one lead group that takes the row share, the title taking the rest of it', () => {
+	const phone = '(max-width: 639px)'
+
+	expect(declarations('.alphone-tasks__lead')).toEqual({ flex: '1', 'min-width': '0' })
+	expect(declarations('.alphone-tasks__contact-block .alphone-tasks__lead')).toEqual({ flex: '1 1 50%' })
+	expect(declarations('.alphone-tasks__lead', phone)).toEqual({ flex: '1 1 60%' })
+	expect(declarations('.alphone-tasks__title')).toEqual({ flex: '1', 'min-width': '0' })
+	expect(declarations('.alphone-tasks__contact-block .alphone-tasks__title')).toEqual({})
+	expect(declarations('.alphone-tasks__title', phone)).toEqual({})
+})
+
 test('keeps the person icon its full size beside a name cut short', () => {
 	expect(declarations('.alphone-tasks__contact-icon')).toEqual({
 		flex: 'none',

@@ -72,6 +72,28 @@ export function isValidDate(date: string): boolean {
 }
 
 /**
+ * Returns the time a new task is due at, as the create input takes it.
+ * @param time - The value of the time field, empty or HH:MM.
+ * @returns The dueTime field when the field holds a time, no field when it is empty.
+ */
+export function timeInput(time: string): { dueTime?: string } {
+	return time === '' ? {} : { dueTime: time }
+}
+
+/**
+ * Returns the time a saved task is due at, as the update input takes it.
+ * @param time - The value of the time field, empty or HH:MM.
+ * @param held - The time the task held before the save, null when it had none.
+ * @returns The dueTime field holding the time, null when the reader emptied a time the task held, or no field.
+ */
+export function timeChange(time: string, held: string | null): { dueTime?: string | null } {
+	if (time !== '') {
+		return { dueTime: time }
+	}
+	return held === null ? {} : { dueTime: null }
+}
+
+/**
  * Shifts a date by whole days.
  * @param date - The starting date as YYYY-MM-DD.
  * @param days - The number of days to add.

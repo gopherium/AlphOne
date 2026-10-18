@@ -395,6 +395,35 @@
 	flex: none;
 }
 
+.alphone-tasks__time {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	color: var(--wpds-color-foreground-content-neutral-weak);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.alphone-tasks__time::before {
+	content: attr(data-morning);
+}
+
+.alphone-tasks__time::after {
+	content: attr(data-evening);
+}
+
+.alphone-tasks__time::before,
+.alphone-tasks__time::after {
+	height: 0;
+	overflow: hidden;
+	visibility: hidden;
+}
+
+.alphone-tasks__lead {
+	flex: 1;
+	min-width: 0;
+}
+
 .alphone-tasks__title {
 	flex: 1;
 	min-width: 0;
@@ -487,7 +516,7 @@
 	flex-wrap: wrap;
 }
 
-.alphone-tasks__contact-block .alphone-tasks__title {
+.alphone-tasks__contact-block .alphone-tasks__lead {
 	flex: 1 1 50%;
 }
 
@@ -518,7 +547,7 @@
 		flex-wrap: wrap;
 	}
 
-	.alphone-tasks__title {
+	.alphone-tasks__lead {
 		flex: 1 1 60%;
 	}
 

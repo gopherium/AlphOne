@@ -70,6 +70,7 @@ beforeEach(() => {
 						status: 'open',
 						priority: 0,
 						dueOn: '2026-08-10',
+						dueTime: null,
 						contactId: null,
 						contact: null,
 					},

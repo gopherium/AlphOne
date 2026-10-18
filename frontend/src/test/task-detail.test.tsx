@@ -19,6 +19,7 @@ function taskDetail() {
 		status: String(stored.status),
 		priority: Number(stored.priority),
 		dueOn: String(stored.due_on),
+		dueTime: stored.due_time === null ? null : String(stored.due_time),
 		contactId: stored.contact_id === null ? null : String(stored.contact_id),
 		contact:
 			stored.contact_id === null
@@ -39,24 +40,21 @@ beforeEach(() => {
 		status: 'open',
 		priority: 0,
 		due_on: '2026-08-10',
+		due_time: null,
 	}
 	server.use(
 		graphql.query('TaskDetail', () => HttpResponse.json({ data: { task: taskDetail() } })),
 		graphql.mutation('UpdateTask', ({ variables }) => {
 			const input = variables.input as Record<string, unknown>
-			patched.push({
+			const changes = {
 				...(input.title === undefined ? {} : { title: input.title }),
 				...(input.dueOn === undefined ? {} : { due_on: input.dueOn }),
-				...(input.status === undefined ? {} : { status: input.status }),
-				...(input.priority === undefined ? {} : { priority: input.priority }),
-			})
-			stored = {
-				...stored,
-				...(input.title === undefined ? {} : { title: input.title }),
-				...(input.dueOn === undefined ? {} : { due_on: input.dueOn }),
+				...('dueTime' in input ? { due_time: input.dueTime } : {}),
 				...(input.status === undefined ? {} : { status: input.status }),
 				...(input.priority === undefined ? {} : { priority: input.priority }),
 			}
+			patched.push(changes)
+			stored = { ...stored, ...changes }
 			return HttpResponse.json({ data: { updateTask: taskDetail() } })
 		}),
 
@@ -126,6 +124,95 @@ test('keeps Save off while the due date is empty', async () => {
 	expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
 })
 
+test('shows the time of a task in the Time field next to the due date', async () => {
+	stored = { ...stored, due_time: '09:30' }
+
+	renderAt(`/tasks/${taskID}`)
+
+	const time = await screen.findByLabelText('Time')
+	expect(time).toHaveValue('09:30')
+	expect(time).toHaveAttribute('type', 'time')
+	const due = screen.getByLabelText('Due date')
+	expect(due.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(time.compareDocumentPosition(screen.getByLabelText('Priority')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('leaves the Time field empty on a task with no time', async () => {
+	renderAt(`/tasks/${taskID}`)
+
+	expect(await screen.findByLabelText('Time')).toHaveValue('')
+})
+
+test('sets a time on a task that had none', async () => {
+	renderAt(`/tasks/${taskID}`)
+
+	await userEvent.type(await screen.findByLabelText('Time'), '14:15')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toMatchObject({ due_time: '14:15' })
+	expect(await screen.findByText('Task saved.')).toBeInTheDocument()
+})
+
+test('changes the time of a task', async () => {
+	stored = { ...stored, due_time: '09:30' }
+	renderAt(`/tasks/${taskID}`)
+	const time = await screen.findByLabelText('Time')
+
+	await userEvent.clear(time)
+	await userEvent.type(time, '11:00')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toMatchObject({ due_time: '11:00' })
+})
+
+test('clears the time of a task the reader empties, sending a null time', async () => {
+	stored = { ...stored, due_time: '09:30' }
+	renderAt(`/tasks/${taskID}`)
+
+	await userEvent.clear(await screen.findByLabelText('Time'))
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toHaveProperty('due_time', null)
+	await waitFor(() => expect(screen.getByLabelText('Time')).toHaveValue(''))
+})
+
+test('keeps the time of a task a save leaves alone', async () => {
+	stored = { ...stored, due_time: '09:30' }
+	renderAt(`/tasks/${taskID}`)
+	const title = await screen.findByLabelText('Title')
+
+	await userEvent.type(title, ' back')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toMatchObject({ title: 'Call the supplier back', due_time: '09:30' })
+})
+
+test('sends no time for a task that had none when the field stays empty', async () => {
+	renderAt(`/tasks/${taskID}`)
+	const title = await screen.findByLabelText('Title')
+
+	await userEvent.type(title, ' back')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).not.toHaveProperty('due_time')
+})
+
+test('shows a time changed elsewhere once the task is read again', async () => {
+	stored = { ...stored, due_time: '09:30' }
+	renderAt(`/tasks/${taskID}`)
+	expect(await screen.findByLabelText('Time')).toHaveValue('09:30')
+	stored = { ...stored, due_time: '11:00' }
+
+	await userEvent.click(screen.getByRole('button', { name: 'Complete' }))
+
+	await waitFor(() => expect(screen.getByLabelText('Time')).toHaveValue('11:00'))
+})
+
 test('raises the priority of a task', async () => {
 	renderAt(`/tasks/${taskID}`)
 
@@ -187,6 +274,7 @@ test('reaches the detail from the day list', async () => {
 									status: 'open',
 									priority: 0,
 									dueOn: '2026-08-10',
+									dueTime: null,
 									contact: null,
 								},
 								cursor: taskID,

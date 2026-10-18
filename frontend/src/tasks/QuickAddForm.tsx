@@ -14,7 +14,7 @@ import {
 } from '@alphone/frontend-sdk'
 import { useLayoutEffect, useRef, useState } from 'react'
 
-import { addedMessage, isValidDate } from './format'
+import { addedMessage, isValidDate, timeInput } from './format'
 import { createTaskMutation, taskListReads } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -38,6 +38,7 @@ export function QuickAddForm({
 	const titleField = useRef<HTMLInputElement>(null)
 	const [title, setTitle] = useState('')
 	const [picked, setPicked] = useState<{ on: string; value: string } | null>(null)
+	const [time, setTime] = useState('')
 	const [priority, setPriority] = useState(0)
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
 	const shownDay = useRef(day)
@@ -46,10 +47,11 @@ export function QuickAddForm({
 	})
 	const dueOn = picked !== null && picked.on === day ? picked.value : day
 	const submitAdd = async () => {
-		const result = await runAdd({ input: { title, dueOn, priority, contactId } })
+		const result = await runAdd({ input: { title, dueOn, ...timeInput(time), priority, contactId } })
 		if (result.data) {
 			setTitle('')
 			setPicked(null)
+			setTime('')
 			setPriority(0)
 			if (viewDay === undefined || dueOn === shownDay.current) {
 				toaster.show(__('Task added.', 'alphone'))
@@ -83,6 +85,12 @@ export function QuickAddForm({
 						type="date"
 						value={dueOn}
 						onChange={(event) => setPicked({ on: day, value: event.target.value })}
+					/>
+					<InputControl
+						label={__('Time', 'alphone')}
+						type="time"
+						value={time}
+						onChange={(event) => setTime(event.target.value)}
 					/>
 					<PrioritySelect value={priority} onChange={setPriority} />
 					<Button

@@ -14,6 +14,7 @@ export const createTaskMutation = graphql(`
 				status
 				priority
 				dueOn
+				dueTime
 			}
 			replay
 		}
@@ -28,6 +29,7 @@ export const updateTaskMutation = graphql(`
 			status
 			priority
 			dueOn
+			dueTime
 		}
 	}
 `)
@@ -40,6 +42,7 @@ export const taskDetailQuery = graphql(`
 			status
 			priority
 			dueOn
+			dueTime
 			contactId
 			contact {
 				id
@@ -59,6 +62,7 @@ export const dayTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					dueTime
 					contact {
 						id
 						name
@@ -84,6 +88,7 @@ export const overdueTasksQuery = graphql(`
 					status
 					priority
 					dueOn
+					dueTime
 					contact {
 						id
 						name

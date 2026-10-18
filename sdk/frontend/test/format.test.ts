@@ -47,6 +47,22 @@ test('writes a time on a 24 hour clock with hours and minutes', () => {
 	expect(formatTime('2026-09-30T09:05:00Z')).toBe('09:05')
 })
 
+test('writes a bare wall clock time on a 24 hour clock in es-ES', () => {
+	rememberFormatLocale('es-ES')
+
+	expect(formatTime('09:30')).toBe('09:30')
+	expect(formatTime('21:05')).toBe('21:05')
+	expect(formatTime('00:00')).toBe('00:00')
+	expect(formatTime('23:59')).toBe('23:59')
+})
+
+test('writes a bare wall clock time on a 12 hour clock in en-US', () => {
+	rememberFormatLocale('en-US')
+
+	expect(formatTime('09:30')).toBe('09:30 AM')
+	expect(formatTime('21:05')).toBe('09:05 PM')
+})
+
 test('groups the thousands of every number with a dot and writes decimals after a comma', () => {
 	rememberFormatLocale('es-ES')
 

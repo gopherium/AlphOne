@@ -608,6 +608,13 @@ reader's language writes a list, such as Birth date, Shoe size. Keep dates
 ISO in your queries, mutations and events, and format them only where a
 reader sees them.
 
+`formatDate` and `formatWeekday` keep a bare calendar day such as
+`2026-09-30` on the day it names. In the same way, `formatTime` takes a
+bare wall clock time such as `09:30`, the way a task's time of day travels,
+and writes it as it stands: 09:30 with the default locale, or 09:30 AM in
+`en-US`, whatever time zone the reader is in. A full moment such as
+`message.sentAt` is shown on the reader's clock.
+
 A date column in a DataViews list is the one exception. Render it with
 `listDate`, which writes the date and time the way WordPress lists do, in
 the reader's language, such as Oct 13, 2026 5:04 pm:

@@ -40,6 +40,7 @@ beforeEach(() => {
 				title: input.title,
 				due_on: input.dueOn,
 				priority: input.priority,
+				...('dueTime' in input ? { due_time: input.dueTime } : {}),
 				...(input.contactId === undefined ? {} : { contact_id: input.contactId }),
 			})
 			return HttpResponse.json({
@@ -53,6 +54,7 @@ beforeEach(() => {
 							status: 'open',
 							priority: Number(input.priority ?? 0),
 							dueOn: String(input.dueOn),
+							dueTime: typeof input.dueTime === 'string' ? input.dueTime : null,
 						},
 						replay: false,
 					},
@@ -69,6 +71,7 @@ beforeEach(() => {
 						status: 'open',
 						priority: 0,
 						dueOn: today,
+						dueTime: null,
 						contactId: null,
 						contact: null,
 					},
@@ -133,6 +136,50 @@ test('creates a task on a day chosen in the form', async () => {
 
 	await waitFor(() => expect(created).toHaveLength(1))
 	expect(created[0]).toMatchObject({ due_on: '2026-09-01' })
+})
+
+test('starts the Time field empty, next to the due date', async () => {
+	renderAt('/tasks/new')
+
+	const time = await screen.findByLabelText('Time')
+	expect(time).toHaveValue('')
+	expect(time).toHaveAttribute('type', 'time')
+	expect(screen.getByLabelText('Due date').compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(time.compareDocumentPosition(screen.getByLabelText('Priority')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('creates a task at the time chosen in the form', async () => {
+	renderAt('/tasks/new')
+	await userEvent.type(await screen.findByLabelText('Title'), 'Order more boxes')
+
+	await userEvent.type(screen.getByLabelText('Time'), '09:30')
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({ title: 'Order more boxes', due_on: today, due_time: '09:30' })
+})
+
+test('creates a task with no time when the Time field stays empty', async () => {
+	renderAt('/tasks/new')
+	await userEvent.type(await screen.findByLabelText('Title'), 'Order more boxes')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).not.toHaveProperty('due_time')
+})
+
+test('creates a task with no time once the reader empties the Time field', async () => {
+	renderAt('/tasks/new')
+	await userEvent.type(await screen.findByLabelText('Title'), 'Order more boxes')
+	const time = screen.getByLabelText('Time')
+	await userEvent.type(time, '09:30')
+
+	await userEvent.clear(time)
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).not.toHaveProperty('due_time')
 })
 
 test('creates a task with a raised priority', async () => {

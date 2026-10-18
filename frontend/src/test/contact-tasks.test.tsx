@@ -43,6 +43,7 @@ function taskRow(id: string, title: string, dueOn: string) {
 		status: 'open',
 		priority: 0,
 		due_on: dueOn,
+		due_time: null as string | null,
 	}
 }
 
@@ -54,7 +55,24 @@ function taskNode(row: ReturnType<typeof taskRow>) {
 		status: row.status,
 		priority: row.priority,
 		dueOn: row.due_on,
+		dueTime: row.due_time,
 	}
+}
+
+/**
+ * Orders two open tasks as the server lists them, by priority, day, then time with an untimed one after, then creation.
+ * @param first - One task.
+ * @param second - The other task.
+ * @returns A negative number when the first task lists first.
+ */
+function serverOrder(first: ReturnType<typeof taskRow>, second: ReturnType<typeof taskRow>) {
+	const clock = (row: ReturnType<typeof taskRow>) => row.due_time ?? '24:00'
+	return (
+		second.priority - first.priority ||
+		first.due_on.localeCompare(second.due_on) ||
+		clock(first).localeCompare(clock(second)) ||
+		first.id.localeCompare(second.id)
+	)
 }
 
 function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor: string | null = null) {
@@ -75,6 +93,7 @@ function contactDetail(id: string, rows: ReturnType<typeof taskRow>[], endCursor
 					status: row.status,
 					priority: row.priority,
 					dueOn: row.due_on,
+					dueTime: row.due_time,
 					contact: { __typename: 'Contact', id, name: 'Maria Perez' },
 				},
 				cursor: row.id,
@@ -101,10 +120,17 @@ beforeEach(() => {
 		}),
 		graphql.mutation('CreateTask', ({ variables }) => {
 			const input = variables.input as Record<string, unknown>
-			created.push({ title: input.title, due_on: input.dueOn, contact_id: input.contactId, priority: input.priority })
+			created.push({
+				title: input.title,
+				due_on: input.dueOn,
+				contact_id: input.contactId,
+				priority: input.priority,
+				...('dueTime' in input ? { due_time: input.dueTime } : {}),
+			})
 			const row = {
 				...taskRow('0198c000-0000-7000-8000-000000000404', String(input.title), String(input.dueOn)),
 				priority: Number(input.priority ?? 0),
+				due_time: typeof input.dueTime === 'string' ? input.dueTime : null,
 			}
 			tasks = [...tasks, row]
 			return HttpResponse.json({
@@ -114,7 +140,8 @@ beforeEach(() => {
 		graphql.mutation('UpdateTask', ({ variables }) => {
 			const input = variables.input as { status?: string; dueOn?: string }
 			const id = String(variables.id)
-			patched.push({ id, status: input.status, due_on: input.dueOn })
+			const timed = 'dueTime' in input ? { due_time: input.dueTime } : {}
+			patched.push({ id, status: input.status, due_on: input.dueOn, ...timed })
 			tasks = tasks.filter((row) => row.id !== id)
 			return HttpResponse.json({
 				data: {
@@ -147,6 +174,67 @@ test('lists the open tasks of a contact with their due dates', async () => {
 	expect(contactFilters).toContain(contactID)
 })
 
+test('shows the time of a contact task before its title and keeps its due date after it', async () => {
+	tasks = [
+		{ ...taskRow(callID, 'Call her back', today), due_time: '09:30' },
+		taskRow(quoteID, 'Send the quote', tomorrow),
+	]
+
+	renderAt(`/contacts/${contactID}`)
+
+	const row = await screen.findByRole('listitem', { name: 'Call her back' })
+	const time = within(row).getByText('09:30')
+	const title = row.querySelector('.alphone-tasks__title') as Element
+	const due = within(row).getByText(dueLabel(today))
+	expect(time.tagName).toBe('TIME')
+	expect(time).toHaveClass('alphone-tasks__time')
+	expect(row.querySelector('.alphone-tasks__check')?.compareDocumentPosition(time)).toBe(
+		Node.DOCUMENT_POSITION_FOLLOWING,
+	)
+	expect(time.nextElementSibling).toBe(title)
+	expect(time.parentElement).toHaveClass('alphone-tasks__lead')
+	expect(time.parentElement?.parentElement).toBe(row)
+	expect(title.compareDocumentPosition(due) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('leaves the time column blank on a contact task with no time, as wide as a timed one', async () => {
+	tasks = [
+		{ ...taskRow(callID, 'Call her back', today), due_time: '09:30' },
+		taskRow(quoteID, 'Send the quote', tomorrow),
+	]
+
+	renderAt(`/contacts/${contactID}`)
+
+	const timed = (await screen.findByRole('listitem', { name: 'Call her back' })).querySelector('.alphone-tasks__time')
+	const untimed = screen.getByRole('listitem', { name: 'Send the quote' }).querySelector('.alphone-tasks__time')
+	expect(untimed).toBeEmptyDOMElement()
+	expect(untimed?.nextElementSibling).toHaveClass('alphone-tasks__title')
+	expect(untimed?.className).toBe(timed?.className)
+	expect(untimed?.getAttribute('data-morning')).toBe(timed?.getAttribute('data-morning'))
+	expect(untimed?.getAttribute('data-evening')).toBe(timed?.getAttribute('data-evening'))
+})
+
+test('keeps the contact tasks in the order the server lists them, each row with its time', async () => {
+	tasks = [
+		taskRow(callID, 'Call her back', today),
+		{ ...taskRow(quoteID, 'Send the quote', today), due_time: '11:00' },
+		{ ...taskRow('0198c000-0000-7000-8000-000000000405', 'Book the visit', today), due_time: '09:00' },
+	]
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({ data: { contact: contactDetail(String(variables.id), tasks.toSorted(serverOrder)) } }),
+		),
+	)
+
+	renderAt(`/contacts/${contactID}`)
+
+	const list = await screen.findByRole('list', { name: 'Contact tasks' })
+	const rows = within(list).getAllByRole('listitem')
+	const titles = rows.map((row) => row.getAttribute('aria-label'))
+	expect(titles).toEqual(['Book the visit', 'Send the quote', 'Call her back'])
+	expect(rows.map((row) => row.querySelector('.alphone-tasks__time')?.textContent)).toEqual(['09:00', '11:00', ''])
+})
+
 test('leaves the contact name off the tasks on their own contact page', async () => {
 	renderAt(`/contacts/${contactID}`)
 
@@ -168,6 +256,7 @@ test('opens a task from the contact page', async () => {
 						status: 'open',
 						priority: 0,
 						dueOn: today,
+						dueTime: null,
 						contactId: null,
 						contact: null,
 					},
@@ -334,7 +423,38 @@ test('keeps Add task off while the due date is empty', async () => {
 	expect(screen.getByRole('button', { name: 'Add task' })).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('lays the task title, the due date, the priority and Add task on one form row', async () => {
+test('adds a task for the contact at the chosen time and shows the time on its row', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
+	await userEvent.type(screen.getByLabelText('Time'), '16:45')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toMatchObject({
+		title: 'Send the invoice',
+		contact_id: contactID,
+		due_on: today,
+		due_time: '16:45',
+	})
+	const row = await screen.findByRole('listitem', { name: 'Send the invoice' })
+	expect(within(row).getByText('16:45')).toHaveClass('alphone-tasks__time')
+	await waitFor(() => expect(screen.getByLabelText('Time')).toHaveValue(''))
+})
+
+test('adds a task for the contact with no time while the Time field stays empty', async () => {
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByRole('list', { name: 'Contact tasks' })
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Send the invoice')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).not.toHaveProperty('due_time')
+})
+
+test('lays the task title, the due date, the time, the priority and Add task on one form row', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -344,6 +464,7 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	await screen.findByRole('list', { name: 'Contact tasks' })
 	const title = screen.getByRole('textbox', { name: 'Task title' })
 	const due = screen.getByLabelText('Due date')
+	const time = screen.getByLabelText('Time')
 	const priority = screen.getByLabelText('Priority')
 	const add = screen.getByRole('button', { name: 'Add task' })
 
@@ -351,10 +472,11 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	expect(row).not.toBeNull()
 	expect(row?.parentElement).toHaveClass('godmin-form')
 	const cells = [...(row as Element).children]
-	expect(cells).toHaveLength(4)
-	const fieldCells = [title, due, priority].map((field) => cells.find((cell) => cell.contains(field)))
+	expect(cells).toHaveLength(5)
+	const fieldCells = [title, due, time, priority].map((field) => cells.find((cell) => cell.contains(field)))
 	expect(fieldCells).not.toContain(undefined)
-	expect(new Set(fieldCells).size).toBe(3)
+	expect(new Set(fieldCells).size).toBe(4)
+	expect(fieldCells.map((cell) => cells.indexOf(cell as Element))).toEqual([0, 1, 2, 3])
 	expect(add.parentElement).toBe(row)
 	expect(cells.at(-1)).toBe(add)
 
@@ -384,6 +506,7 @@ test('gives the contact task title the widest share of the form row', async () =
 	expect(grown).not.toBeNull()
 	expect(grown?.parentElement).toBe(row)
 	expect(screen.getByLabelText('Due date').closest('.godmin-form__grow')).toBeNull()
+	expect(screen.getByLabelText('Time').closest('.godmin-form__grow')).toBeNull()
 })
 
 test('names the contact task title with a visible label and no placeholder', async () => {
@@ -448,7 +571,7 @@ test('shows a high task added after loading more at the top of the contact tasks
 	)
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) => {
-			const listed = tasks.toSorted((first, second) => second.priority - first.priority)
+			const listed = tasks.toSorted(serverOrder)
 			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
 			const end = start + Number(variables.first)
 			const shown = listed.slice(start, end)

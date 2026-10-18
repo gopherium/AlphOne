@@ -8,6 +8,9 @@ let named: string | undefined
 /** CALENDAR_DAY is the shape of a bare calendar day, such as 2026-09-30. */
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/
 
+/** WALL_CLOCK is the shape of a bare wall clock time, such as 09:30. */
+const WALL_CLOCK = /^\d{2}:\d{2}$/
+
 /** DAY is how a date is written. */
 const DAY: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' }
 
@@ -31,12 +34,15 @@ function formatLocale(): string {
 }
 
 /**
- * Returns a moment and the options it is written with, a bare calendar day kept on the day it names.
+ * Returns a moment and the options it is written with, a bare calendar day or wall clock time kept on what it names.
  * @param at - The moment, or the text a server stored.
  * @param options - How the moment is written.
  * @returns The moment as a date beside the options to write it with.
  */
 function moment(at: Date | string, options: Intl.DateTimeFormatOptions): [Date, Intl.DateTimeFormatOptions] {
+	if (typeof at === 'string' && WALL_CLOCK.test(at)) {
+		return [new Date(`1970-01-01T${at}:00Z`), { ...options, timeZone: 'UTC' }]
+	}
 	const day = typeof at === 'string' && CALENDAR_DAY.test(at)
 	return [new Date(at), day ? { ...options, timeZone: 'UTC' } : options]
 }
@@ -53,11 +59,12 @@ export function formatDate(at: Date | string): string {
 
 /**
  * Returns a moment as a time of day in the format locale.
- * @param at - The moment, or the text a server stored.
+ * @param at - The moment, the text a server stored, or a bare wall clock time.
  * @returns The time, such as 09:05.
  */
 export function formatTime(at: Date | string): string {
-	return new Date(at).toLocaleTimeString(formatLocale(), CLOCK)
+	const [shown, options] = moment(at, CLOCK)
+	return shown.toLocaleTimeString(formatLocale(), options)
 }
 
 /**
