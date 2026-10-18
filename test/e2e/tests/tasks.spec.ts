@@ -13,6 +13,161 @@ const levelDay = '2125-03-10'
 /** orderDay is the day the priority order check lists its tasks on, kept clear of the days other tests fill. */
 const orderDay = '2125-04-14'
 
+/** timeDay is the day the time order check lists its tasks on, kept clear of the days other tests fill. */
+const timeDay = '2125-05-19'
+
+/** alignDay is the day the time column geometry check lists its tasks on, kept clear of the days other tests fill. */
+const alignDay = '2125-06-16'
+
+/** formDay is the day the time field check adds its task on, kept clear of the days other tests fill. */
+const formDay = '2125-07-14'
+
+/** halfDay is the day the half typed time check adds its tasks on, kept clear of the days other tests fill. */
+const halfDay = '2125-08-18'
+
+/** overdueDay is the past day the overdue column check leaves its tasks on, kept clear of the days other tests fill. */
+const overdueDay = '2000-06-19'
+
+/** badgeDay is the day the phone badge check lists its task on, kept clear of the days other tests fill. */
+const badgeDay = '2125-09-22'
+
+/** baselineDay is the day the phone time baseline check lists its tasks on, kept clear of the days other tests fill. */
+const baselineDay = '2125-10-20'
+
+/** ListedRow is a task row as the time checks read it, its title beside the text of its time column. */
+type ListedRow = { title: string | null; time: string }
+
+/** TimedPair names a task due at a time and a task with no time. */
+type TimedPair = { timed: string; untimed: string }
+
+/**
+ * Reads the titles and times of the open rows of the day on screen, in the order they are shown.
+ * @param page - The page showing a day of tasks.
+ * @returns Each open row's title and the text of its time column.
+ */
+async function listedRows(page: Page): Promise<ListedRow[]> {
+	return page
+		.getByRole('list', { name: 'Open tasks', exact: true })
+		.getByRole('listitem')
+		.evaluateAll((rows) =>
+			rows.map((row) => ({
+				title: row.getAttribute('aria-label'),
+				time: row.querySelector('.alphone-tasks__time')?.textContent ?? '',
+			})),
+		)
+}
+
+/**
+ * Measures where the time column and the title of a row start and how wide the time column is.
+ * @param page - The page showing the row.
+ * @param title - The title of the task.
+ * @returns The left edge and width of the time column and the left edge of the title.
+ */
+async function timeColumn(page: Page, title: string) {
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	await expect(row).toBeVisible()
+	return row.evaluate((node) => {
+		const time = node.querySelector('.alphone-tasks__time')?.getBoundingClientRect()
+		const cell = node.querySelector('.alphone-tasks__title')?.getBoundingClientRect()
+		return { left: time?.left ?? Number.NaN, width: time?.width ?? 0, titleLeft: cell?.left ?? Number.NaN }
+	})
+}
+
+/**
+ * Checks that a timed and an untimed row draw one time column alike and start their titles level after it.
+ * @param page - The page showing both rows.
+ * @param pair - The titles of the timed and the untimed task.
+ * @param width - The viewport width the rows are drawn at.
+ */
+async function expectLevelTimes(page: Page, pair: TimedPair, width: number) {
+	const withTime = await timeColumn(page, pair.timed)
+	const withoutTime = await timeColumn(page, pair.untimed)
+
+	expect(withTime.width, `the time column is drawn at ${width}`).toBeGreaterThan(0)
+	expect(withoutTime.width, `the blank column is as wide at ${width}`).toBeCloseTo(withTime.width, 0)
+	expect(withoutTime.left, `the blank column starts level at ${width}`).toBeCloseTo(withTime.left, 0)
+	expect(withoutTime.titleLeft, `the titles start level at ${width}`).toBeCloseTo(withTime.titleLeft, 0)
+	expect(withTime.titleLeft, `the title starts after the time at ${width}`).toBeGreaterThan(
+		withTime.left + withTime.width,
+	)
+}
+
+/**
+ * Measures where the time and the first title line of a row end, one font at one size, so equal ends share a baseline.
+ * @param page - The page showing the row.
+ * @param title - The title of the task.
+ * @returns The bottom of the time text, the bottom of the first title line, and how many lines the title cell spans.
+ */
+async function firstLineBaselines(page: Page, title: string) {
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	const lines = await row
+		.getByRole('link', { name: title, exact: true })
+		.evaluate((link) => [...link.getClientRects()].map((line) => line.bottom))
+	const time = await row.locator('time.alphone-tasks__time').evaluate((clock) => {
+		const range = document.createRange()
+		range.selectNodeContents(clock)
+		return range.getBoundingClientRect().bottom
+	})
+	const cellLines = await row
+		.locator('.alphone-tasks__title')
+		.evaluate((cell) =>
+			Math.round(cell.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(cell).lineHeight)),
+		)
+	return { time, title: lines[0], cellLines }
+}
+
+/**
+ * Reads the due date label of a row and whether it follows the title, beside it or on a line below it.
+ * @param page - The page showing the row.
+ * @param title - The title of the task.
+ * @returns The text of the due date label and whether it comes after the title.
+ */
+async function dueLabel(page: Page, title: string) {
+	return page.getByRole('listitem', { name: title, exact: true }).evaluate((node) => {
+		const due = node.querySelector('.alphone-tasks__due')
+		const cell = node.querySelector('.alphone-tasks__title')?.getBoundingClientRect()
+		const box = due?.getBoundingClientRect()
+		if (!box || !cell) {
+			return { text: due?.textContent ?? null, after: false }
+		}
+		return { text: due?.textContent ?? null, after: box.left >= cell.right || box.top >= cell.bottom }
+	})
+}
+
+/**
+ * Records the bodies of the task writes a page sends.
+ * @param page - The page to listen on.
+ * @returns The list the bodies of CreateTask and UpdateTask requests are added to as they leave.
+ */
+function taskWrites(page: Page): string[] {
+	const writes: string[] = []
+	page.on('request', (sent) => {
+		const body = sent.postData() ?? ''
+		if (/"operationName":"(CreateTask|UpdateTask)"/.test(body)) {
+			writes.push(body)
+		}
+	})
+	return writes
+}
+
+/**
+ * Leaves the Time field half typed, its hour set and its minutes empty.
+ * @param page - The page showing the Time field.
+ * @param from - The time the field holds first, empty for a blank field.
+ */
+async function halfTypeTime(page: Page, from: string) {
+	const time = page.getByLabel('Time', { exact: true })
+	await time.click()
+	if (from === '') {
+		await page.keyboard.type('02')
+	} else {
+		await page.keyboard.press('ArrowRight')
+		await page.keyboard.press('Backspace')
+	}
+	await expect.poll(() => time.evaluate((field: HTMLInputElement) => field.validity.badInput)).toBe(true)
+	await expect(time).toHaveValue('')
+}
+
 /** LinkedPair names a task linked to a contact and a task with no contact, titled alike. */
 type LinkedPair = { linked: string; unlinked: string }
 
@@ -256,6 +411,195 @@ test('lists a high task above the normal work of its day', async ({ page, reques
 		.evaluateAll((rows) => rows.map((row) => row.getAttribute('aria-label')))
 	expect(titles.indexOf(raised)).toBeGreaterThanOrEqual(0)
 	expect(titles.indexOf(raised)).toBeLessThan(titles.indexOf(normal))
+})
+
+test('lists the timed work of a day by priority, then by time, each time shown before its title', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const late = `Call the supplier ${stamp}`
+	const early = `Approve the pricing ${stamp}`
+	const normal = `Send the quote ${stamp}`
+	await createTask(request, { title: late, dueOn: timeDay, dueTime: '11:00', priority: 1 })
+	await createTask(request, { title: early, dueOn: timeDay, dueTime: '09:00', priority: 1 })
+	await createTask(request, { title: normal, dueOn: timeDay, dueTime: '09:00' })
+
+	await page.goto(`/tasks?date=${timeDay}`)
+
+	await expect(page.getByRole('listitem', { name: normal, exact: true })).toBeVisible()
+	const ours = (await listedRows(page)).filter((row) => row.title?.endsWith(` ${stamp}`))
+	expect(ours).toEqual([
+		{ title: early, time: '09:00' },
+		{ title: late, time: '11:00' },
+		{ title: normal, time: '09:00' },
+	])
+})
+
+test('lines the titles up behind one time column on timed and untimed rows, on a desktop and on a phone', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const pair = { timed: `Confirm the delivery window ${stamp}`, untimed: `Check the stock count ${stamp}` }
+	await createTask(request, { title: pair.timed, dueOn: alignDay, dueTime: '08:45' })
+	await createTask(request, { title: pair.untimed, dueOn: alignDay })
+
+	for (const size of [
+		{ width: 1280, height: 800 },
+		{ width: 390, height: 844 },
+	]) {
+		await page.setViewportSize(size)
+		await page.goto(`/tasks?date=${alignDay}`)
+		await expectLevelTimes(page, pair, size.width)
+	}
+})
+
+test('lines the overdue titles up behind one time column, due dates after them, on a desktop and a phone', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const pair = { timed: `Chase the unpaid invoice ${stamp}`, untimed: `Renew the shop domain ${stamp}` }
+	const timed = await createTask(request, { title: pair.timed, dueOn: overdueDay, dueTime: '08:45' })
+	const untimed = await createTask(request, { title: pair.untimed, dueOn: overdueDay })
+
+	try {
+		for (const size of [
+			{ width: 1280, height: 800 },
+			{ width: 390, height: 844 },
+		]) {
+			await page.setViewportSize(size)
+			await page.goto('/tasks')
+			const overdue = page.getByRole('list', { name: 'Overdue tasks', exact: true })
+			await expect(overdue.getByRole('listitem', { name: pair.untimed, exact: true })).toBeVisible()
+			await expect(overdue.getByRole('listitem', { name: pair.timed, exact: true })).toBeVisible()
+			await expectLevelTimes(page, pair, size.width)
+			for (const title of [pair.timed, pair.untimed]) {
+				expect(await dueLabel(page, title), `the due date follows the title at ${size.width}`).toEqual({
+					text: 'Due 19/06/2000',
+					after: true,
+				})
+			}
+		}
+	} finally {
+		for (const task of [timed, untimed]) {
+			await graph(
+				request,
+				'mutation($id: UUID!, $input: UpdateTaskInput!) { updateTask(id: $id, input: $input) { id } }',
+				{ id: task.id, input: { status: 'done' } },
+			)
+		}
+	}
+})
+
+test('keeps the High badge of a timed task on its title line on a phone in English', async ({ page, request }) => {
+	const title = `Approve the pricing ${Date.now()}`
+	await createTask(request, { title, dueOn: badgeDay, dueTime: '09:30', priority: 1 })
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto(`/tasks?date=${badgeDay}`)
+
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	const badge = row.getByText('High', { exact: true })
+	await expect(badge).toBeVisible()
+	const cell = await row.locator('.alphone-tasks__title').evaluate((node) => {
+		const box = node.getBoundingClientRect()
+		return { top: box.top, bottom: box.bottom }
+	})
+	const middle = await badge.evaluate((node) => {
+		const box = node.getBoundingClientRect()
+		return box.top + box.height / 2
+	})
+
+	expect(middle, 'the badge drops below the title line').toBeGreaterThan(cell.top)
+	expect(middle, 'the badge drops below the title line').toBeLessThan(cell.bottom)
+})
+
+test('sets the time level with the first line of a wrapped title and of a title with its contact, on a phone', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const contact = await graph<{ createContact: { id: string } }>(
+		request,
+		'mutation($name: String!) { createContact(name: $name) { id } }',
+		{ name: `Maria Perez ${stamp}` },
+	)
+	const wrapped = `Confirm the delivery window with the warehouse team before the weekend ${stamp}`
+	const linked = `Call the supplier back ${stamp}`
+	const contactId = contact.createContact.id
+	await createTask(request, { title: wrapped, dueOn: baselineDay, dueTime: '08:45' })
+	await createTask(request, { title: linked, dueOn: baselineDay, dueTime: '11:30', contactId })
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto(`/tasks?date=${baselineDay}`)
+	await expect(page.getByRole('listitem', { name: linked, exact: true })).toBeVisible()
+
+	for (const title of [wrapped, linked]) {
+		const level = await firstLineBaselines(page, title)
+		const offset = Math.abs(level.time - level.title)
+		expect(level.cellLines, `the title cell of ${title} spans more than one line`).toBeGreaterThan(1)
+		expect(offset, `the time of ${title} sits off its first title line`).toBeLessThanOrEqual(2)
+	}
+})
+
+test('holds a half typed time back from a save and from the quick add, sending nothing until it is whole', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const saved = `Pack the samples ${stamp}`
+	const added = `Label the samples ${stamp}`
+	const created = await createTask(request, { title: saved, dueOn: halfDay, dueTime: '09:30' })
+	const writes = taskWrites(page)
+
+	await page.goto(`/tasks/${created.id}`)
+	await expect(page.getByLabel('Time', { exact: true })).toHaveValue('09:30')
+	await halfTypeTime(page, '09:30')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await page.getByLabel('Time', { exact: true }).fill('09:45')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await expect(page.locator('.godmin-toasts').getByText('Task saved.', { exact: true })).toBeVisible()
+	expect(writes.map((body) => JSON.parse(body).variables.input.dueTime)).toEqual(['09:45'])
+
+	await page.goto(`/tasks?date=${halfDay}`)
+	await page.getByRole('textbox', { name: 'Task title', exact: true }).fill(added)
+	await halfTypeTime(page, '')
+	await page.getByRole('button', { name: 'Add task', exact: true }).click()
+	await page.getByRole('textbox', { name: 'Task title', exact: true }).press('Enter')
+	await page.getByLabel('Time', { exact: true }).fill('14:30')
+	await page.getByRole('button', { name: 'Add task', exact: true }).click()
+	await expect(page.getByRole('listitem', { name: added, exact: true }).locator('time')).toHaveText('14:30')
+	expect(writes.map((body) => JSON.parse(body).variables.input.dueTime)).toEqual(['09:45', '14:30'])
+})
+
+test('adds a task at a time from the tasks screen, shows it on the row and clears it from the detail', async ({
+	page,
+}) => {
+	const title = `Book the courier ${Date.now()}`
+
+	await page.goto(`/tasks?date=${formDay}`)
+	await page.getByRole('textbox', { name: 'Task title', exact: true }).fill(title)
+	await page.getByLabel('Time', { exact: true }).fill('14:30')
+	await page.getByRole('button', { name: 'Add task', exact: true }).click()
+
+	const row = page.getByRole('listitem', { name: title, exact: true })
+	await expect(row.locator('time.alphone-tasks__time')).toHaveText('14:30')
+	await expect(row.locator('time.alphone-tasks__time')).toHaveAttribute('datetime', '14:30')
+	await expect(page.getByLabel('Time', { exact: true })).toHaveValue('')
+
+	await row.getByRole('link', { name: title, exact: true }).click()
+	await expect(page.getByRole('heading', { name: title })).toBeVisible()
+	await expect(page.getByLabel('Time', { exact: true })).toHaveValue('14:30')
+	await page.getByLabel('Time', { exact: true }).fill('')
+	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await expect(page.locator('.godmin-toasts').getByText('Task saved.', { exact: true })).toBeVisible()
+
+	await page.goto(`/tasks?date=${formDay}`)
+	await expect(row).toBeVisible()
+	await expect(row.locator('.alphone-tasks__time')).toHaveText('')
+	await expect(row.locator('time')).toHaveCount(0)
 })
 
 test('opens the contact of a task from its name on the row', async ({ page, request }) => {

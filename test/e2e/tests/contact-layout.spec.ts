@@ -81,13 +81,34 @@ test('stacks the fields under the tasks on a tablet and keeps the task form insi
 		const row = [...document.querySelectorAll('.alphone-tasks__row')].find(
 			(candidate) => candidate.getAttribute('aria-label') === name,
 		)
-		const title = row?.querySelector('.alphone-tasks__title')
-		if (!row || !title) {
+		const lead = row?.querySelector('.alphone-tasks__lead')
+		if (!row || !lead) {
 			throw new Error('the contact rendered no task row')
 		}
-		return title.getBoundingClientRect().width / row.getBoundingClientRect().width
+		return lead.getBoundingClientRect().width / row.getBoundingClientRect().width
 	}, `Approve the pricing before the renewal ${stamp}`)
 	expect(share).toBeGreaterThan(0.5)
+})
+
+test('keeps the title, the due date and Postpone of a normal contact task on one line on a desktop', async ({
+	page,
+	request,
+}) => {
+	const { stamp } = await openContact(page, request, { width: 1280, height: 720 })
+	const row = page.getByRole('listitem', { name: `Approve the pricing before the renewal ${stamp}`, exact: true })
+	await expect(row.getByRole('button', { name: 'Postpone', exact: true })).toBeVisible()
+
+	const line = await row.evaluate((node) => {
+		const title = node.querySelector('.alphone-tasks__title')?.getBoundingClientRect()
+		const beside = (selector: string) => {
+			const box = node.querySelector(selector)?.getBoundingClientRect()
+			const middle = box ? box.top + box.height / 2 : Number.NaN
+			return title !== undefined && middle > title.top && middle < title.bottom
+		}
+		return { due: beside('.alphone-tasks__due'), postpone: beside('.alphone-tasks__push') }
+	})
+
+	expect(line, 'the due date and Postpone sit on the title line').toEqual({ due: true, postpone: true })
 })
 
 test('moves the fields under the tasks on a phone', async ({ page, request }) => {

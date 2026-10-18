@@ -78,19 +78,20 @@ test.describe('on a phone', () => {
 				(candidate) => candidate.getAttribute('aria-label') === name,
 			)
 			const title = row?.querySelector('.alphone-tasks__title')
-			if (!row || !title) {
+			const lead = title?.closest('.alphone-tasks__lead')
+			if (!row || !title || !lead) {
 				throw new Error('the screen rendered no task row')
 			}
 			const rowBox = row.getBoundingClientRect()
 			const titleBox = title.getBoundingClientRect()
 			const line = parseFloat(getComputedStyle(title).lineHeight)
 			return {
-				titleShare: titleBox.width / rowBox.width,
+				leadShare: lead.getBoundingClientRect().width / rowBox.width,
 				titleLines: Math.round(titleBox.height / line),
 			}
 		}, title)
 
-		expect(geometry.titleShare).toBeGreaterThan(0.5)
+		expect(geometry.leadShare).toBeGreaterThan(0.5)
 		expect(geometry.titleLines).toBeLessThanOrEqual(2)
 	})
 
