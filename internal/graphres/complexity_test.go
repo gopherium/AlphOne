@@ -68,20 +68,20 @@ func TestRealScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 				id name createdAt
 				identities { id channel identifier displayName }
 				tasks(status: "open", first: $first, after: $after) {
-					edges { node { id title status priority dueOn } cursor }
+					edges { node { id title status priority dueOn dueTime } cursor }
 					pageInfo { hasNextPage endCursor }
 				}
 			}
 		}`,
 		"day tasks": `query DayTasks($date: Date!, $status: String!, $first: Int!, $after: String) {
 			tasks(date: $date, status: $status, first: $first, after: $after) {
-				edges { node { id title status priority dueOn } cursor }
+				edges { node { id title status priority dueOn dueTime contact { id name } } cursor }
 				pageInfo { hasNextPage endCursor }
 			}
 		}`,
 		"task detail": `query TaskDetail($id: UUID!) {
 			task(id: $id) {
-				id title status priority dueOn contactId
+				id title status priority dueOn dueTime contactId
 				contact { id name }
 			}
 		}`,
