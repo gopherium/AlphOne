@@ -11,6 +11,7 @@ import {
 	__,
 	_x,
 	commentAuthorAvatar,
+	formatTime,
 } from '@alphone/frontend-sdk'
 import { Link as RouterLink } from '@tanstack/react-router'
 
@@ -23,6 +24,7 @@ export interface ListedTask {
 	status: string
 	priority: number
 	dueOn: string
+	dueTime: string | null
 	contact?: { id: string; name: string } | null
 }
 
@@ -30,6 +32,12 @@ export interface RowControls {
 	onChange: (task: ListedTask) => void
 	onPush: (task: ListedTask) => void
 	pendingID: string
+}
+
+/** ClockRoom holds the widest times the format locale writes, one each side of noon, sizing every time column. */
+interface ClockRoom {
+	morning: string
+	evening: string
 }
 
 /**
@@ -47,6 +55,7 @@ export function TaskList({
 	controls: RowControls
 	showDueDate?: boolean
 }) {
+	const room = { morning: formatTime('10:00'), evening: formatTime('22:00') }
 	return (
 		<Stack
 			direction="column"
@@ -60,9 +69,26 @@ export function TaskList({
 					task={task}
 					controls={controls}
 					showDueDate={showDueDate}
+					room={room}
 				/>
 			))}
 		</Stack>
+	)
+}
+
+/**
+ * Renders the time a task is due at in the column before its title, blank for a task with no time.
+ * @returns The time column.
+ */
+function DueTime({ time, room }: { time: string | null; room: ClockRoom }) {
+	const column = { className: 'alphone-tasks__time', 'data-morning': room.morning, 'data-evening': room.evening }
+	if (time === null) {
+		return <Text variant="body-md" {...column} />
+	}
+	return (
+		<Text variant="body-md" {...column} render={<time dateTime={time} />}>
+			{formatTime(time)}
+		</Text>
 	)
 }
 
@@ -74,10 +100,12 @@ function TaskRow({
 	task,
 	controls,
 	showDueDate,
+	room,
 }: {
 	task: ListedTask
 	controls: RowControls
 	showDueDate: boolean
+	room: ClockRoom
 }) {
 	const done = task.status === 'done'
 	return (
@@ -96,19 +124,22 @@ function TaskRow({
 				className="alphone-tasks__check"
 				onCheckedChange={() => controls.onChange(task)}
 			/>
-			<Text
-				variant="body-md"
-				className={`alphone-tasks__title${done ? ' alphone-tasks__title--done' : ''}`}
-			>
-				<Link
-					variant="unstyled"
-					className="alphone-tasks__title-link"
-					render={<RouterLink to="/tasks/$taskId" params={{ taskId: task.id }} />}
+			<Stack direction="row" gap="md" align="start" className="alphone-tasks__lead">
+				<DueTime time={task.dueTime} room={room} />
+				<Text
+					variant="body-md"
+					className={`alphone-tasks__title${done ? ' alphone-tasks__title--done' : ''}`}
 				>
-					{task.title}
-				</Link>
-				{task.contact ? <OpenContact contact={task.contact} /> : null}
-			</Text>
+					<Link
+						variant="unstyled"
+						className="alphone-tasks__title-link"
+						render={<RouterLink to="/tasks/$taskId" params={{ taskId: task.id }} />}
+					>
+						{task.title}
+					</Link>
+					{task.contact ? <OpenContact contact={task.contact} /> : null}
+				</Text>
+			</Stack>
 			{task.priority > 0 ? <Badge intent="high">{_x('High', 'task priority', 'alphone')}</Badge> : null}
 			{showDueDate ? (
 				<Text variant="body-sm" className="alphone-tasks__due">

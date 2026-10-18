@@ -59,6 +59,7 @@ function taskRow(id: string, title: string, status = 'open', priority = 0) {
 		status,
 		priority,
 		due_on: today,
+		due_time: null as string | null,
 		contact: null as typeof linkedContact | null,
 	}
 }
@@ -71,6 +72,7 @@ function taskNode(row: ReturnType<typeof taskRow>) {
 		status: row.status,
 		priority: row.priority,
 		dueOn: row.due_on,
+		dueTime: row.due_time,
 	}
 }
 
@@ -86,6 +88,7 @@ function taskPage(rows: ReturnType<typeof taskRow>[], endCursor: string | null =
 				status: row.status,
 				priority: row.priority,
 				dueOn: row.due_on,
+				dueTime: row.due_time,
 				contact: row.contact === null ? null : { __typename: 'Contact', ...row.contact },
 			},
 			cursor: row.id,
@@ -126,9 +129,10 @@ beforeEach(() => {
 			return HttpResponse.json({ data: { tasks: taskPage(overdue.filter((row) => row.due_on < dueBefore)) } })
 		}),
 		graphql.mutation('UpdateTask', ({ variables }) => {
-			const input = variables.input as { status?: string; dueOn?: string }
+			const input = variables.input as { status?: string; dueOn?: string; dueTime?: string | null }
 			const id = String(variables.id)
-			patched.push({ id, body: { status: input.status, due_on: input.dueOn } })
+			const timed = 'dueTime' in input ? { due_time: input.dueTime } : {}
+			patched.push({ id, body: { status: input.status, due_on: input.dueOn, ...timed } })
 			const stored = [...tasks, ...overdue].find((row) => row.id === id)
 			if (stored === undefined) {
 				return HttpResponse.json({ data: null, errors: [{ message: 'task: not found' }] })
@@ -137,15 +141,20 @@ beforeEach(() => {
 				...stored,
 				status: input.status ?? stored.status,
 				due_on: input.dueOn ?? stored.due_on,
+				due_time: input.dueTime === undefined ? stored.due_time : input.dueTime,
 			}
 			tasks = tasks.map((row) => (row.id === updated.id ? updated : row))
 			overdue = overdue.map((row) => (row.id === updated.id ? updated : row))
 			return HttpResponse.json({ data: { updateTask: taskNode(updated) } })
 		}),
 		graphql.mutation('CreateTask', ({ variables }) => {
-			const input = variables.input as { title: string; dueOn: string; priority?: number }
+			const input = variables.input as { title: string; dueOn: string; dueTime?: string; priority?: number }
 			created.push({ ...input })
-			const row = { ...taskRow(addedID, input.title, 'open', input.priority ?? 0), due_on: input.dueOn }
+			const row = {
+				...taskRow(addedID, input.title, 'open', input.priority ?? 0),
+				due_on: input.dueOn,
+				due_time: input.dueTime ?? null,
+			}
 			tasks = [...tasks, row]
 			return HttpResponse.json({
 				data: { createTask: { __typename: 'CreateTaskPayload', task: taskNode(row), replay: false } },
@@ -172,6 +181,11 @@ async function pickDue(day: string) {
 	const due = screen.getByLabelText('Due date')
 	await userEvent.clear(due)
 	await userEvent.type(due, day)
+}
+
+/** Types a time in the quick add time field. */
+async function pickTime(time: string) {
+	await userEvent.type(screen.getByLabelText('Time'), time)
 }
 
 /** Picks the High priority in the quick add priority field. */
@@ -340,6 +354,129 @@ test('marks a raised priority on the row', async () => {
 	expect(within(row).getByText('High')).toBeInTheDocument()
 })
 
+test('shows the time of a timed task in its own column before the title', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_time: '09:30' }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	const time = within(row).getByText('09:30')
+	expect(time.tagName).toBe('TIME')
+	expect(time).toHaveAttribute('datetime', '09:30')
+	expect(time).toHaveClass('alphone-tasks__time')
+	expect([...time.classList]).toEqual(expect.arrayContaining(textClasses('body-md')))
+	expect(row.querySelector('.alphone-tasks__check')?.compareDocumentPosition(time)).toBe(
+		Node.DOCUMENT_POSITION_FOLLOWING,
+	)
+	expect(time.nextElementSibling).toHaveClass('alphone-tasks__title')
+})
+
+test('leaves the time column blank on a task with no time', async () => {
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	const column = row.querySelector('.alphone-tasks__time')
+	expect(column).not.toBeNull()
+	expect(column).toBeEmptyDOMElement()
+	expect(column?.tagName).not.toBe('TIME')
+	expect(row.querySelector('.alphone-tasks__check')?.compareDocumentPosition(column as Element)).toBe(
+		Node.DOCUMENT_POSITION_FOLLOWING,
+	)
+	expect(column?.nextElementSibling).toHaveClass('alphone-tasks__title')
+})
+
+test('holds the time and the title in one lead group after the check, on timed and untimed rows', async () => {
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_time: '09:30' }, taskRow(quoteID, 'Send the quote')]
+
+	renderAt('/tasks')
+
+	const list = await screen.findByRole('list', { name: 'Open tasks' })
+	await within(list).findByRole('listitem', { name: 'Send the quote' })
+	for (const row of within(list).getAllByRole('listitem')) {
+		const check = row.querySelector('.alphone-tasks__check')
+		const lead = row.querySelector('.alphone-tasks__time')?.parentElement
+		expect(lead).toHaveClass('alphone-tasks__lead')
+		expect(lead?.parentElement).toBe(row)
+		expect(check?.parentElement).toBe(row)
+		expect(check?.compareDocumentPosition(lead as Element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+		expect([...(lead?.children ?? [])]).toEqual([
+			row.querySelector('.alphone-tasks__time'),
+			row.querySelector('.alphone-tasks__title'),
+		])
+		expect(lead).toHaveStyle({ alignItems: 'start' })
+	}
+})
+
+test('writes the time in the format locale', async () => {
+	rememberFormatLocale('en-US')
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_time: '21:05' }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	expect(within(row).getByText('09:05 PM')).toHaveAttribute('datetime', '21:05')
+})
+
+test('sizes the time column alike on timed and untimed rows from the widest times of the format locale', async () => {
+	rememberFormatLocale('en-US')
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_time: '09:30' }, taskRow(quoteID, 'Send the quote')]
+
+	renderAt('/tasks')
+
+	await screen.findByRole('listitem', { name: 'Call the supplier' })
+	const timed = screen.getByRole('listitem', { name: 'Call the supplier' }).querySelector('.alphone-tasks__time')
+	const untimed = screen.getByRole('listitem', { name: 'Send the quote' }).querySelector('.alphone-tasks__time')
+	expect(timed).toHaveTextContent('09:30 AM')
+	for (const column of [timed, untimed]) {
+		expect(column).toHaveAttribute('data-morning', '10:00 AM')
+		expect(column).toHaveAttribute('data-evening', '10:00 PM')
+		expect(column?.className).toBe(timed?.className)
+	}
+})
+
+test('shows the time before the title on done work too', async () => {
+	tasks = [taskRow(callID, 'Call the supplier'), { ...taskRow(doneID, 'Book the courier', 'done'), due_time: '08:15' }]
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Done (1)' }))
+
+	const row = await screen.findByRole('listitem', { name: 'Book the courier' })
+	const time = within(row).getByText('08:15')
+	expect(time).toHaveClass('alphone-tasks__time')
+	expect(time.nextElementSibling).toHaveClass('alphone-tasks__title')
+})
+
+test('shows the time before the title on overdue work and keeps its due date after it', async () => {
+	overdue = [{ ...taskRow(oldID, 'Chase the invoice'), due_on: yesterday, due_time: '11:00' }]
+
+	renderAt('/tasks')
+
+	const row = await screen.findByRole('listitem', { name: 'Chase the invoice' })
+	const time = within(row).getByText('11:00')
+	const title = row.querySelector('.alphone-tasks__title') as Element
+	const due = within(row).getByText(dueLabel(yesterday))
+	expect(time.nextElementSibling).toBe(title)
+	expect(title.compareDocumentPosition(due) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(due).toHaveClass('alphone-tasks__due')
+})
+
+test('keeps the time of a postponed task, sending the new day alone', async () => {
+	servePerDay()
+	tasks = [{ ...taskRow(callID, 'Call the supplier'), due_time: '09:30' }]
+	renderAt('/tasks')
+	const row = await screen.findByRole('listitem', { name: 'Call the supplier' })
+
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
+
+	await waitFor(() => expect(patched).toHaveLength(1))
+	expect(patched[0]).toEqual({ id: callID, body: { due_on: tomorrow } })
+	await screen.findByText(movedToast(tomorrow))
+	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
+	const moved = await screen.findByRole('listitem', { name: 'Call the supplier' })
+	expect(within(moved).getByText('09:30')).toHaveClass('alphone-tasks__time')
+})
+
 test('opens the linked contact from its name after the task title', async () => {
 	tasks = [{ ...taskRow(callID, 'Call the supplier'), contact: linkedContact }]
 	server.use(
@@ -456,7 +593,56 @@ test('names the quick add fields as the New task screen does', async () => {
 	await screen.findByText('Call the supplier')
 
 	expect(screen.getByText('Due date', { selector: 'label' })).toBeInTheDocument()
+	expect(screen.getByText('Time', { selector: 'label' })).toBeInTheDocument()
 	expect(screen.getByText('Priority', { selector: 'label' })).toBeInTheDocument()
+})
+
+test('starts the quick add with no time', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	expect(screen.getByLabelText('Time')).toHaveValue('')
+	expect(screen.getByLabelText('Time')).toHaveAttribute('type', 'time')
+})
+
+test('adds a task at the chosen time from the quick add field and shows the time on its row', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickTime('09:30')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toEqual({ title: 'Order more boxes', dueOn: today, dueTime: '09:30', priority: 0 })
+	const row = await screen.findByRole('listitem', { name: 'Order more boxes' })
+	expect(within(row).getByText('09:30')).toHaveClass('alphone-tasks__time')
+	expect(screen.getByText('Task added.')).toBeInTheDocument()
+})
+
+test('starts the next quick add with no time after an add', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickTime('09:30')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	await waitFor(() => expect(screen.getByLabelText('Time')).toHaveValue(''))
+})
+
+test('adds a task with no time once the reader empties the quick add time', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+
+	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
+	await pickTime('09:30')
+	await userEvent.clear(screen.getByLabelText('Time'))
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await waitFor(() => expect(created).toHaveLength(1))
+	expect(created[0]).toEqual({ title: 'Order more boxes', dueOn: today, priority: 0 })
 })
 
 test('adds a task on the day shown at normal priority', async () => {
@@ -628,7 +814,7 @@ test('does not add a task without a title', async () => {
 	)
 })
 
-test('lays the task title, the due date, the priority and Add task on one form row', async () => {
+test('lays the task title, the due date, the time, the priority and Add task on one form row', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -638,6 +824,7 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	await screen.findByText('Call the supplier')
 	const title = screen.getByRole('textbox', { name: 'Task title' })
 	const due = screen.getByLabelText('Due date')
+	const time = screen.getByLabelText('Time')
 	const priority = screen.getByLabelText('Priority')
 	const add = screen.getByRole('button', { name: 'Add task' })
 
@@ -645,10 +832,11 @@ test('lays the task title, the due date, the priority and Add task on one form r
 	expect(row).not.toBeNull()
 	expect(row?.parentElement).toHaveClass('godmin-form')
 	const cells = [...(row as Element).children]
-	expect(cells).toHaveLength(4)
-	const fieldCells = [title, due, priority].map((field) => cells.find((cell) => cell.contains(field)))
+	expect(cells).toHaveLength(5)
+	const fieldCells = [title, due, time, priority].map((field) => cells.find((cell) => cell.contains(field)))
 	expect(fieldCells).not.toContain(undefined)
-	expect(new Set(fieldCells).size).toBe(3)
+	expect(new Set(fieldCells).size).toBe(4)
+	expect(fieldCells.map((cell) => cells.indexOf(cell as Element))).toEqual([0, 1, 2, 3])
 	expect(fieldCells).not.toContain(add)
 	expect(add.parentElement).toBe(row)
 	expect(cells.at(-1)).toBe(add)
@@ -719,13 +907,28 @@ test('loads more tasks through the cursor', async () => {
 	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
 })
 
-/** Serves each day list a page at a time after the cursor it names, higher priority first. */
+/**
+ * Orders two open tasks of a day as the server lists them, by priority, time with an untimed one after, then creation.
+ * @param first - One task.
+ * @param second - The other task.
+ * @returns A negative number when the first task lists first.
+ */
+function serverOrder(first: ReturnType<typeof taskRow>, second: ReturnType<typeof taskRow>) {
+	const clock = (row: ReturnType<typeof taskRow>) => row.due_time ?? '24:00'
+	return (
+		second.priority - first.priority ||
+		clock(first).localeCompare(clock(second)) ||
+		first.id.localeCompare(second.id)
+	)
+}
+
+/** Serves each day list a page at a time after the cursor it names, in the order the server lists it. */
 function serveRanked() {
 	server.use(
 		graphql.query('DayTasks', ({ variables }) => {
 			const listed = tasks
 				.filter((row) => row.status === String(variables.status))
-				.toSorted((first, second) => second.priority - first.priority)
+				.toSorted(serverOrder)
 			const start = variables.after ? listed.findIndex((row) => row.id === variables.after) + 1 : 0
 			const end = start + Number(variables.first)
 			const shown = listed.slice(start, end)
@@ -762,6 +965,29 @@ test('shows a high task added after loading more at the top of the day', async (
 	const open = screen.getByRole('list', { name: 'Open tasks' })
 	await waitFor(() => expect(within(open).getAllByRole('listitem')).toHaveLength(52))
 	expect(within(open).getAllByRole('listitem')[0]).toHaveAttribute('aria-label', 'Approve the pricing')
+})
+
+test('keeps the day in the order the server lists it, each row with its time', async () => {
+	tasks = [
+		taskRow(callID, 'Call the supplier'),
+		{ ...taskRow(quoteID, 'Send the quote', 'open', 1), due_time: '11:00' },
+		{ ...taskRow(oldID, 'Chase the invoice'), due_time: '09:00' },
+		{ ...taskRow(refileID, 'Refile the paperwork', 'open', 1), due_time: '09:00' },
+	]
+	serveRanked()
+
+	renderAt('/tasks')
+
+	await screen.findByText('Call the supplier')
+	const rows = within(screen.getByRole('list', { name: 'Open tasks' })).getAllByRole('listitem')
+	expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+		'Refile the paperwork',
+		'Send the quote',
+		'Chase the invoice',
+		'Call the supplier',
+	])
+	const times = rows.map((row) => row.querySelector('.alphone-tasks__time')?.textContent)
+	expect(times).toEqual(['09:00', '11:00', '09:00', ''])
 })
 
 test('shows open work even when finished tasks fill the first page, counting them in the format locale', async () => {

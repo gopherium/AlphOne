@@ -18,7 +18,7 @@ import {
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { isValidDate, statusMessage } from './format'
+import { isValidDate, statusMessage, timeChange } from './format'
 import { taskDetailQuery, updateTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -32,6 +32,7 @@ interface DetailedTask {
 	status: string
 	priority: number
 	dueOn: string
+	dueTime: string | null
 	contact?: { id: string; name: string } | null
 }
 
@@ -60,7 +61,7 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 	return (
 		<PageScreen title={task.title}>
 			{task.contact ? <ContactLink contact={task.contact} /> : null}
-			<TaskForm key={`${task.title}-${task.dueOn}`} task={task} />
+			<TaskForm key={`${task.title}-${task.dueOn}-${task.dueTime}`} task={task} />
 		</PageScreen>
 	)
 }
@@ -88,13 +89,14 @@ function TaskForm({ task }: { task: DetailedTask }) {
 	const toaster = useToaster()
 	const [title, setTitle] = useState(task.title)
 	const [dueOn, setDueOn] = useState(task.dueOn)
+	const [time, setTime] = useState(task.dueTime ?? '')
 	const [priority, setPriority] = useState(task.priority)
 	const [save, runSave] = useGraphMutation(updateTaskMutation)
 	const [toggle, runToggle] = useGraphMutation(updateTaskMutation)
 	const status = task.status === 'done' ? 'open' : 'done'
 	const runUpdate = async (
 		run: typeof runSave,
-		input: { title?: string; dueOn?: string; priority?: number; status?: string },
+		input: { title?: string; dueOn?: string; dueTime?: string | null; priority?: number; status?: string },
 		message: string,
 	) => {
 		const result = await run({ id: task.id, input })
@@ -109,7 +111,11 @@ function TaskForm({ task }: { task: DetailedTask }) {
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void runUpdate(runSave, { title, dueOn, priority }, __('Task saved.', 'alphone'))
+				void runUpdate(
+					runSave,
+					{ title, dueOn, ...timeChange(time, task.dueTime), priority },
+					__('Task saved.', 'alphone'),
+				)
 			}}
 		>
 			<InputControl label={__('Title', 'alphone')} value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -118,6 +124,12 @@ function TaskForm({ task }: { task: DetailedTask }) {
 				type="date"
 				value={dueOn}
 				onChange={(event) => setDueOn(event.target.value)}
+			/>
+			<InputControl
+				label={__('Time', 'alphone')}
+				type="time"
+				value={time}
+				onChange={(event) => setTime(event.target.value)}
 			/>
 			<PrioritySelect value={priority} onChange={setPriority} />
 			<div className="alphone-tasks__actions">

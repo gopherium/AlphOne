@@ -612,6 +612,9 @@ msgstr ""
 msgid "This workspace has been deactivated. Contact your operator."
 msgstr ""
 
+msgid "Time"
+msgstr ""
+
 msgid "Title"
 msgstr ""
 

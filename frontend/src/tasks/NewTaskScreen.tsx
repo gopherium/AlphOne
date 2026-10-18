@@ -19,7 +19,7 @@ import { useState } from 'react'
 
 import { contactNameQuery, contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { isValidDate } from './format'
+import { isValidDate, timeInput } from './format'
 import { createTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
 
@@ -73,6 +73,7 @@ export function NewTaskScreen({
 	const toaster = useToaster()
 	const [title, setTitle] = useState('')
 	const [dueOn, setDueOn] = useState(date)
+	const [time, setTime] = useState('')
 	const [priority, setPriority] = useState(0)
 	const { contact, setContact, naming } = usePickedContact(contactId)
 	const [create, runCreate] = useGraphMutation(createTaskMutation)
@@ -81,6 +82,7 @@ export function NewTaskScreen({
 			input: {
 				title,
 				dueOn,
+				...timeInput(time),
 				priority,
 				...(contact === null ? {} : { contactId: contact.id }),
 			},
@@ -111,6 +113,12 @@ export function NewTaskScreen({
 					type="date"
 					value={dueOn}
 					onChange={(event) => setDueOn(event.target.value)}
+				/>
+				<InputControl
+					label={__('Time', 'alphone')}
+					type="time"
+					value={time}
+					onChange={(event) => setTime(event.target.value)}
 				/>
 				<PrioritySelect value={priority} onChange={setPriority} />
 				<ContactPicker contact={contact} onPick={setContact} />

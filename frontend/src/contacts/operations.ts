@@ -57,6 +57,7 @@ export const contactDetailQuery = graphql(`
 						status
 						priority
 						dueOn
+						dueTime
 					}
 					cursor
 				}
