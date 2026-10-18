@@ -77,10 +77,13 @@ test.describe('on a phone', () => {
 			const row = [...document.querySelectorAll('.alphone-tasks__row')].find(
 				(candidate) => candidate.getAttribute('aria-label') === name,
 			)
-			const title = row?.querySelector('.alphone-tasks__title')
-			const lead = title?.closest('.alphone-tasks__lead')
-			if (!row || !title || !lead) {
+			if (!row) {
 				throw new Error('the screen rendered no task row')
+			}
+			const title = row.querySelector('.alphone-tasks__title')
+			const lead = title?.closest('.alphone-tasks__lead')
+			if (!title || !lead) {
+				throw new Error('the task row rendered no title inside a lead group')
 			}
 			const rowBox = row.getBoundingClientRect()
 			const titleBox = title.getBoundingClientRect()
