@@ -427,9 +427,7 @@ test('asks before it revokes in a medium modal with no title or close button, as
 	expect(within(dialog).queryByRole('heading')).not.toBeInTheDocument()
 	expect(within(dialog).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
 	expect(within(dialog).getByText('Revoke "n8n production"? This cannot be undone.')).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
-		buttonClasses('minimal', undefined, 'neutral'),
-	)
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
 test('puts the focus on Cancel when the revoke opens, as a WordPress delete does', async () => {
