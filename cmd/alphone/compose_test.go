@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
@@ -306,7 +307,7 @@ func TestRunNamesTheRegistrationFailureBesideARefusedRole(t *testing.T) {
 
 	err := run(t.Context(), getenv, io.Discard, partlyRegisteredWithARefusedRole)
 
-	if !errors.Is(err, errRegistration) || !errors.Is(err, role.ErrEmptyRole) {
+	if !errors.Is(err, errRegistration) || !errors.Is(err, goncierge.ErrInvalidName) {
 		t.Errorf("run() error = %v, want the registration failure and the refused role both named", err)
 	}
 }

@@ -215,8 +215,8 @@ func TestSeedStandsAMemberBesideTheAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UserByEmail() error = %v, want the seeded member", err)
 	}
-	if tier := role.Of(member.Role); tier != role.Member {
-		t.Errorf("the seeded colleague stands in %v, want %v", tier, role.Member)
+	if member.Role != role.Member.String() {
+		t.Errorf("the seeded colleague stands in %q, want %q", member.Role, role.Member.String())
 	}
 	if !strings.Contains(stdout.String(), seedMemberEmail) {
 		t.Errorf("output = %q, want it to name the member the demo can sign in as", stdout.String())

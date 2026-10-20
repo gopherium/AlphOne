@@ -6,6 +6,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
 	accounts "github.com/gopherium/framework/gonsole/auth"
 
@@ -16,12 +17,12 @@ import (
 
 // program returns the alphone command line over getenv and the compiled plugins.
 func program(getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error)) gonsole.Program {
-	return programOver(role.Default, getenv, plugins)
+	return programOver(role.NewRegistry(), getenv, plugins)
 }
 
-// programOver returns the alphone command line declaring plugin roles into registry, serve into role.Default.
+// programOver returns the alphone command line declaring plugin roles into registry, serve into a registry of its own.
 func programOver(
-	registry *role.Registry, getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error),
+	registry *goncierge.Registry, getenv func(string) string, plugins func(sdk.Deps) ([]sdk.Plugin, error),
 ) gonsole.Program {
 	accountCommands := accountConfig(registry)
 	return gonsole.Program{

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/gonsole/testkit"
 
@@ -150,12 +151,12 @@ func TestLoadPluginsStopsThePluginsWhenARoleIsRefused(t *testing.T) {
 	_, err := loadPlugins(role.NewRegistry(), func(sdk.Deps) ([]sdk.Plugin, error) {
 		return []sdk.Plugin{
 			stoppingPlugin{stopped: &stopped},
-			rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"manage_reports"}}}},
+			rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"steward.manage_reports"}}}},
 		}, nil
 	})(t.Context(), call)
 
-	if !errors.Is(err, role.ErrEmptyRole) {
-		t.Fatalf("loadPlugins() error = %v, want %v in its chain", err, role.ErrEmptyRole)
+	if !errors.Is(err, goncierge.ErrInvalidName) {
+		t.Fatalf("loadPlugins() error = %v, want %v in its chain", err, goncierge.ErrInvalidName)
 	}
 	stoppedUnderTheStopGrace(t, err, &stopped)
 }
@@ -230,7 +231,7 @@ func TestLoadPluginsNamesTheRegistrationFailureBesideARefusedRole(t *testing.T) 
 	_, err := loadPlugins(role.NewRegistry(), partlyRegisteredWithARefusedRole)(
 		t.Context(), describingCall(nil, io.Discard))
 
-	if !errors.Is(err, errRegistration) || !errors.Is(err, role.ErrEmptyRole) {
+	if !errors.Is(err, errRegistration) || !errors.Is(err, goncierge.ErrInvalidName) {
 		t.Errorf("loadPlugins() error = %v, want the registration failure and the refused role both named", err)
 	}
 }

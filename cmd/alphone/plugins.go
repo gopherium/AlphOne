@@ -11,18 +11,18 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/pluginkit"
 
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/postgres"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
 
 // loadPlugins returns the registration the command line runs the compiled plugins through, starting none.
 func loadPlugins(
-	registry *role.Registry, plugins func(sdk.Deps) ([]sdk.Plugin, error),
+	registry *goncierge.Registry, plugins func(sdk.Deps) ([]sdk.Plugin, error),
 ) func(context.Context, gonsole.Call) (gonsole.Loaded, error) {
 	return func(ctx context.Context, call gonsole.Call) (gonsole.Loaded, error) {
 		grace, err := call.Env.Duration("SHUTDOWN_STOP_GRACE", servingDefaults.StopGrace)
