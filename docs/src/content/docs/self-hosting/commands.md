@@ -344,9 +344,25 @@ capability admin carries, which are `manage_users` and
 `manage_webhooks`. A plugin role carrying `manage_users` alone can
 change members but not admins.
 
+`account:enable` refuses an account holding no role, or a role that
+nothing declares any more, such as one a removed plugin declared. It
+exits 1, on a dry run too:
+
+| Error | Why |
+| --- | --- |
+| `the account maria@example.com holds no role, give it a declared role before enabling it` | It holds no role at all. |
+| `the account maria@example.com holds the undeclared role steward, give it a declared role before enabling it` | Neither AlphOne nor a plugin declares its role. |
+
+Give the account a role with `account:role` first, then enable it.
+
 The last enabled admin always stays. When two changes race, the one that
 would leave no enabled admin is refused with
 `<address> is the last enabled privileged account`.
+
+`account:role`, `account:disable` and `account:enable` read the
+account's role before they write. When someone changes that role in
+between, the command changes nothing and stops with
+`the role of <address> changed after the check, run the command again`.
 
 `-as` asks for no password. It names who answers for the change.
 Anyone who can run commands against the database can name any
