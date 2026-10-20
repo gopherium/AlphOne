@@ -65,7 +65,7 @@ func TestAWebhookHolderListsEveryWebhookOfTheWorkspaceWithItsOwner(t *testing.T)
 	store := postgres.NewWebhookStore(pool)
 	member := webhookOwner(t, pool, "member@example.com")
 	ownedWebhook(t, store, member, "https://example.com/member")
-	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store}
+	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store, Roles: stewardRoles()}
 	admin := newActingClient(t, resolver, authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()})
 
 	var listed holderListing
@@ -83,7 +83,9 @@ func TestAWebhookHolderListsEveryWebhookOfTheWorkspaceWithItsOwner(t *testing.T)
 func TestCreatingAWebhookAnswersItsOwner(t *testing.T) {
 	t.Parallel()
 
-	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: postgres.NewWebhookStore(newTestPool(t))}
+	resolver := &graphres.Resolver{
+		Version: "9.9.9", Webhooks: postgres.NewWebhookStore(newTestPool(t)), Roles: stewardRoles(),
+	}
 	caller := authkit.Identity{
 		ID: uuid.Must(uuid.NewV7()), Name: "Maria Perez", Email: "admin@example.com", Role: role.Admin.String(),
 	}
@@ -116,7 +118,7 @@ func TestAWebhookHolderDeletesAnotherAccountsWebhook(t *testing.T) {
 	store := postgres.NewWebhookStore(pool)
 	member := webhookOwner(t, pool, "member@example.com")
 	id := ownedWebhook(t, store, member, "https://example.com/member")
-	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store}
+	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store, Roles: stewardRoles()}
 	admin := newActingClient(t, resolver, authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()})
 
 	var deleted struct {
@@ -142,7 +144,7 @@ func TestAnAccountWithoutTheCapabilityManagesOnlyItsOwnWebhooks(t *testing.T) {
 	other := webhookOwner(t, pool, "other@example.com")
 	ownedWebhook(t, store, member, "https://example.com/member")
 	foreign := ownedWebhook(t, store, other, "https://example.com/other")
-	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store}
+	resolver := &graphres.Resolver{Version: "9.9.9", Webhooks: store, Roles: stewardRoles()}
 	client := newActingClient(t, resolver, authkit.Identity{ID: member, Role: role.Member.String()})
 
 	var listed holderListing

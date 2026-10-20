@@ -66,7 +66,7 @@ func scopedContext() context.Context {
 
 // newStubResolver returns a resolver over the given stub stores without events.
 func newStubResolver(contacts *stubContactStore, tasks *stubTaskStore) *graphres.Resolver {
-	return &graphres.Resolver{Version: "9.9.9", Contacts: contacts, Tasks: tasks}
+	return &graphres.Resolver{Version: "9.9.9", Contacts: contacts, Tasks: tasks, Roles: stewardRoles()}
 }
 
 func TestContactsQueryValidatesArguments(t *testing.T) {

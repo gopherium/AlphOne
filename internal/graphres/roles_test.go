@@ -4,6 +4,7 @@ package graphres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/testkit"
@@ -23,17 +25,23 @@ import (
 // stewardRole is the plugin declared role standing above admin in these tests.
 const stewardRole role.Role = "steward"
 
+// retiredRole is a role an account still holds after every source stopped declaring it.
+const retiredRole = "auditor"
+
 // errListing reports a store that cannot list the accounts.
 var errListing = errors.New("accounts unavailable")
 
 // errWriting reports a store that cannot store a role.
 var errWriting = errors.New("role unwritable")
 
-// init declares the plugin role once, since the registry a resolver reads is the deployment's.
-func init() {
-	if err := role.Grant(stewardRole, role.ManageUsers, role.ManageWebhooks, "manage_reports"); err != nil {
+// stewardRoles returns the core registry beside the steward role a plugin grants above admin.
+func stewardRoles() *goncierge.Registry {
+	roles := role.NewRegistry()
+	if err := roles.Grant("steward", stewardRole.String(),
+		role.ManageUsers, role.ManageWebhooks, "manage_reports"); err != nil {
 		panic(err)
 	}
+	return roles
 }
 
 // roledStore returns a store holding one account under the given tier.
@@ -69,6 +77,28 @@ func settingRole(userID uuid.UUID, tier string) string {
 // settingDisabled returns the mutation barring or admitting a user.
 func settingDisabled(userID uuid.UUID, disabled bool) string {
 	return fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: %t) }`, userID, disabled)
+}
+
+// wantUnknownRole checks the first error answers an undeclared role with authkit's message, reason and field.
+func wantUnknownRole(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	var refused []struct {
+		Message    string         `json:"message"`
+		Extensions map[string]any `json:"extensions"`
+	}
+	if err := json.Unmarshal(raw, &refused); err != nil || len(refused) == 0 {
+		t.Fatalf("errors = %s, want the undeclared role refused", raw)
+	}
+	if got := refused[0].Message; got != "unknown role" {
+		t.Errorf("message = %q, want unknown role", got)
+	}
+	if got := refused[0].Extensions["reason"]; got != "role_unknown" {
+		t.Errorf("reason = %v, want role_unknown", got)
+	}
+	meta, _ := refused[0].Extensions["meta"].(map[string]any)
+	if meta["field"] != "role" {
+		t.Errorf("meta = %v, want the field the undeclared role came in named as data", meta)
+	}
 }
 
 func TestUsersCarriesEachAccountsTier(t *testing.T) {
@@ -205,6 +235,7 @@ func TestInviteRefusesARoleTheRegistryDoesNotKnow(t *testing.T) {
 	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
 		t.Errorf("code = %q, want VALIDATION", got)
 	}
+	wantUnknownRole(t, answered.Errors)
 }
 
 func TestInviteRefusesARoleBeyondTheCallersReach(t *testing.T) {
@@ -241,7 +272,7 @@ func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
 	}
 	client.MustPost(`{ me { capabilities grantable } }`, &answered)
 
-	want := []string{string(role.ManageUsers), string(role.ManageWebhooks)}
+	want := []string{role.ManageUsers, role.ManageWebhooks}
 	if !slices.Equal(answered.Me.Capabilities, want) {
 		t.Errorf("capabilities = %v, want the admin's %v", answered.Me.Capabilities, want)
 	}
@@ -334,6 +365,7 @@ func TestSetUserRoleRefusesATierNoDeploymentKnows(t *testing.T) {
 	if got := firstErrorCode(t, answered.Errors); got != "VALIDATION" {
 		t.Errorf("code = %q, want VALIDATION", got)
 	}
+	wantUnknownRole(t, answered.Errors)
 	if got := store.Users[held.ID].Role; got != role.Member.String() {
 		t.Errorf("stored role = %q, want the refused write to store nothing", got)
 	}
@@ -378,6 +410,46 @@ func TestSetUserRoleRefusesTouchingAnAccountBeyondTheCallersReach(t *testing.T) 
 	}
 	if got := store.Users[held.ID].Role; got != "steward" {
 		t.Errorf("stored role = %q, want the refused write to leave it", got)
+	}
+}
+
+func TestAnAdminReachesAnAccountWhoseRoleNobodyDeclares(t *testing.T) {
+	t.Parallel()
+
+	movingToMember := func(id uuid.UUID) string { return settingRole(id, role.Member.String()) }
+	holdsMember := func(account gouncer.User) bool { return account.Role == role.Member.String() }
+	barring := func(id uuid.UUID) string { return settingDisabled(id, true) }
+	barred := func(account gouncer.User) bool { return account.Disabled }
+	cases := []struct {
+		name     string
+		stored   role.Role
+		mutation func(uuid.UUID) string
+		applied  func(gouncer.User) bool
+	}{
+		{"setUserRole on an account holding no role", "", movingToMember, holdsMember},
+		{"setUserRole on an account holding a retired role", retiredRole, movingToMember, holdsMember},
+		{"setUserDisabled on an account holding a retired role", retiredRole, barring, barred},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, held := roledStore(t, tc.stored)
+			actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+			client := newActingClient(t, newAuthResolver(store), actor)
+
+			answered, err := client.RawPost(tc.mutation(held.ID))
+
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+			if len(answered.Errors) != 0 {
+				t.Errorf("errors = %s, want an admin able to write the account", answered.Errors)
+			}
+			if got := store.Users[held.ID]; !tc.applied(got) {
+				t.Errorf("stored role = %q, disabled = %t, want the write applied", got.Role, got.Disabled)
+			}
+		})
 	}
 }
 

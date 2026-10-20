@@ -9,6 +9,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/apitoken"
@@ -45,7 +46,7 @@ type fieldScope struct {
 	area       string
 	write      bool
 	admin      bool
-	capability role.Capability
+	capability string
 }
 
 // ScopeMap answers what every root field of a schema needs of its caller.
@@ -86,7 +87,7 @@ func scopeOf(declared *ast.Directive) fieldScope {
 	}
 	if needed := declared.Arguments.ForName(capabilityArgument); needed != nil &&
 		needed.Value.Kind != ast.NullValue {
-		scope.capability = role.Capability(needed.Value.Raw)
+		scope.capability = needed.Value.Raw
 	}
 	return scope
 }
@@ -103,7 +104,7 @@ func (m ScopeMap) AdminOnly(operation ast.Operation, field string) bool {
 }
 
 // Capability returns the capability one root field needs, none when it declares no gate.
-func (m ScopeMap) Capability(operation ast.Operation, field string) role.Capability {
+func (m ScopeMap) Capability(operation ast.Operation, field string) string {
 	held := m[scopeKey{operation, field}]
 	if held.capability != "" {
 		return held.capability
@@ -160,17 +161,16 @@ func TenantDeactivated(ctx context.Context) bool {
 }
 
 // ScopeGate returns the operation gate refusing every root field the caller's role and token do not reach.
-func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
+func ScopeGate(scopes ScopeMap, roles *goncierge.Registry) graphql.OperationMiddleware {
 	return func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		token, carried := credential.TokenOf(ctx)
-		tier := role.Role(authkit.IdentityFromContext(ctx).Role)
 		operation := graphql.GetOperationContext(ctx)
 		if operation.Operation == nil {
 			return scopeError("the operation")
 		}
 		kind := operation.Operation.Operation
 		for _, selected := range graphql.CollectFields(operation, operation.Operation.SelectionSet, nil) {
-			if refused := fieldRefusal(ctx, scopes, kind, selected.Name, token, carried, tier); refused != nil {
+			if refused := fieldRefusal(ctx, scopes, roles, kind, selected.Name, token, carried); refused != nil {
 				return refused
 			}
 		}
@@ -180,14 +180,15 @@ func ScopeGate(scopes ScopeMap) graphql.OperationMiddleware {
 
 // fieldRefusal returns the answer refusing one selected root field, nil when the caller reaches it.
 func fieldRefusal(
-	ctx context.Context, scopes ScopeMap, kind ast.Operation, name string,
-	token credential.Token, carried bool, tier role.Role,
+	ctx context.Context, scopes ScopeMap, roles *goncierge.Registry, kind ast.Operation, name string,
+	token credential.Token, carried bool,
 ) graphql.ResponseHandler {
 	if carried && !scopes.Allows(kind, name, token.Scopes) {
 		return scopeError(scopes.Needed(kind, name))
 	}
-	if needed := scopes.Capability(kind, name); needed != "" && !role.Can(tier, needed) {
-		return capabilityError(scopes.Needed(kind, name), needed)
+	needed := scopes.Capability(kind, name)
+	if needed != "" && !roles.Can(authkit.IdentityFromContext(ctx).Role, needed) {
+		return capabilityError(scopes, kind, name)
 	}
 	if TenantDeactivated(ctx) && scopes.WritesBeyondAuth(kind, name) {
 		return deactivatedError()
@@ -211,16 +212,17 @@ func scopeError(needed string) graphql.ResponseHandler {
 	return refusedWith("scope required: "+needed, needed)
 }
 
-// capabilityError answers one operation naming the scope and the capability the caller's role lacked.
-func capabilityError(needed string, lacked role.Capability) graphql.ResponseHandler {
+// capabilityError answers one operation naming the scope and the capability of one field the caller's role lacked.
+func capabilityError(scopes ScopeMap, kind ast.Operation, name string) graphql.ResponseHandler {
+	needed, lacked := scopes.Needed(kind, name), scopes.Capability(kind, name)
 	return graphql.OneShot(&graphql.Response{Errors: gqlerror.List{&gqlerror.Error{
 		Message: "admin required",
 		Extensions: map[string]any{
 			"code":       "UNAUTHORIZED",
 			"scope":      needed,
-			"capability": string(lacked),
+			"capability": lacked,
 			"reason":     "capability_missing",
-			"meta":       map[string]any{"scope": needed, "capability": string(lacked)},
+			"meta":       map[string]any{"scope": needed, "capability": lacked},
 		},
 	}}})
 }

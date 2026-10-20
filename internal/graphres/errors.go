@@ -18,7 +18,6 @@ import (
 	"github.com/gopherium/alphone/internal/cursor"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/locale"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -45,9 +44,7 @@ var validationErrors = []error{
 	authkit.ErrSelfDisable,
 	authkit.ErrSelfRole,
 	gouncer.ErrLastPrivileged,
-	role.ErrLastAdmin,
-	role.ErrBeyondReach,
-	role.ErrUnknownTier,
+	authkit.ErrBeyondReach,
 	apitoken.ErrEmptyName,
 	apitoken.ErrMalformedScope,
 	apitoken.ErrNoScopes,
@@ -91,9 +88,7 @@ var reasonsFor = []struct {
 	{authkit.ErrSelfDisable, "self_disable_refused", nil},
 	{authkit.ErrSelfRole, "self_role_refused", nil},
 	{gouncer.ErrLastPrivileged, "last_privileged_refused", nil},
-	{role.ErrLastAdmin, "last_privileged_refused", nil},
-	{role.ErrBeyondReach, "role_beyond_reach", nil},
-	{role.ErrUnknownTier, "role_unknown", nil},
+	{authkit.ErrBeyondReach, "role_beyond_reach", nil},
 	{apitoken.ErrEmptyName, "token_name_required", nil},
 	{apitoken.ErrMalformedScope, "scope_malformed", nil},
 	{apitoken.ErrNoScopes, "scopes_required", nil},
@@ -136,8 +131,8 @@ var spokenAs = []struct {
 }{
 	{authkit.ErrSelfRole, "you cannot change your own role"},
 	{authkit.ErrSelfDisable, "you cannot disable your own account"},
-	{gouncer.ErrLastPrivileged, role.ErrLastAdmin.Error()},
-	{role.ErrBeyondReach, "that role is beyond your own"},
+	{gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
+	{authkit.ErrBeyondReach, "that role is beyond your own"},
 }
 
 // speak rewrites a brick error so no package name reaches a caller.

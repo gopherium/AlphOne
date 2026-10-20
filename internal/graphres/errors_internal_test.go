@@ -17,7 +17,6 @@ import (
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/contact"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -46,18 +45,6 @@ func TestEveryCoreReasonHasAFrontendMessage(t *testing.T) {
 		if !strings.Contains(string(templates), "\t"+held.reason+": __(") {
 			t.Errorf("reason %q has no frontend message, want the screens to speak it", held.reason)
 		}
-	}
-}
-
-func TestBothLastPrivilegedSentinelsShareOneReason(t *testing.T) {
-	t.Parallel()
-
-	core := PresentError(context.Background(), fmt.Errorf("wrap: %w", role.ErrLastAdmin))
-	brick := PresentError(context.Background(), fmt.Errorf("wrap: %w", gouncer.ErrLastPrivileged))
-
-	if core.Extensions["reason"] != brick.Extensions["reason"] {
-		t.Errorf("reasons %v and %v differ, want one condition named once",
-			core.Extensions["reason"], brick.Extensions["reason"])
 	}
 }
 

@@ -34,8 +34,8 @@ func toListedWebhook(listed webhook.Listed) *model.Webhook {
 }
 
 // managesWebhooks reports whether identity may manage every webhook of its workspace.
-func managesWebhooks(identity authkit.Identity) bool {
-	return role.Can(role.Role(identity.Role), role.ManageWebhooks)
+func (r *Resolver) managesWebhooks(identity authkit.Identity) bool {
+	return r.Roles.Can(identity.Role, role.ManageWebhooks)
 }
 
 // Webhooks lists every webhook of the workspace to a holder of manage_webhooks, and the caller's own to anyone else.
@@ -45,7 +45,7 @@ func (q QueryResolvers) Webhooks(ctx context.Context) ([]*model.Webhook, error) 
 		subs []webhook.Listed
 		err  error
 	)
-	if managesWebhooks(identity) {
+	if q.root.managesWebhooks(identity) {
 		subs, err = q.root.Webhooks.ListWorkspaceSubscriptions(ctx)
 	} else {
 		subs, err = q.root.Webhooks.ListSubscriptionsForUser(ctx, identity.ID)
@@ -100,7 +100,7 @@ func (m MutationResolvers) CreateWebhook(
 func (m MutationResolvers) DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error) {
 	identity := authkit.IdentityFromContext(ctx)
 	var err error
-	if managesWebhooks(identity) {
+	if m.root.managesWebhooks(identity) {
 		err = m.root.Webhooks.DeleteWorkspaceSubscription(ctx, id)
 	} else {
 		err = m.root.Webhooks.DeleteSubscription(ctx, identity.ID, id)

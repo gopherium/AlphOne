@@ -32,6 +32,7 @@ func newPlacingResolver(pool *pgxpool.Pool) *graphres.Resolver {
 		Accounts:   users,
 		Tenants:    postgres.NewTenantStore(pool),
 		PublicURL:  "https://crm.example.com",
+		Roles:      stewardRoles(),
 	}
 }
 

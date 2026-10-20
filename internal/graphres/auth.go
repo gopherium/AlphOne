@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/graph/model"
@@ -31,20 +32,15 @@ func (e rateLimitedError) Error() string {
 	return "too many login attempts, try again later"
 }
 
-// toAuthIdentity maps an authkit identity onto its graph model.
-func toAuthIdentity(identity authkit.Identity, tier role.Role) *model.Identity {
-	grantable := role.Grantable(tier)
-	named := make([]string, 0, len(grantable))
-	for _, held := range grantable {
-		named = append(named, held.String())
-	}
+// toAuthIdentity maps an authkit identity onto its graph model, with what the registry gives its role.
+func toAuthIdentity(identity authkit.Identity, roles *goncierge.Registry) *model.Identity {
 	return &model.Identity{
 		ID:           identity.ID,
 		Email:        identity.Email,
 		Name:         identity.Name,
-		Role:         tier.String(),
-		Capabilities: role.CapabilitiesOf(tier),
-		Grantable:    named,
+		Role:         identity.Role,
+		Capabilities: roles.CapabilitiesOf(identity.Role),
+		Grantable:    roles.Grantable(identity.Role),
 	}
 }
 
@@ -63,8 +59,7 @@ func toUser(account authkit.Account, tier role.Role) *model.User {
 
 // Me reports the calling identity.
 func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
-	identity := authkit.IdentityFromContext(ctx)
-	return toAuthIdentity(identity, role.Role(identity.Role)), nil
+	return toAuthIdentity(authkit.IdentityFromContext(ctx), q.root.Roles), nil
 }
 
 // Users lists the accounts standing in the caller's tenant.
@@ -141,7 +136,7 @@ func (m MutationResolvers) Login(ctx context.Context, email, password string) (*
 	if err := setResponseCookie(ctx, cookie); err != nil {
 		return nil, err
 	}
-	return &model.LoginPayload{Me: toAuthIdentity(identity, role.Role(identity.Role))}, nil
+	return &model.LoginPayload{Me: toAuthIdentity(identity, m.root.Roles)}, nil
 }
 
 // refuseDeactivatedTenant refuses a caller whose standing tenant is deactivated.
@@ -183,32 +178,20 @@ func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, di
 	if disabled && actor.ID == id {
 		return false, authkit.ErrSelfDisable
 	}
-	if err := m.root.outranking(ctx, actor, id); err != nil {
-		return false, err
-	}
-	if err := m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled); err != nil {
-		return false, err
-	}
-	return true, nil
+	return m.root.writeWithinReach(ctx, actor, id, func() error {
+		return m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled)
+	})
 }
 
 // SetUserRole stands one user in the tier it names.
 func (m MutationResolvers) SetUserRole(ctx context.Context, id uuid.UUID, tier string) (bool, error) {
-	stood, err := role.Parse(tier)
-	if err != nil {
-		return false, err
-	}
 	actor := authkit.IdentityFromContext(ctx)
-	if !role.Outranks(role.Role(actor.Role), stood) {
-		return false, role.ErrBeyondReach
-	}
-	if err := m.root.outranking(ctx, actor, id); err != nil {
+	if err := m.root.refuseGrant(actor.Role, tier); err != nil {
 		return false, err
 	}
-	if err := m.root.Admin.SetAccountRole(ctx, actor.ID, id, stood.String()); err != nil {
-		return false, err
-	}
-	return true, nil
+	return m.root.writeWithinReach(ctx, actor, id, func() error {
+		return m.root.Admin.SetAccountRole(ctx, actor.ID, id, tier)
+	})
 }
 
 // setResponseCookie writes cookie onto the serving response.
