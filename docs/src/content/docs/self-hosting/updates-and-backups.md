@@ -10,7 +10,7 @@ image to `ghcr.io/gopherium/alphone` under three tags:
 
 - the version, e.g. `:x.y.z`
 - the exact commit, e.g. `:sha-5495093`
-- `:latest`, republished on every release
+- `:latest`, which always points at the newest version
 
 Migrations run automatically on container start, so updating is pulling
 a newer image and recreating the container.
