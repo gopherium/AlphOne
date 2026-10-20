@@ -51,6 +51,12 @@ type corePlugin struct{ rolePlugin }
 // ID names the plugin after the core source.
 func (corePlugin) ID() string { return role.Source }
 
+// silentCorePlugin is a plugin declaring no roles under the id the core grants its roles under.
+type silentCorePlugin struct{ silentPlugin }
+
+// ID names the plugin after the core source.
+func (silentCorePlugin) ID() string { return role.Source }
+
 // errStopFailed is the failure the stopping plugin's stop answers.
 var errStopFailed = errors.New("stop failed")
 
@@ -206,19 +212,29 @@ func TestDeclareRolesRefusesANewCapabilityOutsideThePluginPrefix(t *testing.T) {
 func TestDeclareRolesRefusesAPluginUnderTheCoreID(t *testing.T) {
 	t.Parallel()
 
-	registry := role.NewRegistry()
-	registered := []sdk.Plugin{
-		corePlugin{rolePlugin{declared: []sdk.RoleDeclaration{
+	tests := []struct {
+		name   string
+		plugin sdk.Plugin
+	}{
+		{"one declaring roles", corePlugin{rolePlugin{declared: []sdk.RoleDeclaration{
 			{Name: role.Admin.String(), Capabilities: []string{role.ManageUsers}},
-		}}},
+		}}}},
+		{"one declaring no roles", silentCorePlugin{}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	err := declareRoles(registry, registered)
+			registry := role.NewRegistry()
 
-	if !errors.Is(err, errReservedID) || !strings.Contains(err.Error(), "plugin core") {
-		t.Errorf("declareRoles() error = %v, want %v naming plugin core", err, errReservedID)
-	}
-	if !registry.Can(role.Admin.String(), role.ManageWebhooks) {
-		t.Error("Can(admin, manage_webhooks) = false, want the core roles kept whole")
+			err := declareRoles(registry, []sdk.Plugin{tt.plugin})
+
+			if !errors.Is(err, errReservedID) || !strings.Contains(err.Error(), "plugin core") {
+				t.Errorf("declareRoles() error = %v, want %v naming plugin core", err, errReservedID)
+			}
+			if !registry.Can(role.Admin.String(), role.ManageWebhooks) {
+				t.Error("Can(admin, manage_webhooks) = false, want the core roles kept whole")
+			}
+		})
 	}
 }
