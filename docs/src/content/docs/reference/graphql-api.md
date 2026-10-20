@@ -548,7 +548,7 @@ The reasons the core answers with:
 | `self_role_refused` | | nobody changes its own role |
 | `last_privileged_refused` | | the last account able to manage users stays |
 | `role_beyond_reach` | | the role holds more than the caller does |
-| `role_unknown` | | the role is not one the deployment names |
+| `role_unknown` | `field` | the role is not one the deployment names |
 
 The stock plugins add their own:
 
