@@ -10,8 +10,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/gopherium/alphone/internal/role"
 )
+
+// stewardRole is a role only the registry a test hands the server declares.
+const stewardRole = "steward"
 
 // graphResponse is a GraphQL response body with raw data and typed errors.
 type graphResponse struct {
@@ -299,6 +304,39 @@ func TestGraphRefusesUserManagementToAMemberSession(t *testing.T) {
 	}
 	if got, want := body.Errors[0].Extensions["scope"], "users:write"; got != want {
 		t.Errorf("scope = %v, want %q", got, want)
+	}
+}
+
+func TestARoleOnlyTheHandedRegistryDeclaresReachesUserManagement(t *testing.T) {
+	t.Parallel()
+
+	roles := role.NewRegistry()
+	if err := roles.Grant("steward", stewardRole, role.ManageUsers); err != nil {
+		t.Fatalf("Grant() error = %v, want nil", err)
+	}
+	users := newFakeUserStore()
+	held := users.AddUser(t, "maria@example.com", "Maria Perez", testPassword)
+	held.Role = stewardRole
+	users.Users[held.ID] = held
+	srv := newGraphServer(t, graphConfig{
+		Contacts: newFakeContactStore(),
+		Tasks:    newFakeTaskStore(),
+		Users:    users,
+		Version:  "9.9.9",
+		Roles:    roles,
+	})
+	cookie := graphSessionCookie(t, loginMutation(t, srv, "maria@example.com", testPassword))
+
+	recorder := postGraphQL(t, srv, graphBody(t, fmt.Sprintf(
+		`mutation { setUserRole(id: %q, role: %q) }`, uuid.Must(uuid.NewV7()), role.Member.String(),
+	)), cookie)
+
+	body := decodeBody[graphResponse](t, recorder)
+	if len(body.Errors) != 1 {
+		t.Fatalf("errors = %v, want one error naming the account nobody holds", body.Errors)
+	}
+	if got := body.Errors[0].Extensions["reason"]; got != "user_not_found" {
+		t.Errorf("reason = %v, want user_not_found, the handed registry gives steward manage_users", got)
 	}
 }
 

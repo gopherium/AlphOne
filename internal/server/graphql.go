@@ -17,10 +17,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/vektah/gqlparser/v2/ast"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
-	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/dyngraph"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/sdk"
@@ -101,7 +101,9 @@ const (
 )
 
 // graphServer returns the gqlgen server answering over one executable schema with every graph guard.
-func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap, bounds GraphBounds) *handler.Server {
+func graphServer(
+	schema graphql.ExecutableSchema, scopes graphres.ScopeMap, roles *goncierge.Registry, bounds GraphBounds,
+) *handler.Server {
 	srv := handler.New(schema)
 	srv.AddTransport(subscriptionSSE{})
 	srv.AddTransport(transport.POST{})
@@ -109,21 +111,20 @@ func graphServer(schema graphql.ExecutableSchema, scopes graphres.ScopeMap, boun
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
 	srv.AroundOperations(graphres.AnonymousGate)
-	srv.AroundOperations(graphres.ScopeGate(scopes))
+	srv.AroundOperations(graphres.ScopeGate(scopes, roles))
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv
 }
 
-// tenantGraphs returns the graph servers answering each tenant over its own widened schema.
-func tenantGraphs(
-	root graph.ResolverRoot, sources []sdk.FieldSource, held int, bounds GraphBounds,
-) *dyngraph.Graphs[*handler.Server] {
+// tenantGraphs returns the graph servers answering each tenant over its own widened schema of the configured root.
+func tenantGraphs(cfg Config, bounds GraphBounds) *dyngraph.Graphs[*handler.Server] {
+	root := cfg.GraphRoot
 	scopes := graphres.NewScopeMap(graphres.ExecutableSchema(root).Schema())
 	return dyngraph.New(func(widened *ast.Schema) graphql.ExecutableSchema {
 		return graphres.ExecutableSchemaOver(root, widened)
 	}, func(schema graphql.ExecutableSchema) *handler.Server {
-		return graphServer(schema, scopes, bounds)
-	}, held, sources...)
+		return graphServer(schema, scopes, cfg.Roles, bounds)
+	}, cfg.TenantsHeld, cfg.FieldSources...)
 }
 
 // graphPolicy is the budget one kind of graph request is held to.
@@ -149,24 +150,17 @@ func retryAfterSeconds(hint time.Duration) int {
 	return seconds
 }
 
-// newGraphQLHandler serves the guarded GraphQL endpoint over the composed resolver root, each tenant its own fields.
-func newGraphQLHandler(
-	root graph.ResolverRoot,
-	tenants TenantStore,
-	bounds GraphBounds,
-	streamLifetime time.Duration,
-	maxStreams int,
-	sources []sdk.FieldSource,
-	held int,
-) http.Handler {
-	graphs := tenantGraphs(root, sources, held, bounds)
+// newGraphQLHandler serves the guarded GraphQL endpoint over the configured resolver root, each tenant its own fields.
+func newGraphQLHandler(cfg Config, streamLifetime time.Duration, maxStreams int) http.Handler {
+	bounds := cfg.Graph.withDefaults()
+	graphs := tenantGraphs(cfg, bounds)
 	loaded := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := graphres.WithHTTP(r.Context(), w, r)
 		ctx = graphres.WithClientIP(ctx, ratelimit.ClientIP(r))
 		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
 		answer := graphs.Plain()
 		if user := authkit.IdentityFromContext(r.Context()); user.ID != uuid.Nil {
-			standing, err := withStandingTenant(sdk.WithUser(ctx, user.ID), tenants, user.ID)
+			standing, err := withStandingTenant(sdk.WithUser(ctx, user.ID), cfg.Tenants, user.ID)
 			if err != nil {
 				http.Error(w, "no tenant resolved", http.StatusInternalServerError)
 				return
