@@ -4,105 +4,97 @@ package role_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
+
+	"github.com/gopherium/framework/goncierge"
 
 	"github.com/gopherium/alphone/internal/role"
 )
 
-func TestAdminReachesEveryField(t *testing.T) {
+func TestTheCoreKnowsOnlyAdminAndMember(t *testing.T) {
 	t.Parallel()
 
-	if !role.Admin.Allows(true) {
-		t.Error("Admin.Allows(admin only) = false, want true")
-	}
-	if !role.Admin.Allows(false) {
-		t.Error("Admin.Allows(open) = false, want true")
+	if got := role.NewRegistry().Roles(); !slices.Equal(got, []string{"admin", "member"}) {
+		t.Errorf("Roles() = %v, want admin and member alone, a plugin declares the rest", got)
 	}
 }
 
-func TestMemberIsRefusedAnAdminField(t *testing.T) {
+func TestOnlyTheAdminManagesUsers(t *testing.T) {
 	t.Parallel()
 
-	if role.Member.Allows(true) {
-		t.Error("Member.Allows(admin only) = true, want false")
-	}
-	if !role.Member.Allows(false) {
-		t.Error("Member.Allows(open) = false, want true")
+	if got := role.NewRegistry().HoldersOf(role.ManageUsers); !slices.Equal(got, []string{"admin"}) {
+		t.Errorf("HoldersOf(manage_users) = %v, want admin alone", got)
 	}
 }
 
-func TestOfReadsTheStoredTier(t *testing.T) {
+func TestAnAdminManagesUsersAndWebhooks(t *testing.T) {
 	t.Parallel()
 
-	if got := role.Of("admin"); got != role.Admin {
-		t.Errorf("Of(admin) = %v, want %v", got, role.Admin)
-	}
-	if got := role.Of("member"); got != role.Member {
-		t.Errorf("Of(member) = %v, want %v", got, role.Member)
+	got := role.NewRegistry().CapabilitiesOf(role.Admin.String())
+
+	if !slices.Equal(got, []string{"manage_users", "manage_webhooks"}) {
+		t.Errorf("CapabilitiesOf(admin) = %v, want manage_users then manage_webhooks", got)
 	}
 }
 
-func TestOfDemotesAnythingItCannotRead(t *testing.T) {
+func TestAMemberHoldsNoCapability(t *testing.T) {
 	t.Parallel()
 
-	for _, stored := range []string{"", "root", "ADMIN", " admin"} {
-		if got := role.Of(stored); got != role.Member {
-			t.Errorf("Of(%q) = %v, want %v, an unreadable tier demotes", stored, got, role.Member)
-		}
+	if got := role.NewRegistry().CapabilitiesOf(role.Member.String()); len(got) != 0 {
+		t.Errorf("CapabilitiesOf(member) = %v, want an empty list", got)
 	}
 }
 
-func TestStringRoundTripsTheStoredForm(t *testing.T) {
+func TestTheCoreGrantsUnderItsOwnSource(t *testing.T) {
 	t.Parallel()
 
-	for _, tier := range []role.Role{role.Admin, role.Member} {
-		if got := role.Of(tier.String()); got != tier {
-			t.Errorf("Of(%q) = %v, want %v", tier.String(), got, tier)
-		}
+	registry := role.NewRegistry()
+	registry.Withdraw(role.Source)
+
+	if got := registry.Roles(); len(got) != 0 {
+		t.Errorf("Roles() after Withdraw(%q) = %v, want none, the core grants every core role", role.Source, got)
 	}
 }
 
-func TestTiersNamesEveryStorableTier(t *testing.T) {
+func TestDeclareKeepsAPluginCapabilityOffTheAdminRole(t *testing.T) {
 	t.Parallel()
 
-	tiers := role.Tiers()
-	for _, tier := range tiers {
-		parsed, err := role.Parse(tier)
-		if err != nil {
-			t.Errorf("Parse(%q) error = %v, want nil, every named tier reads back", tier, err)
-		}
-		if parsed.String() != tier {
-			t.Errorf("Parse(%q) = %q, want %q", tier, parsed, tier)
-		}
-	}
+	registry := role.NewRegistry()
+	declared := []goncierge.Role{{Name: "steward", Capabilities: []string{"steward.manage_reports"}}}
 
-	if len(tiers) != 2 {
-		t.Fatalf("Tiers() = %v, want two tiers", tiers)
+	if err := role.Declare(registry, "steward", declared); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
 	}
-	for _, tier := range tiers {
-		if role.Of(tier) == role.Member && tier != role.Member.String() {
-			t.Errorf("Tiers() names %q, which does not read back", tier)
-		}
+	if !registry.Can("steward", "steward.manage_reports") {
+		t.Error("Can(steward, steward.manage_reports) = false, want the declared capability held")
+	}
+	if registry.Can(role.Admin.String(), "steward.manage_reports") {
+		t.Error("Can(admin, steward.manage_reports) = true, want a plugin capability kept off the admin role")
 	}
 }
 
-func TestParseRefusesATierNoDeploymentKnows(t *testing.T) {
+func TestDeclareRefusesANewCapabilityOutsideThePluginPrefix(t *testing.T) {
 	t.Parallel()
 
-	parsed, err := role.Parse("root")
+	registry := role.NewRegistry()
+	declared := []goncierge.Role{{Name: "steward", Capabilities: []string{"manage_reports"}}}
 
-	if !errors.Is(err, role.ErrUnknownTier) {
-		t.Errorf("Parse() error = %v, want %v", err, role.ErrUnknownTier)
-	}
-	if parsed != "" {
-		t.Errorf("Parse() = %q, want no tier, an unknown name never stands anybody up", parsed)
+	if err := role.Declare(registry, "steward", declared); !errors.Is(err, goncierge.ErrOutsidePrefix) {
+		t.Errorf("Declare() error = %v, want %v", err, goncierge.ErrOutsidePrefix)
 	}
 }
 
-func TestParseRefusesTheEmptyTier(t *testing.T) {
+func TestDeclareLetsAPluginGrantACoreCapability(t *testing.T) {
 	t.Parallel()
 
-	if _, err := role.Parse(""); !errors.Is(err, role.ErrUnknownTier) {
-		t.Errorf("Parse(\"\") error = %v, want %v", err, role.ErrUnknownTier)
+	registry := role.NewRegistry()
+	declared := []goncierge.Role{{Name: "steward", Capabilities: []string{role.ManageUsers}}}
+
+	if err := role.Declare(registry, "steward", declared); err != nil {
+		t.Fatalf("Declare() error = %v, want nil", err)
+	}
+	if got := registry.HoldersOf(role.ManageUsers); !slices.Equal(got, []string{"admin", "steward"}) {
+		t.Errorf("HoldersOf(manage_users) = %v, want admin and steward", got)
 	}
 }
