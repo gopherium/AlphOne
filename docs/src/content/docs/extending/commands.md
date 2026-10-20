@@ -117,7 +117,9 @@ exits 2 and prints its help page. Any other error exits 1.
 
 A plugin id may not be the name of a base command or of a core
 namespace: `help`, `list`, `version`, `check`, `serve`, `migrate`,
-`seed`, `account` and `token`. `make generate` refuses such an id.
+`seed`, `account` and `token`. Nor may it be `core`, the id the core
+roles are granted under. `make generate` refuses such an id, and a
+plugin whose code answers `core` stops the app at start.
 
 ## Flags a run must set
 
@@ -231,9 +233,15 @@ password, only on `call.Stdin`.
 
 The roles AlphOne ships carry two capabilities, `manage_users` and
 `manage_webhooks`, both held by admin. A plugin that implements
-`sdk.RoleProvider` can give a role a capability of its own. Name one no
-role carries, and every account is refused. AlphOne sets `Authorize`
-and `Record` for every plugin, so yours writes neither.
+`sdk.RoleProvider` can give its roles those two, or a capability of its
+own. A new capability starts with the plugin id and a dot, so the
+archive plugin names one `archive.purge`. Admin does not get it unless
+the plugin lists admin among its roles with that capability. A plugin
+that declares a new capability without the prefix stops `serve`,
+`migrate`, `seed -yes`, `account:create-admin` and the account commands
+that take `-as`, and `alphone check` names it. Name a capability no role
+carries in `Capability`, and every account is refused. AlphOne sets
+`Authorize` and `Record` for every plugin, so yours writes neither.
 [Writing commands](https://docs.gopherium.org/command-line/writing-commands/#an-acting-account)
 shows both from the program's side.
 
