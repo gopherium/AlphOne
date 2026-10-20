@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: translations
@@ -15,7 +14,10 @@ concurrency:
 
 jobs:
   sync:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      moved: ${{ steps.moved.outputs.any }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,11 +37,46 @@ jobs:
           POEDITOR_PROJECT_ALPHONE_IMPORTER: ${{ secrets.POEDITOR_PROJECT_ALPHONE_IMPORTER }}
           POEDITOR_PROJECT_ALPHONE_WHATSAPP: ${{ secrets.POEDITOR_PROJECT_ALPHONE_WHATSAPP }}
       - run: make catalogs
-      - id: moved
-        run: echo "any=$(git status --porcelain languages plugins/*/languages frontend/src/languages plugins/*/frontend/languages | head -c1)" >> "$GITHUB_OUTPUT"
-      - if: steps.moved.outputs.any != ''
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - name: Keep the translation changes as a patch
+        id: moved
+        run: |
+          if [ -n "$(git status --porcelain languages plugins/*/languages frontend/src/languages plugins/*/frontend/languages)" ]; then
+            git add -- languages plugins/*/languages frontend/src/languages plugins/*/frontend/languages
+            git diff --cached --binary > "$RUNNER_TEMP/translations.patch"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.moved.outputs.any == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          name: translations
+          path: ${{ runner.temp }}/translations.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  pull-request:
+    needs: sync
+    if: needs.sync.outputs.moved == 'true'
+    runs-on: ubuntu-latest
+    environment: translations
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: translations
+          path: ${{ runner.temp }}/translations
+      - run: git apply --index "$RUNNER_TEMP/translations/translations.patch"
+      - id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.TRANSLATIONS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TRANSLATIONS_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app.outputs.token }}
           branch: translations/batch
           title: "chore(i18n): carry the translations that arrived"
           body: |
