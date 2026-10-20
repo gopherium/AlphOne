@@ -224,6 +224,6 @@ Feature: Operators run AlphOne from one command line
     And the member "maria.perez@example.com"
     When the operator gives "maria.perez@example.com" the role "steward" acting as "admin@example.com"
     Then the command exits with code 1
-    And the error says "the role steward carries reach_beyond_admin, which the account admin@example.com lacks"
+    And the error says "the role steward carries steward.reach_beyond_admin, which the account admin@example.com lacks"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
