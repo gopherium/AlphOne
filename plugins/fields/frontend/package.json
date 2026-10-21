@@ -8,13 +8,13 @@
 	},
 	"dependencies": {
 		"@alphone/frontend-sdk": "workspace:*",
-		"@tanstack/react-router": "^1.170.44",
+		"@tanstack/react-router": "^1.170.45",
 		"graphql": "^17.0.2",
 		"react": "^19.3.1"
 	},
 	"devDependencies": {
 		"@graphql-typed-document-node/core": "^3.2.0",
-		"@tanstack/react-query": "^5.104.3",
+		"@tanstack/react-query": "^5.104.4",
 		"@testing-library/react": "^16.3.3",
 		"@testing-library/user-event": "^14.6.8",
 		"@types/node": "^26.6.5",
