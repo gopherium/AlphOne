@@ -29,19 +29,14 @@ func deliveredPayload() *model.InvitePayload {
 func (m MutationResolvers) Invite(
 	ctx context.Context, email, name string, named *string,
 ) (*model.InvitePayload, error) {
-	stood := role.Member
+	stood := role.Member.String()
 	if named != nil {
-		parsed, err := role.Parse(*named)
-		if err != nil {
-			return nil, err
-		}
-		stood = parsed
+		stood = *named
 	}
-	actor := authkit.IdentityFromContext(ctx)
-	if !role.Outranks(role.Role(actor.Role), stood) {
-		return nil, role.ErrBeyondReach
+	if err := m.root.refuseGrant(authkit.IdentityFromContext(ctx).Role, stood); err != nil {
+		return nil, err
 	}
-	token, err := m.root.Onboarding.InviteInto(ctx, sdk.TenantOrDefault(ctx), email, name, stood.String())
+	token, err := m.root.Onboarding.InviteInto(ctx, sdk.TenantOrDefault(ctx), email, name, stood)
 	if errors.Is(err, gouncer.ErrEmailTaken) {
 		return m.resend(ctx, email)
 	}
@@ -127,7 +122,7 @@ func (m MutationResolvers) AcceptInvite(
 	if err != nil {
 		return nil, err
 	}
-	return &model.LoginPayload{Me: toAuthIdentity(identity, role.Role(identity.Role))}, nil
+	return &model.LoginPayload{Me: toAuthIdentity(identity, m.root.Roles)}, nil
 }
 
 // RequestPasswordReset asks for a reset link, answering nothing about the address.

@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -41,6 +42,8 @@ type Config struct {
 	// GraphRoot is the composed resolver root served at /api/graphql. Nil
 	// leaves the graph endpoint unmounted.
 	GraphRoot graph.ResolverRoot
+	// Roles answers the capabilities each declared role carries, which the graph's capability gate asks.
+	Roles *goncierge.Registry
 	// Tokens resolves API tokens presented as bearer credentials. Nil
 	// leaves the session cookie as the only accepted credential.
 	Tokens TokenStore
@@ -99,8 +102,7 @@ func NewServer(cfg Config) http.Handler {
 	router := chi.NewRouter()
 	router.Use(authkit.CrossOriginGuard(cfg.Logger))
 	if cfg.GraphRoot != nil {
-		graph := newGraphQLHandler(cfg.GraphRoot, cfg.Tenants, cfg.Graph.withDefaults(),
-			maxStreamLifetime, maxStreamsPerUser, cfg.FieldSources, cfg.TenantsHeld)
+		graph := newGraphQLHandler(cfg, maxStreamLifetime, maxStreamsPerUser)
 		router.Group(func(graphed chi.Router) {
 			graphed.Use(ratelimit.ResolveClientIP(cfg.TrustedProxies))
 			graphed.Use(s.identifyIdentity)

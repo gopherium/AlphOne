@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
@@ -60,6 +61,7 @@ type graphConfig struct {
 	TrustedProxies    []string
 	Logger            *slog.Logger
 	Web               fs.FS
+	Roles             *goncierge.Registry
 }
 
 // newGraphServer returns a server whose graph root composes cfg's stores with
@@ -69,15 +71,21 @@ func newGraphServer(t *testing.T, cfg graphConfig) http.Handler {
 	return newSubscribingGraphServer(t, cfg, nil)
 }
 
-// newSubscribingGraphServer returns a graph server whose subscriptions read hub.
+// newSubscribingGraphServer returns a graph server whose subscriptions read hub, over the core roles by default.
 func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) http.Handler {
 	t.Helper()
+	roles := cfg.Roles
+	if roles == nil {
+		roles = role.NewRegistry()
+	}
+	privileged := roles.HoldersOf(role.ManageUsers)
 	auth := authkit.New(authkit.Config{
-		Store:      cfg.Users,
-		CookieName: server.SessionCookieName,
-		Privileged: role.Privileged(),
+		Store:        cfg.Users,
+		CookieName:   server.SessionCookieName,
+		Privileged:   privileged,
+		Capabilities: roles,
 	})
-	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users, Privileged: role.Privileged()})
+	admin := authkit.NewAdmin(authkit.AdminConfig{Store: cfg.Users, Privileged: privileged, Roles: roles})
 	plugins, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
 	if err != nil {
 		t.Fatalf("graphroot.All() error = %v, want nil", err)
@@ -93,9 +101,10 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		Admin:        admin,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
+		Roles:        roles,
 	}
 	if store, ok := cfg.Users.(authkit.InviteStore); ok {
-		invites := authkit.NewInvites(authkit.InvitesConfig{Store: store})
+		invites := authkit.NewInvites(authkit.InvitesConfig{Store: store, Roles: roles})
 		resolver.Invites = invites
 		resolver.Onboarding = unplacedOnboarding{invites: invites}
 		resolver.Accounts = store
@@ -125,6 +134,7 @@ func newSubscribingGraphServer(t *testing.T, cfg graphConfig, hub *event.Hub) ht
 		TrustedProxies:    cfg.TrustedProxies,
 		Logger:            cfg.Logger,
 		Web:               cfg.Web,
+		Roles:             roles,
 	})
 }
 

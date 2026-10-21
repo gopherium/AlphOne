@@ -10,8 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
-	accounts "github.com/gopherium/framework/gonsole/auth"
+	accountspg "github.com/gopherium/framework/gonsole/auth/postgres"
 	"github.com/gopherium/framework/pluginkit"
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -29,7 +29,7 @@ type composeConfig struct {
 	composeSettings
 	databaseURL string
 	getenv      func(string) string
-	roles       *role.Registry
+	roles       *goncierge.Registry
 	logger      *slog.Logger
 }
 
@@ -47,6 +47,7 @@ type composed struct {
 	hub          *event.Hub
 	events       nudgingPublisher
 	mailer       graphres.Mailer
+	roles        *goncierge.Registry
 	registered   []sdk.Plugin
 	failed       error
 }
@@ -70,6 +71,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		tenants:      postgres.NewTenantStore(pool),
 		worker:       webhook.NewWorker(webhooks, cfg.logger, guard),
 		hub:          event.NewHub(),
+		roles:        cfg.roles,
 	}
 	built.events = nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(webhooks, cfg.logger), worker: built.worker, hub: built.hub,
@@ -117,7 +119,7 @@ func abandon(ctx context.Context, built composed, grace time.Duration) error {
 
 // migrations returns the schema steps every database takes, in the order they apply.
 func migrations() []gonsole.Step {
-	return []gonsole.Step{accounts.Migration(), accounts.RecordMigration(), {Name: "core", Run: postgres.Migrate}}
+	return []gonsole.Step{accountspg.Migration(), accountspg.RecordMigration(), {Name: "core", Run: postgres.Migrate}}
 }
 
 // migrate applies every schema step to the database at databaseURL.

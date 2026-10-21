@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole/testkit"
 
 	"github.com/gopherium/alphone/internal/role"
@@ -43,6 +44,18 @@ func (rolePlugin) ID() string { return "steward" }
 func (p rolePlugin) Roles() []sdk.RoleDeclaration {
 	return p.declared
 }
+
+// corePlugin is a role plugin under the id the core grants its roles under.
+type corePlugin struct{ rolePlugin }
+
+// ID names the plugin after the core source.
+func (corePlugin) ID() string { return role.Source }
+
+// silentCorePlugin is a plugin declaring no roles under the id the core grants its roles under.
+type silentCorePlugin struct{ silentPlugin }
+
+// ID names the plugin after the core source.
+func (silentCorePlugin) ID() string { return role.Source }
 
 // errStopFailed is the failure the stopping plugin's stop answers.
 var errStopFailed = errors.New("stop failed")
@@ -99,14 +112,14 @@ func TestRunStopsThePluginsWhenARoleIsRefused(t *testing.T) {
 	refused := func(sdk.Deps) ([]sdk.Plugin, error) {
 		return []sdk.Plugin{
 			stoppingPlugin{stopped: &stopped},
-			rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"manage_reports"}}}},
+			rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"steward.manage_reports"}}}},
 		}, nil
 	}
 
 	err := run(t.Context(), stopGraceEnv(t), io.Discard, refused)
 
-	if !errors.Is(err, role.ErrEmptyRole) {
-		t.Fatalf("run() error = %v, want %v in its chain", err, role.ErrEmptyRole)
+	if !errors.Is(err, goncierge.ErrInvalidName) {
+		t.Fatalf("run() error = %v, want %v in its chain", err, goncierge.ErrInvalidName)
 	}
 	stoppedUnderTheStopGrace(t, err, &stopped)
 }
@@ -143,8 +156,8 @@ func TestDeclareRolesGrantsEveryDeclarationAPluginMakes(t *testing.T) {
 	registered := []sdk.Plugin{
 		silentPlugin{},
 		rolePlugin{declared: []sdk.RoleDeclaration{
-			{Name: "steward", Capabilities: []string{"manage_users", "manage_reports"}},
-			{Name: "admin", Capabilities: []string{"manage_reports"}},
+			{Name: "steward", Capabilities: []string{role.ManageUsers, "steward.manage_reports"}},
+			{Name: role.Admin.String(), Capabilities: []string{"steward.manage_reports"}},
 		}},
 	}
 
@@ -152,14 +165,14 @@ func TestDeclareRolesGrantsEveryDeclarationAPluginMakes(t *testing.T) {
 		t.Fatalf("declareRoles() error = %v, want nil", err)
 	}
 
-	if !registry.Can("steward", "manage_reports") {
-		t.Error("Can(steward, manage_reports) = false, want the declared role held")
+	if !registry.Can("steward", "steward.manage_reports") {
+		t.Error("Can(steward, steward.manage_reports) = false, want the declared role held")
 	}
-	if !registry.Can(role.Admin, "manage_reports") {
-		t.Error("Can(admin, manage_reports) = false, want the core role widened")
+	if !registry.Can(role.Admin.String(), "steward.manage_reports") {
+		t.Error("Can(admin, steward.manage_reports) = false, want the core role widened")
 	}
-	if got := registry.Privileged(); !slices.Equal(got, []string{"admin", "steward"}) {
-		t.Errorf("Privileged() = %v, want the declared role counted as cover", got)
+	if got := registry.HoldersOf(role.ManageUsers); !slices.Equal(got, []string{"admin", "steward"}) {
+		t.Errorf("HoldersOf(manage_users) = %v, want the declared role counted as cover", got)
 	}
 }
 
@@ -168,12 +181,60 @@ func TestDeclareRolesRefusesADeclarationWithNoName(t *testing.T) {
 
 	registry := role.NewRegistry()
 	registered := []sdk.Plugin{
-		rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"manage_reports"}}}},
+		rolePlugin{declared: []sdk.RoleDeclaration{{Name: "", Capabilities: []string{"steward.manage_reports"}}}},
 	}
 
 	err := declareRoles(registry, registered)
 
-	if !errors.Is(err, role.ErrEmptyRole) {
-		t.Errorf("declareRoles() error = %v, want ErrEmptyRole surfaced at wiring", err)
+	if !errors.Is(err, goncierge.ErrInvalidName) {
+		t.Errorf("declareRoles() error = %v, want ErrInvalidName surfaced at wiring", err)
+	}
+}
+
+func TestDeclareRolesRefusesANewCapabilityOutsideThePluginPrefix(t *testing.T) {
+	t.Parallel()
+
+	registry := role.NewRegistry()
+	registered := []sdk.Plugin{
+		rolePlugin{declared: []sdk.RoleDeclaration{{Name: "steward", Capabilities: []string{"manage_reports"}}}},
+	}
+
+	err := declareRoles(registry, registered)
+
+	if !errors.Is(err, goncierge.ErrOutsidePrefix) || !strings.Contains(err.Error(), "plugin steward") {
+		t.Errorf("declareRoles() error = %v, want ErrOutsidePrefix naming plugin steward", err)
+	}
+	if registry.Known("steward") {
+		t.Error("the registry knows steward, want the refused declaration left out")
+	}
+}
+
+func TestDeclareRolesRefusesAPluginUnderTheCoreID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		plugin sdk.Plugin
+	}{
+		{"one declaring roles", corePlugin{rolePlugin{declared: []sdk.RoleDeclaration{
+			{Name: role.Admin.String(), Capabilities: []string{role.ManageUsers}},
+		}}}},
+		{"one declaring no roles", silentCorePlugin{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registry := role.NewRegistry()
+
+			err := declareRoles(registry, []sdk.Plugin{tt.plugin})
+
+			if !errors.Is(err, errReservedID) || !strings.Contains(err.Error(), "plugin core") {
+				t.Errorf("declareRoles() error = %v, want %v naming plugin core", err, errReservedID)
+			}
+			if !registry.Can(role.Admin.String(), role.ManageWebhooks) {
+				t.Error("Can(admin, manage_webhooks) = false, want the core roles kept whole")
+			}
+		})
 	}
 }

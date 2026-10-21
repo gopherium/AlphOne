@@ -4,6 +4,7 @@ package graph_test
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -114,7 +115,7 @@ func capabilityProblems(
 	if ownsCapabilities {
 		return nil
 	}
-	if !slices.Contains(role.Capabilities(), role.Capability(needed.Value.Raw)) {
+	if !slices.Contains(role.NewRegistry().Capabilities(), needed.Value.Raw) {
 		return []string{fmt.Sprintf("%s.%s needs capability %q, which the role table does not know",
 			operation, field.Name, needed.Value.Raw)}
 	}
@@ -186,9 +187,20 @@ extend type Mutation { two: String! @scope(area: "users", write: true, admin: fa
 }
 
 // fieldsNeeding names every core root field whose scope declares capability.
-func fieldsNeeding(t *testing.T, capability role.Capability) map[string]bool {
+func fieldsNeeding(t *testing.T, capability string) map[string]bool {
 	t.Helper()
 	reserved := map[string]bool{}
+	for field, needed := range coreGatedFields(t) {
+		if needed == capability {
+			reserved[field] = true
+		}
+	}
+	return reserved
+}
+
+// coreGatedFields answers the capability each gated core root field needs, keyed by the field.
+func coreGatedFields(t *testing.T) map[string]string {
+	t.Helper()
 	files, err := filepath.Glob(filepath.Join("schema", "*.graphqls"))
 	if err != nil {
 		t.Fatalf("globbing the core schema: %v", err)
@@ -196,16 +208,15 @@ func fieldsNeeding(t *testing.T, capability role.Capability) map[string]bool {
 	if len(files) == 0 {
 		t.Fatal("globbed 0 core schema files, the glob is broken")
 	}
+	gated := map[string]string{}
 	for _, path := range files {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("reading %s: %v", path, err)
 		}
-		for _, field := range gatedFieldsIn(t, path, string(raw), capability) {
-			reserved[field] = true
-		}
+		maps.Copy(gated, gatedFieldsIn(t, path, string(raw)))
 	}
-	return reserved
+	return gated
 }
 
 func TestOnlyWebhookCreationNeedsTheManageWebhooksCapability(t *testing.T) {
@@ -242,14 +253,14 @@ func TestOnlyUserManagementNeedsTheManageUsersCapability(t *testing.T) {
 	}
 }
 
-// gatedFieldsIn names the root fields of one SDL source needing capability.
-func gatedFieldsIn(t *testing.T, name, source string, capability role.Capability) []string {
+// gatedFieldsIn answers the capability each gated root field of one SDL source needs, keyed by the field.
+func gatedFieldsIn(t *testing.T, name, source string) map[string]string {
 	t.Helper()
 	doc, err := parser.ParseSchema(&ast.Source{Name: name, Input: source})
 	if err != nil {
 		t.Fatalf("parsing %s: %v", name, err)
 	}
-	var reserved []string
+	gated := map[string]string{}
 	for _, def := range append(doc.Definitions, doc.Extensions...) {
 		if !rootOperations[def.Name] {
 			continue
@@ -259,13 +270,12 @@ func gatedFieldsIn(t *testing.T, name, source string, capability role.Capability
 			if declared == nil {
 				continue
 			}
-			needed := declared.Arguments.ForName("capability")
-			if needed != nil && needed.Value.Raw == string(capability) {
-				reserved = append(reserved, field.Name)
+			if needed := declared.Arguments.ForName("capability"); needed != nil {
+				gated[field.Name] = needed.Value.Raw
 			}
 		}
 	}
-	return reserved
+	return gated
 }
 
 func TestScopeCheckingFlagsACapabilityTheTableDoesNotKnow(t *testing.T) {

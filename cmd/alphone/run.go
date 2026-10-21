@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
 	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/authkit"
-	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/graph"
@@ -50,7 +50,7 @@ func run(
 		composeSettings: settings.composeSettings,
 		databaseURL:     settings.databaseURL,
 		getenv:          getenv,
-		roles:           role.Default,
+		roles:           role.NewRegistry(),
 		logger:          logger,
 	}, plugins)
 	if built.failed != nil {
@@ -75,7 +75,7 @@ func run(
 		return fmt.Errorf("start plugins: %w", err)
 	}
 
-	auth := authkit.New(authConfig(built.users))
+	auth := authkit.New(authConfig(built))
 	graphRoot, err := graphroot.FromPlugins(graphResolver(settings, built, auth, logger), built.registered)
 	if err != nil {
 		return errors.Join(
@@ -87,19 +87,20 @@ func run(
 	return gonsole.Serve(ctx, httpServer, settings.serving, host.Stop, logger)
 }
 
-// inviteConfigOf returns the invitation and reset lifetimes the settings name over the account store.
-func inviteConfigOf(settings runConfig, store *authkitpg.UserStore) authkit.InvitesConfig {
+// inviteConfigOf returns the invitation and reset lifetimes the settings name over the store and roles compose built.
+func inviteConfigOf(settings runConfig, built composed) authkit.InvitesConfig {
 	return authkit.InvitesConfig{
-		Store:           store,
+		Store:           built.users,
 		InviteTTL:       settings.inviteTTL,
 		ResetTTL:        settings.reset.ttl,
 		ResetTokensLive: settings.reset.links,
+		Roles:           built.roles,
 	}
 }
 
 // graphResolver returns the core graph resolver over what compose built, the login handlers and the settings.
 func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, logger *slog.Logger) *graphres.Resolver {
-	invites := inviteConfigOf(settings, built.users)
+	invites := inviteConfigOf(settings, built)
 	return &graphres.Resolver{
 		Version:       version.Version(),
 		Contacts:      built.contacts,
@@ -111,7 +112,7 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Events:        built.events,
 		Live:          built.hub,
 		Auth:          auth,
-		Admin:         authkit.NewAdmin(adminConfig(built.users)),
+		Admin:         authkit.NewAdmin(adminConfig(built)),
 		Invites:       authkit.NewInvites(invites),
 		Onboarding:    postgres.NewOnboarding(built.pool, invites),
 		Accounts:      built.users,
@@ -125,6 +126,7 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Logger:        logger,
 		Paging:        settings.paging,
 		Screens:       settings.screens,
+		Roles:         built.roles,
 	}
 }
 
@@ -144,6 +146,7 @@ func serverConfigOf(
 	cfg.PluginPublicPaths = host.PublicPaths()
 	cfg.PluginAreas = pluginAreas(built.registered)
 	cfg.FieldSources = fieldSources(built.registered)
+	cfg.Roles = built.roles
 	cfg.Logger = logger
 	if settings.webDir != "" {
 		cfg.Web = os.DirFS(settings.webDir)
@@ -162,35 +165,40 @@ func pluginAreas(registered []sdk.Plugin) map[string]string {
 	return areas
 }
 
-// authConfig returns the login configuration the server serves sessions under.
-func authConfig(store *authkitpg.UserStore) authkit.Config {
+// authConfig returns the login configuration the server serves sessions under, over the store and roles compose built.
+func authConfig(built composed) authkit.Config {
 	return authkit.Config{
-		Store:      store,
-		CookieName: server.SessionCookieName,
-		Privileged: role.Privileged(),
+		Store:        built.users,
+		CookieName:   server.SessionCookieName,
+		Privileged:   built.roles.HoldersOf(role.ManageUsers),
+		Capabilities: built.roles,
 	}
 }
 
-// adminConfig returns the administration configuration guarding the privileged cover.
-func adminConfig(store *authkitpg.UserStore) authkit.AdminConfig {
-	return authkit.AdminConfig{Store: store, Privileged: role.Privileged()}
+// adminConfig returns the administration configuration guarding the privileged cover over the roles compose built.
+func adminConfig(built composed) authkit.AdminConfig {
+	return authkit.AdminConfig{
+		Store:      built.users,
+		Privileged: built.roles.HoldersOf(role.ManageUsers),
+		Roles:      built.roles,
+	}
 }
 
-// declareRoles grants the registry every role a registered plugin declares.
-func declareRoles(registry *role.Registry, registered []sdk.Plugin) error {
+// errReservedID reports a plugin under the id the core grants its roles under.
+var errReservedID = errors.New("the id is reserved for the core roles")
+
+// declareRoles declares every role a registered plugin declares, refusing a plugin under the core id.
+func declareRoles(registry *goncierge.Registry, registered []sdk.Plugin) error {
 	for _, plugin := range registered {
+		if plugin.ID() == role.Source {
+			return fmt.Errorf("plugin %s: %w", plugin.ID(), errReservedID)
+		}
 		provider, ok := plugin.(sdk.RoleProvider)
 		if !ok {
 			continue
 		}
-		for _, declared := range provider.Roles() {
-			capabilities := make([]role.Capability, 0, len(declared.Capabilities))
-			for _, capability := range declared.Capabilities {
-				capabilities = append(capabilities, role.Capability(capability))
-			}
-			if err := registry.Grant(role.Role(declared.Name), capabilities...); err != nil {
-				return fmt.Errorf("declare role %q for %s: %w", declared.Name, plugin.ID(), err)
-			}
+		if err := role.Declare(registry, plugin.ID(), provider.Roles()); err != nil {
+			return fmt.Errorf("plugin %s: %w", plugin.ID(), err)
 		}
 	}
 	return nil

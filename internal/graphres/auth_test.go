@@ -35,6 +35,7 @@ func newAuthResolver(store *testkit.Store) *graphres.Resolver {
 		Accounts:     store,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 8, Window: time.Minute}),
+		Roles:        stewardRoles(),
 	}
 }
 

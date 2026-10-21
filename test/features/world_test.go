@@ -123,7 +123,11 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	tokens := postgres.NewTokenStore(pool)
 	webhooks := postgres.NewWebhookStore(pool)
 	hub := event.NewHub()
-	auth := authkit.New(authkit.Config{Store: users, CookieName: server.SessionCookieName})
+	roles := role.NewRegistry()
+	privileged := roles.HoldersOf(role.ManageUsers)
+	auth := authkit.New(authkit.Config{
+		Store: users, CookieName: server.SessionCookieName, Privileged: privileged, Capabilities: roles,
+	})
 
 	resolver := contact.NewResolver(contacts)
 	fieldsPlugin := livePlugin(t, databaseURL)
@@ -138,7 +142,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err != nil {
 		t.Fatalf("building the scenario mailer: %v", err)
 	}
-	inviteConfig := authkit.InvitesConfig{Store: users}
+	inviteConfig := authkit.InvitesConfig{Store: users, Roles: roles}
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	graph := &graphres.Resolver{
 		Version:      "test",
@@ -150,7 +154,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Settings:     postgres.NewUserSettingStore(pool),
 		Live:         hub,
 		Auth:         auth,
-		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: role.Privileged()}),
+		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: users, Privileged: privileged, Roles: roles}),
 		Invites:      authkit.NewInvites(inviteConfig),
 		Onboarding:   postgres.NewOnboarding(pool, inviteConfig),
 		Accounts:     users,
@@ -160,11 +164,47 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{}),
 		Logger:       quiet,
+		Roles:        roles,
 	}
 	root, err := graphroot.FromPlugins(graph, registered)
 	if err != nil {
 		t.Fatalf("composing the graph root: %v", err)
 	}
+	ownerID, minted := seededOwner(t, users, tokens)
+
+	srv := httptest.NewServer(server.NewServer(server.Config{
+		Users:        users,
+		Auth:         auth,
+		GraphRoot:    root,
+		Tenants:      postgres.NewTenantStore(pool),
+		Tokens:       tokens,
+		FieldSources: []sdk.FieldSource{fieldsPlugin},
+		Version:      "test",
+		Logger:       quiet,
+		Roles:        roles,
+	}))
+	t.Cleanup(srv.Close)
+
+	return &world{
+		t:        t,
+		graph:    graph,
+		pool:     pool,
+		tasks:    tasks,
+		contacts: contacts,
+		resolver: resolver,
+		users:    users,
+		server:   srv,
+		ownerID:  ownerID,
+		secret:   minted.Secret,
+		tokenID:  minted.Token.ID,
+		relay:    relay,
+		members:  map[string]string{},
+	}
+}
+
+// seededOwner seeds the scenario owner and returns its id and the full token stored for it.
+func seededOwner(t *testing.T, users *authkitpg.UserStore, tokens *postgres.TokenStore) (uuid.UUID, apitoken.Minted) {
+	t.Helper()
 	if _, err := authkit.EnsureAdmin(
 		context.Background(), users, ownerEmail, ownerName, ownerPassword, role.Admin.String(),
 	); err != nil {
@@ -181,34 +221,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	if err := tokens.Create(context.Background(), minted.Token); err != nil {
 		t.Fatalf("storing the token: %v", err)
 	}
-
-	srv := httptest.NewServer(server.NewServer(server.Config{
-		Users:        users,
-		Auth:         auth,
-		GraphRoot:    root,
-		Tenants:      postgres.NewTenantStore(pool),
-		Tokens:       tokens,
-		FieldSources: []sdk.FieldSource{fieldsPlugin},
-		Version:      "test",
-		Logger:       quiet,
-	}))
-	t.Cleanup(srv.Close)
-
-	return &world{
-		t:        t,
-		graph:    graph,
-		pool:     pool,
-		tasks:    tasks,
-		contacts: contacts,
-		resolver: resolver,
-		users:    users,
-		server:   srv,
-		ownerID:  owner.ID,
-		secret:   minted.Secret,
-		tokenID:  minted.Token.ID,
-		relay:    relay,
-		members:  map[string]string{},
-	}
+	return owner.ID, minted
 }
 
 // scenarioPublicURL is the address the mailed links of a scenario lead back to.

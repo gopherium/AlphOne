@@ -1,6 +1,6 @@
 module github.com/gopherium/alphone
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/99designs/gqlgen v0.17.95
@@ -9,15 +9,17 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gopherium/framework/dbkit v0.2.0
-	github.com/gopherium/framework/dbkit/postgres v0.2.0
+	github.com/gopherium/framework/dbkit/postgres v0.3.0
+	github.com/gopherium/framework/goncierge v0.1.0
 	github.com/gopherium/framework/gonsole v0.7.0
-	github.com/gopherium/framework/gonsole/auth v0.4.1
+	github.com/gopherium/framework/gonsole/auth v0.9.0
+	github.com/gopherium/framework/gonsole/auth/postgres v0.2.0
 	github.com/gopherium/framework/mailkit v0.1.0
 	github.com/gopherium/framework/pluginkit v0.6.0
 	github.com/gopherium/framework/pluginkit/graphwire v0.4.0
 	github.com/gopherium/gouncer v0.4.0
-	github.com/gopherium/gouncer/authkit v0.16.0
-	github.com/gopherium/gouncer/authkit/postgres v0.11.2
+	github.com/gopherium/gouncer/authkit v0.23.0
+	github.com/gopherium/gouncer/authkit/postgres v0.15.0
 	github.com/gopherium/gouncer/authkit/ratelimit v0.3.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jackc/pgx/v5 v5.11.0

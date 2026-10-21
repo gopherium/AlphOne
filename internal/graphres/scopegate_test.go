@@ -72,7 +72,7 @@ func gatedWith(t *testing.T, query string, ctx context.Context) *graphql.Respons
 	ctx = graphql.WithOperationContext(ctx, &graphql.OperationContext{
 		Doc: doc, Operation: doc.Operations[0], Variables: map[string]any{},
 	})
-	return graphres.ScopeGate(graphres.NewScopeMap(schema))(ctx, passed)(ctx)
+	return graphres.ScopeGate(graphres.NewScopeMap(schema), stewardRoles())(ctx, passed)(ctx)
 }
 
 // errorOf returns the single error message of a refused answer.
@@ -464,7 +464,7 @@ func TestScopeGateRefusesAnOperationItCannotRead(t *testing.T) {
 	ctx := credential.WithToken(t.Context(), credential.Token{Name: "probe", Scopes: apitoken.Full()})
 	ctx = graphql.WithOperationContext(ctx, &graphql.OperationContext{})
 
-	answered := graphres.ScopeGate(graphres.NewScopeMap(loadScopedSchema(t)))(ctx, passed)(ctx)
+	answered := graphres.ScopeGate(graphres.NewScopeMap(loadScopedSchema(t)), stewardRoles())(ctx, passed)(ctx)
 
 	if len(answered.Errors) != 1 {
 		t.Errorf("errors = %v, want an error when there is no operation to read", answered.Errors)

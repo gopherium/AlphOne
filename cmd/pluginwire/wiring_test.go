@@ -34,6 +34,21 @@ func TestConfigRefusesAPluginIDTheCommandLineKeeps(t *testing.T) {
 	}
 }
 
+func TestConfigRefusesThePluginIDTheCoreRolesUse(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTree(t, root)
+	writePluginIn(t, root, "plugins", "core",
+		`{"id": "core", "name": "Core", "backend": "github.com/gopherium/alphone/plugins/core"}`)
+
+	err := wire.Run(root, config)
+
+	if err == nil || !strings.Contains(err.Error(), `id "core" is reserved`) {
+		t.Errorf("wire.Run() error = %v, want the id core refused as reserved", err)
+	}
+}
+
 func TestRepositoryWiringIsUpToDate(t *testing.T) {
 	t.Parallel()
 

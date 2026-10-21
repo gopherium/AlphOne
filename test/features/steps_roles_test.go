@@ -232,9 +232,8 @@ func (w *world) standsAsAdmin(ctx context.Context, userID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	tier := role.Of(held.Role)
-	if tier != role.Admin {
-		return fmt.Errorf("the user stands in %v, want %v", tier, role.Admin)
+	if held.Role != role.Admin.String() {
+		return fmt.Errorf("the user stands in %q, want %q", held.Role, role.Admin.String())
 	}
 	return nil
 }

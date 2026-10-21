@@ -77,6 +77,7 @@ func newMutationHarness(t *testing.T) mutationHarness {
 		Tasks:    postgres.NewTaskStore(pool),
 		Webhooks: postgres.NewWebhookStore(pool),
 		Events:   events,
+		Roles:    stewardRoles(),
 	}
 	assignee := uuid.Must(uuid.NewV7())
 	return mutationHarness{

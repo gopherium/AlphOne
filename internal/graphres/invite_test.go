@@ -102,6 +102,7 @@ func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.R
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
+		Roles:        stewardRoles(),
 	}
 	if mailer != nil {
 		held.Mailer = mailer

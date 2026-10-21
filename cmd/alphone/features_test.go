@@ -193,7 +193,7 @@ func (s *operatorScenario) holdMember(email string) error {
 // declareRoleBeyond adds a plugin declaring the role called name with a capability the role held lacks.
 func (s *operatorScenario) declareRoleBeyond(name, held string) {
 	s.plugins = besideTheCompiledPlugins(rolePlugin{declared: []sdk.RoleDeclaration{
-		{Name: name, Capabilities: []string{"reach_beyond_" + held}},
+		{Name: name, Capabilities: []string{"steward.reach_beyond_" + held}},
 	}})
 }
 

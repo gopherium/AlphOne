@@ -19,7 +19,6 @@ import (
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
@@ -80,7 +79,7 @@ func TestPresentErrorSpeaksTheBrickErrorsInItsOwnVoice(t *testing.T) {
 		{"own role", authkit.ErrSelfRole, "you cannot change your own role"},
 		{"own account", authkit.ErrSelfDisable, "you cannot disable your own account"},
 		{"last privileged", gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
-		{"beyond reach", role.ErrBeyondReach, "that role is beyond your own"},
+		{"beyond reach", authkit.ErrBeyondReach, "that role is beyond your own"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -107,7 +106,7 @@ func TestEverySpokenErrorKeepsItsMessage(t *testing.T) {
 		authkit.ErrSelfRole,
 		authkit.ErrSelfDisable,
 		gouncer.ErrLastPrivileged,
-		role.ErrBeyondReach,
+		authkit.ErrBeyondReach,
 	} {
 		presented := graphres.PresentError(context.Background(), spoken)
 

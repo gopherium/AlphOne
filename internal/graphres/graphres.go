@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/gopherium/alphone/internal/apitoken"
 	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/event"
-	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -73,7 +73,7 @@ type WebhookStore interface {
 	DeleteWorkspaceSubscription(ctx context.Context, id uuid.UUID) error
 }
 
-// outranking refuses an actor writing an account of another tenant or holding a capability it lacks.
+// outranking refuses an actor writing an account of another tenant or one whose declared role carries more.
 func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, target uuid.UUID) error {
 	held, err := r.Admin.ListAccounts(ctx)
 	if err != nil {
@@ -90,12 +90,36 @@ func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, targe
 		if placedIn(placed, actor.ID) != placedIn(placed, account.ID) {
 			return gouncer.ErrUserNotFound
 		}
-		if !role.Outranks(role.Role(actor.Role), role.Role(account.Role)) {
-			return role.ErrBeyondReach
+		if r.Roles.Known(account.Role) && !r.Roles.Outranks(actor.Role, account.Role) {
+			return authkit.ErrBeyondReach
 		}
 		return nil
 	}
 	return gouncer.ErrUserNotFound
+}
+
+// writeWithinReach runs the write once the actor reaches the account, answering whether it applied.
+func (r *Resolver) writeWithinReach(
+	ctx context.Context, actor authkit.Identity, target uuid.UUID, write func() error,
+) (bool, error) {
+	if err := r.outranking(ctx, actor, target); err != nil {
+		return false, err
+	}
+	if err := write(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// refuseGrant refuses an actor granting a role the registry does not declare or one carrying more than its own.
+func (r *Resolver) refuseGrant(actor, tier string) error {
+	if !r.Roles.Known(tier) {
+		return authkit.ErrUnknownRole
+	}
+	if !r.Roles.Outranks(actor, tier) {
+		return authkit.ErrBeyondReach
+	}
+	return nil
 }
 
 // sharesTenant reports whether the actor and the target stand in one tenant.
@@ -189,6 +213,8 @@ type Resolver struct {
 	Auth *authkit.Handlers
 	// Admin serves user administration through the authkit seams.
 	Admin *authkit.AdminHandlers
+	// Roles answers which roles the deployment declares and the capabilities each carries.
+	Roles *goncierge.Registry
 	// Settings reads and writes the caller's stored preferences.
 	Settings SettingStore
 	// LoginLimiter counts failed logins per client IP.

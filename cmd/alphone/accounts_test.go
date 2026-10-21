@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole"
 	accounts "github.com/gopherium/framework/gonsole/auth"
 	"github.com/gopherium/framework/gonsole/testkit"
@@ -63,7 +64,7 @@ func roleOf(t *testing.T, databaseURL, email string) string {
 // stewardDeclaring registers one plugin declaring the steward role.
 func stewardDeclaring(sdk.Deps) ([]sdk.Plugin, error) {
 	return []sdk.Plugin{rolePlugin{declared: []sdk.RoleDeclaration{
-		{Name: "steward", Capabilities: []string{string(role.ManageUsers), string(role.ManageWebhooks)}},
+		{Name: "steward", Capabilities: []string{role.ManageUsers, role.ManageWebhooks}},
 	}}}, nil
 }
 
@@ -164,7 +165,7 @@ func TestAccountCommandsRefuseARoleAPluginCannotDeclare(t *testing.T) {
 	got := testkit.Run(t, programOver(role.NewRegistry(), getenv, refused), "",
 		"account:grant-role", "-role", "admin", "-as", "admin@example.com")
 
-	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, role.ErrEmptyRole.Error()) {
+	if got.Code != gonsole.ExitFailed || !strings.Contains(got.Stderr, goncierge.ErrInvalidName.Error()) {
 		t.Errorf("account:grant-role = %d with stderr %q, want 1 and the refused declaration named", got.Code, got.Stderr)
 	}
 }
@@ -319,14 +320,14 @@ func TestAnAdminCannotGiveARoleAboveItsOwn(t *testing.T) {
 	env := accountsDatabase(t)
 	above := func(sdk.Deps) ([]sdk.Plugin, error) {
 		return []sdk.Plugin{rolePlugin{declared: []sdk.RoleDeclaration{
-			{Name: "steward", Capabilities: []string{string(role.ManageUsers), "manage_reports"}},
+			{Name: "steward", Capabilities: []string{role.ManageUsers, "steward.manage_reports"}},
 		}}}, nil
 	}
 
 	got := testkit.Run(t, programOver(role.NewRegistry(), testkit.Getenv(env), above), "",
 		"account:role", "maria.perez@example.com", "steward", "-yes", "-as", "admin@example.com")
 
-	want := "alphone: the role steward carries manage_reports, which the account admin@example.com lacks\n"
+	want := "alphone: the role steward carries steward.manage_reports, which the account admin@example.com lacks\n"
 	if got.Code != gonsole.ExitFailed || got.Stdout != "" || got.Stderr != want {
 		t.Errorf("account:role -role steward = %d, stdout %q, stderr %q, want 1 and %q",
 			got.Code, got.Stdout, got.Stderr, want)
@@ -364,6 +365,26 @@ func TestAnActingAccountCannotChangeItsOwnRoleOrDisableItself(t *testing.T) {
 			}
 			unchangedMember(t, env)
 		})
+	}
+}
+
+func TestAccountEnableRefusesAnAccountHoldingNoRole(t *testing.T) {
+	t.Parallel()
+
+	env := accountsDatabase(t)
+	storeRoleless(t, env["ALPHONE_DATABASE_URL"], "none@example.com")
+
+	got := testkit.Run(t, bareProgram(env), "", "account:enable", "none@example.com", "-yes", "-as", "admin@example.com")
+
+	want := testkit.Result{
+		Code:   gonsole.ExitFailed,
+		Stderr: "alphone: the account none@example.com holds no role, give it a declared role before enabling it\n",
+	}
+	if got != want {
+		t.Errorf("account:enable = %+v, want %+v", got, want)
+	}
+	if records := recordsOf(t, env); len(records) != 0 {
+		t.Errorf("records = %q, want none", records)
 	}
 }
 
@@ -416,7 +437,7 @@ func TestTheRoleTableCountsEveryRoleThatManagesUsersAsPrivileged(t *testing.T) {
 			Name:    "roles",
 			Summary: "read the role table of the account commands",
 			Run: func(ctx context.Context, call gonsole.Call) (err error) {
-				held, err = declaredRoles(registry)(ctx, call)
+				held, err = accountConfig(registry).Roles(ctx, call)
 				return err
 			},
 		}},
@@ -428,7 +449,7 @@ func TestTheRoleTableCountsEveryRoleThatManagesUsersAsPrivileged(t *testing.T) {
 	if want := []string{role.Admin.String(), "steward"}; !slices.Equal(held.Privileged, want) {
 		t.Errorf("privileged roles = %v, want %v, every role carrying manage_users", held.Privileged, want)
 	}
-	want := []string{string(role.ManageUsers), string(role.ManageWebhooks)}
+	want := []string{role.ManageUsers, role.ManageWebhooks}
 	if !slices.Equal(held.Capabilities["steward"], want) {
 		t.Errorf("the steward role carries %v, want %v", held.Capabilities["steward"], want)
 	}

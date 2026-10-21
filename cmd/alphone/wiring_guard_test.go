@@ -3,9 +3,12 @@
 package main
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/framework/pluginkit"
@@ -13,6 +16,7 @@ import (
 	authkitpg "github.com/gopherium/gouncer/authkit/postgres"
 
 	"github.com/gopherium/alphone/internal/graphroot"
+	"github.com/gopherium/alphone/internal/role"
 )
 
 // unwiredResolverFields names the graph resolver fields the server leaves to their defaults on purpose.
@@ -67,7 +71,7 @@ func TestGraphRootCarriesEveryComposedValue(t *testing.T) {
 
 	settings, built := composedOverEverySetting(t)
 
-	resolver := graphResolver(settings, built, authkit.New(authConfig(built.users)), discardLogger())
+	resolver := graphResolver(settings, built, authkit.New(authConfig(built)), discardLogger())
 
 	if zero := zeroFields(resolver, unwiredResolverFields); len(zero) > 0 {
 		t.Errorf("the graph resolver leaves %v zero, want each one wired or named among %v on purpose",
@@ -84,7 +88,7 @@ func TestGraphResolverCarriesEveryListSetting(t *testing.T) {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}
 
-	resolver := graphResolver(settings, built, authkit.New(authConfig(built.users)), discardLogger())
+	resolver := graphResolver(settings, built, authkit.New(authConfig(built)), discardLogger())
 
 	if unnamed := unnamedFields(resolver.Paging, fallback.paging); len(unnamed) > 0 {
 		t.Errorf("Paging leaves %v zero or at the default, want the values the settings name", unnamed)
@@ -98,7 +102,7 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 	t.Parallel()
 
 	settings, built := composedOverEverySetting(t)
-	auth := authkit.New(authConfig(built.users))
+	auth := authkit.New(authConfig(built))
 	graphRoot, err := graphroot.FromPlugins(graphResolver(settings, built, auth, discardLogger()), built.registered)
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
@@ -109,6 +113,39 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 	if zero := zeroFields(cfg, unwiredServerFields); len(zero) > 0 {
 		t.Errorf("the server settings leave %v zero, want each one wired or named among %v on purpose",
 			zero, unwiredServerFields)
+	}
+}
+
+func TestThePluginRolesReachTheGraphAndTheServer(t *testing.T) {
+	t.Parallel()
+
+	settings, err := loadRunConfig(testkit.Getenv(filledSettings()))
+	if err != nil {
+		t.Fatalf("loadRunConfig() error = %v, want nil", err)
+	}
+	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), stewardDeclaring)
+	if err != nil || built.failed != nil {
+		t.Fatalf("compose() = %v with %v failed, want the steward plugin registered", err, built.failed)
+	}
+	abandonAtEnd(t, built)
+	auth := authkit.New(authConfig(built))
+
+	resolver := graphResolver(settings, built, auth, discardLogger())
+	cfg := serverConfigOf(settings, built, pluginkit.NewHost(built.registered...), auth, nil, discardLogger())
+
+	if !resolver.Roles.Known("steward") {
+		t.Error("the graph resolver does not know steward, want the registry the plugins declared into")
+	}
+	if !cfg.Roles.Known("steward") {
+		t.Error("the server settings do not know steward, want the registry the plugins declared into")
+	}
+	err = resolver.Admin.SetAccountRole(t.Context(), uuid.New(), uuid.New(), "steward")
+	if errors.Is(err, authkit.ErrUnknownRole) {
+		t.Errorf("SetAccountRole(steward) error = %v, want the role the plugin declares known", err)
+	}
+	_, err = resolver.Invites.Invite(t.Context(), "maria.perez@example.com", "Maria Perez", "steward")
+	if errors.Is(err, authkit.ErrUnknownRole) {
+		t.Errorf("Invite(steward) error = %v, want the role the plugin declares known", err)
 	}
 }
 
@@ -147,8 +184,10 @@ func TestInviteConfigCarriesEverySetting(t *testing.T) {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
 	}
 
-	held := reflect.ValueOf(inviteConfigOf(named, authkitpg.NewUserStore(nil)))
-	standing := reflect.ValueOf(inviteConfigOf(fallback, authkitpg.NewUserStore(nil)))
+	newComposed := func() composed { return composed{users: authkitpg.NewUserStore(nil), roles: role.NewRegistry()} }
+
+	held := reflect.ValueOf(inviteConfigOf(named, newComposed()))
+	standing := reflect.ValueOf(inviteConfigOf(fallback, newComposed()))
 
 	for i := range held.NumField() {
 		if held.Field(i).IsZero() || held.Field(i).Interface() == standing.Field(i).Interface() {

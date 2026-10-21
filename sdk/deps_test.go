@@ -19,6 +19,7 @@ func TestContractKeepsItsDependenciesMinimal(t *testing.T) {
 
 	allowedThirdParty := []string{
 		"github.com/google/uuid",
+		"github.com/gopherium/framework/goncierge",
 		"github.com/gopherium/framework/gonsole",
 		"github.com/gopherium/framework/pluginkit",
 	}

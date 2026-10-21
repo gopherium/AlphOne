@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/pluginkit"
 )
 
@@ -83,16 +84,11 @@ type AreaProvider interface {
 }
 
 // RoleDeclaration is one role a plugin declares, or capabilities it adds to a role the host knows.
-type RoleDeclaration struct {
-	// Name is the role in its stored form.
-	Name string
-	// Capabilities names what the role holds, added to whatever it already carries.
-	Capabilities []string
-}
+type RoleDeclaration = goncierge.Role
 
 // RoleProvider is implemented by plugins declaring roles or widening the ones the host knows.
 type RoleProvider interface {
-	// Roles returns every role the plugin declares and every capability it adds to one.
+	// Roles returns every role the plugin declares or widens, a new capability starting with the plugin id and a dot.
 	Roles() []RoleDeclaration
 }
 
