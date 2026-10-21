@@ -15,7 +15,7 @@ require (
 	github.com/gopherium/framework/gonsole/auth v0.9.0
 	github.com/gopherium/framework/gonsole/auth/postgres v0.2.0
 	github.com/gopherium/framework/mailkit v0.1.0
-	github.com/gopherium/framework/pluginkit v0.6.0
+	github.com/gopherium/framework/pluginkit v0.7.0
 	github.com/gopherium/framework/pluginkit/graphwire v0.4.0
 	github.com/gopherium/gouncer v0.4.0
 	github.com/gopherium/gouncer/authkit v0.23.0

@@ -170,8 +170,8 @@ github.com/gopherium/framework/gonsole/auth/postgres v0.2.0 h1:cGYiPUUfa0arwnvLd
 github.com/gopherium/framework/gonsole/auth/postgres v0.2.0/go.mod h1:zNqYCZOIJ+j2RfncueejQ8Tklhvy4xQdWTrF9S8X+GQ=
 github.com/gopherium/framework/mailkit v0.1.0 h1:A1xm46dpo/zYrzV+Owa2W4Y0QJ1TBDNLkz8qwHF6238=
 github.com/gopherium/framework/mailkit v0.1.0/go.mod h1:iI4n+UOwJPLzczDBhJVmkd69euIIhxeVMhHJi+nRShg=
-github.com/gopherium/framework/pluginkit v0.6.0 h1:hE/w3Tg6Y0SyhEuBZXvkqGo4AvrgU0Lr3RZ7xsjHfAI=
-github.com/gopherium/framework/pluginkit v0.6.0/go.mod h1:PJqz8GTbhNPTYZB2IPOd9tyjWB3COO5cdRYAoLENRCM=
+github.com/gopherium/framework/pluginkit v0.7.0 h1:It4ET4kjObn3WoEy3k6PoUZuVtv+S0K7cHznq68f/Ss=
+github.com/gopherium/framework/pluginkit v0.7.0/go.mod h1:HrhwGyRv517SIUxyePujUskT+1qmkJvmSPmtgFX56Rw=
 github.com/gopherium/framework/pluginkit/graphwire v0.4.0 h1:W+pXZA2i3OuHlyVrulG2P2Cy1FGuF+JB/H0aFn+LymI=
 github.com/gopherium/framework/pluginkit/graphwire v0.4.0/go.mod h1:GQCjzF+zzmUsfRsKPQOlEqWahNJJ3x4BcPCMo0h4Ao8=
 github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
