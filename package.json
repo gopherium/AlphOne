@@ -17,7 +17,7 @@
 		"eslint-plugin-sonarjs": "^4.2.2",
 		"eslint-plugin-tsdoc": "^0.5.4",
 		"knip": "^6.41.0",
-		"oxlint": "^1.87.0",
+		"oxlint": "^1.88.0",
 		"typescript-eslint": "^8.71.2"
 	}
 }
