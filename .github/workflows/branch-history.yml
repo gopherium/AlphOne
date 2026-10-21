@@ -1,0 +1,33 @@
+name: branch-history
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  no-merge-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - name: The branch holds no merge commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          count="$(git rev-list --merges --count "$BASE_SHA..$HEAD_SHA")"
+          if [ "$count" -eq 0 ]; then
+            echo "The branch holds no merge commits."
+            exit 0
+          fi
+          echo "::error title=Merge commit in the branch::This pull request holds $count merge commit(s). Rebase the branch onto $BASE_REF instead of merging $BASE_REF into it."
+          git log --merges --format='  %h %s' "$BASE_SHA..$HEAD_SHA"
+          exit 1
