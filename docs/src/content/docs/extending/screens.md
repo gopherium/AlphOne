@@ -187,8 +187,8 @@ createRoute({
 })
 ```
 
-The menu then leaves out an entry pointing at that route for a reader
-without the capability. An entry may also name a `capability` of its
+The menu then leaves out an entry pointing at that route, or at a route
+nested under it, for a reader without the capability. An entry may also name a `capability` of its
 own, and the menu checks both. The core keeps Users and New user from
 an account without `manage_users` this way, and sends that account to
 its home screen when it types their address.
