@@ -361,6 +361,9 @@ msgstr ""
 msgid "No users yet."
 msgstr ""
 
+msgid "Nothing declares that role."
+msgstr ""
+
 msgid "Nothing due today."
 msgstr ""
 
@@ -522,10 +525,7 @@ msgstr ""
 msgid "That priority is not one AlphOne offers."
 msgstr ""
 
-msgid "That role holds more than your own, or it is not one this deployment names."
-msgstr ""
-
-msgid "That role is not one this deployment names."
+msgid "That role holds more than your own, or nothing declares it."
 msgstr ""
 
 msgid "That status is not one AlphOne offers."
