@@ -46,6 +46,7 @@ export const usersQuery = graphql(`
 			confirmed
 			createdAt
 			role
+			withinReach
 		}
 	}
 `)

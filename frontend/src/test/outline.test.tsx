@@ -43,8 +43,8 @@ const corePaths: Record<string, string> = {
 	'/contacts': '/contacts',
 	'/contacts/new': '/contacts/new',
 	'/contacts/$contactId': `/contacts/${contactID}`,
-	'/users': '/users',
-	'/users/new': '/users/new',
+	'/admin/users': '/users',
+	'/admin/users/new': '/users/new',
 	'/users/tokens': '/users/tokens',
 	'/users/tokens/new': '/users/tokens/new',
 	'/language': '/language',
@@ -99,8 +99,9 @@ beforeEach(() => {
 })
 
 test('every leaf route is covered by the outline invariant', () => {
-	const leaves = Object.keys(createAppRouter().routesById)
-		.filter((id) => id !== '__root__')
+	const leaves = Object.values(createAppRouter().routesById)
+		.filter((route) => route.id !== '__root__' && route.path !== undefined)
+		.map((route) => route.id)
 		.sort()
 
 	expect(leaves).toEqual(Object.keys(paths).sort())

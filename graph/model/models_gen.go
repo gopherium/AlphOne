@@ -246,13 +246,14 @@ type UpdateTaskInput struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	Disabled  bool      `json:"disabled"`
-	Confirmed bool      `json:"confirmed"`
-	CreatedAt time.Time `json:"createdAt"`
-	Role      string    `json:"role"`
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	Name        string    `json:"name"`
+	Disabled    bool      `json:"disabled"`
+	Confirmed   bool      `json:"confirmed"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Role        string    `json:"role"`
+	WithinReach bool      `json:"withinReach"`
 }
 
 type Webhook struct {

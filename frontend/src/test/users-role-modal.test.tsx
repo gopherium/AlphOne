@@ -27,6 +27,7 @@ const member: Account = {
 	confirmed: true,
 	created_at: new Date('2026-07-07T10:00:00Z'),
 	role: 'member',
+	withinReach: true,
 }
 
 test('keeps the role the account holds when the select hands back no choice', async () => {

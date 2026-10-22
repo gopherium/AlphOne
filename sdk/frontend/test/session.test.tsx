@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { seedSession } from '@gopherium/react-auth/testing'
+import { seedSession, userWithCapabilities } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
@@ -15,9 +15,12 @@ function Probe() {
 		return <p>signed out</p>
 	}
 	return (
-		<p>
-			{session.id} {session.email} {session.name} {session.role}
-		</p>
+		<>
+			<p>
+				{session.id} {session.email} {session.name}
+			</p>
+			<p>{`role:${session.role}`}</p>
+		</>
 	)
 }
 
@@ -40,13 +43,19 @@ test('answers the signed-in account with its tier', () => {
 	const shown = screen.getByText(new RegExp(adminSession.email))
 	expect(shown).toHaveTextContent(adminSession.id)
 	expect(shown).toHaveTextContent(adminSession.name)
-	expect(shown).toHaveTextContent('admin')
+	expect(screen.getByText('role:admin')).toBeInTheDocument()
 })
 
 test('carries the canned member standing as a member', () => {
 	renderWithSession(memberSession)
 
-	expect(screen.getByText(new RegExp(memberSession.email))).toHaveTextContent('member')
+	expect(screen.getByText(new RegExp(memberSession.email))).toBeInTheDocument()
+	expect(screen.getByText('role:member')).toBeInTheDocument()
+})
+
+test('builds the canned sessions from react-auth\'s test accounts', () => {
+	expect(adminSession).toEqual(userWithCapabilities('admin', ['manage_users', 'manage_webhooks'], ['admin', 'member']))
+	expect(memberSession).toEqual(userWithCapabilities('member', [], ['member']))
 })
 
 test('answers null without a session', () => {

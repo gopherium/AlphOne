@@ -227,10 +227,11 @@ printf '%s\n' "$ADMIN_PASSWORD" | docker compose exec -T alphone /alphone \
 ```
 
 `-role admin` makes an admin, so this account can create the rest of your
-colleagues. Everyone it creates arrives as a member, who works with the
-product but manages neither users nor webhooks. Promote one from the Users
-screen when you want a second admin. See
-[Roles](/reference/graphql-api/#roles) for what each tier may do.
+colleagues. The New user screen starts each one as a member, who works with
+the product but manages neither users nor webhooks. Pick Administrator in its
+Role field, or promote a member from the Users screen later, when you want a
+second admin. See [Roles](/reference/graphql-api/#roles) for what each tier
+may do.
 
 ## Next steps
 

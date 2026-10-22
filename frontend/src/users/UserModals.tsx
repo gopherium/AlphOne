@@ -5,7 +5,6 @@ import {
 	ConfirmBody,
 	ErrorNotice,
 	InputControl,
-	SelectControl,
 	Stack,
 	Text,
 	__,
@@ -23,7 +22,7 @@ import { useState } from 'react'
 
 import type { Account } from '../auth/graphTransport'
 import { resendInviteMutation, setUserRoleMutation } from '../auth/operations'
-import { roleLabel } from './userFields'
+import { RoleSelect } from './RoleSelect'
 
 /**
  * Renders the modal writing the role another account holds.
@@ -40,13 +39,12 @@ export function RoleModal({
 	const toaster = useToaster()
 	const [chosen, setChosen] = useState(user.role)
 	const [written, write] = useGraphMutation(setUserRoleMutation)
-	const offered = grantable.map((role) => ({ value: role, label: roleLabel(role) }))
 	const submit = async () => {
 		const result = await write({ id: user.id, role: chosen })
+		await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 		if (result.error) {
 			return
 		}
-		await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 		toaster.show(sprintf(__('Role changed for "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
 		closeModal?.()
 	}
@@ -60,12 +58,7 @@ export function RoleModal({
 		>
 			<Stack direction="column" gap="lg">
 				<Text>{sprintf(__('Choose the role of %(name)s.', 'alphone'), { name: user.name })}</Text>
-				<SelectControl
-					label={__('Role', 'alphone')}
-					items={offered}
-					value={offered.find((option) => option.value === chosen)}
-					onValueChange={(item) => item?.value != null && setChosen(item.value)}
-				/>
+				<RoleSelect grantable={grantable} value={chosen} onChange={setChosen} />
 				{written.error ? (
 					<ErrorNotice>
 						{validationMessage(graphError(written.error), __('The role could not be changed.', 'alphone'))}

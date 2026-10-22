@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { rememberFormatLocale } from '@alphone/frontend-sdk'
-import { HttpResponse, delay, graphql, memberSession, paging, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, delay, graphql, paging, server } from '@alphone/frontend-sdk/testing'
 import { setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { screen, waitFor, within } from '@testing-library/react'
@@ -9,7 +9,6 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, onTestFinished, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { defaultUser } from '@gopherium/react-auth/testing'
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
@@ -25,6 +24,7 @@ interface account {
 	confirmed: boolean
 	createdAt: string
 	role: string
+	withinReach: boolean
 }
 
 /**
@@ -44,13 +44,14 @@ function accountOf(id: string, name: string, changes: Partial<account> = {}): ac
 		confirmed: true,
 		createdAt: '2026-07-07T10:00:00Z',
 		role: 'member',
+		withinReach: true,
 		...changes,
 	}
 }
 
-const signedIn = accountOf('01', defaultUser.name, {
-	id: defaultUser.id,
-	email: defaultUser.email,
+const signedIn = accountOf('01', adminSession.name, {
+	id: adminSession.id,
+	email: adminSession.email,
 	role: 'admin',
 	createdAt: '2026-07-06T10:00:00Z',
 })
@@ -70,12 +71,18 @@ function holding(accounts: account[]) {
 }
 
 /**
- * Returns the table row holding the given text.
+ * Returns the table row holding an element whose whole text is the given text.
  * @param text - A name or address the row shows.
  * @returns The row queries.
  */
 async function rowOf(text: string) {
-	return within(await screen.findByRole('row', { name: new RegExp(text) }))
+	return within(
+		await waitFor(() => {
+			const row = screen.getAllByRole('row').find((candidate) => within(candidate).queryByText(text) !== null)
+			expect(row).toBeDefined()
+			return row as HTMLElement
+		}),
+	)
 }
 
 /**
@@ -108,7 +115,7 @@ beforeAll(async () => {
 beforeEach(() => holding([signedIn, colleague, barred]))
 
 test('keeps in the address only what a list view can hold', () => {
-	const { validateSearch } = createAppRouter().routesById['/users'].options
+	const { validateSearch } = createAppRouter().routesById['/admin/users'].options
 
 	const kept = (validateSearch as (raw: Record<string, unknown>) => unknown)({
 		search: 'ada',
@@ -223,7 +230,7 @@ test('reads each account status as a badge', async () => {
 	holding([signedIn, barred, accountOf('fd', 'Maria Perez', { confirmed: false })])
 	renderAt('/users')
 
-	expect((await rowOf('Grace Hopper')).getByText('Active')).toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByText('Active')).toBeInTheDocument()
 	expect((await rowOf('Ana Lopez')).getByText('Disabled')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('Invited')).toBeInTheDocument()
 })
@@ -243,7 +250,7 @@ test('reads each status in Spanish so it agrees with the user, and offers to act
 	holding([signedIn, barred, accountOf('fd', 'Maria Perez', { confirmed: false })])
 	renderAt('/users')
 
-	expect((await rowOf('Grace Hopper')).getByText('Activo')).toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByText('Activo')).toBeInTheDocument()
 	expect((await rowOf('Ana Lopez')).getByText('Desactivado')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('Invitado')).toBeInTheDocument()
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' }))
@@ -255,7 +262,7 @@ test('reads the role every account holds by its label', async () => {
 	renderAt('/users')
 
 	expect((await rowOf('Ada Lovelace')).getByText('Member')).toBeInTheDocument()
-	expect((await rowOf('Grace Hopper')).getByText('Administrator')).toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByText('Administrator')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('No role')).toBeInTheDocument()
 })
 
@@ -267,7 +274,7 @@ test('reads each core role in Spanish, the way the user reads every other label'
 	renderAt('/users')
 
 	expect((await rowOf('Ada Lovelace')).getByText('Miembro')).toBeInTheDocument()
-	expect((await rowOf('Grace Hopper')).getByText('Administrador')).toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByText('Administrador')).toBeInTheDocument()
 	expect((await rowOf('Maria Perez')).getByText('Sin rol')).toBeInTheDocument()
 })
 
@@ -292,7 +299,7 @@ test('draws an initials avatar before every name, hidden from screen readers', a
 	const avatar = (await rowOf('Ada Lovelace')).getByText('A', { selector: '.godmin-avatar' })
 	expect(avatar).toHaveAttribute('aria-hidden', 'true')
 	expect(avatar.parentElement).toHaveClass('dataviews-column-primary__media')
-	expect((await rowOf('Grace Hopper')).getByText('G', { selector: '.godmin-avatar' })).toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByText('M', { selector: '.godmin-avatar' })).toBeInTheDocument()
 })
 
 test('lets a reader hide the avatars through the view options, where they read as Avatar', async () => {
@@ -323,20 +330,20 @@ test('dates every account in the page language', async () => {
 test('sorts the accounts by when they were created, newest first, when the address names no order', async () => {
 	renderAt('/users')
 
-	expect(await shownNames()).toEqual(['Ana Lopez', 'Ada Lovelace', 'Grace Hopper'])
+	expect(await shownNames()).toEqual([barred.name, colleague.name, signedIn.name])
 	expect(screen.getByRole('columnheader', { name: /Created/ })).toHaveAttribute('aria-sort', 'descending')
 })
 
 test('sorts the accounts by the field and direction the address names', async () => {
 	renderAt('/users?sort=email&order=desc')
 
-	expect(await shownNames()).toEqual(['Grace Hopper', 'Ana Lopez', 'Ada Lovelace'])
+	expect(await shownNames()).toEqual([barred.name, signedIn.name, colleague.name])
 })
 
 test('sorts the accounts by name from A to Z when the address says so', async () => {
 	renderAt('/users?sort=name&order=asc')
 
-	expect(await shownNames()).toEqual(['Ada Lovelace', 'Ana Lopez', 'Grace Hopper'])
+	expect(await shownNames()).toEqual([colleague.name, barred.name, signedIn.name])
 })
 
 test('searches the accounts by name', async () => {
@@ -350,9 +357,9 @@ test('searches the accounts by name', async () => {
 test('searches the accounts by email', async () => {
 	renderAt('/users')
 
-	await userEvent.type(await screen.findByRole('searchbox', { name: 'Search users…' }), 'grace@')
+	await userEvent.type(await screen.findByRole('searchbox', { name: 'Search users…' }), 'admin@')
 
-	await waitFor(async () => expect(await shownNames()).toEqual(['Grace Hopper']))
+	await waitFor(async () => expect(await shownNames()).toEqual([signedIn.name]))
 })
 
 test('narrows the accounts to the statuses the address names', async () => {
@@ -366,7 +373,7 @@ test('narrows the accounts to the roles the address names', async () => {
 	const filters = encodeURIComponent(JSON.stringify([{ field: 'role', operator: 'isAny', value: ['admin'] }]))
 	renderAt(`/users?filters=${filters}`)
 
-	expect(await shownNames()).toEqual(['Grace Hopper'])
+	expect(await shownNames()).toEqual([signedIn.name])
 })
 
 test('keeps the filter chips out of sight until a filter is picked, so the filter button stays live', async () => {
@@ -405,7 +412,7 @@ test('pages the accounts by the page size the admin settings name', async () => 
 	expect(await shownNames()).toEqual(['Ana Lopez', 'Ada Lovelace'])
 	await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
 
-	await waitFor(async () => expect(await shownNames()).toEqual(['Grace Hopper']))
+	await waitFor(async () => expect(await shownNames()).toEqual([signedIn.name]))
 })
 
 test('offers as page sizes the ones the admin settings name', async () => {
@@ -439,7 +446,7 @@ test('keeps the page the address names while the page size is on its way', async
 	)
 	renderAt('/users?page=2')
 
-	await waitFor(async () => expect(await shownNames()).toEqual(['Grace Hopper']), { timeout: 3000 })
+	await waitFor(async () => expect(await shownNames()).toEqual([signedIn.name]), { timeout: 3000 })
 })
 
 test('shows every account on one page when the page size could not be read', async () => {
@@ -450,7 +457,7 @@ test('shows every account on one page when the page size could not be read', asy
 	)
 	renderAt('/users')
 
-	await waitFor(async () => expect(await shownNames()).toEqual(['Ana Lopez', 'Ada Lovelace', 'Grace Hopper']))
+	await waitFor(async () => expect(await shownNames()).toEqual([barred.name, colleague.name, signedIn.name]))
 	expect(screen.queryByRole('button', { name: 'Next page' })).not.toBeInTheDocument()
 })
 
@@ -464,8 +471,8 @@ test('offers no row action on the signed-in account', async () => {
 	renderAt('/users')
 
 	await rowOf('Ada Lovelace')
-	expect((await rowOf('Grace Hopper')).queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
-	expect((await rowOf('Grace Hopper')).getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
+	expect((await rowOf(signedIn.name)).queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
+	expect((await rowOf(signedIn.name)).getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
 })
 
 test('offers no enable on the signed-in account, even while it reads disabled', async () => {
@@ -473,7 +480,7 @@ test('offers no enable on the signed-in account, even while it reads disabled', 
 	renderAt('/users')
 
 	await rowOf('Ada Lovelace')
-	const own = await rowOf('Grace Hopper')
+	const own = await rowOf(signedIn.name)
 	expect(own.getByText('Disabled')).toBeInTheDocument()
 	expect(own.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
 	expect(own.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
@@ -488,27 +495,53 @@ test('draws Enable on a disabled row as its primary action, and never Disable', 
 	expect(active.queryByRole('button', { name: 'Disable' })).not.toBeInTheDocument()
 })
 
-test('offers a member no user management at all', async () => {
-	renderAt('/users', memberSession)
+/**
+ * Returns the labels of the actions the Actions menu of one row lists, closing the menu again.
+ * @param name - The account the row shows.
+ * @returns The action labels.
+ */
+async function menuOf(name: string) {
+	await userEvent.click((await rowOf(name)).getByRole('button', { name: 'Actions' }))
+	const labels = (await screen.findAllByRole('menuitem')).map((item) => item.textContent)
+	await userEvent.keyboard('{Escape}')
+	await waitFor(() => expect(screen.queryByRole('menuitem')).not.toBeInTheDocument())
+	return labels
+}
 
-	await rowOf('Ada Lovelace')
-	expect(screen.queryByRole('link', { name: 'New user' })).not.toBeInTheDocument()
-	expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
-	expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-	expect(screen.queryByText('3 Items')).not.toBeInTheDocument()
+test('offers no role change, disable or enable on an account beyond the reach of the reader', async () => {
+	holding([
+		signedIn,
+		accountOf('fd', 'Maria Perez'),
+		accountOf('fb', 'Higher Role Account', { role: 'steward', withinReach: false }),
+		accountOf('fa', 'Disabled Higher Role Account', { role: 'steward', disabled: true, withinReach: false }),
+	])
+	renderAt('/users')
+
+	expect(await menuOf('Maria Perez')).toEqual(['Change role…', 'Disable'])
+	for (const name of ['Higher Role Account', 'Disabled Higher Role Account']) {
+		const row = await rowOf(name)
+		expect(row.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
+		expect(row.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
+		expect(row.getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
+	}
 })
 
-test('offers a member the API tokens tab, since every account holds its own tokens', async () => {
-	renderAt('/users', memberSession)
+test('offers Enable only on a disabled account whose role the reader may give', async () => {
+	holding([
+		signedIn,
+		accountOf('fd', 'Maria Perez', { disabled: true }),
+		accountOf('fc', 'No Role Account', { disabled: true, role: '' }),
+		accountOf('fb', 'Lost Role Account', { disabled: true, role: 'auditor' }),
+	])
+	renderAt('/users')
 
-	const tabs = within(await screen.findByRole('navigation', { name: 'User sections' }))
-	expect(tabs.getByRole('link', { name: 'API tokens' })).toBeInTheDocument()
-})
-
-test('still lists the colleagues a member works with', async () => {
-	renderAt('/users', memberSession)
-
-	expect((await rowOf('Ada Lovelace')).getByText('ada@example.com')).toBeInTheDocument()
+	expect((await rowOf('Maria Perez')).getByRole('button', { name: 'Enable' })).toBeInTheDocument()
+	for (const name of ['No Role Account', 'Lost Role Account']) {
+		const row = await rowOf(name)
+		expect(row.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
+		expect(row.getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
+		expect(await menuOf(name)).toEqual(['Change role…'])
+	}
 })
 
 test('lays the accounts out as a list on a phone', async () => {
@@ -583,7 +616,7 @@ test('cuts a long account name short in the toast', async () => {
 	writesDisabled()
 	renderAt('/users')
 
-	await act('Maria Perez', 'Disable')
+	await act('Maria Perez of the accounting and payroll office team', 'Disable')
 
 	expect(await screen.findByText('"Maria Perez of the accounting and payroll off…" disabled.')).toBeInTheDocument()
 })
@@ -638,9 +671,9 @@ test('says plainly that an account could not be enabled when the server names no
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
-test('says why an account holding a role nobody declares could not be enabled', async () => {
+test('says why an enable was refused when the roles the reader may give went stale', async () => {
 	configureAppErrorText()
-	holding([signedIn, accountOf('fd', 'Maria Perez', { disabled: true, role: 'auditor' })])
+	holding([signedIn, accountOf('fd', 'Maria Perez', { disabled: true })])
 	server.use(
 		graphql.mutation('SetUserDisabled', () =>
 			HttpResponse.json({
@@ -910,6 +943,37 @@ test('says inside the modal that the role of the account just changed', async ()
 	)
 	expect(screen.queryByText('role changed')).not.toBeInTheDocument()
 	expect(screen.queryByText(/Role changed for/)).not.toBeInTheDocument()
+})
+
+test('reloads the accounts after a refused role change, keeping the role the reader picked', async () => {
+	configureAppErrorText()
+	holding([signedIn, accountOf('fd', 'Maria Perez')])
+	server.use(
+		graphql.mutation('SetUserRole', ({ variables }) => {
+			held = held.map((user) => (user.id === String(variables.id) ? { ...user, role: 'admin' } : user))
+			return HttpResponse.json({
+				data: null,
+				errors: [{ message: 'role changed', extensions: { code: 'CONFLICT', reason: 'role_changed' } }],
+			})
+		}),
+	)
+	renderAt('/users')
+
+	await act('Maria Perez', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	expect(await dialog.findByRole('alert')).toHaveTextContent(
+		'The role of that account just changed. Reload the page and try again.',
+	)
+	await waitFor(() =>
+		expect(dialog.getByRole('button', { name: 'Change role' })).toHaveAttribute('aria-disabled', 'true'),
+	)
+	expect(dialog.getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
+	await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+	expect((await rowOf('Maria Perez')).getByText('Administrator')).toBeInTheDocument()
 })
 
 test('says plainly that a role could not be changed when the server names no reason', async () => {

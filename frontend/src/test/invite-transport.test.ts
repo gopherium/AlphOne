@@ -162,6 +162,36 @@ test('fetchUsers carries the confirmation of every account', async () => {
 	expect(held.confirmed).toBe(false)
 })
 
+test('fetchUsers carries whether the reader may change each account', async () => {
+	let asked = ''
+	server.use(
+		http.post('/api/graphql', async ({ request }) => {
+			asked = ((await request.json()) as { query: string }).query
+			return HttpResponse.json({
+				data: {
+					users: [
+						{
+							id: 'u1',
+							email: 'maria@example.com',
+							name: 'Maria Perez',
+							disabled: false,
+							confirmed: true,
+							createdAt: '2026-08-31T00:00:00Z',
+							role: 'member',
+							withinReach: false,
+						},
+					],
+				},
+			})
+		}),
+	)
+
+	const [held] = await graphAuthTransport.fetchUsers()
+
+	expect(asked).toContain('withinReach')
+	expect(held.withinReach).toBe(false)
+})
+
 test('the token operations throw their fallback without a payload', async () => {
 	graphResponds('mutation AcceptInvite', { data: null })
 	await expect(graphAuthTransport.acceptInvite('t-1', 'correct horse battery')).rejects.toThrow(

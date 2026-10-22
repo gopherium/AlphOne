@@ -4,10 +4,8 @@ import {
 	Button,
 	EmptyState,
 	ErrorNotice,
-	MANAGE_USERS,
 	PageScreen,
 	__,
-	can,
 	people,
 	useAdminSettings,
 	useListView,
@@ -49,28 +47,11 @@ function UsersEmpty({ narrowed }: { narrowed: boolean }) {
 }
 
 /**
- * Renders the button beside the title, New user, only for a reader who manages users.
- * @param manages - Whether the reader manages users.
- * @returns The page action, or nothing.
- */
-function usersAction(manages: boolean) {
-	if (!manages) {
-		return undefined
-	}
-	return (
-		<Button variant="solid" size="compact" render={<Link to="/users/new" />}>
-			{__('New user', 'alphone')}
-		</Button>
-	)
-}
-
-/**
  * Renders the accounts as a list to search, filter, sort and page, with the actions a manager may take.
  * @returns The users screen.
  */
 export function UsersScreen() {
 	const session = useSession()
-	const manages = can(session, MANAGE_USERS)
 	const users = useQuery({
 		queryKey: usersQueryKey,
 		queryFn: ({ signal }) => fetchUsers(signal) as Promise<Account[]>,
@@ -95,7 +76,11 @@ export function UsersScreen() {
 		<PageScreen
 			title={__('Users', 'alphone')}
 			subtitle={__('Manage who can sign in and what they can do.', 'alphone')}
-			actions={usersAction(manages)}
+			actions={
+				<Button variant="solid" size="compact" render={<Link to="/users/new" />}>
+					{__('New user', 'alphone')}
+				</Button>
+			}
 			tabs={<UserTabs current="users" />}
 			list
 		>

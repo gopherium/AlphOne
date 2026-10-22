@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	MANAGE_USERS,
 	__,
 	_n,
-	can,
 	check,
 	formatNumber,
 	graphError,
@@ -65,10 +63,10 @@ function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailu
 }
 
 /**
- * Returns the actions the users list offers a reader who manages users, none on their own row, Enable primary.
+ * Returns the users list actions, none on the reader's own row, a role or standing change only within reach.
  * @param session - The signed-in account.
  * @param onFailure - Shows the failure of a disable or enable above the list, or clears it.
- * @returns The row and bulk actions, none for a reader who may not manage users.
+ * @returns The row and bulk actions, none once the session is gone.
  */
 export function useUserActions(
 	session: Session | null,
@@ -79,10 +77,10 @@ export function useUserActions(
 	const queryClient = useQueryClient()
 
 	return useMemo(() => {
-		if (session === null || !can(session, MANAGE_USERS)) {
+		if (session === null) {
 			return []
 		}
-		const others = (user: Account) => user.id !== session.id
+		const changeable = (user: Account) => user.id !== session.id && user.withinReach
 		const switchAccounts = async (items: Account[], disabled: boolean) => {
 			onFailure(undefined)
 			const { done, failures } = await runEach(items, (user) =>
@@ -102,7 +100,7 @@ export function useUserActions(
 				label: __('Change role…', 'alphone'),
 				modalHeader: __('Change role', 'alphone'),
 				modalSize: 'small',
-				isEligible: others,
+				isEligible: changeable,
 				RenderModal: (props) => <RoleModal {...props} grantable={session.grantable} />,
 			},
 			{
@@ -119,7 +117,7 @@ export function useUserActions(
 				icon: check,
 				isPrimary: true,
 				supportsBulk: true,
-				isEligible: (user) => others(user) && user.disabled,
+				isEligible: (user) => changeable(user) && user.disabled && session.grantable.includes(user.role),
 				callback: (items) => switchAccounts(items, false),
 			},
 			{
@@ -127,7 +125,7 @@ export function useUserActions(
 				label: __('Disable', 'alphone'),
 				icon: notAllowed,
 				supportsBulk: true,
-				isEligible: (user) => others(user) && !user.disabled,
+				isEligible: (user) => changeable(user) && !user.disabled,
 				callback: (items) => switchAccounts(items, true),
 			},
 		]

@@ -7,9 +7,9 @@ import { sessionQueryKey } from '@gopherium/react-auth'
 import {
 	HttpResponse,
 	installTestEnvironment as installAuthTestEnvironment,
-	defaultUser,
 	seedSession,
 	server,
+	userWithCapabilities,
 } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -35,28 +35,30 @@ import { doorbellExchange, graphCacheExchange, graphRetryExchange } from './grap
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin } from './index'
-import type { Session } from './session'
+import { MANAGE_USERS } from './session'
+import type { Capability, Role, Session } from './session'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
 export { setViewport } from '@gopherium/godmin/testing'
 export { resetLocaleData, setLocaleData } from '@wordpress/i18n'
 export { delay, graphql } from 'msw'
 
-/** adminSession is the canned signed-in account holding the admin role. */
-export const adminSession = {
-	...defaultUser,
-	role: 'admin',
-	capabilities: ['manage_users'],
-	grantable: ['admin', 'member'],
+/**
+ * Returns the canned session holding the role, its capabilities and the roles it may give.
+ * @param role - The role the account holds.
+ * @param capabilities - The capabilities the role carries.
+ * @param grantable - The roles the account may give another account.
+ * @returns The session.
+ */
+function sessionFor(role: Role, capabilities: Capability[], grantable: Role[]): Session {
+	return { ...userWithCapabilities(role, capabilities, grantable), capabilities, grantable }
 }
 
+/** adminSession is the canned signed-in account holding the admin role. */
+export const adminSession: Session = sessionFor('admin', [MANAGE_USERS, 'manage_webhooks'], ['admin', 'member'])
+
 /** memberSession is the canned signed-in account holding the member role. */
-export const memberSession = {
-	...defaultUser,
-	role: 'member',
-	capabilities: [] as string[],
-	grantable: ['member'],
-}
+export const memberSession: Session = sessionFor('member', [], ['member'])
 
 /** FakeGraph drives a graph client's subscriptions from a test. */
 export interface FakeGraph {

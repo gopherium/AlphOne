@@ -194,6 +194,21 @@ test('keeps Users current in the main menu on the tokens tab', async () => {
 	expect(await menu.findByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page')
 })
 
+test('titles the tokens page API tokens for an account that cannot open Users, with no tab strip', async () => {
+	renderAt('/users/tokens', memberSession)
+
+	expect(await screen.findByRole('heading', { level: 1, name: 'API tokens' })).toBeInTheDocument()
+	expect(screen.getByText('Manage the tokens your programs sign in with.')).toHaveClass('godmin-page__subtitle')
+	expect(screen.queryByRole('navigation', { name: 'User sections' })).not.toBeInTheDocument()
+})
+
+test('keeps API tokens current in the main menu of an account that cannot open Users', async () => {
+	renderAt('/users/tokens', memberSession)
+
+	const menu = within(await screen.findByRole('navigation', { name: 'Navigation' }))
+	expect(await menu.findByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
+})
+
 test('lines the list up with the title, out to the canvas edges, as the Users tab does', async () => {
 	renderAt('/users/tokens')
 

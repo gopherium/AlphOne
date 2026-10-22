@@ -5,7 +5,7 @@ import { expect, test } from 'vitest'
 import { createAppRouter } from '../router'
 
 test('loads the users list in a chunk of its own, off the first paint', () => {
-	const { component } = createAppRouter().routesById['/users'].options
+	const { component } = createAppRouter().routesById['/admin/users'].options
 
 	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
 })

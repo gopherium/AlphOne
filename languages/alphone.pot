@@ -673,6 +673,10 @@ msgid "v%(version)s"
 msgstr ""
 
 msgctxt "admin section"
+msgid "API tokens"
+msgstr ""
+
+msgctxt "admin section"
 msgid "Contacts"
 msgstr ""
 

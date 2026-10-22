@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, PageScreen, Text, __, useToaster } from '@alphone/frontend-sdk'
+import { Button, ErrorNotice, InputControl, PageScreen, Text, __, useSession, useToaster } from '@alphone/frontend-sdk'
 import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/admin'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+
+import { RoleSelect } from './RoleSelect'
+import { startingRole } from './roles'
 
 /**
  * Returns the message shown under the form for a failed invitation.
@@ -26,11 +29,13 @@ function inviteErrorText(error: unknown): string {
 export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
 	const queryClient = useQueryClient()
 	const toaster = useToaster()
+	const grantable = useSession()?.grantable ?? []
 	const [email, setEmail] = useState('')
 	const [name, setName] = useState('')
+	const [role, setRole] = useState(() => startingRole(grantable))
 	const [activationLink, setActivationLink] = useState<string | null>(null)
 	const send = useMutation({
-		mutationFn: () => invite({ email: email.trim(), name: name.trim() }),
+		mutationFn: () => invite({ email: email.trim(), name: name.trim(), role }),
 		onSuccess: async (invitation) => {
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			if (invitation.delivered) {
@@ -81,6 +86,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 				/>
+				<RoleSelect grantable={grantable} value={role} onChange={setRole} />
 				<Button
 					type="submit"
 					disabled={email.trim() === '' || name.trim() === '' || send.isPending}

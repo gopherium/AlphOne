@@ -17,7 +17,7 @@ type Documents = {
     "\n\tquery Me {\n\t\tme {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\trole\n\t\t\tcapabilities\n\t\t\tgrantable\n\t\t}\n\t}\n": typeof types.MeDocument,
     "\n\tmutation Login($email: String!, $password: String!) {\n\t\tlogin(email: $email, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": typeof types.LoginDocument,
     "\n\tmutation Logout {\n\t\tlogout\n\t}\n": typeof types.LogoutDocument,
-    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": typeof types.UsersDocument,
+    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t\twithinReach\n\t\t}\n\t}\n": typeof types.UsersDocument,
     "\n\tmutation SetUserRole($id: UUID!, $role: String!) {\n\t\tsetUserRole(id: $id, role: $role)\n\t}\n": typeof types.SetUserRoleDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": typeof types.SetUserDisabledDocument,
     "\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": typeof types.InviteDocument,
@@ -49,7 +49,7 @@ const documents: Documents = {
     "\n\tquery Me {\n\t\tme {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\trole\n\t\t\tcapabilities\n\t\t\tgrantable\n\t\t}\n\t}\n": types.MeDocument,
     "\n\tmutation Login($email: String!, $password: String!) {\n\t\tlogin(email: $email, password: $password) {\n\t\t\tme {\n\t\t\t\tid\n\t\t\t\temail\n\t\t\t\tname\n\t\t\t\trole\n\t\t\t\tcapabilities\n\t\t\t\tgrantable\n\t\t\t}\n\t\t}\n\t}\n": types.LoginDocument,
     "\n\tmutation Logout {\n\t\tlogout\n\t}\n": types.LogoutDocument,
-    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n": types.UsersDocument,
+    "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t\twithinReach\n\t\t}\n\t}\n": types.UsersDocument,
     "\n\tmutation SetUserRole($id: UUID!, $role: String!) {\n\t\tsetUserRole(id: $id, role: $role)\n\t}\n": types.SetUserRoleDocument,
     "\n\tmutation SetUserDisabled($id: UUID!, $disabled: Boolean!) {\n\t\tsetUserDisabled(id: $id, disabled: $disabled)\n\t}\n": types.SetUserDisabledDocument,
     "\n\tmutation Invite($email: String!, $name: String!, $role: String) {\n\t\tinvite(email: $email, name: $name, role: $role) {\n\t\t\tdelivered\n\t\t\tactivationLink\n\t\t}\n\t}\n": types.InviteDocument,
@@ -107,7 +107,7 @@ export function graphql(source: "\n\tmutation Logout {\n\t\tlogout\n\t}\n"): (ty
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t}\n\t}\n"];
+export function graphql(source: "\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t\twithinReach\n\t\t}\n\t}\n"): (typeof documents)["\n\tquery Users {\n\t\tusers {\n\t\t\tid\n\t\t\temail\n\t\t\tname\n\t\t\tdisabled\n\t\t\tconfirmed\n\t\t\tcreatedAt\n\t\t\trole\n\t\t\twithinReach\n\t\t}\n\t}\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

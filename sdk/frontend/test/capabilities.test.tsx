@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { can as brickCan } from '@gopherium/react-auth'
 import { seedSession } from '@gopherium/react-auth/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
@@ -64,11 +65,6 @@ test('a session from a server that sends none of it holds nothing', () => {
 	expect(screen.getByText('grantable:')).toBeInTheDocument()
 })
 
-test('a capability the session was never sent is refused', () => {
-	renderWithSession(adminSession)
-
-	expect(can(adminSession, 'manage_tenants')).toBe(false)
-	expect(can(memberSession, MANAGE_USERS)).toBe(false)
-	expect(can(null, MANAGE_USERS)).toBe(false)
-	expect(can(undefined, MANAGE_USERS)).toBe(false)
+test('asks react-auth whether a session holds a capability', () => {
+	expect(can).toBe(brickCan)
 })

@@ -90,12 +90,17 @@ func (r *Resolver) heldWithinReach(ctx context.Context, actor authkit.Identity, 
 		if placedIn(placed, actor.ID) != placedIn(placed, account.ID) {
 			return "", gouncer.ErrUserNotFound
 		}
-		if r.Roles.Known(account.Role) && !r.Roles.Outranks(actor.Role, account.Role) {
+		if !r.reaches(actor.Role, account.Role) {
 			return "", authkit.ErrBeyondReach
 		}
 		return account.Role, nil
 	}
 	return "", gouncer.ErrUserNotFound
+}
+
+// reaches reports whether an actor may change an account holding the role, any role nobody declares within reach.
+func (r *Resolver) reaches(actor, held string) bool {
+	return !r.Roles.Known(held) || r.Roles.Outranks(actor, held)
 }
 
 // writeWithinReach hands the write the role the account holds once the actor reaches it, answering whether it applied.

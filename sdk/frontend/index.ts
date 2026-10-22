@@ -10,6 +10,8 @@ import type { Capability } from './session'
 declare module '@tanstack/react-router' {
 	interface StaticDataRouteOption {
 		Sidebar?: ComponentType
+		/** capability names what a reader must hold to open the route. */
+		capability?: Capability
 	}
 }
 
@@ -134,7 +136,8 @@ export type {
 export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
-export { MANAGE_USERS, can, useSession } from './session'
+export { MANAGE_USERS, useSession } from './session'
+export { can } from '@gopherium/react-auth'
 export type { Capability, Role, Session } from './session'
 export { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText } from './graph'
 export type { ErrorCopy, StoredReason } from './graph'

@@ -195,6 +195,19 @@ removed plugin declared, can still be disabled or given a role.
 the reason `role_beyond_reach`. Give it a declared role with `setUserRole`
 first, then enable it.
 
+`users` marks each account with `withinReach`, true when the caller holds
+`manage_users` and its role reaches that account by the rules above. A caller
+without `manage_users` sees it false on every account. It is also false on an
+account whose declared role carries a capability the caller's role lacks, and
+true on one holding no role or a role nothing declares. A screen reads it to
+leave out a role change or a disable the server would refuse. Enabling an
+account also needs its role among the ones `grantable` names. The caller's own
+account reads true too, and the rules above still refuse a change to it.
+
+```graphql
+query { users { id email role withinReach } }
+```
+
 `setUserRole` and `setUserDisabled` write only if the account still holds the
 role they checked. If someone changed that role in between, nothing is written
 and the write is refused with code `CONFLICT`, the message `role changed` and

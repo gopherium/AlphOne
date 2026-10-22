@@ -285,6 +285,7 @@ type User {
 	confirmed: Boolean!
 	createdAt: DateTime!
 	role: String!
+	withinReach: Boolean!
 }
 type Webhook {
 	id: UUID!

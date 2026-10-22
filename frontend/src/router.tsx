@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { listSearch } from '@alphone/frontend-sdk'
+import { MANAGE_USERS, listSearch } from '@alphone/frontend-sdk'
 import {
 	createRootRoute,
 	createRoute,
@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
+import { CapabilityGate } from './CapabilityGate'
 import { ContactRoute, NewContactRoute } from './contactRoutes'
 import { contactPanels, preloadContactPanels } from './contacts/panels'
 import { LanguageScreen } from './i18n/LanguageScreen'
@@ -72,16 +73,24 @@ const contactRoute = createRoute({
 	component: ContactRoute,
 })
 
-const usersRoute = createRoute({
+const adminRoute = createRoute({
 	getParentRoute: () => rootRoute,
+	id: 'admin',
+	component: CapabilityGate,
+})
+
+const usersRoute = createRoute({
+	getParentRoute: () => adminRoute,
 	path: '/users',
+	staticData: { capability: MANAGE_USERS },
 	validateSearch: listSearch,
 	component: lazyRouteComponent(() => import('./users/UsersScreen'), 'UsersScreen'),
 })
 
 const newUserRoute = createRoute({
-	getParentRoute: () => rootRoute,
+	getParentRoute: () => adminRoute,
 	path: '/users/new',
+	staticData: { capability: MANAGE_USERS },
 	component: NewUserRoute,
 })
 
@@ -113,8 +122,7 @@ const routeTree = rootRoute.addChildren([
 	contactsRoute,
 	newContactRoute,
 	contactRoute,
-	usersRoute,
-	newUserRoute,
+	adminRoute.addChildren([usersRoute, newUserRoute]),
 	tokensRoute,
 	newTokenRoute,
 	...plugins.flatMap((plugin) => plugin.routes(rootRoute)),

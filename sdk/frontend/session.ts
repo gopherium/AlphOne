@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import type { User } from '@gopherium/react-auth'
 import { useSession as useAuthSession } from '@gopherium/react-auth'
 import { useMemo } from 'react'
 
@@ -34,10 +33,7 @@ export interface Session {
  * @returns The session, or null without one.
  */
 export function useSession(): Session | null {
-	const account = useAuthSession().data as
-		| (User & { role?: string, capabilities?: string[], grantable?: string[] })
-		| null
-		| undefined
+	const account = useAuthSession().data
 	return useMemo(
 		() =>
 			account
@@ -52,17 +48,4 @@ export function useSession(): Session | null {
 				: null,
 		[account],
 	)
-}
-
-/**
- * Reports whether the session holds the capability, no session holding none.
- * @param session - The signed-in account, or nothing.
- * @param capability - The capability the decision point asks for.
- * @returns Whether the session holds it.
- */
-export function can(
-	session: { capabilities?: Capability[] } | null | undefined,
-	capability: Capability,
-): boolean {
-	return (session?.capabilities ?? []).includes(capability)
 }

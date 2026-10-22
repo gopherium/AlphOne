@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Icon, Stack, can, useSession } from '@alphone/frontend-sdk'
-import type { NavItem, Session } from '@alphone/frontend-sdk'
+import { Icon, Stack } from '@alphone/frontend-sdk'
+import type { NavItem } from '@alphone/frontend-sdk'
 import { Link, useRouter } from '@tanstack/react-router'
 import type { AnyRoute } from '@tanstack/react-router'
 
 import { plugins } from '../plugins'
-import { coreNav } from './coreNav'
+import { coreNav, shownInstead } from './coreNav'
+import { useReachable } from './reach'
 
 const chevronRightSmall = (
 	<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
@@ -57,33 +58,20 @@ function MenuItem({ item }: { item: NavItem }) {
 }
 
 /**
- * Reports whether the session reaches a nav entry, every session reaching one that names no capability.
- * @param session - The signed-in account, or nothing.
- * @param item - The nav entry.
- * @returns Whether the menu shows the entry.
- */
-function reaches(session: Session | null, item: NavItem): boolean {
-	return item.capability === undefined || can(session, item.capability)
-}
-
-/**
- * Renders the top-level navigation menu: the core sections first, then one
- * row per plugin nav entry the session reaches.
+ * Renders the main menu: the core entries, then the plugin ones, each the reader reaches or the one shown in its place.
  * @returns The navigation landmark containing the menu rows.
  */
 export function MainMenu() {
-	const session = useSession()
+	const reachable = useReachable()
+	const shown = (items: NavItem[]) =>
+		items.flatMap((item) => (reachable(item) ? [item] : (shownInstead.get(item) ?? [])))
 	return (
 		<Stack direction="column">
-			{coreNav
-				.filter((item) => reaches(session, item))
-				.map((item) => (
-					<MenuItem key={item.to} item={item} />
-				))}
+			{shown(coreNav).map((item) => (
+				<MenuItem key={item.to} item={item} />
+			))}
 			{plugins.flatMap((plugin) =>
-				plugin.nav
-					.filter((item) => reaches(session, item))
-					.map((item) => <MenuItem key={item.to} item={item} />),
+				shown(plugin.nav).map((item) => <MenuItem key={item.to} item={item} />),
 			)}
 		</Stack>
 	)
