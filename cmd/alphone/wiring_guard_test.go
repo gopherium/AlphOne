@@ -17,6 +17,7 @@ import (
 
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/sdk"
 )
 
 // unwiredResolverFields names the graph resolver fields the server leaves to their defaults on purpose.
@@ -50,15 +51,15 @@ func unnamedFields(named, fallback any) []string {
 	return unnamed
 }
 
-// composedOverEverySetting returns the settings with every value filled and what compose built over them.
-func composedOverEverySetting(t *testing.T) (runConfig, composed) {
+// composedOverEverySetting returns the settings with every value filled and what compose built from plugins over them.
+func composedOverEverySetting(t *testing.T, plugins func(sdk.Deps) ([]sdk.Plugin, error)) (runConfig, composed) {
 	t.Helper()
 	env := filledSettings()
 	settings, err := loadRunConfig(testkit.Getenv(env))
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	built, err := compose(t.Context(), composeConfigOf(t, env), registerPlugins)
+	built, err := compose(t.Context(), composeConfigOf(t, env), plugins)
 	if err != nil || built.failed != nil {
 		t.Fatalf("compose() = %v with %v failed, want every plugin registered", err, built.failed)
 	}
@@ -69,7 +70,7 @@ func composedOverEverySetting(t *testing.T) (runConfig, composed) {
 func TestGraphRootCarriesEveryComposedValue(t *testing.T) {
 	t.Parallel()
 
-	settings, built := composedOverEverySetting(t)
+	settings, built := composedOverEverySetting(t, registerPlugins)
 
 	resolver := graphResolver(settings, built, authkit.New(authConfig(built)), discardLogger())
 
@@ -82,7 +83,7 @@ func TestGraphRootCarriesEveryComposedValue(t *testing.T) {
 func TestGraphResolverCarriesEveryListSetting(t *testing.T) {
 	t.Parallel()
 
-	settings, built := composedOverEverySetting(t)
+	settings, built := composedOverEverySetting(t, registerPlugins)
 	fallback, err := loadRunConfig(testkit.Getenv(map[string]string{"ALPHONE_DATABASE_URL": unreachableDatabaseURL}))
 	if err != nil {
 		t.Fatalf("loadRunConfig() over the address alone error = %v, want nil", err)
@@ -101,7 +102,7 @@ func TestGraphResolverCarriesEveryListSetting(t *testing.T) {
 func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 	t.Parallel()
 
-	settings, built := composedOverEverySetting(t)
+	settings, built := composedOverEverySetting(t, registerPlugins)
 	auth := authkit.New(authConfig(built))
 	graphRoot, err := graphroot.FromPlugins(graphResolver(settings, built, auth, discardLogger()), built.registered)
 	if err != nil {
@@ -119,15 +120,7 @@ func TestServerConfigCarriesEveryComposedValue(t *testing.T) {
 func TestThePluginRolesReachTheGraphAndTheServer(t *testing.T) {
 	t.Parallel()
 
-	settings, err := loadRunConfig(testkit.Getenv(filledSettings()))
-	if err != nil {
-		t.Fatalf("loadRunConfig() error = %v, want nil", err)
-	}
-	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), stewardDeclaring)
-	if err != nil || built.failed != nil {
-		t.Fatalf("compose() = %v with %v failed, want the steward plugin registered", err, built.failed)
-	}
-	abandonAtEnd(t, built)
+	settings, built := composedOverEverySetting(t, stewardDeclaring)
 	auth := authkit.New(authConfig(built))
 
 	resolver := graphResolver(settings, built, auth, discardLogger())
@@ -139,9 +132,22 @@ func TestThePluginRolesReachTheGraphAndTheServer(t *testing.T) {
 	if !cfg.Roles.Known("steward") {
 		t.Error("the server settings do not know steward, want the registry the plugins declared into")
 	}
-	err = resolver.Admin.SetAccountRole(t.Context(), uuid.New(), uuid.New(), "steward")
+}
+
+func TestTheGraphAccountWritesCheckThePluginRoles(t *testing.T) {
+	t.Parallel()
+
+	settings, built := composedOverEverySetting(t, stewardDeclaring)
+
+	resolver := graphResolver(settings, built, authkit.New(authConfig(built)), discardLogger())
+
+	err := resolver.Admin.SetAccountRole(t.Context(), uuid.New(), uuid.New(), "steward")
 	if errors.Is(err, authkit.ErrUnknownRole) {
 		t.Errorf("SetAccountRole(steward) error = %v, want the role the plugin declares known", err)
+	}
+	err = resolver.Admin.SetAccountDisabledFrom(t.Context(), uuid.New(), uuid.New(), "auditor", false)
+	if !errors.Is(err, authkit.ErrBeyondReach) {
+		t.Errorf("SetAccountDisabledFrom(auditor, enable) error = %v, want the enable of an undeclared role refused", err)
 	}
 	_, err = resolver.Invites.Invite(t.Context(), "maria.perez@example.com", "Maria Perez", "steward")
 	if errors.Is(err, authkit.ErrUnknownRole) {
