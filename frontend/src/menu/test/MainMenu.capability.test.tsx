@@ -27,6 +27,7 @@ vi.mock('../../plugins', () => ({
 					capability: 'manage_widgets',
 				},
 				{ label: 'Widget reports', to: '/widget-reports', icon: <svg /> },
+				{ label: 'Widget audit', to: '/widget-audit', icon: <svg /> },
 			],
 		},
 	],
@@ -75,8 +76,22 @@ function renderMenuAs(session: typeof memberSession) {
 			},
 		}),
 	)
+	const widgetAdmin = createRoute({
+		getParentRoute: () => rootRoute,
+		id: 'widget-admin',
+		staticData: { capability: 'manage_widgets' },
+		component: Outlet,
+	})
+	const widgetAudit = createRoute({
+		getParentRoute: () => widgetAdmin,
+		path: '/widget-audit',
+		staticData: {},
+		component: function Blank() {
+			return null
+		},
+	})
 	const router = createRouter({
-		routeTree: rootRoute.addChildren(routes),
+		routeTree: rootRoute.addChildren([...routes, widgetAdmin.addChildren([widgetAudit])]),
 		history: createMemoryHistory({ initialEntries: ['/'] }),
 	})
 	render(
@@ -115,4 +130,19 @@ test('shows a plugin entry whose route asks for a capability the session holds',
 
 	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
 	expect(within(nav).getByRole('link', { name: 'Widget reports' })).toBeInTheDocument()
+})
+
+test('leaves out a plugin entry whose parent route asks for a capability the session lacks', async () => {
+	renderMenuAs(memberSession)
+
+	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
+	expect(within(nav).getByRole('link', { name: 'Widgets' })).toBeInTheDocument()
+	expect(within(nav).queryByRole('link', { name: 'Widget audit' })).not.toBeInTheDocument()
+})
+
+test('shows a plugin entry whose parent route asks for a capability the session holds', async () => {
+	renderMenuAs(managingSession)
+
+	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
+	expect(within(nav).getByRole('link', { name: 'Widget audit' })).toBeInTheDocument()
 })
