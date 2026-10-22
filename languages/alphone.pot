@@ -522,7 +522,7 @@ msgstr ""
 msgid "That priority is not one AlphOne offers."
 msgstr ""
 
-msgid "That role holds more than your own."
+msgid "That role holds more than your own, or it is not one this deployment names."
 msgstr ""
 
 msgid "That role is not one this deployment names."
@@ -571,6 +571,9 @@ msgid "The name could not be updated."
 msgstr ""
 
 msgid "The role could not be changed."
+msgstr ""
+
+msgid "The role of that account just changed. Reload the page and try again."
 msgstr ""
 
 msgid "The task could not be added."
