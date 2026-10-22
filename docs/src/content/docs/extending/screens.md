@@ -73,9 +73,10 @@ loaded before first paint grows past its ceiling, or carries a screen
 it names. Name your screen there too.
 
 When one page has sections that each need their own address, give it
-tabs. The Users page does this: the Users tab lists the accounts and
-the API tokens tab lists the tokens. Both screens keep the title Users
-and pass the same tabs, and each one marks its own tab as current:
+tabs. The Users page does this for an account that manages users: the
+Users tab lists the accounts and the API tokens tab lists the tokens.
+Both screens keep the title Users and pass the same tabs, and each one
+marks its own tab as current:
 
 ```tsx
 import { PageScreen, PageTab, PageTabs } from '@alphone/frontend-sdk'
@@ -109,6 +110,11 @@ Each screen keeps its own subtitle and its own buttons, so the title
 stays the same while the sentence under it and the button beside it
 follow the tab. `activeOptions={{ exact: true }}` keeps the router from
 marking the first tab as current on the second tab's address.
+
+Leave out the tabs a reader cannot open. An account that cannot open
+Users finds API tokens in the menu where Users would be, the way
+WordPress shows Profile in its place, and its tokens page reads API
+tokens with no tabs at all.
 
 Pass `aside` to show a second column beside the content, for details that
 sit next to the main work. On a wide page it starts 320px wide. On a narrow
@@ -165,6 +171,34 @@ installs a plugin that declares a role of its own. Asking `can` keeps
 working, because the server answers what the role holds rather than
 what it is called. A session with no answer holds nothing, so a screen
 that cannot tell hides the control rather than offering it.
+
+`can` comes from the shared accounts kit, `@gopherium/react-auth`, and
+the SDK hands it on unchanged, so it takes the same two arguments in
+every application built on that kit.
+
+A route can name the capability a reader needs to open it:
+
+```tsx
+createRoute({
+	getParentRoute: () => parent,
+	path: '/invoices',
+	staticData: { capability: 'invoices.manage_invoices' },
+	component: lazyRouteComponent(() => import('./InvoicesScreen'), 'InvoicesScreen'),
+})
+```
+
+The menu then leaves out an entry pointing at that route for a reader
+without the capability. An entry may also name a `capability` of its
+own, and the menu checks both. The core keeps Users and New user from
+an account without `manage_users` this way, and sends that account to
+its home screen when it types their address.
+
+Sending a reader home covers only the core's own screens. Your plugin's
+routes mount beside them, outside that check, so a reader who types
+your route's address still reaches your screen. Keep that reader out
+in the screen itself: ask `can`, and render a refusal in place of the
+content when it says no. `renderPluginAt` mounts your routes the same
+way, so a test of your refusal sees what a reader sees.
 
 Hiding a control is presentation, not protection. The backend refuses
 an operation the caller may not run whether or not your screen showed
@@ -550,7 +584,7 @@ import { expect, test } from 'vitest'
 
 import { plugin } from '../index'
 
-const managing = { ...adminSession, capabilities: ['manage_invoices'] }
+const managing = { ...adminSession, capabilities: ['invoices.manage_invoices'] }
 
 const invoicePage = {
 	__typename: 'InvoicePage',
