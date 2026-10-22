@@ -692,7 +692,7 @@ test('says why an enable was refused when the roles the reader may give went sta
 	await act('Maria Perez', 'Enable')
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'That role holds more than your own, or it is not one this deployment names.',
+		'That role holds more than your own, or nothing declares it.',
 	)
 	expect(screen.queryByText('"Maria Perez" enabled.')).not.toBeInTheDocument()
 })
@@ -914,8 +914,37 @@ test('shows why a role could not be changed inside the modal', async () => {
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
 	expect(await dialog.findByRole('alert')).toHaveTextContent(
-		'That role holds more than your own, or it is not one this deployment names.',
+		'That role holds more than your own, or nothing declares it.',
 	)
+	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
+})
+
+test('says inside the modal that nothing declares the role the reader picked', async () => {
+	configureAppErrorText()
+	holding([signedIn, accountOf('fd', 'Maria Perez')])
+	server.use(
+		graphql.mutation('SetUserRole', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'unknown role',
+						extensions: { code: 'VALIDATION', reason: 'role_unknown', meta: { field: 'role' } },
+					},
+				],
+			}),
+		),
+	)
+	renderAt('/users')
+
+	await act('Maria Perez', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	expect(await dialog.findByRole('alert')).toHaveTextContent('Nothing declares that role.')
+	expect(screen.queryByText('unknown role')).not.toBeInTheDocument()
 	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
 })
 

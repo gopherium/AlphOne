@@ -412,12 +412,12 @@ msgid "That priority is not one AlphOne offers."
 msgstr "Esa prioridad no es una de las que AlphOne ofrece."
 
 #, fuzzy
-msgid "That role holds more than your own, or it is not one this deployment names."
-msgstr "Ese rol abarca más que el tuyo, o no es uno de los que este despliegue nombra."
+msgid "That role holds more than your own, or nothing declares it."
+msgstr "Ese rol abarca más que el tuyo, o nada lo declara."
 
 #, fuzzy
-msgid "That role is not one this deployment names."
-msgstr "Ese rol no es uno de los que este despliegue nombra."
+msgid "Nothing declares that role."
+msgstr "Nada declara ese rol."
 
 #, fuzzy
 msgid "That status is not one AlphOne offers."

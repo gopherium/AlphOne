@@ -29,6 +29,13 @@ function invitedRoles() {
 }
 
 /**
+ * Refuses every invitation with one graph error carrying the server's own words beside its reason.
+ */
+function invitationRefused(message: string, extensions: Record<string, unknown>) {
+	server.use(graphql.mutation('Invite', () => HttpResponse.json({ data: null, errors: [{ message, extensions }] })))
+}
+
+/**
  * Fills the address and the name of the invited account.
  */
 async function fillAccount() {
@@ -97,6 +104,44 @@ test('drops the session when the invitation is unauthorized', async () => {
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
+})
+
+test.each([
+	{
+		refused: 'a role nobody declares',
+		message: 'unknown role',
+		extensions: { code: 'VALIDATION', reason: 'role_unknown', meta: { field: 'role' } },
+		sentence: 'Nothing declares that role.',
+	},
+	{
+		refused: 'a role holding more than the reader holds',
+		message: 'that role is beyond your own',
+		extensions: { code: 'VALIDATION', reason: 'role_beyond_reach' },
+		sentence: 'That role holds more than your own, or nothing declares it.',
+	},
+])('says under the form why the server refused $refused, never in its raw words', async (refusal) => {
+	invitationRefused(refusal.message, refusal.extensions)
+	renderAt('/users/new')
+	await fillAccount()
+
+	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(refusal.sentence)
+	expect(screen.queryByText(refusal.message)).not.toBeInTheDocument()
+})
+
+test('says in Spanish under the form that nothing declares the role the invitation named', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	invitationRefused('unknown role', { code: 'VALIDATION', reason: 'role_unknown', meta: { field: 'role' } })
+	renderAt('/users/new')
+	await userEvent.type(await screen.findByLabelText('Correo electrónico'), 'maria@example.com')
+	await userEvent.type(screen.getByLabelText('Nombre'), 'Maria Perez')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Enviar invitación' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('Nada declara ese rol.')
 })
 
 test('reads the role select and the role it starts at in Spanish', async () => {
