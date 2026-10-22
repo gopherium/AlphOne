@@ -12,9 +12,12 @@ import {
 	useListView,
 } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
+import { usersNavItem } from '@gopherium/react-auth/wpds'
 import { Link } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 
+import { useReachable } from '../menu/reach'
 import { UserTabs } from './UserTabs'
 import { useTokenActions } from './tokenActions'
 import { tokenFields } from './tokenFields'
@@ -46,10 +49,23 @@ function TokensEmpty({ narrowed }: { narrowed: boolean }) {
 }
 
 /**
+ * Returns the title and tabs of the tokens page, the ones of the users page for a reader who opens Users.
+ * @param opensUsers - Whether the reader may open the Users screen.
+ * @returns The page title, and the tabs when the page has them.
+ */
+function tokensHeading(opensUsers: boolean): { title: string; tabs?: ReactNode } {
+	if (opensUsers) {
+		return { title: __('Users', 'alphone'), tabs: <UserTabs current="tokens" /> }
+	}
+	return { title: __('API tokens', 'alphone') }
+}
+
+/**
  * Renders the caller's own API tokens as a list to search, filter, sort and page, each one revocable.
  * @returns The tokens screen.
  */
 export function TokensScreen() {
+	const heading = tokensHeading(useReachable()(usersNavItem))
 	const [result, refetch] = useGraphQuery({
 		query: apiTokensQuery,
 		requestPolicy: 'cache-and-network',
@@ -72,14 +88,14 @@ export function TokensScreen() {
 
 	return (
 		<PageScreen
-			title={__('Users', 'alphone')}
+			title={heading.title}
 			subtitle={__('Manage the tokens your programs sign in with.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/users/tokens/new" />}>
 					{__('New token', 'alphone')}
 				</Button>
 			}
-			tabs={<UserTabs current="tokens" />}
+			tabs={heading.tabs}
 			list
 		>
 			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}

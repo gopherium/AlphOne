@@ -883,6 +883,11 @@ msgid "Language"
 msgstr "Idioma"
 
 #, fuzzy
+msgctxt "admin section"
+msgid "API tokens"
+msgstr "Tokens de API"
+
+#, fuzzy
 msgctxt "contact channel"
 msgid "Email"
 msgstr "Correo electrónico"
