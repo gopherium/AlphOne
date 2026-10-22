@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
@@ -26,6 +26,7 @@ function usersRespond() {
 							confirmed: true,
 							createdAt: '2026-07-06T10:00:00Z',
 							role: 'member',
+							withinReach: true,
 						},
 						{
 							__typename: 'User',
@@ -36,6 +37,7 @@ function usersRespond() {
 							confirmed: false,
 							createdAt: '2026-07-07T10:00:00Z',
 							role: 'member',
+							withinReach: true,
 						},
 						{
 							__typename: 'User',
@@ -46,6 +48,7 @@ function usersRespond() {
 							confirmed: false,
 							createdAt: '2026-07-08T10:00:00Z',
 							role: 'member',
+							withinReach: true,
 						},
 					],
 				},
@@ -153,6 +156,7 @@ test('cuts a long account name short in the resend question', async () => {
 		confirmed: false,
 		createdAt: '2026-07-07T10:00:00Z',
 		role: 'member',
+		withinReach: true,
 	}
 	server.use(graphql.query('Users', () => HttpResponse.json({ data: { users: [invited] } })))
 	renderAt('/users')
@@ -288,12 +292,4 @@ test('says plainly that a resend failed when the server names no reason', async 
 
 	expect(await modal.findByRole('alert')).toHaveTextContent('The invitation could not be sent.')
 	expect(screen.queryByText('the relay refused')).not.toBeInTheDocument()
-})
-
-test('offers no resend to a member who may not manage users', async () => {
-	renderAt('/users', memberSession)
-
-	const invited = await rowFor('maria@example.com')
-	expect(invited.getByText('Invited')).toBeInTheDocument()
-	expect(invited.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
 })

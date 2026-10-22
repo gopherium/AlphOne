@@ -19,7 +19,7 @@ import type {
 /**
  * Account is one user account as the admin screens consume it.
  */
-export type Account = BrickAccount & { confirmed: boolean }
+export type Account = BrickAccount & { confirmed: boolean; withinReach: boolean }
 
 import {
 	acceptInviteMutation,
@@ -111,6 +111,7 @@ function toAccount(user: {
 	confirmed: boolean
 	createdAt: string
 	role?: string
+	withinReach: boolean
 }): Account {
 	return {
 		id: user.id,
@@ -120,6 +121,7 @@ function toAccount(user: {
 		confirmed: user.confirmed,
 		created_at: new Date(user.createdAt),
 		role: user.role ?? '',
+		withinReach: user.withinReach,
 	}
 }
 

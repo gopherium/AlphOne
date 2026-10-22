@@ -57,6 +57,7 @@ beforeEach(() => {
 							confirmed: true,
 							createdAt: '2026-07-07T10:00:00Z',
 							role: 'member',
+							withinReach: true,
 						},
 						{
 							__typename: 'User',
@@ -67,6 +68,7 @@ beforeEach(() => {
 							confirmed: true,
 							createdAt: '2026-07-08T10:00:00Z',
 							role: 'member',
+							withinReach: true,
 						},
 					],
 				},
