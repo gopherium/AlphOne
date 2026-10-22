@@ -239,6 +239,30 @@ func wireTenantGate(registered []sdk.Plugin, gate sdk.TenantGate) {
 	}
 }
 
+// wireRoleChecker hands the host's role checker to every plugin taking one.
+func wireRoleChecker(registered []sdk.Plugin, checker sdk.RoleChecker) {
+	for _, plugin := range registered {
+		if consumer, ok := plugin.(sdk.RoleCheckerConsumer); ok {
+			consumer.UseRoleChecker(checker)
+		}
+	}
+}
+
+// roleCheckerBridge answers the plugins' role checks from the host's registry, offering none of its writes.
+type roleCheckerBridge struct {
+	registry *goncierge.Registry
+}
+
+// Known reports whether any source declared the role.
+func (b roleCheckerBridge) Known(name string) bool {
+	return b.registry.Known(name)
+}
+
+// Outranks reports whether the caller carries every capability the target carries.
+func (b roleCheckerBridge) Outranks(caller, target string) bool {
+	return b.registry.Outranks(caller, target)
+}
+
 // wireCredentialProviders hands every registered credential provider to every consumer.
 func wireCredentialProviders(registered []sdk.Plugin) {
 	var providers []sdk.CredentialProvider

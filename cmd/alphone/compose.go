@@ -104,6 +104,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	wireFieldProviders(built.registered)
 	wireCredentialProviders(built.registered)
 	wireTenantGate(built.registered, tenantGateBridge{tenants: built.tenants, grace: cfg.machineGrace})
+	wireRoleChecker(built.registered, roleCheckerBridge{registry: cfg.roles})
 	wireMailSenderFrom(built.registered, sender)
 	return built, nil
 }
