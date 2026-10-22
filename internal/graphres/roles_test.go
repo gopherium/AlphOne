@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -173,6 +174,55 @@ func TestUsersReportsAnAccountHoldingNoRoleAsHoldingNone(t *testing.T) {
 	if listed.Users[0].Role != "" {
 		t.Errorf("role = %q, want it empty rather than a role the account does not hold",
 			listed.Users[0].Role)
+	}
+}
+
+func TestUsersMarksTheAccountsTheReaderReaches(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		reader role.Role
+		want   map[string]bool
+	}{
+		{"an admin reader", role.Admin, map[string]bool{
+			"admin@example.com": true, "member@example.com": true, "no.role@example.com": true,
+			"retired.role@example.com": true, "higher.role@example.com": false,
+		}},
+		{"a member reader", role.Member, map[string]bool{
+			"admin@example.com": false, "member@example.com": false, "no.role@example.com": false,
+			"retired.role@example.com": false, "higher.role@example.com": false,
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := testkit.NewStore()
+			roledUser(t, store, "admin@example.com", role.Admin)
+			roledUser(t, store, "member@example.com", role.Member)
+			roledUser(t, store, "no.role@example.com", "")
+			roledUser(t, store, "retired.role@example.com", retiredRole)
+			roledUser(t, store, "higher.role@example.com", stewardRole)
+			actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: tc.reader.String()}
+			client := newActingClient(t, newAuthResolver(store), actor)
+
+			var listed struct {
+				Users []struct {
+					Email       string `json:"email"`
+					WithinReach bool   `json:"withinReach"`
+				} `json:"users"`
+			}
+			client.MustPost(`{ users { email withinReach } }`, &listed)
+
+			reached := map[string]bool{}
+			for _, user := range listed.Users {
+				reached[user.Email] = user.WithinReach
+			}
+			if !maps.Equal(reached, tc.want) {
+				t.Errorf("withinReach = %v, want %v", reached, tc.want)
+			}
+		})
 	}
 }
 

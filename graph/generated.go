@@ -300,13 +300,14 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		Confirmed func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		Disabled  func(childComplexity int) int
-		Email     func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Role      func(childComplexity int) int
+		Confirmed   func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Disabled    func(childComplexity int) int
+		Email       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Role        func(childComplexity int) int
+		WithinReach func(childComplexity int) int
 	}
 
 	Webhook struct {
@@ -1736,6 +1737,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.Role(childComplexity), true
+	case "User.withinReach":
+		if e.ComplexityRoot.User.WithinReach == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.WithinReach(childComplexity), true
 
 	case "Webhook.createdAt":
 		if e.ComplexityRoot.Webhook.CreatedAt == nil {
@@ -2641,6 +2648,8 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_createdAt(ctx, field)
 	case "role":
 		return ec.fieldContext_User_role(ctx, field)
+	case "withinReach":
+		return ec.fieldContext_User_withinReach(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 }
@@ -9085,6 +9094,29 @@ func (ec *executionContext) fieldContext_User_role(_ context.Context, field grap
 	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _User_withinReach(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_withinReach(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WithinReach, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_withinReach(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Webhook_id(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13721,6 +13753,11 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "role":
 			out.Values[i] = ec._User_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "withinReach":
+			out.Values[i] = ec._User_withinReach(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

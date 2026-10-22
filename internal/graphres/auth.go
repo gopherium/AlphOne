@@ -44,16 +44,17 @@ func toAuthIdentity(identity authkit.Identity, roles *goncierge.Registry) *model
 	}
 }
 
-// toUser maps an authkit account onto its graph model.
-func toUser(account authkit.Account, tier role.Role) *model.User {
+// toUser maps an authkit account onto its graph model, with whether the reader may change it.
+func toUser(account authkit.Account, tier role.Role, withinReach bool) *model.User {
 	return &model.User{
-		ID:        account.ID,
-		Email:     account.Email,
-		Name:      account.Name,
-		Disabled:  account.Disabled,
-		Confirmed: account.Confirmed,
-		CreatedAt: account.CreatedAt,
-		Role:      tier.String(),
+		ID:          account.ID,
+		Email:       account.Email,
+		Name:        account.Name,
+		Disabled:    account.Disabled,
+		Confirmed:   account.Confirmed,
+		CreatedAt:   account.CreatedAt,
+		Role:        tier.String(),
+		WithinReach: withinReach,
 	}
 }
 
@@ -62,15 +63,15 @@ func (q QueryResolvers) Me(ctx context.Context) (*model.Identity, error) {
 	return toAuthIdentity(authkit.IdentityFromContext(ctx), q.root.Roles), nil
 }
 
-// Users lists the accounts standing in the caller's tenant.
+// Users lists the accounts standing in the caller's tenant, each marked by whether the caller may change it.
 func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	accounts, err := q.root.Admin.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	caller := authkit.IdentityFromContext(ctx).ID
+	caller := authkit.IdentityFromContext(ctx)
 	ids := make([]uuid.UUID, 0, len(accounts)+1)
-	ids = append(ids, caller)
+	ids = append(ids, caller.ID)
 	for _, account := range accounts {
 		ids = append(ids, account.ID)
 	}
@@ -78,13 +79,14 @@ func (q QueryResolvers) Users(ctx context.Context) ([]*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	standing := placedIn(placed, caller)
+	standing := placedIn(placed, caller.ID)
+	manages := q.root.Roles.Can(caller.Role, role.ManageUsers)
 	users := make([]*model.User, 0, len(accounts))
 	for _, account := range accounts {
 		if placedIn(placed, account.ID) != standing {
 			continue
 		}
-		users = append(users, toUser(account, role.Role(account.Role)))
+		users = append(users, toUser(account, role.Role(account.Role), manages && q.root.reaches(caller.Role, account.Role)))
 	}
 	return users, nil
 }
