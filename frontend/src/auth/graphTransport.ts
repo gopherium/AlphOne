@@ -9,7 +9,7 @@ import {
 	RateLimitedError,
 	UnauthorizedError,
 } from '@gopherium/react-auth'
-import { ValidationError } from '@gopherium/react-auth/admin'
+import { RoleBeyondReachError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
 import type {
 	Invitation,
 	NewInvite,
@@ -213,17 +213,38 @@ function toInvitation(report: { delivered: boolean; activationLink?: string | nu
 	return { delivered: false, activation_link: report.activationLink }
 }
 
+/** inviteRefusals maps each reason an invitation is refused for onto the typed error it throws. */
+const inviteRefusals = new Map<string, new (message: string) => Error>([
+	['role_unknown', RoleUnknownError],
+	['role_beyond_reach', RoleBeyondReachError],
+])
+
 /**
- * Refuses an invitation answer by the code the graph carried.
+ * Refuses an invitation answer by the code and the reason the graph carried.
  * @param code - The extensions code of the first error.
+ * @param reason - The stable reason of the first error.
  * @param message - The message the error carried.
  */
-function refuseInvitation(code: string | undefined, message: string): void {
+function refuseInvitation(code: string | undefined, reason: string | undefined, message: string): void {
 	if (code === 'UNAUTHENTICATED') {
 		throw new UnauthorizedError('session expired')
 	}
 	if (code === 'RATE_LIMITED') {
 		throw new RateLimitedError('too many requests')
+	}
+	refuseInvitationDetails(code, reason, message)
+}
+
+/**
+ * Refuses the details of an invitation by the reason and the code the graph carried.
+ * @param code - The extensions code of the first error.
+ * @param reason - The stable reason of the first error.
+ * @param message - The message the error carried.
+ */
+function refuseInvitationDetails(code: string | undefined, reason: string | undefined, message: string): void {
+	const refused = inviteRefusals.get(reason ?? '')
+	if (refused) {
+		throw new refused(message)
 	}
 	if (code === 'VALIDATION' || code === 'CONFLICT') {
 		throw new ValidationError(message)
@@ -241,7 +262,7 @@ async function invite(input: NewInvite): Promise<Invitation> {
 		name: input.name,
 		role: input.role ?? null,
 	})
-	refuseInvitation(firstCode(result), firstMessage(result, 'invalid invitation details'))
+	refuseInvitation(firstCode(result), firstReason(result), firstMessage(result, 'invalid invitation details'))
 	if (!result.data) {
 		throw new Error(firstMessage(result, 'inviting failed'))
 	}

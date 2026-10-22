@@ -5,8 +5,9 @@ import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/ad
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { appErrorTemplates } from '../i18n/errors'
 import { RoleSelect } from './RoleSelect'
-import { startingRole } from './roles'
+import { roleRefusal, startingRole } from './roles'
 
 /**
  * Returns the message shown under the form for a failed invitation.
@@ -14,6 +15,10 @@ import { startingRole } from './roles'
  * @returns The message to show.
  */
 function inviteErrorText(error: unknown): string {
+	const refused = roleRefusal(error)
+	if (refused !== undefined) {
+		return appErrorTemplates()[refused]
+	}
 	if (error instanceof ValidationError) {
 		return error.message
 	}

@@ -2,7 +2,7 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { InvalidTokenError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
-import { ValidationError } from '@gopherium/react-auth/admin'
+import { RoleBeyondReachError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
 import { expect, test } from 'vitest'
 
 import { graphAuthTransport } from '../auth/graphTransport'
@@ -65,14 +65,32 @@ test('invite maps the refusals it can meet', async () => {
 	).rejects.toBeInstanceOf(UnauthorizedError)
 
 	graphResponds('mutation Invite', graphError('VALIDATION', 'name_required', 'a name is required'))
-	await expect(
-		graphAuthTransport.invite({ email: 'maria@example.com', name: '' }),
-	).rejects.toBeInstanceOf(ValidationError)
+	const refused = await graphAuthTransport
+		.invite({ email: 'maria@example.com', name: '' })
+		.then(() => undefined, (error: unknown) => error)
+	expect(Object.getPrototypeOf(refused)).toBe(ValidationError.prototype)
 
 	graphResponds('mutation Invite', graphError('RATE_LIMITED'))
 	await expect(
 		graphAuthTransport.invite({ email: 'maria@example.com', name: 'Maria Perez' }),
 	).rejects.toBeInstanceOf(RateLimitedError)
+})
+
+/**
+ * Returns what an invitation throws once the graph refuses it with one error.
+ */
+async function refusedInvitation(code: string, reason: string, message: string): Promise<unknown> {
+	graphResponds('mutation Invite', graphError(code, reason, message))
+	return graphAuthTransport
+		.invite({ email: 'maria@example.com', name: 'Maria Perez', role: 'admin' })
+		.then(() => undefined, (error: unknown) => error)
+}
+
+test('invite throws the typed error each role reason names', async () => {
+	expect(await refusedInvitation('VALIDATION', 'role_unknown', 'unknown role')).toBeInstanceOf(RoleUnknownError)
+	expect(
+		await refusedInvitation('VALIDATION', 'role_beyond_reach', 'that role is beyond your own'),
+	).toBeInstanceOf(RoleBeyondReachError)
 })
 
 test('acceptInvite answers the activated identity', async () => {

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { _x } from '@alphone/frontend-sdk'
+import { RoleBeyondReachError, RoleUnknownError } from '@gopherium/react-auth/admin'
+
+/** The error code each turned down role write answers with, by the error it raises. */
+const refusals: [new (...args: never[]) => Error, string][] = [
+	[RoleBeyondReachError, 'role_beyond_reach'],
+	[RoleUnknownError, 'role_unknown'],
+]
 
 /**
  * Returns the label each core role reads as, read fresh so the loaded catalogue answers.
@@ -33,4 +40,13 @@ const memberRole = 'member'
  */
 export function startingRole(grantable: string[]): string {
 	return grantable.includes(memberRole) ? memberRole : (grantable.at(-1) ?? memberRole)
+}
+
+/**
+ * Returns the code a turned down role write carries, none for any other failure.
+ * @param error - The failure the write raised.
+ * @returns The error code, or nothing.
+ */
+export function roleRefusal(error: unknown): string | undefined {
+	return refusals.find(([refused]) => error instanceof refused)?.[1]
 }
