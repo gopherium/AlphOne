@@ -99,6 +99,13 @@ server, because a watcher on `:latest` applies it on its own.
 - The WhatsApp conversation and message lists follow
   `ALPHONE_GRAPH_PAGE_SIZE` and `ALPHONE_GRAPH_PAGE_CAP` instead of a
   fixed 50 and 200.
+- `account:enable` refuses an account that holds no role, or a role
+  nothing declares any more, and so does its dry run. Give the account a
+  declared role with `account:role` first, see
+  [Changing an account](/self-hosting/commands/#changing-an-account).
+- Only accounts that may manage users open Users and New user. A member
+  who opens them lands on the home screen and finds their API tokens in
+  the menu where Users was.
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
