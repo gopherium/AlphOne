@@ -571,8 +571,8 @@ The reasons the core answers with:
 | `self_disable_refused` | | nobody disables its own account |
 | `self_role_refused` | | nobody changes its own role |
 | `last_privileged_refused` | | the last account able to manage users stays |
-| `role_beyond_reach` | | the role holds more than the caller does, or the account being enabled holds no role or one the deployment does not name |
-| `role_unknown` | `field` | the role is not one the deployment names |
+| `role_beyond_reach` | | the role holds more than the caller does, or the account being enabled holds no role or one nothing declares |
+| `role_unknown` | `field` | nothing declares the role |
 | `role_changed` | | someone changed the account's role between the check and the write, and nothing was written |
 
 The stock plugins add their own:
