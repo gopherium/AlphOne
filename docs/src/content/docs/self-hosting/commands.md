@@ -495,8 +495,7 @@ account answers for it, and `tenant_id`.
 When an account moves to another workspace, the tokens it held stay in
 the old one and still work. `token:list -email` no longer shows them,
 but `token:list -all` does, with the workspace that keeps them.
-`token:revoke` revokes them, while the API tokens tab of the Users page
-cannot yet.
+`token:revoke` revokes them, while the API tokens page cannot yet.
 
 ### token:revoke
 
