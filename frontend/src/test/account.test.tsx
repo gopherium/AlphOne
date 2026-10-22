@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, graphql, server } from '@alphone/frontend-sdk/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
@@ -11,7 +11,7 @@ import { renderAt } from './render'
 test('shows the signed-in user and a logout control', async () => {
 	renderAt('/')
 
-	expect(await screen.findByText('Grace Hopper')).toBeInTheDocument()
+	expect(await screen.findByText(adminSession.name)).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', { name: 'Log out' }),
 	).toBeInTheDocument()
