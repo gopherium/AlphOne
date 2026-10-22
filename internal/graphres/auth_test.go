@@ -12,6 +12,7 @@ import (
 	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/google/uuid"
 
+	"github.com/gopherium/gouncer"
 	"github.com/gopherium/gouncer/authkit"
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 	"github.com/gopherium/gouncer/authkit/testkit"
@@ -25,17 +26,18 @@ const testPassword = "password1234"
 
 // newAuthResolver returns a resolver whose auth seams serve store.
 func newAuthResolver(store *testkit.Store) *graphres.Resolver {
-	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store})
+	roles := stewardRoles()
+	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store, Roles: roles})
 	return &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
-		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
+		Admin:        adminOver(store, roles),
 		Invites:      invites,
 		Onboarding:   &placingInvites{invites: invites, placed: map[string]uuid.UUID{}},
 		Accounts:     store,
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 8, Window: time.Minute}),
-		Roles:        stewardRoles(),
+		Roles:        roles,
 	}
 }
 
@@ -233,6 +235,22 @@ func (liveTenantStore) TenantForUser(context.Context, uuid.UUID) (tenant.Tenant,
 // TenantsOf places no user anywhere.
 func (liveTenantStore) TenantsOf(context.Context, []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
 	return map[uuid.UUID]uuid.UUID{}, nil
+}
+
+// roleChangingStore is a store moving one account to another role right after it lists the accounts.
+type roleChangingStore struct {
+	*testkit.Store
+	id uuid.UUID
+	to string
+}
+
+// ListUsers lists every account, then moves the one account to its new role.
+func (s roleChangingStore) ListUsers(ctx context.Context) ([]gouncer.User, error) {
+	listed, err := s.Store.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return listed, s.SetUserRole(ctx, s.id, s.to, nil)
 }
 
 func TestLoginAdmitsAMemberOfALiveTenant(t *testing.T) {

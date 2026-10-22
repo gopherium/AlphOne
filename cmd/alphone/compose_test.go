@@ -17,6 +17,7 @@ import (
 
 	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole/testkit"
+	"github.com/gopherium/gouncer/authkit"
 
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/sdk"
@@ -67,6 +68,19 @@ func (p *fieldTakingPlugin) UseFieldProviders(providers []sdk.FieldProvider) {
 	p.received = providers
 }
 
+// checkerTakingPlugin records the role checker the host hands it and whether it knew the steward role on arrival.
+type checkerTakingPlugin struct {
+	inertPlugin
+	received     sdk.RoleChecker
+	stewardKnown bool
+}
+
+// UseRoleChecker keeps the handed checker and whether it knew the steward role on arrival.
+func (p *checkerTakingPlugin) UseRoleChecker(checker sdk.RoleChecker) {
+	p.received = checker
+	p.stewardKnown = checker.Known("steward")
+}
+
 // registeringNothing registers no plugin.
 func registeringNothing(sdk.Deps) ([]sdk.Plugin, error) {
 	return nil, nil
@@ -110,6 +124,24 @@ func abandonAtEnd(t *testing.T, built composed) {
 			t.Errorf("abandon() error = %v, want nil", err)
 		}
 	})
+}
+
+// composeTakingTheRoleChecker returns the plugin that took the role checker from compose beside one declaring steward.
+func composeTakingTheRoleChecker(t *testing.T) *checkerTakingPlugin {
+	t.Helper()
+	taking := &checkerTakingPlugin{inertPlugin: inertPlugin{id: "checking"}}
+	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), func(deps sdk.Deps) ([]sdk.Plugin, error) {
+		declaring, err := stewardDeclaring(deps)
+		return append(declaring, taking), err
+	})
+	if err != nil {
+		t.Fatalf("compose() error = %v, want nil", err)
+	}
+	abandonAtEnd(t, built)
+	if taking.received == nil {
+		t.Fatal("the checking plugin received no role checker, want the host's")
+	}
+	return taking
 }
 
 // extraSchemas returns the schemas of the database at address beyond the ones every database holds.
@@ -226,6 +258,44 @@ func TestComposeWiresTheCredentialsTheTenantGateAndTheMailSender(t *testing.T) {
 	}
 	if !mailing.handed || mailing.received == nil {
 		t.Error("the mailing plugin received no sender, want the relay the settings name")
+	}
+}
+
+func TestComposeHandsTheRoleCheckerOnceEveryRoleIsDeclared(t *testing.T) {
+	t.Parallel()
+
+	taking := composeTakingTheRoleChecker(t)
+
+	if !taking.stewardKnown {
+		t.Error("the checker knew no steward role on arrival, want it handed once the plugin roles are declared")
+	}
+}
+
+func TestComposeHandsTheRoleCheckerWithoutTheRegistry(t *testing.T) {
+	t.Parallel()
+
+	taking := composeTakingTheRoleChecker(t)
+
+	for _, write := range []string{"Grant", "Revoke", "Withdraw", "Replace"} {
+		if _, offered := reflect.TypeOf(taking.received).MethodByName(write); offered {
+			t.Errorf("the handed checker %T offers the registry write %s, want only Known and Outranks",
+				taking.received, write)
+		}
+	}
+}
+
+func TestTheRoleCheckerAnswersFromTheRegistry(t *testing.T) {
+	t.Parallel()
+
+	admin, member := role.Admin.String(), role.Member.String()
+
+	var checker authkit.RoleSource = sdk.RoleChecker(roleCheckerBridge{registry: role.NewRegistry()})
+
+	if !checker.Known(member) || checker.Known("auditor") {
+		t.Error("the checker knows the wrong roles, want member known and an undeclared auditor unknown")
+	}
+	if !checker.Outranks(admin, member) || checker.Outranks(member, admin) {
+		t.Error("the checker ranks the core roles wrong, want admin over member and never member over admin")
 	}
 }
 

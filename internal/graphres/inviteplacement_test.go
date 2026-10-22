@@ -24,7 +24,8 @@ import (
 // newPlacingResolver returns a resolver inviting over the real stores on pool.
 func newPlacingResolver(pool *pgxpool.Pool) *graphres.Resolver {
 	users := authkitpg.NewUserStore(pool)
-	config := authkit.InvitesConfig{Store: users}
+	roles := stewardRoles()
+	config := authkit.InvitesConfig{Store: users, Roles: roles}
 	return &graphres.Resolver{
 		Version:    "9.9.9",
 		Invites:    authkit.NewInvites(config),
@@ -32,7 +33,7 @@ func newPlacingResolver(pool *pgxpool.Pool) *graphres.Resolver {
 		Accounts:   users,
 		Tenants:    postgres.NewTenantStore(pool),
 		PublicURL:  "https://crm.example.com",
-		Roles:      stewardRoles(),
+		Roles:      roles,
 	}
 }
 

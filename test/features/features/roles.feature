@@ -43,3 +43,17 @@ Feature: A role narrows what a user may do
   Scenario: An admin cannot change its own role
     When the admin's session demotes itself to "member"
     Then the operation is refused as a change to its own role
+
+  Scenario Outline: An admin enables an account holding <case> only once it holds a declared role
+    Given a disabled user holding the role "<held>"
+    When the admin's session enables that user
+    Then the operation is refused as beyond the admin's reach
+    And that user is still disabled
+    When the admin's session gives that user the role "member"
+    And the admin's session enables that user
+    Then that user is enabled
+
+    Examples:
+      | case                    | held    |
+      | no role                 |         |
+      | a role nothing declares | auditor |

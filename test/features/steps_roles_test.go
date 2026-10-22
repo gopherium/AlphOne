@@ -77,6 +77,7 @@ func registerRoleSteps(sc *godog.ScenarioContext, t *testing.T) {
 	registerMemberSteps(sc)
 	registerRoleTokenSteps(sc)
 	registerRoleWriteSteps(sc)
+	registerUndeclaredRoleSteps(sc)
 	registerTokenOperations(sc)
 	registerErrorSteps(sc)
 }
@@ -114,9 +115,79 @@ func registerRoleWriteSteps(sc *godog.ScenarioContext) {
 	})
 }
 
+// registerUndeclaredRoleSteps binds the steps enabling an account whose role nobody declares.
+func registerUndeclaredRoleSteps(sc *godog.ScenarioContext) {
+	sc.Given(`^a disabled user holding the role "([^"]*)"$`, func(ctx context.Context, held string) error {
+		w := worldFrom(ctx)
+		id, err := w.addUser(ctx, "held.role@example.com", "Held Role Account")
+		if err != nil {
+			return err
+		}
+		if err := w.users.SetUserRole(ctx, id, held, nil); err != nil {
+			return fmt.Errorf("storing the role %q: %w", held, err)
+		}
+		if err := w.users.SetUserDisabled(ctx, id, true); err != nil {
+			return fmt.Errorf("disabling the account: %w", err)
+		}
+		w.targetID = id
+		return nil
+	})
+
+	sc.When(`^the admin's session enables that user$`, func(ctx context.Context) error {
+		w := worldFrom(ctx)
+		return w.postGraphAsSession(ctx, settingUserDisabled(w.targetID, false))
+	})
+
+	sc.When(`^the admin's session gives that user the role "([^"]*)"$`,
+		func(ctx context.Context, tier string) error {
+			w := worldFrom(ctx)
+			if err := w.postGraphAsSession(ctx, settingUserRole(w.targetID, tier)); err != nil {
+				return err
+			}
+			return w.answeredWithoutError()
+		})
+
+	sc.Then(`^the operation is refused as beyond the admin's reach$`, func(ctx context.Context) error {
+		return worldFrom(ctx).refusedAsBeyondReach()
+	})
+
+	sc.Then(`^that user is (still disabled|enabled)$`, func(ctx context.Context, state string) error {
+		w := worldFrom(ctx)
+		held, err := w.users.UserByID(ctx, w.targetID)
+		if err != nil {
+			return fmt.Errorf("reading the account: %w", err)
+		}
+		if want := state == "still disabled"; held.Disabled != want {
+			return fmt.Errorf("disabled = %t, want %t", held.Disabled, want)
+		}
+		return nil
+	})
+}
+
 // settingUserRole returns the operation standing one user in a tier.
 func settingUserRole(userID uuid.UUID, tier string) string {
 	return fmt.Sprintf(`{"query":"mutation { setUserRole(id: \"%s\", role: \"%s\") }"}`, userID, tier)
+}
+
+// settingUserDisabled returns the operation barring or admitting one user.
+func settingUserDisabled(userID uuid.UUID, disabled bool) string {
+	return fmt.Sprintf(`{"query":"mutation { setUserDisabled(id: \"%s\", disabled: %t) }"}`, userID, disabled)
+}
+
+// refusedAsBeyondReach reports whether the last operation was refused as an account beyond the caller's reach.
+func (w *world) refusedAsBeyondReach() error {
+	parsed, err := w.scopeErrors()
+	if err != nil {
+		return err
+	}
+	if len(parsed.Errors) != 1 {
+		return fmt.Errorf("errors = %v, want exactly one error", parsed.Errors)
+	}
+	refused := parsed.Errors[0].Extensions
+	if refused["code"] != "VALIDATION" || refused["reason"] != "role_beyond_reach" {
+		return fmt.Errorf("extensions = %v, want code VALIDATION and reason role_beyond_reach", refused)
+	}
+	return nil
 }
 
 // roleSeen reports whether the last answer carries the caller standing in one tier.
@@ -200,7 +271,7 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		return w.postGraphAsMember(ctx, disablingUser(colleague))
+		return w.postGraphAsMember(ctx, settingUserDisabled(colleague, true))
 	})
 
 	sc.Then(`^that user's session may disable another user$`, func(ctx context.Context) error {
@@ -209,7 +280,7 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 		if err != nil {
 			return err
 		}
-		if err := w.postGraphAsSession(ctx, disablingUser(colleague)); err != nil {
+		if err := w.postGraphAsSession(ctx, settingUserDisabled(colleague, true)); err != nil {
 			return err
 		}
 		return w.answeredWithoutError()
@@ -219,11 +290,6 @@ func registerMemberSteps(sc *godog.ScenarioContext) {
 // anotherUser seeds and returns a user neither the admin nor the member is.
 func (w *world) anotherUser(ctx context.Context) (uuid.UUID, error) {
 	return w.addUser(ctx, "colleague@example.com", "Ada Lovelace")
-}
-
-// disablingUser returns the operation disabling one user.
-func disablingUser(userID uuid.UUID) string {
-	return fmt.Sprintf(`{"query":"mutation { setUserDisabled(id: \"%s\", disabled: true) }"}`, userID)
 }
 
 // standsAsAdmin reports whether the named user holds the admin tier.

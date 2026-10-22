@@ -174,6 +174,19 @@ type TenantGateConsumer interface {
 	UseTenantGate(gate TenantGate)
 }
 
+// RoleChecker answers which roles the host declares and which roles a caller may hand out.
+type RoleChecker interface {
+	// Known reports whether any source declared the role.
+	Known(role string) bool
+	// Outranks reports whether the caller carries every capability the target carries.
+	Outranks(caller, target string) bool
+}
+
+// RoleCheckerConsumer receives the host's role checker once every role is declared.
+type RoleCheckerConsumer interface {
+	UseRoleChecker(checker RoleChecker)
+}
+
 // Channel names a communication medium, such as "whatsapp" or "email".
 type Channel string
 

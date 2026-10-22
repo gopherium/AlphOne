@@ -85,6 +85,7 @@ type world struct {
 	sessionValue string
 	memberValue  string
 	memberID     uuid.UUID
+	targetID     uuid.UUID
 	ownedHooks   map[string]uuid.UUID
 	status       int
 	cookies      []*http.Cookie

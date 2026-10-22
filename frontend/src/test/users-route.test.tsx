@@ -638,6 +638,32 @@ test('says plainly that an account could not be enabled when the server names no
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
+test('says why an account holding a role nobody declares could not be enabled', async () => {
+	configureAppErrorText()
+	holding([signedIn, accountOf('fd', 'Maria Perez', { disabled: true, role: 'auditor' })])
+	server.use(
+		graphql.mutation('SetUserDisabled', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'that role is beyond your own',
+						extensions: { code: 'VALIDATION', reason: 'role_beyond_reach' },
+					},
+				],
+			}),
+		),
+	)
+	renderAt('/users')
+
+	await act('Maria Perez', 'Enable')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'That role holds more than your own, or it is not one this deployment names.',
+	)
+	expect(screen.queryByText('"Maria Perez" enabled.')).not.toBeInTheDocument()
+})
+
 /**
  * Ticks the selection box of every named account.
  * @param names - The accounts to select.
@@ -854,8 +880,36 @@ test('shows why a role could not be changed inside the modal', async () => {
 	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('That role holds more than your own.')
+	expect(await dialog.findByRole('alert')).toHaveTextContent(
+		'That role holds more than your own, or it is not one this deployment names.',
+	)
 	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
+})
+
+test('says inside the modal that the role of the account just changed', async () => {
+	configureAppErrorText()
+	holding([signedIn, accountOf('fd', 'Maria Perez')])
+	server.use(
+		graphql.mutation('SetUserRole', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'role changed', extensions: { code: 'CONFLICT', reason: 'role_changed' } }],
+			}),
+		),
+	)
+	renderAt('/users')
+
+	await act('Maria Perez', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	expect(await dialog.findByRole('alert')).toHaveTextContent(
+		'The role of that account just changed. Reload the page and try again.',
+	)
+	expect(screen.queryByText('role changed')).not.toBeInTheDocument()
+	expect(screen.queryByText(/Role changed for/)).not.toBeInTheDocument()
 })
 
 test('says plainly that a role could not be changed when the server names no reason', async () => {

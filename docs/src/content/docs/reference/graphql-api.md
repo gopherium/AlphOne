@@ -189,6 +189,17 @@ came with the product or with a plugin.
 A write that would leave no enabled account able to manage users is refused with
 `the last admin cannot be unseated`.
 
+An account that holds no role, or one nothing declares any more, such as one a
+removed plugin declared, can still be disabled or given a role.
+`setUserDisabled` refuses to enable it with `that role is beyond your own` and
+the reason `role_beyond_reach`. Give it a declared role with `setUserRole`
+first, then enable it.
+
+`setUserRole` and `setUserDisabled` write only if the account still holds the
+role they checked. If someone changed that role in between, nothing is written
+and the write is refused with code `CONFLICT`, the message `role changed` and
+the reason `role_changed`. Sending it again checks the new role.
+
 `invite` takes an optional `role`. Leaving it out starts the account as a
 `member`.
 
@@ -442,7 +453,7 @@ Every error carries a `code` in its `extensions`.
 | `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the account's role holds no capability the field needs |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
-| `CONFLICT` | The write clashes with what is stored, such as an identity another contact holds or a full list. For an identity, `ownerContactId` names the owner |
+| `CONFLICT` | The write clashes with what is stored, such as an identity another contact holds, a full list, or an account whose role changed after the check. For an identity, `ownerContactId` names the owner |
 | `RATE_LIMITED` | Too many attempts. `retryAfter` is in seconds |
 | `COMPLEXITY_LIMIT_EXCEEDED` | The query asks for too much, see limits below |
 | `INTERNAL` | AlphOne failed. The message is deliberately bare |
@@ -547,8 +558,9 @@ The reasons the core answers with:
 | `self_disable_refused` | | nobody disables its own account |
 | `self_role_refused` | | nobody changes its own role |
 | `last_privileged_refused` | | the last account able to manage users stays |
-| `role_beyond_reach` | | the role holds more than the caller does |
+| `role_beyond_reach` | | the role holds more than the caller does, or the account being enabled holds no role or one the deployment does not name |
 | `role_unknown` | `field` | the role is not one the deployment names |
+| `role_changed` | | someone changed the account's role between the check and the write, and nothing was written |
 
 The stock plugins add their own:
 

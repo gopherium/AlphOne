@@ -90,11 +90,12 @@ func (p *placingInvites) placedIn(email string) uuid.UUID {
 
 // newInviteResolver returns a resolver serving the invite flows over store and mailer.
 func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.Resolver {
-	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store, ResetTokensLive: 3})
+	roles := stewardRoles()
+	invites := authkit.NewInvites(authkit.InvitesConfig{Store: store, ResetTokensLive: 3, Roles: roles})
 	held := &graphres.Resolver{
 		Version:      "9.9.9",
 		Auth:         authkit.New(authkit.Config{Store: store, CookieName: "alphone_session"}),
-		Admin:        authkit.NewAdmin(authkit.AdminConfig{Store: store}),
+		Admin:        adminOver(store, roles),
 		Invites:      invites,
 		Onboarding:   &placingInvites{invites: invites, placed: map[string]uuid.UUID{}},
 		Accounts:     store,
@@ -102,7 +103,7 @@ func newInviteResolver(store *testkit.Store, mailer graphres.Mailer) *graphres.R
 		LoginLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		TokenLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
 		ResetLimiter: ratelimit.NewLimiter(ratelimit.Config{Limit: 2, Window: time.Minute}),
-		Roles:        stewardRoles(),
+		Roles:        roles,
 	}
 	if mailer != nil {
 		held.Mailer = mailer

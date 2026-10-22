@@ -412,8 +412,8 @@ msgid "That priority is not one AlphOne offers."
 msgstr "Esa prioridad no es una de las que AlphOne ofrece."
 
 #, fuzzy
-msgid "That role holds more than your own."
-msgstr "Ese rol abarca más que el tuyo."
+msgid "That role holds more than your own, or it is not one this deployment names."
+msgstr "Ese rol abarca más que el tuyo, o no es uno de los que este despliegue nombra."
 
 #, fuzzy
 msgid "That role is not one this deployment names."
@@ -832,6 +832,10 @@ msgstr "No se ha podido actualizar el nombre."
 #, fuzzy
 msgid "The role could not be changed."
 msgstr "No se ha podido cambiar el rol."
+
+#, fuzzy
+msgid "The role of that account just changed. Reload the page and try again."
+msgstr "El rol de esa cuenta acaba de cambiar. Recarga la página e inténtalo de nuevo."
 
 #, fuzzy
 msgid "The token could not be revoked."
