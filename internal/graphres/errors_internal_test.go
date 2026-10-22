@@ -33,17 +33,46 @@ func TestEveryRefusedSentinelNamesAReason(t *testing.T) {
 	}
 }
 
-func TestEveryCoreReasonHasAFrontendMessage(t *testing.T) {
-	t.Parallel()
-
+// frontendTemplates returns the source of the frontend messages every reason is spoken through.
+func frontendTemplates(t *testing.T) string {
+	t.Helper()
 	templates, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "i18n", "errorTemplates.ts"))
 	if err != nil {
 		t.Fatalf("reading the frontend templates: %v", err)
 	}
+	return string(templates)
+}
+
+func TestEveryCoreReasonHasAFrontendMessage(t *testing.T) {
+	t.Parallel()
+
+	templates := frontendTemplates(t)
 
 	for _, held := range reasonsFor {
-		if !strings.Contains(string(templates), "\t"+held.reason+": __(") {
+		if !strings.Contains(templates, "\t"+held.reason+": __(") {
 			t.Errorf("reason %q has no frontend message, want the screens to speak it", held.reason)
+		}
+	}
+}
+
+func TestEveryBrickReasonTheUserWritesAnswerHasAFrontendMessage(t *testing.T) {
+	t.Parallel()
+
+	templates := frontendTemplates(t)
+
+	for _, sentinel := range []error{
+		authkit.ErrRoleChanged,
+		authkit.ErrUnknownRole,
+		gouncer.ErrUserNotFound,
+		gouncer.ErrEmailTaken,
+	} {
+		_, response, ok := authkit.ErrorResponseForAuthError(sentinel)
+		if !ok {
+			t.Errorf("%v names no brick reason, want authkit to answer it", sentinel)
+			continue
+		}
+		if !strings.Contains(templates, "\t"+response.Code+": __(") {
+			t.Errorf("reason %q has no frontend message, want the screens to speak it", response.Code)
 		}
 	}
 }
