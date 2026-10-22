@@ -172,25 +172,22 @@ func (m MutationResolvers) Logout(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// SetUserDisabled updates whether the account may log in, keeping the deployment an enabled admin.
+// SetUserDisabled updates whether the account may log in, never enabling one whose role nobody declares.
 func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) (bool, error) {
 	actor := authkit.IdentityFromContext(ctx)
-	if disabled && actor.ID == id {
-		return false, authkit.ErrSelfDisable
-	}
-	return m.root.writeWithinReach(ctx, actor, id, func() error {
-		return m.root.Admin.SetAccountDisabled(ctx, actor.ID, id, disabled)
+	return m.root.writeWithinReach(ctx, actor, id, func(held string) error {
+		return m.root.Admin.SetAccountDisabledFrom(ctx, actor.ID, id, held, disabled)
 	})
 }
 
-// SetUserRole stands one user in the tier it names.
+// SetUserRole stands one user in the tier it names, refusing an account whose role moved after the check.
 func (m MutationResolvers) SetUserRole(ctx context.Context, id uuid.UUID, tier string) (bool, error) {
 	actor := authkit.IdentityFromContext(ctx)
 	if err := m.root.refuseGrant(actor.Role, tier); err != nil {
 		return false, err
 	}
-	return m.root.writeWithinReach(ctx, actor, id, func() error {
-		return m.root.Admin.SetAccountRole(ctx, actor.ID, id, tier)
+	return m.root.writeWithinReach(ctx, actor, id, func(held string) error {
+		return m.root.Admin.SetAccountRoleFrom(ctx, actor.ID, id, held, tier)
 	})
 }
 

@@ -44,6 +44,13 @@ func stewardRoles() *goncierge.Registry {
 	return roles
 }
 
+// adminOver returns the account administration over store, guarded and checked against roles as production builds it.
+func adminOver(store authkit.AdminStore, roles *goncierge.Registry) *authkit.AdminHandlers {
+	return authkit.NewAdmin(authkit.AdminConfig{
+		Store: store, Privileged: roles.HoldersOf(role.ManageUsers), Roles: roles,
+	})
+}
+
 // roledStore returns a store holding one account under the given tier.
 func roledStore(t *testing.T, tier role.Role) (*testkit.Store, gouncer.User) {
 	t.Helper()
@@ -79,25 +86,50 @@ func settingDisabled(userID uuid.UUID, disabled bool) string {
 	return fmt.Sprintf(`mutation { setUserDisabled(id: %q, disabled: %t) }`, userID, disabled)
 }
 
+// refusal is the first error a refused operation answers.
+type refusal struct {
+	Message    string         `json:"message"`
+	Extensions map[string]any `json:"extensions"`
+}
+
+// refusalOf returns the first error a raw answer carries, failing the test when it carries none.
+func refusalOf(t *testing.T, raw json.RawMessage) refusal {
+	t.Helper()
+	var refused []refusal
+	if err := json.Unmarshal(raw, &refused); err != nil || len(refused) == 0 {
+		t.Fatalf("errors = %s, want the operation refused", raw)
+	}
+	return refused[0]
+}
+
 // wantUnknownRole checks the first error answers an undeclared role with authkit's message, reason and field.
 func wantUnknownRole(t *testing.T, raw json.RawMessage) {
 	t.Helper()
-	var refused []struct {
-		Message    string         `json:"message"`
-		Extensions map[string]any `json:"extensions"`
-	}
-	if err := json.Unmarshal(raw, &refused); err != nil || len(refused) == 0 {
-		t.Fatalf("errors = %s, want the undeclared role refused", raw)
-	}
-	if got := refused[0].Message; got != "unknown role" {
+	refused := refusalOf(t, raw)
+	if got := refused.Message; got != "unknown role" {
 		t.Errorf("message = %q, want unknown role", got)
 	}
-	if got := refused[0].Extensions["reason"]; got != "role_unknown" {
+	if got := refused.Extensions["reason"]; got != "role_unknown" {
 		t.Errorf("reason = %v, want role_unknown", got)
 	}
-	meta, _ := refused[0].Extensions["meta"].(map[string]any)
+	meta, _ := refused.Extensions["meta"].(map[string]any)
 	if meta["field"] != "role" {
 		t.Errorf("meta = %v, want the field the undeclared role came in named as data", meta)
+	}
+}
+
+// wantBeyondReach checks the first error answers a role beyond the caller's reach in the deployment's own voice.
+func wantBeyondReach(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	refused := refusalOf(t, raw)
+	if got := refused.Message; got != "that role is beyond your own" {
+		t.Errorf("message = %q, want that role is beyond your own", got)
+	}
+	if got := refused.Extensions["code"]; got != "VALIDATION" {
+		t.Errorf("code = %v, want VALIDATION", got)
+	}
+	if got := refused.Extensions["reason"]; got != "role_beyond_reach" {
+		t.Errorf("reason = %v, want role_beyond_reach", got)
 	}
 }
 
@@ -453,6 +485,79 @@ func TestAnAdminReachesAnAccountWhoseRoleNobodyDeclares(t *testing.T) {
 	}
 }
 
+func TestAWriteRefusesAnAccountWhoseRoleChangedAfterTheCheck(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		mutation func(uuid.UUID) string
+	}{
+		{"setUserRole from member to admin", func(id uuid.UUID) string { return settingRole(id, role.Admin.String()) }},
+		{"setUserDisabled barring the member", func(id uuid.UUID) string { return settingDisabled(id, true) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, held := roledStore(t, role.Member)
+			acting := roledUser(t, store, "admin@example.com", role.Admin)
+			resolver := newAuthResolver(store)
+			moving := roleChangingStore{Store: store, id: held.ID, to: stewardRole.String()}
+			resolver.Admin = adminOver(moving, resolver.Roles)
+			client := newActingClient(t, resolver, authkit.Identity{ID: acting, Role: role.Admin.String()})
+
+			answered, err := client.RawPost(tc.mutation(held.ID))
+
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+			if got := firstErrorCode(t, answered.Errors); got != "CONFLICT" {
+				t.Errorf("code = %q, want CONFLICT", got)
+			}
+			if got := firstErrorReason(t, answered.Errors); got != "role_changed" {
+				t.Errorf("reason = %q, want role_changed", got)
+			}
+			if got := store.Users[held.ID]; got.Role != stewardRole.String() || got.Disabled {
+				t.Errorf("stored role = %q, disabled = %t, want the moved role kept and the account enabled",
+					got.Role, got.Disabled)
+			}
+		})
+	}
+}
+
+func TestSetUserDisabledRefusesEnablingAnAccountWhoseRoleNobodyDeclares(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		stored role.Role
+	}{
+		{"an account holding no role", ""},
+		{"an account holding a retired role", retiredRole},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, held := roledStore(t, tc.stored)
+			held.Disabled = true
+			store.Users[held.ID] = held
+			actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+			client := newActingClient(t, newAuthResolver(store), actor)
+
+			answered, err := client.RawPost(settingDisabled(held.ID, false))
+
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+			wantBeyondReach(t, answered.Errors)
+			if !store.Users[held.ID].Disabled {
+				t.Error("the account is enabled, want the refused write to leave it disabled")
+			}
+		})
+	}
+}
+
 func TestSetUserDisabledRefusesBarringItself(t *testing.T) {
 	t.Parallel()
 
@@ -465,8 +570,11 @@ func TestSetUserDisabledRefusesBarringItself(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if len(answered.Errors) == 0 {
-		t.Error("setUserDisabled answered no error, want an account refused barring itself")
+	if got := firstErrorReason(t, answered.Errors); got != "self_disable_refused" {
+		t.Errorf("reason = %q, want self_disable_refused", got)
+	}
+	if store.Users[held.ID].Disabled {
+		t.Error("the account is barred, want the refused write to leave it enabled")
 	}
 }
 

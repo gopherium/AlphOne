@@ -73,39 +73,40 @@ type WebhookStore interface {
 	DeleteWorkspaceSubscription(ctx context.Context, id uuid.UUID) error
 }
 
-// outranking refuses an actor writing an account of another tenant or one whose declared role carries more.
-func (r *Resolver) outranking(ctx context.Context, actor authkit.Identity, target uuid.UUID) error {
-	held, err := r.Admin.ListAccounts(ctx)
+// heldWithinReach returns the role the target holds, refusing another tenant's account or a declared role holding more.
+func (r *Resolver) heldWithinReach(ctx context.Context, actor authkit.Identity, target uuid.UUID) (string, error) {
+	accounts, err := r.Admin.ListAccounts(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
-	for _, account := range held {
+	for _, account := range accounts {
 		if account.ID != target {
 			continue
 		}
 		placed, err := r.tenantsOf(ctx, []uuid.UUID{actor.ID, account.ID})
 		if err != nil {
-			return err
+			return "", err
 		}
 		if placedIn(placed, actor.ID) != placedIn(placed, account.ID) {
-			return gouncer.ErrUserNotFound
+			return "", gouncer.ErrUserNotFound
 		}
 		if r.Roles.Known(account.Role) && !r.Roles.Outranks(actor.Role, account.Role) {
-			return authkit.ErrBeyondReach
+			return "", authkit.ErrBeyondReach
 		}
-		return nil
+		return account.Role, nil
 	}
-	return gouncer.ErrUserNotFound
+	return "", gouncer.ErrUserNotFound
 }
 
-// writeWithinReach runs the write once the actor reaches the account, answering whether it applied.
+// writeWithinReach hands the write the role the account holds once the actor reaches it, answering whether it applied.
 func (r *Resolver) writeWithinReach(
-	ctx context.Context, actor authkit.Identity, target uuid.UUID, write func() error,
+	ctx context.Context, actor authkit.Identity, target uuid.UUID, write func(held string) error,
 ) (bool, error) {
-	if err := r.outranking(ctx, actor, target); err != nil {
+	held, err := r.heldWithinReach(ctx, actor, target)
+	if err != nil {
 		return false, err
 	}
-	if err := write(); err != nil {
+	if err := write(held); err != nil {
 		return false, err
 	}
 	return true, nil
