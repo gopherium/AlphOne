@@ -10,8 +10,8 @@ import { promisify } from 'node:util'
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
 
-import { createTask, graph, graphUpload } from '../graph'
-import { baseURL, credentials, databaseURL, repoRoot } from '../env'
+import { createTask, graph, graphUpload } from '../../../test/e2e/graph'
+import { baseURL, credentials, databaseURL, repoRoot } from '../../../test/e2e/env'
 
 const run = promisify(execFile)
 
