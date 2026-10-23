@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 
 import ts from 'typescript'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test } from 'vitest'
 
 import { domains, repositoryRoot } from '../../scripts/config.ts'
 
@@ -16,8 +17,17 @@ const SPOKEN = new Set(['aria-label', 'aria-description', 'alt', 'label', 'place
 /** WORDED matches a run carrying a word rather than punctuation or a glyph. */
 const WORDED = /[A-Za-z]{2,}/
 
+/** brandNames reads the brand names every plugin under root lists in its testdata, one per line. */
+function brandNames(root: string): string[] {
+	return globSync('plugins/*/testdata/brandnames.txt', { cwd: root })
+		.sort()
+		.flatMap((path) => readFileSync(join(root, path), 'utf8').split('\n'))
+		.map((line) => line.trim())
+		.filter((name) => name !== '')
+}
+
 /** NAMED lists the names that read the same in every language. */
-const NAMED = new Set(['AlphOne', 'WhatsApp'])
+const NAMED = new Set(['AlphOne', ...brandNames(ROOT)])
 
 /** UNREAD lists the sources that furnish tests rather than the interface. */
 const UNREAD = ['/test/', '/gql/', 'sdk/frontend/testing.tsx']
@@ -109,6 +119,27 @@ function bareStringsIn(file: string): Bare[] {
 	visit(source)
 	return found
 }
+
+/** writeTree writes a temporary repository holding the given files, keyed by path. */
+function writeTree(files: Record<string, string>): string {
+	const root = mkdtempSync(join(tmpdir(), 'alphone-brands-'))
+	onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+	for (const [path, content] of Object.entries(files)) {
+		mkdirSync(dirname(join(root, path)), { recursive: true })
+		writeFileSync(join(root, path), content)
+	}
+	return root
+}
+
+test('reads the brand names each plugin lists in its testdata', () => {
+	const root = writeTree({
+		'plugins/demo/testdata/brandnames.txt': '\nAcme\n\nAcme Cloud\n',
+		'plugins/quiet/plugin.json': '{"id": "quiet"}',
+		'enterprise/extra/testdata/brandnames.txt': 'Extra\n',
+	})
+
+	expect(brandNames(root)).toEqual(['Acme', 'Acme Cloud'])
+})
 
 test('leaves no string a reader meets outside a catalogue', () => {
 	const bare: Bare[] = []
