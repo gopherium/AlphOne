@@ -49,5 +49,12 @@
 		"typescript": "~6.0.2",
 		"vite": "^8.3.4",
 		"vitest": "^5.0.5"
+	},
+	"pluginwire": {
+		"dependencies": [
+			"@alphone/plugin-fields",
+			"@alphone/plugin-importer",
+			"@alphone/plugin-whatsapp"
+		]
 	}
 }
