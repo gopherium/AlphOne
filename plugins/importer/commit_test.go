@@ -19,13 +19,13 @@ import (
 
 var errDirectory = errors.New("the contact directory is unreachable")
 
-// directory answers contact lookups from an in-memory set of identities,
+// directory answers contact lookups from an in-memory set of identities per tenant,
 // storing every contact it creates so the import row link stays valid.
 type directory struct {
 	mu         sync.Mutex
 	pool       *pgxpool.Pool
 	contacts   map[uuid.UUID]sdk.Contact
-	identities map[sdk.Identity]uuid.UUID
+	identities map[heldIdentity]uuid.UUID
 	findErr    error
 	createErr  error
 	refused    string
@@ -33,43 +33,49 @@ type directory struct {
 	creates    int
 }
 
+// heldIdentity is one identity as the tenant holding it stores it.
+type heldIdentity struct {
+	tenant uuid.UUID
+	sdk.Identity
+}
+
 // newDirectory returns an empty directory holding no contacts and no identities.
 func newDirectory() *directory {
 	return &directory{
 		contacts:   map[uuid.UUID]sdk.Contact{},
-		identities: map[sdk.Identity]uuid.UUID{},
+		identities: map[heldIdentity]uuid.UUID{},
 	}
 }
 
-// store writes a contact to core so an import row may reference it.
-func (d *directory) store(owner sdk.Contact) {
+// store writes a contact to core in the given tenant so an import row may reference it.
+func (d *directory) store(owner sdk.Contact, tenant uuid.UUID) {
 	if d.pool == nil {
 		return
 	}
 	if _, err := d.pool.Exec(context.Background(),
-		"INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, now())",
-		owner.ID, owner.Name); err != nil {
+		"INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, $2, now(), $3)",
+		owner.ID, owner.Name, tenant); err != nil {
 		panic(err)
 	}
 }
 
-// key returns the lookup key an identity is stored under.
-func key(channel sdk.Channel, identifier string) sdk.Identity {
-	return sdk.Identity{Channel: channel, Identifier: identifier}
+// key returns the lookup key an identity is stored under in one tenant.
+func key(tenant uuid.UUID, channel sdk.Channel, identifier string) heldIdentity {
+	return heldIdentity{tenant: tenant, Identity: sdk.Identity{Channel: channel, Identifier: identifier}}
 }
 
-// seed stores a contact owning one email identity.
+// seed stores a contact owning one email identity in the default tenant.
 func (d *directory) seed(name, email string) sdk.Contact {
 	owner := sdk.Contact{ID: uuid.Must(uuid.NewV7()), Name: name}
 	d.contacts[owner.ID] = owner
-	d.identities[key("email", email)] = owner.ID
-	d.store(owner)
+	d.identities[key(sdk.DefaultTenantID, "email", email)] = owner.ID
+	d.store(owner, sdk.DefaultTenantID)
 	return owner
 }
 
-// FindByIdentity returns the contact owning the given identity.
+// FindByIdentity returns the contact owning the given identity in the caller's tenant.
 func (d *directory) FindByIdentity(
-	_ context.Context, channel sdk.Channel, identifier string,
+	ctx context.Context, channel sdk.Channel, identifier string,
 ) (sdk.Contact, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -79,16 +85,16 @@ func (d *directory) FindByIdentity(
 	if d.refused != "" && identifier == d.refused {
 		return sdk.Contact{}, false, fmt.Errorf("%w: unusable identifier", sdk.ErrInvalidContact)
 	}
-	ownerID, ok := d.identities[key(channel, identifier)]
+	ownerID, ok := d.identities[key(sdk.TenantOrDefault(ctx), channel, identifier)]
 	if !ok || d.hideClaims {
 		return sdk.Contact{}, false, nil
 	}
 	return d.contacts[ownerID], true, nil
 }
 
-// CreateWithIdentities stores a contact owning the given identities, or returns the contact already claiming one.
+// CreateWithIdentities stores a contact in the caller's tenant, or returns the one already claiming an identity there.
 func (d *directory) CreateWithIdentities(
-	_ context.Context, name string, identities []sdk.Identity,
+	ctx context.Context, name string, identities []sdk.Identity,
 ) (sdk.Contact, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -96,17 +102,18 @@ func (d *directory) CreateWithIdentities(
 	if d.createErr != nil {
 		return sdk.Contact{}, false, d.createErr
 	}
+	tenant := sdk.TenantOrDefault(ctx)
 	for _, identity := range identities {
-		if ownerID, ok := d.identities[key(identity.Channel, identity.Identifier)]; ok {
+		if ownerID, ok := d.identities[key(tenant, identity.Channel, identity.Identifier)]; ok {
 			return d.contacts[ownerID], false, nil
 		}
 	}
 	created := sdk.Contact{ID: uuid.Must(uuid.NewV7()), Name: name}
 	d.contacts[created.ID] = created
 	for _, identity := range identities {
-		d.identities[key(identity.Channel, identity.Identifier)] = created.ID
+		d.identities[key(tenant, identity.Channel, identity.Identifier)] = created.ID
 	}
-	d.store(created)
+	d.store(created, tenant)
 	return created, true, nil
 }
 

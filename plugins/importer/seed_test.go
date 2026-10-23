@@ -193,6 +193,19 @@ func TestSeedStoresTheDemoImportInTheCallersWorkspace(t *testing.T) {
 	if imports != 1 || rows != 6 {
 		t.Errorf("the calling workspace holds %d imports and %d rows, want 1 and 6", imports, rows)
 	}
+	var linked, strays int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT count(*), count(*) FILTER (WHERE c.tenant_id <> $1) "+
+			"FROM plugin_importer.import_rows r JOIN core.contacts c ON c.id = r.contact_id "+
+			"WHERE r.tenant_id = $1",
+		workspace,
+	).Scan(&linked, &strays); err != nil {
+		t.Fatalf("reading the contacts the calling workspace links to: %v", err)
+	}
+	if linked == 0 || strays != 0 {
+		t.Errorf("%d of %d linked rows point at a contact in another workspace, want none of at least one",
+			strays, linked)
+	}
 }
 
 func TestSeedKeepsTheDemoImportIDInTheDefaultWorkspace(t *testing.T) {
