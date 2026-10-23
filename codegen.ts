@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { globSync, readFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+
 import type { CodegenConfig } from '@graphql-codegen/cli'
 
 const scalars = {
@@ -30,14 +33,30 @@ function clientPreset(root: string) {
 	}
 }
 
+/**
+ * Reports whether the plugin manifest at path names a frontend.
+ * @param path - The plugin.json to read.
+ * @returns True when the manifest sets frontend.
+ */
+function namesFrontend(path: string): boolean {
+	const manifest = JSON.parse(readFileSync(path, 'utf8')) as { frontend?: string }
+	return Boolean(manifest.frontend)
+}
+
+/**
+ * Returns the frontend folder of every plugin manifest that names a frontend.
+ * @returns The folders under the plugins and enterprise roots, sorted.
+ */
+function pluginFrontends(): string[] {
+	return globSync(['plugins/*/plugin.json', 'enterprise/*/plugin.json'])
+		.filter(namesFrontend)
+		.map((manifest) => `${dirname(manifest)}/frontend`)
+		.sort()
+}
+
 const config: CodegenConfig = {
 	schema: ['graph/schema/*.graphqls', 'plugins/*/graph/*.graphqls', 'enterprise/*/graph/*.graphqls'],
-	generates: {
-		...clientPreset('frontend/src'),
-		...clientPreset('plugins/whatsapp/frontend'),
-		...clientPreset('plugins/importer/frontend'),
-		...clientPreset('plugins/fields/frontend'),
-	},
+	generates: Object.assign(clientPreset('frontend/src'), ...pluginFrontends().map(clientPreset)),
 	ignoreNoDocuments: true,
 }
 
