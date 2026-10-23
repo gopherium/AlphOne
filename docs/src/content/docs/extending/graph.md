@@ -168,8 +168,10 @@ One query, one round trip, a core field and yours side by side.
 
 **Name every type after your plugin.** A type you define must start with your
 plugin id, ignoring case. `note` may define `Note` and `NoteDraft`, not `Draft`.
-`go test ./graph/` fails by name if you stray. Exceptions live in an allowlist
-in `graph/naming_test.go`.
+`go test ./graph/` fails by name if you stray. A type that has to keep another
+name goes in `plugins/note/testdata/unprefixedtypes.txt`, one name per line.
+The same test fails when a line there names a type your schema no longer
+defines.
 
 **Fields you add to somebody else's type need `@goField(forceResolver: true)`.**
 Without it the build looks for a `Notes` field on the core's `Contact` struct,
@@ -234,6 +236,16 @@ for a missing or negative `offset`.
   `internal/graphres/loaders.go`.
 - **File uploads.** Use the `Upload` scalar. See
   `plugins/importer/graph/schema.graphqls`.
+- **Staying inside the workspace.** One database can hold several
+  workspaces, and every row carries its workspace in `tenant_id`. Each
+  statement your plugin runs must filter by `tenant_id`, or write it when it
+  inserts. `go test ./internal/postgres/` reads the Go code in your plugin
+  folder and names a statement that does not. It reads only statements
+  written as Go strings, so a plugin that keeps `migrations/` fails it when
+  no Go string names one of its tables. A statement that must run
+  before the workspace is known, such as a webhook finding which workspace a
+  message is for, goes in `plugins/note/testdata/crosstenant.txt`. Each line
+  holds a piece of its text that matches exactly one of your statements.
 - **A fuller example.** `plugins/whatsapp/graph/` is the living reference.
 
 ## When it does not work
