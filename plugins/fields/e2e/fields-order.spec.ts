@@ -3,7 +3,7 @@
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Page } from '@playwright/test'
 
-import { graph } from '../graph'
+import { graph } from '../../../test/e2e/graph'
 
 /**
  * Defines one Text field through the graph.
