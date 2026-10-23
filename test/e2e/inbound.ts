@@ -1,10 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { createHmac } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { parseEnv } from 'node:util'
 
 import type { APIRequestContext } from '@playwright/test'
 
-import { whatsappAppSecret } from './env'
+import { repoRoot } from './env'
+
+/**
+ * Reads the app secret the WhatsApp plugin's e2e settings hand the server.
+ * @returns The app secret.
+ */
+function appSecret(): string {
+	const settings = parseEnv(readFileSync(join(repoRoot, 'plugins', 'whatsapp', 'e2e.env'), 'utf8'))
+	const secret = settings.ALPHONE_WHATSAPP_APP_SECRET
+	if (!secret) {
+		throw new Error('plugins/whatsapp/e2e.env names no ALPHONE_WHATSAPP_APP_SECRET')
+	}
+	return secret
+}
 
 /**
  * Builds the webhook body for an inbound text message.
@@ -53,7 +69,7 @@ export function inboundTextPayload(
  * @returns The X-Hub-Signature-256 value.
  */
 export function sign(body: string): string {
-	return `sha256=${createHmac('sha256', whatsappAppSecret).update(body).digest('hex')}`
+	return `sha256=${createHmac('sha256', appSecret()).update(body).digest('hex')}`
 }
 
 /**
