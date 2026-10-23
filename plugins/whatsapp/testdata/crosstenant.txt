@@ -1,0 +1,2 @@
+FROM plugin_whatsapp.credentials WHERE phone_number_id
+WHERE med.status = 'pending'
