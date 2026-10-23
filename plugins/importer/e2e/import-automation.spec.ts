@@ -95,6 +95,80 @@ async function commitImport(api: APIRequestContext, csv: string): Promise<string
 	return id
 }
 
+/** ImportedContact is one contact an import row created, beside the row it came from. */
+type ImportedContact = { contactId: string; name: string; rowId: string }
+
+/** Subscription is one webhook subscription beside the secret it signs with. */
+type Subscription = { id: string; secret: string }
+
+/**
+ * Subscribes a receiver to completed imports.
+ * @param api - The request context carrying the token.
+ * @param receiver - The receiver AlphOne delivers to.
+ * @returns The subscription beside the secret it signs with.
+ */
+async function subscribeToImports(api: APIRequestContext, receiver: Receiver): Promise<Subscription> {
+	const subscription = await graph<{
+		createWebhook: { webhook: { id: string }; secret: string }
+	}>(
+		api,
+		'mutation($url: String!, $events: [String!]!) {' +
+			' createWebhook(url: $url, events: $events) { webhook { id } secret } }',
+		{ url: receiver.url, events: ['import.completed'] },
+	)
+	return { id: subscription.createWebhook.webhook.id, secret: subscription.createWebhook.secret }
+}
+
+/**
+ * Checks the receiver got a signed import.completed for the import.
+ * @param receiver - The receiver AlphOne delivers to.
+ * @param subscription - The subscription the delivery is signed for.
+ * @param importID - The import that completed.
+ */
+async function expectSignedCompletion(receiver: Receiver, subscription: Subscription, importID: string) {
+	await expect.poll(() => receiver.deliveries.length, { timeout: 20_000 }).toBeGreaterThan(0)
+	const delivered = receiver.deliveries[0]
+	const expected = `sha256=${createHmac('sha256', subscription.secret).update(delivered.body).digest('hex')}`
+	expect(delivered.signature, 'the delivery is not signed with the subscription secret').toBe(expected)
+	const event = JSON.parse(delivered.body) as {
+		event: string
+		data: { id: string; imported: number; skipped: number }
+	}
+	expect(event.event).toBe('import.completed')
+	expect(event.data).toMatchObject({ id: importID, imported: 3, skipped: 0 })
+}
+
+/**
+ * Lists the contacts an import created.
+ * @param api - The request context carrying the token.
+ * @param importID - The import to read.
+ * @returns The contacts beside the rows they came from.
+ */
+async function importedContacts(api: APIRequestContext, importID: string): Promise<ImportedContact[]> {
+	const listed = await graph<{ importJob: { contacts: ImportedContact[] } }>(
+		api,
+		'query($id: UUID!) { importJob(id: $id) { contacts { contactId name rowId } } }',
+		{ id: importID },
+	)
+	return listed.importJob.contacts
+}
+
+/**
+ * Checks every contact holds exactly the one task its row created.
+ * @param api - The request context carrying the token.
+ * @param contacts - The contacts the import created.
+ */
+async function expectOneTaskEach(api: APIRequestContext, contacts: ImportedContact[]) {
+	for (const contact of contacts) {
+		const listed = await graph<{ tasks: { edges: { node: { id: string } }[] } }>(
+			api,
+			'query($contactId: UUID!) { tasks(contactId: $contactId) { edges { node { id } } } }',
+			{ contactId: contact.contactId },
+		)
+		expect(listed.tasks.edges, `${contact.name} has more than the one task its row created`).toHaveLength(1)
+	}
+}
+
 test('an import announces itself, and its rows create each task exactly once', async ({
 	playwright,
 }) => {
@@ -105,16 +179,7 @@ test('an import announces itself, and its rows create each task exactly once', a
 		baseURL,
 		extraHTTPHeaders: { Authorization: `Bearer ${token}` },
 	})
-
-	const subscription = await graph<{
-		createWebhook: { webhook: { id: string }; secret: string }
-	}>(
-		api,
-		'mutation($url: String!, $events: [String!]!) {' +
-			' createWebhook(url: $url, events: $events) { webhook { id } secret } }',
-		{ url: receiver.url, events: ['import.completed'] },
-	)
-	const subscribed = { id: subscription.createWebhook.webhook.id, secret: subscription.createWebhook.secret }
+	const subscribed = await subscribeToImports(api, receiver)
 
 	try {
 		const csv = [
@@ -125,29 +190,8 @@ test('an import announces itself, and its rows create each task exactly once', a
 		].join('\n')
 		const importID = await commitImport(api, csv)
 
-		await expect
-			.poll(() => receiver.deliveries.length, { timeout: 20_000 })
-			.toBeGreaterThan(0)
-		const delivered = receiver.deliveries[0]
-		const expected = `sha256=${createHmac('sha256', subscribed.secret).update(delivered.body).digest('hex')}`
-		expect(delivered.signature, 'the delivery is not signed with the subscription secret').toBe(
-			expected,
-		)
-		const event = JSON.parse(delivered.body) as {
-			event: string
-			data: { id: string; imported: number; skipped: number }
-		}
-		expect(event.event).toBe('import.completed')
-		expect(event.data).toMatchObject({ id: importID, imported: 3, skipped: 0 })
-
-		const listed = await graph<{
-			importJob: { contacts: { contactId: string; name: string; rowId: string }[] }
-		}>(
-			api,
-			'query($id: UUID!) { importJob(id: $id) { contacts { contactId name rowId } } }',
-			{ id: importID },
-		)
-		const contacts = listed.importJob.contacts
+		await expectSignedCompletion(receiver, subscribed, importID)
+		const contacts = await importedContacts(api, importID)
 		expect(contacts).toHaveLength(3)
 
 		const dueOn = new Date(stamp + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -171,17 +215,7 @@ test('an import announces itself, and its rows create each task exactly once', a
 			expect(replayed.replay, `${contact.name} created a second task for one row`).toBe(true)
 		}
 
-		for (const contact of contacts) {
-			const listed = await graph<{ tasks: { edges: { node: { id: string } }[] } }>(
-				api,
-				'query($contactId: UUID!) { tasks(contactId: $contactId) { edges { node { id } } } }',
-				{ contactId: contact.contactId },
-			)
-			expect(
-				listed.tasks.edges,
-				`${contact.name} has more than the one task its row created`,
-			).toHaveLength(1)
-		}
+		await expectOneTaskEach(api, contacts)
 	} finally {
 		await graph(api, 'mutation($id: UUID!) { deleteWebhook(id: $id) }', { id: subscribed.id })
 		await api.dispose()
