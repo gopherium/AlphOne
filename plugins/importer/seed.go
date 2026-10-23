@@ -84,12 +84,23 @@ func tally(rows []demoRow) map[string]int {
 	return counts
 }
 
-// Seed stores a committed demo import, leaving the one an earlier run stored alone.
+// seedID returns the id a demo record takes in the caller's tenant, the fixed one in the default tenant.
+func seedID(ctx context.Context, fixed string) uuid.UUID {
+	id := uuid.MustParse(fixed)
+	tenant := sdk.TenantOrDefault(ctx)
+	if tenant == sdk.DefaultTenantID {
+		return id
+	}
+	return uuid.NewSHA1(tenant, id[:])
+}
+
+// Seed stores a committed demo import in the caller's tenant, leaving the one an earlier run stored there alone.
 func (p *Plugin) Seed(ctx context.Context) error {
-	id := uuid.MustParse(seedImportID)
+	id := seedID(ctx, seedImportID)
 	var exists bool
 	if err := p.pool.QueryRow(ctx,
-		"SELECT EXISTS (SELECT 1 FROM plugin_importer.imports WHERE id = $1)", id,
+		"SELECT EXISTS (SELECT 1 FROM plugin_importer.imports WHERE id = $1 AND tenant_id = $2)",
+		id, sdk.TenantOrDefault(ctx),
 	).Scan(&exists); err != nil {
 		return fmt.Errorf("importer: seed lookup: %w", err)
 	}
@@ -177,30 +188,32 @@ func (p *Plugin) seedClaim(ctx context.Context, row demoRow) (seededRow, error) 
 	return seededRow{link: &owner.ID, reason: identityTakenReason(owner.Name)}, nil
 }
 
-// seedImport stores the demo import and its scripted rows.
+// seedImport stores the demo import and its scripted rows in the caller's tenant.
 func (p *Plugin) seedImport(
 	ctx context.Context, id uuid.UUID, rows []demoRow, seeded []seededRow, withField bool,
 ) error {
 	counts := tally(rows)
 	headers, columns, fields := seedColumns(withField)
+	tenant := sdk.TenantOrDefault(ctx)
 	if _, err := p.pool.Exec(ctx,
 		"INSERT INTO plugin_importer.imports (id, user_id, filename, columns, mapping, "+
-			"state, row_count, imported_count, skipped_count, failed_count, created_at) "+
+			"state, row_count, imported_count, skipped_count, failed_count, created_at, tenant_id) "+
 			"VALUES ($1, $2, $3, $4, jsonb_object($5, $6), $7, $8, $9, $10, $11, "+
-			"now() - interval '1 day')",
+			"now() - interval '1 day', $12)",
 		id, uuid.MustParse(seedUploader), seedFilename,
 		headers, columns, fields,
 		stateCommitted, len(rows),
-		counts[outcomeImported], counts[outcomeSkipped], counts[outcomeFailed],
+		counts[outcomeImported], counts[outcomeSkipped], counts[outcomeFailed], tenant,
 	); err != nil {
 		return fmt.Errorf("importer: seed import: %w", err)
 	}
 	for i, row := range rows {
 		if _, err := p.pool.Exec(ctx,
 			"INSERT INTO plugin_importer.import_rows (id, import_id, position, cells, "+
-				"outcome, reason, contact_id) VALUES ($1, $2, $3, to_jsonb($4::text[]), $5, $6, $7)",
-			uuid.MustParse(row.id), id, i+1, row.cells[:len(headers)],
-			row.outcome, optionalReason(seeded[i].reason), seeded[i].link,
+				"outcome, reason, contact_id, tenant_id) "+
+				"VALUES ($1, $2, $3, to_jsonb($4::text[]), $5, $6, $7, $8)",
+			seedID(ctx, row.id), id, i+1, row.cells[:len(headers)],
+			row.outcome, optionalReason(seeded[i].reason), seeded[i].link, tenant,
 		); err != nil {
 			return fmt.Errorf("importer: seed row %d: %w", i+1, err)
 		}

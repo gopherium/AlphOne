@@ -3,6 +3,7 @@
 package importer_test
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gopherium/alphone/graph/model"
+	"github.com/gopherium/alphone/sdk"
 )
 
 func TestSeedStoresACommittedDemoImport(t *testing.T) {
@@ -170,6 +172,74 @@ func TestSeedLeavesAnEarlierRunAlone(t *testing.T) {
 	}
 }
 
+func TestSeedStoresTheDemoImportInTheCallersWorkspace(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	ctx, workspace := anotherWorkspace(t, pool)
+
+	if err := p.Seed(ctx); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	var imports, rows int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT (SELECT count(*) FROM plugin_importer.imports WHERE tenant_id = $1), "+
+			"(SELECT count(*) FROM plugin_importer.import_rows WHERE tenant_id = $1)",
+		workspace,
+	).Scan(&imports, &rows); err != nil {
+		t.Fatalf("counting what the calling workspace holds: %v", err)
+	}
+	if imports != 1 || rows != 6 {
+		t.Errorf("the calling workspace holds %d imports and %d rows, want 1 and 6", imports, rows)
+	}
+}
+
+func TestSeedKeepsTheDemoImportIDInTheDefaultWorkspace(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	var workspace uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		"SELECT tenant_id FROM plugin_importer.imports WHERE id = $1",
+		uuid.MustParse("0198d000-0000-7000-8000-0000000000a0"),
+	).Scan(&workspace); err != nil {
+		t.Fatalf("reading the demo import under its fixed id: %v", err)
+	}
+	if workspace != sdk.DefaultTenantID {
+		t.Errorf("the demo import stands in %v, want the default workspace", workspace)
+	}
+}
+
+func TestSeedFillsEachWorkspaceOnce(t *testing.T) {
+	t.Parallel()
+
+	p, pool, _, _ := newCommittingPlugin(t)
+	other, _ := anotherWorkspace(t, pool)
+
+	for _, ctx := range []context.Context{t.Context(), other, t.Context(), other} {
+		if err := p.Seed(ctx); err != nil {
+			t.Fatalf("Seed() error = %v, want nil", err)
+		}
+	}
+
+	var imports, rows int
+	if err := pool.QueryRow(t.Context(),
+		"SELECT (SELECT count(*) FROM plugin_importer.imports), "+
+			"(SELECT count(*) FROM plugin_importer.import_rows)",
+	).Scan(&imports, &rows); err != nil {
+		t.Fatalf("counting what both workspaces hold: %v", err)
+	}
+	if imports != 2 || rows != 12 {
+		t.Errorf("stored %d imports and %d rows, want one import and six rows in each workspace", imports, rows)
+	}
+}
+
 func TestSeedRunsWithoutTheClaimingContact(t *testing.T) {
 	t.Parallel()
 
@@ -246,6 +316,17 @@ func TestSeedReportsARowFailure(t *testing.T) {
 	if err := p.Seed(t.Context()); err == nil {
 		t.Fatal("Seed() error = nil, want the rejected row reported")
 	}
+}
+
+// anotherWorkspace stores a second workspace and returns a context serving it beside its id.
+func anotherWorkspace(t *testing.T, pool *pgxpool.Pool) (context.Context, uuid.UUID) {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO core.tenants (id, name) VALUES ($1, $2)", id, "Second workspace"); err != nil {
+		t.Fatalf("storing the second workspace: %v", err)
+	}
+	return sdk.WithTenant(t.Context(), id), id
 }
 
 // seededReason returns the reason one seeded row carries, nil when it carries none.
