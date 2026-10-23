@@ -5,8 +5,8 @@ import type { Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { inboundTextPayload, sign } from '../inbound'
-import { subscribed } from '../subscription'
+import { inboundTextPayload, sign } from '../../../test/e2e/inbound'
+import { subscribed } from '../../../test/e2e/subscription'
 
 const mockGraphPort = 4791
 const stamp = Date.now()

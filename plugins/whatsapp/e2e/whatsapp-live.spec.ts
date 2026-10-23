@@ -2,8 +2,8 @@
 
 import { expect, test } from '@playwright/test'
 
-import { deliverInboundText } from '../inbound'
-import { subscribed } from '../subscription'
+import { deliverInboundText } from '../../../test/e2e/inbound'
+import { subscribed } from '../../../test/e2e/subscription'
 
 test('shows an inbound conversation pushed over the live stream', async ({
 	page,

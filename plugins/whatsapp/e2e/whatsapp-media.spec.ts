@@ -6,8 +6,8 @@ import type { Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { sign } from '../inbound'
-import { subscribed } from '../subscription'
+import { sign } from '../../../test/e2e/inbound'
+import { subscribed } from '../../../test/e2e/subscription'
 
 const mockGraphPort = 4791
 const imageBytes = Buffer.from(`e2e-image-bytes-${Date.now()}`)
