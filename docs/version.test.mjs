@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { pinsALiteral, remarkVersion, substitute, version } from './version.mjs'
+import { pinsALiteral, remarkVersion, substitute, version, versionPattern } from './version.mjs'
 
 const released = readFileSync(
 	fileURLToPath(new URL('../internal/version/VERSION', import.meta.url)),
@@ -38,6 +38,14 @@ test('an older release stays legal, so history reads correctly', () => {
 
 test('a longer version merely containing the release is not refused', () => {
 	assert.equal(pinsALiteral(`10.${released} and ${released}.1`), false)
+})
+
+test('a release holding pattern characters matches only its own spelling', () => {
+	const pattern = versionPattern('1.2.3-beta+4')
+
+	assert.equal(pattern.test('the 1.2.3-beta+4 build'), true)
+	assert.equal(pattern.test('the 1.2.3-betaaa4 build'), false)
+	assert.equal(pattern.test('the 1x2x3-beta+4 build'), false)
 })
 
 test('the plugin substitutes tokens through the tree', () => {

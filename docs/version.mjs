@@ -9,9 +9,19 @@ const versionFile = fileURLToPath(new URL('../internal/version/VERSION', import.
 export const version = readFileSync(versionFile, 'utf8').trim()
 
 const token = /%VERSION%/g
-const escaped = version.replace(/\./g, '\\.')
-const literal = new RegExp(`(?<![\\w.])v?${escaped}(?![\\w.])`)
 const valued = ['text', 'code', 'inlineCode', 'yaml', 'html']
+
+/**
+ * Returns the pattern matching a release written out on its own, with or without its tag prefix.
+ * @param release - The release the pattern spells.
+ * @returns The pattern.
+ */
+export function versionPattern(release) {
+	const escaped = release.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+	return new RegExp(`(?<![\\w.])v?${escaped}(?![\\w.])`)
+}
+
+const literal = versionPattern(version)
 
 /**
  * Returns the text with every version token replaced.
