@@ -17,6 +17,8 @@ export default [
 			'enterprise/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
 			'test/e2e/**/*.ts',
+			'plugins/*/e2e/**/*.ts',
+			'enterprise/*/e2e/**/*.ts',
 		],
 		ignores: ['frontend/src/plugins/index.ts'],
 		languageOptions: {
@@ -35,6 +37,8 @@ export default [
 			'enterprise/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
 			'test/e2e/**/*.ts',
+			'plugins/*/e2e/**/*.ts',
+			'enterprise/*/e2e/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',
@@ -59,6 +63,8 @@ export default [
 			'enterprise/*/frontend/**/*.{ts,tsx}',
 			'test/runbook/**/*.ts',
 			'test/e2e/**/*.ts',
+			'plugins/*/e2e/**/*.ts',
+			'enterprise/*/e2e/**/*.ts',
 		],
 		ignores: [
 			'**/*.test.{ts,tsx}',
