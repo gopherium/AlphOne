@@ -125,10 +125,10 @@ func pluginSettingOwners(t *testing.T, tree string) []settingOwner {
 	return owners
 }
 
-// goStrings returns the text of every string literal the Go files under a folder spell, tests left out.
-func goStrings(t *testing.T, dir string) []string {
+// goFiles returns every Go file under a folder parsed, tests and node_modules left out.
+func goFiles(t *testing.T, dir string) []*ast.File {
 	t.Helper()
-	var spelled []string
+	var parsed []*ast.File
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		switch {
 		case err != nil:
@@ -136,33 +136,148 @@ func goStrings(t *testing.T, dir string) []string {
 		case entry.IsDir() && entry.Name() == "node_modules":
 			return filepath.SkipDir
 		case strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go"):
-			spelled = append(spelled, fileStrings(t, path)...)
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return fmt.Errorf("parsing %s: %w", path, err)
+			}
+			parsed = append(parsed, file)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walking %s: %v", dir, err)
 	}
+	return parsed
+}
+
+// goStrings returns the text of every string literal the Go files under a folder spell, tests left out.
+func goStrings(t *testing.T, dir string) []string {
+	t.Helper()
+	var spelled []string
+	for _, file := range goFiles(t, dir) {
+		ast.Inspect(file, func(node ast.Node) bool {
+			if text, ok := stringLiteral(node); ok {
+				spelled = append(spelled, text)
+			}
+			return true
+		})
+	}
 	return spelled
 }
 
-// fileStrings returns the text of every string literal one Go file spells.
-func fileStrings(t *testing.T, path string) []string {
-	t.Helper()
-	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		t.Fatalf("parsing %s: %v", path, err)
+// stringLiteral returns the text one string literal spells, and whether the node is one.
+func stringLiteral(node ast.Node) (string, bool) {
+	literal, ok := node.(*ast.BasicLit)
+	if !ok || literal.Kind != token.STRING {
+		return "", false
 	}
-	var spelled []string
-	ast.Inspect(parsed, func(node ast.Node) bool {
-		if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
-			if text, err := strconv.Unquote(literal.Value); err == nil {
-				spelled = append(spelled, text)
+	text, err := strconv.Unquote(literal.Value)
+	return text, err == nil
+}
+
+// envReaders names the calls through which a plugin reads one of its settings.
+var envReaders = []string{"Value", "Required", "Duration", "Count", "Counts", "Flag", "Parse"}
+
+// settingName matches a literal spelling a setting name, a trailing underscore marking a prefix instead.
+var settingName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*[A-Z0-9]$`)
+
+// settingsRead returns every key the Go files of one plugin read through its environment, tests left out.
+func settingsRead(t *testing.T, owner settingOwner) []string {
+	t.Helper()
+	files := goFiles(t, owner.dir)
+	consts := stringValues(files)
+	var keys []string
+	for _, file := range files {
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok || !slices.Contains(envReaders, calledName(call)) {
+				return true
+			}
+			if name, named := settingNamed(call, consts); named {
+				keys = append(keys, keyOf(owner, name))
+			}
+			return true
+		})
+	}
+	slices.Sort(keys)
+	return slices.Compact(keys)
+}
+
+// calledName returns the name of the function or method one call invokes.
+func calledName(call *ast.CallExpr) string {
+	switch called := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		return called.Sel.Name
+	case *ast.Ident:
+		return called.Name
+	}
+	return ""
+}
+
+// settingNamed returns the setting name one reading call passes, second to Parse and first to the rest.
+func settingNamed(call *ast.CallExpr, consts map[string]string) (string, bool) {
+	at := 0
+	if calledName(call) == "Parse" {
+		at = 1
+	}
+	if len(call.Args) <= at {
+		return "", false
+	}
+	name, ok := stringLiteral(call.Args[at])
+	if ident, isIdent := call.Args[at].(*ast.Ident); isIdent {
+		name, ok = consts[ident.Name]
+	}
+	return name, ok && settingName.MatchString(name)
+}
+
+// stringValues returns the text every single-valued string const or var of the parsed files spells, by name.
+func stringValues(files []*ast.File) map[string]string {
+	held := map[string]string{}
+	for _, file := range files {
+		ast.Inspect(file, func(node ast.Node) bool {
+			if spec, ok := node.(*ast.ValueSpec); ok {
+				recordStrings(spec, held)
+			}
+			return true
+		})
+	}
+	return held
+}
+
+// recordStrings adds the text each name of one value spec spells when it holds a string literal.
+func recordStrings(spec *ast.ValueSpec, held map[string]string) {
+	if len(spec.Names) != len(spec.Values) {
+		return
+	}
+	for i, name := range spec.Names {
+		if text, ok := stringLiteral(spec.Values[i]); ok {
+			held[name.Name] = text
+		}
+	}
+}
+
+// keyOf returns the key a setting name spells, past the program prefix or else past the plugin's.
+func keyOf(owner settingOwner, name string) string {
+	if strings.HasPrefix("ALPHONE_"+name, owner.prefix) {
+		return "ALPHONE_" + name
+	}
+	return owner.prefix + name
+}
+
+// unnamedSettings returns every setting the plugins read that the example file names under no key at all.
+func unnamedSettings(t *testing.T, owners []settingOwner, named map[string]string) []string {
+	t.Helper()
+	var missing []string
+	for _, owner := range owners {
+		for _, key := range settingsRead(t, owner) {
+			_, held := named[key]
+			_, core := named["ALPHONE_"+strings.TrimPrefix(key, owner.prefix)]
+			if !held && !core {
+				missing = append(missing, key)
 			}
 		}
-		return true
-	})
-	return spelled
+	}
+	return missing
 }
 
 // readsSetting reports whether a Go file of the plugin, tests aside, spells the key past the program or plugin prefix.
@@ -252,6 +367,52 @@ func TestAPluginReadsTheSettingsItsGoCodeSpells(t *testing.T) {
 		if got := readsSetting(t, owner, key); got != want {
 			t.Errorf("readsSetting(%s) = %t, want %t", key, got, want)
 		}
+	}
+}
+
+func TestAPluginReadsTheSettingsItAsksItsEnvironmentFor(t *testing.T) {
+	t.Parallel()
+
+	tree := t.TempDir()
+	writeSettingTree(t, tree, map[string]string{
+		filepath.Join("plugins", "demo-notes", "plugin.json"): `{"id": "demo-notes"}`,
+		filepath.Join("plugins", "demo-notes", "notes.go"): "package notes\n\n" +
+			"const limitSetting = \"DEMO_NOTES_LIMIT\"\n\n" +
+			"func read() {\n" +
+			"\tdeps.Env.Count(limitSetting, 3)\n" +
+			"\tenv := deps.Env.Within(\"DEMO_NOTES_\")\n" +
+			"\tenv.Value(\"MAX\")\n" +
+			"\tsdk.Parse(env, \"SECRET\", nil, nil)\n" +
+			"\tbytes.Count(body, \"NOT_A_SETTING\")\n" +
+			"}\n",
+		filepath.Join("plugins", "demo-notes", "notes_test.go"): "package notes\n\n" +
+			"func probe() { env.Value(\"PROBE\") }\n",
+	})
+	owner := settingOwner{prefix: "ALPHONE_DEMO_NOTES_", dir: filepath.Join(tree, "plugins", "demo-notes")}
+
+	got := settingsRead(t, owner)
+
+	want := []string{"ALPHONE_DEMO_NOTES_LIMIT", "ALPHONE_DEMO_NOTES_MAX", "ALPHONE_DEMO_NOTES_SECRET"}
+	if !slices.Equal(got, want) {
+		t.Errorf("settingsRead() = %v, want %v", got, want)
+	}
+}
+
+func TestAPluginSettingTheExampleFileLeavesOutIsReported(t *testing.T) {
+	t.Parallel()
+
+	tree := t.TempDir()
+	writeSettingTree(t, tree, map[string]string{
+		filepath.Join("plugins", "demo-notes", "plugin.json"): `{"id": "demo-notes"}`,
+		filepath.Join("plugins", "demo-notes", "notes.go"): "package notes\n\n" +
+			"func read() { env.Value(\"LIMIT\"); env.Value(\"KEY\") }\n",
+	})
+	named := map[string]string{"ALPHONE_DEMO_NOTES_LIMIT": "5"}
+
+	got := unnamedSettings(t, pluginSettingOwners(t, tree), named)
+
+	if want := []string{"ALPHONE_DEMO_NOTES_KEY"}; !slices.Equal(got, want) {
+		t.Errorf("unnamedSettings() = %v, want %v", got, want)
 	}
 }
 
@@ -346,6 +507,12 @@ func TestEverySettingTheExampleFileNamesHasAnOwner(t *testing.T) {
 		if _, held := named[key]; !held {
 			t.Errorf("%s is read but the example file never names it", key)
 		}
+	}
+	public := slices.DeleteFunc(slices.Clone(owners), func(owner settingOwner) bool {
+		return !strings.HasPrefix(owner.dir, filepath.Join("..", "..", "plugins"))
+	})
+	for _, key := range unnamedSettings(t, public, named) {
+		t.Errorf("a plugin reads %s but the example file never names it", key)
 	}
 }
 
