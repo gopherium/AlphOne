@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -103,11 +106,13 @@ jobs:
       - run: git diff --exit-code
       - name: schema diff against the base branch
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin ${{ github.base_ref }} --depth 1
-          if git cat-file -e "origin/${{ github.base_ref }}:graph/schema.graphql" 2>/dev/null; then
+          git fetch origin "$BASE_REF" --depth 1
+          if git cat-file -e "origin/$BASE_REF:graph/schema.graphql" 2>/dev/null; then
             pnpm --filter @alphone/e2e run schema:diff \
-              "git:origin/${{ github.base_ref }}:graph/schema.graphql" ../../graph/schema.graphql \
+              "git:origin/$BASE_REF:graph/schema.graphql" ../../graph/schema.graphql \
               --rule ./approved-removals.ts
           else
             echo "no schema snapshot on the base branch, skipping"
