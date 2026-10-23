@@ -51,6 +51,15 @@ catalogue and its own translation project, so a string filed under the
 wrong domain would ship in the wrong catalogue. A test reads every
 source file and fails when a call names a domain the file does not own.
 
+The build and the tests keep no list of domains. They find one for
+every plugin whose `plugin.json` names a `frontend`, and `make pot`
+writes its template to `plugins/<id>/languages`. The weekly translation
+sync still reads one project per domain. For a new domain a maintainer
+creates its translation project, stores the project id as the
+`POEDITOR_PROJECT_ALPHONE_<ID>` secret, and names that variable in
+`.github/workflows/translations.yml` and `.env.example`. Until then the
+sync stops before it uploads anything.
+
 ## A new plugin declares its catalogue
 
 A plugin that shows words ships its own catalogues and tells the host
@@ -100,6 +109,11 @@ Also leave alone the product names AlphOne and WhatsApp, and anything a
 person typed into the product. A custom field's label reads as its
 author wrote it, in whatever language they wrote it, and no catalogue
 reaches it.
+
+A plugin that shows a brand name of its own lists it in
+`plugins/<id>/testdata/brandnames.txt`, one name per line, the way
+`plugins/whatsapp` lists WhatsApp. The test that looks for unwrapped
+words then lets that name through.
 
 ## When one word means two things
 
