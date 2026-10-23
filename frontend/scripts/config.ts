@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { globSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { PotOptions } from '@gopherium/gottext/build'
@@ -30,11 +31,33 @@ export function repositoryRoot(): string {
 	return join(import.meta.dirname, '..', '..')
 }
 
+/** PluginManifest is the part of a plugin.json the text domains read. */
+interface PluginManifest {
+	/** id names the plugin folder and its text domain. */
+	id: string
+	/** frontend is the package holding the plugin screens, unset when the plugin ships none. */
+	frontend?: string
+}
+
+/**
+ * Returns the id of every plugin under root whose manifest names a frontend.
+ * @param root - The repository root holding the plugins folder.
+ * @returns The plugin ids, sorted.
+ */
+function frontendPlugins(root: string): string[] {
+	return globSync('plugins/*/plugin.json', { cwd: root })
+		.map((path) => JSON.parse(readFileSync(join(root, path), 'utf8')) as PluginManifest)
+		.filter((manifest) => Boolean(manifest.frontend))
+		.map((manifest) => manifest.id)
+		.sort()
+}
+
 /**
  * Returns every text domain AlphOne extracts, the core's own first.
+ * @param root - The repository root the plugin manifests are read from.
  * @returns The domains, in extraction order.
  */
-export function domains(): Domain[] {
+export function domains(root: string = repositoryRoot()): Domain[] {
 	return [
 		{
 			name: 'alphone',
@@ -42,7 +65,7 @@ export function domains(): Domain[] {
 			languages: 'languages',
 			catalogs: join('frontend', 'src', 'languages'),
 		},
-		...['fields', 'importer', 'whatsapp'].map((plugin) => ({
+		...frontendPlugins(root).map((plugin) => ({
 			name: `alphone-${plugin}`,
 			sources: [`plugins/${plugin}/frontend/**/*.{ts,tsx}`],
 			languages: join('plugins', plugin, 'languages'),

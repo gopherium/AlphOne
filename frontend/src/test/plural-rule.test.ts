@@ -86,15 +86,18 @@ function ruleOf(catalogue: Compiled): unknown {
 }
 
 /**
- * Returns every plural message of every Spanish catalogue with its forms.
+ * Returns every plural message of the Spanish catalogues with its forms.
+ * @param domain - The one text domain to read, every domain when left out.
  * @returns The messages, each with its forms.
  */
-function plurals(): [string, string[]][] {
-	return spanishCatalogues().flatMap(({ po }) =>
-		Object.entries(compiled(po)).filter(
-			(entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].length > 1,
-		),
-	)
+function plurals(domain?: string): [string, string[]][] {
+	return spanishCatalogues()
+		.filter((catalogue) => domain === undefined || catalogue.domain === domain)
+		.flatMap(({ po }) =>
+			Object.entries(compiled(po)).filter(
+				(entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].length > 1,
+			),
+		)
 }
 
 test('every Spanish catalogue declares the CLDR plural rule', () => {
@@ -109,11 +112,12 @@ test('every Spanish catalogue ships as its PO text compiles', () => {
 	}
 })
 
-test('every Spanish plural message fills its three forms', () => {
-	const messages = plurals()
+test('the core Spanish catalogue carries exactly the core plural messages', () => {
+	expect(new Set(plurals('alphone').map(([message]) => message))).toEqual(new Set(pluralMessages))
+})
 
-	expect(new Set(messages.map(([message]) => message))).toEqual(new Set(pluralMessages))
-	for (const [message, forms] of messages) {
+test('every Spanish plural message fills its three forms', () => {
+	for (const [message, forms] of plurals()) {
 		expect(forms, message).toHaveLength(3)
 		expect(forms.filter((form) => form === ''), message).toEqual([])
 	}
