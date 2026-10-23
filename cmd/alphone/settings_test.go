@@ -3,7 +3,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -70,21 +75,13 @@ func coreSettings() map[string]string {
 	}
 }
 
-// settingsReadElsewhere names the example file settings that a plugin, a command or the Go tests read, not the server.
+// settingsReadElsewhere names the example file settings that a command or the Go tests read, not the server.
 var settingsReadElsewhere = []string{
 	"ALPHONE_TEST_DATABASE_URL",
 	"ALPHONE_TEST_DATABASE_MAX_AGE",
 	"ALPHONE_COMMAND_RECORD_TIMEOUT",
 	"ALPHONE_COMMAND_RECORDS_LIMIT",
 	"ALPHONE_TOKEN_TTL_DAYS",
-	"ALPHONE_FIELDS_ENTRIES_MAX",
-	"ALPHONE_WHATSAPP_VERIFY_TOKEN",
-	"ALPHONE_WHATSAPP_APP_SECRET",
-	"ALPHONE_WHATSAPP_ACCESS_TOKEN",
-	"ALPHONE_WHATSAPP_PHONE_NUMBER_ID",
-	"ALPHONE_WHATSAPP_CREDENTIALS_KEY",
-	"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES",
-	"ALPHONE_WHATSAPP_GRAPH_URL",
 }
 
 // exampleSetting matches one setting line of the example file, commented or not, capturing its key and its value.
@@ -104,6 +101,158 @@ func exampleSettings(t *testing.T) map[string]string {
 		}
 	}
 	return values
+}
+
+// settingOwner is the ALPHONE_<ID>_ prefix of one plugin's settings beside the folder holding the plugin.
+type settingOwner struct {
+	prefix string
+	dir    string
+}
+
+// pluginSettingOwners returns the setting owner of every plugin under each plugin root of a tree.
+func pluginSettingOwners(t *testing.T, tree string) []settingOwner {
+	t.Helper()
+	var owners []settingOwner
+	for _, root := range []string{"plugins", "enterprise"} {
+		paths, err := filepath.Glob(filepath.Join(tree, root, "*", "plugin.json"))
+		if err != nil {
+			t.Fatalf("globbing the manifests under %s: %v", root, err)
+		}
+		for _, path := range paths {
+			owners = append(owners, settingOwner{prefix: settingPrefix(t, path), dir: filepath.Dir(path)})
+		}
+	}
+	return owners
+}
+
+// goStrings returns the text of every string literal the Go files under a folder spell, tests left out.
+func goStrings(t *testing.T, dir string) []string {
+	t.Helper()
+	var spelled []string
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case entry.IsDir() && entry.Name() == "node_modules":
+			return filepath.SkipDir
+		case strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go"):
+			spelled = append(spelled, fileStrings(t, path)...)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking %s: %v", dir, err)
+	}
+	return spelled
+}
+
+// fileStrings returns the text of every string literal one Go file spells.
+func fileStrings(t *testing.T, path string) []string {
+	t.Helper()
+	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	var spelled []string
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
+			if text, err := strconv.Unquote(literal.Value); err == nil {
+				spelled = append(spelled, text)
+			}
+		}
+		return true
+	})
+	return spelled
+}
+
+// readsSetting reports whether a Go file of the plugin, tests aside, spells the key past the program or plugin prefix.
+func readsSetting(t *testing.T, owner settingOwner, key string) bool {
+	t.Helper()
+	spelled := goStrings(t, owner.dir)
+	return slices.Contains(spelled, strings.TrimPrefix(key, "ALPHONE_")) ||
+		slices.Contains(spelled, strings.TrimPrefix(key, owner.prefix))
+}
+
+// settingPrefix returns the prefix of the settings the plugin one manifest describes owns.
+func settingPrefix(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	var manifest struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	return "ALPHONE_" + strings.ToUpper(strings.ReplaceAll(manifest.ID, "-", "_")) + "_"
+}
+
+// ownerOf returns the plugin whose prefix a setting sits under, and whether one does.
+func ownerOf(key string, owners []settingOwner) (settingOwner, bool) {
+	at := slices.IndexFunc(owners, func(owner settingOwner) bool { return strings.HasPrefix(key, owner.prefix) })
+	if at < 0 {
+		return settingOwner{}, false
+	}
+	return owners[at], true
+}
+
+// writeSettingTree writes each file of a temporary tree, keyed by its path inside the tree.
+func writeSettingTree(t *testing.T, tree string, files map[string]string) {
+	t.Helper()
+	for path, content := range files {
+		if err := os.MkdirAll(filepath.Join(tree, filepath.Dir(path)), 0o750); err != nil {
+			t.Fatalf("creating the folder of %s: %v", path, err)
+		}
+		if err := os.WriteFile(filepath.Join(tree, path), []byte(content), 0o600); err != nil {
+			t.Fatalf("writing %s: %v", path, err)
+		}
+	}
+}
+
+func TestEveryPluginOwnsTheSettingsUnderItsID(t *testing.T) {
+	t.Parallel()
+
+	tree := t.TempDir()
+	writeSettingTree(t, tree, map[string]string{
+		filepath.Join("plugins", "demo-notes", "plugin.json"): `{"id": "demo-notes"}`,
+		filepath.Join("enterprise", "extra", "plugin.json"):   `{"id": "extra"}`,
+	})
+
+	got := pluginSettingOwners(t, tree)
+
+	want := []settingOwner{
+		{prefix: "ALPHONE_DEMO_NOTES_", dir: filepath.Join(tree, "plugins", "demo-notes")},
+		{prefix: "ALPHONE_EXTRA_", dir: filepath.Join(tree, "enterprise", "extra")},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("pluginSettingOwners() = %+v, want %+v", got, want)
+	}
+}
+
+func TestAPluginReadsTheSettingsItsGoCodeSpells(t *testing.T) {
+	t.Parallel()
+
+	tree := t.TempDir()
+	writeSettingTree(t, tree, map[string]string{
+		filepath.Join("plugins", "demo-notes", "plugin.json"): `{"id": "demo-notes"}`,
+		filepath.Join("plugins", "demo-notes", "notes.go"): "package notes\n\n" +
+			"const limitSetting = \"DEMO_NOTES_LIMIT\"\n\nvar within = []string{`MAX`}\n",
+		filepath.Join("plugins", "demo-notes", "notes_test.go"): "package notes\n\nconst probe = \"PROBE\"\n",
+	})
+	owner := settingOwner{prefix: "ALPHONE_DEMO_NOTES_", dir: filepath.Join(tree, "plugins", "demo-notes")}
+
+	for key, want := range map[string]bool{
+		"ALPHONE_DEMO_NOTES_LIMIT": true,
+		"ALPHONE_DEMO_NOTES_MAX":   true,
+		"ALPHONE_DEMO_NOTES_PROBE": false,
+		"ALPHONE_DEMO_NOTES_GONE":  false,
+	} {
+		if got := readsSetting(t, owner, key); got != want {
+			t.Errorf("readsSetting(%s) = %t, want %t", key, got, want)
+		}
+	}
 }
 
 func TestPaddedSettingsLoadLikePlainOnes(t *testing.T) {
@@ -179,10 +328,18 @@ func TestEverySettingTheExampleFileNamesHasAnOwner(t *testing.T) {
 
 	named := exampleSettings(t)
 	owned := append(slices.Collect(maps.Keys(coreSettings())), settingsReadElsewhere...)
+	owners := pluginSettingOwners(t, filepath.Join("..", ".."))
 
 	for key := range named {
-		if !slices.Contains(owned, key) {
-			t.Errorf("the example file names %s, which nothing reads", key)
+		if slices.Contains(owned, key) {
+			continue
+		}
+		owner, found := ownerOf(key, owners)
+		switch {
+		case !found:
+			t.Errorf("the example file names %s, which neither the core nor a plugin reads", key)
+		case !readsSetting(t, owner, key):
+			t.Errorf("the example file names %s, which no Go file of %s spells", key, owner.dir)
 		}
 	}
 	for _, key := range owned {
