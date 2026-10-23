@@ -43,6 +43,11 @@ var pluginStores = []struct {
 		tables: []string{"imports", "import_rows"},
 	},
 	{
+		source: filepath.Join("..", "..", "plugins", "importer", "seed.go"),
+		schema: "plugin_importer",
+		tables: []string{"imports", "import_rows"},
+	},
+	{
 		source: filepath.Join("..", "..", "plugins", "whatsapp", "store.go"),
 		schema: "plugin_whatsapp",
 		tables: []string{"conversations", "messages", "media", "credentials"},
