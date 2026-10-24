@@ -134,3 +134,53 @@ func (b directoryBridge) CreateWithIdentities(
 	}
 	return sdk.Contact{ID: owner.ID, Name: owner.Name}, created, nil
 }
+
+type matcherBridge struct {
+	matcher *contact.Matcher
+}
+
+// MatchIdentities returns the [sdk.Contact] owning each identifier one owns, keyed by its canonical form.
+func (b matcherBridge) MatchIdentities(
+	ctx context.Context, channel sdk.Channel, identifiers []string,
+) (map[string]sdk.Contact, error) {
+	owners, err := b.matcher.MatchIdentities(ctx, contact.Channel(channel), identifiers)
+	if errors.Is(err, contact.ErrTooManyIdentifiers) {
+		return nil, fmt.Errorf("%w: %w", sdk.ErrTooManyIdentifiers, err)
+	}
+	if err != nil {
+		return nil, markInvalid(err)
+	}
+	matched := make(map[string]sdk.Contact, len(owners))
+	for identifier, owner := range owners {
+		matched[identifier] = sdk.Contact{ID: owner.ID, Name: owner.Name}
+	}
+	return matched, nil
+}
+
+type identityFeedBridge struct {
+	feed *contact.Feed
+}
+
+// IdentitiesAddedSince returns at most limit [sdk.AddedIdentity] values past the cursor and the next cursor.
+func (b identityFeedBridge) IdentitiesAddedSince(
+	ctx context.Context, channel sdk.Channel, cursor sdk.IdentityCursor, limit int,
+) ([]sdk.AddedIdentity, sdk.IdentityCursor, error) {
+	added, next, err := b.feed.IdentitiesAddedSince(ctx, contact.Channel(channel), contact.Cursor(cursor), limit)
+	if errors.Is(err, contact.ErrCursorAhead) {
+		return nil, cursor, fmt.Errorf("%w: %w", sdk.ErrCursorAhead, err)
+	}
+	if err != nil {
+		return nil, cursor, markInvalid(err)
+	}
+	answered := make([]sdk.AddedIdentity, len(added))
+	for i, identity := range added {
+		answered[i] = sdk.AddedIdentity(identity)
+	}
+	return answered, sdk.IdentityCursor(next), nil
+}
+
+// Horizon returns the cursor a new reader starts from.
+func (b identityFeedBridge) Horizon(ctx context.Context) (sdk.IdentityCursor, error) {
+	horizon, err := b.feed.Horizon(ctx)
+	return sdk.IdentityCursor(horizon), err
+}

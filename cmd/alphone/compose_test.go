@@ -213,6 +213,22 @@ func TestComposeHandsThePluginsTheConfiguredPageBounds(t *testing.T) {
 	}
 }
 
+func TestComposeHandsThePluginsTheConfiguredContactMatchBound(t *testing.T) {
+	t.Parallel()
+
+	var handed sdk.Deps
+
+	built, err := compose(t.Context(), composeConfigOf(t, filledSettings()), capturingPlugins(&handed))
+
+	if err != nil {
+		t.Fatalf("compose() error = %v, want nil", err)
+	}
+	abandonAtEnd(t, built)
+	if handed.ContactMatchMax != 40 {
+		t.Errorf("Deps.ContactMatchMax = %d, want the configured 40", handed.ContactMatchMax)
+	}
+}
+
 func TestComposeWiresTheFieldProviders(t *testing.T) {
 	t.Parallel()
 

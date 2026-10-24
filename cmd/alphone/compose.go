@@ -78,17 +78,20 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	}
 	resolver := contact.NewResolver(built.contacts, contact.WithEvents(built.events))
 	built.registered, built.failed = plugins(sdk.Deps{
-		DatabaseURL:    cfg.databaseURL,
-		PublicURL:      cfg.mail.publicURL,
-		MachineGrace:   cfg.machineGrace,
-		TenantsHeld:    cfg.tenants.held,
-		TenantsRefresh: cfg.tenants.refresh,
-		Pages:          sdk.PageBounds{Size: cfg.paging.Size, Cap: cfg.paging.Cap},
-		Resolver:       resolverBridge{resolver: resolver},
-		Contacts:       directoryBridge{resolver: resolver},
-		Events:         pluginPublisher{publisher: built.events, logger: cfg.logger},
-		Getenv:         cfg.getenv,
-		Env:            settingsEnv(cfg.getenv),
+		DatabaseURL:     cfg.databaseURL,
+		PublicURL:       cfg.mail.publicURL,
+		MachineGrace:    cfg.machineGrace,
+		TenantsHeld:     cfg.tenants.held,
+		TenantsRefresh:  cfg.tenants.refresh,
+		Pages:           sdk.PageBounds{Size: cfg.paging.Size, Cap: cfg.paging.Cap},
+		Resolver:        resolverBridge{resolver: resolver},
+		Contacts:        directoryBridge{resolver: resolver},
+		Matcher:         matcherBridge{matcher: contact.NewMatcher(built.contacts, cfg.contactMatchMax)},
+		ContactMatchMax: cfg.contactMatchMax,
+		Identities:      identityFeedBridge{feed: contact.NewFeed(built.contacts, cfg.contactMatchMax)},
+		Events:          pluginPublisher{publisher: built.events, logger: cfg.logger},
+		Getenv:          cfg.getenv,
+		Env:             settingsEnv(cfg.getenv),
 	})
 	if err := declareRoles(cfg.roles, built.registered); err != nil {
 		return built, fmt.Errorf("declare plugin roles: %w", err)
