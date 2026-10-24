@@ -166,17 +166,25 @@ func (b identityFeedBridge) IdentitiesAddedSince(
 	ctx context.Context, channel sdk.Channel, cursor sdk.IdentityCursor, limit int,
 ) ([]sdk.AddedIdentity, sdk.IdentityCursor, error) {
 	added, next, err := b.feed.IdentitiesAddedSince(ctx, contact.Channel(channel), contact.Cursor(cursor), limit)
-	if errors.Is(err, contact.ErrCursorAhead) {
-		return nil, cursor, fmt.Errorf("%w: %w", sdk.ErrCursorAhead, err)
-	}
 	if err != nil {
-		return nil, cursor, markInvalid(err)
+		return nil, cursor, markFeedRefusal(err)
 	}
 	answered := make([]sdk.AddedIdentity, len(added))
 	for i, identity := range added {
 		answered[i] = sdk.AddedIdentity(identity)
 	}
 	return answered, sdk.IdentityCursor(next), nil
+}
+
+// markFeedRefusal returns err with a refused feed read marked for the plugin.
+func markFeedRefusal(err error) error {
+	switch {
+	case errors.Is(err, contact.ErrCursorStale):
+		return fmt.Errorf("%w: %w", sdk.ErrCursorStale, err)
+	case errors.Is(err, contact.ErrInvalidLimit):
+		return fmt.Errorf("%w: %w", sdk.ErrInvalidLimit, err)
+	}
+	return markInvalid(err)
 }
 
 // Horizon returns the cursor a new reader starts from.

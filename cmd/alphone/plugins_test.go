@@ -55,9 +55,9 @@ func (failingStore) IdentityHorizon(context.Context) (contact.Cursor, error) {
 	return contact.Cursor{}, errStore
 }
 
-// IdentityCursorAhead returns false and errStore.
-func (failingStore) IdentityCursorAhead(context.Context, contact.Cursor) (bool, error) {
-	return false, errStore
+// IdentityCursorCheck returns an empty check and errStore.
+func (failingStore) IdentityCursorCheck(context.Context, contact.Cursor) (contact.CursorCheck, error) {
+	return contact.CursorCheck{}, errStore
 }
 
 // newDirectoryBridge returns a directory bridge whose store always fails.
@@ -77,7 +77,7 @@ func newIdentityFeedBridge() identityFeedBridge {
 
 // someCursor returns a cursor past the start of the feed.
 func someCursor() sdk.IdentityCursor {
-	return sdk.IdentityCursor{Transaction: 7, Identity: uuid.Must(uuid.NewV7())}
+	return sdk.IdentityCursor{Server: 184467235, Transaction: 7, Identity: uuid.Must(uuid.NewV7())}
 }
 
 func TestMatcherBridgeMarksTheRefusals(t *testing.T) {
@@ -139,39 +139,66 @@ func TestIdentityFeedBridgeMarksABlankChannelAndKeepsTheCursor(t *testing.T) {
 	}
 }
 
-// aheadFeedStore answers an empty page for every cursor and holds each one past the server.
-type aheadFeedStore struct{}
+func TestIdentityFeedBridgeMarksALimitBelowOneAndKeepsTheCursor(t *testing.T) {
+	t.Parallel()
+
+	cursor := someCursor()
+
+	added, next, err := newIdentityFeedBridge().IdentitiesAddedSince(t.Context(), "email", cursor, 0)
+
+	if !errors.Is(err, sdk.ErrInvalidLimit) || !errors.Is(err, contact.ErrInvalidLimit) {
+		t.Errorf("IdentitiesAddedSince() error = %v, want a plugin to read it as %v", err, sdk.ErrInvalidLimit)
+	}
+	if added != nil || next != cursor {
+		t.Errorf("IdentitiesAddedSince() = %+v at %+v on a refusal, want nothing at %+v", added, next, cursor)
+	}
+}
+
+// checkedFeedStore answers an empty page for every cursor and the fixed check of each one.
+type checkedFeedStore struct {
+	check contact.CursorCheck
+}
 
 // IdentitiesAddedSince returns no identity and the cursor it was given.
-func (aheadFeedStore) IdentitiesAddedSince(
+func (checkedFeedStore) IdentitiesAddedSince(
 	_ context.Context, _ contact.Channel, after contact.Cursor, _ int,
 ) ([]contact.AddedIdentity, contact.Cursor, error) {
 	return nil, after, nil
 }
 
 // IdentityHorizon returns the zero cursor.
-func (aheadFeedStore) IdentityHorizon(context.Context) (contact.Cursor, error) {
+func (checkedFeedStore) IdentityHorizon(context.Context) (contact.Cursor, error) {
 	return contact.Cursor{}, nil
 }
 
-// IdentityCursorAhead returns true.
-func (aheadFeedStore) IdentityCursorAhead(context.Context, contact.Cursor) (bool, error) {
-	return true, nil
+// IdentityCursorCheck returns the fixed check.
+func (s checkedFeedStore) IdentityCursorCheck(context.Context, contact.Cursor) (contact.CursorCheck, error) {
+	return s.check, nil
 }
 
-func TestIdentityFeedBridgeMarksACursorPastTheServerAndKeepsIt(t *testing.T) {
+func TestIdentityFeedBridgeMarksAStaleCursorAndKeepsIt(t *testing.T) {
 	t.Parallel()
 
 	cursor := someCursor()
-	bridge := identityFeedBridge{feed: contact.NewFeed(aheadFeedStore{}, 2)}
-
-	added, next, err := bridge.IdentitiesAddedSince(t.Context(), "email", cursor, 1)
-
-	if !errors.Is(err, sdk.ErrCursorAhead) {
-		t.Errorf("IdentitiesAddedSince() error = %v, want a plugin to read it as %v", err, sdk.ErrCursorAhead)
+	tests := map[string]contact.CursorCheck{
+		"a cursor past the server":         {Server: cursor.Server, Ahead: true},
+		"a cursor another server numbered": {Server: cursor.Server + 1},
 	}
-	if added != nil || next != cursor {
-		t.Errorf("IdentitiesAddedSince() = %+v at %+v on a refusal, want nothing at %+v", added, next, cursor)
+
+	for name, check := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			bridge := identityFeedBridge{feed: contact.NewFeed(checkedFeedStore{check: check}, 2)}
+
+			added, next, err := bridge.IdentitiesAddedSince(t.Context(), "email", cursor, 1)
+
+			if !errors.Is(err, sdk.ErrCursorStale) || !errors.Is(err, contact.ErrCursorStale) {
+				t.Errorf("IdentitiesAddedSince() error = %v, want a plugin to read it as %v", err, sdk.ErrCursorStale)
+			}
+			if added != nil || next != cursor {
+				t.Errorf("IdentitiesAddedSince() = %+v at %+v on a refusal, want nothing at %+v", added, next, cursor)
+			}
+		})
 	}
 }
 
