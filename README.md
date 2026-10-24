@@ -29,8 +29,8 @@ AlphOne is source-available software under a split license:
   redistribute it, but you may not provide AlphOne to third parties as a
   hosted or managed service.
 - **Frontend, tests and docs** (`frontend/`, `sdk/frontend/`,
-  `sdk/ui-primitives/`, `plugins/*/frontend/`, `test/e2e/`, `docs/`,
-  `codegen.ts`, `eslint.config.js`): the
+  `sdk/ui-primitives/`, `plugins/*/frontend/`, `plugins/*/e2e/`,
+  `test/e2e/`, `docs/`, `codegen.ts`, `eslint.config.js`): the
   [GNU Affero General Public License v3.0 or later](frontend/LICENSE).
 
 Each source file must carry an `SPDX-License-Identifier` header naming its

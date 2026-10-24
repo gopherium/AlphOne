@@ -13,6 +13,39 @@ Classes named `godmin-` come from that kit, so they behave the same in
 every application built on it. Classes named `alphone-` are this
 product's own.
 
+## Your plugin's frontend
+
+Your screens live in an npm package inside your plugin folder, at
+`plugins/<id>/frontend`. Its `index.ts` exports a `FrontendPlugin`
+named `plugin`. Put the package's name under `frontend` in your
+`plugin.json`:
+
+```json
+{
+  "id": "invoices",
+  "name": "Invoices",
+  "backend": "github.com/gopherium/alphone/plugins/invoices",
+  "frontend": "@alphone/plugin-invoices"
+}
+```
+
+Then run two commands from the repository root:
+
+```sh
+make generate
+pnpm install
+```
+
+`make generate` adds your package to `frontend/package.json` and to
+`frontend/src/plugins/index.ts`, the list of plugins the app loads. It
+also writes the typed GraphQL client your queries import, in
+`plugins/invoices/frontend/gql/`. `pnpm install` links your package into
+the app and records it in `pnpm-lock.yaml`.
+
+Commit all of these with your plugin. CI fails when any of them is out
+of date. You never edit `frontend/package.json` or `codegen.ts` for
+your plugin.
+
 ## The contract
 
 A screen puts its title top left and its actions top right, and the

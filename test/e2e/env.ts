@@ -12,9 +12,6 @@ export const databaseURL =
 	process.env.ALPHONE_E2E_DATABASE_URL ??
 	'postgres://postgres:alphone@localhost:5433/alphone_e2e?sslmode=disable'
 
-export const whatsappAppSecret =
-	process.env.ALPHONE_E2E_WHATSAPP_APP_SECRET ?? 'e2e-app-secret'
-
 export const credentials = {
 	email: process.env.ALPHONE_E2E_EMAIL ?? 'e2e@example.com',
 	password: process.env.ALPHONE_E2E_PASSWORD ?? 'correct horse battery',

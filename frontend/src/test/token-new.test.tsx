@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import type { FrontendPlugin } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { screen } from '@testing-library/react'
@@ -7,6 +8,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { startAppLocale } from '../i18n/start'
+import { plugins } from '../plugins'
 import { renderAt } from './render'
 
 const secret = 'a1_dGVzdHNlY3JldHZhbHVlZm9ydGhlbWludGZvcm0'
@@ -57,7 +59,54 @@ async function fillMintForm() {
 	await userEvent.click(screen.getByRole('checkbox', { name: 'Read tasks' }))
 }
 
+/** ENGLISH_AREAS names each core area in English, keyed by its value. */
+const ENGLISH_AREAS = {
+	contacts: 'contacts',
+	events: 'events',
+	meta: 'meta',
+	tasks: 'tasks',
+	users: 'users',
+	webhooks: 'webhooks',
+}
+
+/** SPANISH_AREAS names each core area in Spanish, keyed by its value. */
+const SPANISH_AREAS = {
+	contacts: 'contactos',
+	events: 'eventos',
+	meta: 'metadatos',
+	tasks: 'tareas',
+	users: 'usuarios',
+	webhooks: 'webhooks',
+}
+
+/** boxLabels returns the read and write box labels of the core areas and every area the plugins grant, by value. */
+function boxLabels(
+	core: Record<string, string>,
+	granting: readonly Pick<FrontendPlugin, 'tokenAreas'>[],
+	[read, write]: [string, string],
+): string[] {
+	return [
+		...Object.entries(core).map(([value, label]) => ({ value, label })),
+		...granting.flatMap((plugin) => plugin.tokenAreas ?? []),
+	]
+		.sort((left, right) => (left.value < right.value ? -1 : 1))
+		.flatMap((area) => [`${read} ${area.label}`, `${write} ${area.label}`])
+}
+
 beforeEach(servingNoTokens)
+
+test('the expected boxes hold the core areas and every area a plugin grants, by value', () => {
+	const granting = [{ tokenAreas: [{ value: 'notes', label: 'Notes' }] }, {}]
+
+	expect(boxLabels({ tasks: 'tasks', contacts: 'contacts' }, granting, ['Read', 'Write'])).toEqual([
+		'Read contacts',
+		'Write contacts',
+		'Read Notes',
+		'Write Notes',
+		'Read tasks',
+		'Write tasks',
+	])
+})
 
 test('serves the new token screen at /users/tokens/new', async () => {
 	renderAt('/users/tokens/new')
@@ -65,30 +114,13 @@ test('serves the new token screen at /users/tokens/new', async () => {
 	expect(await screen.findByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
 })
 
-test('names each area in its read and write boxes, WhatsApp as the product writes it', async () => {
+test('names each core area and every wired plugin area in its read and write boxes', async () => {
 	renderAt('/users/tokens/new')
 
 	await screen.findByRole('checkbox', { name: 'Read contacts' })
-	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual([
-		'Read contacts',
-		'Write contacts',
-		'Read events',
-		'Write events',
-		'Read fields',
-		'Write fields',
-		'Read imports',
-		'Write imports',
-		'Read meta',
-		'Write meta',
-		'Read tasks',
-		'Write tasks',
-		'Read users',
-		'Write users',
-		'Read webhooks',
-		'Write webhooks',
-		'Read WhatsApp',
-		'Write WhatsApp',
-	])
+	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual(
+		boxLabels(ENGLISH_AREAS, plugins, ['Read', 'Write']),
+	)
 })
 
 test('names each area in Spanish inside the Spanish read and write boxes', async () => {
@@ -98,26 +130,9 @@ test('names each area in Spanish inside the Spanish read and write boxes', async
 	renderAt('/users/tokens/new')
 
 	await screen.findByRole('checkbox', { name: 'Leer contactos' })
-	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual([
-		'Leer contactos',
-		'Escribir contactos',
-		'Leer eventos',
-		'Escribir eventos',
-		'Leer campos',
-		'Escribir campos',
-		'Leer importaciones',
-		'Escribir importaciones',
-		'Leer metadatos',
-		'Escribir metadatos',
-		'Leer tareas',
-		'Escribir tareas',
-		'Leer usuarios',
-		'Escribir usuarios',
-		'Leer webhooks',
-		'Escribir webhooks',
-		'Leer WhatsApp',
-		'Escribir WhatsApp',
-	])
+	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual(
+		boxLabels(SPANISH_AREAS, plugins, ['Leer', 'Escribir']),
+	)
 })
 
 test('refuses to mint until a name and an area are given', async () => {

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
 
 import { mismatched, orphaned, pot } from '@gopherium/gottext/build'
 import { sprintf } from '@wordpress/i18n'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test } from 'vitest'
 
 import { domains, potConfig, projectVariable, repositoryRoot } from '../../scripts/config.ts'
 import { supportedLocales } from '../../scripts/locales.ts'
@@ -32,13 +33,34 @@ function translations(domain: { languages: string }): Record<string, string> {
 	return found
 }
 
+/** FIXTURE_MANIFESTS are the plugin manifests a temporary repository holds, keyed by folder. */
+const FIXTURE_MANIFESTS = {
+	'plugins/demo': { id: 'demo', name: 'Demo', frontend: '@alphone/plugin-demo' },
+	'plugins/quiet': { id: 'quiet', name: 'Quiet' },
+	'enterprise/extra': { id: 'extra', name: 'Extra', frontend: '@alphone/plugin-extra' },
+}
+
+/** manifestTree writes a temporary repository holding the given plugin manifests. */
+function manifestTree(manifests: Record<string, object>): string {
+	const root = mkdtempSync(join(tmpdir(), 'alphone-domains-'))
+	onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+	for (const [folder, manifest] of Object.entries(manifests)) {
+		mkdirSync(join(root, folder), { recursive: true })
+		writeFileSync(join(root, folder, 'plugin.json'), JSON.stringify(manifest))
+	}
+	return root
+}
+
+test('finds one domain per plugin manifest that names a frontend', () => {
+	const found = domains(manifestTree(FIXTURE_MANIFESTS))
+
+	expect(found.map((domain) => domain.name)).toEqual(['alphone', 'alphone-demo'])
+})
+
 test('extracts a template for every domain AlphOne ships', () => {
-	expect(domains().map((domain) => domain.name)).toEqual([
-		'alphone',
-		'alphone-fields',
-		'alphone-importer',
-		'alphone-whatsapp',
-	])
+	const shipped = globSync('plugins/*/languages/*.pot', { cwd: ROOT }).map((path) => basename(path, '.pot'))
+
+	expect(domains().map((domain) => domain.name)).toEqual(['alphone', ...shipped.sort()])
 })
 
 test('writes the same template bytes on every run', () => {
@@ -124,11 +146,11 @@ test('reads the languages the server declares, the default first', () => {
 })
 
 test('names one platform project per domain', () => {
-	expect(domains().map((domain) => projectVariable(domain.name))).toEqual([
+	const found = domains(manifestTree(FIXTURE_MANIFESTS))
+
+	expect(found.map((domain) => projectVariable(domain.name))).toEqual([
 		'POEDITOR_PROJECT_ALPHONE',
-		'POEDITOR_PROJECT_ALPHONE_FIELDS',
-		'POEDITOR_PROJECT_ALPHONE_IMPORTER',
-		'POEDITOR_PROJECT_ALPHONE_WHATSAPP',
+		'POEDITOR_PROJECT_ALPHONE_DEMO',
 	])
 })
 

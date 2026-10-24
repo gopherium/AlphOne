@@ -3,7 +3,7 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
-import { graph } from '../graph'
+import { graph } from '../../../test/e2e/graph'
 
 /**
  * Uploads a file through the Upload button of the imports list, then opens it from the toast.

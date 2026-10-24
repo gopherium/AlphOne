@@ -6,8 +6,8 @@ import type { Server } from 'node:http'
 
 import { expect, test } from '@playwright/test'
 
-import { sign } from '../inbound'
-import { subscribed } from '../subscription'
+import { sign } from '../../../test/e2e/inbound'
+import { subscribed } from '../../../test/e2e/subscription'
 
 const mockGraphPort = 4791
 const imageBytes = Buffer.from(`e2e-image-bytes-${Date.now()}`)
@@ -53,22 +53,15 @@ function startMockGraph(): Promise<MockGraph> {
 	})
 }
 
+/** InboundImage is one image a sender posts, as the webhook names its parts. */
+type InboundImage = { waId: string; name: string; messageId: string; mediaID: string; caption: string }
+
 /**
  * Builds the webhook body Meta posts for an inbound image.
- * @param waId - The sender WhatsApp id.
- * @param name - The sender profile name.
- * @param messageId - The WhatsApp message id.
- * @param mediaID - The media id the image is fetched by.
- * @param caption - The caption riding with the image.
+ * @param image - The sender, the message and the media the image carries.
  * @returns The serialized webhook body.
  */
-function inboundImagePayload(
-	waId: string,
-	name: string,
-	messageId: string,
-	mediaID: string,
-	caption: string,
-) {
+function inboundImagePayload({ waId, name, messageId, mediaID, caption }: InboundImage) {
 	return JSON.stringify({
 		entry: [
 			{
@@ -118,13 +111,13 @@ test('delivers an inbound photo from the webhook to the thread', async ({
 	const waId = `1666${stamp}`
 	const contactName = `Frida ${stamp}`
 	const caption = `a photo ${stamp}`
-	const body = inboundImagePayload(
+	const body = inboundImagePayload({
 		waId,
-		contactName,
-		`wamid.e2e.media.${stamp}`,
-		`MEDIA-${stamp}`,
+		name: contactName,
+		messageId: `wamid.e2e.media.${stamp}`,
+		mediaID: `MEDIA-${stamp}`,
 		caption,
-	)
+	})
 
 	const stream = subscribed(page, 'whatsAppConversationEvent')
 	await page.goto('/whatsapp')

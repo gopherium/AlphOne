@@ -78,12 +78,18 @@ func TestRepositoryWiringIsUpToDate(t *testing.T) {
 			t.Fatalf("creating %s: %v", dir, err)
 		}
 	}
+	committedPackage, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(config.PackageJSONPath)))
+	if err != nil {
+		t.Fatalf("reading the committed package.json: %v", err)
+	}
+	writePackageJSON(t, tmp, string(committedPackage))
 
 	if err := wire.Run(tmp, config); err != nil {
 		t.Fatalf("wire.Run() error = %v, want nil", err)
 	}
 
-	for _, generated := range []string{config.GoWiringPath, config.TSWiringPath, config.GoRegistryPath} {
+	generatedFiles := []string{config.GoWiringPath, config.TSWiringPath, config.GoRegistryPath, config.PackageJSONPath}
+	for _, generated := range generatedFiles {
 		fresh, err := os.ReadFile(filepath.Join(tmp, generated))
 		if err != nil {
 			t.Fatalf("reading fresh %s: %v", generated, err)

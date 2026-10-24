@@ -250,3 +250,11 @@ End-to-end tests drive a real browser against a real server. `make e2e`
 rebuilds the isolated database, seeds it, and runs Playwright, so every
 run starts from the same state. `make e2e-serve` runs the server against
 that database on its own, for driving the app by hand.
+
+The core specs live in `test/e2e/tests`. A plugin keeps its own
+`.spec.ts` files in `plugins/<id>/e2e`, and Playwright runs them as a
+project of their own named `plugins`. They import the shared helpers
+from `test/e2e`, such as `../../../test/e2e/graph`. A plugin that needs
+settings in the test server lists them in `plugins/<id>/e2e.env`, one
+`KEY=value` per line, and `make e2e-serve` loads every such file. Those
+values are fixed test values, never real credentials.

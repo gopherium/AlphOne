@@ -4,8 +4,12 @@ package graphres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,40 +26,121 @@ import (
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/task"
 	"github.com/gopherium/alphone/internal/webhook"
-	"github.com/gopherium/alphone/plugins/fields"
-	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/sdk"
 )
+
+// graphPluginIDs returns the id of every graphql plugin under each plugin root of a tree, in the wiring's order.
+func graphPluginIDs(t *testing.T, tree string) []string {
+	t.Helper()
+	var ids []string
+	for _, root := range []string{"plugins", "enterprise"} {
+		entries, err := os.ReadDir(filepath.Join(tree, root))
+		if err != nil {
+			t.Fatalf("reading the plugin root %s: %v", root, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if manifest := readGraphManifest(t, filepath.Join(tree, root, entry.Name(), "plugin.json")); manifest.GraphQL {
+				ids = append(ids, manifest.ID)
+			}
+		}
+	}
+	return ids
+}
+
+// graphManifest is the part of a plugin.json the graph wiring reads.
+type graphManifest struct {
+	ID      string `json:"id"`
+	GraphQL bool   `json:"graphql"`
+}
+
+// readGraphManifest returns the graph part of one plugin.json.
+func readGraphManifest(t *testing.T, path string) graphManifest {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	var manifest graphManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	return manifest
+}
+
+// registeredAmong returns the registered plugins whose id one of the given ids names.
+func registeredAmong(registered []sdk.Plugin, ids []string) []sdk.Plugin {
+	var held []sdk.Plugin
+	for _, plugin := range registered {
+		if slices.Contains(ids, plugin.ID()) {
+			held = append(held, plugin)
+		}
+	}
+	return held
+}
+
+// writeManifest writes one plugin.json of a temporary tree, creating its folder.
+func writeManifest(t *testing.T, dir, manifest string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("creating %s: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("writing the manifest in %s: %v", dir, err)
+	}
+}
+
+func TestGraphPluginIDsFollowTheOrderTheWiringReads(t *testing.T) {
+	t.Parallel()
+
+	tree := t.TempDir()
+	writeManifest(t, filepath.Join(tree, "plugins", "beta"), `{"id": "beta", "backend": "b", "graphql": true}`)
+	writeManifest(t, filepath.Join(tree, "plugins", "alpha"), `{"id": "alpha", "backend": "a", "graphql": true}`)
+	writeManifest(t, filepath.Join(tree, "plugins", "quiet"), `{"id": "quiet", "backend": "q"}`)
+	writeManifest(t, filepath.Join(tree, "outside", "linked"), `{"id": "linked", "backend": "l", "graphql": true}`)
+	if err := os.Symlink(filepath.Join(tree, "outside", "linked"), filepath.Join(tree, "plugins", "linked")); err != nil {
+		t.Fatalf("linking a plugin folder: %v", err)
+	}
+	writeManifest(t, filepath.Join(tree, "enterprise", "extra"), `{"id": "extra", "backend": "e", "graphql": true}`)
+	if err := os.WriteFile(filepath.Join(tree, "enterprise", "README.md"), []byte("Extra plugins.\n"), 0o600); err != nil {
+		t.Fatalf("writing a file beside the plugin folders: %v", err)
+	}
+
+	got := graphPluginIDs(t, tree)
+
+	if want := []string{"alpha", "beta", "extra"}; !slices.Equal(got, want) {
+		t.Errorf("graphPluginIDs() = %q, want %q", got, want)
+	}
+}
 
 func TestFromPluginsRequiresEveryGraphPlugin(t *testing.T) {
 	t.Parallel()
 
-	_, err := graphroot.FromPlugins(nil, nil)
-	if err == nil || !strings.Contains(err.Error(), "fields") {
-		t.Errorf("FromPlugins(no plugins) error = %v, want the fields complaint", err)
-	}
-
-	deps := sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"}
-	fieldsPlugin, err := fields.Register(deps)
+	registered, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://graph:graph@localhost:1/graph"})
+	t.Cleanup(func() {
+		for _, plugin := range registered {
+			_ = plugin.Stop(context.Background())
+		}
+	})
 	if err != nil {
-		t.Fatalf("fields.Register() error = %v, want nil", err)
+		t.Fatalf("graphroot.All() error = %v, want every plugin registered", err)
 	}
-	t.Cleanup(func() { _ = fieldsPlugin.Stop(context.Background()) })
-
-	_, err = graphroot.FromPlugins(nil, []sdk.Plugin{fieldsPlugin})
-	if err == nil || !strings.Contains(err.Error(), "importer") {
-		t.Errorf("FromPlugins(fields only) error = %v, want the importer complaint", err)
+	ids := graphPluginIDs(t, filepath.Join("..", ".."))
+	if len(ids) == 0 {
+		t.Fatal("found no graphql plugin, want the manifests read")
 	}
 
-	importerPlugin, err := importer.Register(deps)
-	if err != nil {
-		t.Fatalf("importer.Register() error = %v, want nil", err)
+	for count, id := range ids {
+		_, err := graphroot.FromPlugins(nil, registeredAmong(registered, ids[:count]))
+		complaint := "the " + strings.ReplaceAll(id, "-", "_") + " resolver sets"
+		if err == nil || !strings.Contains(err.Error(), complaint) {
+			t.Errorf("FromPlugins(%v) error = %v, want the %s complaint", ids[:count], err, id)
+		}
 	}
-	t.Cleanup(func() { _ = importerPlugin.Stop(context.Background()) })
-
-	_, err = graphroot.FromPlugins(nil, []sdk.Plugin{fieldsPlugin, importerPlugin})
-	if err == nil || !strings.Contains(err.Error(), "whatsapp") {
-		t.Errorf("FromPlugins(without whatsapp) error = %v, want the whatsapp complaint", err)
+	if _, err := graphroot.FromPlugins(nil, registered); err != nil {
+		t.Errorf("FromPlugins(every plugin) error = %v, want nil", err)
 	}
 }
 

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { join } from 'node:path'
+
 import { defineConfig, devices } from '@playwright/test'
 
 import { authFile, baseURL, repoRoot } from './env'
@@ -21,6 +23,13 @@ export default defineConfig({
 		{ name: 'setup', testMatch: '**/*.setup.ts' },
 		{
 			name: 'chromium',
+			use: { ...devices['Desktop Chrome'], storageState: authFile },
+			dependencies: ['setup'],
+		},
+		{
+			name: 'plugins',
+			testDir: join(repoRoot, 'plugins'),
+			testMatch: '*/e2e/*.spec.ts',
 			use: { ...devices['Desktop Chrome'], storageState: authFile },
 			dependencies: ['setup'],
 		},

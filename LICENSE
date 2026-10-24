@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 All content under "frontend", "sdk/frontend",
-"sdk/ui-primitives", "plugins/*/frontend", "test/e2e", "docs", and
-the files "codegen.ts" and "eslint.config.js" is licensed under the
-GNU Affero General Public License v3.0 or later, defined in
-"frontend/LICENSE". All other content is licensed under the Elastic
-License 2.0 reproduced below.
+"sdk/ui-primitives", "plugins/*/frontend", "plugins/*/e2e",
+"test/e2e", "docs", and the files "codegen.ts" and "eslint.config.js"
+is licensed under the GNU Affero General Public License v3.0 or
+later, defined in "frontend/LICENSE". All other content is licensed
+under the Elastic License 2.0 reproduced below.
 
 // SPDX-License-Identifier: LicenseRef-AlphOne-Terms
 

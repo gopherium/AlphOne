@@ -60,6 +60,10 @@ it under `Not loaded:`, `alphone check` names it, and `serve`,
 `migrate`, `seed -yes`, `account:create-admin` and the account commands
 that take `-as` stop with it. Add each setting to
 `.env.example` and to [Configuration](/self-hosting/configuration/).
+Name it after your plugin id, the way `archive` reads
+`ALPHONE_ARCHIVE_KEEP`. `go test ./cmd/alphone/` fails when
+`.env.example` names a setting under your prefix that no Go string in
+your plugin folder spells.
 
 ## Offer a command
 

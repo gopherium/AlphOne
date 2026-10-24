@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Elastic-2.0
 
-// Command pluginwire regenerates the plugin wiring files from the
+// Command pluginwire regenerates the plugin wiring files and frontend/package.json from the
 // plugin.json manifest of every directory under each plugin root.
 package main
 
@@ -31,6 +31,7 @@ var config = wire.Config{
 
 	GoRegistryPath:    "internal/graphroot/registry_gen.go",
 	GoRegistryPackage: "graphroot",
+	PackageJSONPath:   "frontend/package.json",
 }
 
 // graphConfig parameterizes the graph resolver root generator for AlphOne.

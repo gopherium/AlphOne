@@ -13,15 +13,32 @@ const schema = Object.values(
 	}),
 )[0] as string
 
+const publicSchemas = Object.values(
+	import.meta.glob(['../../../graph/schema/*.graphqls', '../../../plugins/*/graph/*.graphqls'], {
+		query: '?raw',
+		import: 'default',
+		eager: true,
+	}),
+) as string[]
+
+/**
+ * areasIn names every area the given schema texts hold a root field in.
+ */
+function areasIn(texts: readonly string[]): Set<string> {
+	const found = new Set<string>()
+	for (const text of texts) {
+		for (const match of text.matchAll(/@scope\(area: "([^"]+)"/g)) {
+			found.add(match[1])
+		}
+	}
+	return found
+}
+
 /**
  * declaredAreas names every area the generated schema holds a root field in.
  */
 function declaredAreas(): Set<string> {
-	const found = new Set<string>()
-	for (const match of schema.matchAll(/@scope\(area: "([^"]+)"/g)) {
-		found.add(match[1])
-	}
-	return found
+	return areasIn([schema])
 }
 
 /**
@@ -49,18 +66,11 @@ test('the mint form offers no area the gate answers on its own', () => {
 	}
 })
 
-test('the mint form offers the core areas and every wired plugin area, in order of their names', () => {
-	expect(valuesOf(grantableAreas())).toEqual([
-		'contacts',
-		'events',
-		'fields',
-		'imports',
-		'meta',
-		'tasks',
-		'users',
-		'webhooks',
-		'whatsapp',
-	])
+test('the mint form offers every area the core and the plugins declare, auth and tokens aside', () => {
+	const declared = [...areasIn(publicSchemas)].filter((area) => area !== 'auth' && area !== 'tokens')
+
+	expect(declared.length).toBeGreaterThan(0)
+	expect(valuesOf(grantableAreas())).toEqual(expect.arrayContaining(declared))
 })
 
 test('a plugin area joins the core ones in order of their names', () => {
