@@ -175,59 +175,120 @@ func stringLiteral(node ast.Node) (string, bool) {
 	return text, err == nil
 }
 
-// envReaders names the calls through which a plugin reads one of its settings.
-var envReaders = []string{"Value", "Required", "Duration", "Count", "Counts", "Flag", "Parse"}
+// envReaders names the methods through which an environment value reads one setting.
+var envReaders = []string{"Value", "Required", "Duration", "Count", "Counts", "Flag"}
 
 // settingName matches a literal spelling a setting name, a trailing underscore marking a prefix instead.
 var settingName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*[A-Z0-9]$`)
 
-// settingsRead returns every key the Go files of one plugin read through its environment, tests left out.
+// settingsRead returns every key the Go files of one plugin read through an environment value, tests left out.
 func settingsRead(t *testing.T, owner settingOwner) []string {
 	t.Helper()
 	files := goFiles(t, owner.dir)
 	consts := stringValues(files)
 	var keys []string
 	for _, file := range files {
-		ast.Inspect(file, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok || !slices.Contains(envReaders, calledName(call)) {
-				return true
+		for _, declared := range file.Decls {
+			if function, ok := declared.(*ast.FuncDecl); ok && function.Body != nil {
+				keys = append(keys, functionReads(function.Body, consts)...)
 			}
-			if name, named := settingNamed(call, consts); named {
-				keys = append(keys, keyOf(owner, name))
-			}
-			return true
-		})
+		}
 	}
 	slices.Sort(keys)
 	return slices.Compact(keys)
 }
 
-// calledName returns the name of the function or method one call invokes.
-func calledName(call *ast.CallExpr) string {
-	switch called := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		return called.Sel.Name
-	case *ast.Ident:
-		return called.Name
-	}
-	return ""
+// functionReads returns every key one function body reads through an environment value, following the names it binds.
+func functionReads(body *ast.BlockStmt, consts map[string]string) []string {
+	bound := map[string]string{}
+	var keys []string
+	ast.Inspect(body, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.AssignStmt:
+			bindEnvironments(node, bound, consts)
+		case *ast.CallExpr:
+			if key, ok := readKey(node, bound, consts); ok {
+				keys = append(keys, key)
+			}
+		}
+		return true
+	})
+	return keys
 }
 
-// settingNamed returns the setting name one reading call passes, second to Parse and first to the rest.
-func settingNamed(call *ast.CallExpr, consts map[string]string) (string, bool) {
-	at := 0
-	if calledName(call) == "Parse" {
-		at = 1
+// bindEnvironments records each name one assignment binds to an environment value, beside the prefix it reads under.
+func bindEnvironments(assign *ast.AssignStmt, bound, consts map[string]string) {
+	if len(assign.Lhs) != len(assign.Rhs) {
+		return
 	}
-	if len(call.Args) <= at {
+	for i, target := range assign.Lhs {
+		name, isName := target.(*ast.Ident)
+		if prefix, ok := envPrefix(assign.Rhs[i], bound, consts); isName && ok {
+			bound[name.Name] = prefix
+		}
+	}
+}
+
+// envPrefix returns the prefix the environment value of an expression reads under, and whether it is one.
+func envPrefix(expr ast.Expr, bound, consts map[string]string) (string, bool) {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		prefix, ok := bound[expr.Name]
+		return prefix, ok
+	case *ast.SelectorExpr:
+		return "", expr.Sel.Name == "Env"
+	case *ast.CallExpr:
+		return withinPrefix(expr, bound, consts)
+	}
+	return "", false
+}
+
+// withinPrefix returns the prefix a Within call narrows its environment value to, and whether the call is one.
+func withinPrefix(call *ast.CallExpr, bound, consts map[string]string) (string, bool) {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || len(call.Args) != 1 {
 		return "", false
 	}
-	name, ok := stringLiteral(call.Args[at])
-	if ident, isIdent := call.Args[at].(*ast.Ident); isIdent {
-		name, ok = consts[ident.Name]
+	if selector.Sel.Name != "Within" {
+		return "", false
 	}
-	return name, ok && settingName.MatchString(name)
+	outer, isEnv := envPrefix(selector.X, bound, consts)
+	more, isText := spelled(call.Args[0], consts)
+	return outer + more, isEnv && isText
+}
+
+// readKey returns the key one call reads through an environment value, and whether it reads one.
+func readKey(call *ast.CallExpr, bound, consts map[string]string) (string, bool) {
+	receiver, at := readReceiver(call)
+	if receiver == nil || len(call.Args) <= at {
+		return "", false
+	}
+	prefix, isEnv := envPrefix(receiver, bound, consts)
+	name, isText := spelled(call.Args[at], consts)
+	return "ALPHONE_" + prefix + name, isEnv && isText && settingName.MatchString(name)
+}
+
+// readReceiver returns the environment expression one reading call goes through beside the index of the name it passes.
+func readReceiver(call *ast.CallExpr) (ast.Expr, int) {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	switch {
+	case !ok:
+		return nil, 0
+	case selector.Sel.Name == "Parse" && len(call.Args) > 0:
+		return call.Args[0], 1
+	case slices.Contains(envReaders, selector.Sel.Name):
+		return selector.X, 0
+	}
+	return nil, 0
+}
+
+// spelled returns the text a string literal or a string const names, and whether the expression is either.
+func spelled(expr ast.Expr, consts map[string]string) (string, bool) {
+	if ident, ok := expr.(*ast.Ident); ok {
+		text, held := consts[ident.Name]
+		return text, held
+	}
+	return stringLiteral(expr)
 }
 
 // stringValues returns the text every single-valued string const or var of the parsed files spells, by name.
@@ -256,23 +317,13 @@ func recordStrings(spec *ast.ValueSpec, held map[string]string) {
 	}
 }
 
-// keyOf returns the key a setting name spells, past the program prefix or else past the plugin's.
-func keyOf(owner settingOwner, name string) string {
-	if strings.HasPrefix("ALPHONE_"+name, owner.prefix) {
-		return "ALPHONE_" + name
-	}
-	return owner.prefix + name
-}
-
-// unnamedSettings returns every setting the plugins read that the example file names under no key at all.
+// unnamedSettings returns every setting the plugins read that the example file never names.
 func unnamedSettings(t *testing.T, owners []settingOwner, named map[string]string) []string {
 	t.Helper()
 	var missing []string
 	for _, owner := range owners {
 		for _, key := range settingsRead(t, owner) {
-			_, held := named[key]
-			_, core := named["ALPHONE_"+strings.TrimPrefix(key, owner.prefix)]
-			if !held && !core {
+			if _, held := named[key]; !held {
 				missing = append(missing, key)
 			}
 		}
@@ -384,6 +435,8 @@ func TestAPluginReadsTheSettingsItAsksItsEnvironmentFor(t *testing.T) {
 			"\tenv.Value(\"MAX\")\n" +
 			"\tsdk.Parse(env, \"SECRET\", nil, nil)\n" +
 			"\tbytes.Count(body, \"NOT_A_SETTING\")\n" +
+			"\tstrings.Count(\"HELLO\", \"L\")\n" +
+			"\tsdk.Parse(other, \"STRAY\", nil, nil)\n" +
 			"}\n",
 		filepath.Join("plugins", "demo-notes", "notes_test.go"): "package notes\n\n" +
 			"func probe() { env.Value(\"PROBE\") }\n",
@@ -405,13 +458,23 @@ func TestAPluginSettingTheExampleFileLeavesOutIsReported(t *testing.T) {
 	writeSettingTree(t, tree, map[string]string{
 		filepath.Join("plugins", "demo-notes", "plugin.json"): `{"id": "demo-notes"}`,
 		filepath.Join("plugins", "demo-notes", "notes.go"): "package notes\n\n" +
-			"func read() { env.Value(\"LIMIT\"); env.Value(\"KEY\") }\n",
+			"func read() {\n" +
+			"\tenv := deps.Env.Within(\"DEMO_NOTES_\")\n" +
+			"\tenv.Value(\"LIMIT\")\n" +
+			"\tenv.Value(\"KEY\")\n" +
+			"\tenv.Value(\"DATABASE_URL\")\n" +
+			"\tdeps.Env.Value(\"INVITE_TTL\")\n" +
+			"}\n",
 	})
-	named := map[string]string{"ALPHONE_DEMO_NOTES_LIMIT": "5"}
+	named := map[string]string{
+		"ALPHONE_DEMO_NOTES_LIMIT": "5",
+		"ALPHONE_DATABASE_URL":     "postgres://example.com/alphone",
+		"ALPHONE_INVITE_TTL":       "72h",
+	}
 
 	got := unnamedSettings(t, pluginSettingOwners(t, tree), named)
 
-	if want := []string{"ALPHONE_DEMO_NOTES_KEY"}; !slices.Equal(got, want) {
+	if want := []string{"ALPHONE_DEMO_NOTES_DATABASE_URL", "ALPHONE_DEMO_NOTES_KEY"}; !slices.Equal(got, want) {
 		t.Errorf("unnamedSettings() = %v, want %v", got, want)
 	}
 }
