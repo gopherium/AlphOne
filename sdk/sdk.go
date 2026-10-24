@@ -62,8 +62,14 @@ type Deps struct {
 	Pages    PageBounds
 	Resolver ContactResolver
 	Contacts ContactDirectory
-	Getenv   func(string) string
-	Events   Publisher
+	// Matcher finds the calling tenant's contacts owning a batch of identities.
+	Matcher ContactMatcher
+	// ContactMatchMax is the most identifiers one Matcher call takes and the most identities one feed page holds.
+	ContactMatchMax int
+	// Identities lists the identities the calling tenant's contacts gain.
+	Identities IdentityFeed
+	Getenv     func(string) string
+	Events     Publisher
 	// Env reads the settings under the program prefix, each value trimmed.
 	Env Env
 }
