@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/99designs/gqlgen v0.17.95
 	github.com/cucumber/godog v0.16.0
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gopherium/framework/dbkit v0.3.0
