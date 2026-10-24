@@ -127,6 +127,14 @@ func initializeMail(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerMailSteps(sc, t) }
 }
 
+// initializeIdentityFeed registers the identity feed steps beside the tenant ones.
+func initializeIdentityFeed(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) {
+		registerTenantSteps(sc, t)
+		bindIdentityFeedSteps(sc)
+	}
+}
+
 // initializeContactPage registers the contact page steps.
 func initializeContactPage(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerContactPageSteps(sc, t) }
@@ -227,4 +235,8 @@ func TestContactPage(t *testing.T) {
 
 func TestAdminSettings(t *testing.T) {
 	runFeature(t, "features/admin-settings.feature", initializeAdminSettings(t))
+}
+
+func TestIdentityFeed(t *testing.T) {
+	runFeature(t, "features/identity-feed.feature", initializeIdentityFeed(t))
 }
