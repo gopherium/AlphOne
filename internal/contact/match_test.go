@@ -26,8 +26,8 @@ type recordingIndex struct {
 	next        contact.Cursor
 	horizon     contact.Cursor
 	err         error
-	ahead       bool
-	aheadErr    error
+	check       contact.CursorCheck
+	checkErr    error
 	reads       int
 	checks      int
 	channel     contact.Channel
@@ -60,10 +60,10 @@ func (r *recordingIndex) IdentityHorizon(context.Context) (contact.Cursor, error
 	return r.horizon, r.err
 }
 
-// IdentityCursorAhead counts the check and answers the fixed verdict.
-func (r *recordingIndex) IdentityCursorAhead(context.Context, contact.Cursor) (bool, error) {
+// IdentityCursorCheck counts the check and answers the fixed check.
+func (r *recordingIndex) IdentityCursorCheck(context.Context, contact.Cursor) (contact.CursorCheck, error) {
 	r.checks++
-	return r.ahead, r.aheadErr
+	return r.check, r.checkErr
 }
 
 func TestAMatchAnswersAHundredIdentifiersByDefault(t *testing.T) {

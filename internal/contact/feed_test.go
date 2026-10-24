@@ -100,53 +100,110 @@ func TestIdentitiesAddedSinceReportsAStoreFailure(t *testing.T) {
 	}
 }
 
-func TestIdentitiesAddedSinceRefusesACursorPastTheServerOnAnEmptyPage(t *testing.T) {
+// serverOfTheCursor identifies the database server a unit test cursor names.
+const serverOfTheCursor = 184467235
+
+// waitingPage returns one identity waiting past a cursor.
+func waitingPage() []contact.AddedIdentity {
+	return []contact.AddedIdentity{{ContactID: uuid.Must(uuid.NewV7()), Identifier: "maria@example.com"}}
+}
+
+func TestIdentitiesAddedSinceRefusesAStaleCursorBeforeReading(t *testing.T) {
 	t.Parallel()
 
-	after := contact.Cursor{Transaction: 7, Identity: uuid.Must(uuid.NewV7())}
-	index := &recordingIndex{next: after, ahead: true}
-
-	got, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", after, 1)
-
-	if !errors.Is(err, contact.ErrCursorAhead) {
-		t.Errorf("IdentitiesAddedSince() error = %v, want %v", err, contact.ErrCursorAhead)
+	after := contact.Cursor{Server: serverOfTheCursor, Transaction: 7, Identity: uuid.Must(uuid.NewV7())}
+	tests := map[string]contact.CursorCheck{
+		"a cursor past the server":         {Server: serverOfTheCursor, Ahead: true},
+		"a cursor another server numbered": {Server: serverOfTheCursor + 1},
 	}
-	if got != nil || next != after {
-		t.Errorf("IdentitiesAddedSince() = %+v at %+v on a refusal, want nothing at %+v", got, next, after)
+
+	for name, check := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			index := &recordingIndex{added: waitingPage(), check: check}
+
+			got, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", after, 1)
+
+			if !errors.Is(err, contact.ErrCursorStale) {
+				t.Errorf("IdentitiesAddedSince() error = %v, want %v", err, contact.ErrCursorStale)
+			}
+			if got != nil || next != after {
+				t.Errorf("IdentitiesAddedSince() = %+v at %+v on a refusal, want nothing at %+v", got, next, after)
+			}
+			if index.reads != 0 {
+				t.Errorf("the store was read %d times, want none past a stale cursor", index.reads)
+			}
+		})
 	}
 }
 
-func TestIdentitiesAddedSinceAnswersAPageWithoutCheckingTheCursor(t *testing.T) {
+func TestIdentitiesAddedSinceTakesTheZeroCursorOnAnyServer(t *testing.T) {
 	t.Parallel()
 
-	index := &recordingIndex{
-		added: []contact.AddedIdentity{{ContactID: uuid.Must(uuid.NewV7()), Identifier: "maria@example.com"}},
-		ahead: true,
-	}
+	index := &recordingIndex{added: waitingPage(), check: contact.CursorCheck{Server: serverOfTheCursor}}
 
 	got, _, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", contact.Cursor{}, 1)
 
 	if err != nil {
 		t.Fatalf("IdentitiesAddedSince() error = %v, want the page", err)
 	}
-	if len(got) != 1 || index.checks != 0 {
-		t.Errorf("IdentitiesAddedSince() = %+v after %d cursor checks, want the page and no check", got, index.checks)
+	if len(got) != 1 || index.checks != 1 {
+		t.Errorf("IdentitiesAddedSince() = %+v after %d cursor checks, want the page after one check", got, index.checks)
 	}
 }
 
-func TestIdentitiesAddedSinceReportsAFailedCursorCheck(t *testing.T) {
+func TestIdentitiesAddedSinceNamesTheServerInTheCursorAfterAPage(t *testing.T) {
 	t.Parallel()
 
-	after := contact.Cursor{Transaction: 7}
-	index := &recordingIndex{next: after, aheadErr: errIndexStore}
+	index := &recordingIndex{
+		added: waitingPage(),
+		next:  contact.Cursor{Transaction: 9, Identity: uuid.Must(uuid.NewV7())},
+		check: contact.CursorCheck{Server: serverOfTheCursor},
+	}
 
-	_, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", after, 1)
+	_, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", contact.Cursor{}, 1)
+
+	if err != nil {
+		t.Fatalf("IdentitiesAddedSince() error = %v, want the page", err)
+	}
+	want := contact.Cursor{Server: serverOfTheCursor, Transaction: 9, Identity: index.next.Identity}
+	if next != want {
+		t.Errorf("next cursor = %+v, want %+v", next, want)
+	}
+}
+
+func TestIdentitiesAddedSinceAnswersTheGivenCursorOnAnEmptyPage(t *testing.T) {
+	t.Parallel()
+
+	after := contact.Cursor{Server: serverOfTheCursor, Transaction: 7, Identity: uuid.Must(uuid.NewV7())}
+	index := &recordingIndex{check: contact.CursorCheck{Server: serverOfTheCursor}}
+
+	got, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", after, 1)
+
+	if err != nil {
+		t.Fatalf("IdentitiesAddedSince() error = %v, want nil", err)
+	}
+	if got != nil || next != after {
+		t.Errorf("IdentitiesAddedSince() = %+v at %+v, want nothing at %+v", got, next, after)
+	}
+}
+
+func TestIdentitiesAddedSinceReportsAFailedCursorCheckBeforeReading(t *testing.T) {
+	t.Parallel()
+
+	after := contact.Cursor{Server: serverOfTheCursor, Transaction: 7}
+	index := &recordingIndex{added: waitingPage(), checkErr: errIndexStore}
+
+	got, next, err := contact.NewFeed(index, 2).IdentitiesAddedSince(t.Context(), "email", after, 1)
 
 	if !errors.Is(err, errIndexStore) {
 		t.Errorf("IdentitiesAddedSince() error = %v, want the store failure", err)
 	}
-	if next != after {
-		t.Errorf("IdentitiesAddedSince() moved the cursor to %+v on a failure, want it kept at %+v", next, after)
+	if got != nil || next != after {
+		t.Errorf("IdentitiesAddedSince() = %+v at %+v on a failure, want nothing at %+v", got, next, after)
+	}
+	if index.reads != 0 {
+		t.Errorf("the store was read %d times, want none after a failed check", index.reads)
 	}
 }
 

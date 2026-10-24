@@ -14,11 +14,13 @@ import (
 // ErrInvalidLimit reports a page asked to hold fewer than one identity.
 var ErrInvalidLimit = errors.New("contact: invalid limit")
 
-// ErrCursorAhead reports a cursor naming a transaction past every one the database server has begun.
-var ErrCursorAhead = errors.New("contact: cursor ahead of the server")
+// ErrCursorStale reports a cursor this database server cannot continue.
+var ErrCursorStale = errors.New("contact: cursor stale")
 
 // Cursor marks a place in the order identities were added, its zero value the place before every identity.
 type Cursor struct {
+	// Server identifies the PostgreSQL server that numbered the transaction, zero in the zero cursor.
+	Server int64
 	// Transaction is the transaction that added the identity at the place.
 	Transaction uint64
 	// Identity is the id of the identity at the place.
@@ -32,13 +34,21 @@ type AddedIdentity struct {
 	AddedAt    time.Time
 }
 
+// CursorCheck is what the database server answers about a cursor.
+type CursorCheck struct {
+	// Server identifies the PostgreSQL server that answered.
+	Server int64
+	// Ahead reports whether the cursor names a transaction past every one the server has begun.
+	Ahead bool
+}
+
 // FeedStore lists identities in the order they were added.
 type FeedStore interface {
 	IdentitiesAddedSince(
 		ctx context.Context, channel Channel, after Cursor, limit int,
 	) ([]AddedIdentity, Cursor, error)
 	IdentityHorizon(ctx context.Context) (Cursor, error)
-	IdentityCursorAhead(ctx context.Context, cursor Cursor) (bool, error)
+	IdentityCursorCheck(ctx context.Context, cursor Cursor) (CursorCheck, error)
 }
 
 // Feed lists the identities each channel gains, in an order no late commit can skip.
@@ -63,23 +73,32 @@ func (f *Feed) IdentitiesAddedSince(
 	if limit < 1 {
 		return nil, after, ErrInvalidLimit
 	}
-	added, next, err := f.store.IdentitiesAddedSince(ctx, normalizedChannel, after, min(limit, f.bound))
-	if err != nil || len(added) > 0 {
-		return added, next, err
+	server, err := f.checkCursor(ctx, after)
+	if err != nil {
+		return nil, after, err
 	}
-	return nil, after, f.refuseCursorAhead(ctx, after)
+	added, next, err := f.store.IdentitiesAddedSince(ctx, normalizedChannel, after, min(limit, f.bound))
+	if err != nil || len(added) == 0 {
+		return nil, after, err
+	}
+	next.Server = server
+	return added, next, nil
 }
 
-// refuseCursorAhead reports [ErrCursorAhead] when the cursor names a transaction the server has not begun.
-func (f *Feed) refuseCursorAhead(ctx context.Context, after Cursor) error {
-	ahead, err := f.store.IdentityCursorAhead(ctx, after)
+// checkCursor returns the server's identity, or [ErrCursorStale] when the server cannot continue the cursor.
+func (f *Feed) checkCursor(ctx context.Context, after Cursor) (int64, error) {
+	check, err := f.store.IdentityCursorCheck(ctx, after)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if ahead {
-		return fmt.Errorf("%w: transaction %d", ErrCursorAhead, after.Transaction)
+	if after != (Cursor{}) && after.Server != check.Server {
+		return 0, fmt.Errorf("%w: the cursor names the server %d, not this server %d",
+			ErrCursorStale, after.Server, check.Server)
 	}
-	return nil
+	if check.Ahead {
+		return 0, fmt.Errorf("%w: transaction %d is past the server's count", ErrCursorStale, after.Transaction)
+	}
+	return check.Server, nil
 }
 
 // Horizon returns the cursor a new reader starts from.
