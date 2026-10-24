@@ -110,13 +110,18 @@ mail of each new address.
 Your plugin keeps a `sdk.IdentityCursor`, which marks how far it has read.
 Each call answers the next page and the cursor after it. This loop asks for
 pages of `deps.ContactMatchMax`, kept in `p.matchMax`, so each page fits one
-match:
+match. It starts again from the zero cursor when the feed refuses a stale
+one:
 
 ```go
 for {
 	added, next, err := p.identities.IdentitiesAddedSince(
 		ctx, "email", cursor, p.matchMax,
 	)
+	if errors.Is(err, sdk.ErrCursorStale) {
+		cursor = sdk.IdentityCursor{}
+		continue
+	}
 	if err != nil {
 		return err
 	}
@@ -146,7 +151,7 @@ A few rules keep a reader correct:
   `deps.ContactMatchMax`, so a page always fits one call to the matcher.
   A page can hold fewer than you asked while more wait, so read until a page
   comes back empty. An empty page answers the cursor you passed. A `limit`
-  below one is refused.
+  below one is refused with `sdk.ErrInvalidLimit`.
 - Save the cursor only after you have handled its page. A plugin that stops
   halfway starts again from its saved cursor and handles part of that page a
   second time, so handling an address twice must do no harm.
@@ -158,10 +163,15 @@ A few rules keep a reader correct:
   you asked, and every later one. Addresses saved since the oldest write
   still running on the PostgreSQL server began can show up too, so a long
   open transaction can make that a long list.
-- A saved cursor can name a transaction the PostgreSQL server has not
-  reached, after AlphOne's database is restored onto another server. The
-  feed then refuses it with `sdk.ErrCursorAhead`. Start again from the zero
-  cursor and handle every address once more.
+- Each cursor remembers the PostgreSQL server that answered it. Save all
+  three of its fields: `Server`, `Transaction` and `Identity`. Keep the saved
+  cursor in AlphOne's own database, the one at `deps.DatabaseURL`, so a
+  restore brings it back beside the addresses.
+- The feed refuses a cursor from another server with `sdk.ErrCursorStale`.
+  That happens after a dump is restored onto a new server, such as one for a
+  new PostgreSQL major version. A cursor past the server's count is refused
+  the same way. Start again from the zero cursor and handle every address
+  once more.
 - The feed reports only additions. A removed address is not reported, and one
   removed before you read it never shows up.
 - Follow the cursor, never `AddedAt`. AlphOne stamps that time as it saves,
@@ -181,10 +191,20 @@ until it ends.
 
 Transaction numbers belong to one PostgreSQL server. A dump restored onto
 another server, such as a new PostgreSQL major version, keeps the numbers
-the old server gave, while the new server counts from the start again. Each
-time AlphOne starts, it marks every address numbered past the server's count
-as saved by that start, so a reader from the zero cursor sees it at once. A
-saved cursor past the count is refused, as the rules above say.
+the old server gave, while the new server counts from the start again. The
+two servers can hand out the same numbers, so a number alone cannot say
+where a reader stopped. That is why each cursor also names its server.
+PostgreSQL gives a server its identity when the server is first set up, and a
+copy of its data files, such as a promoted replica, keeps that identity. So
+restore a dump onto a server set up fresh, never onto a copy of the server
+the dump came from. The feed refuses a cursor from another server, or one
+past the server's count, with `sdk.ErrCursorStale`, as the rules above say.
+Each time AlphOne starts,
+it renumbers every address another server numbered, and every one numbered
+past the server's count, as saved by that start. So a reader from the zero
+cursor sees them at once. Say the database moves to another server and back.
+A reader whose cursor this server answered before the move still gets the
+addresses saved on the other server.
 
 ## When a call is refused
 
@@ -192,7 +212,7 @@ saved cursor past the count is refused, as the rules above say.
 | --- | --- |
 | `sdk.ErrInvalidContact` | The channel is empty, an address is empty in its canonical form, or a new contact's name is blank |
 | `sdk.ErrTooManyIdentifiers` | A match asked for more addresses than `deps.ContactMatchMax` |
-| `sdk.ErrCursorAhead` | A feed cursor names a transaction the PostgreSQL server has not reached |
+| `sdk.ErrInvalidLimit` | A feed page asked for fewer than one address |
+| `sdk.ErrCursorStale` | A feed cursor comes from another PostgreSQL server, or names a transaction the server has not reached |
 
-Test each with `errors.Is`. A feed page asked for fewer than one address is
-refused too. Any other error comes from the database.
+Test each with `errors.Is`. Any other error comes from the database.
