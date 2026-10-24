@@ -17,7 +17,7 @@ var migrationSource = mustSub(Migrations, "migrations")
 
 // restampIdentities marks each identity another server numbered, or numbered past this server's count, added now.
 const restampIdentities = `UPDATE core.contact_identities SET added_xid = DEFAULT, added_server = DEFAULT
-WHERE added_server <> (pg_control_system()).system_identifier
+WHERE added_server <> (SELECT system_identifier FROM pg_control_system())
     OR added_xid >= pg_snapshot_xmax(pg_current_snapshot())`
 
 // Migrate applies the core schema migrations to the database at databaseURL.
