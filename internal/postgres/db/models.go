@@ -46,6 +46,7 @@ type CoreContactIdentity struct {
 	CreatedAt   time.Time
 	TenantID    uuid.UUID
 	AddedXid    uint64
+	AddedServer int64
 }
 
 type CoreTask struct {

@@ -568,26 +568,38 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (CoreTask, err
 	return i, err
 }
 
-const identityCursorAhead = `-- name: IdentityCursorAhead :one
-SELECT $1::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead
+const identityCursorCheck = `-- name: IdentityCursorCheck :one
+SELECT (pg_control_system()).system_identifier::bigint AS server,
+    $1::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead
 `
 
-func (q *Queries) IdentityCursorAhead(ctx context.Context, transaction uint64) (bool, error) {
-	row := q.db.QueryRow(ctx, identityCursorAhead, transaction)
-	var ahead bool
-	err := row.Scan(&ahead)
-	return ahead, err
+type IdentityCursorCheckRow struct {
+	Server int64
+	Ahead  bool
+}
+
+func (q *Queries) IdentityCursorCheck(ctx context.Context, transaction uint64) (IdentityCursorCheckRow, error) {
+	row := q.db.QueryRow(ctx, identityCursorCheck, transaction)
+	var i IdentityCursorCheckRow
+	err := row.Scan(&i.Server, &i.Ahead)
+	return i, err
 }
 
 const identityHorizon = `-- name: IdentityHorizon :one
-SELECT pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon
+SELECT (pg_control_system()).system_identifier::bigint AS server,
+    pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon
 `
 
-func (q *Queries) IdentityHorizon(ctx context.Context) (uint64, error) {
+type IdentityHorizonRow struct {
+	Server  int64
+	Horizon uint64
+}
+
+func (q *Queries) IdentityHorizon(ctx context.Context) (IdentityHorizonRow, error) {
 	row := q.db.QueryRow(ctx, identityHorizon)
-	var horizon uint64
-	err := row.Scan(&horizon)
-	return horizon, err
+	var i IdentityHorizonRow
+	err := row.Scan(&i.Server, &i.Horizon)
+	return i, err
 }
 
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many

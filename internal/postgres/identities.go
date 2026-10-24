@@ -141,13 +141,13 @@ func (s *ContactStore) IdentitiesAddedSince(
 	return added, next, nil
 }
 
-// IdentityCursorAhead reports whether the cursor names a transaction past every one the server has begun.
-func (s *ContactStore) IdentityCursorAhead(ctx context.Context, cursor contact.Cursor) (bool, error) {
-	ahead, err := s.queries.IdentityCursorAhead(ctx, cursor.Transaction)
+// IdentityCursorCheck returns the server's identity and whether the cursor names a transaction past its count.
+func (s *ContactStore) IdentityCursorCheck(ctx context.Context, cursor contact.Cursor) (contact.CursorCheck, error) {
+	check, err := s.queries.IdentityCursorCheck(ctx, cursor.Transaction)
 	if err != nil {
-		return false, fmt.Errorf("postgres: check the identity cursor: %w", err)
+		return contact.CursorCheck{}, fmt.Errorf("postgres: check the identity cursor: %w", err)
 	}
-	return ahead, nil
+	return contact.CursorCheck{Server: check.Server, Ahead: check.Ahead}, nil
 }
 
 // IdentityHorizon returns the cursor before every identity a transaction still open may add.
@@ -156,7 +156,7 @@ func (s *ContactStore) IdentityHorizon(ctx context.Context) (contact.Cursor, err
 	if err != nil {
 		return contact.Cursor{}, fmt.Errorf("postgres: identity horizon: %w", err)
 	}
-	return contact.Cursor{Transaction: horizon}, nil
+	return contact.Cursor{Server: horizon.Server, Transaction: horizon.Horizon}, nil
 }
 
 // DeleteIdentity removes the contact's identity with the given id, or

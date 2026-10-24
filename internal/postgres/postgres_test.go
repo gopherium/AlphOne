@@ -245,13 +245,14 @@ const identityFeedVersion = 24
 // identityFeedIndex is the index the identity feed reads in order.
 const identityFeedIndex = "contact_identities_tenant_channel_added_id_idx"
 
-// addedColumns returns how many added_xid columns core.contact_identities holds.
+// addedColumns returns how many of the added_xid and added_server columns core.contact_identities holds.
 func addedColumns(t *testing.T, db *sql.DB) int {
 	t.Helper()
 	var columns int
 	err := db.QueryRow(
 		`SELECT count(*) FROM information_schema.columns
-		WHERE table_schema = 'core' AND table_name = 'contact_identities' AND column_name = 'added_xid'`,
+		WHERE table_schema = 'core' AND table_name = 'contact_identities'
+			AND column_name IN ('added_xid', 'added_server')`,
 	).Scan(&columns)
 	if err != nil {
 		t.Fatalf("querying information_schema.columns: %v", err)
@@ -259,16 +260,32 @@ func addedColumns(t *testing.T, db *sql.DB) int {
 	return columns
 }
 
-// addedTransaction returns the added_xid of the identity the id names, as text.
-func addedTransaction(t *testing.T, db *sql.DB, id uuid.UUID) string {
+// identityStamp is the transaction, as text, and the server that numbered one identity.
+type identityStamp struct {
+	transaction string
+	server      int64
+}
+
+// addedStamp returns the stamp of the identity the id names.
+func addedStamp(t *testing.T, db *sql.DB, id uuid.UUID) identityStamp {
 	t.Helper()
-	var added string
+	var stamp identityStamp
 	if err := db.QueryRow(
-		"SELECT added_xid::text FROM core.contact_identities WHERE id = $1", id,
-	).Scan(&added); err != nil {
-		t.Fatalf("reading added_xid: %v", err)
+		"SELECT added_xid::text, added_server FROM core.contact_identities WHERE id = $1", id,
+	).Scan(&stamp.transaction, &stamp.server); err != nil {
+		t.Fatalf("reading the stamp of the identity: %v", err)
 	}
-	return added
+	return stamp
+}
+
+// systemIdentifier returns the system identifier of the database server behind db.
+func systemIdentifier(t *testing.T, db *sql.DB) int64 {
+	t.Helper()
+	var server int64
+	if err := db.QueryRow("SELECT (pg_control_system()).system_identifier").Scan(&server); err != nil {
+		t.Fatalf("reading the server identity: %v", err)
+	}
+	return server
 }
 
 func TestMigrationsIndexTheIdentitiesByTenantChannelAndAddingTransaction(t *testing.T) {
@@ -304,11 +321,12 @@ func TestAnIdentityStoredBeforeTheFeedMigrationTakesTheZeroTransaction(t *testin
 		t.Fatalf("inserting the later identity: %v", err)
 	}
 
-	if got := addedTransaction(t, db, earlier.ID); got != "0" {
-		t.Errorf("the earlier identity added_xid = %s, want 0", got)
+	if got := addedStamp(t, db, earlier.ID); got != (identityStamp{transaction: "0"}) {
+		t.Errorf("the earlier identity stamp = %+v, want the transaction 0 on the server 0", got)
 	}
-	if got := addedTransaction(t, db, later.ID); got == "0" {
-		t.Error("the later identity added_xid = 0, want the transaction that stored it")
+	server := systemIdentifier(t, db)
+	if got := addedStamp(t, db, later.ID); got.transaction == "0" || got.server != server {
+		t.Errorf("the later identity stamp = %+v, want the transaction that stored it on the server %d", got, server)
 	}
 }
 
@@ -322,7 +340,7 @@ func TestRollingTheIdentityFeedMigrationBackDropsTheColumnAndTheIndex(t *testing
 	}
 
 	if columns := addedColumns(t, db); columns != 0 {
-		t.Errorf("added_xid columns after the rollback = %d, want 0", columns)
+		t.Errorf("added_xid and added_server columns after the rollback = %d, want 0", columns)
 	}
 	var indexes int
 	if err := db.QueryRow(

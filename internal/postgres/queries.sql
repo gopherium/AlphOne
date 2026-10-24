@@ -109,10 +109,12 @@ ORDER BY i.added_xid, i.id
 LIMIT @row_limit;
 
 -- name: IdentityHorizon :one
-SELECT pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon;
+SELECT (pg_control_system()).system_identifier::bigint AS server,
+    pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon;
 
--- name: IdentityCursorAhead :one
-SELECT @transaction::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead;
+-- name: IdentityCursorCheck :one
+SELECT (pg_control_system()).system_identifier::bigint AS server,
+    @transaction::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead;
 
 -- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,

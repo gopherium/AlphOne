@@ -227,17 +227,66 @@ func serverTransactionEnd(t *testing.T, pool *pgxpool.Pool) uint64 {
 	return end
 }
 
+// serverIdentity returns the system identifier of the database server behind pool.
+func serverIdentity(t *testing.T, pool *pgxpool.Pool) int64 {
+	t.Helper()
+	var server int64
+	if err := pool.QueryRow(t.Context(), "SELECT system_identifier FROM pg_control_system()").Scan(&server); err != nil {
+		t.Fatalf("reading the server identity: %v", err)
+	}
+	return server
+}
+
+// serversOf returns the server that numbered each identity of the contact, keyed by identifier.
+func serversOf(t *testing.T, pool *pgxpool.Pool, owner uuid.UUID) map[string]int64 {
+	t.Helper()
+	rows, err := pool.Query(t.Context(),
+		"SELECT identifier, added_server FROM core.contact_identities WHERE contact_id = $1", owner)
+	if err != nil {
+		t.Fatalf("reading the servers that numbered the identities: %v", err)
+	}
+	servers := map[string]int64{}
+	var identifier string
+	var server int64
+	if _, err := pgx.ForEachRow(rows, []any{&identifier, &server}, func() error {
+		servers[identifier] = server
+		return nil
+	}); err != nil {
+		t.Fatalf("reading the servers that numbered the identities: %v", err)
+	}
+	return servers
+}
+
+func TestEveryWritePathStampsAnAddressWithTheServerThatNumberedIt(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewContactStore(pool)
+	maria := storedOwnerOf(t, store, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+	addedEmail(t, store, maria.ID, "maria.perez@example.com")
+
+	server := serverIdentity(t, pool)
+	want := map[string]int64{"maria@example.com": server, "maria.perez@example.com": server}
+	if diff := cmp.Diff(want, serversOf(t, pool, maria.ID)); diff != "" {
+		t.Errorf("the server of each stored address mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestTheFeedRefusesACursorPastEveryTransactionTheServerBegan(t *testing.T) {
 	t.Parallel()
 
 	pool := newTestPool(t)
-	cursor := contact.Cursor{Transaction: serverTransactionEnd(t, pool) + restoredLead, Identity: uuid.Must(uuid.NewV7())}
+	cursor := contact.Cursor{
+		Server:      serverIdentity(t, pool),
+		Transaction: serverTransactionEnd(t, pool) + restoredLead,
+		Identity:    uuid.Must(uuid.NewV7()),
+	}
 
 	answered, next, err := contact.NewFeed(postgres.NewContactStore(pool), feedPageLimit).
 		IdentitiesAddedSince(t.Context(), "email", cursor, feedPageLimit)
 
-	if !errors.Is(err, contact.ErrCursorAhead) {
-		t.Errorf("IdentitiesAddedSince() error = %v, want %v", err, contact.ErrCursorAhead)
+	if !errors.Is(err, contact.ErrCursorStale) {
+		t.Errorf("IdentitiesAddedSince() error = %v, want %v", err, contact.ErrCursorStale)
 	}
 	if answered != nil || next != cursor {
 		t.Errorf("IdentitiesAddedSince() = %v at %+v, want nothing at %+v", identifiersOf(answered), next, cursor)
@@ -248,7 +297,7 @@ func TestTheFeedTakesACursorAtTheNextTransactionTheServerHandsOut(t *testing.T) 
 	t.Parallel()
 
 	pool := newTestPool(t)
-	cursor := contact.Cursor{Transaction: serverTransactionEnd(t, pool)}
+	cursor := contact.Cursor{Server: serverIdentity(t, pool), Transaction: serverTransactionEnd(t, pool)}
 
 	_, next, err := contact.NewFeed(postgres.NewContactStore(pool), feedPageLimit).
 		IdentitiesAddedSince(t.Context(), "email", cursor, feedPageLimit)
@@ -256,6 +305,71 @@ func TestTheFeedTakesACursorAtTheNextTransactionTheServerHandsOut(t *testing.T) 
 	if err != nil || next != cursor {
 		t.Errorf("IdentitiesAddedSince() = %+v, %v, want %+v and nil, the cursor Horizon answers on an idle server",
 			next, err, cursor)
+	}
+}
+
+func TestTheFeedRefusesACursorAnotherServerNumbered(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]bool{
+		"when no address waits past it":      false,
+		"when a newer address waits past it": true,
+	}
+
+	for name, newer := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := newTestPool(t)
+			store := postgres.NewContactStore(pool)
+			feed := contact.NewFeed(store, feedPageLimit)
+			here := contact.Cursor{
+				Server:      serverIdentity(t, pool),
+				Transaction: serverTransactionEnd(t, pool) - 1,
+				Identity:    uuid.Must(uuid.NewV7()),
+			}
+			elsewhere := here
+			elsewhere.Server++
+			if newer {
+				storedOwnerOf(t, store, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+				if waiting, _ := (feedReader{t, t.Context(), feed}).settled(here, 1); len(waiting) != 1 {
+					t.Fatalf("the feed past this server's cursor answered %v, want maria@example.com", identifiersOf(waiting))
+				}
+			}
+
+			answered, next, err := feed.IdentitiesAddedSince(t.Context(), "email", elsewhere, feedPageLimit)
+
+			if !errors.Is(err, contact.ErrCursorStale) {
+				t.Errorf("IdentitiesAddedSince() error = %v, want %v", err, contact.ErrCursorStale)
+			}
+			if answered != nil || next != elsewhere {
+				t.Errorf("IdentitiesAddedSince() = %v at %+v, want nothing at %+v", identifiersOf(answered), next, elsewhere)
+			}
+		})
+	}
+}
+
+func TestTheFeedNamesItsServerInTheCursorsItAnswers(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewContactStore(pool)
+	feed := contact.NewFeed(store, feedPageLimit)
+	storedOwnerOf(t, store, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+
+	answered, next := feedReader{t, t.Context(), feed}.settled(contact.Cursor{}, 1)
+	horizon, err := feed.Horizon(t.Context())
+
+	if err != nil {
+		t.Fatalf("Horizon() error = %v, want nil", err)
+	}
+	server := serverIdentity(t, pool)
+	if len(answered) != 1 || next.Server != server {
+		t.Errorf("a page of %v answered a cursor of the server %d, want the server %d",
+			identifiersOf(answered), next.Server, server)
+	}
+	if horizon.Server != server {
+		t.Errorf("Horizon() answered a cursor of the server %d, want the server %d", horizon.Server, server)
 	}
 }
 
@@ -269,18 +383,25 @@ func stampedPastTheServer(t *testing.T, pool *pgxpool.Pool, owner uuid.UUID) {
 	}
 }
 
-func TestMigrateBringsAnIdentityRestoredFromAServerFurtherAlongBackIntoTheFeed(t *testing.T) {
-	t.Parallel()
+// migratedPool returns the address of a fresh migrated test database and a pool over it, skipping in short mode.
+func migratedPool(t *testing.T) (string, *pgxpool.Pool) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
-
 	databaseURL := testdb.New(t, testdb.Migrator())
 	pool, err := pgxpool.New(t.Context(), databaseURL)
 	if err != nil {
 		t.Fatalf("connecting pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	return databaseURL, pool
+}
+
+func TestMigrateBringsAnIdentityRestoredFromAServerFurtherAlongBackIntoTheFeed(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, pool := migratedPool(t)
 	store := postgres.NewContactStore(pool)
 	feed := contact.NewFeed(store, feedPageLimit)
 	reader := feedReader{t, t.Context(), feed}
@@ -306,6 +427,46 @@ func TestMigrateBringsAnIdentityRestoredFromAServerFurtherAlongBackIntoTheFeed(t
 	}
 }
 
+// numberedElsewhere stamps the identity with the transaction as another server numbered it.
+func numberedElsewhere(t *testing.T, pool *pgxpool.Pool, identifier string, transaction uint64) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(),
+		"UPDATE core.contact_identities SET added_server = $1, added_xid = $2 WHERE identifier = $3",
+		serverIdentity(t, pool)+1, transaction, identifier); err != nil {
+		t.Fatalf("stamping the identity as another server numbered it: %v", err)
+	}
+}
+
+func TestMigrateBringsAnAddressAnotherServerSavedBackIntoTheFeedOfAReaderThisServerAnswered(t *testing.T) {
+	t.Parallel()
+
+	databaseURL, pool := migratedPool(t)
+	store := postgres.NewContactStore(pool)
+	reader := feedReader{t, t.Context(), contact.NewFeed(store, feedPageLimit)}
+	maria := storedOwnerOf(t, store, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+	_, following := reader.settled(contact.Cursor{}, 1)
+	addedEmail(t, store, maria.ID, "maria.perez@example.com")
+	numberedElsewhere(t, pool, "maria.perez@example.com", following.Transaction-1)
+	before, _ := reader.page(following, feedPageLimit)
+
+	if err := postgres.Migrate(t.Context(), databaseURL); err != nil {
+		t.Fatalf("Migrate() error = %v, want nil", err)
+	}
+	after, _ := reader.settled(following, 1)
+
+	if len(before) != 0 {
+		t.Errorf("the feed from the cursor before Migrate() answered %v, want nothing", identifiersOf(before))
+	}
+	if diff := cmp.Diff([]string{"maria.perez@example.com"}, identifiersOf(after)); diff != "" {
+		t.Errorf("the feed from the cursor after Migrate() mismatch (-want +got):\n%s", diff)
+	}
+	server := serverIdentity(t, pool)
+	want := map[string]int64{"maria@example.com": server, "maria.perez@example.com": server}
+	if diff := cmp.Diff(want, serversOf(t, pool, maria.ID)); diff != "" {
+		t.Errorf("the server of each address after Migrate() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestTheFeedReportsAConnectionFailure(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +480,7 @@ func TestTheFeedReportsAConnectionFailure(t *testing.T) {
 	if _, err := store.IdentityHorizon(t.Context()); err == nil {
 		t.Error("IdentityHorizon() on a closed pool error = nil, want the failure")
 	}
-	if _, err := store.IdentityCursorAhead(t.Context(), contact.Cursor{}); err == nil {
-		t.Error("IdentityCursorAhead() on a closed pool error = nil, want the failure")
+	if _, err := store.IdentityCursorCheck(t.Context(), contact.Cursor{}); err == nil {
+		t.Error("IdentityCursorCheck() on a closed pool error = nil, want the failure")
 	}
 }
