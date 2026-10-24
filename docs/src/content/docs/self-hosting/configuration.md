@@ -18,8 +18,8 @@ When a variable holds a value AlphOne refuses:
   [Account records and tokens](#account-records-and-tokens), which only
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
-  [Webhooks](#webhooks), [Fields plugin](#fields-plugin) or
-  [WhatsApp plugin](#whatsapp-plugin),
+  [Contacts](#contacts), [Webhooks](#webhooks),
+  [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
   in `ALPHONE_GRAPH_PAGE_SIZE` or `ALPHONE_GRAPH_PAGE_CAP`,
   or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops the account commands
   that take `-as`, before they change anything. It stops `migrate`,
@@ -92,6 +92,15 @@ deployment serves more than one.
 | `ALPHONE_TENANT_MACHINE_GRACE` | How long a deactivated workspace keeps recording what a channel such as WhatsApp delivers, written as a duration. Defaults to `336h`, fourteen days. `0s` stops the recording as soon as the workspace is deactivated. |
 | `ALPHONE_TENANTS_HELD` | How many workspaces' fields each server process keeps in memory. Defaults to 256. Must be a whole number above zero. |
 | `ALPHONE_TENANTS_REFRESH` | How long a server process keeps a workspace's fields before reading them again. Defaults to `1m`. Must be a duration above zero. |
+
+## Contacts
+
+Plugins look up the contacts behind many addresses at once, such as every
+recipient of a mail, see [Contacts](/extending/contacts/).
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_CONTACT_MATCH_MAX` | The most addresses a plugin looks up in one call. It also caps one page of the addresses contacts gain, so a page always fits one lookup. Defaults to 100. A value that is not a whole number between 1 and 2147483647 stops `serve` and the other commands listed at the top of this page. |
 
 ## Lists, toasts and formats
 

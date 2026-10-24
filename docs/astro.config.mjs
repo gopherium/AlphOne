@@ -65,6 +65,7 @@ export default defineConfig({
 						{ slug: 'extending/graph' },
 						{ slug: 'extending/commands' },
 						{ slug: 'extending/events' },
+						{ slug: 'extending/contacts' },
 					],
 				},
 				{

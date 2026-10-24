@@ -263,3 +263,9 @@ gunzip -c backups/alphone-<date>.sql.gz | \
   docker compose exec -T postgres psql -U alphone alphone
 docker compose start alphone
 ```
+
+A dump can also go onto a new PostgreSQL server, such as a fresh container
+for a new PostgreSQL major version. The new server numbers its transactions
+from the start again, so a plugin that follows the addresses contacts gain,
+see [Contacts](/extending/contacts/), reads them all again from the
+beginning after such a restore. Handling an address twice does no harm.
