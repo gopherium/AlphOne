@@ -13,8 +13,11 @@ import (
 // ErrTooManyIdentifiers reports a match asking for more identifiers than the host answers in one call.
 var ErrTooManyIdentifiers = errors.New("sdk: too many identifiers")
 
-// ErrCursorAhead reports a feed cursor past every transaction the database server began, as after a restore elsewhere.
-var ErrCursorAhead = errors.New("sdk: cursor ahead of the server")
+// ErrInvalidLimit reports a feed page asked to hold fewer than one identity.
+var ErrInvalidLimit = errors.New("sdk: invalid limit")
+
+// ErrCursorStale reports a feed cursor this server cannot continue, as one saved before a restore onto another server.
+var ErrCursorStale = errors.New("sdk: cursor stale")
 
 // ContactMatcher finds the calling tenant's contacts owning many identities in one call.
 type ContactMatcher interface {
@@ -24,6 +27,8 @@ type ContactMatcher interface {
 
 // IdentityCursor marks a place in the order identities were added, its zero value the place before every identity.
 type IdentityCursor struct {
+	// Server identifies the PostgreSQL server that numbered the transaction, zero in the zero cursor.
+	Server int64
 	// Transaction is the transaction that added the identity at the place.
 	Transaction uint64
 	// Identity is the id of the identity at the place.
