@@ -511,9 +511,19 @@ type GetIdentityParams struct {
 	TenantID   uuid.UUID
 }
 
-func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (CoreContactIdentity, error) {
+type GetIdentityRow struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+	TenantID    uuid.UUID
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetIdentityRow, error) {
 	row := q.db.QueryRow(ctx, getIdentity, arg.Channel, arg.Identifier, arg.TenantID)
-	var i CoreContactIdentity
+	var i GetIdentityRow
 	err := row.Scan(
 		&i.ID,
 		&i.ContactID,
@@ -556,6 +566,28 @@ func (q *Queries) GetTask(ctx context.Context, arg GetTaskParams) (CoreTask, err
 		&i.DueTime,
 	)
 	return i, err
+}
+
+const identityCursorAhead = `-- name: IdentityCursorAhead :one
+SELECT $1::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead
+`
+
+func (q *Queries) IdentityCursorAhead(ctx context.Context, transaction uint64) (bool, error) {
+	row := q.db.QueryRow(ctx, identityCursorAhead, transaction)
+	var ahead bool
+	err := row.Scan(&ahead)
+	return ahead, err
+}
+
+const identityHorizon = `-- name: IdentityHorizon :one
+SELECT pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon
+`
+
+func (q *Queries) IdentityHorizon(ctx context.Context) (uint64, error) {
+	row := q.db.QueryRow(ctx, identityHorizon)
+	var horizon uint64
+	err := row.Scan(&horizon)
+	return horizon, err
 }
 
 const listAPITokensForUser = `-- name: ListAPITokensForUser :many
@@ -612,15 +644,25 @@ type ListContactIdentitiesParams struct {
 	TenantID   uuid.UUID
 }
 
-func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]CoreContactIdentity, error) {
+type ListContactIdentitiesRow struct {
+	ID          uuid.UUID
+	ContactID   uuid.UUID
+	Channel     string
+	Identifier  string
+	DisplayName string
+	CreatedAt   time.Time
+	TenantID    uuid.UUID
+}
+
+func (q *Queries) ListContactIdentities(ctx context.Context, arg ListContactIdentitiesParams) ([]ListContactIdentitiesRow, error) {
 	rows, err := q.db.Query(ctx, listContactIdentities, arg.ContactIds, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CoreContactIdentity
+	var items []ListContactIdentitiesRow
 	for rows.Next() {
-		var i CoreContactIdentity
+		var i ListContactIdentitiesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ContactID,
@@ -759,6 +801,64 @@ func (q *Queries) ListEveryAPIToken(ctx context.Context) ([]CoreApiToken, error)
 			&i.Scopes,
 			&i.ExpiresAt,
 			&i.TenantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIdentitiesAddedSince = `-- name: ListIdentitiesAddedSince :many
+SELECT i.id, i.contact_id, i.identifier, i.created_at, i.added_xid
+FROM core.contact_identities i
+WHERE i.tenant_id = $1 AND i.channel = $2::text
+    AND (i.added_xid, i.id) > ($3::xid8, $4::uuid)
+    AND i.added_xid < pg_snapshot_xmin(pg_current_snapshot())
+ORDER BY i.added_xid, i.id
+LIMIT $5
+`
+
+type ListIdentitiesAddedSinceParams struct {
+	TenantID uuid.UUID
+	Channel  string
+	AfterXid uint64
+	AfterID  uuid.UUID
+	RowLimit int32
+}
+
+type ListIdentitiesAddedSinceRow struct {
+	ID         uuid.UUID
+	ContactID  uuid.UUID
+	Identifier string
+	CreatedAt  time.Time
+	AddedXid   uint64
+}
+
+func (q *Queries) ListIdentitiesAddedSince(ctx context.Context, arg ListIdentitiesAddedSinceParams) ([]ListIdentitiesAddedSinceRow, error) {
+	rows, err := q.db.Query(ctx, listIdentitiesAddedSince,
+		arg.TenantID,
+		arg.Channel,
+		arg.AfterXid,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListIdentitiesAddedSinceRow
+	for rows.Next() {
+		var i ListIdentitiesAddedSinceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContactID,
+			&i.Identifier,
+			&i.CreatedAt,
+			&i.AddedXid,
 		); err != nil {
 			return nil, err
 		}
@@ -1117,6 +1217,51 @@ func (q *Queries) ListWorkspaceWebhookSubscriptions(ctx context.Context, tenantI
 			&i.TenantID,
 			&i.OwnerName,
 			&i.OwnerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const matchIdentities = `-- name: MatchIdentities :many
+SELECT i.identifier, c.id, c.name, c.created_at
+FROM core.contact_identities i
+JOIN core.contacts c ON c.id = i.contact_id AND c.tenant_id = $1
+WHERE i.tenant_id = $1 AND i.channel = $2::text AND i.identifier = ANY ($3::text[])
+`
+
+type MatchIdentitiesParams struct {
+	TenantID    uuid.UUID
+	Channel     string
+	Identifiers []string
+}
+
+type MatchIdentitiesRow struct {
+	Identifier string
+	ID         uuid.UUID
+	Name       string
+	CreatedAt  time.Time
+}
+
+func (q *Queries) MatchIdentities(ctx context.Context, arg MatchIdentitiesParams) ([]MatchIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, matchIdentities, arg.TenantID, arg.Channel, arg.Identifiers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MatchIdentitiesRow
+	for rows.Next() {
+		var i MatchIdentitiesRow
+		if err := rows.Scan(
+			&i.Identifier,
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

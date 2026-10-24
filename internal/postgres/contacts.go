@@ -19,6 +19,10 @@ import (
 
 var _ contact.Store = (*ContactStore)(nil)
 
+var _ contact.MatchStore = (*ContactStore)(nil)
+
+var _ contact.FeedStore = (*ContactStore)(nil)
+
 // likeEscape is the escape character [dbkit.EscapeLike] writes before each LIKE pattern character.
 const likeEscape = `\`
 

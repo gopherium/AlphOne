@@ -93,6 +93,27 @@ WHERE channel = @channel AND identifier = @identifier AND tenant_id = @tenant_id
 DELETE FROM core.contact_identities
 WHERE id = $1 AND contact_id = $2 AND tenant_id = @tenant_id;
 
+-- name: MatchIdentities :many
+SELECT i.identifier, c.id, c.name, c.created_at
+FROM core.contact_identities i
+JOIN core.contacts c ON c.id = i.contact_id AND c.tenant_id = @tenant_id
+WHERE i.tenant_id = @tenant_id AND i.channel = @channel::text AND i.identifier = ANY (@identifiers::text[]);
+
+-- name: ListIdentitiesAddedSince :many
+SELECT i.id, i.contact_id, i.identifier, i.created_at, i.added_xid
+FROM core.contact_identities i
+WHERE i.tenant_id = @tenant_id AND i.channel = @channel::text
+    AND (i.added_xid, i.id) > (@after_xid::xid8, @after_id::uuid)
+    AND i.added_xid < pg_snapshot_xmin(pg_current_snapshot())
+ORDER BY i.added_xid, i.id
+LIMIT @row_limit;
+
+-- name: IdentityHorizon :one
+SELECT pg_snapshot_xmin(pg_current_snapshot())::xid8 AS horizon;
+
+-- name: IdentityCursorAhead :one
+SELECT @transaction::xid8 > pg_snapshot_xmax(pg_current_snapshot()) AS ahead;
+
 -- name: CreateTask :one
 INSERT INTO core.tasks (id, assignee_id, contact_id, title, status, priority, due_on,
     origin_source, origin_event_id, created_at, tenant_id, due_time)

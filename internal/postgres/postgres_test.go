@@ -239,6 +239,102 @@ func TestMigrationsKeepTheDueTimeOnAWholeMinuteOfTheDay(t *testing.T) {
 	}
 }
 
+// identityFeedVersion is the migration stamping every identity with the transaction that added it.
+const identityFeedVersion = 24
+
+// identityFeedIndex is the index the identity feed reads in order.
+const identityFeedIndex = "contact_identities_tenant_channel_added_id_idx"
+
+// addedColumns returns how many added_xid columns core.contact_identities holds.
+func addedColumns(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var columns int
+	err := db.QueryRow(
+		`SELECT count(*) FROM information_schema.columns
+		WHERE table_schema = 'core' AND table_name = 'contact_identities' AND column_name = 'added_xid'`,
+	).Scan(&columns)
+	if err != nil {
+		t.Fatalf("querying information_schema.columns: %v", err)
+	}
+	return columns
+}
+
+// addedTransaction returns the added_xid of the identity the id names, as text.
+func addedTransaction(t *testing.T, db *sql.DB, id uuid.UUID) string {
+	t.Helper()
+	var added string
+	if err := db.QueryRow(
+		"SELECT added_xid::text FROM core.contact_identities WHERE id = $1", id,
+	).Scan(&added); err != nil {
+		t.Fatalf("reading added_xid: %v", err)
+	}
+	return added
+}
+
+func TestMigrationsIndexTheIdentitiesByTenantChannelAndAddingTransaction(t *testing.T) {
+	t.Parallel()
+
+	definition := indexDefinition(t, newTestDB(t), "contact_identities", identityFeedIndex)
+
+	if !strings.HasSuffix(definition, "USING btree (tenant_id, channel, added_xid, id)") {
+		t.Errorf("index definition = %q, want tenant, channel, adding transaction and id", definition)
+	}
+}
+
+func TestAnIdentityStoredBeforeTheFeedMigrationTakesTheZeroTransaction(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+	provider := coreProvider(t, db)
+	if _, err := provider.DownTo(t.Context(), identityFeedVersion-1); err != nil {
+		t.Fatalf("rolling back the identity feed migration: %v", err)
+	}
+	maria := mustContact(t, "Maria Perez")
+	insertContact(t, db, maria)
+	earlier := mustIdentity(t, maria.ID, "email", "maria@example.com")
+	if err := insertIdentity(db, earlier); err != nil {
+		t.Fatalf("inserting the earlier identity: %v", err)
+	}
+
+	if _, err := provider.Up(t.Context()); err != nil {
+		t.Fatalf("applying the identity feed migration: %v", err)
+	}
+	later := mustIdentity(t, maria.ID, "phone", "+184467235")
+	if err := insertIdentity(db, later); err != nil {
+		t.Fatalf("inserting the later identity: %v", err)
+	}
+
+	if got := addedTransaction(t, db, earlier.ID); got != "0" {
+		t.Errorf("the earlier identity added_xid = %s, want 0", got)
+	}
+	if got := addedTransaction(t, db, later.ID); got == "0" {
+		t.Error("the later identity added_xid = 0, want the transaction that stored it")
+	}
+}
+
+func TestRollingTheIdentityFeedMigrationBackDropsTheColumnAndTheIndex(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+
+	if _, err := coreProvider(t, db).DownTo(t.Context(), identityFeedVersion-1); err != nil {
+		t.Fatalf("rolling back the identity feed migration: %v", err)
+	}
+
+	if columns := addedColumns(t, db); columns != 0 {
+		t.Errorf("added_xid columns after the rollback = %d, want 0", columns)
+	}
+	var indexes int
+	if err := db.QueryRow(
+		"SELECT count(*) FROM pg_indexes WHERE schemaname = 'core' AND indexname = $1", identityFeedIndex,
+	).Scan(&indexes); err != nil {
+		t.Fatalf("querying pg_indexes: %v", err)
+	}
+	if indexes != 0 {
+		t.Errorf("%s after the rollback = %d, want 0", identityFeedIndex, indexes)
+	}
+}
+
 func TestMigrationsStoreContactWithIdentity(t *testing.T) {
 	t.Parallel()
 

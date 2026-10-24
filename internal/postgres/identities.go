@@ -101,6 +101,64 @@ func (s *ContactStore) AddIdentity(ctx context.Context, identity contact.Identit
 	return nil
 }
 
+// MatchIdentities returns the contact owning each identifier on channel, keyed by identifier, leaving out the unowned.
+func (s *ContactStore) MatchIdentities(
+	ctx context.Context, channel contact.Channel, identifiers []string,
+) (map[string]contact.Contact, error) {
+	rows, err := s.queries.MatchIdentities(ctx, db.MatchIdentitiesParams{
+		TenantID: sdk.TenantOrDefault(ctx), Channel: string(channel), Identifiers: identifiers,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres: match identities: %w", err)
+	}
+	owners := make(map[string]contact.Contact, len(rows))
+	for _, row := range rows {
+		owners[row.Identifier] = contact.Contact{ID: row.ID, Name: row.Name, CreatedAt: row.CreatedAt}
+	}
+	return owners, nil
+}
+
+// IdentitiesAddedSince returns at most limit identities of channel added after the cursor and the cursor after them.
+func (s *ContactStore) IdentitiesAddedSince(
+	ctx context.Context, channel contact.Channel, after contact.Cursor, limit int,
+) ([]contact.AddedIdentity, contact.Cursor, error) {
+	rows, err := s.queries.ListIdentitiesAddedSince(ctx, db.ListIdentitiesAddedSinceParams{
+		TenantID: sdk.TenantOrDefault(ctx),
+		Channel:  string(channel),
+		AfterXid: after.Transaction,
+		AfterID:  after.Identity,
+		RowLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, after, fmt.Errorf("postgres: list identities added since: %w", err)
+	}
+	added := make([]contact.AddedIdentity, len(rows))
+	next := after
+	for i, row := range rows {
+		added[i] = contact.AddedIdentity{ContactID: row.ContactID, Identifier: row.Identifier, AddedAt: row.CreatedAt}
+		next = contact.Cursor{Transaction: row.AddedXid, Identity: row.ID}
+	}
+	return added, next, nil
+}
+
+// IdentityCursorAhead reports whether the cursor names a transaction past every one the server has begun.
+func (s *ContactStore) IdentityCursorAhead(ctx context.Context, cursor contact.Cursor) (bool, error) {
+	ahead, err := s.queries.IdentityCursorAhead(ctx, cursor.Transaction)
+	if err != nil {
+		return false, fmt.Errorf("postgres: check the identity cursor: %w", err)
+	}
+	return ahead, nil
+}
+
+// IdentityHorizon returns the cursor before every identity a transaction still open may add.
+func (s *ContactStore) IdentityHorizon(ctx context.Context) (contact.Cursor, error) {
+	horizon, err := s.queries.IdentityHorizon(ctx)
+	if err != nil {
+		return contact.Cursor{}, fmt.Errorf("postgres: identity horizon: %w", err)
+	}
+	return contact.Cursor{Transaction: horizon}, nil
+}
+
 // DeleteIdentity removes the contact's identity with the given id, or
 // reports [contact.ErrIdentityNotFound].
 func (s *ContactStore) DeleteIdentity(ctx context.Context, contactID, identityID uuid.UUID) error {

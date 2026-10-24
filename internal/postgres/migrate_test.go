@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -173,6 +175,25 @@ func TestMigrateAppliesEachPendingStepOnceWhenTwoRunAtOnce(t *testing.T) {
 	rows, versions := recordedSteps(t, db)
 	if rows != steps || versions != steps {
 		t.Errorf("goose recorded %d rows over %d versions, want each of the %d steps once", rows, versions, steps)
+	}
+}
+
+func TestMigrateReportsARestampOfTheIdentitiesItCannotRun(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping database test in short mode")
+	}
+
+	databaseURL := testdb.New(t, testdb.Migrator())
+	if _, err := openDatabase(t, databaseURL).ExecContext(t.Context(),
+		"ALTER TABLE core.contact_identities DROP COLUMN added_xid"); err != nil {
+		t.Fatalf("dropping the adding transaction column: %v", err)
+	}
+
+	err := postgres.Migrate(t.Context(), databaseURL)
+
+	if !strings.Contains(fmt.Sprint(err), "restamp the identities") {
+		t.Errorf("Migrate() over identities without their adding transaction error = %v, want the restamp failure", err)
 	}
 }
 
