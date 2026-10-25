@@ -50,6 +50,11 @@ func Declare(registry *goncierge.Registry, source string, roles []goncierge.Role
 	return goncierge.Declare(registry, goncierge.Rules{}, source, roles)
 }
 
+// DeclareWithTopRole replaces the roles a source declares, giving the top role every capability they carry.
+func DeclareWithTopRole(registry *goncierge.Registry, top, source string, roles []goncierge.Role) error {
+	return goncierge.Declare(registry, goncierge.Rules{Admin: top}, source, roles)
+}
+
 // String returns the stored form of the tier.
 func (r Role) String() string {
 	return string(r)
