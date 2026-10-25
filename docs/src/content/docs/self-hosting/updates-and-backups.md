@@ -106,6 +106,15 @@ server, because a watcher on `:latest` applies it on its own.
 - Only accounts that may manage users open Users and New user. A member
   who opens them lands on the home screen and finds their API tokens in
   the menu where Users was.
+- `ALPHONE_PUBLIC_URL` is now read without a mail relay too. On an
+  install that sends no mail, a value AlphOne refuses now stops `serve`,
+  the account commands that take `-as`, `migrate`, `seed -yes` and
+  `account:create-admin`, as the top of
+  [Configuration](/self-hosting/configuration/) describes, and
+  `alphone check` names it. When it is set, the activation link AlphOne
+  shows for you to pass on starts with it, so make sure it still names
+  the address people reach AlphOne at. See
+  [Core](/self-hosting/configuration/#core).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and

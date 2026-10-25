@@ -119,7 +119,7 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Onboarding:    postgres.NewOnboarding(built.pool, invites),
 		Accounts:      built.users,
 		Mailer:        built.mailer,
-		PublicURL:     settings.mail.publicURL,
+		PublicURL:     settings.publicURL,
 		Settings:      postgres.NewUserSettingStore(built.pool),
 		LoginLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
 		TokenLimiter:  ratelimit.NewLimiter(ratelimit.Config{}),
@@ -300,6 +300,7 @@ type composeSettings struct {
 	machineGrace    time.Duration
 	tenants         tenantSettings
 	contactMatchMax int
+	publicURL       string
 	mail            mailSettings
 	webhookHosts    webhook.AllowList
 	paging          graphres.Paging
@@ -360,7 +361,7 @@ type resetSettings struct {
 	cooldown time.Duration
 }
 
-// mailSettings names the relay, sender identity and link base mail rides on.
+// mailSettings names the relay and sender identity mail rides on.
 type mailSettings struct {
 	host        string
 	port        int
@@ -368,7 +369,6 @@ type mailSettings struct {
 	password    string
 	from        string
 	tls         string
-	publicURL   string
 	templateDir string
 }
 
@@ -406,7 +406,7 @@ const defaultResetLinks = 3
 // defaultResetCooldown spaces the reset mail one address may receive.
 const defaultResetCooldown = time.Minute
 
-// parsePublicURL reads the address email links lead back to, without its trailing slash.
+// parsePublicURL reads the address people reach the application at, without its trailing slash.
 func parsePublicURL(value string) (string, error) {
 	held, err := url.Parse(value)
 	if err != nil {
@@ -447,13 +447,6 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 	if from == "" {
 		return mailSettings{}, fmt.Errorf("%s is required when %s is set", env.Key("SMTP_FROM"), env.Key("SMTP_HOST"))
 	}
-	publicURL, err := gonsole.Parse(env, "PUBLIC_URL", "", parsePublicURL)
-	if err != nil {
-		return mailSettings{}, err
-	}
-	if publicURL == "" {
-		return mailSettings{}, fmt.Errorf("%s is required when %s is set", env.Key("PUBLIC_URL"), env.Key("SMTP_HOST"))
-	}
 	return mailSettings{
 		host:        host,
 		port:        port,
@@ -461,9 +454,20 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 		password:    env.Value("SMTP_PASSWORD"),
 		from:        from,
 		tls:         tlsPolicy,
-		publicURL:   publicURL,
 		templateDir: env.Value("MAIL_TEMPLATE_DIR"),
 	}, nil
+}
+
+// loadPublicURL reads the address people reach the application at, which a mail relay requires.
+func loadPublicURL(env gonsole.Env, mail mailSettings) (string, error) {
+	publicURL, err := gonsole.Parse(env, "PUBLIC_URL", "", parsePublicURL)
+	if err != nil {
+		return "", err
+	}
+	if mail.host != "" && publicURL == "" {
+		return "", fmt.Errorf("%s is required when %s is set", env.Key("PUBLIC_URL"), env.Key("SMTP_HOST"))
+	}
+	return publicURL, nil
 }
 
 // loadComposeSettings reads the settings compose hands the plugins and the stores it builds.
@@ -484,6 +488,10 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
+	publicURL, err := loadPublicURL(env, mail)
+	if err != nil {
+		return composeSettings{}, err
+	}
 	webhookHosts, err := gonsole.Parse(env, "WEBHOOK_ALLOWED_HOSTS", webhook.AllowList{}, webhook.ParseAllowList)
 	if err != nil {
 		return composeSettings{}, err
@@ -494,7 +502,7 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	}
 	return composeSettings{
 		machineGrace: machineGrace, tenants: tenants, contactMatchMax: contactMatchMax,
-		mail: mail, webhookHosts: webhookHosts, paging: paging,
+		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, paging: paging,
 	}, nil
 }
 

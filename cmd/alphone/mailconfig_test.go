@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -51,11 +52,13 @@ func TestTheMailSettingsAreReadFromTheEnvironment(t *testing.T) {
 		password:    "correct horse battery",
 		from:        "crm@example.com",
 		tls:         "none",
-		publicURL:   "https://crm.example.com",
 		templateDir: "/srv/mail",
 	}
 	if held.mail != want {
 		t.Errorf("mail = %+v, want %+v", held.mail, want)
+	}
+	if held.publicURL != "https://crm.example.com" {
+		t.Errorf("publicURL = %q, want the configured address", held.publicURL)
 	}
 }
 
@@ -153,6 +156,7 @@ func TestAMailerNamesItsRequiredCompanions(t *testing.T) {
 		"the sender address": {unset: "ALPHONE_SMTP_FROM"},
 		"the public url":     {unset: "ALPHONE_PUBLIC_URL"},
 	}
+	want := func(unset string) string { return unset + " is required when ALPHONE_SMTP_HOST is set" }
 	for testName, tt := range tests {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
@@ -170,8 +174,8 @@ func TestAMailerNamesItsRequiredCompanions(t *testing.T) {
 			if err == nil {
 				t.Fatalf("loadRunConfig() without %s error = nil, want it required", tt.unset)
 			}
-			if !strings.Contains(err.Error(), tt.unset) {
-				t.Errorf("error %q does not name %s", err, tt.unset)
+			if err.Error() != want(tt.unset) {
+				t.Errorf("error %q, want %q", err, want(tt.unset))
 			}
 		})
 	}
@@ -200,6 +204,42 @@ func TestMailSettingsWithoutAHostAreRefused(t *testing.T) {
 			}
 			if err != nil && !strings.Contains(err.Error(), "ALPHONE_SMTP_HOST") {
 				t.Errorf("error %q does not point at ALPHONE_SMTP_HOST", err)
+			}
+		})
+	}
+}
+
+func TestAMailSettingIsNamedBeforeThePublicURL(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		vars map[string]string
+		want string
+	}{
+		"a relay on an unreadable port": {
+			vars: map[string]string{
+				"ALPHONE_SMTP_HOST": "mail.example.com",
+				"ALPHONE_SMTP_PORT": "abc",
+				"ALPHONE_SMTP_FROM": "crm@example.com",
+			},
+			want: `ALPHONE_SMTP_PORT: must be a whole number, got "abc"`,
+		},
+		"a stray port without a relay": {
+			vars: map[string]string{"ALPHONE_SMTP_PORT": "2525"},
+			want: "ALPHONE_SMTP_PORT is set but ALPHONE_SMTP_HOST is not",
+		},
+	}
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			tt.vars["ALPHONE_DATABASE_URL"] = "postgres://localhost/x"
+			tt.vars["ALPHONE_PUBLIC_URL"] = refusedPublicURL
+
+			_, err := loadRunConfig(testkit.Getenv(tt.vars))
+
+			if fmt.Sprint(err) != tt.want {
+				t.Errorf("loadRunConfig() error = %v, want %q", err, tt.want)
 			}
 		})
 	}
@@ -321,8 +361,8 @@ func TestThePublicURLDropsItsTrailingSlash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRunConfig() error = %v, want nil", err)
 	}
-	if held.mail.publicURL != "https://crm.example.com" {
-		t.Errorf("mail.publicURL = %q, want the slash dropped", held.mail.publicURL)
+	if held.publicURL != "https://crm.example.com" {
+		t.Errorf("publicURL = %q, want the slash dropped", held.publicURL)
 	}
 }
 

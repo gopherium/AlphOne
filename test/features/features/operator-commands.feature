@@ -148,6 +148,22 @@ Feature: Operators run AlphOne from one command line
     Then the command exits with code 1
     And the answer names the setting "ALPHONE_INVITE_TTL"
 
+  Scenario: The check command names a malformed public address on an install without a mail relay
+    Given the setting "ALPHONE_PUBLIC_URL" holds "ftp://crm.example.com"
+    When the operator runs "check"
+    Then the command exits with code 1
+    And the answer names the setting "ALPHONE_PUBLIC_URL"
+
+  Scenario: An account change is refused over a malformed public address on an install without a mail relay
+    Given the administrator "admin@example.com"
+    And the member "maria.perez@example.com"
+    And the setting "ALPHONE_PUBLIC_URL" holds "ftp://crm.example.com"
+    When the operator gives "maria.perez@example.com" the role "admin" acting as "admin@example.com"
+    Then the command exits with code 1
+    And the error says "ALPHONE_PUBLIC_URL: must be an http or https address"
+    And the account "maria.perez@example.com" still holds the role "member"
+    And no account change is on record
+
   Scenario: A token belongs to its owner's workspace
     Given the member "maria.perez@example.com"
     And the workspace "Acme" exists

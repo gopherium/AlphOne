@@ -16,9 +16,9 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// buildMail returns the relay sender and the mailer the account flows deliver through.
-func buildMail(settings mailSettings, logger *slog.Logger) (mailkit.Sender, graphres.Mailer, error) {
-	sender, err := buildMailSender(settings, logger)
+// buildMail returns the relay sender greeting as the host of publicURL and the mailer the account flows use.
+func buildMail(settings mailSettings, publicURL string, logger *slog.Logger) (mailkit.Sender, graphres.Mailer, error) {
+	sender, err := buildMailSender(settings, publicURL, logger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -29,8 +29,8 @@ func buildMail(settings mailSettings, logger *slog.Logger) (mailkit.Sender, grap
 	return sender, mailer, nil
 }
 
-// buildMailSender returns the relay sender, nil when no relay is named.
-func buildMailSender(settings mailSettings, logger *slog.Logger) (mailkit.Sender, error) {
+// buildMailSender returns the relay sender greeting as the host of publicURL, nil when no relay is named.
+func buildMailSender(settings mailSettings, publicURL string, logger *slog.Logger) (mailkit.Sender, error) {
 	if settings.host == "" {
 		logger.Info("no mail relay configured, invitations answer their activation link")
 		return nil, nil
@@ -42,7 +42,7 @@ func buildMailSender(settings mailSettings, logger *slog.Logger) (mailkit.Sender
 		Password: settings.password,
 		From:     settings.from,
 		TLS:      smtp.TLS(settings.tls),
-		HELO:     heloFor(settings.publicURL),
+		HELO:     heloFor(publicURL),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build mail sender: %w", err)

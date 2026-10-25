@@ -50,7 +50,7 @@ func TestTheHostRefusesAMailSenderItCannotBuild(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			held, err := buildMailSender(refusedSettings, discardLogger())
+			held, err := buildMailSender(refusedSettings, "", discardLogger())
 
 			if err == nil {
 				t.Fatal("buildMailSender() error = nil, want the relay settings refused")
@@ -69,12 +69,11 @@ func TestBuildingMailStopsAtARefusedSender(t *testing.T) {
 	t.Parallel()
 
 	sender, mailer, err := buildMail(mailSettings{
-		host:      "mail.example.com",
-		port:      2525,
-		from:      "not an address",
-		tls:       "none",
-		publicURL: "https://crm.example.com",
-	}, discardLogger())
+		host: "mail.example.com",
+		port: 2525,
+		from: "not an address",
+		tls:  "none",
+	}, "https://crm.example.com", discardLogger())
 
 	if err == nil {
 		t.Fatal("buildMail() error = nil, want the refused sender surfaced")
@@ -97,9 +96,8 @@ func TestBuildingMailStopsAtARefusedMailer(t *testing.T) {
 		port:        2525,
 		from:        "crm@example.com",
 		tls:         "none",
-		publicURL:   "https://crm.example.com",
 		templateDir: absentTemplateDir,
-	}, discardLogger())
+	}, "https://crm.example.com", discardLogger())
 
 	if err == nil {
 		t.Fatal("buildMail() error = nil, want the unusable template directory refused")

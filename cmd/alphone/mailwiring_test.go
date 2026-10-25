@@ -132,21 +132,17 @@ func tokenFromMail(t *testing.T, relay *smtpmock.Server, base string) string {
 	return strings.TrimSpace(token)
 }
 
-func TestRunAnswersTheActivationLinkWithoutARelay(t *testing.T) {
-	t.Parallel()
-
-	if testing.Short() {
-		t.Skip("skipping database test in short mode")
-	}
-	addr := testkit.FreeAddr(t)
+// invitedWithoutARelay serves run over env and a fresh database with no relay, answering the invite the admin sends.
+func invitedWithoutARelay(t *testing.T, env map[string]string) string {
+	t.Helper()
 	databaseURL := testDatabaseURL(t)
+	addr := testkit.FreeAddr(t)
+	env["ALPHONE_DATABASE_URL"] = databaseURL
+	env["ALPHONE_ADDR"] = addr
 	ctx, cancel := context.WithCancel(t.Context())
 	runErr := make(chan error, 1)
 	go func() {
-		runErr <- run(ctx, testkit.Getenv(map[string]string{
-			"ALPHONE_DATABASE_URL": databaseURL,
-			"ALPHONE_ADDR":         addr,
-		}), io.Discard, registerPlugins)
+		runErr <- run(ctx, testkit.Getenv(env), io.Discard, registerPlugins)
 	}()
 	t.Cleanup(func() { stopRun(t, cancel, runErr) })
 
@@ -155,15 +151,40 @@ func TestRunAnswersTheActivationLinkWithoutARelay(t *testing.T) {
 	seedAdmin(t, databaseURL)
 	session := loginSession(t, baseURL)
 
-	invited := postGraphAuthed(t, ctx, session, baseURL,
+	return postGraphAuthed(t, ctx, session, baseURL,
 		`{"query":"mutation { invite(email: \"grace@example.com\", name: \"Grace Hopper\")`+
 			` { delivered activationLink } }"}`)
+}
 
-	if !strings.Contains(invited, `"delivered":false`) {
-		t.Fatalf("invite = %q, want it undelivered without a relay", invited)
+func TestRunAnswersTheActivationLinkWithoutARelay(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		env  map[string]string
+		link string
+	}{
+		"no public address": {
+			env:  map[string]string{},
+			link: `"activationLink":"/activate?token=`,
+		},
+		"a public address": {
+			env:  map[string]string{"ALPHONE_PUBLIC_URL": "https://crm.example.com"},
+			link: `"activationLink":"https://crm.example.com/activate?token=`,
+		},
 	}
-	if !strings.Contains(invited, `"activationLink":"/activate?token=`) {
-		t.Fatalf("invite = %q, want the link answered for hand delivery", invited)
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			invited := invitedWithoutARelay(t, tc.env)
+
+			if !strings.Contains(invited, `"delivered":false`) {
+				t.Fatalf("invite = %q, want it undelivered without a relay", invited)
+			}
+			if !strings.Contains(invited, tc.link) {
+				t.Fatalf("invite = %q, want the link handed over as %s", invited, tc.link)
+			}
+		})
 	}
 }
 
