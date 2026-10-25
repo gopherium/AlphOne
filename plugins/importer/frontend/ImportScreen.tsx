@@ -67,7 +67,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 	}
 	if (!detail.data) {
 		return (
-			<PageScreen title={_x('Import', 'admin section', 'alphone-importer')}>
+			<PageScreen title={_x('Import', 'admin section', 'alphone-importer')} headingLevel={2}>
 				<LoadingScreen label={__('Loading import…', 'alphone-importer')} />
 			</PageScreen>
 		)
@@ -77,7 +77,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
 	}
 	return (
-		<PageScreen title={stored.filename}>
+		<PageScreen title={stored.filename} headingLevel={2}>
 			<MappingForm stored={stored} fields={importFields} />
 			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
 			<StagedRows stored={stored} staged={staged} fields={importFields} />

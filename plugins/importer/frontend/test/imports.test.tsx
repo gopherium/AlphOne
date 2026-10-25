@@ -17,7 +17,6 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, test } from 'vitest'
 
 import { handlers, importID, multipartBody } from '../handlers'
-import { importerIcon } from '../icon'
 import { routes } from '../routes'
 import { plugin } from '../index'
 import { inSpanish, renderAt } from './harness'
@@ -160,11 +159,11 @@ async function emptyDrawing(title: string): Promise<string | null | undefined> {
 }
 
 /**
- * Returns the drawing the importer icon carries.
+ * Returns the drawing the upload icon carries.
  * @returns The path data of its drawing.
  */
-function importerDrawing(): string | null | undefined {
-	const { container, unmount } = render(importerIcon)
+function uploadDrawing(): string | null | undefined {
+	const { container, unmount } = render(uploadIcon)
 	const drawn = container.querySelector('path')?.getAttribute('d')
 	unmount()
 	return drawn
@@ -213,14 +212,14 @@ test('says under the title what the import page is for', async () => {
 
 	const subtitle = await screen.findByText('Bring contacts in from CSV and Excel files.')
 	expect(subtitle).toHaveClass('godmin-page__subtitle')
-	expect(screen.getByRole('heading', { level: 1, name: 'Import' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 2, name: 'Import' })).toBeInTheDocument()
 })
 
 test('heads the page with the name the menu gives the section, in Spanish too', async () => {
 	await inSpanish()
 	renderAt('/import')
 
-	const heading = await screen.findByRole('heading', { level: 1 })
+	const heading = await screen.findByRole('heading', { level: 2 })
 	expect([heading.textContent, plugin.nav[0].label]).toEqual(['Importar', 'Importar'])
 })
 
@@ -458,13 +457,15 @@ test('reports when the imports cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('Imports could not be loaded.')
 })
 
-test('shows an empty state with the import icon when no import exists', async () => {
+test('shows an empty state with the upload glyph of the Import row when no import exists', async () => {
 	holding([])
 	renderAt('/import')
 
 	expect(await screen.findByText('No imports yet.')).toBeInTheDocument()
 	expect(screen.getByText('Upload a CSV or Excel file to start one.').closest('.godmin-empty')).not.toBeNull()
-	expect(await emptyDrawing('No imports yet.')).toBe(importerDrawing())
+	expect(await emptyDrawing('No imports yet.')).toBe(uploadDrawing())
+	expect(plugin.nav[0].icon).toBe(uploadIcon)
+	expect(screen.getByRole('heading', { level: 3, name: 'No imports yet.' })).toBeInTheDocument()
 })
 
 test('says no import matched when a search finds none', async () => {
@@ -472,7 +473,7 @@ test('says no import matched when a search finds none', async () => {
 
 	expect(await screen.findByText('No imports found.')).toBeInTheDocument()
 	expect(screen.queryByText('No imports yet.')).not.toBeInTheDocument()
-	expect(await emptyDrawing('No imports found.')).toBe(importerDrawing())
+	expect(await emptyDrawing('No imports found.')).toBe(uploadDrawing())
 })
 
 test('opens the file dialog from the Upload button, for CSV and Excel files only', async () => {

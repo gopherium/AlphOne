@@ -83,7 +83,7 @@ test('keeps the page chrome while the import is on its way', async () => {
 	server.use(graphql.query('ImportDetail', () => new Promise(() => {})))
 	renderScreen()
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Import' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Import' })).toBeInTheDocument()
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading import…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
@@ -94,7 +94,7 @@ test('heads the loading page with the name the menu gives the section, in Spanis
 	server.use(graphql.query('ImportDetail', () => new Promise(() => {})))
 	renderScreen()
 
-	const heading = await screen.findByRole('heading', { level: 1 })
+	const heading = await screen.findByRole('heading', { level: 2 })
 	expect([heading.textContent, plugin.nav[0].label]).toEqual(['Importar', 'Importar'])
 })
 
@@ -107,7 +107,7 @@ test('the screen names the file it is mapping', async () => {
 test('the screen sets the Rows heading a size above the field labels', async () => {
 	renderScreen()
 
-	const heading = await screen.findByRole('heading', { level: 2, name: 'Rows' })
+	const heading = await screen.findByRole('heading', { level: 3, name: 'Rows' })
 	expect([...heading.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
 })
 
