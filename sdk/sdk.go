@@ -98,6 +98,12 @@ type RoleProvider interface {
 	Roles() []RoleDeclaration
 }
 
+// TopRoleProvider is implemented by the one plugin naming the deployment's top role.
+type TopRoleProvider interface {
+	// TopRole names a role the plugin declares and AlphOne does not ship, given every capability other plugins declare.
+	TopRole() string
+}
+
 // GraphField is one runtime defined field a plugin serves over the graph.
 type GraphField struct {
 	// Entity is the GraphQL type the field hangs on, such as Contact.
