@@ -153,8 +153,13 @@ Hand the checker to authkit as `AdminConfig.Roles` or
 nobody declares, the same way the core's writes do.
 `SetAccountRoleFrom` and `SetAccountDisabledFrom` also refuse an account
 whose role changed after the check, and enabling an account whose role
-nobody declares. Neither checks who may hand a role out, so ask
-`Outranks` first when the write acts for an account.
+nobody declares. Neither checks whether the acting account may make the
+change, so check that first, the way the core does. For a role change,
+the acting account's role must carry every capability of the role you
+are giving and every capability of the role the account holds now, so
+ask `Outranks` about each and go ahead only when both answer true. To
+disable or enable an account, ask `Outranks` about the role the account
+holds now.
 [User administration](https://docs.gopherium.org/authentication/user-administration/#checking-roles-against-a-registry)
 lists every case authkit refuses. With a nil `Roles` authkit checks none
 of this, so refuse an account write that comes before `UseRoleChecker`.
