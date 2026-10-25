@@ -294,7 +294,8 @@ the columns that scrolled out of view, and the label says what they
 belong to.
 
 Form fields go inside `godmin-form`, which stacks them and keeps the
-column readable.
+column readable. A form inside a dialog is `FormBody` instead, as
+[Dialogs](#dialogs) shows.
 
 For a list read with `useConnection`, `LoadMore` renders the next page
 button and hides itself once every page is loaded. When the list is
@@ -310,7 +311,8 @@ their current order.
 A short table you fill yourself fits the part above. A list a reader
 searches, sorts, filters and pages through is a WordPress DataViews
 list, like Contacts and Users. Import `DataViews`, its types and
-`listDate` from `@alphone/frontend-sdk/dataviews`, and everything else
+`listDate` from `@alphone/frontend-sdk/dataviews`, `ConfirmDialog` and
+`FormDialog` from `@alphone/frontend-sdk/dialogs`, and everything else
 from `@alphone/frontend-sdk`.
 
 ### The view lives in the address
@@ -477,74 +479,181 @@ test that builds a client itself passes the plugin too, with
 ### Bulk actions
 
 An action with `supportsBulk: true` runs on every row the reader
-ticked. `runEach` makes one call per row, all at once, and counts how
-they went:
+ticked. `useBulkRun` makes one call per row, all at once, refreshes
+your list and shows one toast in the words you pass as `BulkWords`:
 
 ```tsx
-import {
-	__,
-	_n,
-	formatNumber,
-	inbox,
-	runEach,
-	sprintf,
-	useGraph,
-	useToaster,
-} from '@alphone/frontend-sdk'
+import { __, _n, formatNumber, inbox, sprintf, useGraph } from '@alphone/frontend-sdk'
+import type { BulkRun, BulkWords } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 
-export function useArchiveAction(onFailure: (message: string | undefined) => void): Action<InvoiceRow> {
+const archiveWords: BulkWords<InvoiceRow> = {
+	done: (done) =>
+		sprintf(_n('%s invoice archived.', '%s invoices archived.', done, 'acme-billing'), formatNumber(done)),
+	failed: (failures) =>
+		sprintf(
+			_n('%s invoice could not be archived.', '%s invoices could not be archived.', failures.length, 'acme-billing'),
+			formatNumber(failures.length),
+		),
+}
+
+export function useArchiveAction(bulk: BulkRun<InvoiceRow>): Action<InvoiceRow> {
 	const graph = useGraph()
-	const toaster = useToaster()
-	return {
-		id: 'archive',
-		label: __('Archive', 'acme-billing'),
-		icon: inbox,
-		supportsBulk: true,
-		callback: async (invoices) => {
-			onFailure(undefined)
-			const { done, failures } = await runEach(invoices, (invoice) =>
-				graph.client.mutation(archiveInvoiceMutation, { id: invoice.id }).toPromise(),
-			)
-			graph.refetch(['InvoicePage'])
-			if (done > 0) {
-				const template = _n('%s invoice archived.', '%s invoices archived.', done, 'acme-billing')
-				toaster.show(sprintf(template, formatNumber(done)))
-			}
-			if (failures.length > 0) {
-				const template = _n(
-					'%s invoice could not be archived.',
-					'%s invoices could not be archived.',
-					failures.length,
-					'acme-billing',
-				)
-				onFailure(sprintf(template, formatNumber(failures.length)))
-			}
-		},
-	}
+	return useMemo(
+		() => ({
+			id: 'archive',
+			label: __('Archive', 'acme-billing'),
+			icon: inbox,
+			supportsBulk: true,
+			callback: (invoices) =>
+				bulk(
+					invoices,
+					(invoice) => graph.client.mutation(archiveInvoiceMutation, { id: invoice.id }).toPromise(),
+					archiveWords,
+				),
+		}),
+		[graph, bulk],
+	)
 }
 ```
 
-`runEach` answers `asked`, how many rows it got, `done`, how many calls
-worked, and `failures`, each row that failed with its error, in the
-order of the rows. A call fails when it throws, when its promise
-rejects, or when it answers with its `error` set. An urql result with
-an error counts as a failure, so the call hands back what `toPromise()`
-gives it. `runEach` itself never fails, so one bad row never hides the
-others.
+The screen holds the run and the refresh, and hands the action its
+`bulk`:
 
-The rest is the shape every AlphOne list follows. Clear the old notice
-when the run starts. Refresh the list yourself, because DataViews never
-tells the screen an action finished. Toast what worked, and show what
-failed in an `ErrorNotice` above the list, never in a toast. The action
-lives in a hook because `useGraph` and `useToaster` only work inside a
-component, and the screen passes `onFailure` to show the message.
+```tsx
+const { run } = useListRun('invoices', list.onChangeSelection)
+const refresh = useCallback(
+	() => graph.client.query(invoicePageQuery, pageVariables, { requestPolicy: 'network-only' }).toPromise(),
+	[graph, pageVariables],
+)
+const archive = useArchiveAction(useBulkRun<InvoiceRow>(run, refresh))
+```
+
+A call fails when it throws, when its promise rejects, or when it
+answers with its `error` set, so an urql result with an error counts
+as a failure. One bad row never hides the others. `useBulkRun` waits
+for `refresh` before the toast, because DataViews never tells the
+screen an action finished, so `refresh` must return a promise.
+`graph.refetch` returns nothing, so read the list again with
+`graph.client.query` as above. Wrap `refresh` in `useCallback`. When
+it changes during a run, the bulk bar draws the confirm again and the
+run loses its busy state.
+
+The toast holds your `failed` words when any row failed, and your
+`done` words when every row worked. Nothing shows above the list.
+`done` gets the one row when only one was asked, so you can name it,
+and `failed` gets each failure with its error and how many rows were
+asked. `useListRun` keeps the ticked rows in step with the list. It
+moves the focus to the list after a run only when you pass its
+`region` to `PageScreen` as `listRef`, with a `listLabel`.
 
 Give every bulk action an `icon`. On a medium wide screen the toolbar
 shows only the icon. When one row was picked and it failed, show the
 server's reason instead of a count. `failures[0].error` is `unknown`,
 so cast it to `GraphFailure` and pass it through `graphError` and
 `validationMessage`, as in [Failures in forms](#failures-in-forms).
+
+### Dialogs
+
+A write that fails never shows inside a dialog. Say why in a toast at
+the bottom of the screen, as WordPress does, with `useToaster`.
+
+A confirm on a list row is drawn inside the list's own modal. A
+confirm that removes something, such as Revoke, hides the header, so
+give that row action `hideModalHeader: true`. A plain confirm keeps
+its header, the action's `modalHeader` or else its label. Either way,
+give it `modalFocusOnMount: 'firstContentElement'`, so Cancel takes
+the focus, and leave `modalSize` out, so it is 560px wide like every
+WordPress row modal. Render `RunConfirm` with the question as its
+child, the words of **Cancel** and of a button named after the
+action, and `run`, which takes the picked rows and settles once your
+list shows how it went. It keeps Cancel inert while the run goes and
+closes once it settles:
+
+```tsx
+RenderModal: (props) => (
+	<RunConfirm
+		{...props}
+		confirmLabel={__('Archive', 'acme-billing')}
+		cancelLabel={__('Cancel', 'acme-billing')}
+		run={(invoices) => bulk(invoices, archiveOne, archiveWords)}
+	>
+		{__('Archive the picked invoices?', 'acme-billing')}
+	</RunConfirm>
+),
+```
+
+For a row action that asks for more, the SDK passes on the bodies the
+admin draws in a row modal. `ConfirmBody` asks a question you run
+yourself: keep it `busy` while the write runs, then close the modal
+and say how it went in a toast. `RenameBody` asks for a new name.
+Give its button the label **Save**, as WordPress does, close the
+modal the moment the reader saves, then write. Its Save is off only
+while the name is blank, so a name left as it was can be sent.
+`FormBody` holds any fields, with `kind` set to `edit`, `copy` or
+`create` to space its buttons as WordPress does. A change to one row
+closes when it is sent. A copy, or a change to several rows, keeps
+the modal open with `busy` until the write ends.
+
+When a write fails after its modal closed, give the reader back what
+they typed. `useUnsavedText` holds what failed writes left unsaved,
+by row id, for as long as the screen stays. Keep it in the hook that
+builds your actions, never in the modal, and start the field from it.
+`markLatest` marks a write as the latest one sent to a row, so a
+failure keeps its text only when no later write went to that row:
+
+```tsx
+const save = (name: string) => {
+	closeModal?.()
+	renames.delete(invoice.id)
+	const stillLatest = markLatest(renames, invoice.id)
+	void graph.client
+		.mutation(renameInvoiceMutation, { id: invoice.id, name })
+		.toPromise()
+		.then((result) => {
+			if (result.error) {
+				if (stillLatest()) {
+					renames.set(invoice.id, name)
+				}
+				toaster.show(validationMessage(graphError(result.error), __('The name could not be updated.', 'acme-billing')))
+				return
+			}
+			toaster.show(__('Name updated.', 'acme-billing'))
+		})
+}
+
+<RenameBody
+	name={renames.get(invoice.id) ?? invoice.name}
+	fieldLabel={__('Name', 'acme-billing')}
+	submitLabel={__('Save', 'acme-billing')}
+	cancelLabel={__('Cancel', 'acme-billing')}
+	onSubmit={save}
+	onCancel={closeModal}
+/>
+```
+
+An urql call answers with its `error` set rather than rejecting, so
+check `result.error` instead of chaining `.catch`.
+
+To confirm an action outside a list, such as a button in your
+screen's header, use `ConfirmDialog` from
+`@alphone/frontend-sdk/dialogs`. It draws the WordPress modal, a sheet
+along the bottom of the screen on a phone, with Cancel focused. Leave
+`title` out on a confirm that removes something, so the question is
+the only text. What `onConfirm` returns decides when the dialog goes.
+For a button, make it a plain function that returns nothing. The
+dialog then closes at once while your write runs, and the button that
+opened it shows the work. An `async` function always returns a
+promise, which keeps the dialog open, so leave `onConfirm` plain.
+Return the write's promise only for a confirm on a row of a list you
+draw yourself, outside DataViews. The dialog then stays open with its
+button busy until the write ends.
+
+`FormDialog` from the same entry asks for a form from a button, as
+WordPress opens Add Page: a title, the first field focused, and the
+dialog left open after a failure, so the reader keeps what they typed.
+The `/dialogs` entry loads the WordPress components only on the
+screens that draw a dialog.
 
 ### Channel names
 
@@ -695,7 +804,9 @@ render: ({ item }) => listDate(item.createdAt)
 ## Failures in forms
 
 `validationMessage` shows a backend validation message verbatim and
-falls back to your own copy for anything else.
+falls back to your own copy for anything else. `ErrorNotice` is for a
+failed load and for a form on its own page. A failure in a dialog or
+in a run over list rows goes in a toast, as [Dialogs](#dialogs) says.
 
 ```tsx
 <ErrorNotice>
@@ -795,7 +906,7 @@ last one is a convention a reviewer will hold you to.
 | Use a bare `<EmptyState.Root>` | Add `className="godmin-empty"` | source invariant |
 | Leave a table outside the scrolling region | Wrap it in `godmin-table-scroll` | source invariant |
 | Let a screen spill sideways on a phone | Keep it inside the canvas | end to end fit sweep |
-| Put failure copy in a plain `Text` | `ErrorNotice`, which announces it | screen tests assert the alert role |
+| Put failure copy in a plain `Text` | `ErrorNotice` for a failed load or a form on its own page, a toast for a dialog or a list run | screen tests assert the alert role or the toast |
 | Cap the page width yourself | Let the page span the canvas | end to end geometry test |
 | Hand roll a load more button | `LoadMore` | convention |
 
