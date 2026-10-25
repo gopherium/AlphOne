@@ -213,6 +213,28 @@ test('takes Back on a plugin sub menu to the host home, the focus on the row it 
 	await waitFor(() => expect(row).toHaveFocus())
 })
 
+test('gives a plugin screen the full bleed canvas its route asks for, as the admin does', async () => {
+	const bleedPlugin: FrontendPlugin = {
+		id: 'bleed',
+		nav: [],
+		routes: (parent) => [
+			createRoute({
+				getParentRoute: () => parent,
+				path: '/thread',
+				staticData: { canvas: 'bleed' },
+				component: function ThreadCanvas() {
+					return <p>thread canvas</p>
+				},
+			}),
+		],
+	}
+
+	renderPluginAt(bleedPlugin, '/thread', { session: adminSession })
+
+	expect(await screen.findByText('thread canvas')).toBeInTheDocument()
+	expect(document.querySelector('.godmin-layout__canvas')).toHaveClass('godmin-layout__canvas--bleed')
+})
+
 test('hands back the router the plugin screen is mounted in', async () => {
 	const { router } = renderPluginAt(sessionPlugin, '/signed-in', { session: adminSession })
 

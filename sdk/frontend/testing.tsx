@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 import { Frame, Toaster } from '@gopherium/godmin'
-import { Navigation, useFrameLocation } from '@gopherium/godmin/router'
+import { Navigation, useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
 import { can, sessionQueryKey } from '@gopherium/react-auth'
 import {
@@ -262,7 +262,7 @@ function TestHost({ nav }: { nav: readonly MenuItem[] }) {
 					can={(capability) => can(session, capability)}
 				/>
 			</Frame.Sidebar>
-			<Frame.Canvas>
+			<Frame.Canvas canvas={useCanvas()}>
 				<Outlet />
 			</Frame.Canvas>
 		</Frame.Root>
