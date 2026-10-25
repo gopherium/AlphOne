@@ -7,16 +7,13 @@ import {
 	formatNumber,
 	graphError,
 	notAllowed,
-	runEach,
 	sprintf,
 	useGraph,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { BulkFailure, Session } from '@alphone/frontend-sdk'
+import type { BulkFailure, BulkRun, BulkWords, Session } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
-import { usersQueryKey } from '@gopherium/react-auth/admin'
-import { useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
 import type { Account } from '../auth/graphTransport'
@@ -26,15 +23,20 @@ import { ResendModal, RoleModal } from './UserModals'
 /**
  * Returns the toast confirming the accounts one disable or enable changed.
  * @param disabled - Whether the accounts were disabled rather than enabled.
- * @param asked - How many accounts the action was asked to change.
- * @param done - How many of them changed.
- * @param name - The name of the first account, cut to the length a toast shows.
+ * @param done - How many accounts changed.
+ * @param only - The one account asked, when only one was.
+ * @param cut - Cuts a name to the length a toast shows.
  * @returns The confirmation, naming the account when only one was asked.
  */
-function switchedMessage(disabled: boolean, asked: number, done: number, name: string): string {
-	if (asked === 1) {
+function switchedMessage(
+	disabled: boolean,
+	done: number,
+	only: Account | undefined,
+	cut: (name: string) => string,
+): string {
+	if (only !== undefined) {
 		const template = disabled ? __('"%(name)s" disabled.', 'alphone') : __('"%(name)s" enabled.', 'alphone')
-		return sprintf(template, { name })
+		return sprintf(template, { name: cut(only.name) })
 	}
 	const template = disabled
 		? _n('%s user disabled.', '%s users disabled.', done, 'alphone')
@@ -43,7 +45,7 @@ function switchedMessage(disabled: boolean, asked: number, done: number, name: s
 }
 
 /**
- * Returns the notice naming the accounts one disable or enable could not change.
+ * Returns the toast naming the accounts one disable or enable could not change.
  * @param disabled - Whether the accounts were to be disabled rather than enabled.
  * @param asked - How many accounts the action was asked to change.
  * @param failures - Each unchanged account with the failure it answered with.
@@ -63,37 +65,39 @@ function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailu
 }
 
 /**
+ * Returns the words a disable or enable run reports its outcome in.
+ * @param disabled - Whether the run disables the accounts rather than enables them.
+ * @param cut - Cuts a name to the length a toast shows.
+ * @returns The words for the accounts changed and for the ones that failed.
+ */
+function switchWords(disabled: boolean, cut: (name: string) => string): BulkWords<Account> {
+	return {
+		done: (done, only) => switchedMessage(disabled, done, only, cut),
+		failed: (failures, asked) => unswitchedMessage(disabled, asked, failures),
+	}
+}
+
+/**
  * Returns the users list actions, none on the reader's own row, a role or standing change only within reach.
  * @param session - The signed-in account.
- * @param onFailure - Shows the failure of a disable or enable above the list, or clears it.
+ * @param bulk - Runs a disable or enable over the picked accounts, reloads the list and shows one toast.
  * @returns The row and bulk actions, none once the session is gone.
  */
-export function useUserActions(
-	session: Session | null,
-	onFailure: (message: string | undefined) => void,
-): Action<Account>[] {
+export function useUserActions(session: Session | null, bulk: BulkRun<Account>): Action<Account>[] {
 	const graph = useGraph()
 	const toaster = useToaster()
-	const queryClient = useQueryClient()
 
 	return useMemo(() => {
 		if (session === null) {
 			return []
 		}
 		const changeable = (user: Account) => user.id !== session.id && user.withinReach
-		const switchAccounts = async (items: Account[], disabled: boolean) => {
-			onFailure(undefined)
-			const { done, failures } = await runEach(items, (user) =>
-				graph.client.mutation(setUserDisabledMutation, { id: user.id, disabled }).toPromise(),
+		const switchAccounts = (items: Account[], disabled: boolean) =>
+			bulk(
+				items,
+				(user) => graph.client.mutation(setUserDisabledMutation, { id: user.id, disabled }).toPromise(),
+				switchWords(disabled, (name) => toaster.name(name)),
 			)
-			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
-			if (done > 0) {
-				toaster.show(switchedMessage(disabled, items.length, done, toaster.name(items[0].name)))
-			}
-			if (failures.length > 0) {
-				onFailure(unswitchedMessage(disabled, items.length, failures))
-			}
-		}
 		const actions: Action<Account>[] = [
 			{
 				id: 'change-role',
@@ -130,5 +134,5 @@ export function useUserActions(
 			},
 		]
 		return actions
-	}, [session, graph, toaster, queryClient, onFailure])
+	}, [session, graph, toaster, bulk])
 }
