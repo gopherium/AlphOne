@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { configureAppErrorText } from '../i18n/errors'
+import { gate } from './gate'
 import { buttonClasses, renderAt } from './render'
 
 /**
@@ -256,7 +257,29 @@ test('closes the resend modal without sending when the reader cancels', async ()
 	expect(sent).toBe(0)
 })
 
-test('shows why a resend failed inside the modal in the words the reason names', async () => {
+test('keeps the resend busy with Cancel greyed until the write ends, then toasts and closes', async () => {
+	const answer = gate()
+	server.use(
+		graphql.mutation('ResendInvite', async () => {
+			await answer.held
+			return HttpResponse.json({
+				data: { resendInvite: { __typename: 'InvitePayload', delivered: true, activationLink: null } },
+			})
+		}),
+	)
+	renderAt('/users')
+	const modal = await openResend()
+
+	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
+
+	await waitFor(() => expect(modal.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
+	expect(screen.getByRole('dialog')).toBeInTheDocument()
+	answer.release()
+	expect(await screen.findByText('Invitation sent to "Maria Perez".', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('says why a resend failed in a toast in the words the reason names, the confirm closed', async () => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('ResendInvite', () =>
@@ -276,10 +299,14 @@ test('shows why a resend failed inside the modal in the words the reason names',
 
 	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
 
-	expect(await modal.findByRole('alert')).toHaveTextContent('Write the address as a full email address.')
+	expect(
+		await screen.findByText('Write the address as a full email address.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-test('says plainly that a resend failed when the server names no reason', async () => {
+test('says plainly in a toast that a resend failed when the server names no reason', async () => {
 	server.use(
 		graphql.mutation('ResendInvite', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'the relay refused', extensions: { code: 'INTERNAL' } }] }),
@@ -290,6 +317,7 @@ test('says plainly that a resend failed when the server names no reason', async 
 
 	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
 
-	expect(await modal.findByRole('alert')).toHaveTextContent('The invitation could not be sent.')
+	expect(await screen.findByText('The invitation could not be sent.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('the relay refused')).not.toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
