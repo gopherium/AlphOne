@@ -1,32 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	ConfirmBody,
+	RunConfirm,
 	__,
 	_n,
 	formatNumber,
 	graphError,
-	runEach,
 	sprintf,
 	useGraph,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { BulkOutcome } from '@alphone/frontend-sdk'
+import type { BulkFailure, BulkRun, BulkWords } from '@alphone/frontend-sdk'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
-import { useState } from 'react'
 
 import type { ApiToken } from './tokenFields'
 import { apiTokenRevokeMutation } from './tokenOperations'
-
-/** RevokeOutcome reports the tokens one revoke reached and the failures of the rest. */
-type RevokeOutcome = BulkOutcome<ApiToken>
-
-/** RevokeHandlers carries what the screen does once a revoke ran. */
-export interface RevokeHandlers {
-	onFailure: (message: string | undefined) => void
-	onRevoked: () => void
-}
 
 /**
  * Returns the question the revoke modal asks.
@@ -49,23 +38,25 @@ function revokeQuestion(tokens: ApiToken[], name: string): string {
 
 /**
  * Returns the toast confirming the tokens one revoke reached.
- * @param outcome - What the revoke reached.
- * @param name - The name of the first token, cut to the length a toast shows.
+ * @param done - How many tokens the revoke reached.
+ * @param only - The one token asked, when only one was.
+ * @param cut - Cuts a name to the length a toast shows.
  * @returns The confirmation, naming the token when only one was asked.
  */
-function revokedMessage({ asked, done }: RevokeOutcome, name: string): string {
-	if (asked === 1) {
-		return sprintf(__('"%(name)s" revoked.', 'alphone'), { name })
+function revokedMessage(done: number, only: ApiToken | undefined, cut: (name: string) => string): string {
+	if (only !== undefined) {
+		return sprintf(__('"%(name)s" revoked.', 'alphone'), { name: cut(only.name) })
 	}
 	return sprintf(_n('%s token revoked.', '%s tokens revoked.', done, 'alphone'), formatNumber(done))
 }
 
 /**
- * Returns the notice naming the tokens one revoke could not reach.
- * @param outcome - What the revoke reached.
+ * Returns the toast naming the tokens one revoke could not reach.
+ * @param failures - The tokens the revoke could not reach, each with its error.
+ * @param asked - How many tokens the revoke was asked to reach.
  * @returns The reason for one token, the count for several.
  */
-function unrevokedMessage({ asked, failures }: RevokeOutcome): string {
+function unrevokedMessage(failures: BulkFailure<ApiToken>[], asked: number): string {
 	if (asked === 1) {
 		const reason = graphError(failures[0].error)
 		return validationMessage(reason, __('The token could not be revoked.', 'alphone'))
@@ -75,40 +66,42 @@ function unrevokedMessage({ asked, failures }: RevokeOutcome): string {
 }
 
 /**
+ * Returns the words a revoke run reports its outcome in.
+ * @param cut - Cuts a name to the length a toast shows.
+ * @returns The words for the tokens revoked and for the ones that failed.
+ */
+function revokeWords(cut: (name: string) => string): BulkWords<ApiToken> {
+	return {
+		done: (done, only) => revokedMessage(done, only, cut),
+		failed: unrevokedMessage,
+	}
+}
+
+/**
  * Renders the modal asking before the picked tokens are revoked, then revokes them one call each.
- * @param props - The tokens, the handler closing the modal, and what the screen does once they ran.
+ * @param props - The tokens, the handler closing the modal, and the run the list reports through.
  * @returns The confirmation.
  */
-export function RevokeModal({ items, closeModal, onFailure, onRevoked }: RenderModalProps<ApiToken> & RevokeHandlers) {
+export function RevokeModal({ items, closeModal, bulk }: RenderModalProps<ApiToken> & { bulk: BulkRun<ApiToken> }) {
 	const graph = useGraph()
 	const toaster = useToaster()
-	const [busy, setBusy] = useState(false)
-	const name = toaster.name(items[0].name)
-	const submit = async () => {
-		setBusy(true)
-		onFailure(undefined)
-		const outcome = await runEach(items, (token) =>
-			graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise(),
-		)
-		onRevoked()
-		if (outcome.done > 0) {
-			toaster.show(revokedMessage(outcome, name))
-		}
-		if (outcome.failures.length > 0) {
-			onFailure(unrevokedMessage(outcome))
-		}
-		closeModal?.()
-	}
+	const cut = (name: string) => toaster.name(name)
 
 	return (
-		<ConfirmBody
+		<RunConfirm
+			items={items}
+			closeModal={closeModal}
 			confirmLabel={__('Revoke', 'alphone')}
 			cancelLabel={__('Cancel', 'alphone')}
-			busy={busy}
-			onConfirm={() => void submit()}
-			onCancel={busy ? undefined : closeModal}
+			run={(tokens) =>
+				bulk(
+					tokens,
+					(token) => graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise(),
+					revokeWords(cut),
+				)
+			}
 		>
-			{revokeQuestion(items, name)}
-		</ConfirmBody>
+			{revokeQuestion(items, cut(items[0].name))}
+		</RunConfirm>
 	)
 }

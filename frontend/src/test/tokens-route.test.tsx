@@ -12,6 +12,7 @@ import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
+import { gate } from './gate'
 import { buttonClasses, renderAt } from './render'
 
 /** token is one token as the listing answers it. */
@@ -521,7 +522,7 @@ test('asks and confirms a revoke in Spanish', async () => {
 	expect(await screen.findByText('«n8n production» revocado.')).toBeInTheDocument()
 })
 
-test('shows why a token could not be revoked above the list, without a toast', async () => {
+test('shows why a token could not be revoked in a toast, never above the list', async () => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('ApiTokenRevoke', () =>
@@ -533,10 +534,55 @@ test('shows why a token could not be revoked above the list, without a toast', a
 	await act('n8n production', 'Revoke…')
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The token could not be revoked.')
+	expect(await screen.findByText('The token could not be revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 	expect(screen.queryByText('"n8n production" revoked.')).not.toBeInTheDocument()
-	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('keeps a revoke from a row busy with Cancel greyed until it ends, then closes', async () => {
+	const answer = gate()
+	server.use(
+		graphql.mutation('ApiTokenRevoke', async () => {
+			await answer.held
+			return HttpResponse.json({ data: { apiTokenRevoke: true } })
+		}),
+	)
+	renderAt('/users/tokens')
+
+	await act('n8n production', 'Revoke…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
+	expect(screen.getByRole('dialog')).toBeInTheDocument()
+	answer.release()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('keeps a bulk revoke busy while the list reloads, then closes with one toast', async () => {
+	revokes()
+	renderAt('/users/tokens')
+	await select('n8n production', 'Zapier sync')
+	const reload = gate()
+	server.use(
+		graphql.query('ApiTokens', async () => {
+			await reload.held
+			return HttpResponse.json({ data: { apiTokens: held } })
+		}),
+	)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
+	expect(screen.queryByText('2 tokens revoked.')).not.toBeInTheDocument()
+	reload.release()
+	expect(await screen.findByText('2 tokens revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(async () => expect(await shownNames()).toEqual(['Monthly report']))
 })
 
 test('revokes every selected token after one question with one toast, counted in the format locale', async () => {
@@ -555,7 +601,7 @@ test('revokes every selected token after one question with one toast, counted in
 	await waitFor(async () => expect(await shownNames()).toEqual(['Monthly report']))
 })
 
-test('names the tokens a bulk revoke could not reach in one notice counting them in the format locale', async () => {
+test('counts only the tokens a bulk revoke could not reach, in one toast in the format locale', async () => {
 	rememberFormatLocale('es-ES-u-nu-deva')
 	server.use(
 		graphql.mutation('ApiTokenRevoke', ({ variables }) =>
@@ -570,25 +616,8 @@ test('names the tokens a bulk revoke could not reach in one notice counting them
 	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
 	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
 
-	expect(await screen.findByText('१ token revoked.')).toBeInTheDocument()
-	expect(await screen.findByRole('alert')).toHaveTextContent('१ token could not be revoked.')
-})
-
-test('clears an earlier failure once the next revoke starts', async () => {
-	server.use(
-		graphql.mutation('ApiTokenRevoke', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
-	renderAt('/users/tokens')
-	await act('n8n production', 'Revoke…')
-	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
-	expect(await screen.findByRole('alert')).toHaveTextContent('The token could not be revoked.')
-	revokes()
-
-	await act('n8n production', 'Revoke…')
-	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
-
-	expect(await screen.findByText('"n8n production" revoked.')).toBeInTheDocument()
+	expect(await screen.findByText('१ token could not be revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('१ token revoked.')).not.toBeInTheDocument()
+	expect(document.querySelectorAll('.godmin-toast')).toHaveLength(1)
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })

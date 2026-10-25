@@ -8,13 +8,16 @@ import {
 	__,
 	key,
 	useAdminSettings,
+	useBulkRun,
+	useGraph,
 	useGraphQuery,
+	useListRun,
 	useListView,
 } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
 import { usersNavItem } from '@gopherium/react-auth/wpds'
 import { Link } from '@tanstack/react-router'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 
 import { useReachable } from '../menu/reach'
@@ -66,7 +69,8 @@ function tokensHeading(opensUsers: boolean): { title: string; tabs?: ReactNode }
  */
 export function TokensScreen() {
 	const heading = tokensHeading(useReachable()(usersNavItem))
-	const [result, refetch] = useGraphQuery({
+	const graph = useGraph()
+	const [result] = useGraphQuery({
 		query: apiTokensQuery,
 		requestPolicy: 'cache-and-network',
 	})
@@ -78,9 +82,12 @@ export function TokensScreen() {
 		sort: { field: 'created', direction: 'desc' },
 		perPage: settings?.listPageSize,
 	})
-	const [failure, setFailure] = useState<string>()
-	const reload = useCallback(() => refetch({ requestPolicy: 'network-only' }), [refetch])
-	const actions = useTokenActions(setFailure, reload)
+	const { run } = useListRun('tokens', list.onChangeSelection)
+	const reload = useCallback(
+		() => graph.client.query(apiTokensQuery, {}, { requestPolicy: 'network-only' }).toPromise(),
+		[graph],
+	)
+	const actions = useTokenActions(useBulkRun<ApiToken>(run, reload))
 	const tokens = result.data?.apiTokens ?? noTokens
 	const fields = useMemo(() => tokenFields(tokens), [tokens])
 	const shown = filterSortAndPaginate(tokens, list.view, fields)
@@ -98,7 +105,6 @@ export function TokensScreen() {
 			tabs={heading.tabs}
 			list
 		>
-			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
 			{result.error ? (
 				<ErrorNotice>{__('Tokens could not be loaded.', 'alphone')}</ErrorNotice>
 			) : (
