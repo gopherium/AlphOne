@@ -38,7 +38,7 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
-	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Fields', level: 2 })).toBeVisible()
 	await page.getByLabel('Label', { exact: true }).fill(label)
 	await chooseKind(page, page.getByRole('combobox', { name: 'Kind' }), 'Repeater')
 	await addSubField(page, 1, 'Date', 'Date')

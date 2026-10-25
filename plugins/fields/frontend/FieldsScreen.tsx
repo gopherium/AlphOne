@@ -3,9 +3,9 @@
 import {
 	Badge,
 	Button,
-	EmptyState,
 	ErrorNotice,
 	InputControl,
+	ListEmpty,
 	LoadingRows,
 	PageScreen,
 	RepeatRows,
@@ -19,6 +19,7 @@ import {
 	formatNumber,
 	graphError,
 	keyFromLabel,
+	list,
 	sprintf,
 	useGraph,
 	useGraphMutation,
@@ -33,7 +34,6 @@ import type { RefObject } from 'react'
 import { ConfirmActions } from './ConfirmActions'
 import { reasonOf } from './entryOutcome'
 import { whenFocusStayed } from './focus'
-import { fieldsIcon } from './icon'
 import type { FieldCatalogueQuery, FieldKind } from './gql/graphql'
 import { ENTRY_ID_KEY, kindItems, kindOf, subKindItems } from './kind'
 import {
@@ -130,21 +130,21 @@ export function FieldsScreen() {
 
 	if (catalogue.fetching && !catalogue.data) {
 		return (
-			<PageScreen title={__('Fields', 'alphone-fields')}>
+			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 				<LoadingRows label={__('Loading fields…', 'alphone-fields')} rows={3} />
 			</PageScreen>
 		)
 	}
 	if (catalogue.error) {
 		return (
-			<PageScreen title={__('Fields', 'alphone-fields')}>
+			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 				<ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 			</PageScreen>
 		)
 	}
 	const rows = catalogueRows(catalogue.data)
 	return (
-		<PageScreen title={__('Fields', 'alphone-fields')}>
+		<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 			<Stack direction="column" gap="lg">
 				<FieldList fields={rows.live} onChanged={reload} />
 				<Stack direction="column" gap="sm">
@@ -220,13 +220,11 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
  */
 function NoFields() {
 	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={fieldsIcon} />
-			<EmptyState.Title>{__('No fields yet.', 'alphone-fields')}</EmptyState.Title>
-			<EmptyState.Description>
-				{__('Add a field to store more about every contact.', 'alphone-fields')}
-			</EmptyState.Description>
-		</EmptyState.Root>
+		<ListEmpty
+			icon={list}
+			title={__('No fields yet.', 'alphone-fields')}
+			hint={__('Add a field to store more about every contact.', 'alphone-fields')}
+		/>
 	)
 }
 

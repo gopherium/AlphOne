@@ -33,7 +33,7 @@ test('names each new field from its label and numbers a name already taken', asy
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
-	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Fields', level: 2 })).toBeVisible()
 	await addTextField(page, `Visit ${stamp} notes`)
 	await addTextField(page, `Visit ${stamp}: notes`)
 

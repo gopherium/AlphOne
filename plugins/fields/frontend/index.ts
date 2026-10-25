@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, globCatalogs } from '@alphone/frontend-sdk'
+import { _x, globCatalogs, list } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 import { lazyRouteComponent } from '@tanstack/react-router'
 
 import { errorTemplates } from './errorTemplates'
-import { fieldsIcon } from './icon'
 import { routes } from './routes'
 
 /** DOMAIN is the text domain the plugin's strings answer under. */
@@ -22,7 +21,7 @@ export const plugin: FrontendPlugin = {
 			return _x('Fields', 'admin section', 'alphone-fields')
 		},
 		to: '/fields',
-		icon: fieldsIcon,
+		icon: list,
 	}],
 	contactPanels: [{
 		id: 'fields',

@@ -51,7 +51,7 @@ test('moves a field up, archives another after asking, and shows the new order o
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
-	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Fields', level: 2 })).toBeVisible()
 	const rows = page.getByRole('region', { name: 'Fields' }).getByRole('row').filter({ hasText: String(stamp) })
 	await expect(rows).toContainText([first, second, third])
 	const ordered = orderAnswer(page)
