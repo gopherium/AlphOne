@@ -426,7 +426,7 @@ export function Thread({ conversationId }: { conversationId: string }) {
 	return (
 		<div className="alphone-thread">
 			<header className="alphone-thread__header">
-				<PageTitle variant="heading-md">
+				<PageTitle variant="heading-md" level={2}>
 					{conversation?.contact.name ?? __('Conversation', 'alphone-whatsapp')}
 				</PageTitle>
 			</header>

@@ -85,7 +85,7 @@ test('names the contact the conversation belongs to in its header', async () => 
 	renderThread()
 
 	expect(
-		await screen.findByRole('heading', { level: 1, name: 'John Doe' }),
+		await screen.findByRole('heading', { level: 2, name: 'John Doe' }),
 	).toBeInTheDocument()
 })
 
@@ -98,7 +98,7 @@ test('titles the header generically while the conversation is unknown', async ()
 	renderThread()
 
 	expect(
-		await screen.findByRole('heading', { level: 1, name: 'Conversation' }),
+		await screen.findByRole('heading', { level: 2, name: 'Conversation' }),
 	).toBeInTheDocument()
 })
 
