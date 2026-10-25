@@ -233,7 +233,7 @@ type Resolver struct {
 	Onboarding Onboarder
 	// Mailer delivers the account mail. Nil runs without a mailer.
 	Mailer Mailer
-	// PublicURL is the address email links lead back to, empty without a mailer.
+	// PublicURL is the address email and invitation links lead back to, empty when unset.
 	PublicURL string
 	// TokenLimiter counts token operations per client IP.
 	TokenLimiter AttemptLimiter
