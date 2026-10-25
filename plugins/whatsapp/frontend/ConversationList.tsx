@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Badge, LoadingRows, Text, VisuallyHidden, __, useGraphQuery } from '@alphone/frontend-sdk'
-import { Link } from '@tanstack/react-router'
+import {
+	Badge,
+	LoadingRows,
+	NavigationItem,
+	NavigationList,
+	Text,
+	VisuallyHidden,
+	__,
+	comment,
+	useGraphQuery,
+} from '@alphone/frontend-sdk'
 
 import { formatListTime } from './format'
 import { useLiveUpdates } from './live'
@@ -9,7 +18,7 @@ import { conversationsQuery } from './operations'
 
 /**
  * Renders the WhatsApp conversation list for the sidebar, with live updates.
- * @returns The conversation links, or a status message while loading, on error,
+ * @returns The conversation rows, or a status message while loading, on error,
  * or when empty.
  */
 export function ConversationList() {
@@ -30,14 +39,15 @@ export function ConversationList() {
 		return <Text role="status">{__('No conversations yet.', 'alphone-whatsapp')}</Text>
 	}
 	return (
-		<ul className="alphone-conversations">
+		<NavigationList>
 			{rows.map((conversation) => (
-				<li key={conversation.id}>
-					<Link
-						to="/whatsapp/conversations/$conversationId"
-						params={{ conversationId: conversation.id }}
-						className="alphone-conversation"
-					>
+				<NavigationItem
+					key={conversation.id}
+					to="/whatsapp/conversations/$conversationId"
+					params={{ conversationId: conversation.id }}
+					icon={comment}
+				>
+					<span className="alphone-conversation">
 						<span className="alphone-conversation__top">
 							<span className="alphone-conversation__name">
 								{conversation.contact.name}
@@ -58,9 +68,9 @@ export function ConversationList() {
 							</VisuallyHidden>
 							<Badge>{conversation.status}</Badge>
 						</span>
-					</Link>
-				</li>
+					</span>
+				</NavigationItem>
 			))}
-		</ul>
+		</NavigationList>
 	)
 }
