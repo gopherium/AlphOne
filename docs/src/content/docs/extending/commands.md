@@ -236,51 +236,13 @@ the command's arguments and flags, so take a secret, such as a
 password, only on `call.Stdin`.
 
 The roles AlphOne ships carry two capabilities, `manage_users` and
-`manage_webhooks`, both held by admin. A plugin that implements
-`sdk.RoleProvider` can give its roles those two, or a capability of its
-own. A new capability starts with the plugin id and a dot, so the
-archive plugin names one `archive.purge`. Admin does not get it unless
-the plugin lists admin among its roles with that capability. A plugin
-that declares a new capability without the prefix stops `serve`,
-`migrate`, `seed -yes`, `account:create-admin` and the account commands
-that take `-as`, and `alphone check` names it. Name a capability no role
-carries in `Capability`, and every account is refused. AlphOne sets
-`Authorize` and `Record` for every plugin, so yours writes neither.
+`manage_webhooks`, both held by admin. Name a capability no role carries
+in `Capability`, and every account is refused. AlphOne sets `Authorize`
+and `Record` for every plugin, so yours writes neither.
 [Writing commands](https://docs.gopherium.org/command-line/writing-commands/#an-acting-account)
 shows both from the program's side.
 
-## Check the declared roles
-
-A plugin that changes accounts itself, such as one that invites people
-or switches accounts back on, checks them against the roles the install
-declares. Implement `sdk.RoleCheckerConsumer`, and AlphOne calls
-`UseRoleChecker` once every plugin's roles are declared, after
-`Register` and before `Start` or any of the plugin's commands runs:
-
-```go
-var _ sdk.RoleCheckerConsumer = (*Plugin)(nil)
-
-// UseRoleChecker keeps the host's role checker for the plugin's account writes.
-func (p *Plugin) UseRoleChecker(checker sdk.RoleChecker) {
-	p.roles = checker
-}
-```
-
-`Known(role)` reports whether AlphOne or a plugin declares the role, and
-`Outranks(caller, target)` whether the caller's role carries every
-capability the target's role carries. The checker only reads the roles,
-so a plugin still declares its own through `sdk.RoleProvider`.
-
-Hand the checker to authkit as `AdminConfig.Roles` or
-`InvitesConfig.Roles`, and the plugin's account writes refuse a role
-nobody declares, the same way the core's writes do.
-`SetAccountRoleFrom` and `SetAccountDisabledFrom` also refuse an account
-whose role changed after the check, and enabling an account whose role
-nobody declares. Neither checks who may hand a role out, so ask
-`Outranks` first when the write acts for an account.
-[User administration](https://docs.gopherium.org/authentication/user-administration/#checking-roles-against-a-registry)
-lists every refusal. With a nil `Roles` authkit checks none of this, so
-refuse an account write that comes before `UseRoleChecker`.
+[Roles](/extending/roles/) covers declaring roles, the top role and checking the declared roles.
 
 ## What the binary expects from a plugin
 
