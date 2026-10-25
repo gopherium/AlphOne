@@ -10,11 +10,11 @@ const phone = { width: 390, height: 844 }
 test.describe('on a phone', () => {
 	test.use({ viewport: phone })
 
-	test('swaps the rail for a drawer and spends the width on content', async ({ page }) => {
+	test('swaps the sidebar for a drawer and spends the width on content', async ({ page }) => {
 		await page.goto('/tasks')
-		await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+		await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
 
-		await expect(page.locator('.godmin-layout__rail')).toHaveCount(0)
+		await expect(page.locator('.godmin-layout__sidebar')).toHaveCount(0)
 
 		const geometry = await page.evaluate(() => {
 			const canvas = document.querySelector('.godmin-layout__canvas')
@@ -38,7 +38,7 @@ test.describe('on a phone', () => {
 
 	test('spends its pixels on content rather than canvas chrome', async ({ page }) => {
 		await page.goto('/tasks')
-		await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+		await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
 
 		const canvas = await page.evaluate(() => {
 			const element = document.querySelector('.godmin-layout__canvas')
@@ -109,7 +109,7 @@ test.describe('on a phone', () => {
 		await page.goto('/whatsapp')
 		// The conversation list is this section's sidebar, so on a phone it is
 		// reached through the drawer.
-		await page.getByRole('button', { name: 'Open navigation' }).click()
+		await page.getByRole('button', { name: 'Open navigation panel' }).click()
 		await page.getByRole('dialog').getByText(contactName).click()
 		await expect(page.getByRole('log', { name: 'Messages' })).toBeVisible()
 
@@ -139,21 +139,47 @@ test.describe('on a phone', () => {
 
 	test('reaches another section through the drawer', async ({ page }) => {
 		await page.goto('/tasks')
-		await page.getByRole('button', { name: 'Open navigation' }).click()
+		await page.getByRole('button', { name: 'Open navigation panel' }).click()
 
-		const drawer = page.getByRole('dialog')
+		const drawer = page.getByRole('dialog', { name: 'Navigation' })
 		await expect(drawer).toBeVisible()
 		await drawer.getByRole('link', { name: 'Contacts' }).click()
 
-		await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible()
+		await expect(page.getByRole('heading', { level: 2, name: 'Contacts' })).toBeVisible()
 		await expect(drawer).toBeHidden()
 	})
 })
 
-test('keeps the rail on a desktop viewport', async ({ page }) => {
-	await page.goto('/tasks')
-	await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible()
+test.describe('on a phone with a touch screen', () => {
+	test.use({ viewport: phone, isMobile: true, hasTouch: true })
 
-	await expect(page.locator('.godmin-layout__rail')).toBeVisible()
-	await expect(page.getByRole('button', { name: 'Open navigation' })).toHaveCount(0)
+	test('closes the drawer on a tap beside it and on Escape', async ({ page }) => {
+		await page.goto('/tasks')
+		await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
+		const address = page.url()
+		const menu = page.getByRole('button', { name: 'Open navigation panel' })
+		const drawer = page.getByRole('dialog')
+
+		await menu.tap()
+		await expect(drawer).toBeVisible()
+		await page.touchscreen.tap(phone.width - 16, phone.height / 2)
+
+		await expect(drawer).toBeHidden()
+		await expect(page).toHaveURL(address)
+
+		await menu.tap()
+		await expect(drawer).toBeVisible()
+		await page.keyboard.press('Escape')
+
+		await expect(drawer).toBeHidden()
+	})
+})
+
+test('keeps the sidebar on a desktop viewport', async ({ page }) => {
+	await page.goto('/tasks')
+	await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
+
+	await expect(page.getByRole('region', { name: 'Navigation' })).toBeVisible()
+	await expect(page.locator('.godmin-layout__sidebar')).toBeVisible()
+	await expect(page.getByRole('button', { name: 'Open navigation panel' })).toHaveCount(0)
 })
