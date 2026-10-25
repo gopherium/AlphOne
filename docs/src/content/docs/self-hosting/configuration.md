@@ -20,11 +20,12 @@ When a variable holds a value AlphOne refuses:
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
   [Contacts](#contacts), [Webhooks](#webhooks),
   [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
-  in `ALPHONE_GRAPH_PAGE_SIZE` or `ALPHONE_GRAPH_PAGE_CAP`,
-  or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also stops the account commands
-  that take `-as`, before they change anything. It stops `migrate`,
-  `seed -yes` and `account:create-admin` too, but only once they have
-  applied the account, record and core migrations.
+  in `ALPHONE_PUBLIC_URL`, `ALPHONE_GRAPH_PAGE_SIZE` or
+  `ALPHONE_GRAPH_PAGE_CAP`, or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also
+  stops the account commands that take `-as`, before they change
+  anything. It stops `migrate`, `seed -yes` and `account:create-admin`
+  too, but only once they have applied the account, record and core
+  migrations.
 
 [Commands](/self-hosting/commands/) describes every command.
 
@@ -43,6 +44,7 @@ seconds and gives up after five minutes.
 | `ALPHONE_DATABASE_URL` | yes | none | PostgreSQL connection string, e.g. `postgres://user:pass@host:5432/alphone?sslmode=disable`. Write a reserved sign in the user name or password percent encoded, `@` as `%40`, `/` as `%2F` and `%` as `%25`. The password ends at its first `@`, so a bare `@` in it stops `serve` at start. |
 | `ALPHONE_ADDR` | no | `localhost:8080` | Listen address. The container image sets `0.0.0.0:8080`. |
 | `ALPHONE_WEB_DIR` | no | unset | Directory holding the built frontend, served for all non-API paths. The container image sets `/web`. Unset, only the API is served, which suits development behind Vite. |
+| `ALPHONE_PUBLIC_URL` | no | unset | The address people reach AlphOne at, such as `https://crm.example.com`. It must be an `http` or `https` address of a site root, with no path, query or fragment. Plugins get it with or without a mail relay, for example to send people back to AlphOne from another site. An invitation link that AlphOne shows for you to pass on starts with it too. Unset, that link holds only its path, such as `/activate?token=...`. A mail relay requires it, because the link in every mail leads back to it. A value AlphOne refuses stops `serve` and the other commands listed at the top of this page. |
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. A peer outside them is limited by its own address, whatever header it sends. A range written in IPv4-mapped form, such as `::ffff:172.18.0.0/112`, counts as the IPv4 range it covers, and one shorter than `/96` stops `serve`. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is refused. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
@@ -55,8 +57,9 @@ reset request sends nothing. `ALPHONE_SMTP_PORT`,
 `ALPHONE_SMTP_USERNAME`, `ALPHONE_SMTP_PASSWORD`, `ALPHONE_SMTP_FROM`
 and `ALPHONE_SMTP_TLS` are refused without a host, with an error such as
 `ALPHONE_SMTP_PORT is set but ALPHONE_SMTP_HOST is not`.
-`ALPHONE_PUBLIC_URL` and `ALPHONE_MAIL_TEMPLATE_DIR` are read only with
-a host.
+`ALPHONE_MAIL_TEMPLATE_DIR` is read only with a host. A relay also needs
+[`ALPHONE_PUBLIC_URL`](#core), the address the link in every mail leads
+back to.
 
 | Variable | Purpose |
 | --- | --- |
@@ -66,7 +69,6 @@ a host.
 | `ALPHONE_SMTP_PASSWORD` | The password for that user name. |
 | `ALPHONE_SMTP_FROM` | The address every mail is sent from, such as `crm@example.com`. Required with a host. |
 | `ALPHONE_SMTP_TLS` | How the connection to the relay is secured with STARTTLS. `mandatory`, the default, refuses a relay that does not offer it. `opportunistic` uses it when the relay offers it, and `none` never does. A user name and password need `mandatory`. |
-| `ALPHONE_PUBLIC_URL` | The address people reach AlphOne at, such as `https://crm.example.com`. The link in every mail leads back to it. Required with a host. It must be an `http` or `https` address of a site root, with no path, query or fragment. |
 | `ALPHONE_MAIL_TEMPLATE_DIR` | A directory of your own mail templates. A file named `invite.tmpl` or `reset.tmpl` there replaces the built-in template of that name. Unset, the built-in ones are used. AlphOne refuses a directory that does not exist. |
 
 ## Invitations and password resets
