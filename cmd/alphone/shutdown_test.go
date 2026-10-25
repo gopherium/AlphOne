@@ -105,11 +105,11 @@ func (p *holdingPlugin) Routes() http.Handler {
 	})
 }
 
-// besideTheCompiledPlugins returns a registration of the compiled plugins with plugin registered after them.
-func besideTheCompiledPlugins(plugin sdk.Plugin) func(sdk.Deps) ([]sdk.Plugin, error) {
+// besideTheCompiledPlugins returns a registration of the compiled plugins with the plugins after them in order.
+func besideTheCompiledPlugins(plugins ...sdk.Plugin) func(sdk.Deps) ([]sdk.Plugin, error) {
 	return func(deps sdk.Deps) ([]sdk.Plugin, error) {
 		registered, err := registerPlugins(deps)
-		return append(registered, plugin), err
+		return append(registered, plugins...), err
 	}
 }
 
