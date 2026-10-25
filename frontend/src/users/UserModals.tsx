@@ -88,6 +88,11 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 	const link = sent.data?.resendInvite.activationLink
 	const submit = async () => {
 		const result = await send({ email: user.email })
+		if (result.error) {
+			toaster.show(validationMessage(graphError(result.error), __('The invitation could not be sent.', 'alphone')))
+			closeModal?.()
+			return
+		}
 		if (result.data?.resendInvite.delivered) {
 			toaster.show(sprintf(__('Invitation sent to "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
 			closeModal?.()
@@ -110,13 +115,8 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 			confirmLabel={__('Resend invitation', 'alphone')}
 			cancelLabel={__('Cancel', 'alphone')}
 			busy={sent.fetching}
-			failure={
-				sent.error
-					? validationMessage(graphError(sent.error), __('The invitation could not be sent.', 'alphone'))
-					: undefined
-			}
 			onConfirm={() => void submit()}
-			onCancel={sent.fetching ? undefined : closeModal}
+			onCancel={closeModal}
 		>
 			{sprintf(__('Send a new invitation to "%(name)s" (%(email)s)? The link sent before stops working.', 'alphone'), {
 				name: toaster.name(user.name),

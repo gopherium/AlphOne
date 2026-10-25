@@ -11,6 +11,7 @@ import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
+import { gate } from './gate'
 import { badgeClasses, buttonClasses, renderAt } from './render'
 
 /** identity is one way a contact is reached, as the contact page answers it. */
@@ -668,19 +669,39 @@ function writesName() {
 	return names
 }
 
+/**
+ * Opens the rename of one contact from its row.
+ * @param contact - The name the row shows.
+ * @param action - The label of the rename in the row menu.
+ * @param title - The title of the rename dialog.
+ * @returns The dialog queries.
+ */
+async function openRename(contact = 'Ana Lopez', action = 'Rename…', title = 'Rename') {
+	await act(contact, action)
+	return within(await screen.findByRole('dialog', { name: title }))
+}
+
+/**
+ * Types a new name in an open rename and sends it with Save.
+ * @param dialog - The rename dialog queries.
+ * @param name - The name to send.
+ */
+async function renameTo(dialog: ReturnType<typeof within>, name: string) {
+	const field = dialog.getByRole('textbox', { name: 'Name' })
+	await userEvent.clear(field)
+	await userEvent.type(field, name)
+	await userEvent.click(dialog.getByRole('button', { name: 'Save' }))
+}
+
 test('renames a contact in a modal and confirms it with a toast', async () => {
 	const names = writesName()
 	renderAt('/contacts?sort=name&order=asc')
 
-	await act('Ana Lopez', 'Rename…')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
-	const name = dialog.getByRole('textbox', { name: 'Name' })
-	expect(name).toHaveValue('Ana Lopez')
-	await userEvent.clear(name)
-	await userEvent.type(name, 'Zoe Lopez')
-	await userEvent.click(dialog.getByRole('button', { name: 'Rename' }))
+	const dialog = await openRename()
+	expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez')
+	await renameTo(dialog, 'Zoe Lopez')
 
-	expect(await screen.findByText('Name updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Name updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(names).toEqual(['Zoe Lopez'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace', 'Maria Perez', 'Zoe Lopez']))
@@ -709,18 +730,73 @@ test('puts the cursor in the name when the rename opens, as the WordPress rename
 	await waitFor(() => expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveFocus())
 })
 
-test('waits for another name before it renames', async () => {
+test('sends the rename with Save, the word WordPress gives its rename button', async () => {
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename…')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
-	const rename = dialog.getByRole('button', { name: 'Rename' })
-	expect(rename).toHaveAttribute('aria-disabled', 'true')
+	const dialog = await openRename()
 
-	await userEvent.clear(dialog.getByRole('textbox', { name: 'Name' }))
-	await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), '   ')
+	expect(dialog.getByRole('button', { name: 'Save' })).toHaveAttribute('type', 'submit')
+	expect(dialog.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+})
 
-	expect(rename).toHaveAttribute('aria-disabled', 'true')
+test('sends the Spanish rename with Guardar under the Renombrar heading', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	renderAt('/contacts')
+
+	const dialog = await openRename('Ana Lopez', 'Renombrar…', 'Renombrar')
+
+	expect(dialog.getByRole('textbox', { name: 'Nombre' })).toHaveValue('Ana Lopez')
+	expect(dialog.getByRole('button', { name: 'Guardar' })).toHaveAttribute('type', 'submit')
+	expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+})
+
+test('keeps Save off only while the name is blank, as WordPress keeps its rename', async () => {
+	renderAt('/contacts')
+	const dialog = await openRename()
+	const save = dialog.getByRole('button', { name: 'Save' })
+	const field = dialog.getByRole('textbox', { name: 'Name' })
+
+	expect(save).not.toHaveAttribute('aria-disabled', 'true')
+	await userEvent.clear(field)
+	await userEvent.type(field, '   ')
+
+	expect(save).toHaveAttribute('aria-disabled', 'true')
+	await userEvent.type(field, 'Zoe Lopez')
+	expect(save).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('sends a name left as it was, as the WordPress rename does', async () => {
+	const names = writesName()
+	renderAt('/contacts')
+	const dialog = await openRename()
+
+	await userEvent.click(dialog.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(names).toEqual(['Ana Lopez']))
+})
+
+test('closes the dialog the moment Save is pressed, before the write answers, as WordPress does', async () => {
+	const answer = gate()
+	const names: string[] = []
+	server.use(
+		graphql.mutation('RenameContact', async ({ variables }) => {
+			await answer.held
+			names.push(String(variables.name))
+			return HttpResponse.json({
+				data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: String(variables.name) } },
+			})
+		}),
+	)
+	renderAt('/contacts')
+
+	await renameTo(await openRename(), 'Zoe Lopez')
+
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(names).toEqual([])
+	answer.release()
+	expect(await screen.findByText('Name updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
 })
 
 test('closes the rename modal without writing when the reader cancels', async () => {
@@ -735,37 +811,103 @@ test('closes the rename modal without writing when the reader cancels', async ()
 })
 
 /**
- * Renames Ana Lopez through the row modal, answering with the given failure.
+ * Renames Ana Lopez to Ana Lopez Ltd through the row modal, answering with the given failure.
  * @param error - The error the rename mutation answers with.
- * @returns The modal queries.
  */
 async function failRename(error: Record<string, unknown>) {
 	server.use(graphql.mutation('RenameContact', () => HttpResponse.json({ data: null, errors: [error] })))
 	renderAt('/contacts')
-	await act('Ana Lopez', 'Rename…')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
-	await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), ' Ltd')
-	await userEvent.click(dialog.getByRole('button', { name: 'Rename' }))
-	return dialog
+	await renameTo(await openRename(), 'Ana Lopez Ltd')
 }
 
-test('shows why a contact could not be renamed inside the modal', async () => {
+test('shows the reason a refused rename gave in a toast, the dialog already closed', async () => {
 	configureAppErrorText()
 
-	const dialog = await failRename({
+	await failRename({
 		message: 'contact: empty name',
 		extensions: { code: 'VALIDATION', reason: 'contact_name_required' },
 	})
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('A contact needs a name.')
+	expect(await screen.findByText('A contact needs a name.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
 })
 
-test('says plainly that a contact could not be renamed when the server names no reason', async () => {
-	const dialog = await failRename({ message: 'internal error' })
+test('says plainly in a toast that a contact could not be renamed when the server names no reason', async () => {
+	await failRename({ message: 'internal error' })
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('The name could not be updated.')
+	expect(await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
+})
+
+test('offers the name a refused rename left unsaved when the dialog opens again', async () => {
+	await failRename({ message: 'internal error' })
+	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
+
+	const again = await openRename()
+
+	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez Ltd')
+})
+
+test('offers the name a refused rename left unsaved only on the contact it was typed for', async () => {
+	await failRename({ message: 'internal error' })
+	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
+
+	const other = await openRename('Maria Perez')
+
+	expect(other.getByRole('textbox', { name: 'Name' })).toHaveValue('Maria Perez')
+})
+
+test('opens on the stored name again once a later rename lands', async () => {
+	let refuse = true
+	server.use(
+		graphql.mutation('RenameContact', ({ variables }) =>
+			refuse
+				? HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+				: HttpResponse.json({
+						data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: String(variables.name) } },
+					}),
+		),
+	)
+	renderAt('/contacts')
+	await renameTo(await openRename(), 'Ana Lopez Ltd')
+	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
+	refuse = false
+	await renameTo(await openRename(), 'Ana Lopez')
+	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
+
+	const again = await openRename()
+
+	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez')
+})
+
+test('opens on the saved name when an earlier rename fails after a later one was sent', async () => {
+	const first = gate()
+	let writes = 0
+	server.use(
+		graphql.mutation('RenameContact', async ({ variables }) => {
+			writes += 1
+			if (writes === 1) {
+				await first.held
+				return HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+			}
+			const name = String(variables.name)
+			held = held.map((row) => (row.id === variables.id ? { ...row, name } : row))
+			return HttpResponse.json({ data: { renameContact: { __typename: 'Contact', id: String(variables.id), name } } })
+		}),
+	)
+	renderAt('/contacts')
+	await renameTo(await openRename(), 'Ana Failed')
+	await waitFor(() => expect(writes).toBe(1))
+	await renameTo(await openRename(), 'Ana Saved')
+
+	first.release()
+
+	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
+	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
+	const again = await openRename('Ana Saved')
+	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Saved')
 })
 
 test('opens a new task for the contact from its row', async () => {

@@ -8,14 +8,16 @@ import {
 	__,
 	people,
 	useAdminSettings,
+	useBulkRun,
+	useListRun,
 	useListView,
 	useSession,
 } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
 import { fetchUsers, usersQueryKey } from '@gopherium/react-auth/admin'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import type { Account } from '../auth/graphTransport'
 import { UserTabs } from './UserTabs'
@@ -65,8 +67,10 @@ export function UsersScreen() {
 		sort: { field: 'created', direction: 'desc' },
 		perPage: settings?.listPageSize,
 	})
-	const [failure, setFailure] = useState<string>()
-	const actions = useUserActions(session, setFailure)
+	const queryClient = useQueryClient()
+	const { run } = useListRun('users', list.onChangeSelection)
+	const reload = useCallback(() => queryClient.invalidateQueries({ queryKey: usersQueryKey }), [queryClient])
+	const actions = useUserActions(session, useBulkRun<Account>(run, reload))
 	const accounts = users.data ?? noAccounts
 	const fields = useMemo(() => userFields(accounts), [accounts])
 	const shown = filterSortAndPaginate(accounts, list.view, fields)
@@ -84,7 +88,6 @@ export function UsersScreen() {
 			tabs={<UserTabs current="users" />}
 			list
 		>
-			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
 			{users.isError ? (
 				<ErrorNotice>{__('Users could not be loaded.', 'alphone')}</ErrorNotice>
 			) : (

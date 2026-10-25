@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __ } from '@alphone/frontend-sdk'
+import { __, useUnsavedText } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -14,6 +14,7 @@ import type { ContactRow } from './contactFields'
  */
 export function useContactActions(): Action<ContactRow>[] {
 	const navigate = useNavigate()
+	const renames = useUnsavedText()
 
 	return useMemo(
 		() => [
@@ -28,9 +29,9 @@ export function useContactActions(): Action<ContactRow>[] {
 				label: __('Rename…', 'alphone'),
 				modalHeader: __('Rename', 'alphone'),
 				modalFocusOnMount: 'firstContentElement',
-				RenderModal: RenameModal,
+				RenderModal: (props) => <RenameModal {...props} unsaved={renames} />,
 			},
 		],
-		[navigate],
+		[navigate, renames],
 	)
 }

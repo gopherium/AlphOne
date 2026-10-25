@@ -652,7 +652,10 @@ test('shows why an account could not be disabled in the words the reason names',
 
 	await act('Ada Lovelace', 'Disable')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('Somebody must be able to manage users.')
+	expect(
+		await screen.findByText('Somebody must be able to manage users.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText(/cannot be disabled$/)).not.toBeInTheDocument()
 	expect(screen.queryByText('"Ada Lovelace" disabled.')).not.toBeInTheDocument()
 })
@@ -667,7 +670,8 @@ test('says plainly that an account could not be enabled when the server names no
 
 	await act('Ana Lopez', 'Enable')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The user could not be enabled.')
+	expect(await screen.findByText('The user could not be enabled.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
@@ -691,9 +695,10 @@ test('says why an enable was refused when the roles the reader may give went sta
 
 	await act('Maria Perez', 'Enable')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'That role holds more than your own, or nothing declares it.',
-	)
+	expect(
+		await screen.findByText('That role holds more than your own, or nothing declares it.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('"Maria Perez" enabled.')).not.toBeInTheDocument()
 })
 
@@ -745,7 +750,7 @@ test('offers Enable before Disable in the bulk bar, the one that locks accounts 
 	expect(enable.compareDocumentPosition(disable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
-test('names the accounts a bulk action could not change in one notice', async () => {
+test('counts only the accounts a bulk disable could not change, in one toast', async () => {
 	holding([signedIn, colleague, accountOf('fd', 'Maria Perez')])
 	server.use(
 		graphql.mutation('SetUserDisabled', ({ variables }) =>
@@ -759,8 +764,10 @@ test('names the accounts a bulk action could not change in one notice', async ()
 	await select('Ada Lovelace', 'Maria Perez')
 	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Disable' }))
 
-	expect(await screen.findByText('1 user disabled.')).toBeInTheDocument()
-	expect(await screen.findByRole('alert')).toHaveTextContent('1 user could not be disabled.')
+	expect(await screen.findByText('1 user could not be disabled.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('1 user disabled.')).not.toBeInTheDocument()
+	expect(document.querySelectorAll('.godmin-toast')).toHaveLength(1)
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('enables every selected account at once with one toast', async () => {
@@ -774,7 +781,7 @@ test('enables every selected account at once with one toast', async () => {
 	expect(await screen.findByText('2 users enabled.')).toBeInTheDocument()
 })
 
-test('names the accounts a bulk enable could not change in one notice counting them in the format locale', async () => {
+test('counts the accounts a bulk enable could not change in one toast, in the format locale', async () => {
 	rememberFormatLocale('es-ES-u-nu-deva')
 	holding([signedIn, barred, accountOf('fd', 'Maria Perez', { disabled: true })])
 	server.use(
@@ -787,23 +794,7 @@ test('names the accounts a bulk enable could not change in one notice counting t
 	await select('Ana Lopez', 'Maria Perez')
 	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Enable' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('२ users could not be enabled.')
-})
-
-test('clears an earlier failure once the next action starts', async () => {
-	server.use(
-		graphql.mutation('SetUserDisabled', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
-	renderAt('/users')
-	await act('Ada Lovelace', 'Disable')
-	expect(await screen.findByRole('alert')).toHaveTextContent('The user could not be disabled.')
-	writesDisabled()
-
-	await act('Ada Lovelace', 'Disable')
-
-	expect(await screen.findByText('"Ada Lovelace" disabled.')).toBeInTheDocument()
+	expect(await screen.findByText('२ users could not be enabled.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
