@@ -118,10 +118,11 @@ func (s *operatorScenario) nameTopRole(id, top, first, second string) {
 	s.load(naming(id, top, []sdk.RoleDeclaration{{Name: top, Capabilities: []string{first, second}}}))
 }
 
-// load registers the plugin after the compiled plugins and every plugin loaded before it.
+// load registers the plugin after every plugin loaded before it, leaving the compiled plugins out.
 func (s *operatorScenario) load(plugin sdk.Plugin) {
 	s.added = append(s.added, plugin)
-	s.plugins = besideTheCompiledPlugins(s.added...)
+	loaded := s.added
+	s.plugins = func(sdk.Deps) ([]sdk.Plugin, error) { return loaded, nil }
 }
 
 // holdAccount creates the account at email under the role, typing the password on standard input.
