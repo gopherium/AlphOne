@@ -726,6 +726,75 @@ const shown =
 	invoice.reason === null ? '' : reasonText(invoice.reason, invoiceReasons(), invoice.reason.code)
 ```
 
+## Threads, recipients and attachments
+
+A screen that shows a thread, one message under another, folds each
+message in a `CollapsibleCard`. Wrap the header in a heading with
+`render`, so a screen reader finds each message by its sender.
+`defaultOpen` opens a card from the start, such as the newest message.
+
+```tsx
+import { Card, CollapsibleCard, Text } from '@alphone/frontend-sdk'
+
+<CollapsibleCard.Root defaultOpen>
+	<CollapsibleCard.Header render={<h3 />}>
+		<Card.Title>Maria Perez</Card.Title>
+	</CollapsibleCard.Header>
+	<CollapsibleCard.Content>
+		<Text>Can we meet on Monday?</Text>
+	</CollapsibleCard.Content>
+</CollapsibleCard.Root>
+```
+
+The whole header opens and closes the card, so keep buttons and links
+out of it.
+
+`FormTokenField` shows each address a reader types as a chip with a
+button that removes it. `DropZone` takes the files a reader drops on
+the element that holds it. Give that element `position: relative`,
+because the zone stretches over its nearest positioned ancestor.
+Import both from `@alphone/frontend-sdk/components`:
+
+```tsx
+import { DropZone, FormTokenField } from '@alphone/frontend-sdk/components'
+```
+
+That entry brings the WordPress components stylesheet these parts
+need, the way `@alphone/frontend-sdk/dataviews` does, so the screens
+that use neither never load it. To pick files with a button, use
+`FileButton` from `@alphone/frontend-sdk`, as the Upload button on the
+Import screen does.
+
+`FormTokenField` and `DropZone` draw a few words of their own in
+English. Pass `label`, `help` and `messages` to `FormTokenField`, and
+`label` to `DropZone`, from your plugin's own text domain:
+
+```tsx
+import { __ } from '@alphone/frontend-sdk'
+
+<FormTokenField
+	label={__('To', 'acme-mail')}
+	help={__('Separate addresses with commas or the Enter key.', 'acme-mail')}
+	messages={{
+		added: __('Address added.', 'acme-mail'),
+		removed: __('Address removed.', 'acme-mail'),
+		remove: __('Remove address', 'acme-mail'),
+		__experimentalInvalid: __('Invalid address', 'acme-mail'),
+	}}
+	value={recipients}
+	onChange={setRecipients}
+/>
+```
+
+A chip's place in the list, the count of suggestions found and the
+note that none matched stay in English.
+
+The SDK also hands on the WordPress icons these screens draw:
+`envelope` for mail, `commentReplyLink` for a reply, `lock` for an
+encrypted message and `file` for an attachment. A text toolbar draws
+`formatBold`, `formatItalic`, `link`, `formatListBullets`,
+`formatListNumbered`, `quote` and `inlineImage`.
+
 ## Full bleed screens
 
 Most screens sit on a padded canvas. A screen that fills its canvas edge
