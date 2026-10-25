@@ -42,7 +42,7 @@ export function NewContactScreen({
 	}
 
 	return (
-		<PageScreen title={__('New contact', 'alphone')}>
+		<PageScreen title={__('New contact', 'alphone')} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

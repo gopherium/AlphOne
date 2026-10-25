@@ -33,15 +33,17 @@ beforeEach(() =>
 	),
 )
 
-test('keeps the main menu and the open screen until the WhatsApp sidebar has loaded', async () => {
+test('keeps the main menu, the footer and the open screen until the WhatsApp sidebar has loaded', async () => {
 	renderAt('/tasks')
-	const nav = await screen.findByRole('navigation', { name: 'Navigation' })
+	const nav = await screen.findByRole('region', { name: 'Navigation' })
 
 	await userEvent.click(await within(nav).findByRole('link', { name: 'WhatsApp' }))
 	await sidebarChunk.requested
 
 	expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
-	expect(screen.getByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument()
+	expect(within(nav).getByText('v0.1.0')).toHaveClass('godmin-sidebar__footer-note')
+	expect(within(nav).getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
 	expect(screen.queryByText('No conversation selected.')).toBeNull()
 
 	sidebarChunk.land()

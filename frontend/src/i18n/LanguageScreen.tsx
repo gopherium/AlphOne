@@ -30,14 +30,14 @@ export function LanguageScreen() {
 	const [notice, setNotice] = useState('')
 	if (asked.error !== undefined) {
 		return (
-			<PageScreen title={__('Language', 'alphone')}>
+			<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
 				<ErrorNotice>{__('The languages could not be read.', 'alphone')}</ErrorNotice>
 			</PageScreen>
 		)
 	}
 	if (asked.data === undefined) {
 		return (
-			<PageScreen title={__('Language', 'alphone')}>
+			<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
 				<LoadingRows label={__('Reading the languages', 'alphone')} />
 			</PageScreen>
 		)
@@ -58,7 +58,7 @@ export function LanguageScreen() {
 		setNotice(graphError(answered.error)?.message ?? __('The choice could not be saved.', 'alphone'))
 	}
 	return (
-		<PageScreen title={__('Language', 'alphone')}>
+		<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
 			<Stack direction="column" gap="sm">
 				<SelectControl
 					label={__('Language', 'alphone')}

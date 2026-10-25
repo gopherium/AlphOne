@@ -78,7 +78,7 @@ test('reports an unreadable language list inside the page shell', async () => {
 	renderAt('/language')
 
 	expect(await screen.findByText('The languages could not be read.')).toBeInTheDocument()
-	expect(screen.getByRole('heading', { level: 1, name: 'Language' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 2, name: 'Language' })).toBeInTheDocument()
 })
 
 test('reports a save that answered nothing at all', async () => {

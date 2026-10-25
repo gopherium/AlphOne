@@ -2,8 +2,8 @@
 
 import {
 	Button,
-	EmptyState,
 	ErrorNotice,
+	ListEmpty,
 	PageScreen,
 	__,
 	openOnTap,
@@ -35,18 +35,15 @@ const noContacts: ContactRow[] = []
  * @returns The empty state.
  */
 function ContactsEmpty({ narrowed }: { narrowed: boolean }) {
+	if (narrowed) {
+		return <ListEmpty icon={people} title={__('No contacts found.', 'alphone')} />
+	}
 	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={people} />
-			{narrowed ? (
-				<EmptyState.Title>{__('No contacts found.', 'alphone')}</EmptyState.Title>
-			) : (
-				<>
-					<EmptyState.Title>{__('No contacts yet.', 'alphone')}</EmptyState.Title>
-					<EmptyState.Description>{__('Add one with New contact.', 'alphone')}</EmptyState.Description>
-				</>
-			)}
-		</EmptyState.Root>
+		<ListEmpty
+			icon={people}
+			title={__('No contacts yet.', 'alphone')}
+			hint={__('Add one with New contact.', 'alphone')}
+		/>
 	)
 }
 
@@ -144,6 +141,7 @@ export function ContactsScreen() {
 	return (
 		<PageScreen
 			title={__('Contacts', 'alphone')}
+			headingLevel={2}
 			subtitle={__('Manage the people you work with and how to reach them.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/contacts/new" />}>

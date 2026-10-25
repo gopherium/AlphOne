@@ -95,7 +95,7 @@ export function NewTaskScreen({
 	}
 
 	return (
-		<PageScreen title={__('New task', 'alphone')}>
+		<PageScreen title={__('New task', 'alphone')} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

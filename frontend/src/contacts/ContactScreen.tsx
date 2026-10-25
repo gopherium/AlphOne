@@ -71,7 +71,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 
 	if (detail.isPending) {
 		return (
-			<PageScreen title={__('Contact', 'alphone')}>
+			<PageScreen title={__('Contact', 'alphone')} headingLevel={2}>
 				<LoadingScreen label={__('Loading contact…', 'alphone')} />
 			</PageScreen>
 		)
@@ -82,6 +82,7 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 	return (
 		<PageScreen
 			title={contact.name}
+			headingLevel={2}
 			aside={
 				<>
 					<Text className="alphone-contacts__created">

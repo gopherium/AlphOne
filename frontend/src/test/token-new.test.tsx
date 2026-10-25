@@ -111,7 +111,7 @@ test('the expected boxes hold the core areas and every area a plugin grants, by 
 test('serves the new token screen at /users/tokens/new', async () => {
 	renderAt('/users/tokens/new')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'New token' })).toBeInTheDocument()
 })
 
 test('names each core area and every wired plugin area in its read and write boxes', async () => {
@@ -221,7 +221,7 @@ test('shows the secret once and warns it is never shown again', async () => {
 	expect(await screen.findByText(secret)).toBeInTheDocument()
 	expect(screen.getByText(/never shown again/)).toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: 'Create token' })).not.toBeInTheDocument()
-	expect(screen.getByRole('heading', { level: 1, name: 'New token' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 2, name: 'New token' })).toBeInTheDocument()
 })
 
 test('copies the secret to the clipboard', async () => {

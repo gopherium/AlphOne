@@ -50,7 +50,7 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 
 	if (result.fetching && task === undefined) {
 		return (
-			<PageScreen title={__('Task', 'alphone')}>
+			<PageScreen title={__('Task', 'alphone')} headingLevel={2}>
 				<LoadingScreen label={__('Loading task…', 'alphone')} />
 			</PageScreen>
 		)
@@ -59,7 +59,7 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 		return <ErrorNotice>{__('The task could not be loaded.', 'alphone')}</ErrorNotice>
 	}
 	return (
-		<PageScreen title={task.title}>
+		<PageScreen title={task.title} headingLevel={2}>
 			{task.contact ? <ContactLink contact={task.contact} /> : null}
 			<TaskForm key={`${task.title}-${task.dueOn}-${task.dueTime}`} task={task} />
 		</PageScreen>

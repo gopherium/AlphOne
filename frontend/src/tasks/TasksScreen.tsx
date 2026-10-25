@@ -3,8 +3,8 @@
 import {
 	Button,
 	Collapsible,
-	EmptyState,
 	IconButton,
+	ListEmpty,
 	LoadingRows,
 	LoadMore,
 	ErrorNotice,
@@ -59,6 +59,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 	return (
 		<PageScreen
 			title={__('Tasks', 'alphone')}
+			headingLevel={2}
 			subtitle={formatDay(date)}
 			actions={
 				<>
@@ -171,13 +172,11 @@ function TaskSections({
 	return (
 		<Stack direction="column" gap="lg" className="godmin-arrival">
 			{open.length === 0 ? (
-				<EmptyState.Root className="godmin-empty">
-					<EmptyState.Icon icon={inbox} />
-					<EmptyState.Title>{__('Nothing due today.', 'alphone')}</EmptyState.Title>
-					<EmptyState.Description>
-						{__('Add a task above, or open a contact and create one from their page.', 'alphone')}
-					</EmptyState.Description>
-				</EmptyState.Root>
+				<ListEmpty
+					icon={inbox}
+					title={__('Nothing due today.', 'alphone')}
+					hint={__('Add a task above, or open a contact and create one from their page.', 'alphone')}
+				/>
 			) : (
 				<TaskList label={__('Open tasks', 'alphone')} tasks={open} controls={controls} />
 			)}

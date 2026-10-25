@@ -108,25 +108,31 @@ test('every leaf route is covered by the outline invariant', () => {
 })
 
 /**
- * Returns the first level headings the canvas is showing.
+ * Returns the headings of one level the canvas is showing.
+ * @param tag - The tag of the heading level, such as H2.
  * @returns The heading texts.
  */
-function firstLevelHeadings(): (string | null)[] {
+function canvasHeadings(tag: string): (string | null)[] {
 	return within(screen.getByRole('main'))
 		.queryAllByRole('heading')
-		.filter((heading) => heading.tagName === 'H1')
+		.filter((heading) => heading.tagName === tag)
 		.map((heading) => heading.textContent)
 }
 
 test.each(Object.entries(paths))(
-	'route %s renders exactly one first level heading',
+	'route %s titles its page at the second level, under the sidebar title',
 	async (_id, path) => {
 		renderAt(path)
 		await screen.findByRole('main')
-		await waitFor(() => expect(firstLevelHeadings()).toHaveLength(1))
+		await waitFor(() => expect(canvasHeadings('H2')).toHaveLength(1))
 		await new Promise((resolve) => setTimeout(resolve, 400))
 
-		expect(firstLevelHeadings()).toHaveLength(1)
+		expect(canvasHeadings('H2')).toHaveLength(1)
+		expect(canvasHeadings('H1')).toEqual([])
+		const sidebar = screen.getByRole('region', { name: 'Navigation' })
+		const firstLevel = screen.getAllByRole('heading').filter((heading) => heading.tagName === 'H1')
+		expect(firstLevel).toHaveLength(1)
+		expect(sidebar).toContainElement(firstLevel[0])
 		cleanup()
 	},
 )

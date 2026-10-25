@@ -139,14 +139,14 @@ test('keeps the list toolbar while the accounts arrive', async () => {
 test('serves the users screen at /users', async () => {
 	renderAt('/users')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Users' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Users' })).toBeInTheDocument()
 	expect((await rowOf('Ada Lovelace')).getByText('ada@example.com')).toBeInTheDocument()
 })
 
 test('follows the page template like every other screen', async () => {
 	renderAt('/users')
 
-	const heading = await screen.findByRole('heading', { level: 1, name: 'Users' })
+	const heading = await screen.findByRole('heading', { level: 2, name: 'Users' })
 	expect(heading.closest('.godmin-page')).not.toBeNull()
 	expect(await screen.findByRole('link', { name: 'New user' })).toBeInTheDocument()
 })
@@ -191,7 +191,7 @@ test('keeps the Users tab current while the address holds a search', async () =>
 test('leaves API tokens out of the header, now that it is a tab', async () => {
 	renderAt('/users')
 
-	const header = (await screen.findByRole('heading', { level: 1, name: 'Users' })).closest('header') as HTMLElement
+	const header = (await screen.findByRole('heading', { level: 2, name: 'Users' })).closest('header') as HTMLElement
 	await screen.findByRole('link', { name: 'New user' })
 	expect(within(header).queryByRole('link', { name: 'API tokens' })).not.toBeInTheDocument()
 })
@@ -217,6 +217,7 @@ test('shows an empty state when no accounts exist', async () => {
 
 	expect(await screen.findByText('No users yet.')).toBeInTheDocument()
 	expect(screen.getByText('Add one with New user.').closest('.godmin-empty')).not.toBeNull()
+	expect(screen.getByRole('heading', { level: 3, name: 'No users yet.' })).toBeInTheDocument()
 })
 
 test('says nobody matched when a search finds no account', async () => {
