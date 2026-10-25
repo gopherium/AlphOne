@@ -50,7 +50,7 @@ type PublicPathProvider = pluginkit.PublicPathProvider
 // which the host calls once per installed plugin.
 type Deps struct {
 	DatabaseURL string
-	// PublicURL is the address people reach the application at, empty without a mail relay.
+	// PublicURL is the address people reach the application at, empty when unset.
 	PublicURL string
 	// MachineGrace is how long a deactivated tenant keeps recording what a channel delivers.
 	MachineGrace time.Duration
