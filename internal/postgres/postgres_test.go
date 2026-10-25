@@ -239,6 +239,120 @@ func TestMigrationsKeepTheDueTimeOnAWholeMinuteOfTheDay(t *testing.T) {
 	}
 }
 
+// identityFeedVersion is the migration stamping every identity with the transaction that added it.
+const identityFeedVersion = 24
+
+// identityFeedIndex is the index the identity feed reads in order.
+const identityFeedIndex = "contact_identities_tenant_channel_added_id_idx"
+
+// addedColumns returns how many of the added_xid and added_server columns core.contact_identities holds.
+func addedColumns(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var columns int
+	err := db.QueryRow(
+		`SELECT count(*) FROM information_schema.columns
+		WHERE table_schema = 'core' AND table_name = 'contact_identities'
+			AND column_name IN ('added_xid', 'added_server')`,
+	).Scan(&columns)
+	if err != nil {
+		t.Fatalf("querying information_schema.columns: %v", err)
+	}
+	return columns
+}
+
+// identityStamp is the transaction, as text, and the server that numbered one identity.
+type identityStamp struct {
+	transaction string
+	server      int64
+}
+
+// addedStamp returns the stamp of the identity the id names.
+func addedStamp(t *testing.T, db *sql.DB, id uuid.UUID) identityStamp {
+	t.Helper()
+	var stamp identityStamp
+	if err := db.QueryRow(
+		"SELECT added_xid::text, added_server FROM core.contact_identities WHERE id = $1", id,
+	).Scan(&stamp.transaction, &stamp.server); err != nil {
+		t.Fatalf("reading the stamp of the identity: %v", err)
+	}
+	return stamp
+}
+
+// systemIdentifier returns the system identifier of the database server behind db.
+func systemIdentifier(t *testing.T, db *sql.DB) int64 {
+	t.Helper()
+	var server int64
+	if err := db.QueryRow("SELECT (pg_control_system()).system_identifier").Scan(&server); err != nil {
+		t.Fatalf("reading the server identity: %v", err)
+	}
+	return server
+}
+
+func TestMigrationsIndexTheIdentitiesByTenantChannelAndAddingTransaction(t *testing.T) {
+	t.Parallel()
+
+	definition := indexDefinition(t, newTestDB(t), "contact_identities", identityFeedIndex)
+
+	if !strings.HasSuffix(definition, "USING btree (tenant_id, channel, added_xid, id)") {
+		t.Errorf("index definition = %q, want tenant, channel, adding transaction and id", definition)
+	}
+}
+
+func TestAnIdentityStoredBeforeTheFeedMigrationTakesTheZeroTransaction(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+	provider := coreProvider(t, db)
+	if _, err := provider.DownTo(t.Context(), identityFeedVersion-1); err != nil {
+		t.Fatalf("rolling back the identity feed migration: %v", err)
+	}
+	maria := mustContact(t, "Maria Perez")
+	insertContact(t, db, maria)
+	earlier := mustIdentity(t, maria.ID, "email", "maria@example.com")
+	if err := insertIdentity(db, earlier); err != nil {
+		t.Fatalf("inserting the earlier identity: %v", err)
+	}
+
+	if _, err := provider.Up(t.Context()); err != nil {
+		t.Fatalf("applying the identity feed migration: %v", err)
+	}
+	later := mustIdentity(t, maria.ID, "phone", "+184467235")
+	if err := insertIdentity(db, later); err != nil {
+		t.Fatalf("inserting the later identity: %v", err)
+	}
+
+	if got := addedStamp(t, db, earlier.ID); got != (identityStamp{transaction: "0"}) {
+		t.Errorf("the earlier identity stamp = %+v, want the transaction 0 on the server 0", got)
+	}
+	server := systemIdentifier(t, db)
+	if got := addedStamp(t, db, later.ID); got.transaction == "0" || got.server != server {
+		t.Errorf("the later identity stamp = %+v, want the transaction that stored it on the server %d", got, server)
+	}
+}
+
+func TestRollingTheIdentityFeedMigrationBackDropsTheColumnAndTheIndex(t *testing.T) {
+	t.Parallel()
+
+	db := newTestDB(t)
+
+	if _, err := coreProvider(t, db).DownTo(t.Context(), identityFeedVersion-1); err != nil {
+		t.Fatalf("rolling back the identity feed migration: %v", err)
+	}
+
+	if columns := addedColumns(t, db); columns != 0 {
+		t.Errorf("added_xid and added_server columns after the rollback = %d, want 0", columns)
+	}
+	var indexes int
+	if err := db.QueryRow(
+		"SELECT count(*) FROM pg_indexes WHERE schemaname = 'core' AND indexname = $1", identityFeedIndex,
+	).Scan(&indexes); err != nil {
+		t.Fatalf("querying pg_indexes: %v", err)
+	}
+	if indexes != 0 {
+		t.Errorf("%s after the rollback = %d, want 0", identityFeedIndex, indexes)
+	}
+}
+
 func TestMigrationsStoreContactWithIdentity(t *testing.T) {
 	t.Parallel()
 

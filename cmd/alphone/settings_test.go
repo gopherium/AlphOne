@@ -34,6 +34,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_TENANT_MACHINE_GRACE":             "72h",
 		"ALPHONE_TENANTS_HELD":                     "8",
 		"ALPHONE_TENANTS_REFRESH":                  "30s",
+		"ALPHONE_CONTACT_MATCH_MAX":                "40",
 		"ALPHONE_SMTP_HOST":                        "mail.example.com",
 		"ALPHONE_SMTP_PORT":                        "2525",
 		"ALPHONE_SMTP_USERNAME":                    "crm",
@@ -635,6 +636,11 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 		"a webhook host without a port": {
 			"ALPHONE_WEBHOOK_ALLOWED_HOSTS", "127.0.0.1/32,n8n",
 			"must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678",
+		},
+		"a match bound in words":   {"ALPHONE_CONTACT_MATCH_MAX", "a hundred", "must be a whole number"},
+		"a match of no identifier": {"ALPHONE_CONTACT_MATCH_MAX", "0", "must stand above zero"},
+		"a match past a query row bound": {
+			"ALPHONE_CONTACT_MATCH_MAX", "2147483648", "must stand at or below 2147483647",
 		},
 	}
 	for testName, tt := range tests {

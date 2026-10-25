@@ -94,6 +94,7 @@ type world struct {
 	entryIDs     map[string]string
 	answeredIDs  []string
 	entryField   string
+	reader       *feedReader
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -351,6 +352,32 @@ func (d scenarioDirectory) CreateWithIdentities(
 		return sdk.Contact{}, false, markInvalid(err)
 	}
 	return sdk.Contact{ID: owner.ID, Name: owner.Name}, created, nil
+}
+
+// scenarioFeed bridges the scenario's identity feed to the plugin contract.
+type scenarioFeed struct {
+	feed *contact.Feed
+}
+
+// IdentitiesAddedSince returns at most limit [sdk.AddedIdentity] values past the cursor and the next cursor.
+func (f scenarioFeed) IdentitiesAddedSince(
+	ctx context.Context, channel sdk.Channel, cursor sdk.IdentityCursor, limit int,
+) ([]sdk.AddedIdentity, sdk.IdentityCursor, error) {
+	added, next, err := f.feed.IdentitiesAddedSince(ctx, contact.Channel(channel), contact.Cursor(cursor), limit)
+	if err != nil {
+		return nil, cursor, markInvalid(err)
+	}
+	answered := make([]sdk.AddedIdentity, len(added))
+	for i, identity := range added {
+		answered[i] = sdk.AddedIdentity(identity)
+	}
+	return answered, sdk.IdentityCursor(next), nil
+}
+
+// Horizon returns the cursor a new reader starts from.
+func (f scenarioFeed) Horizon(ctx context.Context) (sdk.IdentityCursor, error) {
+	horizon, err := f.feed.Horizon(ctx)
+	return sdk.IdentityCursor(horizon), err
 }
 
 // worldFrom returns the world the scenario carries.

@@ -15,6 +15,11 @@ import (
 
 var migrationSource = mustSub(Migrations, "migrations")
 
+// restampIdentities marks each identity another server numbered, or numbered past this server's count, added now.
+const restampIdentities = `UPDATE core.contact_identities SET added_xid = DEFAULT, added_server = DEFAULT
+WHERE added_server <> (SELECT system_identifier FROM pg_control_system())
+    OR added_xid >= pg_snapshot_xmax(pg_current_snapshot())`
+
 // Migrate applies the core schema migrations to the database at databaseURL.
 func Migrate(ctx context.Context, databaseURL string) error {
 	return migrateDatabase(ctx, "pgx", databaseURL)
@@ -30,7 +35,7 @@ func migrateDatabase(ctx context.Context, driverName, databaseURL string) error 
 	return migrate(ctx, db)
 }
 
-// migrate runs all pending up migrations against db using the goose Postgres provider under goose's session lock.
+// migrate runs all pending up migrations against db under goose's session lock, then restamps the identities.
 func migrate(ctx context.Context, db *sql.DB) error {
 	locker := mustLocker(lock.NewPostgresSessionLocker())
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrationSource, goose.WithSessionLocker(locker))
@@ -39,6 +44,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	}
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("postgres: apply migrations: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, restampIdentities); err != nil {
+		return fmt.Errorf("postgres: restamp the identities: %w", err)
 	}
 	return nil
 }

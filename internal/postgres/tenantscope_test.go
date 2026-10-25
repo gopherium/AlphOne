@@ -111,6 +111,65 @@ func TestAnIdentityResolvesInsideItsTenantAlone(t *testing.T) {
 	}
 }
 
+// storedOwnerIn stores a contact owning the address in the tenant the context serves.
+func storedOwnerIn(t *testing.T, store *postgres.ContactStore, ctx context.Context, owned ownedAddress) uuid.UUID {
+	t.Helper()
+	owner := storedContact(t, store, ctx, owned.name)
+	if err := store.AddIdentity(ctx, mustIdentity(t, owner, owned.channel, owned.identifier)); err != nil {
+		t.Fatalf("AddIdentity(%s) error = %v, want nil", owned.identifier, err)
+	}
+	return owner
+}
+
+func TestAMatchStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewContactStore(pool)
+	matcher := contact.NewMatcher(store, matchBound)
+	acme := standingIn(t, seededTenant(t, pool))
+	mine := storedOwnerIn(t, store, acme, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+	theirs := storedOwnerIn(t, store, t.Context(), ownedAddress{"Ada Lovelace", "email", "ada@example.com"})
+	shared := storedOwnerIn(t, store, t.Context(), ownedAddress{"Grace Hopper", "email", "maria@example.com"})
+
+	inside, err := matcher.MatchIdentities(acme, "email", []string{"maria@example.com", "ada@example.com"})
+	if err != nil {
+		t.Fatalf("MatchIdentities() inside Acme error = %v, want nil", err)
+	}
+	elsewhere, err := matcher.MatchIdentities(t.Context(), "email", []string{"maria@example.com", "ada@example.com"})
+	if err != nil {
+		t.Fatalf("MatchIdentities() elsewhere error = %v, want nil", err)
+	}
+
+	if len(inside) != 1 || inside["maria@example.com"].ID != mine {
+		t.Errorf("MatchIdentities() inside Acme = %+v, want only its own owner of maria@example.com", inside)
+	}
+	if elsewhere["maria@example.com"].ID != shared || elsewhere["ada@example.com"].ID != theirs {
+		t.Errorf("MatchIdentities() elsewhere = %+v, want the other tenant's own owners", elsewhere)
+	}
+}
+
+func TestTheIdentityFeedStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewContactStore(pool)
+	feed := contact.NewFeed(store, feedPageLimit)
+	acme := standingIn(t, seededTenant(t, pool))
+	theirs := storedOwnerIn(t, store, t.Context(), ownedAddress{"Ada Lovelace", "email", "ada@example.com"})
+	mine := storedOwnerIn(t, store, acme, ownedAddress{"Maria Perez", "email", "maria@example.com"})
+
+	inside, _ := feedReader{t, acme, feed}.settled(contact.Cursor{}, 1)
+	elsewhere, _ := feedReader{t, t.Context(), feed}.settled(contact.Cursor{}, 1)
+
+	if len(inside) != 1 || inside[0].ContactID != mine {
+		t.Errorf("the Acme feed answered %+v, want only its own identity", inside)
+	}
+	if len(elsewhere) != 1 || elsewhere[0].ContactID != theirs {
+		t.Errorf("the other tenant's feed answered %+v, want only its own identity", elsewhere)
+	}
+}
+
 func TestASettingStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 

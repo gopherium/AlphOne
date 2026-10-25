@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/gopherium/gouncer/authkit/ratelimit"
 
 	"github.com/gopherium/alphone/graph"
+	"github.com/gopherium/alphone/internal/contact"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -295,11 +297,12 @@ type runConfig struct {
 
 // composeSettings carries the settings compose hands the plugins and the stores it builds.
 type composeSettings struct {
-	machineGrace time.Duration
-	tenants      tenantSettings
-	mail         mailSettings
-	webhookHosts webhook.AllowList
-	paging       graphres.Paging
+	machineGrace    time.Duration
+	tenants         tenantSettings
+	contactMatchMax int
+	mail            mailSettings
+	webhookHosts    webhook.AllowList
+	paging          graphres.Paging
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -473,6 +476,10 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
+	contactMatchMax, err := env.Count("CONTACT_MATCH_MAX", contact.DefaultMatchMax, gonsole.AtMost(math.MaxInt32))
+	if err != nil {
+		return composeSettings{}, err
+	}
 	mail, err := loadMailSettings(env)
 	if err != nil {
 		return composeSettings{}, err
@@ -486,7 +493,8 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 		return composeSettings{}, err
 	}
 	return composeSettings{
-		machineGrace: machineGrace, tenants: tenants, mail: mail, webhookHosts: webhookHosts, paging: paging,
+		machineGrace: machineGrace, tenants: tenants, contactMatchMax: contactMatchMax,
+		mail: mail, webhookHosts: webhookHosts, paging: paging,
 	}, nil
 }
 
