@@ -162,7 +162,7 @@ test('keeps the list toolbar while the tokens arrive', async () => {
 test('serves the tokens tab at /users/tokens, under the Users title the page keeps', async () => {
 	renderAt('/users/tokens')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Users' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Users' })).toBeInTheDocument()
 	const tabs = within(screen.getByRole('navigation', { name: 'User sections' }))
 	expect(tabs.getAllByRole('link').map((tab) => tab.textContent)).toEqual(['Users', 'API tokens'])
 	expect(tabs.getByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
@@ -191,14 +191,14 @@ test('says what the tokens tab is for in Spanish', async () => {
 test('keeps Users current in the main menu on the tokens tab', async () => {
 	renderAt('/users/tokens')
 
-	const menu = within(await screen.findByRole('navigation', { name: 'Navigation' }))
+	const menu = within(await screen.findByRole('region', { name: 'Navigation' }))
 	expect(await menu.findByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page')
 })
 
 test('titles the tokens page API tokens for an account that cannot open Users, with no tab strip', async () => {
 	renderAt('/users/tokens', memberSession)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'API tokens' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'API tokens' })).toBeInTheDocument()
 	expect(screen.getByText('Manage the tokens your programs sign in with.')).toHaveClass('godmin-page__subtitle')
 	expect(screen.queryByRole('navigation', { name: 'User sections' })).not.toBeInTheDocument()
 })
@@ -206,7 +206,7 @@ test('titles the tokens page API tokens for an account that cannot open Users, w
 test('keeps API tokens current in the main menu of an account that cannot open Users', async () => {
 	renderAt('/users/tokens', memberSession)
 
-	const menu = within(await screen.findByRole('navigation', { name: 'Navigation' }))
+	const menu = within(await screen.findByRole('region', { name: 'Navigation' }))
 	expect(await menu.findByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
 })
 
@@ -347,6 +347,7 @@ test('shows an empty state when no token exists', async () => {
 
 	expect(await screen.findByText('No API tokens yet.')).toBeInTheDocument()
 	expect(screen.getByText('Add one with New token.').closest('.godmin-empty')).not.toBeNull()
+	expect(screen.getByRole('heading', { level: 3, name: 'No API tokens yet.' })).toBeInTheDocument()
 })
 
 /**
@@ -401,7 +402,7 @@ test('reaches the tokens tab from the users tab', async () => {
 	expect(await screen.findByRole('row', { name: /n8n production/ })).toBeInTheDocument()
 	const shown = within(screen.getByRole('navigation', { name: 'User sections' }))
 	expect(shown.getByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
-	expect(screen.getByRole('heading', { level: 1, name: 'Users' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 2, name: 'Users' })).toBeInTheDocument()
 })
 
 test('returns to the users tab from the tokens tab', async () => {

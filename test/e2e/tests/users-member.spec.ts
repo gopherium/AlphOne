@@ -23,7 +23,7 @@ async function signIn(browser: Browser, email: string): Promise<{ context: Brows
 	await page.getByLabel('Email').fill(email)
 	await page.getByLabel('Password').fill(password)
 	await page.getByRole('button', { name: 'Log in' }).click()
-	await expect(page.getByRole('heading', { level: 1, name: 'Tasks' })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
 	return { context, page }
 }
 
@@ -47,22 +47,22 @@ test('a member is kept out of the Users screen and finds its API tokens in the m
 	await provisionUser(page, browser, { email, name: `Maria Perez ${stamp}`, password })
 
 	const member = await signIn(browser, email)
-	const menu = member.page.getByRole('navigation', { name: 'Navigation' })
+	const menu = member.page.getByRole('region', { name: 'Navigation' })
 	await expect(menu.getByRole('link', { name: 'Users' })).toHaveCount(0)
 	await menu.getByRole('link', { name: 'API tokens' }).click()
 
 	await expect(member.page).toHaveURL(/\/users\/tokens(\?.*)?$/)
-	await expect(member.page.getByRole('heading', { level: 1, name: 'API tokens' })).toBeVisible()
+	await expect(member.page.getByRole('heading', { level: 2, name: 'API tokens' })).toBeVisible()
 	await expect(member.page.getByText('Manage the tokens your programs sign in with.')).toBeVisible()
 	await expect(member.page.getByRole('navigation', { name: 'User sections' })).toHaveCount(0)
 
 	await member.page.goto('/users')
-	await expect(member.page.getByRole('heading', { level: 1, name: 'Tasks' })).toBeVisible()
+	await expect(member.page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
 	await expect(member.page).toHaveURL(/\/tasks(\?.*)?$/)
 	await expect(member.page.getByRole('searchbox', { name: 'Search users…' })).toHaveCount(0)
 
 	await member.page.goto('/users/new')
-	await expect(member.page.getByRole('heading', { level: 1, name: 'Tasks' })).toBeVisible()
+	await expect(member.page.getByRole('heading', { level: 2, name: 'Tasks' })).toBeVisible()
 	await expect(member.page.getByRole('button', { name: 'Send invitation' })).toHaveCount(0)
 
 	await member.context.close()

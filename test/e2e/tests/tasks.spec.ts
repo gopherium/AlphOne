@@ -623,7 +623,7 @@ test('opens the contact of a task from its name on the row', async ({ page, requ
 	await row.getByRole('link', { name: contact, exact: true }).click()
 
 	await expect(page).toHaveURL(new RegExp(`/contacts/${created.createContact.id}$`))
-	await expect(page.getByRole('heading', { level: 1, name: contact, exact: true })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 2, name: contact, exact: true })).toBeVisible()
 })
 
 test('keeps a row with the contact name as tall as a row without, titles level, on a desktop', async ({

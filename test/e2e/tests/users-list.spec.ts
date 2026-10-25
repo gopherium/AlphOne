@@ -92,7 +92,7 @@ test('pages the users newest first, and Back returns to the same page', async ({
 	await tabs.getByRole('link', { name: 'API tokens' }).click()
 	await expect(tabs.getByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
 	await expect(page.getByText('Manage the tokens your programs sign in with.')).toBeVisible()
-	await expect(page.getByRole('heading', { level: 1, name: 'Users' })).toBeVisible()
+	await expect(page.getByRole('heading', { level: 2, name: 'Users' })).toBeVisible()
 	await page.goBack()
 
 	await expect(page).toHaveURL(/page=2/)
@@ -148,7 +148,7 @@ test.describe('on a phone', () => {
 	test('lays the users out as a list rather than a table', async ({ page }) => {
 		await page.goto(`/users?search=${encodeURIComponent(credentials.email)}`)
 
-		await expect(page.getByRole('heading', { level: 1, name: 'Users' })).toBeVisible()
+		await expect(page.getByRole('heading', { level: 2, name: 'Users' })).toBeVisible()
 		await expect(page.getByText(credentials.email).first()).toBeVisible()
 		await expect(page.locator('table')).toHaveCount(0)
 	})

@@ -48,6 +48,10 @@ test('screens center their empty state through the template class', () => {
 	expect(filesMatching(/<EmptyState\.Root>/)).toEqual([])
 })
 
+test('screens title an empty list through ListEmpty, one level under the page title', () => {
+	expect(filesMatching(/EmptyState\.Title/)).toEqual([])
+})
+
 // A table is wider than a phone, so it scrolls inside its own region instead of
 // dragging the page sideways.
 test('screens wrap their table in the scrolling region', () => {

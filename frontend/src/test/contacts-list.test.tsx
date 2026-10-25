@@ -239,7 +239,7 @@ test('keeps the list toolbar while the contacts arrive', async () => {
 test('serves the contacts screen at /contacts', async () => {
 	renderAt('/contacts')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Contacts' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Contacts' })).toBeInTheDocument()
 	expect((await rowOf('Ana Lopez')).getByText('ana@example.com')).toBeInTheDocument()
 })
 
@@ -248,7 +248,7 @@ test('navigates to the contacts screen from the main menu', async () => {
 
 	await userEvent.click(await screen.findByRole('link', { name: 'Contacts' }))
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Contacts' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Contacts' })).toBeInTheDocument()
 })
 
 test('says under the title what the contacts list is for', async () => {
@@ -290,6 +290,7 @@ test('shows an empty state when no contacts exist', async () => {
 
 	expect(await screen.findByText('No contacts yet.', {}, settled)).toBeInTheDocument()
 	expect(screen.getByText('Add one with New contact.').closest('.godmin-empty')).not.toBeNull()
+	expect(screen.getByRole('heading', { level: 3, name: 'No contacts yet.' })).toBeInTheDocument()
 })
 
 test('says nobody matched when a search finds no contact', async () => {
@@ -344,7 +345,7 @@ test('opens a contact from its name', async () => {
 
 	await userEvent.click((await rowOf('Ada Lovelace')).getAllByRole('link', { name: 'Ada Lovelace' })[1])
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
 })
 
 test('draws one outline badge per channel a contact is reached on', async () => {
@@ -571,7 +572,7 @@ test('reads the contacts afresh each time the list opens', async () => {
 	renderAt('/contacts')
 	await rowOf('Ana Lopez')
 	await userEvent.click(screen.getByRole('link', { name: 'New contact' }))
-	await screen.findByRole('heading', { level: 1, name: 'New contact' })
+	await screen.findByRole('heading', { level: 2, name: 'New contact' })
 	serving([contactOf('05', 'Grace Hopper', '2026-07-09T10:00:00Z'), ana, ada, maria])
 
 	await userEvent.click(screen.getByRole('link', { name: 'Contacts' }))
@@ -629,7 +630,7 @@ test('opens the contact a tap lands on in the list a phone shows', async () => {
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Ada Lovelace' }, settled))
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
 })
 
 test('offers Add task before Rename… in the row menu, the one click primary action first', async () => {
@@ -922,6 +923,6 @@ test('opens a new task for the contact from its row', async () => {
 
 	await act('Ana Lopez', 'Add task')
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'New task' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'New task' })).toBeInTheDocument()
 	expect(await screen.findByRole('button', { name: 'Remove Ana Lopez' })).toBeInTheDocument()
 })

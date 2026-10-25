@@ -53,7 +53,7 @@ test('shows the add button busy and still refuses a second submit', async () => 
 	expect(busy.length).toBeGreaterThan(0)
 	server.use(graphql.mutation('CreateTask', () => new Promise(() => {})))
 	renderAt('/tasks')
-	await screen.findByRole('heading', { level: 1, name: 'Tasks' })
+	await screen.findByRole('heading', { level: 2, name: 'Tasks' })
 	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Call Maria Perez')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
@@ -232,7 +232,7 @@ test('opens the linked contact from its name after the task title', async () => 
 	expect(open).toHaveAttribute('href', `/contacts/${contactID}`)
 	await userEvent.click(open)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Maria Perez' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
 })
 
 test('shows the contact name only on a task linked to a contact', async () => {
@@ -414,7 +414,7 @@ test('confirms an add that lands after the screen was left', async () => {
 	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 	await userEvent.click(screen.getByRole('link', { name: 'New task' }))
-	await screen.findByRole('heading', { level: 1, name: 'New task' })
+	await screen.findByRole('heading', { level: 2, name: 'New task' })
 	release?.()
 
 	expect(await screen.findByText('Task added.')).toBeInTheDocument()
@@ -568,6 +568,7 @@ test('shows an empty state when the day has no tasks', async () => {
 	renderAt('/tasks')
 
 	expect(await screen.findByText('Nothing due today.')).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 3, name: 'Nothing due today.' })).toBeInTheDocument()
 })
 
 test('loads more tasks through the cursor', async () => {
@@ -905,7 +906,7 @@ test('sets the overdue heading a size above the field labels', async () => {
 
 	renderAt('/tasks')
 
-	const heading = await screen.findByRole('heading', { level: 2, name: 'Overdue' })
+	const heading = await screen.findByRole('heading', { level: 3, name: 'Overdue' })
 	expect([...heading.classList]).toEqual(expect.arrayContaining(large))
 })
 

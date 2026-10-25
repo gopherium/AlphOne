@@ -310,9 +310,6 @@ msgstr ""
 msgid "Name updated."
 msgstr ""
 
-msgid "Navigation"
-msgstr ""
-
 msgid "Never expires"
 msgstr ""
 

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, globCatalogs } from '@alphone/frontend-sdk'
+import { _x, globCatalogs, upload } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
 import { errorTemplates } from './errorTemplates'
-import { importerIcon } from './icon'
 import { routes } from './routes'
 
 /** DOMAIN is the text domain the plugin's strings answer under. */
@@ -21,7 +20,7 @@ export const plugin: FrontendPlugin = {
 			return _x('Import', 'admin section', 'alphone-importer')
 		},
 		to: '/import',
-		icon: importerIcon,
+		icon: upload,
 	}],
 	tokenAreas: [{
 		value: 'imports',

@@ -139,7 +139,7 @@ arrives, so the text freezes in English and never changes again. Every
 test still passes, because tests run in English.
 
 The fix is to read the string when it is used rather than when the file
-loads. The navigation items do this with a getter.
+loads. The sidebar rows do this with a getter.
 
 ```ts
 nav: [{
@@ -147,7 +147,7 @@ nav: [{
 		return _x('WhatsApp', 'admin section', 'alphone-whatsapp')
 	},
 	to: '/whatsapp',
-	icon: whatsappIcon,
+	icon: comment,
 }],
 ```
 

@@ -48,9 +48,11 @@ your plugin.
 
 ## The contract
 
-A screen puts its title top left and its actions top right, and the
-title is the page's only first level heading. `PageScreen` gives you
-that shape.
+A screen puts its title top left and its actions top right. The
+sidebar title is the admin's only first level heading, so the page
+title is the page's only second level heading. `PageScreen` with
+`headingLevel={2}` gives you that shape, and every heading inside the
+page moves one level down with it.
 
 ```tsx
 import { Button, PageScreen } from '@alphone/frontend-sdk'
@@ -60,6 +62,7 @@ export function InvoicesScreen() {
 	return (
 		<PageScreen
 			title="Invoices"
+			headingLevel={2}
 			subtitle="Everything billed this month"
 			actions={
 				<Button
@@ -117,6 +120,7 @@ import { Link } from '@tanstack/react-router'
 
 <PageScreen
 	title="Invoices"
+	headingLevel={2}
 	tabs={
 		<PageTabs label="Invoice sections">
 			<PageTab
@@ -175,7 +179,7 @@ Put navigation and creation controls in `actions`. A form's submit
 button belongs at the bottom of the form, not in the header.
 
 Your screen renders in two shells without doing anything. On a wide
-viewport it sits beside the navigation rail. Below 1024px the rail
+viewport it sits beside the sidebar. Below 1024px the sidebar
 becomes a drawer behind a menu button. Below 782px the canvas meets the
 screen edges, as a WordPress page does on a tablet, and below 640px it
 pads tighter. Build one screen and check it at each of these sizes.
@@ -220,11 +224,12 @@ createRoute({
 })
 ```
 
-The menu then leaves out an entry pointing at that route, or at a route
-nested under it, for a reader without the capability. An entry may also name a `capability` of its
-own, and the menu checks both. The core keeps Users and New user from
-an account without `manage_users` this way, and sends that account to
-its home screen when it types their address.
+The sidebar then leaves out a row pointing at that route, or at a route
+nested under it, for a reader without the capability. A row may also
+name a `capability` of its own, and the sidebar checks both. The core
+keeps Users and New user from an account without `manage_users` this
+way, and sends that account to its home screen when it types their
+address.
 
 Sending a reader home covers only the core's own screens. Your plugin's
 routes mount beside them, outside that check, so a reader who types
@@ -251,13 +256,7 @@ if (invoices.isError) {
 	return <ErrorNotice>Invoices could not be loaded.</ErrorNotice>
 }
 if (rows.length === 0) {
-	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={people} />
-			<EmptyState.Title>No invoices yet.</EmptyState.Title>
-			<EmptyState.Description>Add one with New invoice.</EmptyState.Description>
-		</EmptyState.Root>
-	)
+	return <ListEmpty icon={people} title="No invoices yet." hint="Add one with New invoice." />
 }
 return <InvoiceTable rows={rows} />
 ```
@@ -265,10 +264,10 @@ return <InvoiceTable rows={rows} />
 `Text role="status"` announces loading politely. `ErrorNotice` announces
 the failure as an alert, which plain copy in a `Text` never does.
 
-`EmptyState.Root` always carries `className="godmin-empty"`. The design
-system caps the empty state at a fixed width and leaves placing it to
-the consumer, so without that class it sits flush left instead of
-centered.
+`ListEmpty` draws the icon, the title and the hint centred on the
+canvas, as WordPress draws an empty list. Its title sits one level
+under the page title, so it never competes with it. Leave out `hint`
+when a search or a filter emptied the list.
 
 ## Lists, tables, and paging
 
@@ -373,7 +372,7 @@ export function InvoicesScreen() {
 	const fields = useMemo(() => invoiceFields(), [])
 
 	return (
-		<PageScreen title={__('Invoices', 'acme-billing')} list>
+		<PageScreen title={__('Invoices', 'acme-billing')} headingLevel={2} list>
 			{result.error ? (
 				<ErrorNotice>{__('Invoices could not be loaded.', 'acme-billing')}</ErrorNotice>
 			) : (
@@ -712,8 +711,10 @@ screen with an error naming both.
 ### Testing a list screen
 
 `renderPluginAt` from `@alphone/frontend-sdk/testing` mounts your
-plugin at an address, under a router and a toaster, with a fake graph
-client. Pass `session` to sign somebody in. The session goes straight
+plugin at an address inside the admin's real sidebar, with Back, the
+focus moves and the phone drawer, under a router and a toaster, with a
+fake graph client. Pass `session` to sign somebody in. A row that
+names a `capability` shows only when that account carries it. The session goes straight
 into the test's query cache, so no session request goes out. Without
 one, the host asks the test server for the session, as the app does,
 so your test answers it. Answer `/api/auth/session` with an account to
@@ -926,42 +927,125 @@ the screen owns its own scrolling region. `padded` is the default and
 never needs declaring.
 
 A bleed screen builds its own chrome, so it uses `PageTitle` directly
-instead of `PageScreen`. Every route needs exactly one first level
+instead of `PageScreen`. Every route needs exactly one second level
 heading, including a bleed one.
 
 ```tsx
 <header className="alphone-thread__header">
-	<PageTitle variant="heading-md">{contactName}</PageTitle>
+	<PageTitle variant="heading-md" level={2}>{contactName}</PageTitle>
 </header>
 ```
 
-## Sidebar screens
+## Sidebar rows and sub menus
 
-A section that drills into its own sidebar declares a `Sidebar`
-component on its route, and that component uses
-`SidebarNavigationScreen`. It renders the back link, the section title,
-and optional description, actions, and footer, and it moves focus to the
-title on arrival.
+A plugin adds rows to the sidebar through `nav`, after the core rows.
+Each row is a `MenuItem`: the `label` it shows, the address `to`, and
+an optional `icon`, `capability`, `count` and `fallback`. A `count` is
+`{ value, label }`, the number drawn at the end of the row and the
+sentence a screen reader reads in its place. A `fallback` is the
+row shown in its place to a reader who cannot open it, the way the core
+shows API tokens in place of Users.
 
-A sidebar may load on demand as a `lazyRouteComponent`. Give the
+```ts
+nav: [{
+	get label() {
+		return _x('Invoices', 'admin section', 'alphone-invoices')
+	},
+	to: '/invoices',
+	icon: list,
+}],
+```
+
+The SDK passes on a few icons from `@wordpress/icons`: `calendar`,
+`check`, `chevronLeft`, `chevronRight`, `close`, `comment`,
+`commentAuthorAvatar`, `inbox`, `institution`, `key`, `language`,
+`list`, `menu`, `moveTo`, `notAllowed`, `pencil`, `people`, `trash` and
+`upload`. The core rows carry `calendar` for Tasks,
+`commentAuthorAvatar` for Contacts, `people` for Users and `language`
+for Language. Fields carries `list`, Import carries `upload` and
+WhatsApp carries `comment`, and each empty list draws the icon of its
+row. Rows that list like items, such as the WhatsApp conversations,
+each carry the same icon, so their labels line up under the sub menu
+title.
+
+A row can open a sub menu of its own, as the Site Editor's Navigation
+row opens the list of menus. Give the route a `staticData.Sidebar`
+component that draws a `NavigationScreen`. The admin swaps the main
+menu for it, slides it in, and puts Back at its top, which leads to the
+day of tasks. Put its rows in a `NavigationList`, each one a
+`NavigationItem`. A sub menu on a parent route stays while the reader
+moves between the screens under it, as the WhatsApp conversations stay
+beside the thread a reader opens:
+
+```tsx
+import { NavigationItem, NavigationList, NavigationScreen } from '@alphone/frontend-sdk'
+
+export function InvoicesSidebar() {
+	return (
+		<NavigationScreen title="Invoices">
+			<NavigationList>
+				<NavigationItem to="/invoices/drafts">Drafts</NavigationItem>
+				<NavigationItem to="/invoices/paid">Paid</NavigationItem>
+			</NavigationList>
+		</NavigationScreen>
+	)
+}
+```
+
+Leave out the screen's `back`, so Back goes where the core's own sub
+menus go. `NavigationList` also takes `items`, rows as `MenuItem` data,
+and hides a row whose `capability` the reader lacks. A `NavigationItem`
+takes the router's `Link` props, such as `params`, and hides itself
+when its address opens a route the reader may not open.
+`DrilldownItem` draws a row that opens a further sub menu, with a
+chevron. `MenuCount` draws a count. Pass it as the `suffix` of a
+`NavigationItem` or a `DrilldownItem`, for example
+`suffix={<MenuCount count={3} label="3 drafts" />}`.
+
+A sub menu may load on demand as a `lazyRouteComponent`. Give the
 section route a `loader` that preloads it, as
 `plugins/whatsapp/frontend/routes.tsx` does:
 
 ```tsx
-const Sidebar = lazyRouteComponent(() => import('./InvoicesSidebar'), 'InvoicesSidebar')
+import { createRoute, lazyRouteComponent } from '@tanstack/react-router'
+import type { AnyRoute } from '@tanstack/react-router'
 
-createRoute({
-	getParentRoute: () => parent,
-	path: '/invoices',
-	staticData: { Sidebar },
-	loader: () => Sidebar.preload?.(),
-})
+export function routes(parent: AnyRoute) {
+	const Sidebar = lazyRouteComponent(() => import('./InvoicesSidebar'), 'InvoicesSidebar')
+	return [
+		createRoute({
+			getParentRoute: () => parent,
+			path: '/invoices',
+			staticData: { Sidebar },
+			loader: () => Sidebar.preload?.(),
+		}),
+	]
+}
 ```
 
 The router waits for the loader before it shows the section, so the
-rail swaps the main menu for your sidebar in one step. Without the
-loader, the rail stays empty for a moment while the sidebar's code
-arrives.
+sidebar swaps the main menu for your sub menu in one step. Without the
+loader, the sidebar shows no menu for a moment while the code arrives.
+
+**To move** a plugin that still uses `NavItem` or
+`SidebarNavigationScreen`:
+
+1. Replace the type `NavItem` with `MenuItem` from
+   `@alphone/frontend-sdk`. `NavItem` is gone, with no alias.
+2. Replace `SidebarNavigationScreen` with `NavigationScreen` and drop
+   `backTo`, so Back goes home. Draw the sub menu's rows in a
+   `NavigationList`, so they look like every sidebar row and mark the
+   current one.
+3. Pass `headingLevel={2}` to every `PageScreen` and `level={2}` to a
+   `PageTitle`, and draw an empty list with `ListEmpty`.
+4. Stop importing `useCanvas` and `useFrameLocation`. Only the admin's
+   frame reads them now, so the SDK no longer passes them on.
+5. In every test through `renderPluginAt`, pass `session` or serve
+   `/api/auth/session`, since the test host now reads the session to
+   draw the sidebar and hides a row the reader cannot open. Find the
+   sidebar with `getByRole('region', { name: 'Navigation' })`, and look
+   for the page title at heading level 2, since the sidebar title is the
+   only first level heading.
 
 ## What not to do
 
@@ -971,9 +1055,9 @@ last one is a convention a reviewer will hold you to.
 | Do not | Do instead | Caught by |
 | ------ | ---------- | --------- |
 | Write a raw `<h1>` or `<h2>` | `PageScreen title`, `PageTitle`, or a design system heading | source invariant |
-| Leave a route without a page title | Give every route exactly one first level heading | rendered outline test |
+| Leave a route without a page title | Give every route exactly one second level heading | rendered outline test |
 | Add a route without listing it in the outline test | List it | rendered outline test |
-| Use a bare `<EmptyState.Root>` | Add `className="godmin-empty"` | source invariant |
+| Draw an empty list with `EmptyState` | `ListEmpty` | source invariant |
 | Leave a table outside the scrolling region | Wrap it in `godmin-table-scroll` | source invariant |
 | Let a screen spill sideways on a phone | Keep it inside the canvas | end to end fit sweep |
 | Put failure copy in a plain `Text` | `ErrorNotice` for a failed load or a form on its own page, a toast for a dialog or a list run | screen tests assert the alert role or the toast |
@@ -985,9 +1069,10 @@ Three kinds of test carry these rules.
 The **source invariant** reads every screen file and rejects the
 patterns above, so a raw heading fails before anything renders.
 
-The **rendered outline test** mounts every route and counts the first
-level headings, so a screen that renders no title fails even though its
-source looks clean. It also compares its route list against the router,
+The **rendered outline test** mounts every route, counts the second
+level headings on the canvas and checks that the sidebar holds the only
+first level one, so a screen that renders no title fails even though
+its source looks clean. It also compares its route list against the router,
 so adding a route without covering it fails too.
 
 **Screen tests** find the error state by its alert role rather than by

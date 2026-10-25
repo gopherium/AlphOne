@@ -251,10 +251,10 @@ test('sets the creation date beside the contact work', async () => {
 test('sets the section headings a size above the field labels', async () => {
 	const large = textClasses('heading-lg')
 	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { level: 1, name: 'Ana García' })
+	await screen.findByRole('heading', { level: 2, name: 'Ana García' })
 
-	const identities = screen.getByRole('heading', { level: 2, name: 'Identities' })
-	const tasks = screen.getByRole('heading', { level: 2, name: 'Tasks' })
+	const identities = screen.getByRole('heading', { level: 3, name: 'Identities' })
+	const tasks = screen.getByRole('heading', { level: 3, name: 'Tasks' })
 	expect([...identities.classList]).toEqual(expect.arrayContaining(large))
 	expect([...tasks.classList]).toEqual(expect.arrayContaining(large))
 })

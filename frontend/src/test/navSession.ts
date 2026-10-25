@@ -5,14 +5,14 @@ import { adminSession } from '@alphone/frontend-sdk/testing'
 import { coreNav } from '../menu/coreNav'
 import { plugins } from '../plugins'
 
-/** everyNavEntry is every core and plugin entry the main menu can show. */
-export const everyNavEntry = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
+/** everyMenuItem is every core and plugin row the main menu can show. */
+export const everyMenuItem = [...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]
 
-/** reachingSession is a signed-in admin also holding every capability a nav entry names. */
-export const reachingSession = {
+/** fullAccessSession is a signed-in admin also holding every capability a menu row names. */
+export const fullAccessSession = {
 	...adminSession,
 	capabilities: [
 		...adminSession.capabilities,
-		...everyNavEntry.flatMap((item) => (item.capability === undefined ? [] : [item.capability])),
+		...everyMenuItem.flatMap((item) => (item.capability === undefined ? [] : [item.capability])),
 	],
 }

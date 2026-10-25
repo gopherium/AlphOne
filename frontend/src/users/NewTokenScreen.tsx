@@ -124,13 +124,13 @@ export function NewTokenScreen() {
 
 	if (secret !== null) {
 		return (
-			<PageScreen title={__('New token', 'alphone')}>
+			<PageScreen title={__('New token', 'alphone')} headingLevel={2}>
 				<MintedSecret secret={secret} />
 			</PageScreen>
 		)
 	}
 	return (
-		<PageScreen title={__('New token', 'alphone')}>
+		<PageScreen title={__('New token', 'alphone')} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

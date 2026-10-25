@@ -61,7 +61,7 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 	await expect(page.getByText(`Email: ${knownEmail}`)).toBeVisible()
 
 	await page.getByRole('link', { name: 'Import' }).click()
-	await expect(page.getByRole('heading', { name: 'Import', level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Import', level: 2 })).toBeVisible()
 
 	const upload = page.waitForResponse(
 		(response) =>
@@ -140,7 +140,7 @@ test('maps a spreadsheet column onto a field an operator defined', async ({ page
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Fields' }).click()
-	await expect(page.getByRole('heading', { name: 'Fields', level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name: 'Fields', level: 2 })).toBeVisible()
 	await page.getByLabel('Label').fill(fieldLabel)
 	await page.getByRole('combobox', { name: 'Kind' }).click()
 	await page.getByRole('listbox').getByRole('option', { name: 'Date', exact: true }).click()

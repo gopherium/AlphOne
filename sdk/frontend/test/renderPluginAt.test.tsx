@@ -2,13 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createRoute } from '@tanstack/react-router'
-import { act, screen } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { lazy } from 'react'
 import { expect, onTestFinished, test } from 'vitest'
 
-import { useSession } from '../index'
-import type { FrontendPlugin } from '../index'
-import { HttpResponse, adminSession, http, renderPluginAt, server } from '../testing'
+import { MANAGE_USERS, NavigationScreen, useSession } from '../index'
+import type { FrontendPlugin, MenuItem } from '../index'
+import { HttpResponse, adminSession, http, memberSession, renderPluginAt, server } from '../testing'
 
 /** The path the host serves the session at. */
 const SESSION_PATH = '/api/auth/session'
@@ -115,11 +115,124 @@ const loadingSidebarPlugin: FrontendPlugin = {
 	],
 }
 
+/**
+ * Returns the sidebar the test host draws.
+ * @returns The region named Navigation.
+ */
+function sidebar(): Promise<HTMLElement> {
+	return screen.findByRole('region', { name: 'Navigation' })
+}
+
 test('keeps a plugin screen on the canvas while its section sidebar loads', async () => {
 	renderPluginAt(loadingSidebarPlugin, '/section', { session: adminSession })
 
 	expect(await screen.findByText('Section canvas')).toBeInTheDocument()
-	expect(screen.getByRole('navigation', { name: 'Navigation' })).toBeEmptyDOMElement()
+	const shown = await sidebar()
+	expect(within(shown).queryByRole('heading')).not.toBeInTheDocument()
+	expect(within(shown).queryByRole('list')).not.toBeInTheDocument()
+})
+
+/** The rows of the section plugin, one open to every reader and one asking for a capability. */
+const sectionRows: MenuItem[] = [
+	{ label: 'Section', to: '/section' },
+	{ label: 'Section settings', to: '/section-settings', capability: MANAGE_USERS },
+]
+
+/** A plugin with two rows and a section whose sidebar is a sub menu. */
+const sectionPlugin: FrontendPlugin = {
+	id: 'section',
+	nav: sectionRows,
+	routes: (parent) => [
+		createRoute({
+			getParentRoute: () => parent,
+			path: '/section',
+			staticData: {
+				Sidebar: function SectionSidebar() {
+					return (
+						<NavigationScreen title="Section">
+							<p>section sidebar</p>
+						</NavigationScreen>
+					)
+				},
+			},
+			component: function SectionCanvas() {
+				return <p>section canvas</p>
+			},
+		}),
+		createRoute({
+			getParentRoute: () => parent,
+			path: '/section-settings',
+			component: function SectionSettings() {
+				return <p>section settings</p>
+			},
+		}),
+	],
+}
+
+test('draws the plugin rows as a list in the real sidebar, under the host title', async () => {
+	renderPluginAt(sectionPlugin, '/', { session: memberSession })
+
+	expect(await screen.findByText('Test host home')).toBeInTheDocument()
+	const shown = await sidebar()
+	expect(within(shown).getByRole('heading', { level: 1, name: 'Test host' })).toBeInTheDocument()
+	const rows = within(within(shown).getByRole('list')).getAllByRole('listitem')
+	expect(rows.map((row) => row.textContent)).toEqual(['Section'])
+	expect(document.querySelector('.godmin-layout__canvas')).toContainElement(screen.getByText('Test host home'))
+})
+
+test('shows a plugin row naming a capability to a session holding it', async () => {
+	renderPluginAt(sectionPlugin, '/', { session: adminSession })
+
+	expect(await within(await sidebar()).findByRole('link', { name: 'Section settings' })).toBeInTheDocument()
+})
+
+test('asks the server for the account when the test seeds none, showing the rows that account may open', async () => {
+	server.use(http.get(SESSION_PATH, () => HttpResponse.json(adminSession)))
+
+	renderPluginAt(sectionPlugin, '/')
+
+	expect(await within(await sidebar()).findByRole('link', { name: 'Section settings' })).toBeInTheDocument()
+})
+
+test('renders the section sub menu in the sidebar and its screen on the canvas', async () => {
+	renderPluginAt(sectionPlugin, '/section', { session: memberSession })
+
+	const shown = await sidebar()
+	expect(await within(shown).findByText('section sidebar')).toBeInTheDocument()
+	expect(within(shown).getByRole('heading', { level: 1, name: 'Section' })).toBeInTheDocument()
+	expect(screen.getByText('section canvas')).toBeInTheDocument()
+})
+
+test('takes Back on a plugin sub menu to the host home, the focus on the row it came from', async () => {
+	renderPluginAt(sectionPlugin, '/section', { session: memberSession })
+
+	fireEvent.click(await within(await sidebar()).findByRole('link', { name: 'Back' }))
+
+	expect(await screen.findByText('Test host home')).toBeInTheDocument()
+	const row = within(await sidebar()).getByRole('link', { name: 'Section' })
+	await waitFor(() => expect(row).toHaveFocus())
+})
+
+test('gives a plugin screen the full bleed canvas its route asks for, as the admin does', async () => {
+	const bleedPlugin: FrontendPlugin = {
+		id: 'bleed',
+		nav: [],
+		routes: (parent) => [
+			createRoute({
+				getParentRoute: () => parent,
+				path: '/thread',
+				staticData: { canvas: 'bleed' },
+				component: function ThreadCanvas() {
+					return <p>thread canvas</p>
+				},
+			}),
+		],
+	}
+
+	renderPluginAt(bleedPlugin, '/thread', { session: adminSession })
+
+	expect(await screen.findByText('thread canvas')).toBeInTheDocument()
+	expect(document.querySelector('.godmin-layout__canvas')).toHaveClass('godmin-layout__canvas--bleed')
 })
 
 test('hands back the router the plugin screen is mounted in', async () => {

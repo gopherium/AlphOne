@@ -54,7 +54,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 
 	if (activationLink !== null) {
 		return (
-			<PageScreen title={__('New user', 'alphone')}>
+			<PageScreen title={__('New user', 'alphone')} headingLevel={2}>
 				<div className="godmin-form">
 					<Text role="status">
 						{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
@@ -70,7 +70,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 		)
 	}
 	return (
-		<PageScreen title={__('New user', 'alphone')}>
+		<PageScreen title={__('New user', 'alphone')} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

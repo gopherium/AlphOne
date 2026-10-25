@@ -43,7 +43,7 @@ test('paints the canvas from the default WordPress palette, so its lines and gre
 	expect(canvasToken('--wpds-color-foreground-content-neutral-weak')).toBe('#707070')
 })
 
-test('paints the top bar and the rail in the WordPress admin bar grey, #1d2327 to within one step', async () => {
+test('paints the top bar and the sidebar in the WordPress admin bar grey, #1d2327 to within one step', async () => {
 	renderAt('/tasks')
 
 	await screen.findByRole('heading', { name: 'Tasks' })

@@ -2,10 +2,11 @@
 
 import {
 	Button,
-	EmptyState,
 	ErrorNotice,
+	ListEmpty,
 	PageScreen,
 	__,
+	can,
 	key,
 	useAdminSettings,
 	useBulkRun,
@@ -13,14 +14,15 @@ import {
 	useGraphQuery,
 	useListRun,
 	useListView,
+	useSession,
 } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
-import { usersNavItem } from '@gopherium/react-auth/wpds'
+import { useCanAccess } from '@gopherium/godmin/router'
+import { usersMenuItem } from '@gopherium/react-auth/wpds'
 import { Link } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 
-import { useReachable } from '../menu/reach'
 import { UserTabs } from './UserTabs'
 import { useTokenActions } from './tokenActions'
 import { tokenFields } from './tokenFields'
@@ -36,18 +38,15 @@ const noTokens: ApiToken[] = []
  * @returns The empty state.
  */
 function TokensEmpty({ narrowed }: { narrowed: boolean }) {
+	if (narrowed) {
+		return <ListEmpty icon={key} title={__('No tokens found.', 'alphone')} />
+	}
 	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={key} />
-			{narrowed ? (
-				<EmptyState.Title>{__('No tokens found.', 'alphone')}</EmptyState.Title>
-			) : (
-				<>
-					<EmptyState.Title>{__('No API tokens yet.', 'alphone')}</EmptyState.Title>
-					<EmptyState.Description>{__('Add one with New token.', 'alphone')}</EmptyState.Description>
-				</>
-			)}
-		</EmptyState.Root>
+		<ListEmpty
+			icon={key}
+			title={__('No API tokens yet.', 'alphone')}
+			hint={__('Add one with New token.', 'alphone')}
+		/>
 	)
 }
 
@@ -68,7 +67,8 @@ function tokensHeading(opensUsers: boolean): { title: string; tabs?: ReactNode }
  * @returns The tokens screen.
  */
 export function TokensScreen() {
-	const heading = tokensHeading(useReachable()(usersNavItem))
+	const session = useSession()
+	const heading = tokensHeading(useCanAccess((capability) => can(session, capability))(usersMenuItem))
 	const graph = useGraph()
 	const [result] = useGraphQuery({
 		query: apiTokensQuery,
@@ -96,6 +96,7 @@ export function TokensScreen() {
 	return (
 		<PageScreen
 			title={heading.title}
+			headingLevel={2}
 			subtitle={__('Manage the tokens your programs sign in with.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/users/tokens/new" />}>

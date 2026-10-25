@@ -65,7 +65,7 @@ test('keeps the page chrome while the task is on its way', async () => {
 	server.use(graphql.query('TaskDetail', () => new Promise(() => {})))
 	renderAt(`/tasks/${taskID}`)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Task' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Task' })).toBeInTheDocument()
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading task…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()

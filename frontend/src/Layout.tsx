@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Text, useCanvas, useFrameLocation, useGraph, useGraphStream } from '@alphone/frontend-sdk'
+import { __, can, sprintf, Text, useGraph, useGraphStream, useSession } from '@alphone/frontend-sdk'
 import { Frame } from '@gopherium/godmin'
-import { Outlet } from '@tanstack/react-router'
+import { Navigation, useCanvas, useFrameLocation } from '@gopherium/godmin/router'
+import { AccountPanel } from '@gopherium/react-auth/wpds'
+import { Link, Outlet } from '@tanstack/react-router'
 
-import { RailContent } from './RailContent'
-
-const CHROME_COLOR = { background: '#26292b' }
-const CANVAS_COLOR = { background: '#fcfcfc' }
+import { LANDING } from './landing'
+import { coreNav } from './menu/coreNav'
+import { plugins } from './plugins'
+import { useAppVersion } from './version'
 
 /**
- * Renders the admin layout: a dark navigation chrome wrapped around a light
- * canvas showing the active route.
- * @returns The layout element framing the current route.
+ * Renders the admin layout framing the active route.
+ * @returns The layout element.
  */
 export function Layout() {
 	const graph = useGraph()
@@ -20,14 +21,23 @@ export function Layout() {
 		graph,
 		operations: ['DayTasks', 'OverdueTasks', 'Contacts', 'ContactDetail'],
 	})
-	const location = useFrameLocation()
-	const canvas = useCanvas()
+	const session = useSession()
+	const version = useAppVersion()
 	return (
-		<Frame.Root location={location} chromeColor={CHROME_COLOR} canvasColor={CANVAS_COLOR}>
-			<Frame.Rail brand={<Text variant="heading-lg">{'AlphOne'}</Text>}>
-				<RailContent />
-			</Frame.Rail>
-			<Frame.Canvas canvas={canvas}>
+		<Frame.Root location={useFrameLocation()}>
+			<Frame.Sidebar
+				brand={<Text variant="heading-lg">{'AlphOne'}</Text>}
+				footer={<AccountPanel />}
+				footerNote={version ? sprintf(__('v%(version)s', 'alphone'), { version }) : undefined}
+			>
+				<Navigation
+					title={'AlphOne'}
+					items={[...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]}
+					home={<Link to={LANDING} />}
+					can={(capability) => can(session, capability)}
+				/>
+			</Frame.Sidebar>
+			<Frame.Canvas canvas={useCanvas()}>
 				<Outlet />
 			</Frame.Canvas>
 		</Frame.Root>

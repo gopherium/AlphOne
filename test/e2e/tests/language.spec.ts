@@ -41,10 +41,10 @@ test('reads the interface in the language the reader chose', async ({ page, brow
 
 	await theirs.reload()
 
-	await expect(theirs.getByRole('heading', { name: 'Idioma' })).toBeVisible()
+	await expect(theirs.getByRole('heading', { level: 2, name: 'Idioma' })).toBeVisible()
 	await expect(theirs.getByRole('button', { name: 'Guardar' })).toBeVisible()
-	await expect(theirs.getByRole('navigation', { name: 'Navegación' })).toBeVisible()
+	await expect(theirs.getByRole('region', { name: 'Navegación' })).toBeVisible()
 
-	await expect(page.getByRole('navigation', { name: 'Navigation' })).toBeVisible()
+	await expect(page.getByRole('region', { name: 'Navigation' })).toBeVisible()
 	await context.close()
 })

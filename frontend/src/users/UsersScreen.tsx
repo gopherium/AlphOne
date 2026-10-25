@@ -2,8 +2,8 @@
 
 import {
 	Button,
-	EmptyState,
 	ErrorNotice,
+	ListEmpty,
 	PageScreen,
 	__,
 	people,
@@ -33,18 +33,15 @@ const noAccounts: Account[] = []
  * @returns The empty state.
  */
 function UsersEmpty({ narrowed }: { narrowed: boolean }) {
+	if (narrowed) {
+		return <ListEmpty icon={people} title={__('No users found.', 'alphone')} />
+	}
 	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={people} />
-			{narrowed ? (
-				<EmptyState.Title>{__('No users found.', 'alphone')}</EmptyState.Title>
-			) : (
-				<>
-					<EmptyState.Title>{__('No users yet.', 'alphone')}</EmptyState.Title>
-					<EmptyState.Description>{__('Add one with New user.', 'alphone')}</EmptyState.Description>
-				</>
-			)}
-		</EmptyState.Root>
+		<ListEmpty
+			icon={people}
+			title={__('No users yet.', 'alphone')}
+			hint={__('Add one with New user.', 'alphone')}
+		/>
 	)
 }
 
@@ -79,6 +76,7 @@ export function UsersScreen() {
 	return (
 		<PageScreen
 			title={__('Users', 'alphone')}
+			headingLevel={2}
 			subtitle={__('Manage who can sign in and what they can do.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/users/new" />}>

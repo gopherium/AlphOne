@@ -236,9 +236,6 @@ msgstr "Cargando la tarea…"
 msgid "Name"
 msgstr "Nombre"
 
-msgid "Navigation"
-msgstr "Navegación"
-
 #, fuzzy
 msgid "Never expires"
 msgstr "No caduca nunca"

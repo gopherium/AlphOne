@@ -32,7 +32,7 @@ test('sends a member home from the Users screen without asking for the accounts'
 	const asked = countedUsers()
 	renderAt('/users', memberSession)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
 	expect(screen.queryByRole('searchbox', { name: 'Search users…' })).not.toBeInTheDocument()
 	expect(asked.count).toBe(0)
 })
@@ -40,14 +40,14 @@ test('sends a member home from the Users screen without asking for the accounts'
 test('sends a member home from the New user screen', async () => {
 	renderAt('/users/new', memberSession)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
 	expect(screen.queryByRole('button', { name: 'Send invitation' })).not.toBeInTheDocument()
 })
 
 test('leaves Users out of a member menu and offers API tokens in its place', async () => {
 	renderAt('/', memberSession)
 
-	const menu = within(await screen.findByRole('navigation', { name: 'Navigation' }))
+	const menu = within(await screen.findByRole('region', { name: 'Navigation' }))
 	const names = menu.getAllByRole('link').map((link) => link.textContent)
 	expect(names.slice(0, 4)).toEqual(['Tasks', 'Contacts', 'API tokens', 'Language'])
 	expect(menu.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
@@ -60,7 +60,7 @@ test('reads the API tokens entry and the title of its page in Spanish', async ()
 	onTestFinished(() => resetLocale())
 	renderAt('/users/tokens', memberSession)
 
-	expect(await screen.findByRole('heading', { level: 1, name: 'Tokens de API' })).toBeInTheDocument()
-	const menu = within(screen.getByRole('navigation', { name: 'Navegación' }))
+	expect(await screen.findByRole('heading', { level: 2, name: 'Tokens de API' })).toBeInTheDocument()
+	const menu = within(screen.getByRole('region', { name: 'Navegación' }))
 	expect(menu.getByRole('link', { name: 'Tokens de API' })).toHaveAttribute('href', '/users/tokens')
 })

@@ -63,7 +63,7 @@ test('the contact page reloads once and shows the fields panel when its chunk is
 
 	await page.goto(`/contacts/${created.createContact.id}`)
 
-	await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible()
+	await expect(page.getByRole('heading', { name, level: 2 })).toBeVisible()
 	await expect(page.getByRole('textbox', { name: label, exact: true })).toBeVisible()
 })
 
@@ -74,8 +74,8 @@ test('the WhatsApp section reloads once and shows its sidebar when the sidebar c
 
 	await page.goto('/whatsapp')
 
-	const nav = page.getByRole('navigation', { name: 'Navigation' })
-	await expect(nav.getByRole('heading', { name: 'WhatsApp' })).toBeVisible()
+	const nav = page.getByRole('region', { name: 'Navigation' })
+	await expect(nav.getByRole('heading', { level: 1, name: 'WhatsApp' })).toBeVisible()
 	await expect(page.getByText('No conversation selected.')).toBeVisible()
 })
 

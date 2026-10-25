@@ -1,23 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { _x } from '@alphone/frontend-sdk'
-import type { NavItem } from '@alphone/frontend-sdk'
-import { usersNavItem } from '@gopherium/react-auth/wpds'
+import type { MenuItem } from '@alphone/frontend-sdk'
+import { usersMenuItem } from '@gopherium/react-auth/wpds'
 
-import { contactsNavItem } from '../contacts/nav'
-import { languageNavItem } from '../i18n/nav'
-import { tasksNavItem } from '../tasks/nav'
+import { contactsMenuItem } from '../contacts/nav'
+import { languageMenuItem } from '../i18n/nav'
+import { tasksMenuItem } from '../tasks/nav'
 
-export const coreNav: NavItem[] = [tasksNavItem, contactsNavItem, usersNavItem, languageNavItem]
-
-/** tokensNavItem leads to the reader's own API tokens. */
-const tokensNavItem: NavItem = {
+/** tokensMenuItem leads to the reader's own API tokens. */
+const tokensMenuItem: MenuItem = {
 	get label() {
 		return _x('API tokens', 'admin section', 'alphone')
 	},
 	to: '/users/tokens',
-	icon: usersNavItem.icon,
+	icon: usersMenuItem.icon,
 }
 
-/** shownInstead names the entry the menu shows in place of a core entry the reader cannot open. */
-export const shownInstead = new Map<NavItem, NavItem>([[usersNavItem, tokensNavItem]])
+/** usersRow leads to the Users screen, or to the reader's own API tokens for a reader who cannot open it. */
+const usersRow: MenuItem = {
+	get label() {
+		return usersMenuItem.label
+	},
+	to: usersMenuItem.to,
+	icon: usersMenuItem.icon,
+	fallback: tokensMenuItem,
+}
+
+export const coreNav: MenuItem[] = [tasksMenuItem, contactsMenuItem, usersRow, languageMenuItem]

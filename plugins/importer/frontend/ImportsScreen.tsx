@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	EmptyState,
 	ErrorNotice,
 	FileButton,
+	ListEmpty,
 	PageScreen,
 	__,
 	_x,
@@ -22,7 +22,6 @@ import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataview
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 
-import { importerIcon } from './icon'
 import { importFields } from './importFields'
 import type { ImportSummary } from './importFields'
 import { importUploadMutation, importsQuery } from './operations'
@@ -36,20 +35,15 @@ const noImports: ImportSummary[] = []
  * @returns The empty state.
  */
 function ImportsEmpty({ narrowed }: { narrowed: boolean }) {
+	if (narrowed) {
+		return <ListEmpty icon={uploadIcon} title={__('No imports found.', 'alphone-importer')} />
+	}
 	return (
-		<EmptyState.Root className="godmin-empty">
-			<EmptyState.Icon icon={importerIcon} />
-			{narrowed ? (
-				<EmptyState.Title>{__('No imports found.', 'alphone-importer')}</EmptyState.Title>
-			) : (
-				<>
-					<EmptyState.Title>{__('No imports yet.', 'alphone-importer')}</EmptyState.Title>
-					<EmptyState.Description>
-						{__('Upload a CSV or Excel file to start one.', 'alphone-importer')}
-					</EmptyState.Description>
-				</>
-			)}
-		</EmptyState.Root>
+		<ListEmpty
+			icon={uploadIcon}
+			title={__('No imports yet.', 'alphone-importer')}
+			hint={__('Upload a CSV or Excel file to start one.', 'alphone-importer')}
+		/>
 	)
 }
 
@@ -103,6 +97,7 @@ export function ImportsScreen() {
 	return (
 		<PageScreen
 			title={_x('Import', 'admin section', 'alphone-importer')}
+			headingLevel={2}
 			subtitle={__('Bring contacts in from CSV and Excel files.', 'alphone-importer')}
 			actions={
 				<FileButton

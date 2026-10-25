@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as godmin from '@gopherium/godmin'
+import * as godminRouter from '@gopherium/godmin/router'
 import { expect, test } from 'vitest'
 
 import {
 	ConfirmBody,
+	DrilldownItem,
 	FormBody,
+	ListEmpty,
 	markLatest,
+	MenuCount,
+	NavigationItem,
+	NavigationList,
+	NavigationScreen,
 	RenameBody,
 	RunConfirm,
 	useBulkRun,
@@ -47,6 +54,23 @@ function expectGodminOwn(handed: unknown[], shipped: unknown[]) {
 
 test('hands plugins the list kit the admin runs, the very functions godmin ships', () => {
 	expectGodminOwn([RunConfirm, useBulkRun, useListRun], [godmin.RunConfirm, godmin.useBulkRun, godmin.useListRun])
+})
+
+test('hands plugins the empty list the admin draws, the very one godmin ships', () => {
+	expectGodminOwn([ListEmpty], [godmin.ListEmpty])
+})
+
+test('hands plugins the sidebar menu parts the admin draws, the very ones godmin ships', () => {
+	expectGodminOwn(
+		[NavigationScreen, MenuCount, NavigationList, NavigationItem, DrilldownItem],
+		[
+			godmin.NavigationScreen,
+			godmin.MenuCount,
+			godminRouter.NavigationList,
+			godminRouter.NavigationItem,
+			godminRouter.DrilldownItem,
+		],
+	)
 })
 
 test('hands plugins the dialog bodies the admin asks in, the very ones godmin ships', () => {

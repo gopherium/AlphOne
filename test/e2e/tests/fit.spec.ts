@@ -89,7 +89,7 @@ test('every screen fits a phone without spilling sideways', async ({ page, reque
 
 	for (const route of routes) {
 		await page.goto(route)
-		await expect(page.locator('main h1')).toBeVisible()
+		await expect(page.locator('main h2')).toBeVisible()
 		await expect(page.getByText(/^Loading/)).toHaveCount(0)
 
 		const report = await page.evaluate(() => {

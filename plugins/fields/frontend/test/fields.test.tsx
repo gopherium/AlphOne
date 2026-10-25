@@ -817,8 +817,8 @@ test('sets the Add a field and Sub fields headings a size above the field labels
 	renderScreen()
 	await startRepeater()
 
-	const add = screen.getByRole('heading', { level: 2, name: 'Add a field' })
-	const sub = screen.getByRole('heading', { level: 3, name: 'Sub fields' })
+	const add = screen.getByRole('heading', { level: 3, name: 'Add a field' })
+	const sub = screen.getByRole('heading', { level: 4, name: 'Sub fields' })
 	expect([...add.classList]).toEqual(expect.arrayContaining(textClasses('heading-lg')))
 	expect([...sub.classList]).toEqual(expect.arrayContaining(textClasses('heading-md')))
 })
