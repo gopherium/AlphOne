@@ -22,6 +22,9 @@ const graphqlPrinter = 'extend interface'
 
 const momentLibrary = 'moment construction falls back'
 
+/** componentsRules is the class prefix every WordPress components stylesheet rule carries. */
+const componentsRules = '.components-'
+
 /**
  * Returns the built asset whose name starts with the given prefix.
  * @param prefix - The chunk name before its hash.
@@ -46,6 +49,17 @@ function eagerScripts(): string[] {
 		(match) => match[1],
 	)
 	expect(referenced.length, 'the entry document references scripts').toBeGreaterThan(0)
+	return referenced
+}
+
+/**
+ * Returns every stylesheet the entry document loads before first paint.
+ * @returns The asset file names.
+ */
+function eagerStylesheets(): string[] {
+	const html = readFileSync(join(dist, 'index.html'), 'utf8')
+	const referenced = [...html.matchAll(/href="\/assets\/([^"]+\.css)"/g)].map((match) => match[1])
+	expect(referenced.length, 'the entry document references stylesheets').toBeGreaterThan(0)
 	return referenced
 }
 
@@ -79,6 +93,14 @@ test('nothing loaded before first paint carries moment', () => {
 	)
 
 	expect(carrying, 'eager scripts carrying moment').toEqual([])
+})
+
+test('nothing loaded before first paint carries the WordPress components stylesheet', () => {
+	const carrying = eagerStylesheets().filter((name) =>
+		readFileSync(join(assets, name), 'utf8').includes(componentsRules),
+	)
+
+	expect(carrying, 'eager stylesheets carrying WordPress components rules').toEqual([])
 })
 
 test('everything loaded before first paint stays under the entry ceiling', () => {
