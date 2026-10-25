@@ -64,6 +64,7 @@ export default defineConfig({
 						{ slug: 'extending/screens' },
 						{ slug: 'extending/graph' },
 						{ slug: 'extending/commands' },
+						{ slug: 'extending/roles' },
 						{ slug: 'extending/events' },
 						{ slug: 'extending/contacts' },
 					],

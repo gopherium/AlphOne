@@ -243,3 +243,13 @@ Feature: Operators run AlphOne from one command line
     And the error says "the role steward carries steward.reach_beyond_admin, which the account admin@example.com lacks"
     And the account "maria.perez@example.com" still holds the role "member"
     And no account change is on record
+
+  Scenario: The top role changes an admin's role after a plugin loaded before it gives admin a capability
+    Given the plugin "reports" gives admin the capability "reports.export_reports"
+    And the plugin "owners" names its role "owner" carrying "manage_users" and "manage_webhooks" as the top role
+    And the administrator "admin@example.com"
+    And the account "maria.perez@example.com" holding the role "owner"
+    When the operator gives "admin@example.com" the role "member" acting as "maria.perez@example.com"
+    Then the command succeeds
+    And the account "admin@example.com" holds the role "member"
+    And the command "account:records" lists "account:role" applied by "maria.perez@example.com"

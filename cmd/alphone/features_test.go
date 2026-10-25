@@ -32,6 +32,7 @@ type operatorScenario struct {
 	t       *testing.T
 	env     map[string]string
 	plugins func(sdk.Deps) ([]sdk.Plugin, error)
+	added   []sdk.Plugin
 	result  testkit.Result
 }
 
@@ -95,7 +96,39 @@ func initializeOperatorCommands(t *testing.T) func(*godog.ScenarioContext) {
 		sc.When(`^the operator lists the tokens of every account with "([^"]*)"$`, s.listTokensOfEveryAccount)
 		sc.Then(`^the answer lists the token "([^"]*)" of "([^"]*)" in the workspace "([^"]*)"$`, s.listsTokenOf)
 		sc.Then(`^the token list of every account no longer shows "([^"]*)"$`, s.everyTokenListOmits)
+		bindTopRoleSteps(sc, s)
 	}
+}
+
+// bindTopRoleSteps binds the steps loading a plugin that widens admin beside one naming the top role.
+func bindTopRoleSteps(sc *godog.ScenarioContext, s *operatorScenario) {
+	sc.Given(`^the plugin "([^"]*)" gives admin the capability "([^"]*)"$`, s.widenAdmin)
+	sc.Given(`^the plugin "([^"]*)" names its role "([^"]*)" carrying "([^"]*)" and "([^"]*)" as the top role$`,
+		s.nameTopRole)
+	sc.Given(`^the account "([^"]*)" holding the role "([^"]*)"$`, s.holdAccount)
+}
+
+// widenAdmin loads the plugin under id giving admin the capability, after every plugin loaded so far.
+func (s *operatorScenario) widenAdmin(id, capability string) {
+	s.load(declaring(id, []sdk.RoleDeclaration{{Name: role.Admin.String(), Capabilities: []string{capability}}}))
+}
+
+// nameTopRole loads the plugin under id declaring the role with two capabilities and naming it the top role.
+func (s *operatorScenario) nameTopRole(id, top, first, second string) {
+	s.load(naming(id, top, []sdk.RoleDeclaration{{Name: top, Capabilities: []string{first, second}}}))
+}
+
+// load registers the plugin after every plugin loaded before it, leaving the compiled plugins out.
+func (s *operatorScenario) load(plugin sdk.Plugin) {
+	s.added = append(s.added, plugin)
+	loaded := s.added
+	s.plugins = func(sdk.Deps) ([]sdk.Plugin, error) { return loaded, nil }
+}
+
+// holdAccount creates the account at email under the role, typing the password on standard input.
+func (s *operatorScenario) holdAccount(email, held string) error {
+	s.run(typedPassword+"\n", "account:create-admin", "-email", email, "-name", "Holder", "-role", held)
+	return s.succeeds()
 }
 
 // everyTokenListOmits fails unless token:list -all succeeds and holds no line for the token called name.

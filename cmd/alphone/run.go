@@ -186,26 +186,6 @@ func adminConfig(built composed) authkit.AdminConfig {
 	}
 }
 
-// errReservedID reports a plugin under the id the core grants its roles under.
-var errReservedID = errors.New("the id is reserved for the core roles")
-
-// declareRoles declares every role a registered plugin declares, refusing a plugin under the core id.
-func declareRoles(registry *goncierge.Registry, registered []sdk.Plugin) error {
-	for _, plugin := range registered {
-		if plugin.ID() == role.Source {
-			return fmt.Errorf("plugin %s: %w", plugin.ID(), errReservedID)
-		}
-		provider, ok := plugin.(sdk.RoleProvider)
-		if !ok {
-			continue
-		}
-		if err := role.Declare(registry, plugin.ID(), provider.Roles()); err != nil {
-			return fmt.Errorf("plugin %s: %w", plugin.ID(), err)
-		}
-	}
-	return nil
-}
-
 // fieldSources returns every registered plugin serving runtime defined fields.
 func fieldSources(registered []sdk.Plugin) []sdk.FieldSource {
 	var sources []sdk.FieldSource
