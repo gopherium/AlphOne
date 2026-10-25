@@ -101,6 +101,22 @@ func reportsPlugin() idRolePlugin {
 	})
 }
 
+// auditingReportsPlugin returns a plugin under the reports id giving admin one capability and its auditor role another.
+func auditingReportsPlugin() idRolePlugin {
+	return declaring("reports", []sdk.RoleDeclaration{
+		{Name: role.Admin.String(), Capabilities: []string{"reports.export_reports"}},
+		{Name: "auditor", Capabilities: []string{"reports.view_reports"}},
+	})
+}
+
+// carriesExactly fails t unless the role carries the capabilities and nothing else.
+func carriesExactly(t *testing.T, registry *goncierge.Registry, name string, want ...string) {
+	t.Helper()
+	if got := registry.CapabilitiesOf(name); !slices.Equal(got, want) {
+		t.Errorf("CapabilitiesOf(%s) = %v, want %v alone", name, got, want)
+	}
+}
+
 // flippingTopRolePlugin is a role plugin naming one top role on its first call and another after it.
 type flippingTopRolePlugin struct {
 	idRolePlugin
@@ -330,16 +346,40 @@ func TestDeclareRolesGivesTheTopRoleWhatAPluginListedBeforeItGivesAdmin(t *testi
 	}
 }
 
+func TestDeclareRolesGivesTheTopRoleTheCapabilitiesAPluginGivesAnyRole(t *testing.T) {
+	t.Parallel()
+
+	reports, owners := auditingReportsPlugin(), naming("owners", "owner", ownerRoles)
+	tests := []struct {
+		name       string
+		registered []sdk.Plugin
+	}{
+		{"a plugin loaded before the top role's plugin", []sdk.Plugin{reports, owners}},
+		{"a plugin loaded after the top role's plugin", []sdk.Plugin{owners, reports}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registry := role.NewRegistry()
+
+			if err := declareRoles(registry, tt.registered); err != nil {
+				t.Fatalf("declareRoles() error = %v, want nil", err)
+			}
+			carriesExactly(t, registry, "owner",
+				role.ManageUsers, role.ManageWebhooks, "reports.export_reports", "reports.view_reports")
+			carriesExactly(t, registry, role.Admin.String(), role.ManageUsers, role.ManageWebhooks, "reports.export_reports")
+			carriesExactly(t, registry, "auditor", "reports.view_reports")
+		})
+	}
+}
+
 func TestDeclareRolesWithNoTopRoleKeepsAPluginCapabilityOffEveryOtherRole(t *testing.T) {
 	t.Parallel()
 
 	registry := role.NewRegistry()
-	reports := declaring("reports", []sdk.RoleDeclaration{
-		{Name: role.Admin.String(), Capabilities: []string{"reports.export_reports"}},
-		{Name: "auditor", Capabilities: []string{"reports.view_reports"}},
-	})
 
-	if err := declareRoles(registry, []sdk.Plugin{declaring("owners", ownerRoles), reports}); err != nil {
+	if err := declareRoles(registry, []sdk.Plugin{declaring("owners", ownerRoles), auditingReportsPlugin()}); err != nil {
 		t.Fatalf("declareRoles() error = %v, want nil", err)
 	}
 	if got := registry.HoldersOf("reports.export_reports"); !slices.Equal(got, []string{"admin"}) {
