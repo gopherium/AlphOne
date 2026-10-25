@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import '@testing-library/jest-dom/vitest'
-import { Toaster } from '@gopherium/godmin'
+import { Frame, Toaster } from '@gopherium/godmin'
+import { Navigation, useFrameLocation } from '@gopherium/godmin/router'
 import { installTestEnvironment as installAdminTestEnvironment } from '@gopherium/godmin/testing'
-import { sessionQueryKey } from '@gopherium/react-auth'
+import { can, sessionQueryKey } from '@gopherium/react-auth'
 import {
 	HttpResponse,
 	installTestEnvironment as installAuthTestEnvironment,
@@ -20,13 +21,11 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
-	useRouterState,
 } from '@tanstack/react-router'
 import type { AnyRouter } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
 import { Badge, Button, Text } from '@wordpress/ui'
 import { graphql } from 'msw'
-import { Suspense } from 'react'
 import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
@@ -34,8 +33,8 @@ import { vi } from 'vitest'
 import { doorbellExchange, graphCacheExchange, graphRetryExchange } from './graph'
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
-import type { FrontendPlugin } from './index'
-import { MANAGE_USERS } from './session'
+import type { FrontendPlugin, MenuItem } from './index'
+import { MANAGE_USERS, useSession } from './session'
 import type { Capability, Role, Session } from './session'
 
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
@@ -247,7 +246,31 @@ function hostQueryClient(session?: Session): QueryClient {
 }
 
 /**
- * Renders the given frontend plugin mounted at a specific route path, below a toaster.
+ * Renders the frame the admin draws around a plugin's screens: the sidebar holding the plugin's rows, and the canvas.
+ * @param props - The rows the plugin adds to the menu.
+ * @returns The frame element.
+ */
+function TestHost({ nav }: { nav: readonly MenuItem[] }) {
+	const session = useSession()
+	return (
+		<Frame.Root location={useFrameLocation()}>
+			<Frame.Sidebar>
+				<Navigation
+					title="Test host"
+					items={nav}
+					home={<Link to="/" />}
+					can={(capability) => can(session, capability)}
+				/>
+			</Frame.Sidebar>
+			<Frame.Canvas>
+				<Outlet />
+			</Frame.Canvas>
+		</Frame.Root>
+	)
+}
+
+/**
+ * Renders the given frontend plugin mounted at a specific route path in the admin's frame, below a toaster.
  * @param plugin - The frontend plugin whose nav and routes are mounted.
  * @param path - The initial router path to render at.
  * @param options - The session the host holds, none by default.
@@ -255,30 +278,8 @@ function hostQueryClient(session?: Session): QueryClient {
  */
 export function renderPluginAt(plugin: FrontendPlugin, path: string, options: PluginHostOptions = {}): HostedPlugin {
 	const rootRoute = createRootRoute({
-		component: function TestHost() {
-			const matches = useRouterState({ select: (state) => state.matches })
-			const sidebarMatch = [...matches]
-				.reverse()
-				.find((match) => match.staticData.Sidebar)
-			const Sidebar = sidebarMatch?.staticData.Sidebar
-			return (
-				<>
-					<nav aria-label="Navigation">
-						<Suspense fallback={null}>
-							{Sidebar ? (
-								<Sidebar />
-							) : (
-								plugin.nav.map((item) => (
-									<Link key={item.to} to={item.to}>
-										{item.label}
-									</Link>
-								))
-							)}
-						</Suspense>
-					</nav>
-					<Outlet />
-				</>
-			)
+		component: function TestHostFrame() {
+			return <TestHost nav={plugin.nav} />
 		},
 	})
 	const homeRoute = createRoute({

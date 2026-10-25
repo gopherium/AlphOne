@@ -1,26 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import type { MenuItem } from '@gopherium/godmin/router'
 import type { Catalog } from '@gopherium/gottext'
 import type { AnyRoute } from '@tanstack/react-router'
-import type { ComponentProps, ComponentType, ReactElement } from 'react'
+import type { ComponentType } from 'react'
 
 import type { GraphKeys } from './graph'
-import type { Capability } from './session'
-
-declare module '@tanstack/react-router' {
-	interface StaticDataRouteOption {
-		Sidebar?: ComponentType
-		/** capability names what a reader must hold to open the route. */
-		capability?: Capability
-	}
-}
-
-export interface NavItem {
-	label: string
-	to: string
-	icon: ReactElement<ComponentProps<'svg'>>
-	capability?: Capability
-}
 
 export interface ContactPanel {
 	id: string
@@ -45,7 +30,7 @@ export interface TokenArea {
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
-	nav: NavItem[]
+	nav: MenuItem[]
 	contactPanels?: ContactPanel[]
 	channels?: ChannelName[]
 	tokenAreas?: TokenArea[]
@@ -77,6 +62,7 @@ export {
 	VisuallyHidden,
 } from '@wordpress/ui'
 export {
+	calendar,
 	check,
 	chevronLeft,
 	chevronRight,
@@ -92,8 +78,11 @@ export {
 	formatListNumbered,
 	inbox,
 	inlineImage,
+	institution,
 	key,
+	language,
 	link,
+	list,
 	lock,
 	menu,
 	moveTo,
@@ -112,6 +101,7 @@ export {
 	FormBody,
 	InitialsAvatar,
 	keyFromLabel,
+	ListEmpty,
 	LoadingRows,
 	LoadingScreen,
 	LoadMore,
@@ -119,6 +109,8 @@ export {
 	LogList,
 	LogTime,
 	markLatest,
+	MenuCount,
+	NavigationScreen,
 	Page as PageScreen,
 	PageTab,
 	PageTabs,
@@ -162,7 +154,8 @@ export type {
 	ToasterHandle,
 	UnsavedText,
 } from '@gopherium/godmin'
-export { useCanvas, useFrameLocation } from '@gopherium/godmin/router'
+export { DrilldownItem, NavigationItem, NavigationList } from '@gopherium/godmin/router'
+export type { MenuItem } from '@gopherium/godmin/router'
 export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
 export { MANAGE_USERS, useSession } from './session'
@@ -186,7 +179,6 @@ export {
 	useSubscription as useGraphSubscription,
 } from 'urql'
 export type { CombinedError as GraphFailure } from 'urql'
-export { SidebarNavigationScreen } from './SidebarNavigationScreen'
 export { useGraphEvents, useGraphStream } from './stream'
 export { __, _n, _nx, _x, sprintf } from '@wordpress/i18n'
 export { displayLocale, globCatalogs, rememberLocale } from '@gopherium/gottext'

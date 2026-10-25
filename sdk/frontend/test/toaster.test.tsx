@@ -6,7 +6,7 @@ import { expect, test, vi } from 'vitest'
 
 import { Button, Toaster, useToaster } from '../index'
 import type { FrontendPlugin, ToastAction, ToasterHandle } from '../index'
-import { renderPluginAt } from '../testing'
+import { adminSession, renderPluginAt } from '../testing'
 
 /** Raises one toast carrying the given action when its button is pressed. */
 function Raiser({ action }: { action: ToastAction }) {
@@ -43,7 +43,7 @@ test('mounts a toaster above the screens of a plugin under test', async () => {
 		],
 	}
 
-	renderPluginAt(plugin, '/notes')
+	renderPluginAt(plugin, '/notes', { session: adminSession })
 	fireEvent.click(await screen.findByRole('button', { name: 'Save note' }))
 
 	expect(await screen.findByText('Note saved.')).toBeInTheDocument()
