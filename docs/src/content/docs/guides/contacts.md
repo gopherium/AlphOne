@@ -39,10 +39,15 @@ browser's Back button brings you back to the same place.
 ## Renaming
 
 Open the actions menu at the end of a contact's row and choose
-**Rename…**. Type the new name and press **Rename**. You can also open the
+**Rename…**. Type the new name and press **Save**. You can also open the
 contact and edit the name field there. The new name applies everywhere
 immediately, including past conversations in the WhatsApp inbox, because
 conversations reference the contact rather than copying its name.
+
+The rename dialog closes the moment you press **Save**, and **Save** is
+off only while the name is blank. When the rename fails, a message at the
+bottom of the screen says why, and the dialog opens on what you typed the
+next time you open it for that contact.
 
 Renaming is how you clean up number-named contacts: search for the
 number, then rename the contact to the person's real name.
