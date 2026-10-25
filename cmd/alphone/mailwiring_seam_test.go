@@ -111,7 +111,7 @@ func TestTheMailSenderBridgeSurfacesAFailure(t *testing.T) {
 func TestTheHostBuildsNoMailSenderWithoutARelay(t *testing.T) {
 	t.Parallel()
 
-	held, err := buildMailSender(mailSettings{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	held, err := buildMailSender(mailSettings{}, "", slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	if err != nil {
 		t.Fatalf("buildMailSender() error = %v, want nil", err)

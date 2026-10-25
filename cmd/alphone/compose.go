@@ -79,7 +79,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	resolver := contact.NewResolver(built.contacts, contact.WithEvents(built.events))
 	built.registered, built.failed = plugins(sdk.Deps{
 		DatabaseURL:     cfg.databaseURL,
-		PublicURL:       cfg.mail.publicURL,
+		PublicURL:       cfg.publicURL,
 		MachineGrace:    cfg.machineGrace,
 		TenantsHeld:     cfg.tenants.held,
 		TenantsRefresh:  cfg.tenants.refresh,
@@ -99,7 +99,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	if err := declareEvents(built.registered); err != nil {
 		return built, fmt.Errorf("declare plugin events: %w", err)
 	}
-	sender, mailer, err := buildMail(cfg.mail, cfg.logger)
+	sender, mailer, err := buildMail(cfg.mail, cfg.publicURL, cfg.logger)
 	if err != nil {
 		return built, err
 	}
