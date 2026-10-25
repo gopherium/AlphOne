@@ -5,6 +5,7 @@
 	"type": "module",
 	"exports": {
 		".": "./index.ts",
+		"./components": "./components.ts",
 		"./dataviews": "./dataviews.ts",
 		"./dialogs": "./dialogs.ts",
 		"./testing": "./testing.tsx"
