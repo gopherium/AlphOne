@@ -4,11 +4,12 @@ import {
 	RenameBody,
 	__,
 	graphError,
+	markLatest,
 	useGraph,
-	useGraphMutation,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
+import type { UnsavedText } from '@alphone/frontend-sdk'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 
 import type { ContactRow } from './contactFields'
@@ -18,38 +19,45 @@ import { renameContactMutation } from './operations'
 const contactPageOperation = 'ContactPage'
 
 /**
- * Renders the modal writing a new name for one contact.
- * @param props - The contact and the handler closing the modal.
+ * Renders the modal writing a new name for one contact, closed the moment Save is pressed, its failure in a toast.
+ * @param props - The contact, the handler closing the modal, and the names failed renames left unsaved.
  * @returns The rename form.
  */
-export function RenameModal({ items: [contact], closeModal }: RenderModalProps<ContactRow>) {
+export function RenameModal({
+	items: [contact],
+	closeModal,
+	unsaved,
+}: RenderModalProps<ContactRow> & { unsaved: UnsavedText }) {
 	const graph = useGraph()
 	const toaster = useToaster()
-	const [renamed, rename] = useGraphMutation(renameContactMutation)
-	const submit = async (name: string) => {
-		const result = await rename({ id: contact.id, name })
-		if (result.error) {
-			return
-		}
-		graph.refetch([contactPageOperation])
-		toaster.show(__('Name updated.', 'alphone'))
+	const save = (name: string) => {
 		closeModal?.()
+		unsaved.delete(contact.id)
+		const stillLatest = markLatest(unsaved, contact.id)
+		void graph.client
+			.mutation(renameContactMutation, { id: contact.id, name })
+			.toPromise()
+			.then((result) => {
+				if (result.error) {
+					if (stillLatest()) {
+						unsaved.set(contact.id, name)
+					}
+					toaster.show(validationMessage(graphError(result.error), __('The name could not be updated.', 'alphone')))
+					return
+				}
+				graph.refetch([contactPageOperation])
+				toaster.show(__('Name updated.', 'alphone'))
+			})
 	}
 
 	return (
 		<RenameBody
-			name={contact.name}
+			name={unsaved.get(contact.id) ?? contact.name}
 			fieldLabel={__('Name', 'alphone')}
-			submitLabel={__('Rename', 'alphone')}
+			submitLabel={__('Save', 'alphone')}
 			cancelLabel={__('Cancel', 'alphone')}
-			busy={renamed.fetching}
-			failure={
-				renamed.error
-					? validationMessage(graphError(renamed.error), __('The name could not be updated.', 'alphone'))
-					: undefined
-			}
-			onSubmit={(name) => void submit(name)}
-			onCancel={renamed.fetching ? undefined : closeModal}
+			onSubmit={save}
+			onCancel={closeModal}
 		/>
 	)
 }
