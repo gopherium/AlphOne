@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { MANAGE_USERS, listSearch } from '@alphone/frontend-sdk'
+import { routerDefaults } from '@gopherium/godmin/router'
 import {
 	createRootRoute,
 	createRoute,
@@ -14,6 +15,7 @@ import { CapabilityGate } from './CapabilityGate'
 import { ContactRoute, NewContactRoute } from './contactRoutes'
 import { contactPanels, preloadContactPanels } from './contacts/panels'
 import { LanguageScreen } from './i18n/LanguageScreen'
+import { LANDING } from './landing'
 import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
@@ -28,7 +30,7 @@ const homeRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/',
 	beforeLoad: () => {
-		throw redirect({ to: '/tasks' })
+		throw redirect({ to: LANDING })
 	},
 })
 
@@ -134,7 +136,7 @@ const routeTree = rootRoute.addChildren([
  * @returns The configured TanStack router bound to the route tree.
  */
 export function createAppRouter(history?: RouterHistory) {
-	return createRouter({ routeTree, history })
+	return createRouter({ ...routerDefaults(), routeTree, history })
 }
 
 declare module '@tanstack/react-router' {

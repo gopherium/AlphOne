@@ -1,63 +1,51 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, server, setViewport } from '@alphone/frontend-sdk/testing'
+import { resetLocale } from '@gopherium/gottext/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { beforeAll, beforeEach, expect, onTestFinished, test } from 'vitest'
 
 import { handlers } from '@alphone/plugin-whatsapp/handlers'
+import { startAppLocale } from '../i18n/start'
 import { renderAt } from './render'
 
-const realMatchMedia = window.matchMedia
+/** The name godmin gives the button that opens the sidebar on a phone. */
+const MENU_BUTTON = 'Open navigation panel'
 
 beforeAll(async () => {
 	await import('../contacts/ContactsScreen')
 })
 
 beforeEach(() => server.use(...handlers))
-afterEach(() => {
-	window.matchMedia = realMatchMedia
-})
 
-/**
- * Reports every media query as matching or not, standing in for a viewport.
- * @param matches - What every query should report.
- */
-function stubViewport(matches: boolean) {
-	window.matchMedia = ((media: string) => ({
-		media,
-		matches,
-		addEventListener: () => {},
-		removeEventListener: () => {},
-	})) as unknown as typeof window.matchMedia
-}
-
-test('replaces the rail with a menu button on a small viewport', async () => {
-	stubViewport(true)
+test('holds the navigation behind a menu button on a narrow viewport', async () => {
+	setViewport({ matches: true })
 	renderAt('/tasks')
 
 	await screen.findByRole('heading', { name: 'Tasks' })
 
-	expect(screen.getByRole('button', { name: 'Open navigation' })).toBeInTheDocument()
-	expect(screen.queryByRole('navigation')).toBeNull()
+	expect(screen.getByRole('button', { name: MENU_BUTTON })).toBeInTheDocument()
+	expect(screen.queryByRole('region', { name: 'Navigation' })).toBeNull()
 })
 
-test('opens the navigation in a drawer', async () => {
-	stubViewport(true)
+test('opens the navigation in a drawer named for it, holding no region of its own', async () => {
+	setViewport({ matches: true })
 	renderAt('/tasks')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Open navigation' }))
+	await userEvent.click(await screen.findByRole('button', { name: MENU_BUTTON }))
 
-	const drawer = await screen.findByRole('dialog')
+	const drawer = await screen.findByRole('dialog', { name: 'Navigation' })
 	expect(within(drawer).getByRole('link', { name: 'Contacts' })).toBeInTheDocument()
 	expect(within(drawer).getByRole('button', { name: 'Log out' })).toBeInTheDocument()
+	expect(within(drawer).queryByRole('region')).toBeNull()
 })
 
-test('closes the drawer once a section is chosen', async () => {
-	stubViewport(true)
+test('puts the navigation away once it takes the reader somewhere', async () => {
+	setViewport({ matches: true })
 	renderAt('/tasks')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Open navigation' }))
+	await userEvent.click(await screen.findByRole('button', { name: MENU_BUTTON }))
 	const drawer = await screen.findByRole('dialog')
 	await userEvent.click(within(drawer).getByRole('link', { name: 'Contacts' }))
 
@@ -65,12 +53,22 @@ test('closes the drawer once a section is chosen', async () => {
 	expect(await screen.findByRole('heading', { name: 'Contacts' })).toBeInTheDocument()
 })
 
-test('keeps the rail and offers no menu button on a wide viewport', async () => {
-	stubViewport(false)
+test('names the menu button in Spanish from the words godmin ships', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	setViewport({ matches: true })
+	renderAt('/tasks')
+
+	expect(await screen.findByRole('button', { name: 'Abrir el panel de navegación' })).toBeInTheDocument()
+})
+
+test('keeps the sidebar beside the canvas when there is room', async () => {
+	setViewport({ matches: false })
 	renderAt('/tasks')
 
 	await screen.findByRole('heading', { name: 'Tasks' })
 
-	expect(screen.getByRole('navigation')).toBeInTheDocument()
-	expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+	expect(screen.getByRole('region', { name: 'Navigation' })).toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: MENU_BUTTON })).toBeNull()
 })
