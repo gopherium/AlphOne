@@ -1,5 +1,9 @@
 version: "2"
 
+run:
+  build-tags:
+    - s3
+
 linters:
   default: standard
   enable:

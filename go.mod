@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.46.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.111.0
+	github.com/aws/smithy-go v1.28.1
 	github.com/cucumber/godog v0.16.0
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/google/go-cmp v0.7.0
@@ -63,7 +64,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.42.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.49.0 // indirect
-	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/bep/godartsass/v2 v2.5.0 // indirect
 	github.com/bep/golibsass v1.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect

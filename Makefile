@@ -1,5 +1,5 @@
 .PHONY: peers test test-race cover cover-html test-uncovered lint vuln fmt generate outdated db-up db-down db-reset \
-	seed dev dev-watch demo n8n n8n-down n8n-node n8n-node-local runbook \
+	seed dev dev-watch demo n8n n8n-down n8n-node n8n-node-local runbook s3-up s3-down test-s3 \
 	e2e e2e-build e2e-serve e2e-db-reset e2e-seed e2e-reset
 
 COVERPKGS = $(shell go list ./... | grep -v -e /internal/postgres/db -e /internal/testdb -e /internal/graphroot -e '/alphone/graph$$' -e '/alphone/graph/model$$')
@@ -80,6 +80,20 @@ n8n:
 
 n8n-down:
 	docker compose --profile n8n down n8n
+
+S3_TEST_ENV = ALPHONE_TEST_S3_ENDPOINT=http://127.0.0.1:3900 ALPHONE_TEST_S3_REGION=garage \
+	ALPHONE_TEST_S3_BUCKET=test-files ALPHONE_TEST_S3_ACCESS_KEY_ID=GK0123456789abcdef01234567 \
+	ALPHONE_TEST_S3_SECRET_ACCESS_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+s3-up:
+	docker compose --profile s3 up -d garage
+	$(S3_TEST_ENV) bash test/s3/garage.sh "$$(docker compose --profile s3 ps -q garage)"
+
+s3-down:
+	docker compose --profile s3 down garage
+
+test-s3: s3-up
+	$(S3_TEST_ENV) go test -race -count=1 -short -timeout 5m -tags s3 ./internal/storage/...
 
 N8N_NODE ?= n8n-nodes-alphone
 

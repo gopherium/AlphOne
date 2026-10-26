@@ -23,6 +23,8 @@ const (
 	maxAgeKey = "ALPHONE_TEST_DATABASE_MAX_AGE"
 	// where is the hint every refused setting gives about where to set it.
 	where = "in the environment or .env, see .env.example"
+	// bucketKey names a test setting that no database reads.
+	bucketKey = "ALPHONE_TEST_S3_BUCKET"
 )
 
 // fatal is a test that records its fatal message and ends its goroutine on a fatal call.
@@ -55,6 +57,20 @@ func fatalOfNew(t *testing.T) string {
 	}()
 	<-done
 	return recorder.message
+}
+
+// settingOf returns what Setting answered for key and the fatal message it stopped with, if any.
+func settingOf(t *testing.T, key string) (string, string) {
+	t.Helper()
+	recorder := &fatal{TB: t}
+	var answered string
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		answered = testdb.Setting(recorder, key)
+	}()
+	<-done
+	return answered, recorder.message
 }
 
 // panicOfConfig returns what Config panicked with, or nothing when it returned.
@@ -114,6 +130,24 @@ func TestNewShowsTheRefusalOfAMalformedAddress(t *testing.T) {
 
 	if message := fatalOfNew(t); !strings.HasPrefix(message, "dbkit: refused database address") {
 		t.Errorf("New() stopped with %q, want the dbkit refusal of the address", message)
+	}
+}
+
+func TestSettingAnswersATestSettingTheEnvironmentSets(t *testing.T) {
+	t.Setenv(bucketKey, " test-files ")
+
+	answered, message := settingOf(t, bucketKey)
+	if answered != "test-files" || message != "" {
+		t.Errorf("Setting() = %q and stopped with %q, want test-files trimmed and no stop", answered, message)
+	}
+}
+
+func TestSettingNamesAMissingSettingAndWhereToSetIt(t *testing.T) {
+	t.Setenv(bucketKey, "")
+
+	_, message := settingOf(t, bucketKey)
+	if !strings.Contains(message, bucketKey) || !strings.Contains(message, where) {
+		t.Errorf("Setting() stopped with %q, want a stop naming %s and %q", message, bucketKey, where)
 	}
 }
 

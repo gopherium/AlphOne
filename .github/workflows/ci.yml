@@ -42,6 +42,27 @@ jobs:
           fail_ci_if_error: true
           version: v11.3.0 # pin CLI, 'latest' can transiently fail GPG SHASUM verify
 
+  s3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ALPHONE_TEST_S3_ENDPOINT: http://127.0.0.1:3900
+      ALPHONE_TEST_S3_REGION: garage
+      ALPHONE_TEST_S3_BUCKET: test-files
+      ALPHONE_TEST_S3_ACCESS_KEY_ID: GK0123456789abcdef01234567
+      ALPHONE_TEST_S3_SECRET_ACCESS_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: >-
+          docker run -d --name garage -p 127.0.0.1:3900:3900
+          -v "$PWD/test/s3/garage.toml:/etc/garage.toml:ro"
+          dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+      - run: bash test/s3/garage.sh garage
+      - run: go test -race -count=1 -short -timeout 5m -tags s3 ./internal/storage/...
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

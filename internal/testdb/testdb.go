@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Elastic-2.0
 
-// Package testdb provides fresh PostgreSQL test databases on the server ALPHONE_TEST_DATABASE_URL names.
+// Package testdb reads the test settings and provides fresh PostgreSQL databases on the server they name.
 package testdb
 
 import (
@@ -51,6 +51,16 @@ func New(t testing.TB, migrator pgtestdb.Migrator) string {
 	return pgtest.NewSwept(t, address, maxAge, migrator)
 }
 
+// Setting returns the test setting key, read from the environment first and from .env second, failing t when unset.
+func Setting(t testing.TB, key string) string {
+	t.Helper()
+	text, err := required(os.LookupEnv, rootDotenv, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return text
+}
+
 // Config returns the pgtestdb configuration of the test server, and panics when its address is missing or unreadable.
 func Config() pgtestdb.Config {
 	address, err := addressOf(os.LookupEnv, rootDotenv)
@@ -95,14 +105,21 @@ func settings(
 
 // addressOf returns the test server address, read from environ first and from file second.
 func addressOf(environ func(string) (string, bool), file func() (map[string]string, error)) (string, error) {
-	address, err := value(environ, file, addressKey)
+	return required(environ, file, addressKey)
+}
+
+// required returns the trimmed value of key, read from environ first and from file second, refusing an empty one.
+func required(
+	environ func(string) (string, bool), file func() (map[string]string, error), key string,
+) (string, error) {
+	text, err := value(environ, file, key)
 	if err != nil {
 		return "", err
 	}
-	if address == "" {
-		return "", fmt.Errorf("testdb: set %s %s", addressKey, whereToSet)
+	if text == "" {
+		return "", fmt.Errorf("testdb: set %s %s", key, whereToSet)
 	}
-	return address, nil
+	return text, nil
 }
 
 // value returns the trimmed value of key from environ, or from file when environ does not set it.
