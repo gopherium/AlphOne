@@ -247,6 +247,16 @@ make lint          # golangci-lint plus the docblock linter
 cd frontend && pnpm run cover   # frontend tests with 100% coverage thresholds
 ```
 
+The storage tests also run against a real S3 store. `make test-s3`
+starts Garage on `127.0.0.1:3900` from the `s3` profile of
+`compose.yaml`, makes the bucket and the key the tests use, and runs the
+storage tests built with the `s3` tag. It runs them in short mode with
+the S3 settings the Makefile sets, so the storage tests that need the
+database skip. `make s3-down` removes Garage again. To run them by hand,
+start Garage with `make s3-up` and add `-tags s3` to `go test`. A run by
+hand reads the `ALPHONE_TEST_S3_*` settings listed in `.env.example`
+from the environment or `.env`, and fails at once when one is missing.
+
 End-to-end tests drive a real browser against a real server. `make e2e`
 rebuilds the isolated database, seeds it, and runs Playwright, so every
 run starts from the same state. `make e2e-serve` runs the server against
