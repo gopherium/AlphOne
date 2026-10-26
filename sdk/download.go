@@ -21,7 +21,7 @@ type Download struct {
 	ContentType string
 	// Filename is the name a browser saves an attachment under, none when empty.
 	Filename string
-	// SHA256 is the hex SHA-256 the ETag carries, no ETag when empty.
+	// SHA256 is the SHA-256 digest the ETag carries, no ETag when empty.
 	SHA256 string
 	// ModTime is the time Last-Modified carries.
 	ModTime time.Time
