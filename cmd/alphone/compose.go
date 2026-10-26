@@ -20,6 +20,7 @@ import (
 	"github.com/gopherium/alphone/internal/event"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/postgres"
+	"github.com/gopherium/alphone/internal/storage"
 	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -48,6 +49,8 @@ type composed struct {
 	events       nudgingPublisher
 	mailer       graphres.Mailer
 	roles        *goncierge.Registry
+	files        *storage.Files
+	sweeper      *storage.Sweeper
 	registered   []sdk.Plugin
 	failed       error
 }
@@ -72,6 +75,8 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		worker:       webhook.NewWorker(webhooks, cfg.logger, guard),
 		hub:          event.NewHub(),
 		roles:        cfg.roles,
+		files:        storage.NewFiles(cfg.storage, pool),
+		sweeper:      storage.NewSweeper(cfg.storage, pool, cfg.logger),
 	}
 	built.events = nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(webhooks, cfg.logger), worker: built.worker, hub: built.hub,
@@ -109,21 +114,31 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	wireTenantGate(built.registered, tenantGateBridge{tenants: built.tenants, grace: cfg.machineGrace})
 	wireRoleChecker(built.registered, roleCheckerBridge{registry: cfg.roles})
 	wireMailSenderFrom(built.registered, sender)
+	wireFileStores(built.registered, built.files)
 	return built, nil
 }
 
-// abandon stops the plugins compose registered within grace and closes its pool, nothing when it built no pool.
+// abandon stops the plugins compose registered within grace and closes what it opened, nothing when it built no pool.
 func abandon(ctx context.Context, built composed, grace time.Duration) error {
 	if built.pool == nil {
 		return nil
 	}
-	defer built.pool.Close()
+	defer built.close()
 	return gonsole.StopHost(ctx, pluginkit.NewHost(built.registered...), grace)
+}
+
+// close closes the bucket and then the pool compose opened.
+func (c composed) close() {
+	_ = c.files.Close()
+	c.pool.Close()
 }
 
 // migrations returns the schema steps every database takes, in the order they apply.
 func migrations() []gonsole.Step {
-	return []gonsole.Step{accountspg.Migration(), accountspg.RecordMigration(), {Name: "core", Run: postgres.Migrate}}
+	return []gonsole.Step{
+		accountspg.Migration(), accountspg.RecordMigration(), {Name: "core", Run: postgres.Migrate},
+		{Name: "storage", Run: storage.Migrate},
+	}
 }
 
 // migrate applies every schema step to the database at databaseURL.

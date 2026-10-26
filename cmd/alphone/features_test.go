@@ -578,7 +578,9 @@ func (s *operatorScenario) scan(ctx context.Context, query string, dest any, arg
 	return pool.QueryRow(ctx, query, args...).Scan(dest)
 }
 
-func TestOperatorCommands(t *testing.T) {
+// runFeature runs the feature file at path as its own suite, refusing undefined steps.
+func runFeature(t *testing.T, path string, initialize func(*godog.ScenarioContext)) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping database test in short mode")
 	}
@@ -587,10 +589,10 @@ func TestOperatorCommands(t *testing.T) {
 		tags = ""
 	}
 	suite := godog.TestSuite{
-		ScenarioInitializer: initializeOperatorCommands(t),
+		ScenarioInitializer: initialize,
 		Options: &godog.Options{
 			Format:   "pretty",
-			Paths:    []string{operatorCommandsFeature},
+			Paths:    []string{path},
 			Tags:     tags,
 			Strict:   true,
 			TestingT: t,
@@ -599,4 +601,8 @@ func TestOperatorCommands(t *testing.T) {
 	if suite.Run() != 0 {
 		t.Error("the feature did not pass")
 	}
+}
+
+func TestOperatorCommands(t *testing.T) {
+	runFeature(t, operatorCommandsFeature, initializeOperatorCommands(t))
 }

@@ -73,6 +73,20 @@ func coreSettings() map[string]string {
 		"ALPHONE_SHUTDOWN_GRACE":                   "15s",
 		"ALPHONE_SHUTDOWN_CANCEL_GRACE":            "3s",
 		"ALPHONE_SHUTDOWN_STOP_GRACE":              "4s",
+		"ALPHONE_STORAGE_DRIVER":                   "s3",
+		"ALPHONE_STORAGE_MAX_BYTES":                "1048576",
+		"ALPHONE_STORAGE_CHUNK_BYTES":              "65536",
+		"ALPHONE_STORAGE_CLEANUP_TIMEOUT":          "3s",
+		"ALPHONE_STORAGE_SWEEP_INTERVAL":           "15m",
+		"ALPHONE_STORAGE_SWEEP_AGE":                "6h",
+		"ALPHONE_STORAGE_SWEEP_BATCH":              "250",
+		"ALPHONE_STORAGE_S3_ENDPOINT":              "https://files.example.com",
+		"ALPHONE_STORAGE_S3_REGION":                "garage",
+		"ALPHONE_STORAGE_S3_BUCKET":                "example-files",
+		"ALPHONE_STORAGE_S3_ACCESS_KEY_ID":         "GKexample",
+		"ALPHONE_STORAGE_S3_SECRET_ACCESS_KEY":     "example-secret",
+		"ALPHONE_STORAGE_S3_PATH_STYLE":            "true",
+		"ALPHONE_STORAGE_S3_CHECKSUM":              "when_required",
 	}
 }
 

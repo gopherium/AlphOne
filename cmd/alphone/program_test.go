@@ -156,7 +156,7 @@ func TestProgramMigrateNamesEveryStepInTheOrderItApplies(t *testing.T) {
 
 	got := testkit.Run(t, bareProgram(map[string]string{"ALPHONE_DATABASE_URL": barePostgres(t)}), "", "migrate")
 
-	want := "migrated accounts\nmigrated records\nmigrated core\nmigrated plugins\n"
+	want := "migrated accounts\nmigrated records\nmigrated core\nmigrated storage\nmigrated plugins\n"
 	if got.Code != gonsole.ExitDone || got.Stdout != want {
 		t.Errorf("migrate = %d, stdout %q, stderr %q, want 0 and %q", got.Code, got.Stdout, got.Stderr, want)
 	}

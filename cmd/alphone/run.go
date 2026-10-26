@@ -28,6 +28,7 @@ import (
 	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
+	"github.com/gopherium/alphone/internal/storage"
 	"github.com/gopherium/alphone/internal/tenant"
 	"github.com/gopherium/alphone/internal/version"
 	"github.com/gopherium/alphone/internal/webhook"
@@ -61,14 +62,19 @@ func run(
 	if err != nil {
 		return errors.Join(err, abandon(ctx, built, settings.serving.StopGrace))
 	}
-	defer built.pool.Close()
+	defer built.close()
 	host := pluginkit.NewHost(built.registered...)
 	if err := migrate(ctx, settings.databaseURL); err != nil {
+		return errors.Join(err, gonsole.StopHost(ctx, host, settings.serving.StopGrace))
+	}
+	if err := built.files.Check(ctx); err != nil {
 		return errors.Join(err, gonsole.StopHost(ctx, host, settings.serving.StopGrace))
 	}
 
 	built.worker.Start()
 	defer built.worker.Stop()
+	built.sweeper.Start()
+	defer built.sweeper.Stop()
 	reaper := authkit.NewReaper(built.users, authkit.ReaperConfig{Logger: logger})
 	reaper.Start()
 	defer reaper.Stop()
@@ -284,6 +290,7 @@ type composeSettings struct {
 	mail            mailSettings
 	webhookHosts    webhook.AllowList
 	paging          graphres.Paging
+	storage         storage.Settings
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -438,6 +445,16 @@ func loadMailSettings(env gonsole.Env) (mailSettings, error) {
 	}, nil
 }
 
+// loadMailAndPublicURL reads the mail relay settings and the address people reach the application at.
+func loadMailAndPublicURL(env gonsole.Env) (mailSettings, string, error) {
+	mail, err := loadMailSettings(env)
+	if err != nil {
+		return mailSettings{}, "", err
+	}
+	publicURL, err := loadPublicURL(env, mail)
+	return mail, publicURL, err
+}
+
 // loadPublicURL reads the address people reach the application at, which a mail relay requires.
 func loadPublicURL(env gonsole.Env, mail mailSettings) (string, error) {
 	publicURL, err := gonsole.Parse(env, "PUBLIC_URL", "", parsePublicURL)
@@ -464,11 +481,7 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
-	mail, err := loadMailSettings(env)
-	if err != nil {
-		return composeSettings{}, err
-	}
-	publicURL, err := loadPublicURL(env, mail)
+	mail, publicURL, err := loadMailAndPublicURL(env)
 	if err != nil {
 		return composeSettings{}, err
 	}
@@ -480,9 +493,13 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
+	files, err := loadStorageSettings(env)
+	if err != nil {
+		return composeSettings{}, err
+	}
 	return composeSettings{
 		machineGrace: machineGrace, tenants: tenants, contactMatchMax: contactMatchMax,
-		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, paging: paging,
+		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, paging: paging, storage: files,
 	}, nil
 }
 
