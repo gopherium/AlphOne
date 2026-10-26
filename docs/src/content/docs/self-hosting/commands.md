@@ -135,7 +135,7 @@ reads are under
 ### migrate
 
 Applies every schema step and exits without serving: the accounts, the
-command records, the core and every plugin.
+command records, the core, the file storage and every plugin.
 
 ```sh
 alphone migrate
@@ -145,8 +145,12 @@ alphone migrate
 migrated accounts
 migrated records
 migrated core
+migrated storage
 migrated plugins
 ```
+
+The `storage` step creates the tables that hold the plugins' files,
+whatever `ALPHONE_STORAGE_DRIVER` says.
 
 Running it again changes nothing. Every migration waits for one database
 lock, so a starting server and `migrate` never migrate together.
@@ -200,6 +204,7 @@ alphone seed -yes
 migrated accounts
 migrated records
 migrated core
+migrated storage
 migrated plugins
 seeded the core demo data
 login: admin@example.com / password1234 (admin)
@@ -256,11 +261,12 @@ printf '%s\n' "$ADMIN_PASSWORD" | alphone account:create-admin \
 migrated accounts
 migrated records
 migrated core
+migrated storage
 Password: created user you@example.com
 ```
 
-It first applies the account, record and core migrations, so it works on
-an empty database. It takes no `-as` and is not recorded, which makes it
+It first applies the account, record, core and storage migrations, so it
+works on an empty database. It takes no `-as` and is not recorded, which makes it
 the way to create the first admin, and the way back in when no account
 can act. An unknown role exits 2 and names the roles, as in
 `alphone: unknown role "owner", want admin or member`. An address that

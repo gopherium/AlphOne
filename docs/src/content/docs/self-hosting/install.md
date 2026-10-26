@@ -233,6 +233,49 @@ Role field, or promote a member from the Users screen later, when you want a
 second admin. See [Roles](/reference/graphql-api/#roles) for what each tier
 may do.
 
+## Where files live
+
+Plugins keep files, such as the attachments of a mail. By default they
+live in PostgreSQL, in the `storage` schema of the AlphOne database, and
+you set nothing for that. The files then go into every database backup,
+see [Backing up files](/self-hosting/updates-and-backups/#backing-up-files).
+
+A deployment with many or large files can keep them in any S3
+compatible store instead, such as AWS S3, Garage or SeaweedFS. Create a
+bucket and an access key that may read, write, list and delete in it,
+and abort multipart uploads there. AWS S3 grants that last one apart, as
+`s3:AbortMultipartUpload`. Then add the store to `.env`:
+
+```ini
+ALPHONE_STORAGE_DRIVER=s3
+ALPHONE_STORAGE_S3_ENDPOINT=https://s3.example.com
+ALPHONE_STORAGE_S3_REGION=<the region of the bucket>
+ALPHONE_STORAGE_S3_BUCKET=<the name of the bucket>
+ALPHONE_STORAGE_S3_ACCESS_KEY_ID=<the access key>
+ALPHONE_STORAGE_S3_SECRET_ACCESS_KEY=<the secret of the key>
+ALPHONE_STORAGE_S3_PATH_STYLE=true
+```
+
+On AWS S3, leave out the endpoint and the path style. On another store,
+use the region it names, such as the `s3_region` in the configuration of
+Garage.
+
+AlphOne asks the store for checksums the way recent AWS tools do: it
+adds one to every upload and checks the one each answer carries. Some
+S3 compatible stores, older releases above all, refuse such uploads or
+answer without the checksum. When AlphOne cannot store files in such a
+store, add `ALPHONE_STORAGE_S3_CHECKSUM=when_required`, which adds and
+checks a checksum only where a request needs one. Keep the default on
+AWS S3.
+
+`serve` checks the bucket when it starts. When it cannot find it, it
+stops with `storage: the s3 bucket is not there, check the storage settings`.
+
+Choose before plugins store files. A change of driver later moves
+nothing, so the files saved before it stay where they were and AlphOne
+no longer finds them. Every setting is listed under
+[Files](/self-hosting/configuration/#files).
+
 ## Next steps
 
 - [Configuration](/self-hosting/configuration/) lists every environment
