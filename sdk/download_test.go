@@ -59,7 +59,7 @@ func TestServeDownloadSendsTheSafeHeaders(t *testing.T) {
 	headers := map[string]string{
 		"Content-Type":            "image/jpeg",
 		"ETag":                    `"` + sha + `"`,
-		"Cache-Control":           "private, max-age=31536000, immutable",
+		"Cache-Control":           "private, no-store",
 		"X-Content-Type-Options":  "nosniff",
 		"Content-Security-Policy": "sandbox",
 		"Content-Disposition":     "inline",

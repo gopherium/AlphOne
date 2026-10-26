@@ -35,7 +35,7 @@ func ServeDownload(w http.ResponseWriter, r *http.Request, d Download) {
 	}
 	header := w.Header()
 	header.Set("Content-Type", mimeType)
-	header.Set("Cache-Control", "private, max-age=31536000, immutable")
+	header.Set("Cache-Control", "private, no-store")
 	header.Set("X-Content-Type-Options", "nosniff")
 	header.Set("Content-Security-Policy", "sandbox")
 	header.Set("Content-Disposition", mediaDisposition(mimeType, d.Filename))
