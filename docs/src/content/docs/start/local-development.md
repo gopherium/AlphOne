@@ -139,7 +139,8 @@ make db-reset
 ```
 
 That drops every schema AlphOne owns, `core`, `auth`, `gonsole` with the
-account command records, and one per plugin, then runs `make seed`,
+account command records, `storage` with the files plugins keep, and one
+per plugin, then runs `make seed`,
 which re-migrates and refills. It destroys every local record, so never
 point it at anything you care about.
 
