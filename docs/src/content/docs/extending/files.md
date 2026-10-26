@@ -129,9 +129,8 @@ sdk.ServeDownload(w, r, sdk.Download{
 ```
 
 It answers range requests, so a browser can jump ahead in a video or
-resume a download. It answers `304 Not Modified` to a browser that
-already holds the file, through the SHA-256 it sends as the `ETag`. It
-also protects the people who open the file:
+resume a download. It sends the SHA-256 you pass as the `ETag`. It also
+protects the people who open the file:
 
 - `X-Content-Type-Options: nosniff` stops the browser from reading the
   file as any type other than the one sent.
@@ -141,8 +140,10 @@ also protects the people who open the file:
   show inline. Every other file downloads as an attachment, under
   `Filename` when you name one, so an HTML or SVG file never opens as a
   page.
-- `Cache-Control: private` keeps shared caches from storing the file.
-  A file never changes under its id, so the browser keeps it for a year.
+- `Cache-Control: private, no-store` keeps every cache, the browser's
+  own included, from keeping the file. Each new view asks AlphOne again,
+  so a person who signed out or lost access cannot open it from the
+  cache.
 
 `ServeDownload` reads any `io.ReadSeeker`. The WhatsApp plugin serves the
 media it keeps in its own table through it too.
