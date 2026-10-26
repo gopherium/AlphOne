@@ -268,6 +268,10 @@ store, add `ALPHONE_STORAGE_S3_CHECKSUM=when_required`, which adds and
 checks a checksum only where a request needs one. Keep the default on
 AWS S3.
 
+Garage releases before v2.5.0 need `when_required`. They store a file
+of 16 MiB or more, which AlphOne sends in parts, but answer it with a
+checksum AlphOne cannot match, so reading that file back fails.
+
 `serve` checks the bucket when it starts. When it cannot find it, it
 stops with `storage: the s3 bucket is not there, check the storage settings`.
 

@@ -273,7 +273,7 @@ of its own whichever you choose.
 | `ALPHONE_STORAGE_DRIVER` | Where the files live, `postgres` or `s3`. Defaults to `postgres`. |
 | `ALPHONE_STORAGE_MAX_BYTES` | The most bytes one file holds. Defaults to 26214400, which is 25 MiB. A larger file is refused. |
 | `ALPHONE_STORAGE_CHUNK_BYTES` | With `postgres`, the most bytes of a file one database row holds. Defaults to 1048576, which is 1 MiB, and stops `serve` above 268435456, which is 256 MiB. A change applies to the files stored after it. |
-| `ALPHONE_STORAGE_CLEANUP_TIMEOUT` | With `postgres`, how long removing the rows of a failed upload may take. Defaults to `10s`. |
+| `ALPHONE_STORAGE_CLEANUP_TIMEOUT` | How long removing a failed upload may take: its rows with `postgres`, or the parts it already sent with `s3`. Defaults to `10s`. |
 | `ALPHONE_STORAGE_SWEEP_INTERVAL` | With `postgres`, how often AlphOne deletes uploads that never finished, such as one a crash cut short. Defaults to `1h`. |
 | `ALPHONE_STORAGE_SWEEP_AGE` | With `postgres`, how long an upload that never finished waits before it is deleted. Defaults to `24h`. |
 | `ALPHONE_STORAGE_SWEEP_BATCH` | With `postgres`, the most uploads that never finished one sweep deletes. Defaults to 1000. |
