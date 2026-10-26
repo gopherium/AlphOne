@@ -144,6 +144,23 @@ func TestOneSweepDeletesNoMoreUnfinishedUploadsThanItsBatch(t *testing.T) {
 	}
 }
 
+func TestTheSweeperSweepsAgainEveryInterval(t *testing.T) {
+	t.Parallel()
+
+	pool := poolOn(t, migratedDatabase(t))
+	settings := postgresSettings()
+	settings.SweepInterval, settings.SweepAge, settings.SweepBatch = 100*time.Millisecond, 50*time.Millisecond, 1
+	staleUploads(t, settings, pool, "uploads/first", "uploads/second", "uploads/third")
+	var log lockedLog
+
+	startedSweeper(t, settings, pool, &log)
+
+	waitFor(t, "three sweeps of one upload each", func() bool { return strings.Count(log.String(), "deleted=1") == 3 })
+	if left := count(t, pool, pendingRows); left != 0 {
+		t.Errorf("%d unfinished uploads are left after three sweeps of one, want none", left)
+	}
+}
+
 func TestTheSweeperLogsASweepThatFails(t *testing.T) {
 	t.Parallel()
 
