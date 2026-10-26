@@ -379,7 +379,7 @@ func TestMigrateAppliesEveryStepToABareDatabase(t *testing.T) {
 		t.Fatalf("migrate() error = %v, want the accounts step applied before the core step needs it", err)
 	}
 	schemas := extraSchemas(t, databaseURL)
-	for _, want := range []string{"auth", "gonsole", "core"} {
+	for _, want := range []string{"auth", "gonsole", "core", "storage"} {
 		if !slices.Contains(schemas, want) {
 			t.Errorf("the database holds the schemas %v after migrate, want the %s schema", schemas, want)
 		}

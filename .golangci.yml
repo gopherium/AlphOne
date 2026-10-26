@@ -44,6 +44,21 @@ linters:
           deny:
             - pkg: github.com/gopherium/alphone/internal
               desc: plugins may import only the sdk and graph packages from AlphOne
+        plugins-keep-files-through-the-sdk:
+          list-mode: lax
+          files:
+            - "**/plugins/**/*.go"
+            - "**/enterprise/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: gocloud.dev
+              desc: plugins keep files through the file store the sdk hands them
+            - pkg: github.com/gopherium/framework/postgresblob
+              desc: plugins keep files through the file store the sdk hands them
+            - pkg: github.com/aws/aws-sdk-go-v2/service/s3
+              desc: plugins keep files through the file store the sdk hands them
+            - pkg: github.com/aws/aws-sdk-go-v2/feature/s3
+              desc: plugins keep files through the file store the sdk hands them
   exclusions:
     rules:
       - path: _test\.go

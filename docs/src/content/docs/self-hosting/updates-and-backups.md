@@ -115,6 +115,11 @@ server, because a watcher on `:latest` applies it on its own.
   shows for you to pass on starts with it, so make sure it still names
   the address people reach AlphOne at. See
   [Core](/self-hosting/configuration/#core).
+- AlphOne keeps a `storage` schema in its database for the files
+  plugins keep, and checks at start that it can reach them. With the
+  default settings it creates the schema on its first start, and you set
+  nothing. The WhatsApp media stay in the plugin's own table. See
+  [Files](/self-hosting/configuration/#files).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
@@ -258,6 +263,31 @@ Schedule it daily:
 Copy the `backups/` directory somewhere off the server on your own
 schedule. A backup that lives only next to the database it protects is
 half a backup.
+
+## Backing up files
+
+With the `postgres` driver, the default, the files plugins keep live in
+the `storage` schema of the database. The nightly `pg_dump` above holds
+them, so it grows with them, and so does the time a dump and a restore
+take. The files are stored without compression.
+
+With the `s3` driver, the database holds only the ids of the files and
+the bucket holds the files. Back the bucket up too, on the same schedule
+as the database, with the tools your store offers, such as versioning or
+a copy to a second bucket. Restore the bucket beside the dump of the
+same night. A database restored without its files points at files that
+are gone.
+
+A large file goes to an S3 store in parts. AlphOne aborts an upload that
+fails, but a server that stops in the middle of one, or an abort that
+fails, leaves parts in the bucket. The store keeps those parts, and
+bills for them, until a lifecycle rule aborts incomplete multipart
+uploads. Add such a rule to the bucket, for example one that aborts them
+after a day, where your store supports lifecycle rules.
+
+With the `postgres` driver, AlphOne deletes an upload that never
+finished on its own, once it is older than `ALPHONE_STORAGE_SWEEP_AGE`,
+see [Files](/self-hosting/configuration/#files).
 
 ## Restoring
 

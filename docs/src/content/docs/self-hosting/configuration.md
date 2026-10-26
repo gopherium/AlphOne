@@ -18,20 +18,21 @@ When a variable holds a value AlphOne refuses:
   [Account records and tokens](#account-records-and-tokens), which only
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
-  [Contacts](#contacts), [Webhooks](#webhooks),
+  [Contacts](#contacts), [Webhooks](#webhooks), [Files](#files),
   [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
   in `ALPHONE_PUBLIC_URL`, `ALPHONE_GRAPH_PAGE_SIZE` or
   `ALPHONE_GRAPH_PAGE_CAP`, or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also
   stops the account commands that take `-as`, before they change
   anything. It stops `migrate`, `seed -yes` and `account:create-admin`
-  too, but only once they have applied the account, record and core
-  migrations.
+  too, but only once they have applied the account, record, core and
+  storage migrations.
 
 [Commands](/self-hosting/commands/) describes every command.
 
-Database migrations for the core, the auth layer, the command records
-and every plugin run automatically when `serve` starts, so pointing a
-new version at an existing database is all an upgrade takes.
+Database migrations for the core, the auth layer, the command records,
+the file storage and every plugin run automatically when `serve` starts,
+so pointing a new version at an existing database is all an upgrade
+takes.
 `alphone migrate` runs them without starting the server. Each run waits
 for one database lock, so a starting server and a command never migrate
 together. The wait is fixed: AlphOne asks for the lock every five
@@ -256,6 +257,44 @@ one of two reasons:
   stood at another origin, a sibling subdomain included
 - `origin` when the browser sent only `Origin` and its host and port do
   not match the `Host` header
+
+## Files
+
+Plugins keep files, such as the attachments of a mail, in one place you
+choose. They live in PostgreSQL by default, in the tables of the
+`storage` schema, or in a bucket of an S3 compatible store.
+[Where files live](/self-hosting/install/#where-files-live) helps you
+choose, and [Backing up files](/self-hosting/updates-and-backups/#backing-up-files)
+covers keeping them safe. The WhatsApp plugin keeps its media in a table
+of its own whichever you choose.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_STORAGE_DRIVER` | Where the files live, `postgres` or `s3`. Defaults to `postgres`. |
+| `ALPHONE_STORAGE_MAX_BYTES` | The most bytes one file holds. Defaults to 26214400, which is 25 MiB. A larger file is refused. |
+| `ALPHONE_STORAGE_CHUNK_BYTES` | With `postgres`, the most bytes of a file one database row holds. Defaults to 1048576, which is 1 MiB, and stops `serve` above 268435456, which is 256 MiB. A change applies to the files stored after it. |
+| `ALPHONE_STORAGE_CLEANUP_TIMEOUT` | With `postgres`, how long removing the rows of a failed upload may take. Defaults to `10s`. |
+| `ALPHONE_STORAGE_SWEEP_INTERVAL` | With `postgres`, how often AlphOne deletes uploads that never finished, such as one a crash cut short. Defaults to `1h`. |
+| `ALPHONE_STORAGE_SWEEP_AGE` | With `postgres`, how long an upload that never finished waits before it is deleted. Defaults to `24h`. |
+| `ALPHONE_STORAGE_SWEEP_BATCH` | With `postgres`, the most uploads that never finished one sweep deletes. Defaults to 1000. |
+| `ALPHONE_STORAGE_S3_ENDPOINT` | With `s3`, the address of the store, such as `https://s3.example.com`. It must be an `http` or `https` address. Unset, AlphOne uses the AWS address of the region. |
+| `ALPHONE_STORAGE_S3_REGION` | With `s3`, the region AlphOne signs its requests for. Required. |
+| `ALPHONE_STORAGE_S3_BUCKET` | With `s3`, the bucket the files live in. Required. Create it before you start AlphOne. |
+| `ALPHONE_STORAGE_S3_ACCESS_KEY_ID` | With `s3`, the access key AlphOne signs with. Required. |
+| `ALPHONE_STORAGE_S3_SECRET_ACCESS_KEY` | With `s3`, the secret of that access key. Required. |
+| `ALPHONE_STORAGE_S3_PATH_STYLE` | With `s3`, `true` puts the bucket in the path of each request, as in `https://s3.example.com/bucket/...`, instead of in the host name. Defaults to `false`. Most stores other than AWS S3 want `true`. |
+| `ALPHONE_STORAGE_S3_CHECKSUM` | With `s3`, `when_supported`, the default, adds a checksum to every request that takes one and checks every checksum an answer carries. `when_required` does both only where a request needs it, which some S3 compatible stores need, see [Where files live](/self-hosting/install/#where-files-live). |
+
+Each byte size and count must be a whole number above zero, and each
+time a duration above zero. An S3 setting with the `postgres` driver
+stops `serve` with an error such as
+`ALPHONE_STORAGE_S3_BUCKET is set but ALPHONE_STORAGE_DRIVER is not s3`.
+With `s3`, a missing region, bucket or key stops it with an error such
+as `ALPHONE_STORAGE_S3_REGION is required when ALPHONE_STORAGE_DRIVER is s3`.
+
+Once the migrations ran, `serve` checks that it can reach the files and
+stops when it cannot, with an error that names the driver, such as
+`storage: the s3 bucket is not there, check the storage settings`.
 
 ## Fields plugin
 

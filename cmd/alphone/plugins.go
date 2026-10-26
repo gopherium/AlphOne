@@ -48,7 +48,7 @@ func loadPlugins(
 			return gonsole.Loaded{}, errors.Join(built.failed, err, abandon(ctx, built, grace))
 		}
 		host := pluginkit.NewHost(built.registered...)
-		return gonsole.Hosted(built.registered, host, built.failed, grace, built.pool.Close), nil
+		return gonsole.Hosted(built.registered, host, built.failed, grace, built.close), nil
 	}
 }
 

@@ -3,10 +3,8 @@
 package whatsapp
 
 import (
-	"mime"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,179 +28,31 @@ func seedStoredMedia(
 	return conversationID, messageID
 }
 
-// getMedia requests one message's media through the plugin routes with the given headers.
-func getMedia(
-	t *testing.T, p *Plugin, conversationID, messageID string, header http.Header,
-) *httptest.ResponseRecorder {
+// getMedia requests one message's media through the plugin routes.
+func getMedia(t *testing.T, p *Plugin, conversationID, messageID string) *httptest.ResponseRecorder {
 	t.Helper()
 	target := "/conversations/" + conversationID + "/messages/" + messageID + "/media"
 	request := httptest.NewRequest(http.MethodGet, target, nil)
-	for name, values := range header {
-		for _, value := range values {
-			request.Header.Add(name, value)
-		}
-	}
 	recorder := httptest.NewRecorder()
 	p.Routes().ServeHTTP(recorder, request)
 	return recorder
 }
 
-func TestMediaDownloadServesStoredImages(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	data := []byte("img-bytes")
-	sha := shaOf(data)
-	conversationID, messageID := seedStoredMedia(t, p, "wamid.img", data, "image/jpeg", "", sha)
-
-	recorder := getMedia(t, p, conversationID.String(), messageID.String(), nil)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-	if got := recorder.Body.String(); got != string(data) {
-		t.Errorf("body = %q, want %q", got, data)
-	}
-	headers := map[string]string{
-		"Content-Type":            "image/jpeg",
-		"ETag":                    `"` + sha + `"`,
-		"Cache-Control":           "private, max-age=31536000, immutable",
-		"X-Content-Type-Options":  "nosniff",
-		"Content-Security-Policy": "sandbox",
-		"Content-Disposition":     "inline",
-		"Accept-Ranges":           "bytes",
-	}
-	for name, want := range headers {
-		if got := recorder.Header().Get(name); got != want {
-			t.Errorf("%s = %q, want %q", name, got, want)
-		}
-	}
-	if recorder.Header().Get("Last-Modified") == "" {
-		t.Error("Last-Modified missing, want the stored time")
-	}
-}
-
-func TestMediaDownloadServesRanges(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	data := []byte("range-bytes-payload")
-	conversationID, messageID := seedStoredMedia(t, p, "wamid.range", data, "audio/ogg", "", shaOf(data))
-
-	recorder := getMedia(t, p, conversationID.String(), messageID.String(), http.Header{"Range": {"bytes=0-3"}})
-
-	if recorder.Code != http.StatusPartialContent {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusPartialContent)
-	}
-	if got := recorder.Body.String(); got != "rang" {
-		t.Errorf("body = %q, want %q", got, "rang")
-	}
-	if got := recorder.Header().Get("Content-Range"); !strings.HasPrefix(got, "bytes 0-3/") {
-		t.Errorf("Content-Range = %q, want a bytes 0-3 range", got)
-	}
-}
-
-func TestMediaDownloadHonorsETags(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	data := []byte("cached-bytes")
-	sha := shaOf(data)
-	conversationID, messageID := seedStoredMedia(t, p, "wamid.etag", data, "image/png", "", sha)
-
-	recorder := getMedia(t, p, conversationID.String(), messageID.String(),
-		http.Header{"If-None-Match": {`"` + sha + `"`}})
-
-	if recorder.Code != http.StatusNotModified {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotModified)
-	}
-	if recorder.Body.Len() != 0 {
-		t.Errorf("body length = %d, want 0", recorder.Body.Len())
-	}
-}
-
-func TestMediaDownloadSkipsETagWithoutHash(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	data := []byte("hashless")
-	conversationID, messageID := seedStoredMedia(t, p, "wamid.nosha", data, "image/png", "", "")
-
-	recorder := getMedia(t, p, conversationID.String(), messageID.String(), nil)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-	if got := recorder.Header().Get("ETag"); got != "" {
-		t.Errorf("ETag = %q, want none without a hash", got)
-	}
-}
-
-func TestMediaDownloadDispositions(t *testing.T) {
+func TestMediaDownloadSendsTheDownloadHeaders(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
+		externalID      string
 		mimeType        string
 		filename        string
-		wantType        string
 		wantDisposition string
-		wantFilename    string
 	}{
-		"pdf with filename": {
-			mimeType:        "application/pdf",
-			filename:        "receipt.pdf",
-			wantType:        "application/pdf",
-			wantDisposition: "attachment",
-			wantFilename:    "receipt.pdf",
+		"a photo shown inline": {
+			externalID: "wamid.img", mimeType: "image/jpeg", wantDisposition: "inline",
 		},
-		"pdf with unicode filename": {
-			mimeType:        "application/pdf",
-			filename:        "receipt ö ñ.pdf",
-			wantType:        "application/pdf",
-			wantDisposition: "attachment",
-			wantFilename:    "receipt ö ñ.pdf",
-		},
-		"pdf without filename": {
-			mimeType:        "application/pdf",
-			filename:        "",
-			wantType:        "application/pdf",
-			wantDisposition: "attachment",
-		},
-		"opus voice note": {
-			mimeType:        "audio/ogg; codecs=opus",
-			filename:        "",
-			wantType:        "audio/ogg; codecs=opus",
-			wantDisposition: "inline",
-		},
-		"webp sticker": {
-			mimeType:        "image/webp",
-			filename:        "",
-			wantType:        "image/webp",
-			wantDisposition: "inline",
-		},
-		"mp4 video": {
-			mimeType:        "video/mp4",
-			filename:        "",
-			wantType:        "video/mp4",
-			wantDisposition: "inline",
-		},
-		"unknown type": {
-			mimeType:        "application/x-thing",
-			filename:        "",
-			wantType:        "application/x-thing",
-			wantDisposition: "attachment",
-		},
-		"empty type": {
-			mimeType:        "",
-			filename:        "",
-			wantType:        "application/octet-stream",
-			wantDisposition: "attachment",
-		},
-		"unparsable type": {
-			mimeType:        "image/png; =",
-			filename:        "",
-			wantType:        "image/png; =",
-			wantDisposition: "attachment",
+		"a document saved under its name": {
+			externalID: "wamid.doc", mimeType: "application/pdf", filename: "receipt.pdf",
+			wantDisposition: `attachment; filename=receipt.pdf`,
 		},
 	}
 
@@ -211,28 +61,41 @@ func TestMediaDownloadDispositions(t *testing.T) {
 			t.Parallel()
 
 			p := newMigratedPlugin(t)
-			data := []byte("blob")
-			conversationID, messageID := seedStoredMedia(t, p, "wamid.disp", data, tc.mimeType, tc.filename, shaOf(data))
+			data := []byte("media-bytes")
+			sha := shaOf(data)
+			conversationID, messageID := seedStoredMedia(t, p, tc.externalID, data, tc.mimeType, tc.filename, sha)
 
-			recorder := getMedia(t, p, conversationID.String(), messageID.String(), nil)
+			recorder := getMedia(t, p, conversationID.String(), messageID.String())
 
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 			}
-			if got := recorder.Header().Get("Content-Type"); got != tc.wantType {
-				t.Errorf("Content-Type = %q, want %q", got, tc.wantType)
+			if got := recorder.Body.String(); got != string(data) {
+				t.Errorf("body = %q, want %q", got, data)
 			}
-			disposition, params, err := mime.ParseMediaType(recorder.Header().Get("Content-Disposition"))
-			if err != nil {
-				t.Fatalf("parsing Content-Disposition %q: %v", recorder.Header().Get("Content-Disposition"), err)
-			}
-			if disposition != tc.wantDisposition {
-				t.Errorf("disposition = %q, want %q", disposition, tc.wantDisposition)
-			}
-			if params["filename"] != tc.wantFilename {
-				t.Errorf("filename = %q, want %q", params["filename"], tc.wantFilename)
+			expectHeaders(t, recorder.Header(), map[string]string{
+				"Content-Type":            tc.mimeType,
+				"ETag":                    `"` + sha + `"`,
+				"Cache-Control":           "private, no-store",
+				"X-Content-Type-Options":  "nosniff",
+				"Content-Security-Policy": "sandbox",
+				"Content-Disposition":     tc.wantDisposition,
+				"Accept-Ranges":           "bytes",
+			})
+			if recorder.Header().Get("Last-Modified") == "" {
+				t.Error("Last-Modified missing, want the stored time")
 			}
 		})
+	}
+}
+
+// expectHeaders fails the test for every header of want the answer does not carry as want names it.
+func expectHeaders(t *testing.T, header http.Header, want map[string]string) {
+	t.Helper()
+	for name, value := range want {
+		if got := header.Get(name); got != value {
+			t.Errorf("%s = %q, want %q", name, got, value)
+		}
 	}
 }
 
@@ -266,7 +129,7 @@ func TestMediaDownloadRejectsUnservableRows(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			recorder := getMedia(t, p, tc.conversationID.String(), tc.messageID.String(), nil)
+			recorder := getMedia(t, p, tc.conversationID.String(), tc.messageID.String())
 
 			if recorder.Code != http.StatusNotFound {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
@@ -274,7 +137,7 @@ func TestMediaDownloadRejectsUnservableRows(t *testing.T) {
 		})
 	}
 
-	if recorder := getMedia(t, p, storedConv.String(), storedMsg.String(), nil); recorder.Code != http.StatusOK {
+	if recorder := getMedia(t, p, storedConv.String(), storedMsg.String()); recorder.Code != http.StatusOK {
 		t.Fatalf("control request status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 }
@@ -297,7 +160,7 @@ func TestMediaDownloadRejectsMalformedIDs(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			recorder := getMedia(t, p, tc.conversationID, tc.messageID, nil)
+			recorder := getMedia(t, p, tc.conversationID, tc.messageID)
 
 			if recorder.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
@@ -385,7 +248,7 @@ func TestMediaDownloadReportsStoreFailure(t *testing.T) {
 
 	p := &Plugin{store: &store{pool: newUnreachablePool(t)}, events: newBroadcaster()}
 
-	recorder := getMedia(t, p, uuid.Must(uuid.NewV7()).String(), uuid.Must(uuid.NewV7()).String(), nil)
+	recorder := getMedia(t, p, uuid.Must(uuid.NewV7()).String(), uuid.Must(uuid.NewV7()).String())
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)

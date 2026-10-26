@@ -69,7 +69,7 @@ db-down:
 db-reset: db-up
 	printf '%s\n' \
 		"SELECT format('DROP SCHEMA %I CASCADE', nspname) FROM pg_namespace" \
-		"WHERE nspname IN ('core', 'auth', 'gonsole') OR nspname LIKE 'plugin\_%' \gexec" \
+		"WHERE nspname IN ('core', 'auth', 'gonsole', 'storage') OR nspname LIKE 'plugin\_%' \gexec" \
 		"DROP TABLE IF EXISTS public.goose_db_version;" | \
 		docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
 	$(MAKE) seed

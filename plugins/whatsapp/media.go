@@ -45,7 +45,7 @@ type pendingMediaRow struct {
 type storedMediaRow struct {
 	Data     []byte
 	MimeType string
-	Filename *string
+	Filename string
 	SHA256   string
 	StoredAt time.Time
 }
@@ -55,7 +55,7 @@ type storedMediaRow struct {
 func (s *store) storedMedia(ctx context.Context, conversationID, messageID uuid.UUID) (storedMediaRow, error) {
 	var media storedMediaRow
 	err := s.pool.QueryRow(ctx, `
-		SELECT med.data, med.mime_type, med.filename, med.sha256, med.stored_at
+		SELECT med.data, med.mime_type, coalesce(med.filename, ''), med.sha256, med.stored_at
 		FROM plugin_whatsapp.media med
 		JOIN plugin_whatsapp.messages msg ON msg.id = med.message_id
 		WHERE med.message_id = $1 AND msg.conversation_id = $2 AND med.status = 'stored'
