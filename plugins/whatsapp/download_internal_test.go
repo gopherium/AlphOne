@@ -76,7 +76,7 @@ func TestMediaDownloadSendsTheDownloadHeaders(t *testing.T) {
 			expectHeaders(t, recorder.Header(), map[string]string{
 				"Content-Type":            tc.mimeType,
 				"ETag":                    `"` + sha + `"`,
-				"Cache-Control":           "private, max-age=31536000, immutable",
+				"Cache-Control":           "private, no-store",
 				"X-Content-Type-Options":  "nosniff",
 				"Content-Security-Policy": "sandbox",
 				"Content-Disposition":     tc.wantDisposition,
