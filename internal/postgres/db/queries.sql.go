@@ -1407,6 +1407,30 @@ func (q *Queries) RevokeAPITokenInAnyTenant(ctx context.Context, arg RevokeAPITo
 	return result.RowsAffected(), nil
 }
 
+const saveSetting = `-- name: SaveSetting :exec
+INSERT INTO core.settings (tenant_id, key, value, encrypted, updated_at)
+VALUES ($1, $2::text, $3, $4, now())
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET value = EXCLUDED.value, encrypted = EXCLUDED.encrypted, updated_at = EXCLUDED.updated_at
+`
+
+type SaveSettingParams struct {
+	TenantID  uuid.UUID
+	Key       string
+	Value     pgtype.Text
+	Encrypted []byte
+}
+
+func (q *Queries) SaveSetting(ctx context.Context, arg SaveSettingParams) error {
+	_, err := q.db.Exec(ctx, saveSetting,
+		arg.TenantID,
+		arg.Key,
+		arg.Value,
+		arg.Encrypted,
+	)
+	return err
+}
+
 const setUserSetting = `-- name: SetUserSetting :exec
 INSERT INTO core.user_settings (user_id, key, value, tenant_id)
 VALUES ($1::uuid, $2::text, $3::text, $4)
@@ -1428,6 +1452,66 @@ func (q *Queries) SetUserSetting(ctx context.Context, arg SetUserSettingParams) 
 		arg.TenantID,
 	)
 	return err
+}
+
+const setting = `-- name: Setting :one
+SELECT value, encrypted
+FROM core.settings
+WHERE tenant_id = $1 AND key = $2::text
+`
+
+type SettingParams struct {
+	TenantID uuid.UUID
+	Key      string
+}
+
+type SettingRow struct {
+	Value     pgtype.Text
+	Encrypted []byte
+}
+
+func (q *Queries) Setting(ctx context.Context, arg SettingParams) (SettingRow, error) {
+	row := q.db.QueryRow(ctx, setting, arg.TenantID, arg.Key)
+	var i SettingRow
+	err := row.Scan(&i.Value, &i.Encrypted)
+	return i, err
+}
+
+const settingsUnder = `-- name: SettingsUnder :many
+SELECT key, value
+FROM core.settings
+WHERE tenant_id = $1 AND starts_with(key, $2::text) AND value IS NOT NULL
+ORDER BY key
+`
+
+type SettingsUnderParams struct {
+	TenantID uuid.UUID
+	Prefix   string
+}
+
+type SettingsUnderRow struct {
+	Key   string
+	Value pgtype.Text
+}
+
+func (q *Queries) SettingsUnder(ctx context.Context, arg SettingsUnderParams) ([]SettingsUnderRow, error) {
+	rows, err := q.db.Query(ctx, settingsUnder, arg.TenantID, arg.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SettingsUnderRow
+	for rows.Next() {
+		var i SettingsUnderRow
+		if err := rows.Scan(&i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const settleWebhookDelivery = `-- name: SettleWebhookDelivery :exec

@@ -19,6 +19,7 @@ var coreScopedTables = []string{
 	"webhook_subscriptions",
 	"webhook_deliveries",
 	"user_settings",
+	"settings",
 }
 
 func TestEveryCoreDataTableCarriesItsTenant(t *testing.T) {

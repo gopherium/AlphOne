@@ -334,3 +334,20 @@ WHERE user_id = @user_id::uuid AND key = @key::text AND tenant_id = @tenant_id;
 INSERT INTO core.user_settings (user_id, key, value, tenant_id)
 VALUES (@user_id::uuid, @key::text, @value::text, @tenant_id)
 ON CONFLICT (tenant_id, user_id, key) DO UPDATE SET value = EXCLUDED.value;
+
+-- name: Setting :one
+SELECT value, encrypted
+FROM core.settings
+WHERE tenant_id = @tenant_id AND key = @key::text;
+
+-- name: SaveSetting :exec
+INSERT INTO core.settings (tenant_id, key, value, encrypted, updated_at)
+VALUES (@tenant_id, @key::text, @value, @encrypted, now())
+ON CONFLICT (tenant_id, key) DO UPDATE
+SET value = EXCLUDED.value, encrypted = EXCLUDED.encrypted, updated_at = EXCLUDED.updated_at;
+
+-- name: SettingsUnder :many
+SELECT key, value
+FROM core.settings
+WHERE tenant_id = @tenant_id AND starts_with(key, @prefix::text) AND value IS NOT NULL
+ORDER BY key;
