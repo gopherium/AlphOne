@@ -68,6 +68,7 @@ export default defineConfig({
 						{ slug: 'extending/events' },
 						{ slug: 'extending/contacts' },
 						{ slug: 'extending/files' },
+						{ slug: 'extending/settings' },
 					],
 				},
 				{
