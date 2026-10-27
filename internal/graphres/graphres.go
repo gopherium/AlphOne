@@ -222,7 +222,7 @@ type Resolver struct {
 	// Roles answers which roles the deployment declares and the capabilities each carries.
 	Roles *goncierge.Registry
 	// Settings reads and writes the caller's stored preferences.
-	Settings SettingStore
+	Settings UserSettingStore
 	// LoginLimiter counts failed logins per client IP.
 	LoginLimiter AttemptLimiter
 	// Invites serves the invitation and reset flows.

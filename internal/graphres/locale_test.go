@@ -76,13 +76,13 @@ func TestSetLocaleRoundTripsForASignedInCaller(t *testing.T) {
 // failingSettings is a settings store whose reads and writes always fail.
 type failingSettings struct{}
 
-// UserSetting always reports the store unreachable.
-func (failingSettings) UserSetting(context.Context, uuid.UUID, string) (string, error) {
-	return "", errSettingsDown
+// Lookup always reports the store unreachable.
+func (failingSettings) Lookup(context.Context, uuid.UUID, string) (string, bool, error) {
+	return "", false, errSettingsDown
 }
 
-// SetUserSetting always reports the store unreachable.
-func (failingSettings) SetUserSetting(context.Context, uuid.UUID, string, string) error {
+// Save always reports the store unreachable.
+func (failingSettings) Save(context.Context, uuid.UUID, string, string) error {
 	return errSettingsDown
 }
 
