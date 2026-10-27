@@ -23,6 +23,7 @@ import (
 
 	"github.com/gopherium/alphone/graph"
 	"github.com/gopherium/alphone/internal/contact"
+	"github.com/gopherium/alphone/internal/encryption"
 	"github.com/gopherium/alphone/internal/graphres"
 	"github.com/gopherium/alphone/internal/graphroot"
 	"github.com/gopherium/alphone/internal/postgres"
@@ -291,6 +292,7 @@ type composeSettings struct {
 	webhookHosts    webhook.AllowList
 	paging          graphres.Paging
 	storage         storage.Settings
+	encryption      *encryption.Keys
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -497,10 +499,12 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
+	keys, err := loadEncryptionKeys(env)
 	return composeSettings{
 		machineGrace: machineGrace, tenants: tenants, contactMatchMax: contactMatchMax,
 		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, paging: paging, storage: files,
-	}, nil
+		encryption: keys,
+	}, err
 }
 
 // loadRunConfig reads the server settings from the environment.
