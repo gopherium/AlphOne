@@ -19,7 +19,8 @@ When a variable holds a value AlphOne refuses:
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
   [Contacts](#contacts), [Webhooks](#webhooks), [Files](#files),
-  [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
+  [Encryption](#encryption), [Fields plugin](#fields-plugin) or
+  [WhatsApp plugin](#whatsapp-plugin),
   in `ALPHONE_PUBLIC_URL`, `ALPHONE_GRAPH_PAGE_SIZE` or
   `ALPHONE_GRAPH_PAGE_CAP`, or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also
   stops the account commands that take `-as`, before they change
@@ -295,6 +296,44 @@ as `ALPHONE_STORAGE_S3_REGION is required when ALPHONE_STORAGE_DRIVER is s3`.
 Once the migrations ran, `serve` checks that it can reach the files and
 stops when it cannot, with an error that names the driver, such as
 `storage: the s3 bucket is not there, check the storage settings`.
+
+## Encryption
+
+Plugins keep some settings of each workspace as secrets, such as the
+password of a mailbox, see [Settings](/extending/settings/). AlphOne
+encrypts each secret with AES-256-GCM under the key you set here, and
+ties it to its workspace and its setting, so a copy pasted anywhere else
+does not open. The key lives only in the environment, never in the
+database.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_ENCRYPTION_KEY` | The key that encrypts every new secret, 32 bytes written as 64 hex characters. Make it once with `openssl rand -hex 32`. Unset, AlphOne still starts and keeps plain settings, and a plugin that saves or reads a secret gets an error that names this variable. |
+| `ALPHONE_ENCRYPTION_PREVIOUS_KEYS` | The keys that still open the secrets saved before the current key, as a comma list of keys written the same way. Unset, only the current key opens them. It needs `ALPHONE_ENCRYPTION_KEY` set too. |
+
+A key that is not hex or does not hold 32 bytes, or previous keys
+without a current key, stops `serve` and the other commands listed at
+the top of this page. The error names the variable and never shows the
+key, such as `ALPHONE_ENCRYPTION_KEY: must hold 32 bytes, got 16`.
+
+Keep a copy of every key off the server, see
+[Backup scenario](/self-hosting/updates-and-backups/#backup-scenario).
+Without the key no stored secret opens again.
+
+### Replacing the key
+
+1. Make a new key with `openssl rand -hex 32`.
+2. Put the old key at the front of `ALPHONE_ENCRYPTION_PREVIOUS_KEYS`,
+   and the new key in `ALPHONE_ENCRYPTION_KEY`.
+3. Restart AlphOne. New secrets use the new key, and the older ones
+   still open.
+4. Keep every previous key. No command encrypts the older secrets again
+   under the new key yet, so a key you drop takes the secrets it
+   encrypted with it.
+
+The order of the previous keys does not matter. Each encrypted value
+carries an id that the key itself gives, and AlphOne tries every key
+with that id.
 
 ## Fields plugin
 
