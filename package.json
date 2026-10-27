@@ -13,12 +13,12 @@
 		"@graphql-codegen/cli": "^7.4.6",
 		"@graphql-codegen/client-preset": "^6.2.3",
 		"@playwright/test": "1.64.1",
-		"eslint": "^10.12.0",
+		"eslint": "^10.13.0",
 		"eslint-plugin-jsdoc": "^64.5.4",
 		"eslint-plugin-sonarjs": "^4.2.2",
 		"eslint-plugin-tsdoc": "^0.5.4",
-		"knip": "^6.41.0",
-		"oxlint": "^1.88.0",
-		"typescript-eslint": "^8.71.2"
+		"knip": "^6.42.1",
+		"oxlint": "^1.89.0",
+		"typescript-eslint": "^8.72.0"
 	}
 }
