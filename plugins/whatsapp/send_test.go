@@ -179,9 +179,8 @@ func TestSendMessageDeliversReply(t *testing.T) {
 func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
 	t.Parallel()
 
-	p, stub, pool := newSendingHarness(t, map[string]string{
-		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
-	})
+	p, stub, pool := newSendingHarness(t, nil)
+	p.UseEncrypter(whatsapp.BoundEncrypter())
 	acme := seedTenant(t, pool)
 	mine := sdk.WithTenant(t.Context(), acme)
 	if err := p.SetCredentials(mine, "555000333", "EAAG-acme-token"); err != nil {
@@ -207,9 +206,8 @@ func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
 func TestSendMessageRefusesATenantWithoutCredentials(t *testing.T) {
 	t.Parallel()
 
-	p, stub, pool := newSendingHarness(t, map[string]string{
-		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
-	})
+	p, stub, pool := newSendingHarness(t, nil)
+	p.UseEncrypter(whatsapp.BoundEncrypter())
 	acme := seedTenant(t, pool)
 	seedOutboundRow(t, pool, "wamid.bare", acme)
 

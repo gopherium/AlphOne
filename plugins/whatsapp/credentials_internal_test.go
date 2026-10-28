@@ -4,8 +4,10 @@ package whatsapp
 
 import (
 	"bytes"
+	"context"
+	"encoding/hex"
 	"errors"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,166 +15,57 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// testCredentialsKey returns a parsed 32 byte key for sealing tests.
-func testCredentialsKey(t *testing.T) []byte {
+// boundEncrypter ties each value to the calling tenant and purpose without a key, recording every call it answers.
+type boundEncrypter struct {
+	calls []string
+}
+
+// Encrypt answers the plaintext hex encoded behind the calling tenant and the purpose.
+func (e *boundEncrypter) Encrypt(ctx context.Context, purpose string, plaintext []byte) ([]byte, error) {
+	e.calls = append(e.calls, "Encrypt "+purpose)
+	return append(boundPrefix(ctx, purpose), hex.EncodeToString(plaintext)...), nil
+}
+
+// Decrypt answers what Encrypt took, ErrCannotDecrypt for another tenant or purpose.
+func (e *boundEncrypter) Decrypt(ctx context.Context, purpose string, ciphertext []byte) ([]byte, error) {
+	e.calls = append(e.calls, "Decrypt "+purpose)
+	encoded, bound := bytes.CutPrefix(ciphertext, boundPrefix(ctx, purpose))
+	if !bound {
+		return nil, sdk.ErrCannotDecrypt
+	}
+	return hex.DecodeString(string(encoded))
+}
+
+// boundPrefix answers the bytes that tie a value to the calling tenant and the purpose.
+func boundPrefix(ctx context.Context, purpose string) []byte {
+	return []byte(sdk.TenantOrDefault(ctx).String() + "/" + purpose + "/")
+}
+
+// keylessEncrypter is the encrypter of a host that holds no encryption key.
+type keylessEncrypter struct{}
+
+// Encrypt answers ErrNoEncryptionKey.
+func (keylessEncrypter) Encrypt(context.Context, string, []byte) ([]byte, error) {
+	return nil, sdk.ErrNoEncryptionKey
+}
+
+// Decrypt answers ErrNoEncryptionKey.
+func (keylessEncrypter) Decrypt(context.Context, string, []byte) ([]byte, error) {
+	return nil, sdk.ErrNoEncryptionKey
+}
+
+// newEncryptingPlugin returns a migrated plugin holding a bound encrypter.
+func newEncryptingPlugin(t *testing.T) *Plugin {
 	t.Helper()
-	key, err := credentialsKey(strings.Repeat("ab", 32))
-	if err != nil {
-		t.Fatalf("credentialsKey() error = %v, want nil", err)
-	}
-	return key
-}
-
-func TestASealedTokenRoundTrips(t *testing.T) {
-	t.Parallel()
-
-	key := testCredentialsKey(t)
-
-	sealed, err := sealToken(key, "EAAG-token")
-	if err != nil {
-		t.Fatalf("sealToken() error = %v, want nil", err)
-	}
-	if bytes.Contains(sealed, []byte("EAAG-token")) {
-		t.Error("the sealed bytes carry the token in the clear, want ciphertext")
-	}
-	opened, err := openToken(key, sealed)
-	if err != nil {
-		t.Fatalf("openToken() error = %v, want nil", err)
-	}
-	if opened != "EAAG-token" {
-		t.Errorf("openToken() = %q, want the sealed token back", opened)
-	}
-}
-
-func TestAnotherKeyCannotOpenASealedToken(t *testing.T) {
-	t.Parallel()
-
-	sealed, err := sealToken(testCredentialsKey(t), "EAAG-token")
-	if err != nil {
-		t.Fatalf("sealToken() error = %v, want nil", err)
-	}
-	otherKey, err := credentialsKey(strings.Repeat("cd", 32))
-	if err != nil {
-		t.Fatalf("credentialsKey() error = %v, want nil", err)
-	}
-
-	if _, err := openToken(otherKey, sealed); err == nil {
-		t.Error("openToken() with another key answered, want it refused")
-	}
-}
-
-func TestATamperedTokenIsRefused(t *testing.T) {
-	t.Parallel()
-
-	key := testCredentialsKey(t)
-	sealed, err := sealToken(key, "EAAG-token")
-	if err != nil {
-		t.Fatalf("sealToken() error = %v, want nil", err)
-	}
-	sealed[len(sealed)-1] ^= 1
-
-	if _, err := openToken(key, sealed); err == nil {
-		t.Error("openToken() of tampered bytes answered, want it refused")
-	}
-}
-
-func TestATruncatedSealIsRefused(t *testing.T) {
-	t.Parallel()
-
-	if _, err := openToken(testCredentialsKey(t), []byte("short")); err == nil {
-		t.Error("openToken() of a truncated seal answered, want it refused")
-	}
-}
-
-func TestCredentialsKeyDemandsSixtyFourHexCharacters(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		raw     string
-		wantErr string
-	}{
-		"a valid key": {raw: strings.Repeat("ab", 32)},
-		"a short key": {raw: "abcd", wantErr: "must hold 32 bytes, got 2"},
-		"not hex": {
-			raw:     strings.Repeat("zz", 32),
-			wantErr: "must be hex encoded: encoding/hex: invalid byte: U+007A 'z'",
-		},
-	}
-	for testName, tc := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			key, err := credentialsKey(tc.raw)
-
-			if tc.wantErr != "" {
-				if err == nil || err.Error() != tc.wantErr {
-					t.Errorf("credentialsKey() error = %v, want %q, the key left for the reader to name", err, tc.wantErr)
-				}
-				return
-			}
-			if err != nil || len(key) != 32 {
-				t.Errorf("credentialsKey() = %x, %v, want 32 bytes", key, err)
-			}
-		})
-	}
-}
-
-func TestSealingWithoutAKeyIsRefused(t *testing.T) {
-	t.Parallel()
-
-	if _, err := sealToken(nil, "EAAG-token"); err == nil {
-		t.Error("sealToken() without a key answered, want it refused")
-	}
-	if _, err := openToken(nil, []byte("sealed")); err == nil {
-		t.Error("openToken() without a key answered, want it refused")
-	}
-}
-
-func TestSealingWithAWrongSizedKeyIsRefused(t *testing.T) {
-	t.Parallel()
-
-	if _, err := sealToken([]byte("short"), "EAAG-token"); err == nil {
-		t.Error("sealToken() with a wrong sized key answered, want it refused")
-	}
-}
-
-func TestSealTokenReportsEntropyFailure(t *testing.T) {
-	randRead = failingEntropy{}.Read
-	defer func() { randRead = defaultRandRead }()
-
-	if _, err := sealToken(testCredentialsKey(t), "EAAG-token"); !errors.Is(err, errEntropy) {
-		t.Errorf("sealToken() error = %v, want the entropy failure in its chain", err)
-	}
-}
-
-// degenerateBlock is a cipher block whose size no sealer accepts.
-type degenerateBlock struct{}
-
-// BlockSize reports a size GCM refuses.
-func (degenerateBlock) BlockSize() int { return 5 }
-
-// Encrypt does nothing.
-func (degenerateBlock) Encrypt(_, _ []byte) {}
-
-// Decrypt does nothing.
-func (degenerateBlock) Decrypt(_, _ []byte) {}
-
-func TestMustGCMRefusesADegenerateBlock(t *testing.T) {
-	t.Parallel()
-
-	defer func() {
-		if recover() == nil {
-			t.Error("mustGCM() of a degenerate block returned, want a panic")
-		}
-	}()
-
-	mustGCM(degenerateBlock{})
+	p := newMigratedPlugin(t)
+	p.UseEncrypter(&boundEncrypter{})
+	return p
 }
 
 func TestCredentialsForReportsAStoreFailure(t *testing.T) {
 	t.Parallel()
 
-	p := &Plugin{store: &store{pool: newUnreachablePool(t)}, key: testCredentialsKey(t)}
+	p := &Plugin{store: &store{pool: newUnreachablePool(t)}}
 
 	_, err := p.credentialsFor(t.Context())
 
@@ -181,32 +74,69 @@ func TestCredentialsForReportsAStoreFailure(t *testing.T) {
 	}
 }
 
-func TestCredentialsForRefusesATokenSealedUnderAnotherKey(t *testing.T) {
+func TestATokenCopiedIntoAnotherTenantDoesNotOpenThere(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
-	acme := seededTenant(t, p, "Acme")
+	p := newEncryptingPlugin(t)
+	acme, globex := seededTenant(t, p, "Acme"), seededTenant(t, p, "Globex")
 	mine := sdk.WithTenant(t.Context(), acme)
 	if err := p.SetCredentials(mine, "5550001", "EAAG-acme-token"); err != nil {
 		t.Fatalf("SetCredentials() error = %v, want nil", err)
 	}
-	otherKey, err := credentialsKey(strings.Repeat("cd", 32))
-	if err != nil {
-		t.Fatalf("credentialsKey() error = %v, want nil", err)
+	if _, err := p.pool.Exec(t.Context(),
+		"INSERT INTO plugin_whatsapp.credentials (tenant_id, phone_number_id, access_token)"+
+			" SELECT $1, '5550002', access_token FROM plugin_whatsapp.credentials WHERE tenant_id = $2",
+		globex, acme); err != nil {
+		t.Fatalf("copying the token: %v", err)
 	}
-	p.key = otherKey
 
-	if _, err := p.credentialsFor(mine); err == nil {
-		t.Error("credentialsFor() under another key answered, want it refused")
+	if _, err := p.credentialsFor(sdk.WithTenant(t.Context(), globex)); !errors.Is(err, sdk.ErrCannotDecrypt) {
+		t.Errorf("credentialsFor() where the token was copied error = %v, want %v", err, sdk.ErrCannotDecrypt)
+	}
+	held, err := p.credentialsFor(mine)
+	if want := (credentials{phoneNumberID: "5550001", accessToken: "EAAG-acme-token"}); err != nil || held != want {
+		t.Errorf("credentialsFor() in its own tenant = %+v, %v, want %+v", held, err, want)
 	}
 }
 
-// newSealingPlugin returns a migrated plugin holding the test sealing key.
-func newSealingPlugin(t *testing.T) *Plugin {
-	t.Helper()
+func TestTheEncrypterIsAskedForTheAccessTokenPurpose(t *testing.T) {
+	t.Parallel()
+
+	encrypter := &boundEncrypter{}
 	p := newMigratedPlugin(t)
-	p.key = testCredentialsKey(t)
-	return p
+	p.UseEncrypter(encrypter)
+	mine := sdk.WithTenant(t.Context(), seededTenant(t, p, "Acme"))
+	if err := p.SetCredentials(mine, "5550001", "EAAG-acme-token"); err != nil {
+		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	}
+	if _, err := p.credentialsFor(mine); err != nil {
+		t.Fatalf("credentialsFor() error = %v, want nil", err)
+	}
+
+	if want := []string{"Encrypt access_token", "Decrypt access_token"}; !slices.Equal(encrypter.calls, want) {
+		t.Errorf("the encrypter answered %q, want %q", encrypter.calls, want)
+	}
+}
+
+func TestWithoutAnEncryptionKeyATokenIsNeitherStoredNorOpened(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	p.UseEncrypter(keylessEncrypter{})
+	mine := sdk.WithTenant(t.Context(), seededTenant(t, p, "Acme"))
+
+	if err := p.SetCredentials(mine, "5550001", "EAAG-acme-token"); !errors.Is(err, sdk.ErrNoEncryptionKey) {
+		t.Errorf("SetCredentials() error = %v, want %v", err, sdk.ErrNoEncryptionKey)
+	}
+	if held := tableCount(t, p, "plugin_whatsapp.credentials"); held != 0 {
+		t.Errorf("the plugin holds %d tokens, want none stored without a key", held)
+	}
+	if err := p.store.upsertCredentials(mine, "5550001", []byte("encrypted under a key")); err != nil {
+		t.Fatalf("upsertCredentials() error = %v, want nil", err)
+	}
+	if _, err := p.credentialsFor(mine); !errors.Is(err, sdk.ErrNoEncryptionKey) {
+		t.Errorf("credentialsFor() of a stored token error = %v, want %v", err, sdk.ErrNoEncryptionKey)
+	}
 }
 
 func TestThePluginNamesItsChannel(t *testing.T) {
@@ -220,7 +150,7 @@ func TestThePluginNamesItsChannel(t *testing.T) {
 func TestChannelCredentialsRoundTripThroughTheSeam(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
 
@@ -240,7 +170,7 @@ func TestChannelCredentialsRoundTripThroughTheSeam(t *testing.T) {
 func TestChannelIdentifierAnswersNothingWhenUnconfigured(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	bare := sdk.WithTenant(t.Context(), seededTenant(t, p, "Globex"))
 
 	identifier, configured, err := p.ChannelIdentifier(bare)
@@ -256,7 +186,7 @@ func TestChannelIdentifierAnswersNothingWhenUnconfigured(t *testing.T) {
 func TestChannelIdentifierAnswersTheEnvSeed(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
 
 	identifier, configured, err := p.ChannelIdentifier(t.Context())
@@ -272,17 +202,17 @@ func TestChannelIdentifierAnswersTheEnvSeed(t *testing.T) {
 func TestChannelIdentifierReportsAStoreFailure(t *testing.T) {
 	t.Parallel()
 
-	p := &Plugin{store: &store{pool: newUnreachablePool(t)}, key: testCredentialsKey(t)}
+	p := &Plugin{store: &store{pool: newUnreachablePool(t)}}
 
 	if _, _, err := p.ChannelIdentifier(t.Context()); err == nil {
 		t.Error("ChannelIdentifier() error = nil, want the connection failure surfaced")
 	}
 }
 
-func TestCredentialsRoundTripSealedInsideTheirTenant(t *testing.T) {
+func TestCredentialsRoundTripEncryptedInsideTheirTenant(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
 
@@ -305,14 +235,14 @@ func TestCredentialsRoundTripSealedInsideTheirTenant(t *testing.T) {
 		t.Fatalf("reading the stored token: %v", err)
 	}
 	if bytes.Contains(atRest, []byte("EAAG-acme-token")) {
-		t.Error("the stored token is readable at rest, want it sealed")
+		t.Error("the stored token is readable at rest, want it encrypted")
 	}
 }
 
 func TestCredentialsStayInsideTheirTenant(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	elsewhere := seededTenant(t, p, "Globex")
 	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
@@ -324,26 +254,67 @@ func TestCredentialsStayInsideTheirTenant(t *testing.T) {
 	}
 }
 
-func TestTheDefaultTenantAnswersTheEnvSeed(t *testing.T) {
+func TestTheDefaultTenantAnswersTheEnvSeedWithOrWithoutAKey(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
-	p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
-
-	held, err := p.credentialsFor(t.Context())
-
-	if err != nil {
-		t.Fatalf("credentialsFor() error = %v, want nil", err)
+	tests := map[string]sdk.Encrypter{
+		"with a key":    &boundEncrypter{},
+		"without a key": keylessEncrypter{},
 	}
-	if held != p.envCredentials {
-		t.Errorf("credentialsFor() = %+v, want the env seed", held)
+	for testName, encrypter := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p := newMigratedPlugin(t)
+			p.UseEncrypter(encrypter)
+			p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
+
+			held, err := p.credentialsFor(t.Context())
+
+			if err != nil {
+				t.Fatalf("credentialsFor() error = %v, want nil", err)
+			}
+			if held != p.envCredentials {
+				t.Errorf("credentialsFor() = %+v, want the env seed", held)
+			}
+		})
+	}
+}
+
+func TestAStoredDefaultTokenThatDoesNotOpenAnswersTheError(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		encrypter sdk.Encrypter
+		want      error
+	}{
+		"without a key":                         {encrypter: keylessEncrypter{}, want: sdk.ErrNoEncryptionKey},
+		"with a token encrypted somewhere else": {encrypter: &boundEncrypter{}, want: sdk.ErrCannotDecrypt},
+	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p := newMigratedPlugin(t)
+			p.UseEncrypter(test.encrypter)
+			p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
+			if err := p.store.upsertCredentials(t.Context(), "5550001", []byte("encrypted somewhere else")); err != nil {
+				t.Fatalf("upsertCredentials() error = %v, want nil", err)
+			}
+
+			held, err := p.credentialsFor(t.Context())
+
+			if !errors.Is(err, test.want) {
+				t.Errorf("credentialsFor() = %+v, %v, want %v rather than the env seed", held, err, test.want)
+			}
+		})
 	}
 }
 
 func TestRoutingNamesTheTenantRatherThanInheritingIt(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	p.envCredentials = credentials{phoneNumberID: "5550009", accessToken: "EAAG-env-token"}
 	ambient := sdk.WithTenant(t.Context(), uuid.Must(uuid.NewV7()))
 
@@ -373,7 +344,7 @@ func TestRoutingNamesTheTenantRatherThanInheritingIt(t *testing.T) {
 func TestAnUnconfiguredDefaultTenantHasNoCredentials(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 
 	_, err := p.credentialsFor(t.Context())
 
@@ -393,7 +364,7 @@ func TestAHalfConfiguredDefaultTenantHasNoCredentials(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			p := newSealingPlugin(t)
+			p := newEncryptingPlugin(t)
 			p.envCredentials = seed
 
 			_, err := p.credentialsFor(t.Context())
@@ -408,7 +379,7 @@ func TestAHalfConfiguredDefaultTenantHasNoCredentials(t *testing.T) {
 func TestASecondSetReplacesTheCredentials(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
 	if err := p.SetCredentials(mine, "5550001", "EAAG-old-token"); err != nil {
@@ -432,7 +403,7 @@ func TestASecondSetReplacesTheCredentials(t *testing.T) {
 func TestTwoTenantsMayNotShareOneNumber(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	elsewhere := seededTenant(t, p, "Globex")
 	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
@@ -447,7 +418,7 @@ func TestTwoTenantsMayNotShareOneNumber(t *testing.T) {
 func TestTenantForPhoneNumberAnswersTheOwner(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 	acme := seededTenant(t, p, "Acme")
 	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
 		t.Fatalf("SetCredentials() error = %v, want nil", err)
@@ -463,20 +434,10 @@ func TestTenantForPhoneNumberAnswersTheOwner(t *testing.T) {
 	}
 }
 
-func TestSetCredentialsWithoutAKeyIsRefused(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-
-	if err := p.SetCredentials(t.Context(), "5550001", "EAAG-token"); !errors.Is(err, errNoCredentialsKey) {
-		t.Errorf("SetCredentials() without a key error = %v, want errNoCredentialsKey", err)
-	}
-}
-
 func TestSetCredentialsDemandsBothValues(t *testing.T) {
 	t.Parallel()
 
-	p := newSealingPlugin(t)
+	p := newEncryptingPlugin(t)
 
 	if err := p.SetCredentials(t.Context(), "", "EAAG-token"); err == nil {
 		t.Error("SetCredentials() without a number answered, want it refused")

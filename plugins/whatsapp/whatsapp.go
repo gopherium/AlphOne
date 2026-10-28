@@ -39,7 +39,7 @@ type Plugin struct {
 	resolver       sdk.ContactResolver
 	verifyToken    string
 	appSecret      string
-	key            []byte
+	encrypter      sdk.Encrypter
 	envCredentials credentials
 	gate           sdk.TenantGate
 	store          *store
@@ -65,10 +65,6 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	key, err := sdk.Parse(env, "CREDENTIALS_KEY", nil, credentialsKey)
-	if err != nil {
-		return nil, err
-	}
 	pool, err := pgxpool.New(context.Background(), deps.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: connect database: %w", err)
@@ -84,7 +80,6 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		pages:       deps.Pages,
 		verifyToken: env.Value("VERIFY_TOKEN"),
 		appSecret:   env.Value("APP_SECRET"),
-		key:         key,
 		envCredentials: credentials{
 			phoneNumberID: env.Value("PHONE_NUMBER_ID"),
 			accessToken:   env.Value("ACCESS_TOKEN"),

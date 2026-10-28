@@ -3,12 +3,12 @@
 package whatsapp
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -232,7 +232,6 @@ func settings(held map[string]string) sdk.Env {
 type registeredSettings struct {
 	verifyToken    string
 	appSecret      string
-	key            []byte
 	envCredentials credentials
 	sendURL        string
 	fetchURL       string
@@ -250,7 +249,6 @@ func settingsOf(t *testing.T, held map[string]string) registeredSettings {
 	return registeredSettings{
 		verifyToken:    p.verifyToken,
 		appSecret:      p.appSecret,
-		key:            p.key,
 		envCredentials: p.envCredentials,
 		sendURL:        p.sender.baseURL,
 		fetchURL:       p.fetcher.baseURL,
@@ -266,7 +264,6 @@ func TestPaddedSettingsRegisterLikePlainOnes(t *testing.T) {
 		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
 		"ALPHONE_WHATSAPP_ACCESS_TOKEN":    "EAAG-token",
 		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "555000111",
-		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
 		"ALPHONE_WHATSAPP_GRAPH_URL":       "http://localhost:1",
 		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES": "1024",
 	}
@@ -277,7 +274,6 @@ func TestPaddedSettingsRegisterLikePlainOnes(t *testing.T) {
 	want := registeredSettings{
 		verifyToken:    "verify-secret",
 		appSecret:      "app-secret",
-		key:            bytes.Repeat([]byte{0xab}, 32),
 		envCredentials: credentials{phoneNumberID: "555000111", accessToken: "EAAG-token"},
 		sendURL:        "http://localhost:1",
 		fetchURL:       "http://localhost:1",
@@ -291,26 +287,25 @@ func TestPaddedSettingsRegisterLikePlainOnes(t *testing.T) {
 	}
 }
 
-func TestRegisterNamesAMalformedCredentialsKeyOnce(t *testing.T) {
+func TestRegisterReadsExactlyThePluginSettings(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]struct{ raw, want string }{
-		"a short key": {"abcd", "ALPHONE_WHATSAPP_CREDENTIALS_KEY: must hold 32 bytes, got 2"},
-		"not hex": {
-			strings.Repeat("zz", 32),
-			"ALPHONE_WHATSAPP_CREDENTIALS_KEY: must be hex encoded: encoding/hex: invalid byte: U+007A 'z'",
-		},
+	var read []string
+	p, err := Register(sdk.Deps{Env: sdk.Env{Prefix: "ALPHONE_", Getenv: func(name string) string {
+		read = append(read, name)
+		return ""
+	}}})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
 	}
-	for testName, tc := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
 
-			_, err := Register(sdk.Deps{Env: settings(map[string]string{"ALPHONE_WHATSAPP_CREDENTIALS_KEY": tc.raw})})
-
-			if err == nil || err.Error() != tc.want {
-				t.Errorf("Register() error = %v, want %q", err, tc.want)
-			}
-		})
+	want := []string{
+		"ALPHONE_WHATSAPP_ACCESS_TOKEN", "ALPHONE_WHATSAPP_APP_SECRET", "ALPHONE_WHATSAPP_GRAPH_URL",
+		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES", "ALPHONE_WHATSAPP_PHONE_NUMBER_ID", "ALPHONE_WHATSAPP_VERIFY_TOKEN",
+	}
+	if got := slices.Compact(slices.Sorted(slices.Values(read))); !slices.Equal(got, want) {
+		t.Errorf("Register() read %v, want exactly %v", got, want)
 	}
 }
 
