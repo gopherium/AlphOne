@@ -119,6 +119,12 @@ server, because a watcher on `:latest` applies it on its own.
   secrets plugins keep for each workspace. It stays optional until a
   plugin stores a secret, see
   [Encryption](/self-hosting/configuration/#encryption).
+- AlphOne no longer reads `ALPHONE_WHATSAPP_CREDENTIALS_KEY`, so you can
+  drop it from `.env`. A workspace's own WhatsApp access token is now
+  encrypted with `ALPHONE_ENCRYPTION_KEY`, see
+  [WhatsApp plugin](/self-hosting/configuration/#whatsapp-plugin). A
+  token stored under the old key no longer opens and has to be entered
+  again.
 - AlphOne keeps a `storage` schema in its database for the files
   plugins keep, and checks at start that it can reach them. With the
   default settings it creates the schema on its first start, and you set

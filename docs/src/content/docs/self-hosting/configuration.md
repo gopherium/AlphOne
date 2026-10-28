@@ -355,7 +355,11 @@ see [Meta setup](/whatsapp/meta-setup/).
 | `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` | The phone number ID (not the phone number itself) messages are sent from. |
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
 | `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
-| `ALPHONE_WHATSAPP_CREDENTIALS_KEY` | A key of 32 bytes written as 64 hex characters, which seals a workspace's own WhatsApp access token in the database when a plugin stores one per workspace. Unset, no such token can be stored. AlphOne refuses a value that is not hex or does not hold 32 bytes. |
+
+A workspace's own access token, kept in the database instead of in
+`ALPHONE_WHATSAPP_ACCESS_TOKEN`, is encrypted with
+`ALPHONE_ENCRYPTION_KEY`, see [Encryption](#encryption). Without that
+key no such token can be stored.
 
 ## Account records and tokens
 
