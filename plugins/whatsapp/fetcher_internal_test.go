@@ -220,7 +220,7 @@ func TestFetcherStoresPendingMedia(t *testing.T) {
 // seededAcmeImage stores a pending image under a fresh tenant with its own credentials.
 func seededAcmeImage(t *testing.T, p *Plugin) (uuid.UUID, uuid.UUID) {
 	t.Helper()
-	p.key = testCredentialsKey(t)
+	p.UseEncrypter(&boundEncrypter{})
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
 	if err := p.SetCredentials(mine, "555000444", "EAAG-acme-token"); err != nil {
@@ -272,8 +272,7 @@ func TestFetcherUsesTheRowTenantsCredentials(t *testing.T) {
 func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
 	t.Parallel()
 
-	p := newMigratedPlugin(t)
-	p.key = testCredentialsKey(t)
+	p := newEncryptingPlugin(t)
 	stub := newGraphStub(t, []byte("media-bytes"))
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	bare := seededTenant(t, p, "Globex")

@@ -338,23 +338,21 @@ func TestWebhookEventsReportIngestFailure(t *testing.T) {
 
 // routingEnv returns the plugin environment for a routing test, overridden by extra.
 func routingEnv(extra map[string]string) map[string]string {
-	env := map[string]string{
-		"ALPHONE_WHATSAPP_APP_SECRET":      "app-secret",
-		"ALPHONE_WHATSAPP_CREDENTIALS_KEY": strings.Repeat("ab", 32),
-	}
+	env := map[string]string{"ALPHONE_WHATSAPP_APP_SECRET": "app-secret"}
 	for key, value := range extra {
 		env[key] = value
 	}
 	return env
 }
 
-// newRoutingPlugin returns a migrated plugin holding a sealing key, beside its pool.
+// newRoutingPlugin returns a migrated plugin holding an encrypter, beside its pool.
 func newRoutingPlugin(t *testing.T, extra map[string]string) (*whatsapp.Plugin, *pgxpool.Pool) {
 	t.Helper()
 	address := newTestDatabase(t)
 	pool := newAssertionPool(t, address)
 	resolver := resolverBridge{resolver: contact.NewResolver(postgres.NewContactStore(pool))}
 	p := newPlugin(t, address, resolver, routingEnv(extra))
+	p.UseEncrypter(whatsapp.BoundEncrypter())
 	if err := p.Migrate(t.Context()); err != nil {
 		t.Fatalf("Migrate() error = %v, want nil", err)
 	}

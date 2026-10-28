@@ -146,7 +146,7 @@ type FieldConsumer interface {
 type CredentialProvider interface {
 	// Channel names the channel the credentials send on.
 	Channel() Channel
-	// SetChannelCredentials stores the calling tenant's identifier and secret, sealed at rest.
+	// SetChannelCredentials stores the calling tenant's identifier and secret, encrypted at rest.
 	SetChannelCredentials(ctx context.Context, identifier, secret string) error
 	// ChannelIdentifier answers the calling tenant's configured identifier and whether one is set.
 	ChannelIdentifier(ctx context.Context) (string, bool, error)

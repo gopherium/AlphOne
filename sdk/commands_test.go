@@ -87,16 +87,16 @@ func TestAllowZeroAcceptsAZeroSetting(t *testing.T) {
 func TestParseNamesTheSettingInARefusal(t *testing.T) {
 	t.Parallel()
 
-	env := settingOf("ALPHONE_WHATSAPP_CREDENTIALS_KEY", " not hex ")
+	env := settingOf("ALPHONE_ENCRYPTION_KEY", " not hex ")
 	var handed string
 	refusing := func(value string) ([]byte, error) {
 		handed = value
 		return nil, errors.New("must be hex encoded")
 	}
 
-	_, err := Parse(env, "WHATSAPP_CREDENTIALS_KEY", nil, refusing)
+	_, err := Parse(env, "ENCRYPTION_KEY", nil, refusing)
 
-	if err == nil || err.Error() != "ALPHONE_WHATSAPP_CREDENTIALS_KEY: must be hex encoded" {
+	if err == nil || err.Error() != "ALPHONE_ENCRYPTION_KEY: must be hex encoded" {
 		t.Errorf("Parse() error = %v, want the refusal under the setting's name", err)
 	}
 	if handed != "not hex" {

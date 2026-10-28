@@ -4,10 +4,6 @@ package whatsapp
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -28,107 +24,38 @@ func (c credentials) complete() bool {
 	return c.phoneNumberID != "" && c.accessToken != ""
 }
 
-// Credential errors.
-var (
-	errNoCredentialsKey = errors.New("whatsapp: ALPHONE_WHATSAPP_CREDENTIALS_KEY is not set")
-	errNoCredentials    = errors.New("whatsapp: no credentials for the tenant")
-	errSealTooShort     = errors.New("whatsapp: sealed token shorter than its nonce")
-)
+// errNoCredentials reports a tenant that holds no credentials.
+var errNoCredentials = errors.New("whatsapp: no credentials for the tenant")
 
-// credentialsKey parses a hex encoded 32 byte sealing key.
-func credentialsKey(raw string) ([]byte, error) {
-	key, err := hex.DecodeString(raw)
-	if err != nil {
-		return nil, fmt.Errorf("must be hex encoded: %w", err)
-	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("must hold 32 bytes, got %d", len(key))
-	}
-	return key, nil
-}
+// accessTokenPurpose names what an access token is to the encrypter.
+const accessTokenPurpose = "access_token"
 
-// defaultRandRead is the entropy source a nonce is drawn from.
-var defaultRandRead = rand.Read
-
-// randRead draws the entropy a nonce is drawn from.
-var randRead = defaultRandRead
-
-// mustGCM returns the sealer over block, panicking when the block cannot carry one.
-func mustGCM(block cipher.Block) cipher.AEAD {
-	sealer, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-	return sealer
-}
-
-// tokenCipher builds the AES-GCM sealer the key unlocks.
-func tokenCipher(key []byte) (cipher.AEAD, error) {
-	if len(key) == 0 {
-		return nil, errNoCredentialsKey
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("whatsapp: build cipher: %w", err)
-	}
-	return mustGCM(block), nil
-}
-
-// sealToken encrypts token under key, prepending the random nonce.
-func sealToken(key []byte, token string) ([]byte, error) {
-	sealer, err := tokenCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	nonce := make([]byte, sealer.NonceSize())
-	if _, err := randRead(nonce); err != nil {
-		return nil, fmt.Errorf("whatsapp: draw nonce: %w", err)
-	}
-	return sealer.Seal(nonce, nonce, []byte(token), nil), nil
-}
-
-// openToken decrypts a sealed token under key.
-func openToken(key []byte, sealed []byte) (string, error) {
-	sealer, err := tokenCipher(key)
-	if err != nil {
-		return "", err
-	}
-	if len(sealed) < sealer.NonceSize() {
-		return "", errSealTooShort
-	}
-	token, err := sealer.Open(nil, sealed[:sealer.NonceSize()], sealed[sealer.NonceSize():], nil)
-	if err != nil {
-		return "", fmt.Errorf("whatsapp: open token: %w", err)
-	}
-	return string(token), nil
-}
-
-// upsertCredentials stores the calling tenant's number and sealed token.
-func (s *store) upsertCredentials(ctx context.Context, phoneNumberID string, sealed []byte) error {
+// upsertCredentials stores the calling tenant's number and encrypted token.
+func (s *store) upsertCredentials(ctx context.Context, phoneNumberID string, encrypted []byte) error {
 	_, err := s.pool.Exec(ctx,
 		"INSERT INTO plugin_whatsapp.credentials (tenant_id, phone_number_id, access_token)"+
 			" VALUES ($1, $2, $3)"+
 			" ON CONFLICT (tenant_id) DO UPDATE"+
 			" SET phone_number_id = excluded.phone_number_id, access_token = excluded.access_token,"+
 			" updated_at = now()",
-		sdk.TenantOrDefault(ctx), phoneNumberID, sealed)
+		sdk.TenantOrDefault(ctx), phoneNumberID, encrypted)
 	if err != nil {
 		return fmt.Errorf("whatsapp: store credentials: %w", err)
 	}
 	return nil
 }
 
-// sealedCredentials returns the calling tenant's stored number and sealed token.
-func (s *store) sealedCredentials(ctx context.Context) (string, []byte, error) {
+// encryptedCredentials returns the calling tenant's stored number and encrypted token.
+func (s *store) encryptedCredentials(ctx context.Context) (string, []byte, error) {
 	var phoneNumberID string
-	var sealed []byte
+	var encrypted []byte
 	err := s.pool.QueryRow(ctx,
 		"SELECT phone_number_id, access_token FROM plugin_whatsapp.credentials WHERE tenant_id = $1",
-		sdk.TenantOrDefault(ctx)).Scan(&phoneNumberID, &sealed)
+		sdk.TenantOrDefault(ctx)).Scan(&phoneNumberID, &encrypted)
 	if err != nil {
 		return "", nil, err
 	}
-	return phoneNumberID, sealed, nil
+	return phoneNumberID, encrypted, nil
 }
 
 // tenantForPhoneNumber returns the tenant owning the given number.
@@ -143,21 +70,28 @@ func (s *store) tenantForPhoneNumber(ctx context.Context, phoneNumberID string) 
 	return tenantID, nil
 }
 
-// SetCredentials stores the calling tenant's WhatsApp number and access token, sealed at rest.
+// SetCredentials stores the calling tenant's WhatsApp number and access token, encrypted at rest.
 func (p *Plugin) SetCredentials(ctx context.Context, phoneNumberID, accessToken string) error {
 	if phoneNumberID == "" || accessToken == "" {
 		return errors.New("whatsapp: credentials must carry a number and a token")
 	}
-	sealed, err := sealToken(p.key, accessToken)
+	encrypted, err := p.encrypter.Encrypt(ctx, accessTokenPurpose, []byte(accessToken))
 	if err != nil {
-		return err
+		return fmt.Errorf("whatsapp: encrypt the access token: %w", err)
 	}
-	return p.store.upsertCredentials(ctx, phoneNumberID, sealed)
+	return p.store.upsertCredentials(ctx, phoneNumberID, encrypted)
 }
 
 // UseTenantGate receives the host's tenant gate.
 func (p *Plugin) UseTenantGate(gate sdk.TenantGate) {
 	p.gate = gate
+}
+
+var _ sdk.EncrypterConsumer = (*Plugin)(nil)
+
+// UseEncrypter receives the host's encrypter for the plugin.
+func (p *Plugin) UseEncrypter(encrypter sdk.Encrypter) {
+	p.encrypter = encrypter
 }
 
 // routeByNumber answers the context serving the number's tenant and whether any tenant owns it.
@@ -209,7 +143,7 @@ func (p *Plugin) Channel() sdk.Channel {
 	return "whatsapp"
 }
 
-// SetChannelCredentials stores the calling tenant's number and token, sealed at rest.
+// SetChannelCredentials stores the calling tenant's number and token, encrypted at rest.
 func (p *Plugin) SetChannelCredentials(ctx context.Context, identifier, secret string) error {
 	return p.SetCredentials(ctx, identifier, secret)
 }
@@ -228,7 +162,7 @@ func (p *Plugin) ChannelIdentifier(ctx context.Context) (string, bool, error) {
 
 // credentialsFor answers the calling tenant's credentials, the env seed for the default tenant.
 func (p *Plugin) credentialsFor(ctx context.Context) (credentials, error) {
-	phoneNumberID, sealed, err := p.store.sealedCredentials(ctx)
+	phoneNumberID, encrypted, err := p.store.encryptedCredentials(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if sdk.TenantOrDefault(ctx) == sdk.DefaultTenantID && p.envCredentials.complete() {
 			return p.envCredentials, nil
@@ -238,9 +172,9 @@ func (p *Plugin) credentialsFor(ctx context.Context) (credentials, error) {
 	if err != nil {
 		return credentials{}, fmt.Errorf("whatsapp: read credentials: %w", err)
 	}
-	token, err := openToken(p.key, sealed)
+	token, err := p.encrypter.Decrypt(ctx, accessTokenPurpose, encrypted)
 	if err != nil {
-		return credentials{}, err
+		return credentials{}, fmt.Errorf("whatsapp: decrypt the access token: %w", err)
 	}
-	return credentials{phoneNumberID: phoneNumberID, accessToken: token}, nil
+	return credentials{phoneNumberID: phoneNumberID, accessToken: string(token)}, nil
 }
