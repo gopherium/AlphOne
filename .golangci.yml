@@ -70,6 +70,29 @@ linters:
               desc: plugins keep files through the file store the sdk hands them
             - pkg: github.com/aws/aws-sdk-go-v2/feature/s3
               desc: plugins keep files through the file store the sdk hands them
+        plugins-keep-encryption-in-the-host:
+          list-mode: lax
+          files:
+            - "**/plugins/**/*.go"
+            - "**/enterprise/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: crypto/aes
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: crypto/cipher
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: crypto/des
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: crypto/rc4
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: crypto/hpke
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: golang.org/x/crypto/chacha20
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: golang.org/x/crypto/nacl
+              desc: plugins encrypt through the encrypter the sdk hands them
+            - pkg: golang.org/x/crypto/salsa20
+              desc: plugins encrypt through the encrypter the sdk hands them
   exclusions:
     rules:
       - path: _test\.go
