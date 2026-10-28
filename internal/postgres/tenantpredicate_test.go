@@ -18,6 +18,7 @@ var tenantGuardedTables = []string{
 	"user_settings",
 	"webhook_subscriptions",
 	"webhook_deliveries",
+	"settings",
 }
 
 // authenticatingQueries names the queries resolving a credential before any tenant is known.

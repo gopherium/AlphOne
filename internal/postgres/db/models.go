@@ -49,6 +49,14 @@ type CoreContactIdentity struct {
 	AddedServer int64
 }
 
+type CoreSetting struct {
+	TenantID  uuid.UUID
+	Key       string
+	Value     pgtype.Text
+	Encrypted []byte
+	UpdatedAt time.Time
+}
+
 type CoreTask struct {
 	ID            uuid.UUID
 	AssigneeID    uuid.UUID

@@ -115,6 +115,10 @@ server, because a watcher on `:latest` applies it on its own.
   shows for you to pass on starts with it, so make sure it still names
   the address people reach AlphOne at. See
   [Core](/self-hosting/configuration/#core).
+- AlphOne reads `ALPHONE_ENCRYPTION_KEY`, the key that encrypts the
+  secrets plugins keep for each workspace. It stays optional until a
+  plugin stores a secret, see
+  [Encryption](/self-hosting/configuration/#encryption).
 - AlphOne keeps a `storage` schema in its database for the files
   plugins keep, and checks at start that it can reach them. With the
   default settings it creates the schema on its first start, and you set
@@ -264,6 +268,12 @@ Copy the `backups/` directory somewhere off the server on your own
 schedule. A backup that lives only next to the database it protects is
 half a backup.
 
+Back up `ALPHONE_ENCRYPTION_KEY` and `ALPHONE_ENCRYPTION_PREVIOUS_KEYS`
+off the server as well, for example in a password manager. The dumps
+hold the secrets plugins keep only in encrypted form, so a restore
+without those keys opens none of them. Keep the keys apart from the
+dumps, so that whoever gets a dump does not get the keys with it.
+
 ## Backing up files
 
 With the `postgres` driver, the default, the files plugins keep live in
@@ -302,6 +312,12 @@ gunzip -c backups/alphone-<date>.sql.gz | \
   docker compose exec -T postgres psql -U alphone alphone
 docker compose start alphone
 ```
+
+A restored database needs the same encryption keys it was saved under.
+Set `ALPHONE_ENCRYPTION_KEY` and `ALPHONE_ENCRYPTION_PREVIOUS_KEYS` to
+the keys in use when the dump was taken, or with a newer key, put every
+older key in the previous list. A plugin that reads a secret no key
+opens gets an error instead of the secret.
 
 A dump can also go onto a new PostgreSQL server, such as a fresh container
 for a new PostgreSQL major version. The new server numbers its transactions

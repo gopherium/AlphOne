@@ -23,22 +23,22 @@ func NewUserSettingStore(pool *pgxpool.Pool) *UserSettingStore {
 	return &UserSettingStore{queries: db.New(pool)}
 }
 
-// UserSetting returns the stored value under key, empty when the user set none.
-func (s *UserSettingStore) UserSetting(ctx context.Context, userID uuid.UUID, key string) (string, error) {
+// Lookup answers the value stored under key for the user and whether one is stored.
+func (s *UserSettingStore) Lookup(ctx context.Context, userID uuid.UUID, key string) (string, bool, error) {
 	values, err := s.queries.UserSetting(ctx, db.UserSettingParams{
 		UserID: userID, Key: key, TenantID: sdk.TenantOrDefault(ctx),
 	})
 	if err != nil {
-		return "", fmt.Errorf("read setting %s: %w", key, err)
+		return "", false, fmt.Errorf("read setting %s: %w", key, err)
 	}
 	if len(values) == 0 {
-		return "", nil
+		return "", false, nil
 	}
-	return values[0], nil
+	return values[0], true, nil
 }
 
-// SetUserSetting stores value under key for the user, replacing any earlier value.
-func (s *UserSettingStore) SetUserSetting(ctx context.Context, userID uuid.UUID, key, value string) error {
+// Save stores value under key for the user, replacing any earlier value.
+func (s *UserSettingStore) Save(ctx context.Context, userID uuid.UUID, key, value string) error {
 	err := s.queries.SetUserSetting(ctx, db.SetUserSettingParams{
 		UserID: userID, Key: key, Value: value, TenantID: sdk.TenantOrDefault(ctx),
 	})

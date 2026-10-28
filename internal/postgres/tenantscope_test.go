@@ -170,35 +170,33 @@ func TestTheIdentityFeedStaysInsideItsTenant(t *testing.T) {
 	}
 }
 
-func TestASettingStaysInsideItsTenant(t *testing.T) {
+func TestAUserSettingStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
 	pool := newTestPool(t)
-	store := postgres.NewUserSettingStore(pool)
-	acme := seededTenant(t, pool)
-	holder := seedSettingsUser(t, pool)
-	if err := store.SetUserSetting(standingIn(t, acme), holder, "locale.default", "es-ES"); err != nil {
-		t.Fatalf("SetUserSetting() in Acme error = %v, want nil", err)
-	}
+	elsewhere := readerOver(t, pool)
+	acme := elsewhere.in(standingIn(t, seededTenant(t, pool)))
+	acme.save("locale.default", "es-ES")
 
-	if err := store.SetUserSetting(t.Context(), holder, "locale.default", "en-GB"); err != nil {
-		t.Fatalf("SetUserSetting() elsewhere error = %v, want the setting admitted", err)
-	}
+	elsewhere.save("locale.default", "en-GB")
 
-	held, err := store.UserSetting(standingIn(t, acme), holder, "locale.default")
-	if err != nil {
-		t.Fatalf("UserSetting() in Acme error = %v, want nil", err)
-	}
-	if held != "es-ES" {
-		t.Errorf("the Acme setting = %q, want it untouched by the other tenant", held)
-	}
-	elsewhere, err := store.UserSetting(t.Context(), holder, "locale.default")
-	if err != nil {
-		t.Fatalf("UserSetting() elsewhere error = %v, want nil", err)
-	}
-	if elsewhere != "en-GB" {
-		t.Errorf("the other tenant's setting = %q, want its own value stored", elsewhere)
-	}
+	acme.want("locale.default", foundAs("es-ES"))
+	elsewhere.want("locale.default", foundAs("en-GB"))
+}
+
+func TestAWorkspaceSettingStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	pool := newTestPool(t)
+	store := postgres.NewSettingStore(pool, settingKeys(t, 1)).ForPlugin("email")
+	acme := settingsIn{t: t, ctx: standingIn(t, seededTenant(t, pool)), store: store}
+	elsewhere := settingsIn{t: t, ctx: t.Context(), store: store}
+	acme.save(map[string]string{"imap.host": "imap.example.com"})
+
+	elsewhere.save(map[string]string{"imap.host": "mail.example.com"})
+
+	acme.wantPlain("imap.host", "imap.example.com")
+	elsewhere.wantPlain("imap.host", "mail.example.com")
 }
 
 func TestATaskOriginReplaysInsideItsTenantAlone(t *testing.T) {

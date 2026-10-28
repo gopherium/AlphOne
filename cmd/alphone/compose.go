@@ -51,6 +51,7 @@ type composed struct {
 	roles        *goncierge.Registry
 	files        *storage.Files
 	sweeper      *storage.Sweeper
+	settings     *postgres.SettingStore
 	registered   []sdk.Plugin
 	failed       error
 }
@@ -77,6 +78,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		roles:        cfg.roles,
 		files:        storage.NewFiles(cfg.storage, pool),
 		sweeper:      storage.NewSweeper(cfg.storage, pool, cfg.logger),
+		settings:     postgres.NewSettingStore(pool, cfg.encryption),
 	}
 	built.events = nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(webhooks, cfg.logger), worker: built.worker, hub: built.hub,
@@ -115,6 +117,8 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	wireRoleChecker(built.registered, roleCheckerBridge{registry: cfg.roles})
 	wireMailSenderFrom(built.registered, sender)
 	wireFileStores(built.registered, built.files)
+	wireSettingStores(built.registered, built.settings)
+	wireEncrypters(built.registered, cfg.encryption)
 	return built, nil
 }
 

@@ -87,6 +87,8 @@ func coreSettings() map[string]string {
 		"ALPHONE_STORAGE_S3_SECRET_ACCESS_KEY":     "example-secret",
 		"ALPHONE_STORAGE_S3_PATH_STYLE":            "true",
 		"ALPHONE_STORAGE_S3_CHECKSUM":              "when_required",
+		"ALPHONE_ENCRYPTION_KEY":                   currentEncryptionKey,
+		"ALPHONE_ENCRYPTION_PREVIOUS_KEYS":         olderEncryptionKey,
 	}
 }
 
@@ -612,6 +614,62 @@ func TestTheExampleFileStatesTheCommandFallbacks(t *testing.T) {
 	for key, want := range fallbacks {
 		if named[key] != want {
 			t.Errorf("the example file states %s=%q, want the fallback %q", key, named[key], want)
+		}
+	}
+}
+
+func TestABadEncryptionKeyIsNamedWithoutShowingIt(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		env  map[string]string
+		want string
+	}{
+		"a key that is not hex": {
+			map[string]string{"ALPHONE_ENCRYPTION_KEY": strings.Repeat("zz", 32)},
+			"ALPHONE_ENCRYPTION_KEY: must be written in hex, as openssl rand -hex 32 prints it",
+		},
+		"a key too short": {
+			map[string]string{"ALPHONE_ENCRYPTION_KEY": currentEncryptionKey[:32]},
+			"ALPHONE_ENCRYPTION_KEY: must hold 32 bytes, got 16",
+		},
+		"a bad entry in the previous list": {
+			map[string]string{
+				"ALPHONE_ENCRYPTION_KEY":           currentEncryptionKey,
+				"ALPHONE_ENCRYPTION_PREVIOUS_KEYS": olderEncryptionKey + ",0a0b",
+			},
+			"ALPHONE_ENCRYPTION_PREVIOUS_KEYS: entry 2: must hold 32 bytes, got 2",
+		},
+		"previous keys without a current key": {
+			map[string]string{"ALPHONE_ENCRYPTION_PREVIOUS_KEYS": olderEncryptionKey},
+			"ALPHONE_ENCRYPTION_PREVIOUS_KEYS is set but ALPHONE_ENCRYPTION_KEY is not",
+		},
+	}
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			env := coreSettings()
+			delete(env, "ALPHONE_ENCRYPTION_KEY")
+			delete(env, "ALPHONE_ENCRYPTION_PREVIOUS_KEYS")
+			maps.Copy(env, tt.env)
+
+			_, err := loadRunConfig(testkit.Getenv(env))
+
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("loadRunConfig() error = %v, want %q", err, tt.want)
+			}
+			wantNoValueShown(t, err, tt.env)
+		})
+	}
+}
+
+// wantNoValueShown fails the test when err shows any value env holds.
+func wantNoValueShown(t *testing.T, err error, env map[string]string) {
+	t.Helper()
+	for key, value := range env {
+		if strings.Contains(err.Error(), value) {
+			t.Errorf("error = %q, want it to leave the value of %s out", err, key)
 		}
 	}
 }

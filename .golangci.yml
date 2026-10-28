@@ -39,6 +39,13 @@ linters:
             - github.com/gopherium/framework/goncierge
             - github.com/gopherium/framework/gonsole
             - github.com/gopherium/framework/pluginkit
+        encryption-purity:
+          list-mode: strict
+          files:
+            - "**/internal/encryption/*.go"
+          allow:
+            - $gostd
+            - github.com/gopherium/alphone/internal/encryption
         plugins-never-import-internal:
           list-mode: lax
           files:

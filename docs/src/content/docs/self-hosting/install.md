@@ -99,6 +99,7 @@ Create `.env` next to `compose.yaml`, with permissions `600`:
 ```ini
 POSTGRES_PASSWORD=<a strong random password>
 ALPHONE_TRUSTED_PROXIES=<the subnet of your proxy docker network>
+ALPHONE_ENCRYPTION_KEY=<the output of openssl rand -hex 32, made once>
 
 # Only needed once you connect WhatsApp. See the Meta setup guide.
 ALPHONE_WHATSAPP_VERIFY_TOKEN=<from Meta>
@@ -114,6 +115,13 @@ Make `POSTGRES_PASSWORD` letters and digits only, for example the output of
 `openssl rand -hex 32`. The compose file writes the same value into the
 database address, where a sign such as `@` ends the password early and
 stops AlphOne at start.
+
+`ALPHONE_ENCRYPTION_KEY` encrypts the passwords and tokens plugins keep
+for each workspace. Make it once with `openssl rand -hex 32` and keep a
+copy off the server, for example in a password manager, because without
+it no stored secret opens again. Replace it only the way
+[Encryption](/self-hosting/configuration/#encryption) explains, or the
+secrets saved under it stop opening.
 
 `ALPHONE_TRUSTED_PROXIES` deserves a moment of attention. The login rate
 limiter counts failed attempts per client address, and behind a proxy the
