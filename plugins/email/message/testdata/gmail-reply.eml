@@ -1,0 +1,32 @@
+MIME-Version: 1.0
+Date: Tue, 27 Oct 2026 09:30:00 +0000
+References: <quote-1@example.com>
+In-Reply-To: <quote-1@example.com>
+Message-ID: <gmail-reply@example.com>
+Subject: Re: Quote
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Cc: Sales <sales@example.com>
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3d4e5f60718"
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: text/plain; charset="UTF-8"
+
+Yes, please send the quote to this address.
+
+On Mon, Oct 26, 2026 at 10:15 AM Info <info@example.com> wrote:
+
+> Would you like the quote by email?
+>
+
+--000000000000a1b2c3d4e5f60718
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">Yes, please send the quote to this address.</div><br>
+<div class="gmail_quote"><div dir="ltr" class="gmail_attr">On Mon, Oct 26,
+ 2026 at 10:15 AM Info &lt;<a href="mailto:info@example.com">info@example.com</a>&gt;
+ wrote:<br></div><blockquote class="gmail_quote" style="margin:0px 0px 0px
+ 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex">Would you
+ like the quote by email?</blockquote></div>
+
+--000000000000a1b2c3d4e5f60718--

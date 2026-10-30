@@ -1,0 +1,38 @@
+From: Abuse Desk <abuse@example.com>
+To: info@example.com
+Subject: Abuse report for a message from 192.0.2.10
+Date: Wed, 28 Oct 2026 07:00:00 +0000
+Message-ID: <abuse-report@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=feedback-report;
+	boundary="arf-boundary"
+
+--arf-boundary
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+This is an email abuse report for a message received from IP 192.0.2.10
+on Tue, 27 Oct 2026 09:00:00 +0000.
+
+--arf-boundary
+Content-Type: message/feedback-report
+
+Feedback-Type: abuse
+User-Agent: ExampleFeedback/1.0
+Version: 1
+Original-Mail-From: <info@example.com>
+Original-Rcpt-To: <maria.perez@example.com>
+Arrival-Date: Tue, 27 Oct 2026 09:00:00 +0000
+Source-IP: 192.0.2.10
+Reported-Domain: example.com
+
+--arf-boundary
+Content-Type: text/rfc822-headers
+
+From: Info <info@example.com>
+To: Maria Perez <maria.perez@example.com>
+Subject: Quote
+Date: Tue, 27 Oct 2026 08:59:58 +0000
+Message-ID: <quote-3@example.com>
+
+--arf-boundary--

@@ -1,0 +1,28 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Encrypted plans
+Date: Thu, 29 Oct 2026 12:30:00 +0000
+Message-ID: <pgp-encrypted@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/encrypted; protocol="application/pgp-encrypted";
+	boundary="pgp-encrypted-boundary"
+
+This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+--pgp-encrypted-boundary
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--pgp-encrypted-boundary
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+hF4DAAAAAAAAAAASAQdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+=AAAA
+-----END PGP MESSAGE-----
+
+--pgp-encrypted-boundary--

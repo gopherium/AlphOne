@@ -1,0 +1,15 @@
+From: Example News <news@example.com>
+Reply-To: News Desk <desk@example.com>
+To: info@example.com
+Subject: October news
+Date: Thu, 22 Oct 2026 06:00:00 +0000
+Message-ID: <list-mail@example.com>
+List-Id: Example News <news.example.com>
+List-Unsubscribe: <https://example.com/unsubscribe/1>,
+ <mailto:unsubscribe@example.com>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Precedence: list
+MIME-Version: 1.0
+Content-Type: text/plain; charset="us-ascii"
+
+This month we added three new paint colours to the range.

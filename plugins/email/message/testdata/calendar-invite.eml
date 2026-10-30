@@ -1,0 +1,39 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Invitation: Site visit
+Date: Thu, 29 Oct 2026 13:00:00 +0000
+Message-ID: <calendar-invite@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="invite-boundary"
+
+--invite-boundary
+Content-Type: text/plain; charset="UTF-8"
+
+Site visit
+Friday 30 October 2026 from 10am to 11am (UTC)
+Organizer: maria.perez@example.com
+
+--invite-boundary
+Content-Type: text/calendar; charset="UTF-8"; method=REQUEST
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+PRODID:-//Example//Calendar 1.0//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTART:20261030T100000Z
+DTEND:20261030T110000Z
+DTSTAMP:20261029T130000Z
+ORGANIZER;CN=Maria Perez:mailto:maria.perez@example.com
+UID:site-visit-1@example.com
+ATTENDEE;RSVP=TRUE:mailto:info@example.com
+SUMMARY:Site visit
+LOCATION:Front wall
+SEQUENCE:0
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+
+--invite-boundary--

@@ -1,0 +1,22 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Measurements
+Date: Thu, 29 Oct 2026 10:00:00 +0000
+Message-ID: <winmail-dat@example.com>
+MIME-Version: 1.0
+X-MS-TNEF-Correlator: <winmail-dat@example.com>
+Content-Type: multipart/mixed; boundary="tnef-boundary"
+
+--tnef-boundary
+Content-Type: text/plain; charset="us-ascii"
+
+The measurements are in the attached file.
+
+--tnef-boundary
+Content-Type: application/ms-tnef; name="winmail.dat"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="winmail.dat"
+
+eJ8+IgEAAZAIACAAAAA=
+
+--tnef-boundary--

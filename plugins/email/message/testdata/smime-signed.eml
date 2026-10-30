@@ -1,0 +1,25 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Signed order
+Date: Thu, 29 Oct 2026 11:00:00 +0000
+Message-ID: <smime-signed@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature";
+	micalg=sha-256; boundary="smime-signed-boundary"
+
+This is a cryptographically signed message in MIME format.
+
+--smime-signed-boundary
+Content-Type: text/plain; charset=us-ascii
+
+Please go ahead with the order.
+
+--smime-signed-boundary
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+Content-Description: S/MIME Cryptographic Signature
+
+MIAGCWKGSIb3DQEHAqCAMIACAQEx
+
+--smime-signed-boundary--
