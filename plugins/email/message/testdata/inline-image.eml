@@ -1,0 +1,37 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Photo of the wall
+Date: Tue, 27 Oct 2026 11:00:00 +0000
+Message-ID: <inline-image@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="related-boundary";
+	type="multipart/alternative"
+
+--related-boundary
+Content-Type: multipart/alternative; boundary="alternative-boundary"
+
+--alternative-boundary
+Content-Type: text/plain; charset="UTF-8"
+
+Here is a photo of the wall.
+
+[image: wall.png]
+
+--alternative-boundary
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr"><p>Here is a photo of the wall.</p>
+<img src="cid:img1@example.com" alt="wall.png" width="1" height="1"></div>
+
+--alternative-boundary--
+
+--related-boundary
+Content-Type: image/png; name="wall.png"
+Content-Disposition: inline; filename="wall.png"
+Content-Transfer-Encoding: base64
+Content-ID: <img1@example.com>
+X-Attachment-Id: img1
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6
+kgAAAABJRU5ErkJggg==
+--related-boundary--

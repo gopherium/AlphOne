@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	email "github.com/gopherium/alphone/plugins/email"
 	fields "github.com/gopherium/alphone/plugins/fields"
 	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
@@ -17,8 +18,14 @@ import (
 
 // All registers every plugin, answering the ones that registered and an error naming each failure.
 func All(deps sdk.Deps) ([]sdk.Plugin, error) {
-	plugins := make([]sdk.Plugin, 0, 3)
+	plugins := make([]sdk.Plugin, 0, 4)
 	var failed []error
+	emailPlugin, err := email.Register(deps)
+	if err != nil {
+		failed = append(failed, fmt.Errorf("plugin email: %w", err))
+	} else {
+		plugins = append(plugins, emailPlugin)
+	}
 	fieldsPlugin, err := fields.Register(deps)
 	if err != nil {
 		failed = append(failed, fmt.Errorf("plugin fields: %w", err))

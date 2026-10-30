@@ -1,0 +1,49 @@
+Return-Path: <>
+Date: Mon, 26 Oct 2026 10:17:00 +0000
+From: Mail Delivery System <MAILER-DAEMON@example.com>
+To: info@example.com
+Subject: Undelivered Mail Returned to Sender
+Message-ID: <delivery-failure@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status;
+	boundary="bounce-boundary"
+
+This is a MIME-encapsulated message.
+
+--bounce-boundary
+Content-Type: text/plain; charset=us-ascii
+Content-Description: Notification
+
+This is the mail system at host mail.example.com.
+
+Your message could not be delivered to one or more recipients.
+
+<nobody@example.com>: host mx.example.com said: 550 5.1.1 The email
+    account that you tried to reach does not exist
+
+--bounce-boundary
+Content-Type: message/delivery-status
+Content-Description: Delivery report
+
+Reporting-MTA: dns; mail.example.com
+Arrival-Date: Mon, 26 Oct 2026 10:16:58 +0000
+
+Final-Recipient: rfc822; nobody@example.com
+Original-Recipient: rfc822;nobody@example.com
+Action: failed
+Status: 5.1.1
+Remote-MTA: dns; mx.example.com
+Diagnostic-Code: smtp; 550 5.1.1 The email account that you tried to reach
+    does not exist
+
+--bounce-boundary
+Content-Type: text/rfc822-headers
+Content-Description: Undelivered Message Headers
+
+From: Info <info@example.com>
+To: nobody@example.com
+Subject: Quote
+Date: Mon, 26 Oct 2026 10:16:55 +0000
+Message-ID: <quote-2@example.com>
+
+--bounce-boundary--

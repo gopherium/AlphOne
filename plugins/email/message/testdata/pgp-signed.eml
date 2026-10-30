@@ -1,0 +1,28 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Signed confirmation
+Date: Thu, 29 Oct 2026 12:00:00 +0000
+Message-ID: <pgp-signed@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/signed; micalg=pgp-sha256;
+	protocol="application/pgp-signature"; boundary="pgp-signed-boundary"
+
+This is an OpenPGP/MIME signed message (RFC 4880 and 3156)
+--pgp-signed-boundary
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+I confirm the site visit on Thursday.
+
+--pgp-signed-boundary
+Content-Type: application/pgp-signature; name="signature.asc"
+Content-Description: OpenPGP digital signature
+Content-Disposition: attachment; filename="signature.asc"
+
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYIAB0WIQQAAAAAAAAAAAAAAAAAAAAAAAAAAAUCaQAAAAAKCRAAAAAAAAAA
+=AAAA
+-----END PGP SIGNATURE-----
+
+--pgp-signed-boundary--

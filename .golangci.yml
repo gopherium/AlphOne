@@ -46,6 +46,15 @@ linters:
           allow:
             - $gostd
             - github.com/gopherium/alphone/internal/encryption
+        email-message-purity:
+          list-mode: strict
+          files:
+            - "**/plugins/email/message/*.go"
+          allow:
+            - $gostd
+            - github.com/jhillyerd/enmime/v2
+            - github.com/microcosm-cc/bluemonday
+            - github.com/gopherium/alphone/plugins/email/message
         plugins-never-import-internal:
           list-mode: lax
           files:

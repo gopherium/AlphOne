@@ -1,0 +1,19 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Notes
+Date: Thu, 29 Oct 2026 14:00:00 +0000
+Message-ID: <disposition-without-type@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="notes-boundary"
+
+--notes-boundary
+Content-Type: text/plain; charset=us-ascii
+
+My notes from the visit are attached.
+
+--notes-boundary
+Content-Disposition: attachment; filename="notes.txt"
+
+Bring the colour samples on Friday.
+
+--notes-boundary--

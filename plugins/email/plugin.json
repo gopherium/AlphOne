@@ -1,0 +1,5 @@
+{
+	"id": "email",
+	"name": "Email",
+	"backend": "github.com/gopherium/alphone/plugins/email"
+}

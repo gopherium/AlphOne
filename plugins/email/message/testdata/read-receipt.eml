@@ -1,0 +1,24 @@
+From: Maria Perez <maria.perez@example.com>
+To: Info <info@example.com>
+Subject: Read: Quote
+Date: Tue, 27 Oct 2026 09:10:00 +0000
+Message-ID: <read-receipt@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=disposition-notification;
+	boundary="mdn-boundary"
+
+--mdn-boundary
+Content-Type: text/plain; charset=us-ascii
+
+The message sent on Mon, 26 Oct 2026 10:15:00 +0000 to
+maria.perez@example.com with the subject Quote was displayed.
+
+--mdn-boundary
+Content-Type: message/disposition-notification
+
+Reporting-UA: mail.example.com; Example Mail
+Final-Recipient: rfc822; maria.perez@example.com
+Original-Message-ID: <quote-1@example.com>
+Disposition: manual-action/MDN-sent-manually; displayed
+
+--mdn-boundary--
