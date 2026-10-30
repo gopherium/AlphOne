@@ -36,7 +36,7 @@ type Message struct {
 	HTML string
 	// Attachments lists the parts that are neither a body nor an inline image, in message order.
 	Attachments []Attachment
-	// InlineImages lists the images the HTML body shows through a cid link, in message order.
+	// InlineImages lists the images the sanitized HTML body shows through a cid link, in message order.
 	InlineImages []Attachment
 	// Raw is the message exactly as read.
 	Raw []byte
@@ -50,7 +50,7 @@ type Attachment struct {
 	Name string
 	// ContentType is the media type of the part without its parameters.
 	ContentType string
-	// ContentID is the Content-ID of the part without brackets, empty when it has none.
+	// ContentID is the Content-ID of the part without brackets and percent-decoded, empty when it has none.
 	ContentID string
 	// Content is the decoded content of the part.
 	Content []byte

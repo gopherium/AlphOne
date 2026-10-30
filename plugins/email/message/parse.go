@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"net/textproto"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -116,7 +117,7 @@ func opensMediaField(line []byte) bool {
 	})
 }
 
-// mediaField answers the name and the unfolded value of the media field opening fields, read as enmime reads a header.
+// mediaField answers the name and the unfolded value of the media field opening fields.
 func mediaField(fields []byte) (name, value string) {
 	line, _, _ := bytes.Cut(fields, []byte(":"))
 	name = textproto.CanonicalMIMEHeaderKey(string(bytes.TrimSuffix(line, []byte(" "))))
@@ -191,11 +192,12 @@ func files(envelope *enmime.Envelope) (attachments, inlineImages []Attachment) {
 	for _, part := range slices.Concat(envelope.Attachments, envelope.Inlines, envelope.OtherParts) {
 		listed[part] = !isBody(part)
 	}
+	shown := shownContentIDs(envelope.HTML)
 	for _, part := range envelope.Root.DepthMatchAll(func(p *enmime.Part) bool { return listed[p] }) {
 		file := Attachment{
-			Name: part.FileName, ContentType: part.ContentType, ContentID: part.ContentID, Content: part.Content,
+			Name: part.FileName, ContentType: part.ContentType, ContentID: contentID(part), Content: part.Content,
 		}
-		if showsInline(part, envelope.HTML) {
+		if strings.HasPrefix(part.ContentType, "image/") && shown[file.ContentID] {
 			inlineImages = append(inlineImages, file)
 		} else {
 			attachments = append(attachments, file)
@@ -204,10 +206,28 @@ func files(envelope *enmime.Envelope) (attachments, inlineImages []Attachment) {
 	return attachments, inlineImages
 }
 
-// showsInline reports whether part is an image html shows through a cid link.
-func showsInline(part *enmime.Part, html string) bool {
-	return strings.HasPrefix(part.ContentType, "image/") && part.ContentID != "" &&
-		strings.Contains(html, "cid:"+part.ContentID)
+// shownContentIDs answers the content ids of the images Sanitize keeps in document through a cid link.
+func shownContentIDs(document string) map[string]bool {
+	shown := make(map[string]bool)
+	Sanitize(document, func(source *url.URL) {
+		if source.Scheme == "cid" && source.Opaque != "" {
+			shown[unescaped(source.Opaque)] = true
+		}
+	})
+	return shown
+}
+
+// contentID answers the Content-ID of part without its brackets, percent-decoded.
+func contentID(part *enmime.Part) string {
+	return unescaped(strings.TrimRight(strings.TrimLeft(part.Header.Get("Content-Id"), "<"), ">"))
+}
+
+// unescaped answers id percent-decoded, or id itself when it holds a broken escape.
+func unescaped(id string) string {
+	if decoded, err := url.PathUnescape(id); err == nil {
+		return decoded
+	}
+	return id
 }
 
 // isBody reports whether part is a text or HTML part enmime reads as a body.
