@@ -23,58 +23,63 @@ func Snippet(text string, limit int) (string, error) {
 	return cmp.Or(clip(ownText(text), limit), clip(text, limit)), nil
 }
 
+// replyLine is a line of a reply with the line after it.
+type replyLine struct {
+	text string
+	next string
+}
+
 // ownText answers the lines the writer of text wrote, up to the first quote, forward or signature.
 func ownText(text string) string {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	var own []string
 	wrote := false
 	for i := 0; i < len(lines); i++ {
-		line, next := lines[i], first(lines[i+1:])
-		if span := attributionLines(line, next); span > 0 && !wrote {
+		line := replyLine{lines[i], first(lines[i+1:])}
+		if span := line.attribution(); span > 0 && !wrote {
 			i += span - 1
 			continue
 		}
-		if endsOwnText(line, next) {
+		if line.endsOwnText() {
 			break
 		}
-		if !isQuoted(line) {
-			own = append(own, line)
-			wrote = wrote || strings.TrimSpace(line) != ""
+		if !line.quoted() {
+			own = append(own, line.text)
+			wrote = wrote || strings.TrimSpace(line.text) != ""
 		}
 	}
 	return strings.Join(own, "\n")
 }
 
-// attributionLines answers how many lines from line on hold an attribution such as On a date, someone wrote.
-func attributionLines(line, next string) int {
-	line = strings.TrimSpace(line)
+// attribution answers how many lines from l on hold an attribution such as On a date, someone wrote.
+func (l replyLine) attribution() int {
+	text := strings.TrimSpace(l.text)
 	switch {
-	case !strings.HasPrefix(line, "On ") || !strings.ContainsAny(line, "0123456789"):
+	case !strings.HasPrefix(text, "On ") || !strings.ContainsAny(text, "0123456789"):
 		return 0
-	case strings.HasSuffix(line, "wrote:"):
+	case strings.HasSuffix(text, "wrote:"):
 		return 1
-	case strings.HasSuffix(strings.TrimSpace(next), "wrote:"):
+	case strings.HasSuffix(strings.TrimSpace(l.next), "wrote:"):
 		return 2
 	}
 	return 0
 }
 
-// endsOwnText reports whether line, followed by next, opens a quote, a forward or a signature.
-func endsOwnText(line, next string) bool {
-	marker := strings.ToLower(strings.Trim(line, "- \t"))
-	return attributionLines(line, next) > 0 || line == "-- " || slices.Contains(ownTextEnds, marker) ||
-		opensHeaderBlock(line, next)
+// endsOwnText reports whether l opens a quote, a forward or a signature.
+func (l replyLine) endsOwnText() bool {
+	marker := strings.ToLower(strings.Trim(l.text, "- \t"))
+	return l.attribution() > 0 || l.text == "-- " || slices.Contains(ownTextEnds, marker) || l.opensHeaderBlock()
 }
 
-// opensHeaderBlock reports whether line is a rule of underscores and next opens the header block Outlook quotes.
-func opensHeaderBlock(line, next string) bool {
-	rule := strings.TrimSpace(line)
-	return rule != "" && strings.Trim(rule, "_") == "" && strings.HasPrefix(strings.TrimSpace(next), "From:")
+// opensHeaderBlock reports whether l is a rule of underscores followed by the header block Outlook quotes.
+func (l replyLine) opensHeaderBlock() bool {
+	rule := strings.TrimSpace(l.text)
+	return rule != "" && strings.Trim(rule, "_") == "" && strings.HasPrefix(strings.TrimSpace(l.next), "From:")
 }
 
-// isQuoted reports whether line is a quoted line.
-func isQuoted(line string) bool {
-	return strings.HasPrefix(strings.TrimLeft(line, " \t"), ">")
+// quoted reports whether l is a quoted line.
+func (l replyLine) quoted() bool {
+	return strings.HasPrefix(strings.TrimLeft(l.text, " \t"), ">")
 }
 
 // clip answers the words of text joined by single blanks, cut to at most limit letters.
