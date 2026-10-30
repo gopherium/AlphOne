@@ -15,7 +15,7 @@ var ownTextEnds = []string{
 	"sent from my iphone", "sent from my ipad", "get outlook for ios", "get outlook for android",
 }
 
-// Snippet answers a preview of text at most limit letters long, without quoted replies or signatures.
+// Snippet answers a preview of text up to limit letters, without quotes or signatures unless text holds nothing else.
 func Snippet(text string, limit int) (string, error) {
 	if limit <= 0 {
 		return "", ErrLimitsUnset
