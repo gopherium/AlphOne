@@ -5,6 +5,16 @@
       "rules": [
         { "name": "String Heavy Function Arguments", "weight": 0.0 }
       ]
+    },
+    {
+      "matching_content_path": "**/*_gen.go",
+      "rules": [
+        { "name": "Complex Method", "weight": 0.0 },
+        { "name": "Complex Conditional", "weight": 0.0 },
+        { "name": "Overall Code Complexity", "weight": 0.0 },
+        { "name": "Excess Number of Function Arguments", "weight": 0.0 },
+        { "name": "Code Duplication", "weight": 0.0 }
+      ]
     }
   ]
 }
