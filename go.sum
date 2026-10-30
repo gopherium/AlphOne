@@ -272,8 +272,8 @@ github.com/gopherium/framework/pluginkit/graphwire v0.4.0 h1:W+pXZA2i3OuHlyVrulG
 github.com/gopherium/framework/pluginkit/graphwire v0.4.0/go.mod h1:GQCjzF+zzmUsfRsKPQOlEqWahNJJ3x4BcPCMo0h4Ao8=
 github.com/gopherium/framework/postgresblob v0.1.0 h1:dly5yYO+JElLrjCJ2kOonEi9zkf8U4KC7KcDlCuaync=
 github.com/gopherium/framework/postgresblob v0.1.0/go.mod h1:Y+kEzlL9CQYLsiiJb/CLmdp/U8J6Z+vcQpedNqBx5u0=
-github.com/gopherium/gouncer v0.4.0 h1:dkbCD5oeYuuzR961UKGsAvnTvF8vTstlFbN94rP4TvI=
-github.com/gopherium/gouncer v0.4.0/go.mod h1:WwPOu8LyRikot0EODySSu46zaHcWTPbl5nOes4I3H2U=
+github.com/gopherium/gouncer v0.5.0 h1:rHiZfXmwhTgTaEgvFfq5csDmRyfbGtHIk8ySwS+Pyco=
+github.com/gopherium/gouncer v0.5.0/go.mod h1:iSBOmf12rLo9oIsXeDK4qvZ7qpO5MVMvOuHASl2gMdY=
 github.com/gopherium/gouncer/authkit v0.23.0 h1:NgcBeNr2kwbsp3HoH8aKCEIxbAH6o4FCDmJ51pLODLI=
 github.com/gopherium/gouncer/authkit v0.23.0/go.mod h1:oJP/pk0xnXA4HhOlFoqm4lh9ulScCUbgGeLFrquZ6g8=
 github.com/gopherium/gouncer/authkit/postgres v0.15.0 h1:sGd549R/tEVotCAYEh7tdcAYoU3XYusFM/1JZWynQLs=
