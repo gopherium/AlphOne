@@ -40,7 +40,7 @@ var styleSamples = []struct {
 	{"white-space", "nowrap", "wrap"},
 }
 
-// shorthands lists the style properties bluemonday v1.0.27 checks by trying every split of their words.
+// shorthands lists the style properties AllowedStyles must never hold.
 var shorthands = []string{
 	"animation", "background", "border", "border-bottom", "border-image", "border-image-slice", "border-left",
 	"border-radius", "border-right", "border-spacing", "border-style", "border-top", "border-width", "box-shadow",

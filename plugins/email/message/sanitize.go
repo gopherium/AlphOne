@@ -10,14 +10,14 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
-// allowedStyles lists the longhand style properties a style attribute keeps, each checked in linear time.
+// allowedStyles lists the longhand style properties a style attribute keeps.
 var allowedStyles = []string{
 	"color", "background-color", "text-align", "vertical-align", "font-weight", "font-style", "font-size",
 	"font-family", "width", "height", "padding-top", "padding-right", "padding-bottom", "padding-left",
 	"margin-top", "margin-right", "margin-bottom", "margin-left", "border-collapse", "white-space",
 }
 
-// withoutEscapedStyles is the first pass of Sanitize, which drops every style attribute holding a backslash.
+// withoutEscapedStyles is the base policy keeping only the style attributes that hold no backslash.
 var withoutEscapedStyles = basePolicy().AllowAttrs("style").Matching(regexp.MustCompile(`^[^\\]*$`)).Globally()
 
 // AllowedStyles answers the style properties Sanitize keeps in a style attribute.
