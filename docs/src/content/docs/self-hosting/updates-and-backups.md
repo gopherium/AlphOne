@@ -117,19 +117,28 @@ server, because a watcher on `:latest` applies it on its own.
   [Core](/self-hosting/configuration/#core).
 - AlphOne reads `ALPHONE_ENCRYPTION_KEY`, the key that encrypts the
   secrets plugins keep for each workspace. It stays optional until a
-  plugin stores a secret, see
+  plugin stores a secret, but a malformed key stops `serve`, see
   [Encryption](/self-hosting/configuration/#encryption).
 - AlphOne no longer reads `ALPHONE_WHATSAPP_CREDENTIALS_KEY`, so you can
   drop it from `.env`. A workspace's own WhatsApp access token is now
   encrypted with `ALPHONE_ENCRYPTION_KEY`, see
   [WhatsApp plugin](/self-hosting/configuration/#whatsapp-plugin). A
   token stored under the old key no longer opens and has to be entered
-  again.
+  again. Until then the default workspace also ignores
+  `ALPHONE_WHATSAPP_ACCESS_TOKEN`.
 - AlphOne keeps a `storage` schema in its database for the files
-  plugins keep, and checks at start that it can reach them. With the
-  default settings it creates the schema on its first start, and you set
-  nothing. The WhatsApp media stay in the plugin's own table. See
-  [Files](/self-hosting/configuration/#files).
+  plugins keep. It creates the schema on its first start, and with the
+  default settings you set nothing. It checks at start that it can reach
+  the files and stops when it cannot. A setting of the S3 store without
+  `ALPHONE_STORAGE_DRIVER=s3` stops it too. The WhatsApp media stay in
+  the plugin's own table. See [Files](/self-hosting/configuration/#files).
+- The first start after the update marks every contact address once,
+  before AlphOne listens. It takes about 30 seconds for each million
+  addresses, and their table takes twice its space until PostgreSQL
+  vacuums it.
+- `ALPHONE_CONTACT_MATCH_MAX` is new and defaults to 100. A value AlphOne
+  refuses stops `serve`, see
+  [Contacts](/self-hosting/configuration/#contacts).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
@@ -163,6 +172,12 @@ One caution: rolling the app back does not roll the database back.
 Migrations only move forward, so if the newer version already migrated
 the schema, restore the matching backup instead of just pinning the
 older image.
+
+A release from before the encryption key still starts on a database the
+newer version migrated, but it cannot open the secrets plugins saved
+since. It also needs `ALPHONE_WHATSAPP_CREDENTIALS_KEY` set again for the
+WhatsApp tokens saved before the update. Restore the backup when you need
+everything exactly as it was.
 
 If you ever roll a migration back by hand, know that the role each
 account holds is the thing most easily lost. It lives in a `role`
@@ -330,4 +345,6 @@ for a new PostgreSQL major version. The new server numbers its transactions
 from the start again. A plugin that follows the addresses contacts gain, see
 [Contacts](/extending/contacts/), saved a cursor that names the old server.
 The feed refuses that cursor, so the plugin reads every address again from
-the beginning. Handling an address twice does no harm.
+the beginning. Handling an address twice does no harm. The first start on the
+new server also marks every address once, which takes about 30 seconds for
+each million addresses.
