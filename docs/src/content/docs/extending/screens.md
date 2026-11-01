@@ -250,23 +250,23 @@ for each. Handle them in this order.
 
 ```tsx
 if (invoices.isPending) {
-	return <Text role="status">Loading invoices…</Text>
+	return <LoadingScreen label="Loading invoices…" />
 }
 if (invoices.isError) {
 	return <ErrorNotice>Invoices could not be loaded.</ErrorNotice>
 }
 if (rows.length === 0) {
-	return <ListEmpty icon={people} title="No invoices yet." hint="Add one with New invoice." />
+	return <ListEmpty icon={people} title="No invoices yet." description="Add one with New invoice." />
 }
 return <InvoiceTable rows={rows} />
 ```
 
-`Text role="status"` announces loading politely. `ErrorNotice` announces
+`LoadingScreen` announces its label politely. `ErrorNotice` announces
 the failure as an alert, which plain copy in a `Text` never does.
 
-`ListEmpty` draws the icon, the title and the hint centred on the
+`ListEmpty` draws the icon, the title and the description centred on the
 canvas, as WordPress draws an empty list. Its title sits one level
-under the page title, so it never competes with it. Leave out `hint`
+under the page title, so it never competes with it. Leave out `description`
 when a search or a filter emptied the list.
 
 ## Lists, tables, and paging
@@ -385,7 +385,7 @@ export function InvoicesScreen() {
 					defaultLayouts={list.defaultLayouts}
 					selection={list.selection}
 					onChangeSelection={list.onChangeSelection}
-					isLoading={result.fetching || sizing}
+					isLoading={result.fetching || (result.data === undefined && result.error === undefined)}
 					searchLabel={__('Search invoices…', 'acme-billing')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 				/>
