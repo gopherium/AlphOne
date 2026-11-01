@@ -52,7 +52,7 @@ test('imports a CSV of contacts from the upload through to the contact list', as
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByRole('link', { name: 'Add Contact' }).first().click()
 	await page.getByLabel('Name').fill(known)
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: known })).toBeVisible()

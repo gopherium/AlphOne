@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { rememberFormatLocale, upload as uploadIcon } from '@alphone/frontend-sdk'
+import { ListNoResults, rememberFormatLocale, upload as uploadIcon } from '@alphone/frontend-sdk'
 import {
 	http,
 	HttpResponse,
@@ -14,6 +14,7 @@ import {
 import { createRootRoute } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, expect, test } from 'vitest'
 
 import { handlers, importID, multipartBody } from '../handlers'
@@ -77,6 +78,24 @@ let held: stored[] = []
 function holding(imports: stored[]) {
 	held = imports
 	server.use(graphql.query('Imports', () => HttpResponse.json({ data: { imports: held } })))
+}
+
+/**
+ * Keeps every later answer of the history back until it is let through.
+ * @returns What lets the answers through.
+ */
+function holdingAnswers() {
+	let release = () => {}
+	const answered = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('Imports', async () => {
+			await answered
+			return HttpResponse.json({ data: { imports: held } })
+		}),
+	)
+	return release
 }
 
 /**
@@ -159,11 +178,12 @@ async function emptyDrawing(title: string): Promise<string | null | undefined> {
 }
 
 /**
- * Returns the drawing the upload icon carries.
+ * Returns the drawing the given tree shows first.
+ * @param tree - The tree holding the drawing.
  * @returns The path data of its drawing.
  */
-function uploadDrawing(): string | null | undefined {
-	const { container, unmount } = render(uploadIcon)
+function drawingOf(tree: ReactNode): string | null | undefined {
+	const { container, unmount } = render(tree)
 	const drawn = container.querySelector('path')?.getAttribute('d')
 	unmount()
 	return drawn
@@ -461,19 +481,23 @@ test('shows an empty state with the upload glyph of the Import row when no impor
 	holding([])
 	renderAt('/import')
 
-	expect(await screen.findByText('No imports yet.')).toBeInTheDocument()
+	expect(await screen.findByText('No imports yet')).toBeInTheDocument()
 	expect(screen.getByText('Upload a CSV or Excel file to start one.').closest('.godmin-empty')).not.toBeNull()
-	expect(await emptyDrawing('No imports yet.')).toBe(uploadDrawing())
+	expect(await emptyDrawing('No imports yet')).toBe(drawingOf(uploadIcon))
 	expect(plugin.nav[0].icon).toBe(uploadIcon)
-	expect(screen.getByRole('heading', { level: 3, name: 'No imports yet.' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 3, name: 'No imports yet' })).toBeInTheDocument()
 })
 
-test('says no import matched when a search finds none', async () => {
+test('says nothing matched, under the search icon and with no button, when a search finds no import', async () => {
 	renderAt('/import?search=nothing')
 
-	expect(await screen.findByText('No imports found.')).toBeInTheDocument()
-	expect(screen.queryByText('No imports yet.')).not.toBeInTheDocument()
-	expect(await emptyDrawing('No imports found.')).toBe(uploadDrawing())
+	const description = await screen.findByText("Try adjusting your search or filters to find what you're looking for.")
+	expect(screen.getByRole('heading', { level: 3, name: 'No results found' })).toBeInTheDocument()
+	expect(within(description.closest('.godmin-empty') as HTMLElement).queryByRole('button')).not.toBeInTheDocument()
+	expect(screen.queryByText('No imports yet')).not.toBeInTheDocument()
+	const drawn = await emptyDrawing('No results found')
+	expect(drawn).toBe(drawingOf(<ListNoResults />))
+	expect(drawn).not.toBe(drawingOf(uploadIcon))
 })
 
 test('opens the file dialog from the Upload button, for CSV and Excel files only', async () => {
@@ -498,6 +522,58 @@ test('uploads the chosen file, confirms it with a toast and refreshes the list',
 	expect(await screen.findByText('File uploaded.')).toBeInTheDocument()
 	expect(await screen.findByRole('link', { name: 'uploaded.csv' })).toBeInTheDocument()
 	expect(count()).toBe(1)
+})
+
+test('shows the toast first and keeps the old rows busy until the reload lands the new one', async () => {
+	accepting()
+	renderAt('/import')
+	await rowOf('contacts.csv')
+	const release = holdingAnswers()
+
+	await choose(csv)
+
+	expect(await screen.findByText('File uploaded.')).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
+	expect(screen.getByRole('link', { name: 'contacts.csv' })).toBeInTheDocument()
+	expect(screen.queryByRole('link', { name: 'uploaded.csv' })).not.toBeInTheDocument()
+	release()
+
+	expect(await screen.findByRole('link', { name: 'uploaded.csv' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
+})
+
+test('names the list as a region that holds a focus from the rows until the new row lands', async () => {
+	accepting()
+	renderAt('/import')
+	const link = await screen.findByRole('link', { name: 'contacts.csv' })
+	const release = holdingAnswers()
+	link.focus()
+
+	fireEvent.change(fileInput(), { target: { files: [csv] } })
+
+	const region = screen.getByRole('region', { name: 'Imports' })
+	await waitFor(() => expect(region).toHaveFocus())
+	release()
+	await screen.findByRole('link', { name: 'uploaded.csv' })
+	await waitFor(() => expect(link).toHaveFocus())
+})
+
+test('marks no reload after a refused upload, yet still asks for the imports again', async () => {
+	uploads(() => {
+		held = [...held, importOf('05', 'meanwhile.csv')]
+		return refused
+	})
+	renderAt('/import')
+	await rowOf('contacts.csv')
+	const release = holdingAnswers()
+
+	await choose(new File(['nope'], 'notes.csv', { type: 'text/csv' }))
+
+	expect(await screen.findByRole('alert')).toBeInTheDocument()
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
+	release()
+	expect(await screen.findByRole('link', { name: 'meanwhile.csv' })).toBeInTheDocument()
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
 })
 
 test('opens the uploaded import from the toast, ready to map', async () => {

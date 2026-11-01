@@ -49,6 +49,9 @@ msgstr ""
 msgid "Import finished: %(imported)s imported, %(skipped)s skipped, %(failed)s failed."
 msgstr ""
 
+msgid "Imports"
+msgstr ""
+
 msgid "Imports could not be loaded."
 msgstr ""
 
@@ -64,10 +67,7 @@ msgstr ""
 msgid "Mapping saved."
 msgstr ""
 
-msgid "No imports found."
-msgstr ""
-
-msgid "No imports yet."
+msgid "No imports yet"
 msgstr ""
 
 msgid "Not imported"

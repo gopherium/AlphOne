@@ -86,12 +86,12 @@ msgid "Mapping saved."
 msgstr "Asignación guardada."
 
 #, fuzzy
-msgid "No imports found."
-msgstr "No se ha encontrado ninguna importación."
+msgid "Imports"
+msgstr "Importaciones"
 
 #, fuzzy
-msgid "No imports yet."
-msgstr "Todavía no hay ninguna importación."
+msgid "No imports yet"
+msgstr "Todavía no hay ninguna importación"
 
 #, fuzzy
 msgid "Not imported"
