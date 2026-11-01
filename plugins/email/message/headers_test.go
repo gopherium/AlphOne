@@ -6,8 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"reflect"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +20,97 @@ const malformedMail = "From: Maria Perez <maria.perez@example.com>\r\nTo: info@e
 	"References: <quote-1@example.com>\r\nThread-Index: AQHZ\r\nContent-Type: multipart/mixed\r\n\r\n" +
 	"The boundary is missing.\r\n"
 
+// capSender opens the mails under a header cap.
+const capSender = "From: maria.perez@example.com\r\n"
+
+// capCutCases lists raw messages, a header cap, and the sender and subject ReadHeaders answers under it.
+var capCutCases = []struct {
+	name    string
+	raw     string
+	cap     int
+	from    string
+	subject string
+}{
+	{"no cut", capSender + "Subject: Quote\r\n\r\nText.\r\n", len(capSender) + 16, "maria.perez@example.com", "Quote"},
+	{
+		"a block exactly at the cap with nothing after it", capSender + "Subject: Quote\r\n",
+		len(capSender) + 16, "maria.perez@example.com", "Quote",
+	},
+	{
+		"a line end one byte past the cap", capSender + "Subject: Quote\r\nTo: info@example.com\r\n\r\nText.\r\n",
+		len(capSender) + 15, "maria.perez@example.com", "",
+	},
+	{
+		"a line end ten bytes past the cap", capSender + "Subject: Quote\r\nTo: info@example.com\r\n\r\nText.\r\n",
+		len(capSender) + 6, "maria.perez@example.com", "",
+	},
+	{
+		"a cut in a line folded with a tab", capSender + "Subject: Quote\r\n\tfor the wall\r\n\r\nText.\r\n",
+		len(capSender) + 22, "maria.perez@example.com", "",
+	},
+	{
+		"a cut in a line with no fold and no colon",
+		capSender + "Subject: Quote\r\nfor the wall\r\nTo: info@example.com\r\n\r\n",
+		len(capSender) + 22, "maria.perez@example.com", "",
+	},
+	{
+		"a cut on a line end before a line with no colon", capSender + "Subject: Quote\r\nfor the wall\r\n\r\nText.\r\n",
+		len(capSender) + 16, "maria.perez@example.com", "",
+	},
+	{
+		"a cut in a line opening with a carriage return", capSender + "Subject: Quote\r\n\rfor the wall\r\n\r\nText.\r\n",
+		len(capSender) + 22, "maria.perez@example.com", "",
+	},
+	{
+		"a cut past a line of one carriage return", capSender + "Subject: Quote\r\n\r\r\n for the wall\r\n\r\nText.\r\n",
+		len(capSender) + 17, "maria.perez@example.com", "",
+	},
+	{
+		"a cut past a line opening with a colon",
+		capSender + "Subject: Quote\r\n: skipped\r\n for the wall\r\n\r\nText.\r\n",
+		len(capSender) + 30, "maria.perez@example.com", "",
+	},
+	{
+		"a cut past a line with a bad name", capSender + "Subject: Quote\r\nBad\x01Name: skipped\r\n for the wall\r\n\r\n",
+		len(capSender) + 38, "maria.perez@example.com", "",
+	},
+	{
+		"a cut in a mail with bare line feeds",
+		"From: maria.perez@example.com\nSubject: Quote for the wall\nTo: info@example.com\n\n",
+		40, "maria.perez@example.com", "",
+	},
+	{
+		"a cut inside the value of a field",
+		capSender + "Subject: Quote for the wall\r\nTo: info@example.com\r\n\r\nText.\r\n",
+		len(capSender) + 14, "maria.perez@example.com", "",
+	},
+	{
+		"a cut inside the name of a field", capSender + "Subject: Quote\r\n\r\nText.\r\n",
+		len(capSender) + 4, "maria.perez@example.com", "",
+	},
+	{
+		"a cut on a line end before a new field", capSender + "Subject: Quote\r\nTo: info@example.com\r\n\r\nText.\r\n",
+		len(capSender) + 16, "maria.perez@example.com", "Quote",
+	},
+	{
+		"a cut on a line end before a folded line", capSender + "Subject: Quote\r\n for the wall\r\n\r\nText.\r\n",
+		len(capSender) + 16, "maria.perez@example.com", "",
+	},
+	{
+		"a cut inside a folded line", capSender + "Subject: Quote\r\n for the wall\r\n\r\nText.\r\n",
+		len(capSender) + 22, "maria.perez@example.com", "",
+	},
+	{
+		"a cut inside the first field", "From: maria.perez@example.com.example.net\r\n\r\nText.\r\n",
+		len("From: maria.perez@example.com"), "", "",
+	},
+	{
+		"a cut inside a field folded from the first line", "From: maria.perez@example.com,\r\n info@example.com\r\n\r\n",
+		len("From: maria.perez@example.com,\r\n info"), "", "",
+	},
+	{"a cut in a block with no field at all", " a stray line\r\n another stray line\r\n\r\nText.\r\n", 20, "", ""},
+}
+
 func TestReadHeadersReadsWhatParseCannot(t *testing.T) {
 	t.Parallel()
 
@@ -32,27 +121,14 @@ func TestReadHeadersReadsWhatParseCannot(t *testing.T) {
 
 	m := readHeaders(t, raw, testLimits)
 
-	if m.From != outsideSender || !slices.Equal(m.ReplyTo, []message.Address{outsideSender}) {
-		t.Errorf("ReadHeaders() From = %+v, ReplyTo = %+v, want %+v in both", m.From, m.ReplyTo, outsideSender)
+	want := fixtureSummary{
+		from: outsideSender, to: []message.Address{bareOwnMailbox}, cc: []message.Address{{Email: "sales@example.com"}},
+		bcc: []message.Address{{Email: "desk@example.com"}}, replyTo: []message.Address{outsideSender}, subject: "Quote",
+		date: october(28, 7, 0), messageID: "unreadable@example.com", inReplyTo: []string{"quote-1@example.com"},
+		references: []string{"quote-1@example.com"},
 	}
-	if !slices.Equal(m.To, []message.Address{bareOwnMailbox}) {
-		t.Errorf("ReadHeaders().To = %+v, want %+v", m.To, bareOwnMailbox)
-	}
-	if want := []message.Address{{Email: "sales@example.com"}}; !slices.Equal(m.Cc, want) {
-		t.Errorf("ReadHeaders().Cc = %+v, want %+v", m.Cc, want)
-	}
-	if want := []message.Address{{Email: "desk@example.com"}}; !slices.Equal(m.Bcc, want) {
-		t.Errorf("ReadHeaders().Bcc = %+v, want %+v", m.Bcc, want)
-	}
-	if m.Subject != "Quote" {
-		t.Errorf("ReadHeaders().Subject = %q, want Quote", m.Subject)
-	}
-	if want := october(28, 7, 0); !m.Date.Equal(want) {
-		t.Errorf("ReadHeaders().Date = %v, want %v", m.Date, want)
-	}
-	if m.MessageID != "unreadable@example.com" || !slices.Equal(m.InReplyTo, []string{"quote-1@example.com"}) ||
-		!slices.Equal(m.References, []string{"quote-1@example.com"}) {
-		t.Errorf("ReadHeaders() ids = %q, %q, %q", m.MessageID, m.InReplyTo, m.References)
+	if got := summarize(m); !reflect.DeepEqual(got, want) {
+		t.Errorf("ReadHeaders() =\n%+v\nwant\n%+v", got, want)
 	}
 	if m.ThreadIndex != nil {
 		t.Errorf("ReadHeaders().ThreadIndex = %+v, want nil for a value too short to read", m.ThreadIndex)
@@ -66,7 +142,7 @@ func TestReadHeadersAnswersNoBody(t *testing.T) {
 
 	m := readHeaders(t, raw, testLimits)
 
-	if m.Text != "" || m.HTML != "" || m.Attachments != nil || m.InlineImages != nil {
+	if holdsABody(m) {
 		t.Errorf("ReadHeaders() answered a body: text %q, HTML %q, files %+v, %+v",
 			m.Text, m.HTML, m.Attachments, m.InlineImages)
 	}
@@ -78,39 +154,91 @@ func TestReadHeadersAnswersNoBody(t *testing.T) {
 	}
 }
 
-func TestReadHeadersStopsAtTheHeaderCap(t *testing.T) {
+func TestReadHeadersLeavesOutAFieldTheCapCut(t *testing.T) {
 	t.Parallel()
 
-	const opening = "From: maria.perez@example.com\r\nSubject: Quote"
-	limits := testLimits
-	limits.MaxHeaderBytes = len(opening)
+	for _, c := range capCutCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			limits := testLimits
+			limits.MaxHeaderBytes = c.cap
+
+			m := readHeaders(t, []byte(c.raw), limits)
+
+			if m.From.Email != c.from || m.Subject != c.subject {
+				t.Errorf("ReadHeaders() From = %+v, Subject = %q, want %q and %q", m.From, m.Subject, c.from, c.subject)
+			}
+			if m.To != nil {
+				t.Errorf("ReadHeaders().To = %+v, want nothing from past the cap", m.To)
+			}
+		})
+	}
+}
+
+func TestReadHeadersGivesNoVerdictFromACutField(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
-		name    string
-		raw     string
-		subject string
+		name string
+		raw  string
+		cap  int
 	}{
-		{"a field cut in the middle", opening + " for the new facade\r\nTo: info@example.com\r\n\r\nText.\r\n", "Quote"},
 		{
-			"a field cut inside a letter",
-			strings.Replace(opening, "Quote", "Quot\xc3", 1) + "\xa9\r\nTo: info@example.com\r\n\r\nText.\r\n",
-			"Quot" + replacement,
+			"a return path", capSender + "Return-Path:\r\n<sender@example.com>\r\nSubject: Quote\r\n\r\nText.\r\n",
+			len(capSender) + 17,
 		},
-		{"a field ending at the cap", opening + "\r\nTo: info@example.com\r\n\r\nText.\r\n", "Quote"},
+		{"a precedence", capSender + "Precedence: bulk\r\nwords\r\nSubject: Quote\r\n\r\nText.\r\n", len(capSender) + 21},
+		{
+			"a file name",
+			capSender + "Content-Type: application/octet-stream; name=winmail.dat\r\n.txt\r\nSubject: Quote\r\n\r\n",
+			len(capSender) + 60,
+		},
+		{
+			"a method", capSender + "Content-Type: text/calendar; method=REQUEST\r\nX\r\nSubject: Quote\r\n\r\n",
+			len(capSender) + 47,
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
+			limits := testLimits
+			limits.MaxHeaderBytes = c.cap
+
 			m := readHeaders(t, []byte(c.raw), limits)
 
-			if m.From.Email != "maria.perez@example.com" || m.Subject != c.subject {
-				t.Errorf("ReadHeaders() From = %+v, Subject = %q, want the sender and %q", m.From, m.Subject, c.subject)
+			if got := message.Classify(m); !reflect.DeepEqual(got, message.Classification{}) {
+				t.Errorf("Classify() = %s, want nothing", describe(got))
 			}
-			if m.To != nil {
-				t.Errorf("ReadHeaders().To = %+v, want nothing from past the cap", m.To)
+			if got := message.Mark(m); got != (message.Marks{}) {
+				t.Errorf("Mark() = %+v, want nothing", got)
 			}
 		})
+	}
+}
+
+func TestReadHeadersReadsAMediaFieldAtTheFieldCap(t *testing.T) {
+	t.Parallel()
+
+	const value = `attachment; filename="winmail.dat"`
+	raw := []byte("Content-Disposition: " + value + "\r\n\r\nBody.\r\n")
+	cases := []struct {
+		maxFieldBytes int
+		want          message.Marks
+	}{
+		{len(value), message.Marks{Winmail: true}},
+		{len(value) - 1, message.Marks{}},
+	}
+
+	for _, c := range cases {
+		limits := testLimits
+		limits.MaxFieldBytes = c.maxFieldBytes
+
+		if got := message.Mark(readHeaders(t, raw, limits)); got != c.want {
+			t.Errorf("Mark() under a field cap of %d = %+v, want %+v", c.maxFieldBytes, got, c.want)
+		}
 	}
 }
 
@@ -142,6 +270,29 @@ func TestReadHeadersFeedsClassifyAndMark(t *testing.T) {
 			message.Classification{}, message.Marks{InviteMethod: "REQUEST"},
 		},
 		{"a type that cannot be read", "Content-Type: a b", message.Classification{}, message.Marks{}},
+		{
+			"a TNEF type", "Content-Type: application/ms-tnef",
+			message.Classification{}, message.Marks{Winmail: true},
+		},
+		{
+			"a TNEF file named by its disposition",
+			"Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"winmail.dat\"",
+			message.Classification{}, message.Marks{Winmail: true},
+		},
+		{
+			"a TNEF file named by its type", "Content-Type: application/octet-stream; name=\"WIN.DAT\"",
+			message.Classification{}, message.Marks{Winmail: true},
+		},
+		{
+			"a TNEF file named by the old type parameter", "Content-Type: application/octet-stream; file=\"winmail.dat\"",
+			message.Classification{}, message.Marks{Winmail: true},
+		},
+		{
+			"a disposition naming another file than the type",
+			"Content-Type: application/octet-stream; name=\"winmail.dat\"\r\n" +
+				"Content-Disposition: attachment; filename=\"quote.pdf\"",
+			message.Classification{}, message.Marks{},
+		},
 	}
 
 	for _, c := range cases {
@@ -204,8 +355,11 @@ func TestReadHeadersTakesWhatItCanRead(t *testing.T) {
 
 			m := readHeaders(t, []byte(c.raw), testLimits)
 
-			if m.From != (message.Address{}) || m.Subject != "" || m.To != nil {
-				t.Errorf("ReadHeaders(%q) = %+v, want no sender, subject or recipient", c.raw, m)
+			if got := headersOf(m); !reflect.DeepEqual(got, headerSummary{}) {
+				t.Errorf("ReadHeaders(%q) headers = %+v, want no sender, recipient, date, id or thread index", c.raw, got)
+			}
+			if m.Subject != "" {
+				t.Errorf("ReadHeaders(%q).Subject = %q, want none", c.raw, m.Subject)
 			}
 		})
 	}
@@ -219,6 +373,11 @@ func TestReadHeadersChecksItsLimits(t *testing.T) {
 	if !errors.Is(err, message.ErrLimitsUnset) || m != nil {
 		t.Errorf("ReadHeaders() with no limits = %+v, %v, want nil and ErrLimitsUnset", m, err)
 	}
+}
+
+// holdsABody reports whether m answers a body or a file.
+func holdsABody(m *message.Message) bool {
+	return m.Text != "" || m.HTML != "" || m.Attachments != nil || m.InlineImages != nil
 }
 
 // readHeaders answers the headers of raw under limits, failing t on an error.
