@@ -35,7 +35,7 @@ func FormatIDs(ids []string) string {
 	return "<" + strings.Join(kept, "> <") + ">"
 }
 
-// cleanIDs answers the ids that are UTF-8 with no bracket, blank or control character, in order.
+// cleanIDs answers the ids that are UTF-8 within the line limit with no bracket, blank or control character, in order.
 func cleanIDs(ids []string) []string {
 	var kept []string
 	for _, id := range ids {
@@ -75,7 +75,16 @@ func bracketed(s string) (string, string) {
 	if s[end] == '<' {
 		return "", s[end:]
 	}
-	return cleanID(s[1:end]), s[end+1:]
+	return cleanID(unquoted(s[1:end])), s[end+1:]
+}
+
+// unquoted answers id without the quotes around its left side, id itself when only that form does not apply.
+func unquoted(id string) string {
+	left, right, _ := strings.Cut(strings.TrimPrefix(id, `"`), `"`)
+	if !strings.HasPrefix(id, `"`) || !strings.HasPrefix(right, "@") {
+		return id
+	}
+	return left + right
 }
 
 // bareID answers word when it reads as an id without brackets, empty otherwise.
@@ -86,9 +95,9 @@ func bareID(word string) string {
 	return cleanID(word)
 }
 
-// cleanID answers id when it is UTF-8 with no blank or control character, empty otherwise.
+// cleanID answers id when it is UTF-8 within the line limit with no blank or control character, empty otherwise.
 func cleanID(id string) string {
-	if !utf8.ValidString(id) || strings.ContainsFunc(id, isBlankOrControl) {
+	if len(id) > lineLimit || !utf8.ValidString(id) || strings.ContainsFunc(id, isBlankOrControl) {
 		return ""
 	}
 	return id
