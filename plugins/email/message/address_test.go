@@ -172,6 +172,15 @@ var parseAddressesCases = []struct {
 	{"a semicolon in an encoded word", "=?utf-8?q?a;other@example.com;b?= first@example.com", nil},
 	{"an encoded word that never closes", "=?utf-8?q?a, other@example.com", nil},
 	{
+		"a separator after an escape opening an encoded word", "=?utf-8?q?=41,other@example.com,b?= <first@example.com>",
+		[]message.Address{{Name: "=?utf-8?q?=41,other@example.com,b?=", Email: "first@example.com"}},
+	},
+	{
+		"a question mark inside an encoded word", "=?utf-8?q?a?b,other@example.com,c?= <first@example.com>",
+		[]message.Address{{Name: "=?utf-8?q?a?b,other@example.com,c?=", Email: "first@example.com"}},
+	},
+	{"an encoded word with no sections", "=?=, other@example.com", nil},
+	{
 		"a name in a charset the mail standard does not decode", "=?windows-1252?q?Price_=A3120?= <first@example.com>",
 		[]message.Address{{Name: "Price £120", Email: "first@example.com"}},
 	},

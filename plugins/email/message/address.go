@@ -117,10 +117,19 @@ func (f addressField) past(i int) int {
 		_, rest, _ := strings.Cut(text, "]")
 		return len(f) - len(rest)
 	case strings.HasPrefix(text, "=?"):
-		_, rest, _ := strings.Cut(text, "?=")
-		return len(f) - len(rest)
+		return len(f) - len(f[i:].afterEncodedWord())
 	}
 	return i + 1
+}
+
+// afterEncodedWord answers the text after the encoded word opening f, empty when it never closes.
+func (f addressField) afterEncodedWord() string {
+	text := string(f)
+	for range 3 {
+		_, text, _ = strings.Cut(text, "?")
+	}
+	_, rest, _ := strings.Cut(text, "?=")
+	return rest
 }
 
 // named answers the mailboxes the piece f names, whole, from the bracket outside its quotes, or word by word.
