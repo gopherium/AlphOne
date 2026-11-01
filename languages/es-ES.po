@@ -700,8 +700,8 @@ msgid "Contact added."
 msgstr "Contacto añadido."
 
 #, fuzzy
-msgid "Dismiss"
-msgstr "Descartar"
+msgid "Dismiss this notice"
+msgstr "Descartar este aviso"
 
 #, fuzzy
 msgid "Identity"

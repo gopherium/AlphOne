@@ -8,7 +8,6 @@ import {
 	graphError,
 	sprintf,
 	useGraph,
-	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { BulkFailure, BulkRun, BulkWords } from '@alphone/frontend-sdk'
@@ -20,12 +19,11 @@ import { apiTokenRevokeMutation } from './tokenOperations'
 /**
  * Returns the question the revoke modal asks.
  * @param tokens - The tokens the reader picked.
- * @param name - The name of the first token, cut to the length a toast shows.
  * @returns The question, naming the token when only one was picked.
  */
-function revokeQuestion(tokens: ApiToken[], name: string): string {
+function revokeQuestion(tokens: ApiToken[]): string {
 	if (tokens.length === 1) {
-		return sprintf(__('Revoke "%(name)s"? This cannot be undone.', 'alphone'), { name })
+		return sprintf(__('Revoke "%(name)s"? This cannot be undone.', 'alphone'), { name: tokens[0].name })
 	}
 	const many = _n(
 		'Revoke %s token? This cannot be undone.',
@@ -40,12 +38,11 @@ function revokeQuestion(tokens: ApiToken[], name: string): string {
  * Returns the toast confirming the tokens one revoke reached.
  * @param done - How many tokens the revoke reached.
  * @param only - The one token asked, when only one was.
- * @param cut - Cuts a name to the length a toast shows.
  * @returns The confirmation, naming the token when only one was asked.
  */
-function revokedMessage(done: number, only: ApiToken | undefined, cut: (name: string) => string): string {
+function revokedMessage(done: number, only: ApiToken | undefined): string {
 	if (only !== undefined) {
-		return sprintf(__('"%(name)s" revoked.', 'alphone'), { name: cut(only.name) })
+		return sprintf(__('"%(name)s" revoked.', 'alphone'), { name: only.name })
 	}
 	return sprintf(_n('%s token revoked.', '%s tokens revoked.', done, 'alphone'), formatNumber(done))
 }
@@ -65,16 +62,10 @@ function unrevokedMessage(failures: BulkFailure<ApiToken>[], asked: number): str
 	return sprintf(template, formatNumber(failures.length))
 }
 
-/**
- * Returns the words a revoke run reports its outcome in.
- * @param cut - Cuts a name to the length a toast shows.
- * @returns The words for the tokens revoked and for the ones that failed.
- */
-function revokeWords(cut: (name: string) => string): BulkWords<ApiToken> {
-	return {
-		done: (done, only) => revokedMessage(done, only, cut),
-		failed: unrevokedMessage,
-	}
+/** The words a revoke run reports its outcome in. */
+const revokeWords: BulkWords<ApiToken> = {
+	done: revokedMessage,
+	failed: unrevokedMessage,
 }
 
 /**
@@ -84,8 +75,6 @@ function revokeWords(cut: (name: string) => string): BulkWords<ApiToken> {
  */
 export function RevokeModal({ items, closeModal, bulk }: RenderModalProps<ApiToken> & { bulk: BulkRun<ApiToken> }) {
 	const graph = useGraph()
-	const toaster = useToaster()
-	const cut = (name: string) => toaster.name(name)
 
 	return (
 		<RunConfirm
@@ -97,11 +86,11 @@ export function RevokeModal({ items, closeModal, bulk }: RenderModalProps<ApiTok
 				bulk(
 					tokens,
 					(token) => graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise(),
-					revokeWords(cut),
+					revokeWords,
 				)
 			}
 		>
-			{revokeQuestion(items, cut(items[0].name))}
+			{revokeQuestion(items)}
 		</RunConfirm>
 	)
 }

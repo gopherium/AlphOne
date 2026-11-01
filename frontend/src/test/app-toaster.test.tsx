@@ -21,9 +21,15 @@ function Raiser() {
 	return <Button onClick={() => toaster.show('Task completed.', { label: 'Undo', onAct: () => {} })}>Complete</Button>
 }
 
-/** Offers the raise button once the admin settings arrived. */
+/** Raises one toast with no action when its button is pressed. */
+function PlainRaiser() {
+	const toaster = useToaster()
+	return <Button onClick={() => toaster.show('Contact saved.')}>Save</Button>
+}
+
+/** Offers the plain raise button once the admin settings arrived. */
 function SettledRaiser() {
-	return useAdminSettings().settings === undefined ? null : <Raiser />
+	return useAdminSettings().settings === undefined ? null : <PlainRaiser />
 }
 
 /**
@@ -43,17 +49,17 @@ function renderToaster(tree: React.ReactNode, user: (User & { role?: string }) |
 	)
 }
 
-test('names the control clearing a toast in the language the page shows', async () => {
-	setLocaleData({ Dismiss: ['Descartar'] }, 'alphone')
+test('describes a plain toast with its hint in the language the page shows', async () => {
+	setLocaleData({ 'Dismiss this notice': ['Descartar este aviso'] }, 'alphone')
 
-	renderToaster(<Raiser />, null)
-	fireEvent.click(screen.getByRole('button', { name: 'Complete' }))
+	renderToaster(<PlainRaiser />, null)
+	fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(await screen.findByText('Task completed.')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Descartar' })).toBeInTheDocument()
+	const toast = await screen.findByRole('button', { name: 'Contact saved.' })
+	expect(toast).toHaveAccessibleDescription('Descartar este aviso')
 })
 
-test('keeps a toast on screen as long as the admin settings say', async () => {
+test('keeps a plain toast on screen as long as the admin settings say', async () => {
 	server.use(
 		graphql.query('AdminSettings', () =>
 			HttpResponse.json({
@@ -71,9 +77,9 @@ test('keeps a toast on screen as long as the admin settings say', async () => {
 		),
 	)
 	renderToaster(<SettledRaiser />, adminSession)
-	fireEvent.click(await screen.findByRole('button', { name: 'Complete' }))
+	fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
 
-	await waitForElementToBeRemoved(() => screen.queryByText('Task completed.'), { timeout: 2000 })
+	await waitForElementToBeRemoved(() => screen.queryByText('Contact saved.'), { timeout: 2000 })
 })
 
 test('raises toasts around a public link screen without asking who is signed in', async () => {

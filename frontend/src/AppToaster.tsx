@@ -4,20 +4,20 @@ import { Toaster, __, useAdminSettings } from '@alphone/frontend-sdk'
 import type { ReactNode } from 'react'
 
 /**
- * Renders the toast region with its translated dismiss control around the given tree.
- * @param props - The tree the region wraps, and how long a toast stays, the brick default when left out.
+ * Renders the toast region with its translated dismiss hint around the given tree.
+ * @param props - The tree the region wraps, and how long a plain toast stays, the brick default when left out.
  * @returns The wrapped tree with its region.
  */
 function Region({ children, dismissAfter }: { children: ReactNode, dismissAfter?: number }) {
 	return (
-		<Toaster dismissAfter={dismissAfter} dismissLabel={__('Dismiss', 'alphone')}>
+		<Toaster dismissAfter={dismissAfter} dismissLabel={__('Dismiss this notice', 'alphone')}>
 			{children}
 		</Toaster>
 	)
 }
 
 /**
- * Renders the toast region around the signed-in tree, each toast staying as long as the admin settings say.
+ * Renders the toast region around the signed-in tree, each plain toast staying as long as the admin settings say.
  * @param props - The tree the region wraps.
  * @returns The wrapped tree with its region.
  */

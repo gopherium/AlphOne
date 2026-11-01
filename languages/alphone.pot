@@ -214,7 +214,7 @@ msgstr ""
 msgid "Disable"
 msgstr ""
 
-msgid "Dismiss"
+msgid "Dismiss this notice"
 msgstr ""
 
 msgid "Done"

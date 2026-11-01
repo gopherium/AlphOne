@@ -147,7 +147,7 @@ test('opens the resend at the default medium width under its title, with Cancel 
 	expect(modal.getByRole('button', { name: 'Resend invitation' })).toBeInTheDocument()
 })
 
-test('cuts a long account name short in the resend question', async () => {
+test('shows a long account name whole in the resend question', async () => {
 	const invited = {
 		__typename: 'User',
 		id: '0198b2f0-0000-7000-8000-000000000002',
@@ -166,7 +166,7 @@ test('cuts a long account name short in the resend question', async () => {
 
 	expect(
 		modal.getByText(
-			'Send a new invitation to "Maria Perez of the accounting and payroll off…" (maria@example.com)? ' +
+			'Send a new invitation to "Maria Perez of the accounting and payroll office team" (maria@example.com)? ' +
 				'The link sent before stops working.',
 		),
 	).toBeInTheDocument()
