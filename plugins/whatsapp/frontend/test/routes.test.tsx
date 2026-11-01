@@ -59,7 +59,7 @@ test('drills the host sidebar into the WhatsApp sub menu, under its title and Ba
 	expect(await within(shown).findByRole('heading', { level: 1, name: 'WhatsApp' })).toBeInTheDocument()
 	expect(within(shown).getByRole('link', { name: 'Back' })).toBeInTheDocument()
 	expect(await within(shown).findByText('John Doe')).toBeInTheDocument()
-	expect(within(screen.getByRole('main')).getByText('No conversation selected.')).toBeInTheDocument()
+	expect(within(screen.getByRole('main')).getByText('No conversation selected')).toBeInTheDocument()
 })
 
 test('takes Back on the WhatsApp sub menu home, the focus on the WhatsApp row', async () => {
@@ -77,11 +77,11 @@ test('takes Back on the WhatsApp sub menu home, the focus on the WhatsApp row', 
 test('offers a titled empty state until a conversation is chosen', async () => {
 	renderPluginAt(plugin, '/whatsapp', { session: adminSession })
 
-	expect(await screen.findByText('No conversation selected.')).toBeInTheDocument()
+	expect(await screen.findByText('No conversation selected')).toBeInTheDocument()
 	expect(
 		screen.getByText('Pick one from the list to read its messages.'),
 	).toBeInTheDocument()
-	expect(screen.getByRole('heading', { level: 3, name: 'No conversation selected.' })).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 3, name: 'No conversation selected' })).toBeInTheDocument()
 })
 
 test('serves the thread for a conversation URL', async () => {

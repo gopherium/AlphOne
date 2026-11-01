@@ -11,7 +11,7 @@ export function Empty() {
 		<PageScreen title={__('Conversations', 'alphone-whatsapp')} headingLevel={2}>
 			<ListEmpty
 				icon={comment}
-				title={__('No conversation selected.', 'alphone-whatsapp')}
+				title={__('No conversation selected', 'alphone-whatsapp')}
 				description={__('Pick one from the list to read its messages.', 'alphone-whatsapp')}
 			/>
 		</PageScreen>

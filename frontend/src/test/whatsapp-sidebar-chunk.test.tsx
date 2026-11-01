@@ -44,11 +44,11 @@ test('keeps the main menu, the footer and the open screen until the WhatsApp sid
 	expect(within(nav).getByText('v0.1.0')).toHaveClass('godmin-sidebar__footer-note')
 	expect(within(nav).getByRole('button', { name: 'Log out' })).toBeInTheDocument()
 	expect(screen.getByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
-	expect(screen.queryByText('No conversation selected.')).toBeNull()
+	expect(screen.queryByText('No conversation selected')).toBeNull()
 
 	sidebarChunk.land()
 
 	expect(await within(nav).findByRole('heading', { name: 'WhatsApp' })).toBeInTheDocument()
-	expect(screen.getByText('No conversation selected.')).toBeInTheDocument()
+	expect(screen.getByText('No conversation selected')).toBeInTheDocument()
 	expect(within(nav).queryByRole('link', { name: 'Tasks' })).toBeNull()
 })

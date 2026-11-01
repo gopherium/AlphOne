@@ -82,8 +82,8 @@ msgid "Messages could not be loaded."
 msgstr "No se han podido cargar los mensajes."
 
 #, fuzzy
-msgid "No conversation selected."
-msgstr "Ninguna conversación seleccionada."
+msgid "No conversation selected"
+msgstr "Ninguna conversación seleccionada"
 
 #, fuzzy
 msgid "No conversations yet."
