@@ -11,6 +11,9 @@ import (
 // wordEnds lists the bytes that end a bare word in a message id list.
 const wordEnds = " \t\r\n<>()\","
 
+// idSpecials lists the bytes that keep the left side of a message id in quotes.
+const idSpecials = `()<>[]:;@\,"`
+
 // ParseIDs answers the message ids in a Message-ID, In-Reply-To or References value, unbracketed and each once.
 func ParseIDs(value string) []string {
 	var ids []string
@@ -78,10 +81,11 @@ func bracketed(s string) (string, string) {
 	return cleanID(unquoted(s[1:end])), s[end+1:]
 }
 
-// unquoted answers id without the quotes around its left side, id itself when only that form does not apply.
+// unquoted answers id without the quotes around its left side, id itself when that side needs them.
 func unquoted(id string) string {
 	left, right, _ := strings.Cut(strings.TrimPrefix(id, `"`), `"`)
-	if !strings.HasPrefix(id, `"`) || !strings.HasPrefix(right, "@") {
+	switch {
+	case left == "", strings.ContainsAny(left, idSpecials), !strings.HasPrefix(id, `"`+left+`"@`):
 		return id
 	}
 	return left + right
@@ -89,7 +93,7 @@ func unquoted(id string) string {
 
 // bareID answers word when it reads as an id without brackets, empty otherwise.
 func bareID(word string) string {
-	if !strings.Contains(word, "@") {
+	if strings.IndexByte(word, '@') <= 0 {
 		return ""
 	}
 	return cleanID(word)
@@ -97,7 +101,8 @@ func bareID(word string) string {
 
 // cleanID answers id when it is UTF-8 within the line limit with no blank or control character, empty otherwise.
 func cleanID(id string) string {
-	if len(id) > lineLimit || !utf8.ValidString(id) || strings.ContainsFunc(id, isBlankOrControl) {
+	switch {
+	case len(id) > lineLimit, !utf8.ValidString(id), strings.ContainsFunc(id, isBlankOrControl):
 		return ""
 	}
 	return id
