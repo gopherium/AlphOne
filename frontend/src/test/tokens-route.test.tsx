@@ -6,6 +6,7 @@ import { setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { search } from '@wordpress/icons'
 import type { ReactElement } from 'react'
 import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
@@ -218,11 +219,18 @@ test('lines the list up with the title, out to the canvas edges, as the Users ta
 	expect(search.closest('.dataviews-wrapper')).not.toBeNull()
 })
 
-test('draws New token as a compact button, as a WordPress page header does', async () => {
+test('draws Add Token as a compact button, as a WordPress page header does', async () => {
 	renderAt('/users/tokens')
 
-	const add = await screen.findByRole('link', { name: 'New token' })
+	const add = await screen.findByRole('link', { name: 'Add Token' })
 	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
+})
+
+test('names the list region as the tab names the tokens', async () => {
+	renderAt('/users/tokens')
+
+	const region = within(await screen.findByRole('region', { name: 'API tokens' }))
+	expect(region.getByRole('searchbox', { name: 'Search tokens…' })).toBeInTheDocument()
 })
 
 test('heads the columns with the token name first and its three dates after it', async () => {
@@ -341,13 +349,14 @@ test('reports when the tokens cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent('Tokens could not be loaded.')
 })
 
-test('shows an empty state when no token exists', async () => {
+test('shows an empty state with a solid add button at its default size when no token exists', async () => {
 	holding([])
 	renderAt('/users/tokens')
 
-	expect(await screen.findByText('No API tokens yet.')).toBeInTheDocument()
-	expect(screen.getByText('Add one with New token.').closest('.godmin-empty')).not.toBeNull()
-	expect(screen.getByRole('heading', { level: 3, name: 'No API tokens yet.' })).toBeInTheDocument()
+	const title = await screen.findByRole('heading', { level: 3, name: 'No API tokens yet' })
+	const add = within(title.closest('.godmin-empty') as HTMLElement).getByRole('link', { name: 'Add Token' })
+	expect(add).toHaveAttribute('href', '/users/tokens/new')
+	expect([...add.classList]).toEqual(buttonClasses('solid'))
 })
 
 /**
@@ -376,20 +385,23 @@ test('draws a key on an empty token list', async () => {
 	holding([])
 	renderAt('/users/tokens')
 
-	expect(await emptyDrawing('No API tokens yet.')).toBe(drawingOf(key))
+	expect(await emptyDrawing('No API tokens yet')).toBe(drawingOf(key))
 })
 
-test('draws a key on a token list a search narrowed to nothing', async () => {
+test('draws the search icon on a token list a search narrowed to nothing', async () => {
 	renderAt('/users/tokens?search=nothing')
 
-	expect(await emptyDrawing('No tokens found.')).toBe(drawingOf(key))
+	expect(await emptyDrawing('No results found')).toBe(drawingOf(search))
 })
 
-test('says no token matched when a search finds none', async () => {
+test('says no result came back when a search finds no token, and offers no add button', async () => {
 	renderAt('/users/tokens?search=nothing')
 
-	expect(await screen.findByText('No tokens found.')).toBeInTheDocument()
-	expect(screen.queryByText('No API tokens yet.')).not.toBeInTheDocument()
+	const title = await screen.findByRole('heading', { level: 3, name: 'No results found' })
+	const empty = within(title.closest('.godmin-empty') as HTMLElement)
+	expect(empty.getByText("Try adjusting your search or filters to find what you're looking for.")).toBeInTheDocument()
+	expect(empty.queryByRole('link')).not.toBeInTheDocument()
+	expect(screen.queryByText('No API tokens yet')).not.toBeInTheDocument()
 })
 
 test('reaches the tokens tab from the users tab', async () => {
@@ -412,7 +424,7 @@ test('returns to the users tab from the tokens tab', async () => {
 
 	await userEvent.click(tabs.getByRole('link', { name: 'Users' }))
 
-	expect(await screen.findByText('No users yet.')).toBeInTheDocument()
+	expect(await screen.findByText('No users yet')).toBeInTheDocument()
 	const shown = within(screen.getByRole('navigation', { name: 'User sections' }))
 	expect(shown.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page')
 	expect(shown.getByRole('link', { name: 'API tokens' })).not.toHaveAttribute('aria-current')
@@ -447,11 +459,18 @@ test('asks before it revokes in a medium modal with no title or close button, as
 	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
-test('puts the focus on Cancel when the revoke opens, as a WordPress delete does', async () => {
+/**
+ * Gives every element a layout box until the test ends.
+ */
+function layOut() {
 	const laidOut = vi
 		.spyOn(HTMLElement.prototype, 'getClientRects')
 		.mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList)
 	onTestFinished(() => laidOut.mockRestore())
+}
+
+test('puts the focus on Cancel when the revoke opens, as a WordPress delete does', async () => {
+	layOut()
 	renderAt('/users/tokens')
 
 	await act('n8n production', 'Revoke…')
@@ -582,8 +601,81 @@ test('closes a bulk revoke with one toast while the list reloads, then drops the
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	expect(screen.getByRole('row', { name: /n8n production/ })).toBeInTheDocument()
 	expect(screen.getByRole('row', { name: /Zapier sync/ })).toBeInTheDocument()
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
 	reload.release()
+	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
+	expect(await shownNames()).toEqual(['Monthly report'])
+})
+
+test('marks the list reloading as the first revoke ends, with Cancel still greyed and no toast yet', async () => {
+	const last = gate()
+	server.use(
+		graphql.mutation('ApiTokenRevoke', async ({ variables }) => {
+			if (variables.id === sync.id) {
+				await last.held
+			}
+			held = held.filter((each) => each.id !== variables.id)
+			return HttpResponse.json({ data: { apiTokenRevoke: true } })
+		}),
+	)
+	renderAt('/users/tokens')
+	await select('n8n production', 'Zapier sync')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+
+	await waitFor(() => expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'true'))
+	expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.queryByText('2 tokens revoked.')).not.toBeInTheDocument()
+	last.release()
+	expect(await screen.findByText('2 tokens revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('keeps the focus on the list region through a keyboard revoke, then on the checkbox of the next row', async () => {
+	layOut()
+	revokes()
+	renderAt('/users/tokens')
+	const menu = (await rowOf('Monthly report')).getByRole('button', { name: 'Actions' })
+	const reload = gate()
+	server.use(
+		graphql.query('ApiTokens', async () => {
+			await reload.held
+			return HttpResponse.json({ data: { apiTokens: held } })
+		}),
+	)
+
+	menu.focus()
+	await userEvent.keyboard('{Enter}')
+	await screen.findByRole('menuitem', { name: 'Revoke…' })
+	await userEvent.keyboard('{Enter}')
+	const dialog = within(await screen.findByRole('dialog'))
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveFocus())
+	await userEvent.keyboard('{Tab}{Enter}')
+
+	expect(await screen.findByText('"Monthly report" revoked.')).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(screen.getByRole('region', { name: 'API tokens' })).toHaveFocus()
+	reload.release()
+	await waitFor(() => expect(screen.getByRole('checkbox', { name: 'n8n production' })).toHaveFocus())
+	expect(await shownNames()).toEqual(['Zapier sync', 'n8n production'])
+})
+
+test('leaves the focus on the list region when the bulk bar goes with the revoked rows', async () => {
+	layOut()
+	revokes()
+	renderAt('/users/tokens')
+	await select('n8n production', 'Zapier sync')
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+
 	await waitFor(async () => expect(await shownNames()).toEqual(['Monthly report']))
+	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
+	expect(screen.queryByRole('button', { name: 'Revoke…' })).not.toBeInTheDocument()
+	expect(screen.getByRole('region', { name: 'API tokens' })).toHaveFocus()
 })
 
 test('revokes every selected token after one question with one toast, counted in the format locale', async () => {

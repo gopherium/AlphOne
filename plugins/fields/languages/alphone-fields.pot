@@ -121,7 +121,7 @@ msgstr ""
 msgid "No entries yet."
 msgstr ""
 
-msgid "No fields yet."
+msgid "No fields yet"
 msgstr ""
 
 msgid "No sub fields yet."

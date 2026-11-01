@@ -12,6 +12,7 @@ import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
+import { gate } from './gate'
 import { badgeClasses, buttonClasses, renderAt } from './render'
 
 /** account is one user as the users query answers it. */
@@ -148,7 +149,7 @@ test('follows the page template like every other screen', async () => {
 
 	const heading = await screen.findByRole('heading', { level: 2, name: 'Users' })
 	expect(heading.closest('.godmin-page')).not.toBeNull()
-	expect(await screen.findByRole('link', { name: 'New user' })).toBeInTheDocument()
+	expect(await screen.findByRole('link', { name: 'Add User' })).toBeInTheDocument()
 })
 
 test('says under the title what the users tab is for', async () => {
@@ -192,15 +193,22 @@ test('leaves API tokens out of the header, now that it is a tab', async () => {
 	renderAt('/users')
 
 	const header = (await screen.findByRole('heading', { level: 2, name: 'Users' })).closest('header') as HTMLElement
-	await screen.findByRole('link', { name: 'New user' })
+	await screen.findByRole('link', { name: 'Add User' })
 	expect(within(header).queryByRole('link', { name: 'API tokens' })).not.toBeInTheDocument()
 })
 
-test('draws New user as a compact button, as a WordPress page header does', async () => {
+test('draws Add User as a compact button, as a WordPress page header does', async () => {
 	renderAt('/users')
 
-	const add = await screen.findByRole('link', { name: 'New user' })
+	const add = await screen.findByRole('link', { name: 'Add User' })
 	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
+})
+
+test('names the list region Users', async () => {
+	renderAt('/users')
+
+	const region = within(await screen.findByRole('region', { name: 'Users' }))
+	expect(region.getByRole('searchbox', { name: 'Search users…' })).toBeInTheDocument()
 })
 
 test('lines the list up with the title, out to the canvas edges', async () => {
@@ -210,21 +218,25 @@ test('lines the list up with the title, out to the canvas edges', async () => {
 	expect(search.closest('.godmin-page__list')).not.toBeNull()
 })
 
-test('shows an empty state when no accounts exist', async () => {
+test('shows an empty state with a solid add button at its default size when no accounts exist', async () => {
 	holding([])
 
 	renderAt('/users')
 
-	expect(await screen.findByText('No users yet.')).toBeInTheDocument()
-	expect(screen.getByText('Add one with New user.').closest('.godmin-empty')).not.toBeNull()
-	expect(screen.getByRole('heading', { level: 3, name: 'No users yet.' })).toBeInTheDocument()
+	const title = await screen.findByRole('heading', { level: 3, name: 'No users yet' })
+	const add = within(title.closest('.godmin-empty') as HTMLElement).getByRole('link', { name: 'Add User' })
+	expect(add).toHaveAttribute('href', '/users/new')
+	expect([...add.classList]).toEqual(buttonClasses('solid'))
 })
 
-test('says nobody matched when a search finds no account', async () => {
+test('says no result came back when a search finds no account, and offers no add button', async () => {
 	renderAt('/users?search=nobody')
 
-	expect(await screen.findByText('No users found.')).toBeInTheDocument()
-	expect(screen.queryByText('No users yet.')).not.toBeInTheDocument()
+	const title = await screen.findByRole('heading', { level: 3, name: 'No results found' })
+	const empty = within(title.closest('.godmin-empty') as HTMLElement)
+	expect(empty.getByText("Try adjusting your search or filters to find what you're looking for.")).toBeInTheDocument()
+	expect(empty.queryByRole('link')).not.toBeInTheDocument()
+	expect(screen.queryByText('No users yet')).not.toBeInTheDocument()
 })
 
 test('reads each account status as a badge', async () => {
@@ -612,6 +624,16 @@ test('enables a disabled account from the Enable its row draws', async () => {
 	expect(writes).toEqual([{ id: barred.id, disabled: false }])
 })
 
+test('puts the focus on the checkbox of the row once its pressed Enable went with the reload', async () => {
+	writesDisabled()
+	renderAt('/users')
+
+	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Enable' }))
+
+	await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Ana Lopez' })).toHaveFocus())
+	expect((await rowOf('Ana Lopez')).queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
+})
+
 test('shows a long account name whole in the toast', async () => {
 	holding([signedIn, accountOf('fd', 'Maria Perez of the accounting and payroll office team')])
 	writesDisabled()
@@ -832,6 +854,81 @@ test('changes the role of another account in a modal and names the account in a 
 	expect(asked).toEqual(['admin'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument()
+})
+
+test('closes a role change with its toast as the write ends, the old rows busy until they reload', async () => {
+	writesRole()
+	renderAt('/users')
+	await rowOf('Ada Lovelace')
+	const reload = gate()
+	server.use(
+		graphql.query('Users', async () => {
+			await reload.held
+			return HttpResponse.json({ data: { users: held } })
+		}),
+	)
+
+	await act('Ada Lovelace', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
+	expect((await rowOf('Ada Lovelace')).getByText('Member')).toBeInTheDocument()
+	reload.release()
+	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
+	expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument()
+})
+
+test('gives the focus back to the actions of the row once a role change reloaded the list', async () => {
+	writesRole()
+	renderAt('/users')
+
+	await act('Ada Lovelace', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	await screen.findByText('Role changed for "Ada Lovelace".')
+	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
+	const row = await rowOf('Ada Lovelace')
+	await waitFor(() => expect(row.getByRole('button', { name: 'Actions' })).toHaveFocus())
+})
+
+test('marks no reload after a failed role change, and reloads behind a modal that keeps the pick', async () => {
+	renderAt('/users')
+	await rowOf('Ada Lovelace')
+	const reload = gate()
+	let reads = 0
+	server.use(
+		graphql.mutation('SetUserRole', ({ variables }) => {
+			held = held.map((user) => (user.id === String(variables.id) ? { ...user, email: 'reloaded@example.com' } : user))
+			return HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+		}),
+		graphql.query('Users', async () => {
+			reads += 1
+			await reload.held
+			return HttpResponse.json({ data: { users: held } })
+		}),
+	)
+
+	await act('Ada Lovelace', 'Change role…')
+	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+
+	expect(await dialog.findByRole('alert')).toHaveTextContent('The role could not be changed.')
+	await waitFor(() => expect(reads).toBe(1))
+	expect(screen.getByRole('table', { hidden: true })).not.toHaveAttribute('aria-busy', 'true')
+	reload.release()
+	expect(await screen.findByText('reloaded@example.com')).toBeInTheDocument()
+	expect(dialog.getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
+	expect(dialog.getByRole('alert')).toHaveTextContent('The role could not be changed.')
 })
 
 test('offers only the roles the reader may grant', async () => {

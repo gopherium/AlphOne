@@ -21,7 +21,7 @@ test('titles an empty catalogue under the page, describes it and draws the list 
 
 	renderHosted(<FieldsScreen />, fakeGraphClient([plugin]).graph)
 
-	const title = await screen.findByRole('heading', { level: 3, name: 'No fields yet.' })
+	const title = await screen.findByRole('heading', { level: 3, name: 'No fields yet' })
 	const empty = title.closest('.godmin-empty')
 	expect(empty?.querySelector('svg')?.innerHTML).toBe(drawing)
 	expect(empty).toHaveTextContent('Add a field to store more about every contact.')

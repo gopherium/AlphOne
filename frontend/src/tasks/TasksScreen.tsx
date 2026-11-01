@@ -174,7 +174,7 @@ function TaskSections({
 			{open.length === 0 ? (
 				<ListEmpty
 					icon={inbox}
-					title={__('Nothing due today.', 'alphone')}
+					title={__('Nothing due today', 'alphone')}
 					description={__('Add a task above, or open a contact and create one from their page.', 'alphone')}
 				/>
 			) : (

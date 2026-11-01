@@ -162,8 +162,8 @@ msgid "No entries yet."
 msgstr "Todavía no hay ninguna entrada."
 
 #, fuzzy
-msgid "No fields yet."
-msgstr "Todavía no hay ningún campo."
+msgid "No fields yet"
+msgstr "Todavía no hay ningún campo"
 
 #, fuzzy
 msgid "No sub fields yet."

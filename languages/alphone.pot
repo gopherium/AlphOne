@@ -85,19 +85,19 @@ msgstr ""
 msgid "Activation link"
 msgstr ""
 
+msgid "Add Contact"
+msgstr ""
+
+msgid "Add Token"
+msgstr ""
+
+msgid "Add User"
+msgstr ""
+
 msgid "Add a task above, or open a contact and create one from their page."
 msgstr ""
 
 msgid "Add identity"
-msgstr ""
-
-msgid "Add one with New contact."
-msgstr ""
-
-msgid "Add one with New token."
-msgstr ""
-
-msgid "Add one with New user."
 msgstr ""
 
 msgid "Add task"
@@ -331,13 +331,13 @@ msgstr ""
 msgid "Next day"
 msgstr ""
 
-msgid "No API tokens yet."
+msgid "No API tokens yet"
 msgstr ""
 
 msgid "No contacts found."
 msgstr ""
 
-msgid "No contacts yet."
+msgid "No contacts yet"
 msgstr ""
 
 msgid "No identities yet."
@@ -349,19 +349,13 @@ msgstr ""
 msgid "No open tasks."
 msgstr ""
 
-msgid "No tokens found."
-msgstr ""
-
-msgid "No users found."
-msgstr ""
-
-msgid "No users yet."
+msgid "No users yet"
 msgstr ""
 
 msgid "Nothing declares that role."
 msgstr ""
 
-msgid "Nothing due today."
+msgid "Nothing due today"
 msgstr ""
 
 msgid "Open tasks"

@@ -14,7 +14,7 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await page.getByRole('link', { name: 'Contacts' }).click()
 	await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible()
 
-	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByRole('link', { name: 'Add Contact' }).first().click()
 	await page.getByLabel('Name').fill(name)
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name })).toBeVisible()

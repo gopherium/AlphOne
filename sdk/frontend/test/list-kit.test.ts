@@ -9,6 +9,7 @@ import {
 	DrilldownItem,
 	FormBody,
 	ListEmpty,
+	ListNoResults,
 	markLatest,
 	MenuCount,
 	NavigationItem,
@@ -20,6 +21,7 @@ import {
 	useListRun,
 	useToaster,
 	useUnsavedText,
+	viewNarrows,
 } from '../index'
 import type {
 	BulkRun,
@@ -56,8 +58,8 @@ test('hands plugins the list kit the admin runs, the very functions godmin ships
 	expectGodminOwn([RunConfirm, useBulkRun, useListRun], [godmin.RunConfirm, godmin.useBulkRun, godmin.useListRun])
 })
 
-test('hands plugins the empty list the admin draws, the very one godmin ships', () => {
-	expectGodminOwn([ListEmpty], [godmin.ListEmpty])
+test('hands plugins the empty states and the narrowing check, the very ones godmin ships', () => {
+	expectGodminOwn([ListEmpty, ListNoResults, viewNarrows], [godmin.ListEmpty, godmin.ListNoResults, godmin.viewNarrows])
 })
 
 test('hands plugins the sidebar menu parts the admin draws, the very ones godmin ships', () => {

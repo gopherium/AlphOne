@@ -9,25 +9,24 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { UnsavedText } from '@alphone/frontend-sdk'
+import type { ListRun, UnsavedText } from '@alphone/frontend-sdk'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 
 import type { ContactRow } from './contactFields'
 import { renameContactMutation } from './operations'
 
-/** contactPageOperation names the query the contacts list reads, rerun once a contact changed. */
-const contactPageOperation = 'ContactPage'
-
 /**
  * Renders the modal writing a new name for one contact, closed the moment Save is pressed, its failure in a toast.
- * @param props - The contact, the handler closing the modal, and the names failed renames left unsaved.
+ * @param props - The contact, the handler closing the modal, the names left unsaved, the list run and its reload.
  * @returns The rename form.
  */
 export function RenameModal({
 	items: [contact],
 	closeModal,
 	unsaved,
-}: RenderModalProps<ContactRow> & { unsaved: UnsavedText }) {
+	run,
+	reload,
+}: RenderModalProps<ContactRow> & { unsaved: UnsavedText; run: ListRun; reload: () => Promise<unknown> }) {
 	const graph = useGraph()
 	const toaster = useToaster()
 	const save = (name: string) => {
@@ -45,8 +44,9 @@ export function RenameModal({
 					toaster.show(validationMessage(graphError(result.error), __('The name could not be updated.', 'alphone')))
 					return
 				}
-				graph.refetch([contactPageOperation])
 				toaster.show(__('Name updated.', 'alphone'))
+				const ended = run.onRefresh()
+				void reload().then(ended, ended)
 			})
 	}
 

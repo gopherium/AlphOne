@@ -43,7 +43,12 @@ test('keeps the role the account holds when the select hands back no choice', as
 		<QueryClientProvider client={createAuthQueryClient({ queries: { retry: false } })}>
 			<GraphProvider graph={createGraphClient({ onSessionExpired: () => {} })}>
 				<Toaster>
-					<RoleModal items={[member]} closeModal={vi.fn()} grantable={['admin', 'member']} />
+					<RoleModal
+						items={[member]}
+						closeModal={vi.fn()}
+						grantable={['admin', 'member']}
+						run={{ onStart: vi.fn(), onRefresh: vi.fn() }}
+					/>
 				</Toaster>
 			</GraphProvider>
 		</QueryClientProvider>,

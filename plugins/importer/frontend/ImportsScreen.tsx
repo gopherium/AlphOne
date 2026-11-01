@@ -4,6 +4,7 @@ import {
 	ErrorNotice,
 	FileButton,
 	ListEmpty,
+	ListNoResults,
 	PageScreen,
 	__,
 	_x,
@@ -13,11 +14,13 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useListRun,
 	useListView,
 	upload as uploadIcon,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
+import type { ListRun } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -36,36 +39,40 @@ const noImports: ImportSummary[] = []
  */
 function ImportsEmpty({ narrowed }: { narrowed: boolean }) {
 	if (narrowed) {
-		return <ListEmpty icon={uploadIcon} title={__('No imports found.', 'alphone-importer')} />
+		return <ListNoResults />
 	}
 	return (
 		<ListEmpty
 			icon={uploadIcon}
-			title={__('No imports yet.', 'alphone-importer')}
+			title={__('No imports yet', 'alphone-importer')}
 			description={__('Upload a CSV or Excel file to start one.', 'alphone-importer')}
 		/>
 	)
 }
 
 /**
- * Starts an upload, confirming a stored file with a toast that opens its mapping.
+ * Starts an upload, confirming a stored file with a toast that opens its mapping, then reloading the list.
+ * @param run - What the list does around its own reload.
  * @returns The upload state beside the control starting one.
  */
-function useUpload() {
+function useUpload(run: ListRun) {
 	const graph = useGraph()
 	const toaster = useToaster()
 	const navigate = useNavigate()
 	const [upload, startUpload] = useGraphMutation(importUploadMutation)
 	const start = async (file: File) => {
 		const result = await startUpload({ file })
-		if (result.data) {
-			const importId = result.data.importUpload.id
-			toaster.show(__('File uploaded.', 'alphone-importer'), {
-				label: __('Open', 'alphone-importer'),
-				onAct: () => void navigate({ to: '/import/$importId', params: { importId } }),
-			})
+		if (!result.data) {
+			graph.refetch(['Imports'])
+			return
 		}
-		graph.refetch(['Imports'])
+		const importId = result.data.importUpload.id
+		toaster.show(__('File uploaded.', 'alphone-importer'), {
+			label: __('Open', 'alphone-importer'),
+			onAct: () => void navigate({ to: '/import/$importId', params: { importId } }),
+		})
+		const ended = run.onRefresh()
+		await graph.client.query(importsQuery, {}, { requestPolicy: 'network-only' }).toPromise().then(ended, ended)
 	}
 	return { upload, start }
 }
@@ -76,7 +83,6 @@ function useUpload() {
  */
 export function ImportsScreen() {
 	const [imports] = useGraphQuery({ query: importsQuery, requestPolicy: 'cache-and-network' })
-	const { upload, start } = useUpload()
 	const navigate = useNavigate()
 	const { settings, failed } = useAdminSettings()
 	const list = useListView({
@@ -86,6 +92,8 @@ export function ImportsScreen() {
 		sort: { field: 'started', direction: 'desc' },
 		perPage: settings?.listPageSize,
 	})
+	const { run, refreshing, region } = useListRun('imports', list.onChangeSelection)
+	const { upload, start } = useUpload(run)
 	const onChangeSelection = openOnTap(list, (importId) => {
 		void navigate({ to: '/import/$importId', params: { importId } })
 	})
@@ -111,6 +119,8 @@ export function ImportsScreen() {
 				</FileButton>
 			}
 			list
+			listLabel={__('Imports', 'alphone-importer')}
+			listRef={region}
 		>
 			{upload.error ? (
 				<ErrorNotice>
@@ -129,7 +139,7 @@ export function ImportsScreen() {
 					defaultLayouts={list.defaultLayouts}
 					selection={list.selection}
 					onChangeSelection={onChangeSelection}
-					isLoading={imports.data === undefined || sizing}
+					isLoading={imports.data === undefined || sizing || refreshing}
 					searchLabel={__('Search imports…', 'alphone-importer')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 					empty={<ImportsEmpty narrowed={stored.length > 0} />}

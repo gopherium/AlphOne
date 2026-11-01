@@ -73,7 +73,7 @@ msgstr ""
 msgid "Messages could not be loaded."
 msgstr ""
 
-msgid "No conversation selected."
+msgid "No conversation selected"
 msgstr ""
 
 msgid "No conversations yet."

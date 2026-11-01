@@ -76,7 +76,7 @@ test('the WhatsApp section reloads once and shows its sidebar when the sidebar c
 
 	const nav = page.getByRole('region', { name: 'Navigation' })
 	await expect(nav.getByRole('heading', { level: 1, name: 'WhatsApp' })).toBeVisible()
-	await expect(page.getByText('No conversation selected.')).toBeVisible()
+	await expect(page.getByText('No conversation selected')).toBeVisible()
 })
 
 test('the WhatsApp section reloads only once and then shows the error when the sidebar chunk stays gone', async ({

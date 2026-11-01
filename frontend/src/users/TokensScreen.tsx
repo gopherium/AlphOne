@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	ListEmpty,
+	ListNoResults,
 	PageScreen,
 	__,
 	can,
@@ -39,13 +40,13 @@ const noTokens: ApiToken[] = []
  */
 function TokensEmpty({ narrowed }: { narrowed: boolean }) {
 	if (narrowed) {
-		return <ListEmpty icon={key} title={__('No tokens found.', 'alphone')} />
+		return <ListNoResults />
 	}
 	return (
 		<ListEmpty
 			icon={key}
-			title={__('No API tokens yet.', 'alphone')}
-			description={__('Add one with New token.', 'alphone')}
+			title={__('No API tokens yet', 'alphone')}
+			actions={<Button render={<Link to="/users/tokens/new" />}>{__('Add Token', 'alphone')}</Button>}
 		/>
 	)
 }
@@ -82,7 +83,7 @@ export function TokensScreen() {
 		sort: { field: 'created', direction: 'desc' },
 		perPage: settings?.listPageSize,
 	})
-	const { run } = useListRun('tokens', list.onChangeSelection)
+	const { run, refreshing, region } = useListRun('tokens', list.onChangeSelection)
 	const reload = useCallback(
 		() => graph.client.query(apiTokensQuery, {}, { requestPolicy: 'network-only' }).toPromise(),
 		[graph],
@@ -100,11 +101,13 @@ export function TokensScreen() {
 			subtitle={__('Manage the tokens your programs sign in with.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/users/tokens/new" />}>
-					{__('New token', 'alphone')}
+					{__('Add Token', 'alphone')}
 				</Button>
 			}
 			tabs={heading.tabs}
 			list
+			listLabel={__('API tokens', 'alphone')}
+			listRef={region}
 		>
 			{result.error ? (
 				<ErrorNotice>{__('Tokens could not be loaded.', 'alphone')}</ErrorNotice>
@@ -119,7 +122,7 @@ export function TokensScreen() {
 					selection={list.selection}
 					onChangeSelection={list.onChangeSelection}
 					actions={actions}
-					isLoading={result.data === undefined || sizing}
+					isLoading={result.data === undefined || sizing || refreshing}
 					searchLabel={__('Search tokens…', 'alphone')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 					empty={<TokensEmpty narrowed={tokens.length > 0} />}

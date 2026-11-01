@@ -4,6 +4,7 @@ import {
 	Button,
 	ErrorNotice,
 	ListEmpty,
+	ListNoResults,
 	PageScreen,
 	__,
 	people,
@@ -34,13 +35,13 @@ const noAccounts: Account[] = []
  */
 function UsersEmpty({ narrowed }: { narrowed: boolean }) {
 	if (narrowed) {
-		return <ListEmpty icon={people} title={__('No users found.', 'alphone')} />
+		return <ListNoResults />
 	}
 	return (
 		<ListEmpty
 			icon={people}
-			title={__('No users yet.', 'alphone')}
-			description={__('Add one with New user.', 'alphone')}
+			title={__('No users yet', 'alphone')}
+			actions={<Button render={<Link to="/users/new" />}>{__('Add User', 'alphone')}</Button>}
 		/>
 	)
 }
@@ -65,9 +66,9 @@ export function UsersScreen() {
 		perPage: settings?.listPageSize,
 	})
 	const queryClient = useQueryClient()
-	const { run } = useListRun('users', list.onChangeSelection)
+	const { run, refreshing, region } = useListRun('users', list.onChangeSelection)
 	const reload = useCallback(() => queryClient.invalidateQueries({ queryKey: usersQueryKey }), [queryClient])
-	const actions = useUserActions(session, useBulkRun<Account>(run, reload))
+	const actions = useUserActions(session, run, useBulkRun<Account>(run, reload))
 	const accounts = users.data ?? noAccounts
 	const fields = useMemo(() => userFields(accounts), [accounts])
 	const shown = filterSortAndPaginate(accounts, list.view, fields)
@@ -80,11 +81,13 @@ export function UsersScreen() {
 			subtitle={__('Manage who can sign in and what they can do.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/users/new" />}>
-					{__('New user', 'alphone')}
+					{__('Add User', 'alphone')}
 				</Button>
 			}
 			tabs={<UserTabs current="users" />}
 			list
+			listLabel={__('Users', 'alphone')}
+			listRef={region}
 		>
 			{users.isError ? (
 				<ErrorNotice>{__('Users could not be loaded.', 'alphone')}</ErrorNotice>
@@ -99,7 +102,7 @@ export function UsersScreen() {
 					selection={list.selection}
 					onChangeSelection={list.onChangeSelection}
 					actions={actions}
-					isLoading={users.isPending || sizing}
+					isLoading={users.isPending || sizing || refreshing}
 					searchLabel={__('Search users…', 'alphone')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 					empty={<UsersEmpty narrowed={accounts.length > 0} />}

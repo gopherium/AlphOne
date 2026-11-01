@@ -14,6 +14,7 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
+import type { ListRun } from '@alphone/frontend-sdk'
 import { useEnableWpCompatOverlaySlot } from '@alphone/frontend-sdk/dataviews'
 import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 import { usersQueryKey } from '@gopherium/react-auth/admin'
@@ -26,27 +27,33 @@ import { RoleSelect } from './RoleSelect'
 
 /**
  * Renders the modal writing the role another account holds.
- * @param props - The account, the handler closing the modal, and the roles the reader may grant.
+ * @param props - The account, the handler closing the modal, the roles the reader may grant, and the run of the list.
  * @returns The role form.
  */
 export function RoleModal({
 	items: [user],
 	closeModal,
 	grantable,
-}: RenderModalProps<Account> & { grantable: string[] }) {
+	run,
+}: RenderModalProps<Account> & { grantable: string[]; run: ListRun }) {
 	useEnableWpCompatOverlaySlot()
 	const queryClient = useQueryClient()
 	const toaster = useToaster()
 	const [chosen, setChosen] = useState(user.role)
 	const [written, write] = useGraphMutation(setUserRoleMutation)
 	const submit = async () => {
+		const settle = run.onStart()
 		const result = await write({ id: user.id, role: chosen })
-		await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 		if (result.error) {
+			settle(false)
+			void queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			return
 		}
 		toaster.show(sprintf(__('Role changed for "%(name)s".', 'alphone'), { name: user.name }))
 		closeModal?.()
+		const ended = run.onRefresh()
+		void queryClient.invalidateQueries({ queryKey: usersQueryKey }).then(ended, ended)
+		settle(true)
 	}
 
 	return (
