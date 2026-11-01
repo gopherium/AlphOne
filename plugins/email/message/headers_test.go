@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,6 +110,16 @@ var capCutCases = []struct {
 		len("From: maria.perez@example.com,\r\n info"), "", "",
 	},
 	{"a cut in a block with no field at all", " a stray line\r\n another stray line\r\n\r\nText.\r\n", 20, "", ""},
+	{
+		"a cut in a field whose name is over the line limit",
+		capSender + strings.Repeat("x", 998) + ": Quote\r\n\r\nText.\r\n",
+		len(capSender) + 10, "", "",
+	},
+	{
+		"a cut in a field whose name ends at the line limit",
+		capSender + strings.Repeat("x", 997) + ": Quote\r\n\r\nText.\r\n",
+		len(capSender) + 10, "maria.perez@example.com", "",
+	},
 }
 
 func TestReadHeadersReadsWhatParseCannot(t *testing.T) {

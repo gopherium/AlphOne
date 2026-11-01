@@ -45,9 +45,9 @@ func wholeFields(block []byte, limit int) []byte {
 	return nil
 }
 
-// opensField reports whether enmime reads the line opening text as a new field.
+// opensField reports whether enmime reads the line opening text as a new field within the line limit.
 func opensField(text []byte) bool {
-	line, _, _ := bytes.Cut(text, []byte("\n"))
+	line, _, _ := bytes.Cut(text[:min(len(text), lineLimit)], []byte("\n"))
 	header, _ := enmime.ReadHeader(bufio.NewReader(bytes.NewReader(line)), ignoredProblems{})
 	return len(header) > 0
 }

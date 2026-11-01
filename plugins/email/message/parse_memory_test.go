@@ -58,6 +58,32 @@ func TestParseStaysInsideTheMemoryBudget(t *testing.T) {
 	}
 }
 
+func TestReadHeadersCostsTheSameForAnyLengthOfCutField(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  []byte
+	}{
+		{"a long field", []byte("From: maria.perez@example.com\r\nSubject: " + filled("quote ") + "\r\n\r\nText.\r\n")},
+		{"a long line with no colon", []byte("From: maria.perez@example.com\r\n" + filled("quote ") + "\r\n\r\nText.\r\n")},
+		{"a long field name", []byte("From: maria.perez@example.com\r\n" + filled("x") + ": Quote\r\n\r\nText.\r\n")},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			limits := serverLimits
+			limits.MaxBytes = 1 << 30
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			readHeaders(t, c.raw, limits)
+			runtime.ReadMemStats(&after)
+
+			if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 1<<20 {
+				t.Errorf("reading the headers of %d bytes allocated %d KiB, want at most 1 MiB", len(c.raw), allocated>>10)
+			}
+		})
+	}
+}
+
 // filled answers line repeated up to mailBytes.
 func filled(line string) string {
 	return strings.Repeat(line, mailBytes/len(line))
