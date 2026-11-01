@@ -3,6 +3,7 @@
 package message_test
 
 import (
+	"net/mail"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -22,6 +23,24 @@ var fuzzSeeds = []string{
 	onePart("multipart/report; report-type=delivery-status; boundary=\"r\"",
 		"--r\r\nContent-Type: message/delivery-status\r\n\r\nReporting-MTA: dns; mail.example.com\r\n\r\n"+
 			"Final-Recipient: rfc822; no\xffbody@example.com\r\nAction: failed\r\nStatus: 5.1\xff.1\r\n--r--"),
+}
+
+func FuzzParseAddressesAnswersOneMailboxEach(f *testing.F) {
+	for _, c := range parseAddressesCases {
+		f.Add(c.value)
+	}
+	f.Fuzz(func(t *testing.T, value string) {
+		for _, a := range message.ParseAddresses(value) {
+			checkCleanText(t, "address name", a.Name)
+			checkCleanText(t, "address email", a.Email)
+			if read, ok := message.NormalizeAddress(mail.Address{Address: a.Email}); !ok || read.Email != a.Email {
+				t.Fatalf("ParseAddresses(%q) answered %q, which does not read back as itself", value, a.Email)
+			}
+			if _, err := mail.ParseAddress(a.Email); err != nil {
+				t.Fatalf("ParseAddresses(%q) answered %q, which is no mailbox: %v", value, a.Email, err)
+			}
+		}
+	})
 }
 
 func FuzzParseAnswersCleanStrings(f *testing.F) {
