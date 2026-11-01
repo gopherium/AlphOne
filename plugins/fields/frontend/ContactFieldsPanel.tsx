@@ -4,7 +4,7 @@ import {
 	__,
 	Button,
 	ErrorNotice,
-	LoadingRows,
+	LoadingScreen,
 	SectionTitle,
 	Stack,
 	graphError,
@@ -52,7 +52,7 @@ export function ContactFieldsPanel({ contactId }: { contactId: string }) {
 /**
  * Renders the fields of one contact once its stored values load, under a heading that takes focus when a repeater goes.
  * @param props - The contact and the fields it holds values for.
- * @returns The fields, a loading placeholder or the failed read.
+ * @returns The fields, a spinner or the failed read.
  */
 function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRow[] }) {
 	const [values] = useGraphQuery({
@@ -65,7 +65,7 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 		setGone(message)
 		whenFocusStayed(from, () => (document.getElementById(heading) as HTMLElement).focus())
 	}
-	let body = <LoadingRows label={__('Loading fields…', 'alphone-fields')} rows={fields.length} />
+	let body = <LoadingScreen label={__('Loading fields…', 'alphone-fields')} />
 	if (values.error) {
 		body = <ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 	} else if (values.data) {

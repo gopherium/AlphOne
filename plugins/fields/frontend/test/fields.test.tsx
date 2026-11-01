@@ -131,6 +131,30 @@ test('an empty catalogue invites the first field', async () => {
 	expect(await screen.findByText(/No fields yet/i)).toBeInTheDocument()
 })
 
+test('a spinner stands under the title until the catalogue answers', async () => {
+	let release = () => {}
+	const answered = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', async () => {
+			await answered
+			return HttpResponse.json({ data: { fields: [], every: [], reservedFieldNames: RESERVED } })
+		}),
+	)
+
+	renderScreen()
+
+	const loading = await screen.findByRole('status')
+	expect(loading).toHaveTextContent('Loading fields…')
+	expect(loading.closest('.godmin-loading-screen')).not.toBeNull()
+	expect(screen.getByRole('heading', { level: 2, name: 'Fields' })).toBeInTheDocument()
+	expect(screen.queryByText(/No fields yet/i)).not.toBeInTheDocument()
+	release()
+	expect(await screen.findByText(/No fields yet/i)).toBeInTheDocument()
+	expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
 test('a failed read is reported', async () => {
 	server.use(
 		graphql.query('FieldCatalogue', () =>
