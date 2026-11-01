@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { _x } from '@alphone/frontend-sdk'
-import { RoleBeyondReachError, RoleUnknownError } from '@gopherium/react-auth/admin'
+import { RoleNotGrantableError, RoleUnknownError } from '@gopherium/react-auth/admin'
 
 /** The error code each turned down role write answers with, by the error it raises. */
 const refusals: [new (...args: never[]) => Error, string][] = [
-	[RoleBeyondReachError, 'role_beyond_reach'],
+	[RoleNotGrantableError, 'role_beyond_reach'],
 	[RoleUnknownError, 'role_unknown'],
 ]
 
