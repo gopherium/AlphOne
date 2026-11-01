@@ -25,7 +25,7 @@ import {
 import type { AnyRouter } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
 import { Badge, Button, Text } from '@wordpress/ui'
-import { graphql } from 'msw'
+import { graphql as mswGraphql } from 'msw/graphql'
 import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
@@ -40,7 +40,10 @@ import type { Capability, Role, Session } from './session'
 export { HttpResponse, http, seedSession, server } from '@gopherium/react-auth/testing'
 export { setViewport } from '@gopherium/godmin/testing'
 export { resetLocaleData, setLocaleData } from '@wordpress/i18n'
-export { delay, graphql } from 'msw'
+export { delay } from 'msw'
+
+/** graphql answers the operations sent to the graph endpoint. */
+export const graphql = mswGraphql.link('/api/graphql')
 
 /**
  * Returns the canned session holding the role, its capabilities and the roles it may give.
