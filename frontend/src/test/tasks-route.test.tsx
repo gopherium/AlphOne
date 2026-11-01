@@ -362,7 +362,7 @@ test('names the day a task was added for, keeps it out of the day shown and open
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
-	await screen.findByText('Nothing due today.')
+	await screen.findByText('Nothing due today')
 	await userEvent.click(await screen.findByRole('button', { name: 'Today' }))
 	await screen.findByText('Call the supplier')
 
@@ -442,7 +442,7 @@ test('names the day of an add that lands after the day shown changed', async () 
 	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Order more boxes')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Next day' }))
-	await screen.findByText('Nothing due today.')
+	await screen.findByText('Nothing due today')
 	release?.()
 
 	expect(await screen.findByText(addedToast(today))).toBeInTheDocument()
@@ -567,8 +567,9 @@ test('shows an empty state when the day has no tasks', async () => {
 
 	renderAt('/tasks')
 
-	expect(await screen.findByText('Nothing due today.')).toBeInTheDocument()
-	expect(screen.getByRole('heading', { level: 3, name: 'Nothing due today.' })).toBeInTheDocument()
+	expect(await screen.findByText('Nothing due today')).toBeInTheDocument()
+	expect(screen.getByRole('heading', { level: 3, name: 'Nothing due today' })).toBeInTheDocument()
+	expect(screen.getByText('Add a task above, or open a contact and create one from their page.')).toBeInTheDocument()
 })
 
 test('loads more tasks through the cursor', async () => {
