@@ -5,7 +5,7 @@ import {
 	Collapsible,
 	IconButton,
 	ListEmpty,
-	LoadingRows,
+	LoadingScreen,
 	LoadMore,
 	ErrorNotice,
 	PageScreen,
@@ -161,7 +161,7 @@ function TaskSections({
 	controls: RowControls
 }) {
 	if (tasks.isPending) {
-		return <LoadingRows label={__('Loading tasks…', 'alphone')} />
+		return <LoadingScreen label={__('Loading tasks…', 'alphone')} />
 	}
 	if (tasks.isError) {
 		return (
@@ -170,12 +170,12 @@ function TaskSections({
 	}
 	const open = tasks.rows
 	return (
-		<Stack direction="column" gap="lg" className="godmin-arrival">
+		<Stack direction="column" gap="lg">
 			{open.length === 0 ? (
 				<ListEmpty
 					icon={inbox}
 					title={__('Nothing due today.', 'alphone')}
-					hint={__('Add a task above, or open a contact and create one from their page.', 'alphone')}
+					description={__('Add a task above, or open a contact and create one from their page.', 'alphone')}
 				/>
 			) : (
 				<TaskList label={__('Open tasks', 'alphone')} tasks={open} controls={controls} />

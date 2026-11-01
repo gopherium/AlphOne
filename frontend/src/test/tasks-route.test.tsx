@@ -67,13 +67,13 @@ test('shows the add button busy and still refuses a second submit', async () => 
 	expect(add).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('ghosts the rows while the day of tasks arrives', async () => {
+test('shows a spinner while the day of tasks arrives', async () => {
 	server.use(graphql.query('DayTasks', () => new Promise(() => {})))
 	renderAt('/tasks')
 
 	const status = await screen.findByRole('status')
 	expect(status).toHaveTextContent('Loading tasks…')
-	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
 test('serves the tasks screen at /tasks', async () => {

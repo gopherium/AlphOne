@@ -4,7 +4,7 @@ import { __ } from '@alphone/frontend-sdk'
 import { LoadingScreen } from '@gopherium/godmin'
 
 /**
- * Renders the ghost the auth gate shows while the session loads.
+ * Renders the spinner the auth gate shows while the session loads.
  * @returns The boot loading element.
  */
 export function BootLoading() {

@@ -40,7 +40,7 @@ function UsersEmpty({ narrowed }: { narrowed: boolean }) {
 		<ListEmpty
 			icon={people}
 			title={__('No users yet.', 'alphone')}
-			hint={__('Add one with New user.', 'alphone')}
+			description={__('Add one with New user.', 'alphone')}
 		/>
 	)
 }
