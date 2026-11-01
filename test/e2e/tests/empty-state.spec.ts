@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 
 test('an empty state sits centered in the canvas', async ({ page }) => {
 	await page.goto('/tasks?date=2030-01-01')
-	await expect(page.getByText('Nothing due today.')).toBeVisible()
+	await expect(page.getByText('Nothing due today')).toBeVisible()
 
 	const geometry = await page.evaluate(() => {
 		const canvas = document.querySelector('.godmin-layout__canvas')

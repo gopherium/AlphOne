@@ -755,7 +755,7 @@ test('adds a task from a contact and links it back', async ({ page }) => {
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByRole('link', { name: 'Add Contact' }).first().click()
 	await page.getByLabel('Name').fill(contact)
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
@@ -783,7 +783,7 @@ test('adds a task from a contact on a chosen day', async ({ page }) => {
 
 	await page.goto('/')
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByRole('link', { name: 'Add Contact' }).first().click()
 	await page.getByLabel('Name').fill(contact)
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
