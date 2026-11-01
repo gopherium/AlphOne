@@ -5,11 +5,15 @@ package message
 import (
 	"bytes"
 	"cmp"
+	"slices"
 	"strings"
 
 	"github.com/jhillyerd/enmime/v2"
 	"github.com/jhillyerd/enmime/v2/mediatype"
 )
+
+// inviteMethods lists the methods the calendar standard defines.
+var inviteMethods = []string{"PUBLISH", "REQUEST", "REPLY", "ADD", "CANCEL", "REFRESH", "COUNTER", "DECLINECOUNTER"}
 
 // Marks is what the parts of a message mark it as.
 type Marks struct {
@@ -17,7 +21,7 @@ type Marks struct {
 	Encrypted bool
 	// Signed reports an S/MIME or PGP signed part.
 	Signed bool
-	// InviteMethod is the uppercased method of the first calendar part naming one, such as REQUEST, empty for none.
+	// InviteMethod is the uppercased method of the first calendar part naming a standard one, empty for none.
 	InviteMethod string
 	// Winmail reports a winmail.dat part in the TNEF format of Outlook.
 	Winmail bool
@@ -64,12 +68,13 @@ func isSigned(part *enmime.Part, smimeType string) bool {
 	return false
 }
 
-// inviteMethod answers method uppercased when part is a calendar part, empty otherwise.
+// inviteMethod answers method uppercased when part is a calendar part naming a standard one, empty otherwise.
 func inviteMethod(part *enmime.Part, method string) string {
-	if part.ContentType != "text/calendar" {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if part.ContentType != "text/calendar" || !slices.Contains(inviteMethods, method) {
 		return ""
 	}
-	return strings.ToUpper(strings.TrimSpace(method))
+	return method
 }
 
 // isWinmail reports whether part is a TNEF part by its type or its file name.
