@@ -53,6 +53,7 @@ type fixtureSummary struct {
 	from        message.Address
 	to          []message.Address
 	cc          []message.Address
+	bcc         []message.Address
 	replyTo     []message.Address
 	subject     string
 	date        time.Time
@@ -177,6 +178,69 @@ var fixtureCases = []struct {
 		messageID: "winmail-dat@example.com", text: true,
 		attachments: []fileSummary{{"winmail.dat", "application/ms-tnef"}},
 	}},
+}
+
+// cleanTextCases lists raw messages, the string to read from each and the clean text Parse answers there.
+var cleanTextCases = []struct {
+	name string
+	raw  string
+	read func(*message.Message) string
+	want string
+}{
+	{"a raw NUL in the subject", "Subject: Qu\x00ote\r\n\r\nText.\r\n", subjectOf, "Quote"},
+	{"an encoded NUL in the subject", "Subject: =?utf-8?q?Qu=00ote?=\r\n\r\nText.\r\n", subjectOf, "Quote"},
+	{"a raw broken byte in the subject", "Subject: Qu\xffote\r\n\r\nText.\r\n", subjectOf, "Qu" + replacement + "ote"},
+	{
+		"an encoded broken byte in the subject", "Subject: =?utf-8?q?Qu=FFote?=\r\n\r\nText.\r\n", subjectOf,
+		"Qu" + replacement + "ote",
+	},
+	{"a NUL in the text", "Content-Type: text/plain\r\n\r\nTe\x00xt.", textOf, "Text."},
+	{
+		"an encoded NUL in the text",
+		"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nTe=00xt.", textOf, "Text.",
+	},
+	{
+		"a broken byte in the text", "Content-Type: text/plain; charset=utf-8\r\n\r\nTe\xffxt.", textOf,
+		"Te" + replacement + "xt.",
+	},
+	{"a NUL in the HTML", "Content-Type: text/html\r\n\r\n<p>Te\x00xt.</p>", htmlOf, "<p>Text.</p>"},
+	{
+		"a broken byte in the HTML", "Content-Type: text/html; charset=utf-8\r\n\r\n<p>Te\xffxt.</p>", htmlOf,
+		"<p>Te" + replacement + "xt.</p>",
+	},
+	{
+		"a raw NUL in a sender name", "From: \"Maria\x00 Perez\" <maria.perez@example.com>\r\n\r\nText.\r\n",
+		fromNameOf, "Maria Perez",
+	},
+	{
+		"an encoded NUL in a sender name", "From: =?utf-8?q?Maria=00_Perez?= <maria.perez@example.com>\r\n\r\nText.\r\n",
+		fromNameOf, "Maria Perez",
+	},
+	{
+		"a broken byte in a recipient name", "To: =?utf-8?q?Maria=FF?= <maria.perez@example.com>\r\n\r\nText.\r\n",
+		toNameOf, "Maria" + replacement,
+	},
+	{
+		"an encoded NUL in a file name", fileWithField("Content-Disposition: attachment; filename*=utf-8''no%00te.pdf"),
+		fileNameOf, "note.pdf",
+	},
+	{
+		"a broken byte in a file name", fileWithField("Content-Disposition: attachment; filename*=utf-8''no%FFte.pdf"),
+		fileNameOf, "no" + replacement + "te.pdf",
+	},
+	{"a NUL in a content id", fileWithField("Content-ID: <no\x00te@example.com>"), contentIDOf, "note@example.com"},
+	{
+		"an escaped NUL in a content id", fileWithField("Content-ID: <no%00te@example.com>"), contentIDOf,
+		"note@example.com",
+	},
+	{
+		"a broken byte in a content id", fileWithField("Content-ID: <no\xffte@example.com>"), contentIDOf,
+		"no" + replacement + "te@example.com",
+	},
+	{
+		"a broken byte beside a broken escape in a content id", fileWithField("Content-ID: <no%zz\xffte@example.com>"),
+		contentIDOf, "no%zz" + replacement + "te@example.com",
+	},
 }
 
 func TestParseFixtures(t *testing.T) {
@@ -332,76 +396,7 @@ func TestParseKeepsTheGoodAddressesOfABrokenField(t *testing.T) {
 func TestParseAnswersCleanText(t *testing.T) {
 	t.Parallel()
 
-	subjectOf := func(m *message.Message) string { return m.Subject }
-	textOf := func(m *message.Message) string { return m.Text }
-	htmlOf := func(m *message.Message) string { return m.HTML }
-	fromNameOf := func(m *message.Message) string { return m.From.Name }
-	toNameOf := func(m *message.Message) string { return m.To[0].Name }
-	fileNameOf := func(m *message.Message) string { return m.Attachments[0].Name }
-	contentIDOf := func(m *message.Message) string { return m.Attachments[0].ContentID }
-	attachment := func(field string) string {
-		return fileMessage("Content-Type: text/plain\r\n\r\nText.", "Content-Type: application/pdf\r\n"+field)
-	}
-	cases := []struct {
-		name string
-		raw  string
-		read func(*message.Message) string
-		want string
-	}{
-		{"a raw NUL in the subject", "Subject: Qu\x00ote\r\n\r\nText.\r\n", subjectOf, "Quote"},
-		{"an encoded NUL in the subject", "Subject: =?utf-8?q?Qu=00ote?=\r\n\r\nText.\r\n", subjectOf, "Quote"},
-		{"a raw broken byte in the subject", "Subject: Qu\xffote\r\n\r\nText.\r\n", subjectOf, "Qu" + replacement + "ote"},
-		{
-			"an encoded broken byte in the subject", "Subject: =?utf-8?q?Qu=FFote?=\r\n\r\nText.\r\n", subjectOf,
-			"Qu" + replacement + "ote",
-		},
-		{"a NUL in the text", "Content-Type: text/plain\r\n\r\nTe\x00xt.", textOf, "Text."},
-		{
-			"an encoded NUL in the text",
-			"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nTe=00xt.", textOf, "Text.",
-		},
-		{
-			"a broken byte in the text", "Content-Type: text/plain; charset=utf-8\r\n\r\nTe\xffxt.", textOf,
-			"Te" + replacement + "xt.",
-		},
-		{"a NUL in the HTML", "Content-Type: text/html\r\n\r\n<p>Te\x00xt.</p>", htmlOf, "<p>Text.</p>"},
-		{
-			"a broken byte in the HTML", "Content-Type: text/html; charset=utf-8\r\n\r\n<p>Te\xffxt.</p>", htmlOf,
-			"<p>Te" + replacement + "xt.</p>",
-		},
-		{
-			"a raw NUL in a sender name", "From: \"Maria\x00 Perez\" <maria.perez@example.com>\r\n\r\nText.\r\n",
-			fromNameOf, "Maria Perez",
-		},
-		{
-			"an encoded NUL in a sender name", "From: =?utf-8?q?Maria=00_Perez?= <maria.perez@example.com>\r\n\r\nText.\r\n",
-			fromNameOf, "Maria Perez",
-		},
-		{
-			"a broken byte in a recipient name", "To: =?utf-8?q?Maria=FF?= <maria.perez@example.com>\r\n\r\nText.\r\n",
-			toNameOf, "Maria" + replacement,
-		},
-		{
-			"an encoded NUL in a file name", attachment("Content-Disposition: attachment; filename*=utf-8''no%00te.pdf"),
-			fileNameOf, "note.pdf",
-		},
-		{
-			"a broken byte in a file name", attachment("Content-Disposition: attachment; filename*=utf-8''no%FFte.pdf"),
-			fileNameOf, "no" + replacement + "te.pdf",
-		},
-		{"a NUL in a content id", attachment("Content-ID: <no\x00te@example.com>"), contentIDOf, "note@example.com"},
-		{"an escaped NUL in a content id", attachment("Content-ID: <no%00te@example.com>"), contentIDOf, "note@example.com"},
-		{
-			"a broken byte in a content id", attachment("Content-ID: <no\xffte@example.com>"), contentIDOf,
-			"no" + replacement + "te@example.com",
-		},
-		{
-			"a broken byte beside a broken escape in a content id", attachment("Content-ID: <no%zz\xffte@example.com>"),
-			contentIDOf, "no%zz" + replacement + "te@example.com",
-		},
-	}
-
-	for _, c := range cases {
+	for _, c := range cleanTextCases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -496,8 +491,7 @@ func TestParseLeavesMissingHeadersEmpty(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Parse() error = %v, want nil", err)
 			}
-			got := headerSummary{m.From, m.To, !m.Date.IsZero(), m.MessageID, m.ThreadIndex}
-			if !reflect.DeepEqual(got, headerSummary{}) {
+			if got := headersOf(m); !reflect.DeepEqual(got, headerSummary{}) {
 				t.Errorf("Parse() headers = %+v, want no sender, recipient, date, id or thread index", got)
 			}
 		})
@@ -559,7 +553,7 @@ func parseFixture(t *testing.T, name string) *message.Message {
 // summarize answers what TestParseFixtures checks of m.
 func summarize(m *message.Message) fixtureSummary {
 	s := fixtureSummary{
-		from: m.From, to: m.To, cc: m.Cc, replyTo: m.ReplyTo, subject: m.Subject, date: m.Date.UTC(),
+		from: m.From, to: m.To, cc: m.Cc, bcc: m.Bcc, replyTo: m.ReplyTo, subject: m.Subject, date: m.Date.UTC(),
 		messageID: m.MessageID, inReplyTo: m.InReplyTo, references: m.References, text: m.Text != "", html: m.HTML != "",
 	}
 	for _, a := range m.Attachments {
@@ -571,11 +565,56 @@ func summarize(m *message.Message) fixtureSummary {
 	return s
 }
 
-// headerSummary is what TestParseLeavesMissingHeadersEmpty checks of a message.
+// headerSummary is what the tests of missing headers check of a message.
 type headerSummary struct {
 	from        message.Address
 	to          []message.Address
 	dated       bool
 	messageID   string
 	threadIndex *message.ThreadIndex
+}
+
+// headersOf answers the header summary of m.
+func headersOf(m *message.Message) headerSummary {
+	return headerSummary{m.From, m.To, !m.Date.IsZero(), m.MessageID, m.ThreadIndex}
+}
+
+// subjectOf answers the subject of m.
+func subjectOf(m *message.Message) string {
+	return m.Subject
+}
+
+// textOf answers the text body of m.
+func textOf(m *message.Message) string {
+	return m.Text
+}
+
+// htmlOf answers the HTML body of m.
+func htmlOf(m *message.Message) string {
+	return m.HTML
+}
+
+// fromNameOf answers the name of the sender of m.
+func fromNameOf(m *message.Message) string {
+	return m.From.Name
+}
+
+// toNameOf answers the name of the first recipient of m.
+func toNameOf(m *message.Message) string {
+	return m.To[0].Name
+}
+
+// fileNameOf answers the name of the first attachment of m.
+func fileNameOf(m *message.Message) string {
+	return m.Attachments[0].Name
+}
+
+// contentIDOf answers the content id of the first attachment of m.
+func contentIDOf(m *message.Message) string {
+	return m.Attachments[0].ContentID
+}
+
+// fileWithField answers a raw message holding a text part and a PDF part with the header field given.
+func fileWithField(field string) string {
+	return fileMessage("Content-Type: text/plain\r\n\r\nText.", "Content-Type: application/pdf\r\n"+field)
 }
