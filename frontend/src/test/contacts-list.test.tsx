@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { ListNoResults, people } from '@alphone/frontend-sdk'
 import { HttpResponse, delay, graphql, server } from '@alphone/frontend-sdk/testing'
 import { setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { configureAppErrorText } from '../i18n/errors'
@@ -95,6 +97,28 @@ function matching(variables: Record<string, unknown>): contact[] {
 }
 
 /**
+ * Builds the contact page one request reads from the directory, paged as the request names.
+ * @param variables - The variables the request carried.
+ * @param byDefault - The rows a page holds when the request names no limit.
+ * @returns The answer the graph sends.
+ */
+function pageOf(variables: Record<string, unknown>, byDefault = 50) {
+	const found = matching(variables)
+	const limit = (variables.limit as number | null) ?? byDefault
+	const offset = (variables.offset as number | null) ?? 0
+	return {
+		data: {
+			contactPage: {
+				__typename: 'ContactPage',
+				items: found.slice(offset, offset + limit),
+				total: found.length,
+				limit,
+			},
+		},
+	}
+}
+
+/**
  * Serves the given contacts from the contact page, paged as the request names.
  * @param contacts - The contacts the directory holds.
  * @param byDefault - The rows a page holds when the request names no limit.
@@ -104,19 +128,21 @@ function serving(contacts: contact[], byDefault = 50) {
 	server.use(
 		graphql.query('ContactPage', ({ variables }) => {
 			asked.push(variables)
-			const found = matching(variables)
-			const limit = (variables.limit as number | null) ?? byDefault
-			const offset = (variables.offset as number | null) ?? 0
-			return HttpResponse.json({
-				data: {
-					contactPage: {
-						__typename: 'ContactPage',
-						items: found.slice(offset, offset + limit),
-						total: found.length,
-						limit,
-					},
-				},
-			})
+			return HttpResponse.json(pageOf(variables, byDefault))
+		}),
+	)
+}
+
+/**
+ * Keeps every later contact page answer back until the gate opens.
+ * @param opened - Settles once the answers may go out.
+ */
+function holdingPages(opened: Promise<void>) {
+	server.use(
+		graphql.query('ContactPage', async ({ variables }) => {
+			asked.push(variables)
+			await opened
+			return HttpResponse.json(pageOf(variables))
 		}),
 	)
 }
@@ -202,6 +228,28 @@ async function act(name: string, action: string) {
 	await userEvent.click(await screen.findByRole('menuitem', { name: action }))
 }
 
+/**
+ * Returns the drawing the given tree shows first.
+ * @param tree - The tree holding the drawing.
+ * @returns The path data of its drawing.
+ */
+function drawingOf(tree: ReactNode): string | null | undefined {
+	const { container, unmount } = render(tree)
+	const drawn = container.querySelector('path')?.getAttribute('d')
+	unmount()
+	return drawn
+}
+
+/**
+ * Returns the empty state under the given title.
+ * @param title - The title of the empty state.
+ * @returns The empty state.
+ */
+async function emptyTitled(title: string) {
+	const heading = await screen.findByRole('heading', { level: 3, name: title }, settled)
+	return heading.closest('.godmin-empty') as HTMLElement
+}
+
 beforeEach(async () => {
 	asked = []
 	serving([ana, ada, maria])
@@ -269,10 +317,10 @@ test('says what the contacts list is for in Spanish', async () => {
 	expect(await screen.findByRole('searchbox', { name: 'Buscar contactos…' })).toBeInTheDocument()
 })
 
-test('draws New contact as a compact button, as a WordPress page header does', async () => {
+test('draws Add Contact as a compact button, as a WordPress page header does', async () => {
 	renderAt('/contacts')
 
-	const add = await screen.findByRole('link', { name: 'New contact' })
+	const add = await screen.findByRole('link', { name: 'Add Contact' })
 	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
 	expect(add).toHaveAttribute('href', '/contacts/new')
 })
@@ -284,28 +332,41 @@ test('lines the list up with the title, out to the canvas edges', async () => {
 	expect(search.closest('.godmin-page__list')).not.toBeNull()
 })
 
-test('shows an empty state when no contacts exist', async () => {
+test('names the list region after the list', async () => {
+	renderAt('/contacts')
+
+	const search = await screen.findByRole('searchbox', { name: 'Search contacts…' })
+	expect(search.closest('.godmin-page__list')).toBe(screen.getByRole('region', { name: 'Contacts' }))
+})
+
+test('shows an empty state with a solid add button when no contacts exist', async () => {
 	serving([])
 	renderAt('/contacts')
 
-	expect(await screen.findByText('No contacts yet.', {}, settled)).toBeInTheDocument()
-	expect(screen.getByText('Add one with New contact.').closest('.godmin-empty')).not.toBeNull()
-	expect(screen.getByRole('heading', { level: 3, name: 'No contacts yet.' })).toBeInTheDocument()
+	const empty = await emptyTitled('No contacts yet')
+	const add = within(empty).getByRole('link', { name: 'Add Contact' })
+	expect([...add.classList]).toEqual(buttonClasses('solid'))
+	expect(add).toHaveAttribute('href', '/contacts/new')
+	expect(empty.querySelector('svg path')?.getAttribute('d')).toBe(drawingOf(people))
 })
 
-test('says nobody matched when a search finds no contact', async () => {
+test('says nothing matched, under the search icon and with no button, when a search finds no contact', async () => {
 	renderAt('/contacts?search=nobody')
 
-	expect(await screen.findByText('No contacts found.', {}, settled)).toBeInTheDocument()
-	expect(screen.queryByText('No contacts yet.')).not.toBeInTheDocument()
+	const empty = await emptyTitled('No results found')
+	const line = "Try adjusting your search or filters to find what you're looking for."
+	expect(within(empty).getByText(line)).toBeInTheDocument()
+	expect(empty.querySelector('svg path')?.getAttribute('d')).toBe(drawingOf(<ListNoResults />))
+	expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
+	expect(screen.queryByText('No contacts yet')).not.toBeInTheDocument()
 })
 
-test('says nobody matched when no contact is reached on the channel picked', async () => {
+test('says nothing matched when no contact is reached on the channel picked', async () => {
 	serving([maria])
 	const filters = encodeURIComponent(JSON.stringify([{ field: 'channels', operator: 'isAny', value: ['email'] }]))
 	renderAt(`/contacts?filters=${filters}`)
 
-	expect(await screen.findByText('No contacts found.', {}, settled)).toBeInTheDocument()
+	expect(await emptyTitled('No results found')).toBeInTheDocument()
 })
 
 test('shows the first identity of each contact under its name, in the name column', async () => {
@@ -542,13 +603,13 @@ test('holds the empty state back from the first render until the first answer', 
 	renderAt('/contacts')
 
 	await waitFor(() => expect(document.querySelector('.dataviews-loading')).not.toBeNull(), settled)
-	expect(screen.queryByText('No contacts yet.')).not.toBeInTheDocument()
+	expect(screen.queryByText('No contacts yet')).not.toBeInTheDocument()
 	sized.release()
 	await waitFor(() => expect(asked).toHaveLength(1), settled)
 	expect(document.querySelector('.dataviews-loading')).not.toBeNull()
-	expect(screen.queryByText('No contacts yet.')).not.toBeInTheDocument()
+	expect(screen.queryByText('No contacts yet')).not.toBeInTheDocument()
 	answered.release()
-	expect(await screen.findByText('No contacts yet.', {}, settled)).toBeInTheDocument()
+	expect(await screen.findByText('No contacts yet', {}, settled)).toBeInTheDocument()
 	expect(document.querySelector('.dataviews-loading')).toBeNull()
 })
 
@@ -611,7 +672,7 @@ test('counts no contacts and ticks none, because no bulk action exists yet', asy
 test('reads the contacts afresh each time the list opens', async () => {
 	renderAt('/contacts')
 	await rowOf('Ana Lopez')
-	await userEvent.click(screen.getByRole('link', { name: 'New contact' }))
+	await userEvent.click(screen.getByRole('link', { name: 'Add Contact' }))
 	await screen.findByRole('heading', { level: 2, name: 'New contact' })
 	serving([contactOf('05', 'Grace Hopper', '2026-07-09T10:00:00Z'), ana, ada, maria])
 
@@ -693,12 +754,14 @@ test('offers Add task as the button a contact row shows, never the rename', asyn
 
 /**
  * Answers the rename mutation, renaming the contact it names in the directory.
+ * @param opened - Settles once the write may land.
  * @returns The names the mutation received.
  */
-function writesName() {
+function writesName(opened: Promise<void> = Promise.resolve()) {
 	const names: string[] = []
 	server.use(
-		graphql.mutation('RenameContact', ({ variables }) => {
+		graphql.mutation('RenameContact', async ({ variables }) => {
+			await opened
 			const name = String(variables.name)
 			names.push(name)
 			held = held.map((row) => (row.id === variables.id ? { ...row, name } : row))
@@ -746,6 +809,117 @@ test('renames a contact in a modal and confirms it with a toast', async () => {
 	expect(names).toEqual(['Zoe Lopez'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace', 'Maria Perez', 'Zoe Lopez']))
+})
+
+test('shows the rename toast first, then keeps the old row busy until the reload brings the new name', async () => {
+	writesName()
+	renderAt('/contacts')
+	const dialog = await openRename()
+	const reload = gate()
+	holdingPages(reload.held)
+
+	await renameTo(dialog, 'Zoe Lopez')
+
+	expect(await screen.findByText('Name updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
+	expect(screen.getByRole('row', { name: /Ana Lopez/ })).toBeInTheDocument()
+	reload.release()
+	await rowOf('Zoe Lopez')
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
+	expect(screen.queryByRole('row', { name: /Ana Lopez/ })).not.toBeInTheDocument()
+})
+
+test('reloads the page on show after a rename, so the reader stays on it', async () => {
+	writesName()
+	paging([2, 4], 2)
+	renderAt('/contacts')
+	await shownNames()
+	await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+	await waitFor(async () => expect(await shownNames()).toEqual(['Maria Perez']))
+	const before = asked.length
+
+	await renameTo(await openRename('Maria Perez'), 'Zoe Perez')
+
+	await waitFor(() => expect(asked).toHaveLength(before + 1))
+	expect(asked.at(-1)).toMatchObject({ limit: 2, offset: 2 })
+	await waitFor(async () => expect(await shownNames()).toEqual(['Zoe Perez']))
+})
+
+test('reloads the page the reader moved to while a rename was on its way', async () => {
+	const written = gate()
+	writesName(written.held)
+	paging([2, 4], 2)
+	renderAt('/contacts')
+	await renameTo(await openRename('Ada Lovelace'), 'Ada Lovelace King')
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+	await waitFor(async () => expect(await shownNames()).toEqual(['Maria Perez']))
+	const before = asked.length
+
+	written.release()
+
+	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
+	await waitFor(() => expect(asked).toHaveLength(before + 1))
+	expect(asked.at(-1)).toMatchObject({ limit: 2, offset: 2 })
+})
+
+test('reloads the search on show after a rename, so the reader keeps it', async () => {
+	writesName()
+	renderAt('/contacts')
+	await userEvent.type(await screen.findByRole('searchbox', { name: 'Search contacts…' }), 'Lovelace')
+	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace']))
+	const before = asked.length
+
+	await renameTo(await openRename('Ada Lovelace'), 'Ada Lovelace King')
+
+	await waitFor(() => expect(asked).toHaveLength(before + 1))
+	expect(asked.at(-1)).toMatchObject({ q: 'Lovelace' })
+	await waitFor(async () => expect(await shownNames()).toEqual(['Ada Lovelace King']))
+})
+
+test('puts the focus back on the actions menu of the row once a rename reloaded the list', async () => {
+	const laidOut = vi
+		.spyOn(HTMLElement.prototype, 'getClientRects')
+		.mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList)
+	onTestFinished(() => laidOut.mockRestore())
+	writesName()
+	renderAt('/contacts')
+	const menu = (await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' })
+	const dialog = await openRename()
+	await waitFor(() => expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveFocus())
+	const reload = gate()
+	holdingPages(reload.held)
+
+	await renameTo(dialog, 'Zoe Lopez')
+
+	await waitFor(() => expect(screen.getByRole('region', { name: 'Contacts' })).toHaveFocus())
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
+	reload.release()
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
+	expect(menu).toHaveFocus()
+})
+
+test('keeps what the reader typed in an open rename while an earlier rename lands and reloads the list', async () => {
+	const written = gate()
+	writesName(written.held)
+	renderAt('/contacts')
+	await renameTo(await openRename(), 'Zoe Lopez')
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	const field = (await openRename('Maria Perez')).getByRole('textbox', { name: 'Name' })
+	await userEvent.clear(field)
+	await userEvent.type(field, 'Maria Perez Ltd')
+	const reload = gate()
+	holdingPages(reload.held)
+
+	written.release()
+	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
+	reload.release()
+	await waitFor(() =>
+		expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'false'),
+	)
+
+	expect(field).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Maria Perez Ltd')
 })
 
 test('opens the rename at the default medium width with Cancel as an accent text button', async () => {
@@ -873,6 +1047,14 @@ test('shows the reason a refused rename gave in a toast, the dialog already clos
 	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
+})
+
+test('marks no reload when a rename fails, and asks for no rows', async () => {
+	await failRename({ message: 'internal error' })
+
+	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
+	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
+	expect(asked).toHaveLength(1)
 })
 
 test('says plainly in a toast that a contact could not be renamed when the server names no reason', async () => {

@@ -4,13 +4,16 @@ import {
 	Button,
 	ErrorNotice,
 	ListEmpty,
+	ListNoResults,
 	PageScreen,
 	__,
 	openOnTap,
 	paginationOf,
 	people,
 	useAdminSettings,
+	useGraph,
 	useGraphQuery,
+	useListRun,
 	useListView,
 	useServerPaging,
 } from '@alphone/frontend-sdk'
@@ -18,7 +21,7 @@ import type { AdminSettings, PagedView, PageWindow } from '@alphone/frontend-sdk
 import { DataViews } from '@alphone/frontend-sdk/dataviews'
 import type { View } from '@alphone/frontend-sdk/dataviews'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import type { ContactPageQueryVariables } from '../gql/graphql'
 import { useContactActions } from './contactActions'
@@ -36,13 +39,13 @@ const noContacts: ContactRow[] = []
  */
 function ContactsEmpty({ narrowed }: { narrowed: boolean }) {
 	if (narrowed) {
-		return <ListEmpty icon={people} title={__('No contacts found.', 'alphone')} />
+		return <ListNoResults />
 	}
 	return (
 		<ListEmpty
 			icon={people}
-			title={__('No contacts yet.', 'alphone')}
-			description={__('Add one with New contact.', 'alphone')}
+			title={__('No contacts yet', 'alphone')}
+			actions={<Button render={<Link to="/contacts/new" />}>{__('Add Contact', 'alphone')}</Button>}
 		/>
 	)
 }
@@ -90,9 +93,10 @@ function pageVariables(view: View, rows: PageWindow): ContactPageQueryVariables 
  * @param view - The view the list shows.
  * @param settings - The admin settings, absent until they arrive or when they could not be read.
  * @param sizing - Whether the list still waits for the admin settings.
- * @returns The query result beside the variables it was asked with.
+ * @returns The query result, the variables it was asked with, whether it loads, and the reload of the page on show.
  */
 function useContactPage(view: View, settings: AdminSettings | undefined, sizing: boolean) {
+	const graph = useGraph()
 	const paging = useServerPaging(pagedView(view, settings), settings?.contactPageCap)
 	const variables = pageVariables(view, paging.window)
 	const [result] = useGraphQuery({
@@ -102,7 +106,16 @@ function useContactPage(view: View, settings: AdminSettings | undefined, sizing:
 		requestPolicy: 'cache-and-network',
 	})
 	paging.record(result.data?.contactPage, result.operation?.variables.limit ?? null)
-	return { result, variables }
+	const onShow = useRef(variables)
+	useEffect(() => {
+		onShow.current = variables
+	}, [variables])
+	const reload = useCallback(
+		() => graph.client.query(contactPageQuery, onShow.current, { requestPolicy: 'network-only' }).toPromise(),
+		[graph],
+	)
+	const loading = result.fetching || (result.data === undefined && result.error === undefined)
+	return { result, variables, loading, reload }
 }
 
 /**
@@ -129,8 +142,9 @@ export function ContactsScreen() {
 		perPage: settings?.listPageSize,
 	})
 	const sizing = settings === undefined && !failed
-	const { result, variables } = useContactPage(list.view, settings, sizing)
-	const actions = useContactActions()
+	const { result, variables, loading, reload } = useContactPage(list.view, settings, sizing)
+	const { run, refreshing, region } = useListRun('contacts', list.onChangeSelection)
+	const actions = useContactActions(run, reload)
 	const navigate = useNavigate()
 	const onChangeSelection = openOnTap(list, (contactId) => {
 		void navigate({ to: '/contacts/$contactId', params: { contactId } })
@@ -145,10 +159,12 @@ export function ContactsScreen() {
 			subtitle={__('Manage the people you work with and how to reach them.', 'alphone')}
 			actions={
 				<Button variant="solid" size="compact" render={<Link to="/contacts/new" />}>
-					{__('New contact', 'alphone')}
+					{__('Add Contact', 'alphone')}
 				</Button>
 			}
 			list
+			listLabel={__('Contacts', 'alphone')}
+			listRef={region}
 		>
 			{result.error ? (
 				<ErrorNotice>{__('Contacts could not be loaded.', 'alphone')}</ErrorNotice>
@@ -166,7 +182,7 @@ export function ContactsScreen() {
 						<Link to="/contacts/$contactId" params={{ contactId: item.id }} {...props} />
 					)}
 					actions={actions}
-					isLoading={result.fetching || (result.data === undefined && result.error === undefined)}
+					isLoading={loading || refreshing}
 					searchLabel={__('Search contacts…', 'alphone')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 					empty={<ContactsEmpty narrowed={narrowedBy(variables)} />}
