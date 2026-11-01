@@ -222,7 +222,7 @@ function NoFields() {
 	return (
 		<ListEmpty
 			icon={list}
-			title={__('No fields yet.', 'alphone-fields')}
+			title={__('No fields yet', 'alphone-fields')}
 			description={__('Add a field to store more about every contact.', 'alphone-fields')}
 		/>
 	)

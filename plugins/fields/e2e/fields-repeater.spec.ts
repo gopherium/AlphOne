@@ -50,7 +50,7 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 	await expect(defined).toContainText(`history${stamp}`)
 
 	await page.getByRole('link', { name: 'Contacts' }).click()
-	await page.getByRole('link', { name: 'New contact' }).click()
+	await page.getByRole('link', { name: 'Add Contact' }).first().click()
 	await page.getByLabel('Name', { exact: true }).fill(contact)
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name: contact })).toBeVisible()
