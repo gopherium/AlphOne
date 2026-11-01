@@ -18,13 +18,13 @@ function sidebar(): Promise<HTMLElement> {
 	return screen.findByRole('region', { name: 'Navigation' })
 }
 
-test('ghosts the sidebar rows while the conversations arrive', async () => {
+test('shows a spinner in place of the sidebar rows while the conversations arrive', async () => {
 	server.use(graphql.query('WhatsAppConversations', () => new Promise(() => {})))
 	renderPluginAt(plugin, '/whatsapp', { session: adminSession })
 
 	const status = await screen.findByRole('status')
 	expect(status).toHaveTextContent('Loading conversations…')
-	expect(status.closest('.godmin-loading-rows')).not.toBeNull()
+	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
 test('lists conversations from the graph, most recent first', async () => {

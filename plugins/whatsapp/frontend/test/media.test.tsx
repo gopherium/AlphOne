@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { GraphProvider } from '@alphone/frontend-sdk'
-import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
+import { fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { HttpResponse, graphql, http } from 'msw'
+import { HttpResponse, http } from 'msw'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers } from '../handlers'
@@ -173,7 +173,7 @@ test('shows a downloading state without touching the media endpoint', async () =
 	expect(downloads.hits).toBe(0)
 })
 
-test('ghosts the bubble in the shape of the media it is downloading', async () => {
+test('shows a skeleton in the shape of the media it is downloading', async () => {
 	threadOf(message({ contentType: 'image', media: media({ status: 'pending' }) }))
 	serveMediaBlobs()
 
@@ -181,12 +181,12 @@ test('ghosts the bubble in the shape of the media it is downloading', async () =
 
 	const status = await screen.findByText('Downloading…')
 	expect(status).toHaveAttribute('role', 'status')
-	const bubble = status.closest('.alphone-message__ghost')
+	const bubble = status.closest('.alphone-message__skeleton')
 	expect(bubble).not.toBeNull()
 	expect(bubble?.querySelector('[aria-hidden="true"]')).not.toBeNull()
 })
 
-test('ghosts a sticker at sticker size while its blob arrives', async () => {
+test('shows a skeleton at sticker size while its blob arrives', async () => {
 	threadOf(message({ contentType: 'sticker', media: media({ status: 'ready' }) }))
 	let release: () => void = () => {}
 	const held = new Promise<void>((resolve) => {
@@ -204,7 +204,7 @@ test('ghosts a sticker at sticker size while its blob arrives', async () => {
 	renderThread()
 
 	const status = await screen.findByText('Downloading…')
-	expect(status.closest('.alphone-message__ghost--sticker')).not.toBeNull()
+	expect(status.closest('.alphone-message__skeleton--sticker')).not.toBeNull()
 	release()
 	await screen.findByAltText('Sticker')
 })

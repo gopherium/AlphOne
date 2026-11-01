@@ -12,7 +12,7 @@ export function Empty() {
 			<ListEmpty
 				icon={comment}
 				title={__('No conversation selected.', 'alphone-whatsapp')}
-				hint={__('Pick one from the list to read its messages.', 'alphone-whatsapp')}
+				description={__('Pick one from the list to read its messages.', 'alphone-whatsapp')}
 			/>
 		</PageScreen>
 	)

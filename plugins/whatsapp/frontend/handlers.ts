@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql } from 'msw'
+import { graphql } from '@alphone/frontend-sdk/testing'
+import { HttpResponse } from 'msw'
 
 /**
  * Builds one thread message in graph shape.
