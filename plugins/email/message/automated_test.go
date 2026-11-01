@@ -137,6 +137,56 @@ var classifyCases = []struct {
 		message.Classification{Automation: message.Bounce},
 	},
 	{
+		"a delivery report naming the longest recipient in brackets",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: rfc822; <"+addressOfBytes(254)+">\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{
+			Failed: []message.FailedRecipient{{Email: addressOfBytes(254), Status: "5.1.1"}},
+		}},
+	},
+	{
+		"a delivery report naming a recipient over the limit in brackets",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: rfc822; <"+addressOfBytes(255)+">\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{}},
+	},
+	{
+		"a delivery report naming no recipient address",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: rfc822; <>\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{}},
+	},
+	{
+		"a delivery report with no recipient field",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Action: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{}},
+	},
+	{
+		"a delivery report naming the recipient with a comment",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: rfc822; <nobody@example.com> (mailbox full)\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		failedNobody,
+	},
+	{
+		"a delivery report naming the recipient with a display name",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: rfc822; \"Maria Perez\" <nobody@example.com>\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		failedNobody,
+	},
+	{
+		"a delivery report naming a recipient of another address type",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: x400; /C=US/O=EXAMPLE/\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{}},
+	},
+	{
+		"a delivery report with a separator inside a quoted recipient",
+		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
+			"Final-Recipient: \"a;nobody\"@example.com\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
+		message.Classification{Automation: message.Bounce, Report: &message.DeliveryReport{}},
+	},
+	{
 		"a delivery report naming a recipient with a NUL",
 		reportMail("delivery-status", "message/delivery-status", "Reporting-MTA: dns; mail.example.com\r\n\r\n"+
 			"Final-Recipient: rfc822; no\x00body@example.com\r\nAction: failed\r\nStatus: 5.1.1\r\n"),
