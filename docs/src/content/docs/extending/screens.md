@@ -256,7 +256,7 @@ if (invoices.isError) {
 	return <ErrorNotice>Invoices could not be loaded.</ErrorNotice>
 }
 if (rows.length === 0) {
-	return <ListEmpty icon={people} title="No invoices yet." description="Add one with New invoice." />
+	return <ListEmpty icon={people} title="No invoices yet" actions={<Button onClick={addInvoice}>Add Invoice</Button>} />
 }
 return <InvoiceTable rows={rows} />
 ```
@@ -264,10 +264,12 @@ return <InvoiceTable rows={rows} />
 `LoadingScreen` announces its label politely. `ErrorNotice` announces
 the failure as an alert, which plain copy in a `Text` never does.
 
-`ListEmpty` draws the icon, the title and the description centred on the
-canvas, as WordPress draws an empty list. Its title sits one level
-under the page title, so it never competes with it. Leave out `description`
-when a search or a filter emptied the list.
+`ListEmpty` draws the icon, the title, an optional `description` and
+optional `actions` centred on the canvas, as WordPress draws an empty
+list. Give `actions` the add button from your header, at its default
+size. The title sits one level under the page title, so it never
+competes with it. A list that a search or a filter emptied shows
+`<ListNoResults />` instead, which you pick with `viewNarrows(view)`.
 
 ## Lists, tables, and paging
 
@@ -478,8 +480,9 @@ test that builds a client itself passes the plugin too, with
 ### Bulk actions
 
 An action with `supportsBulk: true` runs on every row the reader
-ticked. `useBulkRun` makes one call per row, all at once, shows one
-toast in the words you pass as `BulkWords`, then refreshes your list:
+ticked. `useBulkRun` makes one call per row, all at once, marks the
+list reloading as the first call that works ends, shows one toast in
+the words you pass as `BulkWords`, then refreshes your list:
 
 ```tsx
 import { __, _n, formatNumber, inbox, sprintf, useGraph } from '@alphone/frontend-sdk'
@@ -521,7 +524,7 @@ The screen holds the run and the refresh, and hands the action its
 `bulk`:
 
 ```tsx
-const { run } = useListRun('invoices', list.onChangeSelection)
+const { run, refreshing, region } = useListRun('invoices', list.onChangeSelection)
 const refresh = useCallback(
 	() => graph.client.query(invoicePageQuery, pageVariables, { requestPolicy: 'network-only' }).toPromise(),
 	[graph, pageVariables],
@@ -533,7 +536,8 @@ A call fails when it throws, when its promise rejects, or when it
 answers with its `error` set, so an urql result with an error counts
 as a failure. One bad row never hides the others. `useBulkRun` shows
 the toast as the last call ends and only then calls `refresh`, so the
-old rows stay on screen until it ends. `refresh` must return a promise,
+old rows stay on screen until it ends. Add `refreshing` to the list's
+`isLoading` so those rows grey out. `refresh` must return a promise,
 since the list stays marked as reloading until that promise settles.
 `graph.refetch` returns nothing, so read the list again with
 `graph.client.query` as above. Wrap `refresh` in `useCallback`. When
@@ -544,9 +548,16 @@ The toast holds your `failed` words when any row failed, and your
 `done` words when every row worked. Nothing shows above the list.
 `done` gets the one row when only one was asked, so you can name it,
 and `failed` gets each failure with its error and how many rows were
-asked. `useListRun` keeps the ticked rows in step with the list. It
-moves the focus to the list after a run only when you pass its
-`region` to `PageScreen` as `listRef`, with a `listLabel`.
+asked. `useListRun` keeps the ticked rows in step with the list.
+
+Pass its `region` to `PageScreen` as `listRef`, with a `listLabel`, so
+a keyboard reader keeps their place. As the list starts to reload, the
+region takes a focus from the table or the footer. After a run started
+from the keyboard it draws the focus ring. Once the new rows land the
+focus goes back to the control the reader pressed, or to the first
+control of the row in its place. It stays on the region when that
+control is a primary action, so a one click action never takes a
+second Enter meant for another row.
 
 Give every bulk action an `icon`. On a medium wide screen the toolbar
 shows only the icon. When one row was picked and it failed, show the

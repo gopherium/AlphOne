@@ -17,7 +17,7 @@ When a person hides their profile name, the contact is named after the
 raw phone number instead. Those number-named contacts are expected, and
 fixing them is the point of the next section.
 
-You can also add a contact by hand with the **New contact** button, for
+You can also add a contact by hand with the **Add Contact** button, for
 people you want in the CRM before they ever message you.
 
 ## The contact list
