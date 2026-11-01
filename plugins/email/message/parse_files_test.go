@@ -251,6 +251,102 @@ func TestParseKeepsEveryByteOfALongQuotedPrintableAttachment(t *testing.T) {
 	}
 }
 
+func TestShownContentIDsStayCleanOnBothSides(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		link      string
+		header    string
+		contentID string
+	}{
+		{"an escaped NUL on both sides", "img%00@example.com", "<img%00@example.com>", "img@example.com"},
+		{"a NUL only in the header", "img@example.com", "<img\x00@example.com>", "img@example.com"},
+		{"an escaped NUL only in the link", "img%00@example.com", "<img@example.com>", "img@example.com"},
+		{"a NUL only in the link", "img\x00@example.com", "<img@example.com>", "img@example.com"},
+		{
+			"an escaped broken byte on both sides", "img%FF@example.com", "<img%FF@example.com>",
+			"img" + replacement + "@example.com",
+		},
+		{
+			"a broken byte only in the header", "img%FF@example.com", "<img\xff@example.com>",
+			"img" + replacement + "@example.com",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := fileMessage(htmlPart(`<p><img src="cid:`+c.link+`"></p>`), "Content-Type: image/png\r\nContent-ID: "+c.header)
+
+			m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if len(m.InlineImages) != 1 || m.InlineImages[0].ContentID != c.contentID {
+				t.Errorf("Parse().InlineImages = %+v, want one with content id %q", m.InlineImages, c.contentID)
+			}
+		})
+	}
+}
+
+func TestParseKeepsAMailWithAnUnreadablePart(t *testing.T) {
+	t.Parallel()
+
+	const unreadable = "--files\r\nContent-Type: application/x-foo bar\r\n\r\nLost.\r\n"
+	cases := []struct {
+		name    string
+		parts   string
+		skipped int
+	}{
+		{"a type with a stray word", unreadable, 1},
+		{"a type with a broken byte", "--files\r\nContent-Type: application/x\xffy\r\n\r\nLost.\r\n", 1},
+		{"two unreadable parts", unreadable + unreadable, 2},
+		{
+			"an unreadable part inside a nested container",
+			"--files\r\nContent-Type: multipart/mixed; boundary=\"inner\"\r\n\r\n" +
+				"--inner\r\nContent-Type: application/x-foo bar\r\n\r\nLost.\r\n--inner--\r\n",
+			1,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := "Content-Type: multipart/mixed; boundary=\"files\"\r\n\r\n" +
+				"--files\r\nContent-Type: text/plain\r\n\r\nThe note.\r\n" + c.parts + "--files--\r\n"
+
+			m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if m.Text != "The note." || len(m.Attachments) != 0 {
+				t.Errorf("Parse() text = %q, attachments = %+v, want the note and no attachment", m.Text, m.Attachments)
+			}
+			if m.SkippedParts != c.skipped {
+				t.Errorf("Parse().SkippedParts = %d, want %d", m.SkippedParts, c.skipped)
+			}
+			if !bytes.Equal(m.Raw, []byte(raw)) {
+				t.Errorf("Parse().Raw = %q, want the bytes as read", m.Raw)
+			}
+		})
+	}
+}
+
+func TestParseCountsNoSkippedPartInAFixture(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range fixtureNames(t) {
+		if got := parseFixture(t, name).SkippedParts; got != 0 {
+			t.Errorf("Parse(%s).SkippedParts = %d, want 0", name, got)
+		}
+	}
+}
+
 func TestParsePinsAPartWithADispositionAndNoType(t *testing.T) {
 	t.Parallel()
 

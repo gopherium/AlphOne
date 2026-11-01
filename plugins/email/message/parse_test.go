@@ -19,7 +19,10 @@ import (
 )
 
 // testLimits is wide enough for every fixture.
-var testLimits = message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10}
+var testLimits = message.Limits{
+	MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10,
+	MaxHeaderBytes: 1 << 16, MaxBodyBytes: 1 << 20,
+}
 
 // deadline is how long a parse of a hostile message may take.
 const deadline = 2 * time.Second
@@ -229,10 +232,206 @@ func TestParseReadsTheThreadIndex(t *testing.T) {
 func TestParseRefusesAMalformedMessage(t *testing.T) {
 	t.Parallel()
 
-	raw := "Content-Type: multipart/mixed\r\n\r\nThe boundary is missing.\r\n"
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"a multipart message with no boundary", "Content-Type: multipart/mixed\r\n\r\nThe boundary is missing.\r\n"},
+		{"a top type that cannot be read", "Content-Type: a b\r\n\r\nThe type is broken.\r\n"},
+	}
 
-	if _, err := message.Parse(strings.NewReader(raw), testLimits); !errors.Is(err, message.ErrMalformed) {
-		t.Errorf("Parse() of a multipart message with no boundary error = %v, want ErrMalformed", err)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := message.Parse(strings.NewReader(c.raw), testLimits); !errors.Is(err, message.ErrMalformed) {
+				t.Errorf("Parse() of %s error = %v, want ErrMalformed", c.name, err)
+			}
+		})
+	}
+}
+
+func TestParseBytesAnswersWhatParseAnswers(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range fixtureNames(t) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := readFixture(t, name)
+
+			m, err := message.ParseBytes(raw, testLimits)
+
+			if err != nil {
+				t.Fatalf("ParseBytes(%s) error = %v, want nil", name, err)
+			}
+			if got, want := summarize(m), summarize(parseFixture(t, name)); !reflect.DeepEqual(got, want) {
+				t.Errorf("ParseBytes(%s) =\n%+v\nwant\n%+v", name, got, want)
+			}
+			if &m.Raw[0] != &raw[0] {
+				t.Errorf("ParseBytes(%s).Raw is a copy, want the bytes it was given", name)
+			}
+		})
+	}
+}
+
+func TestParseBytesChecksItsLimits(t *testing.T) {
+	t.Parallel()
+
+	raw := readFixture(t, "gmail-reply.eml")
+	shortCap := testLimits
+	shortCap.MaxBytes = int64(len(raw)) - 1
+
+	if _, err := message.ParseBytes(raw, message.Limits{}); !errors.Is(err, message.ErrLimitsUnset) {
+		t.Errorf("ParseBytes() with no limits error = %v, want ErrLimitsUnset", err)
+	}
+	if _, err := message.ParseBytes(raw, shortCap); !errors.Is(err, message.ErrTooLarge) {
+		t.Errorf("ParseBytes() over the byte cap error = %v, want ErrTooLarge", err)
+	}
+}
+
+func TestParseReadsBcc(t *testing.T) {
+	t.Parallel()
+
+	raw := "Bcc: Maria Perez <maria.perez@example.com>, info@example.com\r\nContent-Type: text/plain\r\n\r\nText.\r\n"
+
+	m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if want := []message.Address{outsideSender, bareOwnMailbox}; !slices.Equal(m.Bcc, want) {
+		t.Errorf("Parse().Bcc = %+v, want %+v", m.Bcc, want)
+	}
+}
+
+func TestParseKeepsTheGoodAddressesOfABrokenField(t *testing.T) {
+	t.Parallel()
+
+	withRawByte := message.Address{Name: "Maria Perez " + replacement + " Lamps", Email: "maria.perez@example.com"}
+	raw := "From: Maria Perez \xa9 Lamps <maria.perez@example.com>\r\n" +
+		"To: Maria Perez \xa9 Lamps <maria.perez@example.com>, info@example.com\r\n" +
+		"Cc: sales@example.com, ??? junk, info@example.com\r\nContent-Type: text/plain\r\n\r\nText.\r\n"
+
+	m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if m.From != withRawByte {
+		t.Errorf("Parse().From = %+v, want %+v", m.From, withRawByte)
+	}
+	if want := []message.Address{withRawByte, bareOwnMailbox}; !slices.Equal(m.To, want) {
+		t.Errorf("Parse().To = %+v, want %+v", m.To, want)
+	}
+	if want := []message.Address{{Email: "sales@example.com"}, bareOwnMailbox}; !slices.Equal(m.Cc, want) {
+		t.Errorf("Parse().Cc = %+v, want %+v", m.Cc, want)
+	}
+}
+
+func TestParseAnswersCleanText(t *testing.T) {
+	t.Parallel()
+
+	subjectOf := func(m *message.Message) string { return m.Subject }
+	textOf := func(m *message.Message) string { return m.Text }
+	htmlOf := func(m *message.Message) string { return m.HTML }
+	fromNameOf := func(m *message.Message) string { return m.From.Name }
+	toNameOf := func(m *message.Message) string { return m.To[0].Name }
+	fileNameOf := func(m *message.Message) string { return m.Attachments[0].Name }
+	contentIDOf := func(m *message.Message) string { return m.Attachments[0].ContentID }
+	attachment := func(field string) string {
+		return fileMessage("Content-Type: text/plain\r\n\r\nText.", "Content-Type: application/pdf\r\n"+field)
+	}
+	cases := []struct {
+		name string
+		raw  string
+		read func(*message.Message) string
+		want string
+	}{
+		{"a raw NUL in the subject", "Subject: Qu\x00ote\r\n\r\nText.\r\n", subjectOf, "Quote"},
+		{"an encoded NUL in the subject", "Subject: =?utf-8?q?Qu=00ote?=\r\n\r\nText.\r\n", subjectOf, "Quote"},
+		{"a raw broken byte in the subject", "Subject: Qu\xffote\r\n\r\nText.\r\n", subjectOf, "Qu" + replacement + "ote"},
+		{
+			"an encoded broken byte in the subject", "Subject: =?utf-8?q?Qu=FFote?=\r\n\r\nText.\r\n", subjectOf,
+			"Qu" + replacement + "ote",
+		},
+		{"a NUL in the text", "Content-Type: text/plain\r\n\r\nTe\x00xt.", textOf, "Text."},
+		{
+			"an encoded NUL in the text",
+			"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nTe=00xt.", textOf, "Text.",
+		},
+		{
+			"a broken byte in the text", "Content-Type: text/plain; charset=utf-8\r\n\r\nTe\xffxt.", textOf,
+			"Te" + replacement + "xt.",
+		},
+		{"a NUL in the HTML", "Content-Type: text/html\r\n\r\n<p>Te\x00xt.</p>", htmlOf, "<p>Text.</p>"},
+		{
+			"a broken byte in the HTML", "Content-Type: text/html; charset=utf-8\r\n\r\n<p>Te\xffxt.</p>", htmlOf,
+			"<p>Te" + replacement + "xt.</p>",
+		},
+		{
+			"a raw NUL in a sender name", "From: \"Maria\x00 Perez\" <maria.perez@example.com>\r\n\r\nText.\r\n",
+			fromNameOf, "Maria Perez",
+		},
+		{
+			"an encoded NUL in a sender name", "From: =?utf-8?q?Maria=00_Perez?= <maria.perez@example.com>\r\n\r\nText.\r\n",
+			fromNameOf, "Maria Perez",
+		},
+		{
+			"a broken byte in a recipient name", "To: =?utf-8?q?Maria=FF?= <maria.perez@example.com>\r\n\r\nText.\r\n",
+			toNameOf, "Maria" + replacement,
+		},
+		{
+			"an encoded NUL in a file name", attachment("Content-Disposition: attachment; filename*=utf-8''no%00te.pdf"),
+			fileNameOf, "note.pdf",
+		},
+		{
+			"a broken byte in a file name", attachment("Content-Disposition: attachment; filename*=utf-8''no%FFte.pdf"),
+			fileNameOf, "no" + replacement + "te.pdf",
+		},
+		{"a NUL in a content id", attachment("Content-ID: <no\x00te@example.com>"), contentIDOf, "note@example.com"},
+		{"an escaped NUL in a content id", attachment("Content-ID: <no%00te@example.com>"), contentIDOf, "note@example.com"},
+		{
+			"a broken byte in a content id", attachment("Content-ID: <no\xffte@example.com>"), contentIDOf,
+			"no" + replacement + "te@example.com",
+		},
+		{
+			"a broken byte beside a broken escape in a content id", attachment("Content-ID: <no%zz\xffte@example.com>"),
+			contentIDOf, "no%zz" + replacement + "te@example.com",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := message.Parse(strings.NewReader(c.raw), testLimits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if got := c.read(m); got != c.want {
+				t.Errorf("Parse() of %q read %q, want %q", c.raw, got, c.want)
+			}
+			if !bytes.Equal(m.Raw, []byte(c.raw)) {
+				t.Errorf("Parse().Raw = %q, want the bytes as read", m.Raw)
+			}
+		})
+	}
+}
+
+func TestParseLeavesOutAnEncodedNULInAnEmail(t *testing.T) {
+	t.Parallel()
+
+	raw := "To: =?utf-8?q?a=00b?=@example.com, info@example.com\r\n\r\nText.\r\n"
+
+	m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if want := []message.Address{bareOwnMailbox}; !slices.Equal(m.To, want) {
+		t.Errorf("Parse().To = %+v, want %+v", m.To, want)
 	}
 }
 
@@ -323,7 +522,7 @@ func october(day, hour, minute int) time.Time {
 }
 
 // fixtureNames lists the fixture files in testdata, sorted.
-func fixtureNames(t *testing.T) []string {
+func fixtureNames(t testing.TB) []string {
 	t.Helper()
 	paths, err := filepath.Glob(filepath.Join("testdata", "*.eml"))
 	if err != nil {
@@ -338,7 +537,7 @@ func fixtureNames(t *testing.T) []string {
 }
 
 // readFixture answers the bytes of the fixture file name.
-func readFixture(t *testing.T, name string) []byte {
+func readFixture(t testing.TB, name string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("testdata", name))
 	if err != nil {
