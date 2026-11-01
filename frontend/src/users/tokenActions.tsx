@@ -10,7 +10,7 @@ import type { ApiToken } from './tokenFields'
 
 /**
  * Returns the revoke the tokens list offers on every row and on the picked rows at once.
- * @param bulk - Runs the revoke over the picked tokens, shows one toast, then reloads the list.
+ * @param bulk - Revokes the picked tokens, marks the list reloading, shows one toast, then reloads the list.
  * @returns The row and bulk actions.
  */
 export function useTokenActions(bulk: BulkRun<ApiToken>): Action<ApiToken>[] {

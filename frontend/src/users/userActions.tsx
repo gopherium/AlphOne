@@ -11,7 +11,7 @@ import {
 	useGraph,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { BulkFailure, BulkRun, BulkWords, Session } from '@alphone/frontend-sdk'
+import type { BulkFailure, BulkRun, BulkWords, ListRun, Session } from '@alphone/frontend-sdk'
 import type { Action } from '@alphone/frontend-sdk/dataviews'
 import { useMemo } from 'react'
 
@@ -72,10 +72,11 @@ function switchWords(disabled: boolean): BulkWords<Account> {
 /**
  * Returns the users list actions, none on the reader's own row, a role or standing change only within reach.
  * @param session - The signed-in account.
- * @param bulk - Runs a disable or enable over the picked accounts, shows one toast, then reloads the list.
+ * @param run - What the list does around a write, handed on to the role modal.
+ * @param bulk - Switches the picked accounts, marks the list reloading, shows one toast, then reloads the list.
  * @returns The row and bulk actions, none once the session is gone.
  */
-export function useUserActions(session: Session | null, bulk: BulkRun<Account>): Action<Account>[] {
+export function useUserActions(session: Session | null, run: ListRun, bulk: BulkRun<Account>): Action<Account>[] {
 	const graph = useGraph()
 
 	return useMemo(() => {
@@ -96,7 +97,7 @@ export function useUserActions(session: Session | null, bulk: BulkRun<Account>):
 				modalHeader: __('Change role', 'alphone'),
 				modalSize: 'small',
 				isEligible: changeable,
-				RenderModal: (props) => <RoleModal {...props} grantable={session.grantable} />,
+				RenderModal: (props) => <RoleModal {...props} grantable={session.grantable} run={run} />,
 			},
 			{
 				id: 'resend-invitation',
@@ -125,5 +126,5 @@ export function useUserActions(session: Session | null, bulk: BulkRun<Account>):
 			},
 		]
 		return actions
-	}, [session, graph, bulk])
+	}, [session, graph, run, bulk])
 }
