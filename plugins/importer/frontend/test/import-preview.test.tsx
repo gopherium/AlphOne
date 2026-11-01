@@ -22,9 +22,9 @@ beforeEach(() => {
 	server.use(...handlers)
 })
 
-test('ghosts the preview until its table arrives', async () => {
+test('shows a spinner for the preview until its table arrives', async () => {
 	renderHosted(<ImportScreen importId={importID} />)
 
 	const label = await screen.findByText('Loading the preview…')
-	expect(label.closest('.godmin-loading-rows')).not.toBeNull()
+	expect(label.closest('.godmin-loading-screen')).not.toBeNull()
 })
