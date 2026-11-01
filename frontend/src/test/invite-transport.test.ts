@@ -2,7 +2,7 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { InvalidTokenError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
-import { RoleBeyondReachError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
+import { RoleNotGrantableError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
 import { expect, test } from 'vitest'
 
 import { graphAuthTransport } from '../auth/graphTransport'
@@ -90,7 +90,7 @@ test('invite throws the typed error each role reason names', async () => {
 	expect(await refusedInvitation('VALIDATION', 'role_unknown', 'unknown role')).toBeInstanceOf(RoleUnknownError)
 	expect(
 		await refusedInvitation('VALIDATION', 'role_beyond_reach', 'that role is beyond your own'),
-	).toBeInstanceOf(RoleBeyondReachError)
+	).toBeInstanceOf(RoleNotGrantableError)
 })
 
 test('acceptInvite answers the activated identity', async () => {
@@ -208,6 +208,29 @@ test('fetchUsers carries whether the reader may change each account', async () =
 
 	expect(asked).toContain('withinReach')
 	expect(held.withinReach).toBe(false)
+})
+
+test.each([true, false])('fetchUsers answers editable as %s from the reach of the reader', async (withinReach) => {
+	graphResponds('query Users', {
+		data: {
+			users: [
+				{
+					id: 'u1',
+					email: 'maria@example.com',
+					name: 'Maria Perez',
+					disabled: false,
+					confirmed: true,
+					createdAt: '2026-08-31T00:00:00Z',
+					role: 'member',
+					withinReach,
+				},
+			],
+		},
+	})
+
+	const [held] = await graphAuthTransport.fetchUsers()
+
+	expect(held.editable).toBe(withinReach)
 })
 
 test('the token operations throw their fallback without a payload', async () => {

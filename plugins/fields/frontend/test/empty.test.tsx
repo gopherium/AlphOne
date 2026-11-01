@@ -9,7 +9,7 @@ import { FieldsScreen } from '../FieldsScreen'
 import { plugin } from '../index'
 import { renderHosted } from './harness'
 
-test('titles an empty catalogue under the page and draws the list glyph its sidebar row draws', async () => {
+test('titles an empty catalogue under the page, describes it and draws the list glyph of its sidebar row', async () => {
 	const { container, unmount } = render(list)
 	const drawing = container.querySelector('svg')?.innerHTML
 	unmount()
@@ -22,6 +22,8 @@ test('titles an empty catalogue under the page and draws the list glyph its side
 	renderHosted(<FieldsScreen />, fakeGraphClient([plugin]).graph)
 
 	const title = await screen.findByRole('heading', { level: 3, name: 'No fields yet.' })
-	expect(title.closest('.godmin-empty')?.querySelector('svg')?.innerHTML).toBe(drawing)
+	const empty = title.closest('.godmin-empty')
+	expect(empty?.querySelector('svg')?.innerHTML).toBe(drawing)
+	expect(empty).toHaveTextContent('Add a field to store more about every contact.')
 	expect(plugin.nav[0].icon).toBe(list)
 })

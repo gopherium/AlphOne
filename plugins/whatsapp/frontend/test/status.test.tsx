@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { GraphProvider } from '@alphone/frontend-sdk'
-import { fakeGraphClient, server } from '@alphone/frontend-sdk/testing'
+import { fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { HttpResponse, graphql } from 'msw'
+import { HttpResponse } from 'msw'
 import { beforeEach, expect, test } from 'vitest'
 
 import { handlers } from '../handlers'

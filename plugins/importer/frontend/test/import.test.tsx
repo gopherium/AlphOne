@@ -4,7 +4,7 @@ import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sd
 import { createRootRoute } from '@tanstack/react-router'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test } from 'vitest'
+import { beforeAll, beforeEach, expect, test } from 'vitest'
 
 import { ImportScreen } from '../ImportScreen'
 import { handlers, importID } from '../handlers'
@@ -68,6 +68,8 @@ async function chooseField(column: string, field: string) {
 	await userEvent.click(await screen.findByRole('option', { name: field }))
 	await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
 }
+
+beforeAll(() => import('../RowsTable'))
 
 beforeEach(() => {
 	server.use(...handlers)
@@ -381,7 +383,7 @@ test('offers the contact fields by the names the interface gives them, a defined
 	expect(offered).toEqual(['Not imported', 'Name', 'Email', 'Phone', 'Joined on'])
 })
 
-test('the rows section shows a loading row until every page of rows is read', async () => {
+test('the rows section shows a spinner until every page of rows is read', async () => {
 	server.use(graphql.query('ImportRows', () => new Promise(() => {})))
 	renderScreen()
 

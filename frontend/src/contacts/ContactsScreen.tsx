@@ -42,7 +42,7 @@ function ContactsEmpty({ narrowed }: { narrowed: boolean }) {
 		<ListEmpty
 			icon={people}
 			title={__('No contacts yet.', 'alphone')}
-			hint={__('Add one with New contact.', 'alphone')}
+			description={__('Add one with New contact.', 'alphone')}
 		/>
 	)
 }
@@ -166,7 +166,7 @@ export function ContactsScreen() {
 						<Link to="/contacts/$contactId" params={{ contactId: item.id }} {...props} />
 					)}
 					actions={actions}
-					isLoading={result.fetching || sizing}
+					isLoading={result.fetching || (result.data === undefined && result.error === undefined)}
 					searchLabel={__('Search contacts…', 'alphone')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 					empty={<ContactsEmpty narrowed={narrowedBy(variables)} />}

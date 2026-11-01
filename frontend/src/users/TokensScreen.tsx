@@ -45,7 +45,7 @@ function TokensEmpty({ narrowed }: { narrowed: boolean }) {
 		<ListEmpty
 			icon={key}
 			title={__('No API tokens yet.', 'alphone')}
-			hint={__('Add one with New token.', 'alphone')}
+			description={__('Add one with New token.', 'alphone')}
 		/>
 	)
 }

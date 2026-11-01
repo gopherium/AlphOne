@@ -9,7 +9,7 @@ import {
 	RateLimitedError,
 	UnauthorizedError,
 } from '@gopherium/react-auth'
-import { RoleBeyondReachError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
+import { RoleNotGrantableError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
 import type {
 	Invitation,
 	NewInvite,
@@ -19,7 +19,7 @@ import type {
 /**
  * Account is one user account as the admin screens consume it.
  */
-export type Account = BrickAccount & { confirmed: boolean; withinReach: boolean }
+export type Account = BrickAccount & { withinReach: boolean }
 
 import {
 	acceptInviteMutation,
@@ -121,6 +121,7 @@ function toAccount(user: {
 		confirmed: user.confirmed,
 		created_at: new Date(user.createdAt),
 		role: user.role ?? '',
+		editable: user.withinReach,
 		withinReach: user.withinReach,
 	}
 }
@@ -216,7 +217,7 @@ function toInvitation(report: { delivered: boolean; activationLink?: string | nu
 /** inviteRefusals maps each reason an invitation is refused for onto the typed error it throws. */
 const inviteRefusals = new Map<string, new (message: string) => Error>([
 	['role_unknown', RoleUnknownError],
-	['role_beyond_reach', RoleBeyondReachError],
+	['role_beyond_reach', RoleNotGrantableError],
 ])
 
 /**

@@ -11,7 +11,7 @@ const sources = import.meta.glob('../main.tsx', {
 	eager: true,
 }) as Record<string, string>
 
-test('ghosts the screen while the session loads', () => {
+test('shows a spinner while the session loads', () => {
 	render(<BootLoading />)
 
 	const status = screen.getByRole('status')
@@ -19,7 +19,7 @@ test('ghosts the screen while the session loads', () => {
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
-test('the entry hands that ghost to the auth gate', () => {
+test('the entry hands that spinner to the auth gate', () => {
 	expect(sources['../main.tsx']).toMatch(/loading=\{<BootLoading \/>\}/)
 })
 

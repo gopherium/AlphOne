@@ -6,7 +6,7 @@ import {
 	ErrorNotice,
 	InputControl,
 	ListEmpty,
-	LoadingRows,
+	LoadingScreen,
 	PageScreen,
 	RepeatRows,
 	RowControls,
@@ -131,7 +131,7 @@ export function FieldsScreen() {
 	if (catalogue.fetching && !catalogue.data) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
-				<LoadingRows label={__('Loading fields…', 'alphone-fields')} rows={3} />
+				<LoadingScreen label={__('Loading fields…', 'alphone-fields')} />
 			</PageScreen>
 		)
 	}
@@ -199,7 +199,7 @@ function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () =>
 			<FailureNotice failure={order.failure} fallback={__('The fields could not be ordered.', 'alphone-fields')} />
 			<div
 				ref={region}
-				className="godmin-table-scroll godmin-arrival"
+				className="godmin-table-scroll"
 				role="region"
 				aria-label={__('Fields', 'alphone-fields')}
 				tabIndex={empty ? -1 : 0}
@@ -223,7 +223,7 @@ function NoFields() {
 		<ListEmpty
 			icon={list}
 			title={__('No fields yet.', 'alphone-fields')}
-			hint={__('Add a field to store more about every contact.', 'alphone-fields')}
+			description={__('Add a field to store more about every contact.', 'alphone-fields')}
 		/>
 	)
 }

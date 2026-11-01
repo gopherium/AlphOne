@@ -45,7 +45,7 @@ export function RoleModal({
 		if (result.error) {
 			return
 		}
-		toaster.show(sprintf(__('Role changed for "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
+		toaster.show(sprintf(__('Role changed for "%(name)s".', 'alphone'), { name: user.name }))
 		closeModal?.()
 	}
 
@@ -94,7 +94,7 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 			return
 		}
 		if (result.data?.resendInvite.delivered) {
-			toaster.show(sprintf(__('Invitation sent to "%(name)s".', 'alphone'), { name: toaster.name(user.name) }))
+			toaster.show(sprintf(__('Invitation sent to "%(name)s".', 'alphone'), { name: user.name }))
 			closeModal?.()
 		}
 	}
@@ -119,7 +119,7 @@ export function ResendModal({ items: [user], closeModal }: RenderModalProps<Acco
 			onCancel={closeModal}
 		>
 			{sprintf(__('Send a new invitation to "%(name)s" (%(email)s)? The link sent before stops working.', 'alphone'), {
-				name: toaster.name(user.name),
+				name: user.name,
 				email: user.email,
 			})}
 		</ConfirmBody>

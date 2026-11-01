@@ -10,15 +10,10 @@ const sources = import.meta.glob('../../index.html', {
 
 const entry = sources['../../index.html']
 
-test('stands a ghost in the root before any script runs', () => {
-	const root = entry.slice(entry.indexOf('<div id="root"'))
-
-	expect(root).toMatch(/alphone-boot__bar/)
-	expect(root).toMatch(/aria-hidden="true"/)
+test('draws nothing in the root before any script runs', () => {
+	expect(entry).toMatch(/<div id="root"><\/div>/)
 })
 
-test('holds that ghost back so a quick load never shows it', () => {
-	expect(entry).toMatch(/\.alphone-boot\s*\{[^}]*opacity:\s*0/)
-	expect(entry).toMatch(/\.alphone-boot\s*\{[^}]*animation:[^;]*150ms/)
-	expect(entry).toMatch(/@keyframes alphone-boot-in/)
+test('carries no style of its own', () => {
+	expect(entry).not.toMatch(/<style/)
 })

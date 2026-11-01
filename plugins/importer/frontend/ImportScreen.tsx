@@ -3,7 +3,6 @@
 import {
 	Button,
 	ErrorNotice,
-	LoadingRows,
 	LoadingScreen,
 	PageScreen,
 	SectionTitle,
@@ -98,7 +97,7 @@ function StagedRows({
 	staged: ImportRowsRead
 	fields: readonly ImportField[]
 }) {
-	const loading = <LoadingRows label={__('Loading the preview…', 'alphone-importer')} rows={3} />
+	const loading = <LoadingScreen label={__('Loading the preview…', 'alphone-importer')} />
 	if (staged.failed) {
 		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
 	}

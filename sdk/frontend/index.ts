@@ -102,7 +102,6 @@ export {
 	InitialsAvatar,
 	keyFromLabel,
 	ListEmpty,
-	LoadingRows,
 	LoadingScreen,
 	LoadMore,
 	LogItem,

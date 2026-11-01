@@ -512,6 +512,46 @@ test('waits for the page size before it asks for contacts', async () => {
 	expect(asked).toEqual([expect.objectContaining({ limit: 2, offset: 2 })])
 })
 
+test('holds the empty state back from the first render until the first answer', async () => {
+	const sized = gate()
+	const answered = gate()
+	server.use(
+		graphql.query('AdminSettings', async () => {
+			await sized.held
+			return HttpResponse.json({
+				data: {
+					adminSettings: {
+						__typename: 'AdminSettings',
+						toastMilliseconds: 6000,
+						listPageSizes: [2, 4],
+						listPageSize: 2,
+						contactPageCap: 200,
+						formatLocale: 'es-ES',
+					},
+				},
+			})
+		}),
+		graphql.query('ContactPage', async ({ variables }) => {
+			asked.push(variables)
+			await answered.held
+			return HttpResponse.json({
+				data: { contactPage: { __typename: 'ContactPage', items: [], total: 0, limit: 2 } },
+			})
+		}),
+	)
+	renderAt('/contacts')
+
+	await waitFor(() => expect(document.querySelector('.dataviews-loading')).not.toBeNull(), settled)
+	expect(screen.queryByText('No contacts yet.')).not.toBeInTheDocument()
+	sized.release()
+	await waitFor(() => expect(asked).toHaveLength(1), settled)
+	expect(document.querySelector('.dataviews-loading')).not.toBeNull()
+	expect(screen.queryByText('No contacts yet.')).not.toBeInTheDocument()
+	answered.release()
+	expect(await screen.findByText('No contacts yet.', {}, settled)).toBeInTheDocument()
+	expect(document.querySelector('.dataviews-loading')).toBeNull()
+})
+
 /**
  * Makes the admin settings unreadable.
  */

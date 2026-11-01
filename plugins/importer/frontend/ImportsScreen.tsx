@@ -42,7 +42,7 @@ function ImportsEmpty({ narrowed }: { narrowed: boolean }) {
 		<ListEmpty
 			icon={uploadIcon}
 			title={__('No imports yet.', 'alphone-importer')}
-			hint={__('Upload a CSV or Excel file to start one.', 'alphone-importer')}
+			description={__('Upload a CSV or Excel file to start one.', 'alphone-importer')}
 		/>
 	)
 }

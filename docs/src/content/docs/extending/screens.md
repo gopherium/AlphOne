@@ -250,23 +250,23 @@ for each. Handle them in this order.
 
 ```tsx
 if (invoices.isPending) {
-	return <Text role="status">Loading invoices…</Text>
+	return <LoadingScreen label="Loading invoices…" />
 }
 if (invoices.isError) {
 	return <ErrorNotice>Invoices could not be loaded.</ErrorNotice>
 }
 if (rows.length === 0) {
-	return <ListEmpty icon={people} title="No invoices yet." hint="Add one with New invoice." />
+	return <ListEmpty icon={people} title="No invoices yet." description="Add one with New invoice." />
 }
 return <InvoiceTable rows={rows} />
 ```
 
-`Text role="status"` announces loading politely. `ErrorNotice` announces
+`LoadingScreen` announces its label politely. `ErrorNotice` announces
 the failure as an alert, which plain copy in a `Text` never does.
 
-`ListEmpty` draws the icon, the title and the hint centred on the
+`ListEmpty` draws the icon, the title and the description centred on the
 canvas, as WordPress draws an empty list. Its title sits one level
-under the page title, so it never competes with it. Leave out `hint`
+under the page title, so it never competes with it. Leave out `description`
 when a search or a filter emptied the list.
 
 ## Lists, tables, and paging
@@ -385,7 +385,7 @@ export function InvoicesScreen() {
 					defaultLayouts={list.defaultLayouts}
 					selection={list.selection}
 					onChangeSelection={list.onChangeSelection}
-					isLoading={result.fetching || sizing}
+					isLoading={result.fetching || (result.data === undefined && result.error === undefined)}
 					searchLabel={__('Search invoices…', 'acme-billing')}
 					config={settings === undefined ? undefined : { perPageSizes: settings.listPageSizes }}
 				/>
@@ -478,8 +478,8 @@ test that builds a client itself passes the plugin too, with
 ### Bulk actions
 
 An action with `supportsBulk: true` runs on every row the reader
-ticked. `useBulkRun` makes one call per row, all at once, refreshes
-your list and shows one toast in the words you pass as `BulkWords`:
+ticked. `useBulkRun` makes one call per row, all at once, shows one
+toast in the words you pass as `BulkWords`, then refreshes your list:
 
 ```tsx
 import { __, _n, formatNumber, inbox, sprintf, useGraph } from '@alphone/frontend-sdk'
@@ -531,9 +531,10 @@ const archive = useArchiveAction(useBulkRun<InvoiceRow>(run, refresh))
 
 A call fails when it throws, when its promise rejects, or when it
 answers with its `error` set, so an urql result with an error counts
-as a failure. One bad row never hides the others. `useBulkRun` waits
-for `refresh` before the toast, because DataViews never tells the
-screen an action finished, so `refresh` must return a promise.
+as a failure. One bad row never hides the others. `useBulkRun` shows
+the toast as the last call ends and only then calls `refresh`, so the
+old rows stay on screen until it ends. `refresh` must return a promise,
+since the list stays marked as reloading until that promise settles.
 `graph.refetch` returns nothing, so read the list again with
 `graph.client.query` as above. Wrap `refresh` in `useCallback`. When
 it changes during a run, the bulk bar draws the confirm again and the

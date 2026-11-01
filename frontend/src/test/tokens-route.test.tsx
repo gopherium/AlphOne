@@ -471,7 +471,7 @@ test('greys Cancel out while the revoke runs', async () => {
 	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
 })
 
-test('cuts a long token name short in the question', async () => {
+test('shows a long token name whole in the question', async () => {
 	holding([tokenOf('a1', 'Nightly export of every contact to the accounting system')])
 	renderAt('/users/tokens')
 
@@ -479,7 +479,7 @@ test('cuts a long token name short in the question', async () => {
 
 	const dialog = within(await screen.findByRole('dialog'))
 	expect(
-		dialog.getByText('Revoke "Nightly export of every contact to the accoun…"? This cannot be undone.'),
+		dialog.getByText('Revoke "Nightly export of every contact to the accounting system"? This cannot be undone.'),
 	).toBeInTheDocument()
 })
 
@@ -562,7 +562,7 @@ test('keeps a revoke from a row busy with Cancel greyed until it ends, then clos
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-test('keeps a bulk revoke busy while the list reloads, then closes with one toast', async () => {
+test('closes a bulk revoke with one toast while the list reloads, then drops the old rows', async () => {
 	revokes()
 	renderAt('/users/tokens')
 	await select('n8n production', 'Zapier sync')
@@ -578,11 +578,11 @@ test('keeps a bulk revoke busy while the list reloads, then closes with one toas
 	const dialog = within(await screen.findByRole('dialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
-	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
-	expect(screen.queryByText('2 tokens revoked.')).not.toBeInTheDocument()
-	reload.release()
 	expect(await screen.findByText('2 tokens revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(screen.getByRole('row', { name: /n8n production/ })).toBeInTheDocument()
+	expect(screen.getByRole('row', { name: /Zapier sync/ })).toBeInTheDocument()
+	reload.release()
 	await waitFor(async () => expect(await shownNames()).toEqual(['Monthly report']))
 })
 

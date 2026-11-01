@@ -4,7 +4,7 @@ import {
 	__,
 	Button,
 	InputControl,
-	LoadingRows,
+	LoadingScreen,
 	PageTitle,
 	Skeleton,
 	Stack,
@@ -187,7 +187,7 @@ function MediaBody({ message }: { message: Message }) {
 		return <UnavailableAttachment media={media} message={message} />
 	}
 	if (media.status === 'pending') {
-		return <MediaGhost />
+		return <MediaSkeleton />
 	}
 	return <ReadyAttachment media={media} message={message} />
 }
@@ -280,16 +280,16 @@ function VideoAttachment({
 }
 
 /**
- * Renders a ghost shaped like the attachment that is still downloading.
+ * Renders a skeleton shaped like the attachment that is still downloading.
  * @param props - Whether the attachment is a sticker.
- * @returns The ghost body.
+ * @returns The skeleton body.
  */
-function MediaGhost({ sticker = false }: { sticker?: boolean }) {
-	const shape = sticker ? ' alphone-message__ghost--sticker' : ''
+function MediaSkeleton({ sticker = false }: { sticker?: boolean }) {
+	const shape = sticker ? ' alphone-message__skeleton--sticker' : ''
 	return (
-		<div className={`alphone-message__ghost${shape}`}>
+		<div className={`alphone-message__skeleton${shape}`}>
 			<VisuallyHidden role="status">{__('Downloading…', 'alphone-whatsapp')}</VisuallyHidden>
-			<Skeleton className="alphone-message__ghost-block" />
+			<Skeleton className="alphone-message__skeleton-block" />
 		</div>
 	)
 }
@@ -308,7 +308,7 @@ function MediaImage({
 }) {
 	const blob = useMediaBlob(message.id, media.downloadPath)
 	if (blob.isPending) {
-		return <MediaGhost sticker={message.contentType === 'sticker'} />
+		return <MediaSkeleton sticker={message.contentType === 'sticker'} />
 	}
 	if (blob.isError) {
 		return <Text className="alphone-message__content">{__('Attachment unavailable.', 'alphone-whatsapp')}</Text>
@@ -472,14 +472,14 @@ function ThreadBody({
 		return <Text role="alert">{__('Messages could not be loaded.', 'alphone-whatsapp')}</Text>
 	}
 	if (!loaded) {
-		return <LoadingRows label={__('Loading messages…', 'alphone-whatsapp')} />
+		return <LoadingScreen label={__('Loading messages…', 'alphone-whatsapp')} />
 	}
 	return (
 		<>
 			<div
 				role="log"
 				aria-label={__('Messages', 'alphone-whatsapp')}
-				className="alphone-thread__log godmin-arrival"
+				className="alphone-thread__log"
 				tabIndex={0}
 				ref={logRef}
 				onScroll={(event) => {

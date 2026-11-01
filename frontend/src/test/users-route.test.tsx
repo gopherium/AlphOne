@@ -612,14 +612,16 @@ test('enables a disabled account from the Enable its row draws', async () => {
 	expect(writes).toEqual([{ id: barred.id, disabled: false }])
 })
 
-test('cuts a long account name short in the toast', async () => {
+test('shows a long account name whole in the toast', async () => {
 	holding([signedIn, accountOf('fd', 'Maria Perez of the accounting and payroll office team')])
 	writesDisabled()
 	renderAt('/users')
 
 	await act('Maria Perez of the accounting and payroll office team', 'Disable')
 
-	expect(await screen.findByText('"Maria Perez of the accounting and payroll off…" disabled.')).toBeInTheDocument()
+	expect(
+		await screen.findByText('"Maria Perez of the accounting and payroll office team" disabled.'),
+	).toBeInTheDocument()
 })
 
 test('names a disabled account in a Spanish toast', async () => {

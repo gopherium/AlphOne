@@ -3,7 +3,7 @@
 import {
 	Button,
 	ErrorNotice,
-	LoadingRows,
+	LoadingScreen,
 	PageScreen,
 	SelectControl,
 	Stack,
@@ -38,7 +38,7 @@ export function LanguageScreen() {
 	if (asked.data === undefined) {
 		return (
 			<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
-				<LoadingRows label={__('Reading the languages', 'alphone')} />
+				<LoadingScreen label={__('Reading the languages', 'alphone')} />
 			</PageScreen>
 		)
 	}

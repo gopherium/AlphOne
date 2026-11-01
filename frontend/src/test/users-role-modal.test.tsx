@@ -27,6 +27,7 @@ const member: Account = {
 	confirmed: true,
 	created_at: new Date('2026-07-07T10:00:00Z'),
 	role: 'member',
+	editable: true,
 	withinReach: true,
 }
 

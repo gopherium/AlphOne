@@ -9,7 +9,6 @@ import {
 	notAllowed,
 	sprintf,
 	useGraph,
-	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { BulkFailure, BulkRun, BulkWords, Session } from '@alphone/frontend-sdk'
@@ -25,18 +24,12 @@ import { ResendModal, RoleModal } from './UserModals'
  * @param disabled - Whether the accounts were disabled rather than enabled.
  * @param done - How many accounts changed.
  * @param only - The one account asked, when only one was.
- * @param cut - Cuts a name to the length a toast shows.
  * @returns The confirmation, naming the account when only one was asked.
  */
-function switchedMessage(
-	disabled: boolean,
-	done: number,
-	only: Account | undefined,
-	cut: (name: string) => string,
-): string {
+function switchedMessage(disabled: boolean, done: number, only: Account | undefined): string {
 	if (only !== undefined) {
 		const template = disabled ? __('"%(name)s" disabled.', 'alphone') : __('"%(name)s" enabled.', 'alphone')
-		return sprintf(template, { name: cut(only.name) })
+		return sprintf(template, { name: only.name })
 	}
 	const template = disabled
 		? _n('%s user disabled.', '%s users disabled.', done, 'alphone')
@@ -67,12 +60,11 @@ function unswitchedMessage(disabled: boolean, asked: number, failures: BulkFailu
 /**
  * Returns the words a disable or enable run reports its outcome in.
  * @param disabled - Whether the run disables the accounts rather than enables them.
- * @param cut - Cuts a name to the length a toast shows.
  * @returns The words for the accounts changed and for the ones that failed.
  */
-function switchWords(disabled: boolean, cut: (name: string) => string): BulkWords<Account> {
+function switchWords(disabled: boolean): BulkWords<Account> {
 	return {
-		done: (done, only) => switchedMessage(disabled, done, only, cut),
+		done: (done, only) => switchedMessage(disabled, done, only),
 		failed: (failures, asked) => unswitchedMessage(disabled, asked, failures),
 	}
 }
@@ -80,12 +72,11 @@ function switchWords(disabled: boolean, cut: (name: string) => string): BulkWord
 /**
  * Returns the users list actions, none on the reader's own row, a role or standing change only within reach.
  * @param session - The signed-in account.
- * @param bulk - Runs a disable or enable over the picked accounts, reloads the list and shows one toast.
+ * @param bulk - Runs a disable or enable over the picked accounts, shows one toast, then reloads the list.
  * @returns The row and bulk actions, none once the session is gone.
  */
 export function useUserActions(session: Session | null, bulk: BulkRun<Account>): Action<Account>[] {
 	const graph = useGraph()
-	const toaster = useToaster()
 
 	return useMemo(() => {
 		if (session === null) {
@@ -96,7 +87,7 @@ export function useUserActions(session: Session | null, bulk: BulkRun<Account>):
 			bulk(
 				items,
 				(user) => graph.client.mutation(setUserDisabledMutation, { id: user.id, disabled }).toPromise(),
-				switchWords(disabled, (name) => toaster.name(name)),
+				switchWords(disabled),
 			)
 		const actions: Action<Account>[] = [
 			{
@@ -134,5 +125,5 @@ export function useUserActions(session: Session | null, bulk: BulkRun<Account>):
 			},
 		]
 		return actions
-	}, [session, graph, toaster, bulk])
+	}, [session, graph, bulk])
 }

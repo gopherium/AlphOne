@@ -2,7 +2,7 @@
 
 import {
 	Badge,
-	LoadingRows,
+	LoadingScreen,
 	NavigationItem,
 	NavigationList,
 	Text,
@@ -33,7 +33,7 @@ export function ConversationList() {
 		return <Text role="alert">{__('Conversations could not be loaded.', 'alphone-whatsapp')}</Text>
 	}
 	if (!rows) {
-		return <LoadingRows label={__('Loading conversations…', 'alphone-whatsapp')} />
+		return <LoadingScreen label={__('Loading conversations…', 'alphone-whatsapp')} />
 	}
 	if (rows.length === 0) {
 		return <Text role="status">{__('No conversations yet.', 'alphone-whatsapp')}</Text>
