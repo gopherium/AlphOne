@@ -16,6 +16,8 @@ type Message struct {
 	To []Address
 	// Cc lists the mailboxes the Cc field names.
 	Cc []Address
+	// Bcc lists the mailboxes the Bcc field names.
+	Bcc []Address
 	// ReplyTo lists the mailboxes the Reply-To field names.
 	ReplyTo []Address
 	// Subject is the Subject field decoded to UTF-8.
@@ -34,10 +36,14 @@ type Message struct {
 	Text string
 	// HTML is the HTML body in UTF-8 as sent, unsafe to show.
 	HTML string
+	// BodyCut reports that the bodies were over the body cap, so Text and HTML hold only their start.
+	BodyCut bool
 	// Attachments lists the parts that are neither a body nor an inline image, in message order.
 	Attachments []Attachment
 	// InlineImages lists the images the sanitized HTML body shows through a cid link, in message order.
 	InlineImages []Attachment
+	// SkippedParts counts the parts too broken to read, which the message answers nothing of.
+	SkippedParts int
 	// Raw is the message exactly as read.
 	Raw []byte
 	// root is the top of the parsed part tree.

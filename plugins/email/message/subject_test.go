@@ -50,3 +50,32 @@ func TestNormalizeSubject(t *testing.T) {
 		})
 	}
 }
+
+func TestCarriesReplyTag(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		subject string
+		want    bool
+	}{
+		{"Re: Quote", true},
+		{"FW: Quote", true},
+		{"Fwd: Quote", true},
+		{"Re[2]: Quote", true},
+		{"  Re :  Quote", true},
+		{"Quote", false},
+		{"Request for a quote", false},
+		{"[External] Re: Quote", false},
+		{"", false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.subject, func(t *testing.T) {
+			t.Parallel()
+
+			if got := message.CarriesReplyTag(c.subject); got != c.want {
+				t.Errorf("CarriesReplyTag(%q) = %v, want %v", c.subject, got, c.want)
+			}
+		})
+	}
+}

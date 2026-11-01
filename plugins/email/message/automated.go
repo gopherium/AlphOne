@@ -112,11 +112,12 @@ func deliveryReport(part *enmime.Part) *DeliveryReport {
 	}
 	delivery := &DeliveryReport{}
 	for _, fields := range report.DeliveryStatus.RecipientDSNs {
-		if dsn.IsFailed(fields) {
-			recipient := fields.Get("Final-Recipient")
+		recipient := fields.Get("Final-Recipient")
+		address := first(ParseAddresses(recipient[strings.IndexByte(recipient, ';')+1:]))
+		if dsn.IsFailed(fields) && address.Email != "" {
 			delivery.Failed = append(delivery.Failed, FailedRecipient{
-				Email:  bareAddress(recipient[strings.IndexByte(recipient, ';')+1:]),
-				Status: first(strings.Fields(fields.Get("Status"))),
+				Email:  address.Email,
+				Status: cleanText(first(strings.Fields(fields.Get("Status")))),
 			})
 		}
 	}

@@ -66,6 +66,7 @@ func TestMark(t *testing.T) {
 			message.Marks{InviteMethod: "REPLY"},
 		},
 		{"a calendar part with no method", twoParts("multipart/mixed", "text/calendar"), message.Marks{}},
+		{"a method on another kind of part", twoParts("multipart/mixed", "text/csv; method=REQUEST"), message.Marks{}},
 		{"winmail-dat.eml", string(readFixture(t, "winmail-dat.eml")), message.Marks{Winmail: true}},
 		{"the IANA TNEF type", twoParts("multipart/mixed", "application/vnd.ms-tnef"), message.Marks{Winmail: true}},
 		{
@@ -85,6 +86,43 @@ func TestMark(t *testing.T) {
 
 			if got := message.Mark(parseRaw(t, c.raw)); got != c.want {
 				t.Errorf("Mark() = %+v, want %+v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestMarkNamesOnlyAStandardMethod(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		method string
+		want   string
+	}{
+		{"method=PUBLISH", "PUBLISH"},
+		{"method=REQUEST", "REQUEST"},
+		{"method=REPLY", "REPLY"},
+		{"method=ADD", "ADD"},
+		{"method=CANCEL", "CANCEL"},
+		{"method=REFRESH", "REFRESH"},
+		{"method=COUNTER", "COUNTER"},
+		{"method=DECLINECOUNTER", "DECLINECOUNTER"},
+		{"method=declinecounter", "DECLINECOUNTER"},
+		{"method=Publish", "PUBLISH"},
+		{`method=" REQUEST "`, "REQUEST"},
+		{"method=SOMETHING", ""},
+		{"method*=utf-8''RE%00QUEST", ""},
+		{`method="RE` + "\x00" + `QUEST"`, ""},
+		{"method=RE\xffQUEST", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.method, func(t *testing.T) {
+			t.Parallel()
+
+			raw := twoParts("multipart/alternative", "text/calendar; "+c.method)
+
+			if got := message.Mark(parseRaw(t, raw)).InviteMethod; got != c.want {
+				t.Errorf("Mark() of %q InviteMethod = %q, want %q", c.method, got, c.want)
 			}
 		})
 	}

@@ -20,7 +20,9 @@ func TestParseRefusesAMessageOverTheByteCap(t *testing.T) {
 
 	raw := manyParts(3)
 
-	limits := message.Limits{MaxBytes: int64(len(raw)) - 1, MaxParts: 1, MaxContainers: 1, MaxFieldBytes: 1 << 10}
+	limits := withWideCaps(message.Limits{
+		MaxBytes: int64(len(raw)) - 1, MaxParts: 1, MaxContainers: 1, MaxFieldBytes: 1 << 10,
+	})
 
 	_, err := message.Parse(bytes.NewReader(raw), limits)
 
@@ -36,7 +38,7 @@ func TestParseTakesAMessageAtTheByteCap(t *testing.T) {
 		t.Run(fmt.Sprint(maxBytes), func(t *testing.T) {
 			t.Parallel()
 
-			limits := message.Limits{MaxBytes: maxBytes, MaxParts: 3, MaxContainers: 1, MaxFieldBytes: 1 << 10}
+			limits := withWideCaps(message.Limits{MaxBytes: maxBytes, MaxParts: 3, MaxContainers: 1, MaxFieldBytes: 1 << 10})
 
 			m, err := message.Parse(bytes.NewReader(manyParts(3)), limits)
 
@@ -51,30 +53,33 @@ func TestParseRefusesUnsetLimits(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		limits message.Limits
+		name  string
+		spoil func(*message.Limits)
 	}{
-		{"a zero byte cap", message.Limits{MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10}},
-		{"a negative byte cap", message.Limits{MaxBytes: -1, MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10}},
-		{"a zero part limit", message.Limits{MaxBytes: 1 << 20, MaxContainers: 10, MaxFieldBytes: 1 << 10}},
-		{"a negative part limit", message.Limits{MaxBytes: 1 << 20, MaxParts: -1, MaxContainers: 10, MaxFieldBytes: 1 << 10}},
-		{"a zero container limit", message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxFieldBytes: 1 << 10}},
-		{
-			"a negative container limit",
-			message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: -1, MaxFieldBytes: 1 << 10},
-		},
-		{"a zero field cap", message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 10}},
-		{"a negative field cap", message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 10, MaxFieldBytes: -1}},
+		{"a zero byte cap", func(l *message.Limits) { l.MaxBytes = 0 }},
+		{"a negative byte cap", func(l *message.Limits) { l.MaxBytes = -1 }},
+		{"a zero part limit", func(l *message.Limits) { l.MaxParts = 0 }},
+		{"a negative part limit", func(l *message.Limits) { l.MaxParts = -1 }},
+		{"a zero container limit", func(l *message.Limits) { l.MaxContainers = 0 }},
+		{"a negative container limit", func(l *message.Limits) { l.MaxContainers = -1 }},
+		{"a zero field cap", func(l *message.Limits) { l.MaxFieldBytes = 0 }},
+		{"a negative field cap", func(l *message.Limits) { l.MaxFieldBytes = -1 }},
+		{"a zero header cap", func(l *message.Limits) { l.MaxHeaderBytes = 0 }},
+		{"a negative header cap", func(l *message.Limits) { l.MaxHeaderBytes = -1 }},
+		{"a zero body cap", func(l *message.Limits) { l.MaxBodyBytes = 0 }},
+		{"a negative body cap", func(l *message.Limits) { l.MaxBodyBytes = -1 }},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
+			limits := testLimits
+			c.spoil(&limits)
 			unread := iotest.ErrReader(errors.New("the reader was read"))
 
-			if _, err := message.Parse(unread, c.limits); !errors.Is(err, message.ErrLimitsUnset) {
-				t.Errorf("Parse() with limits %+v error = %v, want ErrLimitsUnset", c.limits, err)
+			if _, err := message.Parse(unread, limits); !errors.Is(err, message.ErrLimitsUnset) {
+				t.Errorf("Parse() with limits %+v error = %v, want ErrLimitsUnset", limits, err)
 			}
 		})
 	}
@@ -85,7 +90,9 @@ func TestParseRefusesTooManyParts(t *testing.T) {
 
 	raw := manyParts(4)
 
-	limits := message.Limits{MaxBytes: int64(len(raw)), MaxParts: 3, MaxContainers: 1, MaxFieldBytes: 1 << 10}
+	limits := withWideCaps(message.Limits{
+		MaxBytes: int64(len(raw)), MaxParts: 3, MaxContainers: 1, MaxFieldBytes: 1 << 10,
+	})
 
 	_, err := message.Parse(bytes.NewReader(raw), limits)
 
@@ -105,7 +112,9 @@ func TestParseRefusesDeepNestingQuickly(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			limits := message.Limits{MaxBytes: int64(len(c.raw)), MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10}
+			limits := withWideCaps(message.Limits{
+				MaxBytes: int64(len(c.raw)), MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10,
+			})
 
 			if err := parseWithinDeadline(t, c.raw, limits); !errors.Is(err, message.ErrTooManyParts) {
 				t.Errorf("Parse() of %s under a container limit of 10 error = %v, want ErrTooManyParts", c.name, err)
@@ -151,7 +160,7 @@ func TestParseCountsEveryContainer(t *testing.T) {
 
 			raw := "Content-Type: multipart/mixed; boundary=\"outer\"\r\n\r\n--outer\r\n" + c.field +
 				"\r\n\r\n--inner\r\nContent-Type: text/plain\r\n\r\nText.\r\n--inner--\r\n--outer--\r\n"
-			limits := message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 1, MaxFieldBytes: 1 << 10}
+			limits := withWideCaps(message.Limits{MaxBytes: 1 << 20, MaxParts: 100, MaxContainers: 1, MaxFieldBytes: 1 << 10})
 
 			if _, err := message.Parse(strings.NewReader(raw), limits); !errors.Is(err, c.want) {
 				t.Errorf("Parse() of a second container in %q under a limit of one error = %v, want %v", c.field, err, c.want)
@@ -172,9 +181,9 @@ func TestParseTakesAMessageAtTheContainerLimit(t *testing.T) {
 		t.Run(fmt.Sprint(c.maxContainers), func(t *testing.T) {
 			t.Parallel()
 
-			limits := message.Limits{
+			limits := withWideCaps(message.Limits{
 				MaxBytes: int64(len(raw)), MaxParts: 100, MaxContainers: c.maxContainers, MaxFieldBytes: 1 << 10,
-			}
+			})
 
 			if _, err := message.Parse(bytes.NewReader(raw), limits); !errors.Is(err, c.want) {
 				t.Errorf("Parse() of three containers under a limit of %d error = %v, want %v", c.maxContainers, err, c.want)
@@ -188,17 +197,20 @@ func TestParseRefusesALongMediaFieldQuickly(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{"a type field in the top part", "Content-Type: text/plain; " + manyParameters(80000) + "\r\n\r\nText.\r\n"},
+		{"a type field in the top part", "Content-Type: text/plain; " + manyParameters() + "\r\n\r\nText.\r\n"},
 		{
 			"a disposition field in a nested part",
 			"Content-Type: multipart/mixed; boundary=\"parts\"\r\n\r\n--parts\r\nContent-Type: text/plain\r\n" +
-				"Content-Disposition: attachment; " + manyParameters(80000) + "\r\n\r\nText.\r\n--parts--\r\n",
+				"Content-Disposition: attachment; " + manyParameters() + "\r\n\r\nText.\r\n--parts--\r\n",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			limits := message.Limits{MaxBytes: int64(len(c.raw)), MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10}
+			limits := message.Limits{
+				MaxBytes: int64(len(c.raw)), MaxParts: 100, MaxContainers: 10, MaxFieldBytes: 1 << 10,
+				MaxHeaderBytes: len(c.raw), MaxBodyBytes: len(c.raw),
+			}
 
 			if err := parseWithinDeadline(t, []byte(c.raw), limits); !errors.Is(err, message.ErrTooLarge) {
 				t.Errorf("Parse() of %d bytes with %s error = %v, want ErrTooLarge", len(c.raw), c.name, err)
@@ -229,9 +241,9 @@ func TestParseTakesAMediaFieldAtTheFieldCap(t *testing.T) {
 				t.Parallel()
 
 				raw := c.field + "\r\n\r\nText.\r\n"
-				limits := message.Limits{
+				limits := withWideCaps(message.Limits{
 					MaxBytes: int64(len(raw)), MaxParts: 100, MaxContainers: 10, MaxFieldBytes: limit.maxFieldBytes,
-				}
+				})
 
 				if _, err := message.Parse(strings.NewReader(raw), limits); !errors.Is(err, limit.want) {
 					t.Errorf("Parse() of %s under a field cap of %d error = %v, want %v",
@@ -240,6 +252,145 @@ func TestParseTakesAMediaFieldAtTheFieldCap(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestParseAnswersTooLargeForALongHeaderBlock(t *testing.T) {
+	t.Parallel()
+
+	const header = "Subject: Quote\r\nFrom: Maria Perez\r\n <maria.perez@example.com>\r\n"
+	bareLines := strings.ReplaceAll(header, "\r\n", "\n")
+	cases := []struct {
+		name  string
+		raw   string
+		block int
+	}{
+		{"a blank line after the header block", header + "\r\nText.\r\n", len(header)},
+		{"lines ending in a bare line feed", bareLines + "\nText.\n", len(bareLines)},
+		{"no blank line at all", header, len(header)},
+	}
+
+	for _, c := range cases {
+		for _, limit := range []struct {
+			maxHeaderBytes int
+			want           error
+		}{{c.block, nil}, {c.block - 1, message.ErrTooLarge}} {
+			t.Run(fmt.Sprint(c.name, " ", limit.maxHeaderBytes), func(t *testing.T) {
+				t.Parallel()
+
+				limits := testLimits
+				limits.MaxHeaderBytes = limit.maxHeaderBytes
+
+				if _, err := message.Parse(strings.NewReader(c.raw), limits); !errors.Is(err, limit.want) {
+					t.Errorf("Parse() of %q under a header cap of %d error = %v, want %v",
+						c.raw, limit.maxHeaderBytes, err, limit.want)
+				}
+			})
+		}
+	}
+}
+
+func TestParseCutsTheBodies(t *testing.T) {
+	t.Parallel()
+
+	a, b := strings.Repeat("a", 10), strings.Repeat("b", 10)
+	cases := []struct {
+		name string
+		raw  string
+		text string
+		html string
+		cut  bool
+	}{
+		{"a text body at the cap", plainPart(a + "bbbbbb"), a + "bbbbbb", "", false},
+		{"a text body over the cap", plainPart(a + b), a + "bbbbbb", "", true},
+		{"an HTML body with no text", htmlPart("<p>" + a + b + "</p>"), a + "bbb", "<p>" + a + "bbb", true},
+		{"two text parts sharing one cap", mixedBodies(plainPart(a), plainPart(b)), a + "\n--\nbbbbbb", "", true},
+		{
+			"a text and an HTML part sharing one cap", mixedBodies(plainPart(a), htmlPart("<p>bbbbbbbbbb</p>")),
+			a, "<p>bbb", true,
+		},
+		{
+			"a part after the cap ran out", mixedBodies(plainPart(a+"bbbbbb"), plainPart(b)),
+			a + "bbbbbb\n--\n", "", true,
+		},
+		{"two parts at the cap", mixedBodies(plainPart(a), plainPart("bbbbbb")), a + "\n--\nbbbbbb", "", false},
+		{
+			"a cut inside a letter", onePart("text/plain; charset=utf-8", "a"+strings.Repeat("é", 9)),
+			"a" + strings.Repeat("é", 7), "", true,
+		},
+		{
+			"a cut inside a run of broken bytes", onePart("text/plain; charset=utf-8", "ab"+strings.Repeat("\x80", 20)),
+			"ab" + replacement, "", true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			limits := testLimits
+			limits.MaxBodyBytes = 16
+
+			m, err := message.Parse(strings.NewReader(c.raw), limits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if m.Text != c.text || m.HTML != c.html {
+				t.Errorf("Parse() text = %q, HTML = %q, want %q and %q", m.Text, m.HTML, c.text, c.html)
+			}
+			if m.BodyCut != c.cut {
+				t.Errorf("Parse().BodyCut = %v, want %v", m.BodyCut, c.cut)
+			}
+			if !bytes.Equal(m.Raw, []byte(c.raw)) {
+				t.Errorf("Parse().Raw = %q, want the bytes as read", m.Raw)
+			}
+		})
+	}
+}
+
+func TestParseNeverCutsAnAttachment(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Repeat("a", 100)
+	raw := mixedBodies(plainPart("The note."), "Content-Type: text/plain\r\n"+
+		"Content-Disposition: attachment; filename=\"note.txt\"\r\n\r\n"+content)
+	limits := testLimits
+	limits.MaxBodyBytes = 16
+
+	m, err := message.Parse(strings.NewReader(raw), limits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if len(m.Attachments) != 1 || string(m.Attachments[0].Content) != content {
+		t.Errorf("Parse().Attachments = %+v, want one holding all %d bytes", m.Attachments, len(content))
+	}
+	if m.BodyCut {
+		t.Error("Parse().BodyCut = true, want false")
+	}
+}
+
+// withWideCaps answers limits with the header and body caps of testLimits.
+func withWideCaps(limits message.Limits) message.Limits {
+	limits.MaxHeaderBytes = testLimits.MaxHeaderBytes
+	limits.MaxBodyBytes = testLimits.MaxBodyBytes
+	return limits
+}
+
+// plainPart answers the header and body of a part holding text.
+func plainPart(text string) string {
+	return "Content-Type: text/plain\r\n\r\n" + text
+}
+
+// mixedBodies answers a raw multipart message holding parts in order.
+func mixedBodies(parts ...string) string {
+	var b strings.Builder
+	b.WriteString("Content-Type: multipart/mixed; boundary=\"bodies\"\r\n\r\n")
+	for _, part := range parts {
+		b.WriteString("--bodies\r\n" + part + "\r\n")
+	}
+	b.WriteString("--bodies--\r\n")
+	return b.String()
 }
 
 // parseWithinDeadline answers the error Parse answers for raw under limits, failing t when Parse runs past deadline.
@@ -295,9 +446,9 @@ func unclosedParts(depth int) []byte {
 	return b.Bytes()
 }
 
-// manyParameters answers count media type parameters, each with its own name.
-func manyParameters(count int) string {
-	names := make([]string, count)
+// manyParameters answers eighty thousand media type parameters, each with its own name.
+func manyParameters() string {
+	names := make([]string, 80000)
 	for i := range names {
 		names[i] = fmt.Sprintf("p%d=v", i)
 	}
