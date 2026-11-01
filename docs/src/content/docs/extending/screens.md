@@ -478,8 +478,8 @@ test that builds a client itself passes the plugin too, with
 ### Bulk actions
 
 An action with `supportsBulk: true` runs on every row the reader
-ticked. `useBulkRun` makes one call per row, all at once, refreshes
-your list and shows one toast in the words you pass as `BulkWords`:
+ticked. `useBulkRun` makes one call per row, all at once, shows one
+toast in the words you pass as `BulkWords`, then refreshes your list:
 
 ```tsx
 import { __, _n, formatNumber, inbox, sprintf, useGraph } from '@alphone/frontend-sdk'
@@ -531,9 +531,10 @@ const archive = useArchiveAction(useBulkRun<InvoiceRow>(run, refresh))
 
 A call fails when it throws, when its promise rejects, or when it
 answers with its `error` set, so an urql result with an error counts
-as a failure. One bad row never hides the others. `useBulkRun` waits
-for `refresh` before the toast, because DataViews never tells the
-screen an action finished, so `refresh` must return a promise.
+as a failure. One bad row never hides the others. `useBulkRun` shows
+the toast as the last call ends and only then calls `refresh`, so the
+old rows stay on screen until it ends. `refresh` must return a promise,
+since the list stays marked as reloading until that promise settles.
 `graph.refetch` returns nothing, so read the list again with
 `graph.client.query` as above. Wrap `refresh` in `useCallback`. When
 it changes during a run, the bulk bar draws the confirm again and the
