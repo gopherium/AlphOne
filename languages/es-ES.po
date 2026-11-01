@@ -39,11 +39,17 @@ msgstr "Añade una tarea arriba, o abre un contacto y crea una desde su página.
 msgid "Add identity"
 msgstr "Añadir identidad"
 
-msgid "Add one with New token."
-msgstr "Añade uno con Token nuevo."
+#, fuzzy
+msgid "Add Contact"
+msgstr "Añadir contacto"
 
-msgid "Add one with New user."
-msgstr "Añade uno con Usuario nuevo."
+#, fuzzy
+msgid "Add Token"
+msgstr "Añadir token"
+
+#, fuzzy
+msgid "Add User"
+msgstr "Añadir usuario"
 
 msgid "Add task"
 msgstr "Añadir tarea"
@@ -264,8 +270,8 @@ msgid "Next day"
 msgstr "Día siguiente"
 
 #, fuzzy
-msgid "No API tokens yet."
-msgstr "Todavía no hay tokens de API."
+msgid "No API tokens yet"
+msgstr "Todavía no hay tokens de API"
 
 #, fuzzy
 msgid "No contacts found."
@@ -280,12 +286,12 @@ msgid "No open tasks."
 msgstr "No hay tareas abiertas."
 
 #, fuzzy
-msgid "No users yet."
-msgstr "Todavía no hay usuarios."
+msgid "No users yet"
+msgstr "Todavía no hay usuarios"
 
 #, fuzzy
-msgid "Nothing due today."
-msgstr "No hay nada que venza hoy."
+msgid "Nothing due today"
+msgstr "No hay nada que venza hoy"
 
 #, fuzzy
 msgid "Open tasks"
@@ -664,10 +670,6 @@ msgid "A password runs to %(min)s characters at least."
 msgstr "Una contraseña tiene al menos %(min)s caracteres."
 
 #, fuzzy
-msgid "Add one with New contact."
-msgstr "Añade uno con Contacto nuevo."
-
-#, fuzzy
 msgid "Ask for between %(min)s and %(max)s at a time."
 msgstr "Pide entre %(min)s y %(max)s a la vez."
 
@@ -736,16 +738,8 @@ msgid "Name updated."
 msgstr "Nombre actualizado."
 
 #, fuzzy
-msgid "No contacts yet."
-msgstr "Todavía no hay contactos."
-
-#, fuzzy
-msgid "No tokens found."
-msgstr "No se ha encontrado ningún token."
-
-#, fuzzy
-msgid "No users found."
-msgstr "No se ha encontrado ningún usuario."
+msgid "No contacts yet"
+msgstr "Todavía no hay contactos"
 
 #, fuzzy
 msgid "Rename"
