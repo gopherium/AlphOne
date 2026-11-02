@@ -16,17 +16,18 @@ import (
 
 // adminSettingsQuery reads the settings the admin screens read once.
 const adminSettingsQuery = `{"query":"{ adminSettings {` +
-	` toastMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`
+	` toastMilliseconds toastActionMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`
 
 // adminSettingsAnswer is the envelope every admin settings step reads.
 type adminSettingsAnswer struct {
 	Data struct {
 		AdminSettings *struct {
-			ToastMilliseconds int    `json:"toastMilliseconds"`
-			ListPageSizes     []int  `json:"listPageSizes"`
-			ListPageSize      int    `json:"listPageSize"`
-			ContactPageCap    int    `json:"contactPageCap"`
-			FormatLocale      string `json:"formatLocale"`
+			ToastMilliseconds       int    `json:"toastMilliseconds"`
+			ToastActionMilliseconds int    `json:"toastActionMilliseconds"`
+			ListPageSizes           []int  `json:"listPageSizes"`
+			ListPageSize            int    `json:"listPageSize"`
+			ContactPageCap          int    `json:"contactPageCap"`
+			FormatLocale            string `json:"formatLocale"`
 		} `json:"adminSettings"`
 	} `json:"data"`
 	Errors []struct {
@@ -91,13 +92,24 @@ func bindAdminSettingsSteps(sc *godog.ScenarioContext) {
 		return err
 	})
 
-	sc.Then(`^a toast stays (\d+) milliseconds$`, func(ctx context.Context, want int) error {
+	sc.Then(`^a toast with no button stays (\d+) milliseconds$`, func(ctx context.Context, want int) error {
 		answer, err := worldFrom(ctx).adminSettings()
 		if err != nil {
 			return err
 		}
 		if got := answer.Data.AdminSettings.ToastMilliseconds; got != want {
 			return fmt.Errorf("toastMilliseconds = %d, want %d", got, want)
+		}
+		return nil
+	})
+
+	sc.Then(`^a toast with a button stays (\d+) milliseconds$`, func(ctx context.Context, want int) error {
+		answer, err := worldFrom(ctx).adminSettings()
+		if err != nil {
+			return err
+		}
+		if got := answer.Data.AdminSettings.ToastActionMilliseconds; got != want {
+			return fmt.Errorf("toastActionMilliseconds = %d, want %d", got, want)
 		}
 		return nil
 	})
