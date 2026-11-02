@@ -90,8 +90,9 @@ The reply:
 }
 ```
 
-`login` and the `locale` query are the only operations an anonymous caller may
-run. Anything else answers `UNAUTHENTICATED` with HTTP 200, because a GraphQL
+An anonymous caller may run only the `login`, `acceptInvite`,
+`requestPasswordReset` and `resetPassword` mutations and the `locale` and
+`legalLinks` queries. Anything else answers `UNAUTHENTICATED` with HTTP 200, because a GraphQL
 error is not an HTTP error:
 
 ```json
@@ -397,6 +398,25 @@ query {
 
 Dates in the data stay ISO 8601, such as `2026-09-30`, in every query,
 mutation and event.
+
+## Legal links
+
+`legalLinks` answers the addresses of the install's legal pages, which the
+sign-in screens show as links. The query is open to anonymous callers, since
+those screens come before anyone signs in.
+
+```graphql
+query {
+  legalLinks {
+    privacyUrl termsUrl
+  }
+}
+```
+
+| Field | What it holds | Set with |
+| ----- | ------------- | -------- |
+| `privacyUrl` | The address of the privacy policy, `null` when unset | `ALPHONE_PRIVACY_URL` |
+| `termsUrl` | The address of the terms of service, `null` when unset | `ALPHONE_TERMS_URL` |
 
 ## Writing
 
@@ -713,8 +733,8 @@ one that ships.
 
 ## Introspection
 
-Introspection is on, so any GraphQL client can read the schema and give you
-completion. The interactive query page is off by default and enabled with
+Introspection is on, so any signed-in GraphQL client can read the schema and
+give you completion. The interactive query page is off by default and enabled with
 `ALPHONE_DEV_GRAPHIQL`, for development only.
 
 ```graphql
@@ -741,6 +761,7 @@ cannot drift. Point a client at the endpoint, or read
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
 | Admin settings | `adminSettings` | |
+| Legal links | `legalLinks` | |
 | Version | `version` | |
 
 Subscriptions are `coreEvent`, `whatsAppConversationEvent` and
