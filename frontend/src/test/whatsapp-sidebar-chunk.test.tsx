@@ -30,6 +30,9 @@ beforeEach(() =>
 		graphql.query('WhatsAppConversations', () =>
 			HttpResponse.json({ data: { whatsAppConversations: [] } }),
 		),
+		graphql.query('WhatsAppNumbers', () =>
+			HttpResponse.json({ data: { whatsAppNumbers: [] } }),
+		),
 	),
 )
 
