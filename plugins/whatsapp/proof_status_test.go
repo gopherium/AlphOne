@@ -98,20 +98,31 @@ func TestAStatusStaysOnTheNumberThatSignedIt(t *testing.T) {
 	wantStatus(t, pool, "wamid.out.second", "read")
 }
 
-func TestAnEnvironmentStatusMovesAMessageOnAConversationHoldingNoNumber(t *testing.T) {
+func TestAnEnvironmentStatusMovesAMessageOnItsOwnConversations(t *testing.T) {
 	t.Parallel()
 
-	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
-	onNone := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: nil, customer: "184467235"}
-	seedOutboundOn(t, pool, seedNumberedConversation(t, pool, onNone), "wamid.out.env")
-	body := numberedStatusBody("5550009", "wamid.out.env", "delivered")
-
-	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	env := "5550009"
+	tests := map[string]*string{
+		"a conversation holding no number":             nil,
+		"a conversation still carrying the env number": &env,
 	}
-	wantStatus(t, pool, "wamid.out.env", "delivered")
+	for testName, number := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": env})
+			conversation := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: number, customer: "184467235"}
+			seedOutboundOn(t, pool, seedNumberedConversation(t, pool, conversation), "wamid.out.env")
+			body := numberedStatusBody(env, "wamid.out.env", "delivered")
+
+			recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+			}
+			wantStatus(t, pool, "wamid.out.env", "delivered")
+		})
+	}
 }
 
 func TestAnEnvironmentStatusLeavesAMessageOnAStoredNumberAlone(t *testing.T) {

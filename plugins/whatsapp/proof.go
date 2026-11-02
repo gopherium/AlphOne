@@ -23,10 +23,11 @@ type numberSigner struct {
 	appSecret     []byte
 }
 
-// numberRoute is the tenant the items of a proven number land in and the number their conversation stores.
+// numberRoute is a proven number's tenant, the number its conversations store and the number its statuses move.
 type numberRoute struct {
-	tenantID uuid.UUID
-	number   *string
+	tenantID     uuid.UUID
+	number       *string
+	statusNumber *string
 }
 
 // numberSigners reads every stored number among the given ones in one query, across every tenant.
@@ -92,7 +93,8 @@ func (p *Plugin) proveDelivery(
 	for _, signer := range signers {
 		delete(routes, signer.phoneNumberID)
 		if p.signerProves(ctx, signer, signed, envProven) {
-			routes[signer.phoneNumberID] = numberRoute{tenantID: signer.tenantID, number: &signer.phoneNumberID}
+			held := &signer.phoneNumberID
+			routes[*held] = numberRoute{tenantID: signer.tenantID, number: held, statusNumber: held}
 			proven = true
 		}
 	}
@@ -115,8 +117,9 @@ func (p *Plugin) envRoutes(envProven bool) map[string]numberRoute {
 	if !envProven || p.envCredentials.phoneNumberID == "" {
 		return map[string]numberRoute{}
 	}
-	route := numberRoute{tenantID: sdk.DefaultTenantID}
-	return map[string]numberRoute{"": route, p.envCredentials.phoneNumberID: route}
+	env := p.envCredentials.phoneNumberID
+	route := numberRoute{tenantID: sdk.DefaultTenantID, statusNumber: &env}
+	return map[string]numberRoute{"": route, env: route}
 }
 
 // signerProves reports whether a stored number's own secret, or the setting for a row holding none, signed the body.

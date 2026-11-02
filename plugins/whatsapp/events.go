@@ -267,7 +267,7 @@ func (b *webhookBatch) collect(change webhookChange, route numberRoute) {
 			return
 		}
 		if u, ok := parseStatus(raw); ok {
-			u.tenantID, u.number = route.tenantID, route.number
+			u.tenantID, u.number = route.tenantID, route.statusNumber
 			b.statuses = append(b.statuses, u)
 		}
 	}
