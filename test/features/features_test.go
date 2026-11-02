@@ -145,6 +145,11 @@ func initializeAdminSettings(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) { registerAdminSettingsSteps(sc, t) }
 }
 
+// initializeLegalLinks registers the legal links steps.
+func initializeLegalLinks(t *testing.T) func(*godog.ScenarioContext) {
+	return func(sc *godog.ScenarioContext) { registerLegalLinksSteps(sc, t) }
+}
+
 func TestMCPSession(t *testing.T) {
 	runFeature(t, "features/mcp-session.feature", initializeSession(t))
 }
@@ -235,6 +240,10 @@ func TestContactPage(t *testing.T) {
 
 func TestAdminSettings(t *testing.T) {
 	runFeature(t, "features/admin-settings.feature", initializeAdminSettings(t))
+}
+
+func TestLegalLinks(t *testing.T) {
+	runFeature(t, "features/legal-links.feature", initializeLegalLinks(t))
 }
 
 func TestIdentityFeed(t *testing.T) {

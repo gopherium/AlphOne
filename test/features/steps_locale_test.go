@@ -53,6 +53,21 @@ func (w *world) postGraphSpeaking(ctx context.Context, secret, acceptLanguage, b
 	return nil
 }
 
+// wantLocale reports whether the last read answered the wanted locale.
+func (w *world) wantLocale(want string) error {
+	var answer localeAnswer
+	if err := json.Unmarshal(w.answered, &answer); err != nil {
+		return fmt.Errorf("decoding the locale answer: %w", err)
+	}
+	if len(answer.Errors) != 0 {
+		return fmt.Errorf("errors = %v, want the locale answered", answer.Errors)
+	}
+	if answer.Data.Locale != want {
+		return fmt.Errorf("locale = %q, want %q", answer.Data.Locale, want)
+	}
+	return nil
+}
+
 // registerLocaleSteps binds the locale resolution steps and the world lifecycle.
 func registerLocaleSteps(sc *godog.ScenarioContext, t *testing.T) {
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
@@ -104,18 +119,7 @@ func registerLocaleSteps(sc *godog.ScenarioContext, t *testing.T) {
 	})
 
 	sc.Then(`^the locale answered is "([^"]*)"$`, func(ctx context.Context, want string) error {
-		w := worldFrom(ctx)
-		var answer localeAnswer
-		if err := json.Unmarshal(w.answered, &answer); err != nil {
-			return fmt.Errorf("decoding the locale answer: %w", err)
-		}
-		if len(answer.Errors) != 0 {
-			return fmt.Errorf("errors = %v, want the locale answered", answer.Errors)
-		}
-		if answer.Data.Locale != want {
-			return fmt.Errorf("locale = %q, want %q", answer.Data.Locale, want)
-		}
-		return nil
+		return worldFrom(ctx).wantLocale(want)
 	})
 
 	sc.Then(`^the ask is refused naming the reason "([^"]*)"$`,
