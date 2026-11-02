@@ -19,6 +19,12 @@ msgstr ""
 msgid "%(size)s MB"
 msgstr ""
 
+msgid "All numbers"
+msgstr ""
+
+msgid "Another workspace already holds that number."
+msgstr ""
+
 msgid "Attachment unavailable."
 msgstr ""
 
@@ -44,6 +50,9 @@ msgid "Document"
 msgstr ""
 
 msgid "Downloading…"
+msgstr ""
+
+msgid "Filter by number"
 msgstr ""
 
 msgid "Loading conversations…"
@@ -76,6 +85,9 @@ msgstr ""
 msgid "No conversation selected"
 msgstr ""
 
+msgid "No conversations on this number."
+msgstr ""
+
 msgid "No conversations yet."
 msgstr ""
 
@@ -83,6 +95,9 @@ msgid "No messages yet."
 msgstr ""
 
 msgid "Not delivered."
+msgstr ""
+
+msgid "Number: %(number)s"
 msgstr ""
 
 msgid "Outside the 24-hour window. The customer must message first."
@@ -115,6 +130,9 @@ msgstr ""
 msgid "That conversation no longer exists."
 msgstr ""
 
+msgid "That number is no longer connected."
+msgstr ""
+
 msgid "The reply could not be sent."
 msgstr ""
 
@@ -131,6 +149,9 @@ msgid "Voice message"
 msgstr ""
 
 msgid "WhatsApp did not accept the message."
+msgstr ""
+
+msgid "WhatsApp number"
 msgstr ""
 
 msgid "Write something to send."
