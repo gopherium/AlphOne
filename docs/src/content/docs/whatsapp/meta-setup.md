@@ -208,11 +208,9 @@ one number, the inbox shows which number a conversation came in on and offers a
 filter. Removing a number keeps its conversations readable, but a reply on one
 of them answers that the number is no longer connected.
 
-The number in `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` keeps working beside the
-numbers a workspace connects, but it is listed only while the workspace stores
-no number, or once the workspace stores that number itself. Until then it does
-not count towards the filter. Removing its stored copy leaves it working from
-the settings, so its deliveries and replies carry on.
+The number in `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` is listed beside the numbers a
+workspace connects and keeps working. Removing a stored copy of it leaves it
+working from the settings.
 
 Before you remove a number, turn its subscription off in Meta. After the
 removal, a delivery signed with the number's own app secret answers `403`, and
