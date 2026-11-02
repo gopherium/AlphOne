@@ -30,6 +30,10 @@ msgid "Another contact already holds an address in this row."
 msgstr "Ya hay otro contacto que tiene una dirección de esta fila."
 
 #, fuzzy
+msgid "Breadcrumbs"
+msgstr "Migas de pan"
+
+#, fuzzy
 msgid "Bring contacts in from CSV and Excel files."
 msgstr "Importa contactos desde archivos CSV y Excel."
 

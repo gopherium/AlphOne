@@ -138,6 +138,10 @@ msgid "Label"
 msgstr "Etiqueta"
 
 #, fuzzy
+msgid "Load more entries"
+msgstr "Cargar más entradas"
+
+#, fuzzy
 msgid "Loading fields…"
 msgstr "Cargando los campos…"
 
