@@ -47,6 +47,7 @@ test('hands a signed-in screen the settings the graph serves', async () => {
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 8000,
+						toastActionMilliseconds: 12000,
 						listPageSizes: [5, 25],
 						listPageSize: 25,
 						contactPageCap: 150,
@@ -61,6 +62,7 @@ test('hands a signed-in screen the settings the graph serves', async () => {
 	expect(await answered(/toastMilliseconds/)).toEqual({
 		settings: {
 			toastMilliseconds: 8000,
+			toastActionMilliseconds: 12000,
 			listPageSizes: [5, 25],
 			listPageSize: 25,
 			contactPageCap: 150,

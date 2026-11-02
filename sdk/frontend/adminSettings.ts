@@ -7,8 +7,10 @@ import { useSession } from './session'
 
 /** AdminSettings are the settings the admin screens read once, as the environment names them. */
 export interface AdminSettings {
-	/** toastMilliseconds is how long a confirmation toast stays. */
+	/** toastMilliseconds is how long a toast with no button stays. */
 	toastMilliseconds: number
+	/** toastActionMilliseconds is how long a toast with a button stays. */
+	toastActionMilliseconds: number
 	/** listPageSizes are the page sizes a list offers. */
 	listPageSizes: number[]
 	/** listPageSize is the page size a list opens on. */
@@ -32,6 +34,7 @@ const adminSettingsQuery: TypedDocumentNode<{ adminSettings: AdminSettings }, Re
 	query AdminSettings {
 		adminSettings {
 			toastMilliseconds
+			toastActionMilliseconds
 			listPageSizes
 			listPageSize
 			contactPageCap
