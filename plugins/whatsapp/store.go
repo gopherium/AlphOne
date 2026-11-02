@@ -148,14 +148,16 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 	return messages, nil
 }
 
+// conversationKey names a contact's conversation with a customer on a number, nil for none.
+type conversationKey struct {
+	contactID  uuid.UUID
+	number     *string
+	externalID string
+}
+
 // upsertConversation stores a contact's conversation on a number, nil for none, returning its id.
 func upsertConversation(
-	ctx context.Context,
-	exec pgxExecutor,
-	contactID uuid.UUID,
-	number *string,
-	externalID string,
-	activityAt time.Time,
+	ctx context.Context, exec pgxExecutor, key conversationKey, activityAt time.Time,
 ) (uuid.UUID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -169,7 +171,7 @@ func upsertConversation(
 		ON CONFLICT (tenant_id, phone_number_id, external_id) DO UPDATE
 		SET last_activity_at = GREATEST(plugin_whatsapp.conversations.last_activity_at, EXCLUDED.last_activity_at)
 		RETURNING id`,
-		id, contactID, externalID, activityAt, time.Now().UTC(), sdk.TenantOrDefault(ctx), number,
+		id, key.contactID, key.externalID, activityAt, time.Now().UTC(), sdk.TenantOrDefault(ctx), key.number,
 	).Scan(&conversationID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: upsert conversation: %w", err)
@@ -187,7 +189,8 @@ func (s *store) persistInbound(
 	var arrival *messageRow
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		conversationID, err = upsertConversation(ctx, tx, contactID, m.conversationNumber, m.sender, m.sentAt)
+		key := conversationKey{contactID: contactID, number: m.conversationNumber, externalID: m.sender}
+		conversationID, err = upsertConversation(ctx, tx, key, m.sentAt)
 		if err != nil {
 			return err
 		}
@@ -278,8 +281,7 @@ var statusRanks = map[string]int{
 	"failed":    6,
 }
 
-// applyMessageStatus advances an outbound message's delivery status when the
-// update outranks the stored one, reporting the owning conversation.
+// applyMessageStatus advances an outbound message on the update's number or on no number, answering its conversation.
 func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UUID, bool, error) {
 	rank, ranked := statusRanks[u.status]
 	if !ranked {
@@ -292,6 +294,9 @@ func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UU
 		WHERE external_id = $1
 			AND tenant_id = $5
 			AND direction = 'outbound'
+			AND conversation_id IN (
+				SELECT id FROM plugin_whatsapp.conversations
+				WHERE tenant_id = $5 AND (phone_number_id IS NULL OR phone_number_id = $6))
 			AND (status IS NULL OR $4 > CASE status
 				WHEN 'accepted' THEN 1
 				WHEN 'sent' THEN 2
@@ -301,7 +306,7 @@ func (s *store) applyMessageStatus(ctx context.Context, u statusUpdate) (uuid.UU
 				WHEN 'failed' THEN 6
 				ELSE 0 END)
 		RETURNING conversation_id`,
-		u.wamid, u.status, u.detail, rank, sdk.TenantOrDefault(ctx),
+		u.wamid, u.status, u.detail, rank, sdk.TenantOrDefault(ctx), u.number,
 	).Scan(&conversationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, nil

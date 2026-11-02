@@ -25,6 +25,9 @@ const eventMessageReceived = "whatsapp.message.received"
 // defaultDeliveryItemsMax is how many items one delivery stores when the setting is unset.
 const defaultDeliveryItemsMax = 2000
 
+// defaultDeliveryNumbersMax is how many numbers with their own secret one delivery names when the setting is unset.
+const defaultDeliveryNumbersMax = 100
+
 type inboundMessage struct {
 	externalID         string
 	sender             string
@@ -81,6 +84,7 @@ type statusUpdate struct {
 	status   string
 	detail   string
 	tenantID uuid.UUID
+	number   *string
 }
 
 type webhookStatus struct {
@@ -162,14 +166,15 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 
 // receive stores what a delivery's signature proves, answering the status Meta reads.
 func (p *Plugin) receive(ctx context.Context, digest, body []byte) int {
+	signed := signedBody{digest: digest, body: body}
 	named, err := namedNumbers(body)
 	if err != nil {
-		if signedWith([]byte(p.appSecret), digest, body) {
+		if signed.signedWith([]byte(p.appSecret)) {
 			return http.StatusBadRequest
 		}
 		return http.StatusForbidden
 	}
-	routes, proven, err := p.proveDelivery(ctx, digest, body, named)
+	routes, proven, err := p.proveDelivery(ctx, signed, named)
 	if err != nil {
 		return http.StatusInternalServerError
 	}
@@ -262,7 +267,7 @@ func (b *webhookBatch) collect(change webhookChange, route numberRoute) {
 			return
 		}
 		if u, ok := parseStatus(raw); ok {
-			u.tenantID = route.tenantID
+			u.tenantID, u.number = route.tenantID, route.number
 			b.statuses = append(b.statuses, u)
 		}
 	}
