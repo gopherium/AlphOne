@@ -170,7 +170,7 @@ type CredentialProvider interface {
 	Channel() Channel
 	// SetChannelCredentials adds or replaces an identity, keeping a stored Label, AppSecret or VerifyToken left empty.
 	SetChannelCredentials(ctx context.Context, credentials ChannelCredentials) error
-	// ChannelIdentities lists the calling tenant's identities, oldest first.
+	// ChannelIdentities lists the calling tenant's identities.
 	ChannelIdentities(ctx context.Context) ([]ChannelIdentity, error)
 	// RemoveChannelCredentials removes one of the calling tenant's identities.
 	RemoveChannelCredentials(ctx context.Context, identifier string) error
