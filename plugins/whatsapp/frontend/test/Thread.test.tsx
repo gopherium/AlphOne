@@ -1,21 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider } from '@alphone/frontend-sdk'
+import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
 import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import type { FakeGraph } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { handlers } from '../handlers'
+import { errorTemplates } from '../errorTemplates'
+import { handlers, twoNumbers } from '../handlers'
 import { plugin } from '../index'
 import { Thread } from '../Thread'
 
 const conversationId = '019f4a00-0000-7000-8000-000000000001'
 
 beforeEach(() => server.use(...handlers))
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+	vi.restoreAllMocks()
+	configureErrorText({ templates: () => ({}), fallback: () => '' })
+})
 
 /** Builds one graph message, defaulting to an inbound text. */
 function message(fields: Record<string, unknown> = {}) {
@@ -34,8 +38,8 @@ function message(fields: Record<string, unknown> = {}) {
 	}
 }
 
-/** Serves the thread document with the given messages. */
-function threadOf(...messages: Record<string, unknown>[]) {
+/** Serves the thread document of a conversation on a number with the given messages. */
+function threadOn(number: string | null, ...messages: Record<string, unknown>[]) {
 	server.use(
 		graphql.query('WhatsAppThread', () =>
 			HttpResponse.json({
@@ -43,6 +47,7 @@ function threadOf(...messages: Record<string, unknown>[]) {
 					whatsAppConversation: {
 						__typename: 'WhatsAppConversation',
 						id: conversationId,
+						number,
 						contact: {
 							__typename: 'Contact',
 							id: '019f4a00-0000-7000-8000-0000000000a1',
@@ -54,6 +59,11 @@ function threadOf(...messages: Record<string, unknown>[]) {
 			}),
 		),
 	)
+}
+
+/** Serves the thread document with the given messages. */
+function threadOf(...messages: Record<string, unknown>[]) {
+	threadOn(null, ...messages)
 }
 
 /** Renders the thread under a fresh query client and a drivable graph client. */
@@ -87,6 +97,47 @@ test('names the contact the conversation belongs to in its header', async () => 
 	expect(
 		await screen.findByRole('heading', { level: 2, name: 'John Doe' }),
 	).toBeInTheDocument()
+})
+
+test('names the number in the header once the workspace holds more than one', async () => {
+	server.use(twoNumbers)
+	threadOn('Sales line', message())
+	renderThread()
+
+	expect(await screen.findByText('Number: Sales line')).toHaveClass('alphone-thread__number')
+})
+
+test('leaves the number out of the header while the workspace holds one', async () => {
+	threadOn('Sales line', message())
+	renderThread()
+
+	await screen.findByText('Hi, is the order ready?')
+
+	expect(screen.queryByText(/Number:/)).toBeNull()
+})
+
+test('leaves the number out of the header of a conversation on none', async () => {
+	let numbersRead = false
+	server.use(
+		graphql.query('WhatsAppNumbers', () => {
+			numbersRead = true
+			return HttpResponse.json({
+				data: {
+					whatsAppNumbers: [
+						{ __typename: 'WhatsAppNumber', identifier: '5550001', label: 'Sales line' },
+						{ __typename: 'WhatsAppNumber', identifier: '5550002', label: '' },
+					],
+				},
+			})
+		}),
+	)
+	threadOn(null, message())
+	renderThread()
+
+	await screen.findByText('Hi, is the order ready?')
+	await waitFor(() => expect(numbersRead).toBe(true))
+
+	expect(screen.queryByText(/Number:/)).toBeNull()
 })
 
 test('titles the header generically while the conversation is unknown', async () => {
@@ -155,6 +206,7 @@ test('sends a reply and shows it in the thread', async () => {
 					whatsAppConversation: {
 						__typename: 'WhatsAppConversation',
 						id: conversationId,
+						number: null,
 						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
 						messages: [message()],
 					},
@@ -198,6 +250,7 @@ test('appends an arriving message without refetching the thread', async () => {
 					whatsAppConversation: {
 						__typename: 'WhatsAppConversation',
 						id: conversationId,
+						number: null,
 						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
 						messages: [message()],
 					},
@@ -256,6 +309,33 @@ test('reports when the reply cannot be sent', async () => {
 	await user.click(screen.getByRole('button', { name: /send/i }))
 
 	expect(await screen.findByText(/could not be sent/i)).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
+})
+
+test('says the number is gone when a reply meets a removed number', async () => {
+	const user = userEvent.setup()
+	configureErrorText({ templates: errorTemplates, fallback: () => '' })
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'whatsapp: that number is no longer connected',
+						extensions: { code: 'VALIDATION', reason: 'number_removed' },
+					},
+				],
+			}),
+		),
+	)
+
+	renderThread()
+	await screen.findByText('Hi, is the order ready?')
+
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('That number is no longer connected.')
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
 })
 

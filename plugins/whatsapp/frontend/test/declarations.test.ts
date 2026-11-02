@@ -4,15 +4,38 @@ import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/fronten
 import { expect, test, vi } from 'vitest'
 
 import { plugin } from '../index'
-import { threadQuery } from '../operations'
+import { numbersQuery, threadQuery } from '../operations'
 
 test('grants the area its routes are held to', () => {
 	expect(plugin.tokenAreas).toEqual([{ value: 'whatsapp', label: 'WhatsApp' }])
 })
 
 test('keys the media of a message, which carries no id', () => {
-	expect(Object.keys(plugin.graphKeys ?? {})).toEqual(['WhatsAppMedia'])
+	expect(Object.keys(plugin.graphKeys ?? {})).toEqual(['WhatsAppMedia', 'WhatsAppNumber'])
 	expect(plugin.graphKeys?.WhatsAppMedia({})).toBeNull()
+})
+
+test('keys a connected number by its identifier', () => {
+	expect(plugin.graphKeys?.WhatsAppNumber({ identifier: '5550001' })).toBe('5550001')
+})
+
+test('a client keying the plugin caches the numbers without warning', async () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+	server.use(
+		graphql.query('WhatsAppNumbers', () =>
+			HttpResponse.json({
+				data: {
+					whatsAppNumbers: [{ __typename: 'WhatsAppNumber', identifier: '5550001', label: 'Sales line' }],
+				},
+			}),
+		),
+	)
+	const { graph } = fakeGraphClient([plugin])
+
+	const result = await graph.client.query(numbersQuery, {}).toPromise()
+
+	expect(result.data?.whatsAppNumbers[0]?.label).toBe('Sales line')
+	expect(warn).not.toHaveBeenCalled()
 })
 
 test('a client keying the plugin caches a thread with media without warning', async () => {
@@ -24,6 +47,7 @@ test('a client keying the plugin caches a thread with media without warning', as
 					whatsAppConversation: {
 						__typename: 'WhatsAppConversation',
 						id: 'id-conversation',
+						number: null,
 						contact: { __typename: 'Contact', id: 'id-contact', name: 'Maria Perez' },
 						messages: [
 							{

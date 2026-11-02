@@ -16,5 +16,7 @@ export function errorTemplates(): Record<string, string> {
 		conversation_not_found: __('That conversation no longer exists.', DOMAIN),
 		upstream_failed: __('WhatsApp did not accept the message.', DOMAIN),
 		credentials_missing: __('Connect a WhatsApp number before sending.', DOMAIN),
+		number_removed: __('That number is no longer connected.', DOMAIN),
+		channel_number_taken: __('Another workspace already holds that number.', DOMAIN),
 	}
 }
