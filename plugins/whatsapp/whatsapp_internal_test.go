@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
@@ -108,7 +109,7 @@ func TestStoreUpsertConversationReportsFailure(t *testing.T) {
 
 	pool := newUnreachablePool(t)
 
-	_, err := upsertConversation(t.Context(), pool, uuid.Must(uuid.NewV7()), "184467235", time.Now().UTC())
+	_, err := upsertConversation(t.Context(), pool, uuid.Must(uuid.NewV7()), nil, "184467235", time.Now().UTC())
 
 	if err == nil {
 		t.Fatal("upsertConversation() error = nil, want a connection failure")
@@ -120,7 +121,7 @@ func TestStoreReportsIDGenerationFailure(t *testing.T) {
 		uuid.SetRand(failingEntropy{})
 		defer uuid.SetRand(nil)
 
-		_, err := upsertConversation(t.Context(), nil, uuid.Nil, "184467235", time.Now())
+		_, err := upsertConversation(t.Context(), nil, uuid.Nil, nil, "184467235", time.Now())
 
 		if !errors.Is(err, errEntropy) {
 			t.Fatalf("upsertConversation() error = %v, want the entropy failure in its chain", err)
@@ -185,6 +186,65 @@ func TestRegisterConfiguresTheMediaFetcher(t *testing.T) {
 	}
 }
 
+func TestEveryOutboundClientHoldsARedirectRule(t *testing.T) {
+	t.Parallel()
+
+	p, err := Register(sdk.Deps{
+		DatabaseURL: "postgres://whatsapp:whatsapp@localhost:1/whatsapp",
+		Env:         settings(nil),
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	if p.fetcher.client.CheckRedirect == nil {
+		t.Error("the media client follows any redirect, want its rule in place")
+	}
+	if p.sender.client.CheckRedirect == nil {
+		t.Error("the sending client follows any redirect, want its rule in place")
+	}
+}
+
+func TestASendFollowsNoRedirect(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(http.Handler) *httptest.Server{
+		"a TLS Graph URL sending it to plain http": httptest.NewTLSServer,
+		"a plain Graph URL sending it elsewhere":   httptest.NewServer,
+	}
+	for testName, start := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			target := newGraphStub(t, nil)
+			graph := start(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.server.URL+r.URL.Path, http.StatusTemporaryRedirect)
+			}))
+			t.Cleanup(graph.Close)
+			p, err := Register(sdk.Deps{
+				DatabaseURL: "postgres://whatsapp:whatsapp@localhost:1/whatsapp",
+				Env:         settings(map[string]string{"ALPHONE_WHATSAPP_GRAPH_URL": graph.URL}),
+			})
+			if err != nil {
+				t.Fatalf("Register() error = %v, want nil", err)
+			}
+			t.Cleanup(func() { _ = p.Stop(context.Background()) })
+			p.sender.client.Transport = graph.Client().Transport
+			creds := credentials{phoneNumberID: "5550001", accessToken: "EAAG-env-token"}
+
+			_, _, err = p.sender.sendText(t.Context(), creds, "184467235", "Ready at 5pm")
+
+			if err == nil || !strings.Contains(err.Error(), "status 307") {
+				t.Errorf("sendText() error = %v, want the redirect answered as a failed send", err)
+			}
+			if heard := target.headers(); len(heard) != 0 {
+				t.Errorf("the redirect's target heard %q, want no connection and no bearer", heard)
+			}
+		})
+	}
+}
+
 func TestRegisterAppliesTheDefaultMediaCap(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +278,44 @@ func TestRegisterRejectsAMalformedMediaCap(t *testing.T) {
 
 			if err == nil || !strings.HasPrefix(err.Error(), "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES: must ") {
 				t.Errorf("Register() over %q error = %v, want the media cap refused by name", value, err)
+			}
+		})
+	}
+}
+
+func TestRegisterAppliesTheDefaultDeliveryCap(t *testing.T) {
+	t.Parallel()
+
+	p, err := Register(sdk.Deps{})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	if p.deliveryItemsMax != defaultDeliveryItemsMax {
+		t.Errorf("deliveryItemsMax = %d, want the default %d", p.deliveryItemsMax, defaultDeliveryItemsMax)
+	}
+}
+
+func TestRegisterRejectsAMalformedDeliveryCap(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"not a number": "abc",
+		"negative":     "-5",
+		"zero":         "0",
+	}
+
+	for testName, value := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			env := map[string]string{"ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX": value}
+
+			_, err := Register(sdk.Deps{Env: settings(env)})
+
+			if err == nil || !strings.HasPrefix(err.Error(), "ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX: must ") {
+				t.Errorf("Register() over %q error = %v, want the delivery cap refused by name", value, err)
 			}
 		})
 	}
@@ -301,8 +399,9 @@ func TestRegisterReadsExactlyThePluginSettings(t *testing.T) {
 	t.Cleanup(func() { _ = p.Stop(context.Background()) })
 
 	want := []string{
-		"ALPHONE_WHATSAPP_ACCESS_TOKEN", "ALPHONE_WHATSAPP_APP_SECRET", "ALPHONE_WHATSAPP_GRAPH_URL",
-		"ALPHONE_WHATSAPP_MEDIA_MAX_BYTES", "ALPHONE_WHATSAPP_PHONE_NUMBER_ID", "ALPHONE_WHATSAPP_VERIFY_TOKEN",
+		"ALPHONE_WHATSAPP_ACCESS_TOKEN", "ALPHONE_WHATSAPP_APP_SECRET", "ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX",
+		"ALPHONE_WHATSAPP_GRAPH_URL", "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES", "ALPHONE_WHATSAPP_PHONE_NUMBER_ID",
+		"ALPHONE_WHATSAPP_VERIFY_TOKEN",
 	}
 	if got := slices.Compact(slices.Sorted(slices.Values(read))); !slices.Equal(got, want) {
 		t.Errorf("Register() read %v, want exactly %v", got, want)

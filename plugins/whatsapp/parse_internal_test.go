@@ -20,6 +20,11 @@ func webhookBody(message string) []byte {
 	}`, message)
 }
 
+// parsedWhole decodes a body whose changes name no number, with room for every item.
+func parsedWhole(body []byte) (webhookBatch, error) {
+	return parseWebhook(body, map[string]numberRoute{"": {}}, defaultDeliveryItemsMax)
+}
+
 // envelope returns one message element of the given id and type carrying the extra fields.
 func envelope(id, kind, fields string) string {
 	return fmt.Sprintf(`{"from": "184467235", "id": %q, "timestamp": "1751791000", "type": %q%s}`,
@@ -145,7 +150,7 @@ func TestParseMessagesClassifiesEveryType(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			batch, err := parseWebhook(webhookBody(tc.message))
+			batch, err := parsedWhole(webhookBody(tc.message))
 			if err != nil {
 				t.Fatalf("parseWebhook() error = %v, want nil", err)
 			}
@@ -178,7 +183,7 @@ func TestParseMessagesCarriesEnvelopeMetadata(t *testing.T) {
 	message := envelope("wamid.meta", "image",
 		`, "image": {"id": "MEDIA1", "mime_type": "image/jpeg", "sha256": "c2hh"}`)
 
-	batch, err := parseWebhook(webhookBody(message))
+	batch, err := parsedWhole(webhookBody(message))
 	if err != nil {
 		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
@@ -211,7 +216,7 @@ func TestParseMessagesFallsBackOnBadTimestamps(t *testing.T) {
 	message := `{"from": "184467235", "id": "wamid.bad", "timestamp": "not-a-number", "type": "text",` +
 		` "text": {"body": "hello"}}`
 
-	batch, err := parseWebhook(webhookBody(message))
+	batch, err := parsedWhole(webhookBody(message))
 	if err != nil {
 		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
@@ -231,7 +236,7 @@ func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 
 	message := `42, {"type": "poll"}, ` + envelope("wamid.kept", "text", `, "text": {"body": "hello"}`)
 
-	batch, err := parseWebhook(webhookBody(message))
+	batch, err := parsedWhole(webhookBody(message))
 	if err != nil {
 		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}
@@ -247,8 +252,16 @@ func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 func TestParseMessagesRejectsEnvelopeGarbage(t *testing.T) {
 	t.Parallel()
 
-	if _, err := parseWebhook([]byte(`{"entry":`)); err == nil {
+	if _, err := parsedWhole([]byte(`{"entry":`)); err == nil {
 		t.Fatal("parseWebhook() error = nil, want a decode failure")
+	}
+}
+
+func TestNamedNumbersRejectsEnvelopeGarbage(t *testing.T) {
+	t.Parallel()
+
+	if _, err := namedNumbers([]byte(`{"entry":`)); err == nil {
+		t.Fatal("namedNumbers() error = nil, want a decode failure")
 	}
 }
 
@@ -302,7 +315,7 @@ func TestParseWebhookStatuses(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			batch, err := parseWebhook(statusEnvelope(tc.status))
+			batch, err := parsedWhole(statusEnvelope(tc.status))
 			if err != nil {
 				t.Fatalf("parseWebhook() error = %v, want nil", err)
 			}
@@ -332,7 +345,7 @@ func TestParseWebhookCarriesMessagesAndStatusesTogether(t *testing.T) {
 		}}]}]
 	}`, envelope("wamid.in.9", "text", `, "text": {"body": "hello"}`))
 
-	batch, err := parseWebhook(body)
+	batch, err := parsedWhole(body)
 	if err != nil {
 		t.Fatalf("parseWebhook() error = %v, want nil", err)
 	}

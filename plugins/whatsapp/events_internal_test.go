@@ -130,7 +130,7 @@ func TestIngestStoresMediaMessagesWithPendingDownload(t *testing.T) {
 	default:
 		t.Error("no event broadcast for a new media message")
 	}
-	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10)
+	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10, noClosedTenants)
 	if err != nil {
 		t.Fatalf("claimDueMedia() error = %v, want nil", err)
 	}
