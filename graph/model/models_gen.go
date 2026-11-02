@@ -277,6 +277,7 @@ type WhatsAppConversation struct {
 	Status             string             `json:"status"`
 	LastActivityAt     time.Time          `json:"lastActivityAt"`
 	LastMessagePreview *string            `json:"lastMessagePreview,omitempty"`
+	Number             *string            `json:"number,omitempty"`
 	Contact            *Contact           `json:"contact"`
 	Messages           []*WhatsAppMessage `json:"messages"`
 }
@@ -301,6 +302,11 @@ type WhatsAppMessage struct {
 	Status       *string        `json:"status,omitempty"`
 	StatusDetail *string        `json:"statusDetail,omitempty"`
 	Media        *WhatsAppMedia `json:"media,omitempty"`
+}
+
+type WhatsAppNumber struct {
+	Identifier string `json:"identifier"`
+	Label      string `json:"label"`
 }
 
 type ContactOrderBy string

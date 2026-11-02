@@ -261,7 +261,8 @@ type ComplexityRoot struct {
 		WebhookEvents         func(childComplexity int) int
 		Webhooks              func(childComplexity int) int
 		WhatsAppConversation  func(childComplexity int, id uuid.UUID) int
-		WhatsAppConversations func(childComplexity int, limit *int) int
+		WhatsAppConversations func(childComplexity int, limit *int, number *string) int
+		WhatsAppNumbers       func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -332,6 +333,7 @@ type ComplexityRoot struct {
 		LastActivityAt     func(childComplexity int) int
 		LastMessagePreview func(childComplexity int) int
 		Messages           func(childComplexity int, limit *int) int
+		Number             func(childComplexity int) int
 		Status             func(childComplexity int) int
 	}
 
@@ -355,6 +357,11 @@ type ComplexityRoot struct {
 		SentAt       func(childComplexity int) int
 		Status       func(childComplexity int) int
 		StatusDetail func(childComplexity int) int
+	}
+
+	WhatsAppNumber struct {
+		Identifier func(childComplexity int) int
+		Label      func(childComplexity int) int
 	}
 }
 
@@ -427,8 +434,9 @@ type QueryResolver interface {
 	Imports(ctx context.Context) ([]*model.ImportJob, error)
 	ImportJob(ctx context.Context, id uuid.UUID) (*model.ImportJob, error)
 	ImportFields(ctx context.Context) ([]*model.ImportField, error)
-	WhatsAppConversations(ctx context.Context, limit *int) ([]*model.WhatsAppConversation, error)
+	WhatsAppConversations(ctx context.Context, limit *int, number *string) ([]*model.WhatsAppConversation, error)
 	WhatsAppConversation(ctx context.Context, id uuid.UUID) (*model.WhatsAppConversation, error)
+	WhatsAppNumbers(ctx context.Context) ([]*model.WhatsAppNumber, error)
 }
 type SubscriptionResolver interface {
 	CoreEvent(ctx context.Context) (<-chan string, error)
@@ -1564,7 +1572,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.WhatsAppConversations(childComplexity, args["limit"].(*int)), true
+		return e.ComplexityRoot.Query.WhatsAppConversations(childComplexity, args["limit"].(*int), args["number"].(*string)), true
+	case "Query.whatsAppNumbers":
+		if e.ComplexityRoot.Query.WhatsAppNumbers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WhatsAppNumbers(childComplexity), true
 
 	case "Subscription.coreEvent":
 		if e.ComplexityRoot.Subscription.CoreEvent == nil {
@@ -1842,6 +1856,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.WhatsAppConversation.Messages(childComplexity, args["limit"].(*int)), true
+	case "WhatsAppConversation.number":
+		if e.ComplexityRoot.WhatsAppConversation.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.Number(childComplexity), true
 	case "WhatsAppConversation.status":
 		if e.ComplexityRoot.WhatsAppConversation.Status == nil {
 			break
@@ -1946,6 +1966,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.WhatsAppMessage.StatusDetail(childComplexity), true
+
+	case "WhatsAppNumber.identifier":
+		if e.ComplexityRoot.WhatsAppNumber.Identifier == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppNumber.Identifier(childComplexity), true
+	case "WhatsAppNumber.label":
+		if e.ComplexityRoot.WhatsAppNumber.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppNumber.Label(childComplexity), true
 
 	}
 	return 0, false
@@ -2199,10 +2232,16 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../plugins/whatsapp/graph/schema.graphqls", Input: `extend type Query {
-  whatsAppConversations(limit: Int): [WhatsAppConversation!]!
+  whatsAppConversations(limit: Int, number: String): [WhatsAppConversation!]!
     @scope(area: "whatsapp", write: false)
     @listSize(slicingArguments: ["limit"])
   whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
+  whatsAppNumbers: [WhatsAppNumber!]! @scope(area: "whatsapp", write: false)
+}
+
+type WhatsAppNumber {
+  identifier: String!
+  label: String!
 }
 
 type WhatsAppConversation {
@@ -2211,6 +2250,7 @@ type WhatsAppConversation {
   status: String!
   lastActivityAt: DateTime!
   lastMessagePreview: String
+  number: String
   contact: Contact! @goField(forceResolver: true)
   messages(limit: Int): [WhatsAppMessage!]!
     @goField(forceResolver: true)
@@ -2703,6 +2743,8 @@ func (ec *executionContext) childFields_WhatsAppConversation(ctx context.Context
 		return ec.fieldContext_WhatsAppConversation_lastActivityAt(ctx, field)
 	case "lastMessagePreview":
 		return ec.fieldContext_WhatsAppConversation_lastMessagePreview(ctx, field)
+	case "number":
+		return ec.fieldContext_WhatsAppConversation_number(ctx, field)
 	case "contact":
 		return ec.fieldContext_WhatsAppConversation_contact(ctx, field)
 	case "messages":
@@ -2753,6 +2795,16 @@ func (ec *executionContext) childFields_WhatsAppMessage(ctx context.Context, fie
 		return ec.fieldContext_WhatsAppMessage_media(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type WhatsAppMessage", field.Name)
+}
+
+func (ec *executionContext) childFields_WhatsAppNumber(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "identifier":
+		return ec.fieldContext_WhatsAppNumber_identifier(ctx, field)
+	case "label":
+		return ec.fieldContext_WhatsAppNumber_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WhatsAppNumber", field.Name)
 }
 
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3836,6 +3888,14 @@ func (ec *executionContext) field_Query_whatsAppConversations_args(ctx context.C
 		return nil, err
 	}
 	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "number",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["number"] = arg1
 	return args, nil
 }
 
@@ -8271,7 +8331,7 @@ func (ec *executionContext) _Query_whatsAppConversations(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().WhatsAppConversations(ctx, fc.Args["limit"].(*int))
+			return ec.Resolvers.Query().WhatsAppConversations(ctx, fc.Args["limit"].(*int), fc.Args["number"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppConversation) graphql.Marshaler {
@@ -8345,6 +8405,38 @@ func (ec *executionContext) fieldContext_Query_whatsAppConversation(ctx context.
 	if fc.Args, err = ec.field_Query_whatsAppConversation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_whatsAppNumbers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_whatsAppNumbers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WhatsAppNumbers(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppNumber) graphql.Marshaler {
+			return ec.marshalNWhatsAppNumber2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppNumberᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_whatsAppNumbers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WhatsAppNumber(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -9457,6 +9549,29 @@ func (ec *executionContext) fieldContext_WhatsAppConversation_lastMessagePreview
 	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _WhatsAppConversation_number(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _WhatsAppConversation_contact(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9908,6 +10023,52 @@ func (ec *executionContext) fieldContext_WhatsAppMessage_media(_ context.Context
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppNumber_identifier(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppNumber) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppNumber_identifier(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Identifier, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppNumber_identifier(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppNumber", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WhatsAppNumber_label(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppNumber) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppNumber_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppNumber_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppNumber", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -13432,6 +13593,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "whatsAppNumbers":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_whatsAppNumbers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -13962,6 +14145,11 @@ func (ec *executionContext) _WhatsAppConversation(ctx context.Context, sel ast.S
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "number":
+			out.Values[i] = ec._WhatsAppConversation_number(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "contact":
 			field := field
 
@@ -14182,6 +14370,49 @@ func (ec *executionContext) _WhatsAppMessage(ctx context.Context, sel ast.Select
 		case "media":
 			out.Values[i] = ec._WhatsAppMessage_media(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var whatsAppNumberImplementors = []string{"WhatsAppNumber"}
+
+func (ec *executionContext) _WhatsAppNumber(ctx context.Context, sel ast.SelectionSet, obj *model.WhatsAppNumber) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, whatsAppNumberImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WhatsAppNumber")
+		case "identifier":
+			out.Values[i] = ec._WhatsAppNumber_identifier(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._WhatsAppNumber_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -15468,6 +15699,32 @@ func (ec *executionContext) marshalNWhatsAppMessage2ᚖgithubᚗcomᚋgopherium�
 		return graphql.Null
 	}
 	return ec._WhatsAppMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWhatsAppNumber2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppNumberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WhatsAppNumber) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWhatsAppNumber2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppNumber(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWhatsAppNumber2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐWhatsAppNumber(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppNumber) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WhatsAppNumber(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
