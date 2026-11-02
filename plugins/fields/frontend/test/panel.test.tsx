@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, graphql, http, paging, server } from '@alphone/frontend-sdk/testing'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { beforeEach, expect, test, vi } from 'vitest'
 
 import { plugin } from '../index'
 import {
@@ -26,6 +26,11 @@ const birthDate = {
 	kind: 'DATE',
 	subFields: [],
 }
+
+beforeEach(() => {
+	server.use(http.get('/api/auth/session', () => HttpResponse.json(adminSession)))
+	paging([10, 20], 10)
+})
 
 test('loads the contact panel on demand, off the first paint', () => {
 	const [{ Panel }] = plugin.contactPanels ?? []

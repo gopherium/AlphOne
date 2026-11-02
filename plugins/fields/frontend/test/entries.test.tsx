@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Card, configureErrorText } from '@alphone/frontend-sdk'
-import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
+import {
+	HttpResponse,
+	adminSession,
+	buttonClasses,
+	graphql,
+	http,
+	paging,
+	server,
+	textClasses,
+} from '@alphone/frontend-sdk/testing'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentType } from 'react'
@@ -56,6 +65,8 @@ const today = [
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
 	vi.setSystemTime(NOW)
+	server.use(http.get('/api/auth/session', () => HttpResponse.json(adminSession)))
+	paging([10, 20], 10)
 })
 
 afterEach(() => {
@@ -111,6 +122,40 @@ async function removeEntry(name: string) {
 async function editEntry(name: string) {
 	await userEvent.click(await screen.findByRole('button', { name: `Edit entry: ${name}` }))
 	return within(screen.getByRole('form', { name: `Edit entry: ${name}` }))
+}
+
+/**
+ * Builds stored history entries holding only a comment.
+ * @param count - How many to build.
+ * @returns The entries, in the order the graph answers them.
+ */
+function calls(count: number) {
+	return Array.from({ length: count }, (_, at) => ({
+		id: `0199a3c4-0000-7000-8000-${String(at + 100).padStart(12, '0')}`,
+		comment: `Call ${at + 1}.`,
+	}))
+}
+
+/**
+ * Returns the names the rows of the first built entries are announced by.
+ * @param count - How many entries.
+ * @returns The names, in order.
+ */
+function callNames(count: number) {
+	return calls(count).map((entry) => entry.comment)
+}
+
+/**
+ * Returns the Load more entries button.
+ * @returns The button, null when none shows.
+ */
+function moreButton() {
+	return screen.queryByRole('button', { name: 'Load more entries' })
+}
+
+/** Presses Load more entries once it shows. */
+async function loadMore() {
+	await userEvent.click(await screen.findByRole('button', { name: 'Load more entries' }))
 }
 
 test('lists entries in the order the graph answers them', async () => {
@@ -273,7 +318,7 @@ test('frames a repeater in a card, its name in the header and its add form and e
 	expect([...content.classList]).toEqual(expect.arrayContaining(cardClasses(Card.Content)))
 	expect(header).toContainElement(within(card).getByRole('heading', { level: 3, name: 'History' }))
 	expect(content).toContainElement(screen.getByRole('form', { name: 'Add an entry to History' }))
-	expect(content).toContainElement(screen.getByRole('listitem', { name: firstCallName }))
+	expect(content).toContainElement(await screen.findByRole('listitem', { name: firstCallName }))
 	expect(card).not.toContainElement(screen.getByLabelText('Job title'))
 })
 
@@ -577,7 +622,7 @@ test('an add answered while a removal is confirmed leaves focus on Keep', async 
 	await userEvent.type(comment, 'x')
 	await userEvent.click(addButton())
 	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
-	await userEvent.click(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` }))
+	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
 	adding.release()
 
 	await waitFor(() => expect(comment).toHaveValue(''))
@@ -1339,4 +1384,156 @@ test('an add answered while an editor is open leaves focus in the editor', async
 
 	await waitFor(() => expect(comment).toHaveValue(''))
 	expect(editor.getByLabelText('Comment')).toHaveFocus()
+})
+
+test('draws the first page of entries with Load more entries under it', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	serveValues({ history: calls(3) })
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(callNames(2))
+	const more = moreButton()
+	expect(screen.getByRole('list', { name: 'History' }).nextElementSibling).toBe(more)
+	expect([...(more as HTMLElement).classList]).toEqual(buttonClasses('minimal', 'compact', 'neutral'))
+})
+
+test('a list that fits its first page offers no Load more entries', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	serveValues({ history: calls(2) })
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(callNames(2))
+	expect(moreButton()).not.toBeInTheDocument()
+})
+
+test('Load more entries draws one more page each time and leaves once every entry shows', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	serveValues({ history: calls(5) })
+
+	renderPanel()
+	await loadMore()
+	expect(await itemNames()).toEqual(callNames(4))
+	await loadMore()
+
+	expect(await itemNames()).toEqual(callNames(5))
+	expect(moreButton()).not.toBeInTheDocument()
+})
+
+test('a repeater draws no entry until the page size arrives, then only the first page', async () => {
+	let release = () => {}
+	const answered = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	paging([2, 4], 2)
+	server.use(
+		graphql.query('AdminSettings', async () => {
+			await answered
+		}),
+	)
+	serveCatalogue([history])
+	serveValues({ history: calls(3) })
+
+	renderPanel()
+	await addForm()
+
+	expect(screen.queryByRole('list', { name: 'History' })).not.toBeInTheDocument()
+	expect(screen.queryByText('No entries yet.')).not.toBeInTheDocument()
+	expect(moreButton()).not.toBeInTheDocument()
+	release()
+	expect(await itemNames()).toEqual(callNames(2))
+})
+
+test('shows every entry when the page size could not be read', async () => {
+	server.use(
+		graphql.query('AdminSettings', () => HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })),
+	)
+	serveCatalogue([history])
+	serveValues({ history: calls(3) })
+
+	renderPanel()
+
+	expect(await itemNames()).toEqual(callNames(3))
+	expect(moreButton()).not.toBeInTheDocument()
+})
+
+test('each repeater opens its own pages', async () => {
+	paging([1, 2], 1)
+	serveCatalogue([history, visits])
+	serveValues({
+		history: calls(2),
+		visits: [
+			{ id: ID1, note: 'Paid in cash.' },
+			{ id: ID2, note: 'Paid by card.' },
+		],
+	})
+
+	renderPanel()
+	const card = within(await screen.findByRole('group', { name: 'History' }))
+	await userEvent.click(await card.findByRole('button', { name: 'Load more entries' }))
+
+	expect(await itemNames()).toEqual(callNames(2))
+	expect(await itemNames('Visits')).toEqual(['Paid in cash.'])
+})
+
+test('an added entry keeps the pages already open', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(3) })
+	capture('AddContactFieldEntry', added)
+
+	renderPanel()
+	await loadMore()
+	await waitFor(async () => expect(await itemNames()).toEqual(callNames(3)))
+	change({ history: [followUp, ...calls(3)] })
+	await userEvent.type((await addForm()).getByLabelText('Comment'), 'Follow-up call.')
+	await userEvent.click(addButton())
+
+	await waitFor(async () => expect(await itemNames()).toEqual([followUpName, ...callNames(3)]))
+})
+
+test('another contact opens on its first page', async () => {
+	paging([1, 2], 1)
+	serveCatalogue([history])
+	serveChangingValues({ history: calls(2) })
+
+	const { showContact } = renderPanel()
+	await loadMore()
+	await waitFor(async () => expect(await itemNames()).toEqual(callNames(2)))
+	showContact(otherContactID)
+
+	await waitFor(async () => expect(await itemNames()).toEqual(callNames(1)))
+})
+
+test('removing the last drawn entry moves focus to the one above it, never to one below the page', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: [followUp, offerSent, firstCall] })
+	capture('DeleteContactFieldEntry', removed)
+
+	renderPanel()
+	await screen.findByRole('listitem', { name: offerSentName })
+	change({ history: [followUp, firstCall] })
+	await removeEntry(offerSentName)
+
+	await waitFor(async () => expect(await itemNames()).toEqual([followUpName, firstCallName]))
+	expect(firstButton(screen.getByRole('listitem', { name: followUpName }))).toHaveFocus()
+})
+
+test('a removal that leaves no drawn entry moves focus to the add form', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	serveValues({ history: [followUp, offerSent, firstCall] })
+	capture('DeleteContactFieldEntry', removed)
+
+	renderPanel()
+	await removeEntry(offerSentName)
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: followUpName }))).toHaveFocus())
+	await removeEntry(followUpName)
+
+	await waitFor(async () => expect((await addForm()).getByLabelText('Date')).toHaveFocus())
 })
