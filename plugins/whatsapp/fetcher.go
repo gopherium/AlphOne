@@ -249,7 +249,7 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 		f.reschedule(ctx, row, "sha256 mismatch")
 		return
 	}
-	if err := f.store.markMediaStored(ctx, row.MessageID, data, metadata.MimeType, int64(len(data))); err != nil {
+	if err := f.store.markMediaStored(ctx, row.MessageID, mediaBlob{data: data, mimeType: metadata.MimeType}); err != nil {
 		return
 	}
 	f.events.broadcast(event{Conversation: row.ConversationID, Tenant: row.TenantID})

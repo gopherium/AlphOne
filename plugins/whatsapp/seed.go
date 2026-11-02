@@ -123,7 +123,8 @@ func (p *Plugin) seedConversationID(
 			" WHERE external_id = $1 AND tenant_id = $2 AND phone_number_id IS NULL",
 		externalID, sdk.TenantOrDefault(ctx)).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return upsertConversation(ctx, p.pool, contactID, nil, externalID, activityAt)
+		key := conversationKey{contactID: contactID, number: nil, externalID: externalID}
+		return upsertConversation(ctx, p.pool, key, activityAt)
 	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: find seeded conversation: %w", err)
@@ -176,7 +177,7 @@ func (p *Plugin) seedMedia(ctx context.Context, m demoMessage) error {
 			return err
 		}
 	}
-	return p.store.markMediaStored(ctx, messageID, seedPNG, m.media.mimeType, int64(len(seedPNG)))
+	return p.store.markMediaStored(ctx, messageID, mediaBlob{data: seedPNG, mimeType: m.media.mimeType})
 }
 
 // seedOutbound stores one scripted outbound message and applies its delivery status.

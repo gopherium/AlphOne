@@ -42,6 +42,12 @@ type pendingMediaRow struct {
 	PhoneNumberID  string    `db:"phone_number_id"`
 }
 
+// mediaBlob is the bytes of a downloaded asset beside their type.
+type mediaBlob struct {
+	data     []byte
+	mimeType string
+}
+
 // storedMediaRow carries a stored blob and its serving metadata.
 type storedMediaRow struct {
 	Data     []byte
@@ -126,48 +132,42 @@ func (s *store) claimDueMedia(
 	return pending, nil
 }
 
-// markMediaStored saves a downloaded blob on a still pending media row.
-func (s *store) markMediaStored(
-	ctx context.Context, messageID uuid.UUID, data []byte, mimeType string, fileSize int64,
-) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE plugin_whatsapp.media
-		SET status = 'stored', data = $2, mime_type = $3, file_size = $4, last_error = NULL, stored_at = $5
-		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $6`,
-		messageID, data, mimeType, fileSize, time.Now().UTC(), sdk.TenantOrDefault(ctx),
-	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: mark media stored: %w", err)
+// updateMedia runs one statement on a media row, naming the step in any failure.
+func (s *store) updateMedia(ctx context.Context, step, statement string, args ...any) error {
+	if _, err := s.pool.Exec(ctx, statement, args...); err != nil {
+		return fmt.Errorf("whatsapp: %s: %w", step, err)
 	}
 	return nil
 }
 
+// markMediaStored saves a downloaded blob on a still pending media row.
+func (s *store) markMediaStored(ctx context.Context, messageID uuid.UUID, blob mediaBlob) error {
+	return s.updateMedia(ctx, "mark media stored", `
+		UPDATE plugin_whatsapp.media
+		SET status = 'stored', data = $2, mime_type = $3, file_size = $4, last_error = NULL, stored_at = $5
+		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $6`,
+		messageID, blob.data, blob.mimeType, int64(len(blob.data)), time.Now().UTC(), sdk.TenantOrDefault(ctx),
+	)
+}
+
 // markMediaFailed retires a still pending media row with the failure reason.
 func (s *store) markMediaFailed(ctx context.Context, messageID uuid.UUID, reason string) error {
-	_, err := s.pool.Exec(ctx, `
+	return s.updateMedia(ctx, "mark media failed", `
 		UPDATE plugin_whatsapp.media
 		SET status = 'failed', last_error = $2
 		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $3`,
 		messageID, reason, sdk.TenantOrDefault(ctx),
 	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: mark media failed: %w", err)
-	}
-	return nil
 }
 
 // rescheduleMedia records a failed download attempt and defers the next one.
 func (s *store) rescheduleMedia(
 	ctx context.Context, messageID uuid.UUID, reason string, nextAttemptAt time.Time,
 ) error {
-	_, err := s.pool.Exec(ctx, `
+	return s.updateMedia(ctx, "reschedule media", `
 		UPDATE plugin_whatsapp.media
 		SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3
 		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $4`,
 		messageID, reason, nextAttemptAt, sdk.TenantOrDefault(ctx),
 	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: reschedule media: %w", err)
-	}
-	return nil
 }

@@ -53,6 +53,15 @@ func insertPendingMedia(t *testing.T, p *Plugin, messageID uuid.UUID, d mediaDes
 	}
 }
 
+// claimedMessages returns the set of message ids a claim picked.
+func claimedMessages(pending []pendingMediaRow) map[uuid.UUID]bool {
+	claimed := map[uuid.UUID]bool{}
+	for _, row := range pending {
+		claimed[row.MessageID] = true
+	}
+	return claimed
+}
+
 func TestMigrationsCreateMediaPendingIndex(t *testing.T) {
 	t.Parallel()
 
@@ -126,10 +135,7 @@ func TestClaimDueMediaTakesTurnsBetweenTenants(t *testing.T) {
 	if got, want := len(pending), mediaSweepBatch; got != want {
 		t.Fatalf("len(pending) = %d, want %d", got, want)
 	}
-	claimed := map[uuid.UUID]bool{}
-	for _, row := range pending {
-		claimed[row.MessageID] = true
-	}
+	claimed := claimedMessages(pending)
 	for _, id := range waiting {
 		if !claimed[id] {
 			t.Errorf("the quiet tenant's row %s was left out behind the crowded tenant's rows", id)
@@ -152,7 +158,7 @@ func TestClaimDueMediaSkipsFutureAndSettledRows(t *testing.T) {
 	if err := p.store.rescheduleMedia(ctx, future, "graph 500", time.Now().UTC().Add(time.Hour)); err != nil {
 		t.Fatalf("rescheduleMedia() error = %v, want nil", err)
 	}
-	if err := p.store.markMediaStored(ctx, stored, []byte("bytes"), "image/jpeg", 5); err != nil {
+	if err := p.store.markMediaStored(ctx, stored, mediaBlob{data: []byte("bytes"), mimeType: "image/jpeg"}); err != nil {
 		t.Fatalf("markMediaStored() error = %v, want nil", err)
 	}
 	if err := p.store.markMediaFailed(ctx, failed, "too_large"); err != nil {
@@ -179,11 +185,13 @@ func TestMarkMediaStoredIgnoresSettledRows(t *testing.T) {
 	ctx := t.Context()
 	_, messageID := seedMessage(t, p, "wamid.stored-once")
 	insertPendingMedia(t, p, messageID, mediaDescriptor{mediaID: "MEDIA", mimeType: "image/jpeg", sha256: "c2hh"})
-	if err := p.store.markMediaStored(ctx, messageID, []byte("first"), "image/png", 5); err != nil {
+	first := mediaBlob{data: []byte("first"), mimeType: "image/png"}
+	if err := p.store.markMediaStored(ctx, messageID, first); err != nil {
 		t.Fatalf("markMediaStored() error = %v, want nil", err)
 	}
 
-	if err := p.store.markMediaStored(ctx, messageID, []byte("second"), "application/pdf", 6); err != nil {
+	second := mediaBlob{data: []byte("second"), mimeType: "application/pdf"}
+	if err := p.store.markMediaStored(ctx, messageID, second); err != nil {
 		t.Fatalf("markMediaStored() second call error = %v, want nil", err)
 	}
 
@@ -224,7 +232,7 @@ func TestMarkMediaFailedIgnoresSettledRows(t *testing.T) {
 	_, stored := seedMessage(t, p, "wamid.already-stored")
 	insertPendingMedia(t, p, failing, mediaDescriptor{mediaID: "MEDIA", mimeType: "image/jpeg", sha256: "c2hh"})
 	insertPendingMedia(t, p, stored, mediaDescriptor{mediaID: "MEDIA", mimeType: "image/jpeg", sha256: "c2hh"})
-	if err := p.store.markMediaStored(ctx, stored, []byte("bytes"), "image/jpeg", 5); err != nil {
+	if err := p.store.markMediaStored(ctx, stored, mediaBlob{data: []byte("bytes"), mimeType: "image/jpeg"}); err != nil {
 		t.Fatalf("markMediaStored() error = %v, want nil", err)
 	}
 
@@ -323,7 +331,7 @@ func TestMediaStoreReportsFailures(t *testing.T) {
 	if _, err := s.claimDueMedia(t.Context(), time.Now().UTC(), 1, noClosedTenants); err == nil {
 		t.Error("claimDueMedia() error = nil, want a connection failure")
 	}
-	if err := s.markMediaStored(t.Context(), messageID, nil, "image/jpeg", 0); err == nil {
+	if err := s.markMediaStored(t.Context(), messageID, mediaBlob{mimeType: "image/jpeg"}); err == nil {
 		t.Error("markMediaStored() error = nil, want a connection failure")
 	}
 	if err := s.markMediaFailed(t.Context(), messageID, "boom"); err == nil {
