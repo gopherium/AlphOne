@@ -48,9 +48,9 @@ named after the word `field`. That name is reserved too, so it becomes
 
 ## Fill a field in
 
-Open a contact. The **Fields** section sits beside the tasks, or under them
-on a narrow screen. Type into a field, then press **Save fields**. The button
-stays greyed out until you change a field.
+Open a contact. The **Fields** section sits under the tasks. Type into a field,
+then press **Save fields**. The button stays greyed out until you change a
+field.
 
 When a contact has repeaters, they split the other fields into groups, and each
 group gets its own **Save fields** button under it. A button turns on once you
@@ -89,7 +89,8 @@ same as for the kind: old entries would no longer fit.
 
 On a contact, each repeater sits in its own box, with its label as the
 heading. A form to add an entry sits on top. The entries follow, the last one
-added first. Each date in the form starts on today's date.
+added first. A long list shows its first page, and **Load more entries** shows
+the next. Each date in the form starts on today's date.
 
 - Fill in the form and press **Add an entry to History**, with your
   repeater's label in place of History. The button stays off until you fill
