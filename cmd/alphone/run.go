@@ -135,6 +135,7 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Logger:        logger,
 		Paging:        settings.paging,
 		Screens:       settings.screens,
+		Legal:         settings.legal,
 		Roles:         built.roles,
 	}
 }
@@ -278,6 +279,7 @@ type runConfig struct {
 	inviteTTL      time.Duration
 	reset          resetSettings
 	screens        graphres.Screens
+	legal          graphres.LegalLinks
 	graph          graphSettings
 	serving        gonsole.Timeouts
 }
@@ -538,6 +540,10 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
+	legal, err := loadLegalLinks(env, graph.bounds.AnonymousAnswerMaxBytes)
+	if err != nil {
+		return runConfig{}, err
+	}
 	serving, err := env.Timeouts(servingDefaults)
 	if err != nil {
 		return runConfig{}, err
@@ -552,6 +558,7 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		inviteTTL:       inviteTTL,
 		reset:           reset,
 		screens:         screens,
+		legal:           legal,
 		graph:           graph,
 		serving:         serving,
 	}, nil

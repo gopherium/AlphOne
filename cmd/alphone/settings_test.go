@@ -42,6 +42,8 @@ func coreSettings() map[string]string {
 		"ALPHONE_SMTP_FROM":                        "crm@example.com",
 		"ALPHONE_SMTP_TLS":                         "opportunistic",
 		"ALPHONE_PUBLIC_URL":                       "https://crm.example.com",
+		"ALPHONE_PRIVACY_URL":                      "https://example.com/legal/privacy",
+		"ALPHONE_TERMS_URL":                        "https://example.com/legal/terms",
 		"ALPHONE_MAIL_TEMPLATE_DIR":                "/srv/alphone/mail",
 		"ALPHONE_INVITE_TTL":                       "24h",
 		"ALPHONE_RESET_TTL":                        "30m",
