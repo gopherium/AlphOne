@@ -167,6 +167,10 @@ type InvitePayload {
 	activationLink: String
 }
 scalar JSON
+type LegalLinks {
+	privacyUrl: String
+	termsUrl: String
+}
 scalar LocalTime
 type LoginPayload {
 	me: Identity!
@@ -216,6 +220,7 @@ type Query {
 	locale: String! @scope(area: "meta", write: false)
 	supportedLocales: [String!]! @scope(area: "meta", write: false)
 	adminSettings: AdminSettings! @scope(area: "meta", write: false)
+	legalLinks: LegalLinks! @scope(area: "meta", write: false)
 	me: Identity! @scope(area: "auth", write: false)
 	users: [User!]! @scope(area: "users", write: false)
 	contacts(q: String, first: Int, after: String): ContactConnection! @scope(area: "contacts", write: false)
