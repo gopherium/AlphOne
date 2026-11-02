@@ -391,7 +391,7 @@ query {
 | `toastMilliseconds` | How long a confirmation toast with no button stays, 6000 by default | `ALPHONE_TOAST_DURATION` |
 | `toastActionMilliseconds` | How long a confirmation toast with a button stays, 10000 by default | `ALPHONE_TOAST_ACTION_DURATION` |
 | `listPageSizes` | The page sizes a list offers, 10, 20, 50 and 100 by default | `ALPHONE_LIST_PAGE_SIZES` |
-| `listPageSize` | The page size a list opens on, 20 by default | `ALPHONE_LIST_PAGE_SIZE` |
+| `listPageSize` | The page size a list opens on and a repeater's first page, 20 by default | `ALPHONE_LIST_PAGE_SIZE` |
 | `contactPageCap` | The most contacts one `contactPage` answers, 200 by default | `ALPHONE_GRAPH_PAGE_CAP` |
 | `formatLocale` | The locale the screens write dates, times, numbers and money in, `es-ES` by default | `ALPHONE_FORMAT_LOCALE` |
 
