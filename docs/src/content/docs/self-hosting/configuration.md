@@ -344,9 +344,10 @@ with that id.
 
 ## WhatsApp plugin
 
-All optional. Without them the plugin runs inert: screens exist, but no
-webhook verifies and no message sends. Values come from your Meta app,
-see [Meta setup](/whatsapp/meta-setup/).
+All optional. With none of them and no number stored by a workspace, the
+plugin runs inert: screens exist, but no webhook verifies and no message
+sends. Values come from your Meta app, see
+[Meta setup](/whatsapp/meta-setup/).
 
 | Variable | Purpose |
 | --- | --- |
@@ -356,11 +357,19 @@ see [Meta setup](/whatsapp/meta-setup/).
 | `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` | The phone number ID (not the phone number itself) messages are sent from. |
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
 | `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
+| `ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX` | The most messages and status updates stored from one webhook delivery. Defaults to 2000, above the 1000 updates Meta puts in one delivery. Anything past the cap is dropped and the delivery still answers `200`. A value that is not a whole number above zero stops `serve` and the other commands listed at the top of this page. |
 
-A workspace's own access token, kept in the database instead of in
-`ALPHONE_WHATSAPP_ACCESS_TOKEN`, is encrypted with
-`ALPHONE_ENCRYPTION_KEY`, see [Encryption](#encryption). Without that
-key no such token can be stored.
+A workspace can also connect any number of its own numbers, kept in the
+database instead of in these settings. The access token and the app secret
+of such a number are encrypted with `ALPHONE_ENCRYPTION_KEY`, see
+[Encryption](#encryption). Without that key no such number can be stored.
+A number connected without its own app secret or verify token uses
+`ALPHONE_WHATSAPP_APP_SECRET` and `ALPHONE_WHATSAPP_VERIFY_TOKEN`. The number
+in `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` belongs to the default workspace, so no
+other workspace can connect it. A conversation on that number keeps replying
+from it when the default workspace connects other numbers. If the default
+workspace connects that same number, the customer's next message opens a new
+conversation, while the older one stays and replies from the same number.
 
 ## Account records and tokens
 
