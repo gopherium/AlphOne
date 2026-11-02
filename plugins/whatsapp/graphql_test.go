@@ -91,24 +91,31 @@ func newNumberedPlugin(t *testing.T) (*whatsapp.Plugin, *pgxpool.Pool) {
 }
 
 // connectLabelledNumber stores a number under the tenant with its label.
-func connectLabelledNumber(t *testing.T, p *whatsapp.Plugin, tenantID uuid.UUID, number, label string) {
+func connectLabelledNumber(t *testing.T, p *whatsapp.Plugin, tenantID uuid.UUID, identity sdk.ChannelIdentity) {
 	t.Helper()
-	stored := sdk.ChannelCredentials{Identifier: number, Label: label, Secret: "EAAG-" + number}
+	stored := sdk.ChannelCredentials{
+		Identifier: identity.Identifier, Label: identity.Label, Secret: "EAAG-" + identity.Identifier,
+	}
 	if err := p.SetChannelCredentials(sdk.WithTenant(t.Context(), tenantID), stored); err != nil {
 		t.Fatalf("SetChannelCredentials() error = %v, want nil", err)
 	}
 }
 
+// conversationOnNumber names a customer's conversation in a tenant on a number, nil for none.
+type conversationOnNumber struct {
+	tenantID uuid.UUID
+	number   *string
+	customer string
+}
+
 // seedNumberedConversation stores a contact's conversation of the tenant on a number, nil for none.
-func seedNumberedConversation(
-	t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, number *string, externalID string,
-) uuid.UUID {
+func seedNumberedConversation(t *testing.T, pool *pgxpool.Pool, seeded conversationOnNumber) uuid.UUID {
 	t.Helper()
 	contactID := uuid.Must(uuid.NewV7())
 	conversationID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(t.Context(),
 		`INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, 'Maria Perez', now(), $2)`,
-		contactID, tenantID,
+		contactID, seeded.tenantID,
 	); err != nil {
 		t.Fatalf("inserting contact: %v", err)
 	}
@@ -116,7 +123,7 @@ func seedNumberedConversation(
 		`INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status,
 			last_activity_at, created_at, tenant_id, phone_number_id)
 		VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now(), $4, $5)`,
-		conversationID, contactID, externalID, tenantID, number,
+		conversationID, contactID, seeded.customer, seeded.tenantID, seeded.number,
 	); err != nil {
 		t.Fatalf("inserting conversation: %v", err)
 	}
@@ -651,9 +658,9 @@ func TestGraphNumbersListTheTenantsOwnNumbersOldestFirst(t *testing.T) {
 
 	p, pool := newNumberedPlugin(t)
 	acme := seedTenant(t, pool)
-	connectLabelledNumber(t, p, acme, "5550002", "Sales line")
-	connectLabelledNumber(t, p, acme, "5550001", "")
-	connectLabelledNumber(t, p, seedGlobex(t, pool), "5550003", "Support line")
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: "5550002", Label: "Sales line"})
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: "5550001", Label: ""})
+	connectLabelledNumber(t, p, seedGlobex(t, pool), sdk.ChannelIdentity{Identifier: "5550003", Label: "Support line"})
 	client := newTenantGraphQLClient(t, p, pool, acme)
 
 	var response numbersResponse
@@ -721,19 +728,29 @@ func TestGraphNumbersSurfaceAStoreFailure(t *testing.T) {
 	}
 }
 
+// wantConversationNumbers fails the test unless each conversation reads the number named for it.
+func wantConversationNumbers(t *testing.T, numbers map[string]*string, want map[string]string) {
+	t.Helper()
+	for externalID, number := range want {
+		if got := numbers[externalID]; got == nil || *got != number {
+			t.Errorf("conversation %s number = %v, want %q", externalID, got, number)
+		}
+	}
+}
+
 func TestGraphConversationNumberReadsTheLabelOrElseTheIdentifier(t *testing.T) {
 	t.Parallel()
 
 	p, pool := newNumberedPlugin(t)
 	acme := seedTenant(t, pool)
 	labelled, bare, removed := "5550001", "5550002", "5550003"
-	connectLabelledNumber(t, p, acme, labelled, "Sales line")
-	connectLabelledNumber(t, p, acme, bare, "")
-	connectLabelledNumber(t, p, acme, removed, "Old line")
-	seedNumberedConversation(t, pool, acme, &labelled, "184467235")
-	seedNumberedConversation(t, pool, acme, &bare, "184467236")
-	seedNumberedConversation(t, pool, acme, &removed, "184467237")
-	single := seedNumberedConversation(t, pool, acme, nil, "184467238")
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: labelled, Label: "Sales line"})
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: bare, Label: ""})
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: removed, Label: "Old line"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &labelled, customer: "184467235"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &bare, customer: "184467236"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &removed, customer: "184467237"})
+	single := seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: nil, customer: "184467238"})
 	if err := p.RemoveChannelCredentials(sdk.WithTenant(t.Context(), acme), removed); err != nil {
 		t.Fatalf("RemoveChannelCredentials() error = %v, want nil", err)
 	}
@@ -746,15 +763,11 @@ func TestGraphConversationNumberReadsTheLabelOrElseTheIdentifier(t *testing.T) {
 		gqlclient.Var("id", single.String()))
 
 	numbers := conversationNumbers(listed.WhatsAppConversations)
-	for externalID, want := range map[string]string{
+	wantConversationNumbers(t, numbers, map[string]string{
 		"184467235": "Sales line",
 		"184467236": bare,
 		"184467237": removed,
-	} {
-		if got := numbers[externalID]; got == nil || *got != want {
-			t.Errorf("conversation %s number = %v, want %q", externalID, got, want)
-		}
-	}
+	})
 	if got, found := numbers["184467238"]; !found || got != nil {
 		t.Errorf("conversation with no number listed as %v, want null", got)
 	}
@@ -769,8 +782,8 @@ func TestGraphConversationNumberReadsTheLabelOfTheContactEdge(t *testing.T) {
 	p, pool := newNumberedPlugin(t)
 	acme := seedTenant(t, pool)
 	number := "5550001"
-	connectLabelledNumber(t, p, acme, number, "Sales line")
-	seedNumberedConversation(t, pool, acme, &number, "184467235")
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: number, Label: "Sales line"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &number, customer: "184467235"})
 	client := newTenantGraphQLClient(t, p, pool, acme)
 
 	var response struct {
@@ -792,17 +805,110 @@ func TestGraphConversationNumberReadsTheLabelOfTheContactEdge(t *testing.T) {
 	}
 }
 
+// conversationNumberReads returns the number the tenant's only conversation answers on every graph path.
+func conversationNumberReads(
+	t *testing.T, client *gqlclient.Client, conversationID uuid.UUID,
+) map[string]*string {
+	t.Helper()
+	var listed struct{ WhatsAppConversations []numberedConversation }
+	client.MustPost(`{ whatsAppConversations { externalId number } }`, &listed)
+	var one struct{ WhatsAppConversation numberedConversation }
+	client.MustPost(`query($id: UUID!) { whatsAppConversation(id: $id) { externalId number } }`, &one,
+		gqlclient.Var("id", conversationID.String()))
+	var edge struct {
+		Contacts struct {
+			Edges []struct {
+				Node struct{ WhatsAppConversations []numberedConversation }
+			}
+		}
+	}
+	client.MustPost(`{ contacts(first: 50) { edges { node { whatsAppConversations { externalId number } } } } }`, &edge)
+	if len(listed.WhatsAppConversations) != 1 || len(edge.Contacts.Edges) != 1 {
+		t.Fatalf("read %+v and %+v, want the one conversation on each path", listed, edge)
+	}
+	return map[string]*string{
+		"the list":         listed.WhatsAppConversations[0].Number,
+		"the conversation": one.WhatsAppConversation.Number,
+		"the contact":      edge.Contacts.Edges[0].Node.WhatsAppConversations[0].Number,
+	}
+}
+
+func TestGraphConversationOnNoNumberAnswersTheEnvironmentNumber(t *testing.T) {
+	t.Parallel()
+
+	p, _, pool := newSendingHarness(t, nil)
+	seeded := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: nil, customer: "184467235"}
+	conversationID := seedNumberedConversation(t, pool, seeded)
+	client := newGraphQLClient(t, p, pool)
+
+	for path, got := range conversationNumberReads(t, client, conversationID) {
+		if got == nil || *got != "555000222" {
+			t.Errorf("%s answers %v, want the environment number", path, got)
+		}
+	}
+}
+
+func TestGraphConversationOnNoNumberAnswersNullElsewhere(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(t *testing.T) (*gqlclient.Client, uuid.UUID){
+		"another tenant beside an environment number": func(t *testing.T) (*gqlclient.Client, uuid.UUID) {
+			t.Helper()
+			p, _, pool := newSendingHarness(t, nil)
+			acme := seedTenant(t, pool)
+			seeded := conversationOnNumber{tenantID: acme, number: nil, customer: "184467235"}
+			return newTenantGraphQLClient(t, p, pool, acme), seedNumberedConversation(t, pool, seeded)
+		},
+		"the default tenant with no environment number": func(t *testing.T) (*gqlclient.Client, uuid.UUID) {
+			t.Helper()
+			p, pool := newNumberedPlugin(t)
+			seeded := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: nil, customer: "184467235"}
+			return newGraphQLClient(t, p, pool), seedNumberedConversation(t, pool, seeded)
+		},
+	}
+	for testName, arrange := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			client, conversationID := arrange(t)
+
+			for path, got := range conversationNumberReads(t, client, conversationID) {
+				if got != nil {
+					t.Errorf("%s answers %q, want null", path, *got)
+				}
+			}
+		})
+	}
+}
+
+func TestGraphNumbersListTheEnvironmentNumberBesideAStoredOne(t *testing.T) {
+	t.Parallel()
+
+	p, _, pool := newSendingHarness(t, nil)
+	p.UseEncrypter(whatsapp.BoundEncrypter())
+	connectLabelledNumber(t, p, sdk.DefaultTenantID, sdk.ChannelIdentity{Identifier: "5550001", Label: "Sales line"})
+	client := newGraphQLClient(t, p, pool)
+
+	var response numbersResponse
+	client.MustPost(`{ whatsAppNumbers { identifier label } }`, &response)
+
+	want := []graphNumber{{Identifier: "555000222"}, {Identifier: "5550001", Label: "Sales line"}}
+	if !slices.Equal(response.WhatsAppNumbers, want) {
+		t.Errorf("numbers = %+v, want %+v", response.WhatsAppNumbers, want)
+	}
+}
+
 func TestGraphConversationsFilterByNumber(t *testing.T) {
 	t.Parallel()
 
 	p, pool := newNumberedPlugin(t)
 	acme := seedTenant(t, pool)
 	sales, support := "5550001", "5550002"
-	connectLabelledNumber(t, p, acme, sales, "Sales line")
-	connectLabelledNumber(t, p, acme, support, "Support line")
-	seedNumberedConversation(t, pool, acme, &sales, "184467235")
-	seedNumberedConversation(t, pool, acme, &support, "184467236")
-	seedNumberedConversation(t, pool, acme, nil, "184467237")
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: sales, Label: "Sales line"})
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: support, Label: "Support line"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &sales, customer: "184467235"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &support, customer: "184467236"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: nil, customer: "184467237"})
 	client := newTenantGraphQLClient(t, p, pool, acme)
 	document := `query($number: String) { whatsAppConversations(number: $number) { externalId } }`
 
@@ -841,10 +947,16 @@ func TestGraphConversationsFilterOnTheEnvironmentNumberReadsThoseStoringNone(t *
 			p, _, pool := newSendingHarness(t, overrides)
 			p.UseEncrypter(whatsapp.BoundEncrypter())
 			environment, other := "555000222", "5550001"
-			connectLabelledNumber(t, p, sdk.DefaultTenantID, other, "Sales line")
-			seedNumberedConversation(t, pool, sdk.DefaultTenantID, nil, "184467235")
-			seedNumberedConversation(t, pool, sdk.DefaultTenantID, &environment, "184467236")
-			seedNumberedConversation(t, pool, sdk.DefaultTenantID, &other, "184467237")
+			connectLabelledNumber(t, p, sdk.DefaultTenantID, sdk.ChannelIdentity{Identifier: other, Label: "Sales line"})
+			seedNumberedConversation(t, pool, conversationOnNumber{
+				tenantID: sdk.DefaultTenantID, number: nil, customer: "184467235",
+			})
+			seedNumberedConversation(t, pool, conversationOnNumber{
+				tenantID: sdk.DefaultTenantID, number: &environment, customer: "184467236",
+			})
+			seedNumberedConversation(t, pool, conversationOnNumber{
+				tenantID: sdk.DefaultTenantID, number: &other, customer: "184467237",
+			})
 			client := newGraphQLClient(t, p, pool)
 			document := `query($number: String) { whatsAppConversations(number: $number) { externalId } }`
 
@@ -871,7 +983,7 @@ func TestGraphConversationsFilterLeavesTheEnvironmentNumberToTheDefaultTenant(t 
 
 	p, _, pool := newSendingHarness(t, nil)
 	acme := seedTenant(t, pool)
-	seedNumberedConversation(t, pool, acme, nil, "184467235")
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: nil, customer: "184467235"})
 	client := newTenantGraphQLClient(t, p, pool, acme)
 
 	var response struct{ WhatsAppConversations []numberedConversation }
@@ -887,7 +999,9 @@ func TestGraphConversationsFilterOnNoNumberReadsNothingWithoutAnEnvironmentNumbe
 	t.Parallel()
 
 	p, pool := newNumberedPlugin(t)
-	seedNumberedConversation(t, pool, sdk.DefaultTenantID, nil, "184467235")
+	seedNumberedConversation(t, pool, conversationOnNumber{
+		tenantID: sdk.DefaultTenantID, number: nil, customer: "184467235",
+	})
 	client := newGraphQLClient(t, p, pool)
 
 	var response struct{ WhatsAppConversations []numberedConversation }
@@ -906,8 +1020,8 @@ func TestGraphConversationsFilterStaysInsideTheTenant(t *testing.T) {
 	acme := seedTenant(t, pool)
 	globex := seedGlobex(t, pool)
 	theirs := "5550001"
-	connectLabelledNumber(t, p, acme, theirs, "Sales line")
-	seedNumberedConversation(t, pool, acme, &theirs, "184467235")
+	connectLabelledNumber(t, p, acme, sdk.ChannelIdentity{Identifier: theirs, Label: "Sales line"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &theirs, customer: "184467235"})
 	client := newTenantGraphQLClient(t, p, pool, globex)
 
 	var response struct{ WhatsAppConversations []numberedConversation }
@@ -926,8 +1040,8 @@ func TestGraphConversationNumberReadsNoLabelOfAnotherTenant(t *testing.T) {
 	acme := seedTenant(t, pool)
 	globex := seedGlobex(t, pool)
 	number := "5550001"
-	connectLabelledNumber(t, p, globex, number, "Support line")
-	seedNumberedConversation(t, pool, acme, &number, "184467235")
+	connectLabelledNumber(t, p, globex, sdk.ChannelIdentity{Identifier: number, Label: "Support line"})
+	seedNumberedConversation(t, pool, conversationOnNumber{tenantID: acme, number: &number, customer: "184467235"})
 	client := newTenantGraphQLClient(t, p, pool, acme)
 
 	var response struct{ WhatsAppConversations []numberedConversation }

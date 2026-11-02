@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -212,16 +213,24 @@ func (p *Plugin) sealNumber(ctx context.Context, stored sdk.ChannelCredentials) 
 	return number, nil
 }
 
-// ChannelIdentities lists the calling tenant's numbers, oldest first, or else the env number it serves.
+// ChannelIdentities lists the env number the calling tenant serves unless it stored that number, then its numbers.
 func (p *Plugin) ChannelIdentities(ctx context.Context) ([]sdk.ChannelIdentity, error) {
 	identities, err := p.store.listNumbers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(identities) == 0 && p.servesEnvNumber(ctx) {
-		return []sdk.ChannelIdentity{{Identifier: p.envCredentials.phoneNumberID}}, nil
+	env := p.envCredentials.phoneNumberID
+	if p.servesEnvNumber(ctx) && !holdsIdentifier(identities, env) {
+		return slices.Insert(identities, 0, sdk.ChannelIdentity{Identifier: env}), nil
 	}
 	return identities, nil
+}
+
+// holdsIdentifier reports whether the identities carry the identifier.
+func holdsIdentifier(identities []sdk.ChannelIdentity, identifier string) bool {
+	return slices.ContainsFunc(identities, func(identity sdk.ChannelIdentity) bool {
+		return identity.Identifier == identifier
+	})
 }
 
 // RemoveChannelCredentials removes one of the calling tenant's numbers.

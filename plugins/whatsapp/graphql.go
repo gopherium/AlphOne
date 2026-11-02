@@ -18,17 +18,25 @@ import (
 // errMissingContactStash reports a conversation read without the contact its row carries.
 var errMissingContactStash = errors.New("whatsapp: conversation carries no contact")
 
-// toGraphConversation maps a conversation row onto its graph model.
-func toGraphConversation(row conversationRow) *model.WhatsAppConversation {
+// toGraphConversation maps a conversation row onto its graph model, envNumber naming a row that stores no number.
+func toGraphConversation(row conversationRow, envNumber string) *model.WhatsAppConversation {
 	return &model.WhatsAppConversation{
 		ID:                 row.ID,
 		ExternalID:         row.ExternalID,
 		Status:             row.Status,
 		LastActivityAt:     row.LastActivityAt.UTC(),
 		LastMessagePreview: row.LastMessagePreview,
-		Number:             row.Number,
+		Number:             storedOrEnvNumber(row.Number, envNumber),
 		Contact:            &model.Contact{ID: row.ContactID, Name: row.ContactName},
 	}
+}
+
+// storedOrEnvNumber answers the number a row stores, or else envNumber, nil when there is neither.
+func storedOrEnvNumber(stored *string, envNumber string) *string {
+	if stored != nil || envNumber == "" {
+		return stored
+	}
+	return &envNumber
 }
 
 // toGraphMessage maps a message row onto its graph model.
@@ -92,15 +100,21 @@ func (q QueryResolvers) WhatsAppConversations(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.plugin.store.listConversations(ctx, bounded, number, q.plugin.envNumber(ctx))
+	envNumber := q.plugin.envNumber(ctx)
+	rows, err := q.plugin.store.listConversations(ctx, bounded, number, envNumber)
 	if err != nil {
 		return nil, err
 	}
+	return toGraphConversations(rows, envNumber), nil
+}
+
+// toGraphConversations maps conversation rows onto their graph models.
+func toGraphConversations(rows []conversationRow, envNumber string) []*model.WhatsAppConversation {
 	conversations := make([]*model.WhatsAppConversation, len(rows))
 	for i, row := range rows {
-		conversations[i] = toGraphConversation(row)
+		conversations[i] = toGraphConversation(row, envNumber)
 	}
-	return conversations, nil
+	return conversations
 }
 
 // WhatsAppConversation reads one conversation, or nothing when it is unknown.
@@ -114,10 +128,10 @@ func (q QueryResolvers) WhatsAppConversation(
 	if row.ID == uuid.Nil {
 		return nil, nil
 	}
-	return toGraphConversation(row), nil
+	return toGraphConversation(row, q.plugin.envNumber(ctx)), nil
 }
 
-// WhatsAppNumbers lists the numbers the calling tenant holds, oldest first.
+// WhatsAppNumbers lists the numbers the calling tenant answers on, the env number it serves among them.
 func (q QueryResolvers) WhatsAppNumbers(ctx context.Context) ([]*model.WhatsAppNumber, error) {
 	identities, err := q.plugin.ChannelIdentities(ctx)
 	if err != nil {
@@ -188,11 +202,7 @@ func (c ContactResolvers) WhatsAppConversations(
 	if err != nil {
 		return nil, err
 	}
-	conversations := make([]*model.WhatsAppConversation, len(rows))
-	for i, row := range rows {
-		conversations[i] = toGraphConversation(row)
-	}
-	return conversations, nil
+	return toGraphConversations(rows, c.plugin.envNumber(ctx)), nil
 }
 
 // WhatsAppConversationResolvers serves the conversation's resolver backed fields.
