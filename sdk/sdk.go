@@ -142,14 +142,38 @@ type FieldConsumer interface {
 	UseFieldProviders(providers []FieldProvider)
 }
 
-// CredentialProvider stores the calling tenant's sending identity for one channel.
+// ChannelCredentials is one sending identity a tenant stores on a channel.
+type ChannelCredentials struct {
+	// Identifier names the identity on the channel.
+	Identifier string
+	// Label is the text an operator reads on screen.
+	Label string
+	// Secret is the token the identity sends with.
+	Secret string
+	// AppSecret proves what the channel delivers for the identity.
+	AppSecret string
+	// VerifyToken answers the handshake the channel opens with.
+	VerifyToken string
+}
+
+// ChannelIdentity is one sending identity as an operator reads it.
+type ChannelIdentity struct {
+	// Identifier names the identity on the channel.
+	Identifier string
+	// Label is the text an operator reads on screen.
+	Label string
+}
+
+// CredentialProvider stores the calling tenant's sending identities for one channel.
 type CredentialProvider interface {
 	// Channel names the channel the credentials send on.
 	Channel() Channel
-	// SetChannelCredentials stores the calling tenant's identifier and secret, encrypted at rest.
-	SetChannelCredentials(ctx context.Context, identifier, secret string) error
-	// ChannelIdentifier answers the calling tenant's configured identifier and whether one is set.
-	ChannelIdentifier(ctx context.Context) (string, bool, error)
+	// SetChannelCredentials adds or replaces an identity, keeping a stored Label, AppSecret or VerifyToken left empty.
+	SetChannelCredentials(ctx context.Context, credentials ChannelCredentials) error
+	// ChannelIdentities lists the calling tenant's identities, oldest first.
+	ChannelIdentities(ctx context.Context) ([]ChannelIdentity, error)
+	// RemoveChannelCredentials removes one of the calling tenant's identities.
+	RemoveChannelCredentials(ctx context.Context, identifier string) error
 }
 
 // CredentialConsumer receives the registered credential providers.
