@@ -125,6 +125,21 @@ func sendErrorCode(t *testing.T, err error) string {
 	return refused.Code
 }
 
+// sendFailure is the code and the reason a failed send carries.
+type sendFailure struct {
+	code   string
+	reason string
+}
+
+// sendFailureOf returns what a graph error carries, nothing for any other answer.
+func sendFailureOf(err error) sendFailure {
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) {
+		return sendFailure{}
+	}
+	return sendFailure{code: refused.Code, reason: refused.Reason}
+}
+
 // onlyConversation returns the single conversation the plugin holds.
 func onlyConversation(t *testing.T, p *whatsapp.Plugin) *model.WhatsAppConversation {
 	t.Helper()
@@ -224,7 +239,7 @@ func newTwoNumberTenant(t *testing.T) (*whatsapp.Plugin, *graphStub, *pgxpool.Po
 	p.UseEncrypter(whatsapp.BoundEncrypter())
 	acme := seedTenant(t, pool)
 	for _, number := range []string{"5550001", "5550002"} {
-		connectNumber(t, p, acme, number, "secret-"+number)
+		connectNumber(t, p, acme, numberWithSecret(number, "secret-"+number))
 		body := numberedEventBody(number, "wamid."+number)
 		if recorder := postEvent(t, p.Routes(), sign("secret-"+number, body), body); recorder.Code != http.StatusOK {
 			t.Fatalf("ingest status = %d, want %d", recorder.Code, http.StatusOK)
@@ -263,8 +278,7 @@ func TestAReplyOnARemovedNumberNamesTheReasonAndSendsNothing(t *testing.T) {
 
 	_, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationOn(t, pool, "5550001"), "Ready at 5pm")
 
-	var refused sdk.GraphError
-	if !errors.As(err, &refused) || refused.Code != "VALIDATION" || refused.Reason != "number_removed" {
+	if got := sendFailureOf(err); got != (sendFailure{code: "VALIDATION", reason: "number_removed"}) {
 		t.Errorf("error = %v, want the reason number_removed", err)
 	}
 	if stub.lastAuth != "" {
@@ -304,7 +318,7 @@ func TestANumberAnotherTenantStoredStaysRemovedForTheOneThatLeftIt(t *testing.T)
 	if err := p.RemoveChannelCredentials(mine, "5550001"); err != nil {
 		t.Fatalf("RemoveChannelCredentials() error = %v, want nil", err)
 	}
-	connectNumber(t, p, seedGlobex(t, pool), "5550001", "globex-secret")
+	connectNumber(t, p, seedGlobex(t, pool), numberWithSecret("5550001", "globex-secret"))
 
 	_, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationOn(t, pool, "5550001"), "Ready at 5pm")
 
@@ -322,7 +336,7 @@ func TestAReplyOnAnEnvironmentNumberWithoutATokenSendsNothing(t *testing.T) {
 
 	p, stub, _ := newSendingHarness(t, map[string]string{"ALPHONE_WHATSAPP_ACCESS_TOKEN": ""})
 	p.UseEncrypter(whatsapp.BoundEncrypter())
-	connectNumber(t, p, sdk.DefaultTenantID, "5550001", "secret-5550001")
+	connectNumber(t, p, sdk.DefaultTenantID, numberWithSecret("5550001", "secret-5550001"))
 	ingestEvent(t, p.Routes(), "wamid.env", "184467235", "Maria Perez", "1751791000", "hello")
 
 	_, err := sendMessage(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
@@ -363,7 +377,7 @@ func TestAnOlderConversationRepliesWithTheStoredTokenOnceTheEnvironmentNumberIsC
 	routes := p.Routes()
 	ingestEvent(t, routes, "wamid.older", "184467235", "Maria Perez", "1751791000", "hello")
 	older := onlyConversation(t, p).ID
-	connectNumber(t, p, sdk.DefaultTenantID, "555000222", "secret-555000222")
+	connectNumber(t, p, sdk.DefaultTenantID, numberWithSecret("555000222", "secret-555000222"))
 	body := numberedEventBody("555000222", "wamid.newer")
 	if recorder := postEvent(t, routes, sign("secret-555000222", body), body); recorder.Code != http.StatusOK {
 		t.Fatalf("ingest status = %d, want %d", recorder.Code, http.StatusOK)

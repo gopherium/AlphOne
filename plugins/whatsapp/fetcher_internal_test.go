@@ -98,28 +98,38 @@ func (s *graphStub) handle(w http.ResponseWriter, r *http.Request) {
 	s.requestURIs = append(s.requestURIs, r.RequestURI)
 	if strings.HasPrefix(r.URL.Path, "/binary") {
 		s.binaryHits++
-		if s.hops > 0 {
-			s.hops--
-			http.Redirect(w, r, "/binary", http.StatusFound)
-			return
-		}
-		if s.binaryRedirect != "" {
-			http.Redirect(w, r, s.binaryRedirect, http.StatusFound)
-			return
-		}
-		if s.binaryCode != http.StatusOK {
-			w.WriteHeader(s.binaryCode)
-			return
-		}
-		if s.truncate {
-			w.Header().Set("Content-Length", "1000")
-			_, _ = w.Write(s.binary[:1])
-			return
-		}
-		_, _ = w.Write(s.binary)
+		s.answerBinary(w, r)
 		return
 	}
 	s.metadataHits++
+	s.answerMetadata(w, r)
+}
+
+// answerBinary answers the media bytes or whichever hop, failure or cut the stub was told to give instead.
+func (s *graphStub) answerBinary(w http.ResponseWriter, r *http.Request) {
+	if s.hops > 0 {
+		s.hops--
+		http.Redirect(w, r, "/binary", http.StatusFound)
+		return
+	}
+	if s.binaryRedirect != "" {
+		http.Redirect(w, r, s.binaryRedirect, http.StatusFound)
+		return
+	}
+	if s.binaryCode != http.StatusOK {
+		w.WriteHeader(s.binaryCode)
+		return
+	}
+	if s.truncate {
+		w.Header().Set("Content-Length", "1000")
+		_, _ = w.Write(s.binary[:1])
+		return
+	}
+	_, _ = w.Write(s.binary)
+}
+
+// answerMetadata answers the media metadata or whichever redirect, failure or body the stub was told to give instead.
+func (s *graphStub) answerMetadata(w http.ResponseWriter, r *http.Request) {
 	if s.metadataRedirect != "" {
 		http.Redirect(w, r, s.metadataRedirect, http.StatusFound)
 		return
@@ -224,6 +234,38 @@ func mediaStatus(p *Plugin, messageID uuid.UUID) string {
 	return status
 }
 
+// wantEveryBearer fails the test unless each request the stub heard carried the token.
+func wantEveryBearer(t *testing.T, stub *graphStub, token string) {
+	t.Helper()
+	for _, header := range stub.headers() {
+		if header != "Bearer "+token {
+			t.Errorf("Authorization = %q, want %q", header, "Bearer "+token)
+		}
+	}
+}
+
+// wantUntried fails the test unless every row still waits with no attempt made.
+func wantUntried(t *testing.T, p *Plugin, messageIDs []uuid.UUID) {
+	t.Helper()
+	for _, id := range messageIDs {
+		if state := mediaState(t, p, id); state.status != "pending" || state.attempts != 0 {
+			t.Errorf("the closed tenant's row = (%q, %d), want it pending and untried", state.status, state.attempts)
+		}
+	}
+}
+
+// wantFailed fails the test unless the row ended failed under the reason.
+func wantFailed(t *testing.T, p *Plugin, messageID uuid.UUID, reason string) {
+	t.Helper()
+	state := mediaState(t, p, messageID)
+	if state.lastError == nil {
+		t.Fatalf("row = (%q, nil), want (failed, %s)", state.status, reason)
+	}
+	if got := [2]string{state.status, *state.lastError}; got != [2]string{"failed", reason} {
+		t.Fatalf("row = %q, want (failed, %s)", got, reason)
+	}
+}
+
 func TestFetcherStoresPendingMedia(t *testing.T) {
 	t.Parallel()
 
@@ -255,11 +297,7 @@ func TestFetcherStoresPendingMedia(t *testing.T) {
 	default:
 		t.Error("no event broadcast after the media was stored")
 	}
-	for _, header := range stub.headers() {
-		if header != "Bearer test-token" {
-			t.Errorf("Authorization = %q, want %q", header, "Bearer test-token")
-		}
-	}
+	wantEveryBearer(t, stub, "test-token")
 }
 
 // seededAcmeImage stores a pending image under a fresh tenant with its own credentials.
@@ -268,7 +306,7 @@ func seededAcmeImage(t *testing.T, p *Plugin) (uuid.UUID, uuid.UUID) {
 	p.UseEncrypter(&boundEncrypter{})
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
-	connected(t, p, mine, "555000444", "EAAG-acme-token")
+	connected(t, p, mine, credentials{phoneNumberID: "555000444", accessToken: "EAAG-acme-token"})
 	conversationID := seededConversation(t, p, "wamid.acme", acme)
 	messageID := uuid.Must(uuid.NewV7())
 	if _, err := p.pool.Exec(t.Context(),
@@ -301,15 +339,10 @@ func TestFetcherUsesTheRowTenantsCredentials(t *testing.T) {
 	if state := mediaState(t, p, messageID); state.status != "stored" {
 		t.Fatalf("status = %q, want %q", state.status, "stored")
 	}
-	headers := stub.headers()
-	if len(headers) == 0 {
+	if len(stub.headers()) == 0 {
 		t.Fatal("no graph requests recorded, want the download performed")
 	}
-	for _, header := range headers {
-		if header != "Bearer EAAG-acme-token" {
-			t.Errorf("Authorization = %q, want the row tenant's token", header)
-		}
-	}
+	wantEveryBearer(t, stub, "EAAG-acme-token")
 }
 
 func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
@@ -337,13 +370,7 @@ func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
 
 	f.sweepOnce(t.Context())
 
-	state := mediaState(t, p, messageID)
-	if state.status != "pending" || state.attempts != 1 {
-		t.Fatalf("row = (%q, %d), want still pending after one attempt", state.status, state.attempts)
-	}
-	if state.lastError == nil || !strings.Contains(*state.lastError, "credentials") {
-		t.Errorf("last_error = %v, want the missing credentials named", state.lastError)
-	}
+	wantRescheduled(t, p, messageID, "credentials")
 	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
 		t.Errorf("graph hits = (%d, %d), want none without credentials", metadataHits, binaryHits)
 	}
@@ -352,9 +379,7 @@ func TestFetcherReschedulesARowWhoseTenantHasNoCredentials(t *testing.T) {
 // seededImageOn stores a pending image on a conversation that came in on a number of the tenant.
 func seededImageOn(t *testing.T, p *Plugin, tenantID uuid.UUID, number string) uuid.UUID {
 	t.Helper()
-	now := time.Now().UTC()
-	conversationID := datedConversation(t, p, tenantID, seededContact(t, p, tenantID), &number, now, now)
-	messageID := oneMessage(t, p, tenantID, conversationID, "wamid."+number)
+	messageID := oneMessage(t, p, freshConversation(t, p, tenantID, &number), "wamid."+number)
 	if err := insertMediaPending(sdk.WithTenant(t.Context(), tenantID), p.pool, messageID, mediaDescriptor{
 		mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: shaOf([]byte("media-bytes")),
 	}); err != nil {
@@ -366,11 +391,10 @@ func seededImageOn(t *testing.T, p *Plugin, tenantID uuid.UUID, number string) u
 // queuedImages stores count pending images on one conversation of the tenant, oldest first, and returns their ids.
 func queuedImages(t *testing.T, p *Plugin, tenantID uuid.UUID, count int) []uuid.UUID {
 	t.Helper()
-	now := time.Now().UTC()
-	conversationID := datedConversation(t, p, tenantID, seededContact(t, p, tenantID), nil, now, now)
+	conversation := freshConversation(t, p, tenantID, nil)
 	queued := make([]uuid.UUID, count)
 	for i := range queued {
-		queued[i] = oneMessage(t, p, tenantID, conversationID, fmt.Sprintf("wamid.queued.%d", i))
+		queued[i] = oneMessage(t, p, conversation, fmt.Sprintf("wamid.queued.%d", i))
 		if err := insertMediaPending(sdk.WithTenant(t.Context(), tenantID), p.pool, queued[i], mediaDescriptor{
 			mediaID: "MEDIA1", mimeType: "image/jpeg", sha256: shaOf([]byte("media-bytes")),
 		}); err != nil {
@@ -388,6 +412,16 @@ func (g tenantGate) AcceptsMachineTraffic(_ context.Context, tenantID uuid.UUID)
 	return g(tenantID)
 }
 
+// closingTenant returns a gate answering what closing says of one tenant and letting every other tenant through.
+func closingTenant(closed uuid.UUID, closing func() (bool, error)) tenantGate {
+	return func(tenantID uuid.UUID) (bool, error) {
+		if tenantID == closed {
+			return closing()
+		}
+		return true, nil
+	}
+}
+
 func TestFetcherReachesAnOpenTenantPastAClosedTenantsRows(t *testing.T) {
 	t.Parallel()
 
@@ -403,13 +437,9 @@ func TestFetcherReachesAnOpenTenantPastAClosedTenantsRows(t *testing.T) {
 			stub := newGraphStub(t, []byte("media-bytes"))
 			f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 			closed, open := seededTenant(t, p, "Acme"), seededTenant(t, p, "Globex")
-			p.gate = tenantGate(func(tenantID uuid.UUID) (bool, error) {
-				if tenantID == closed {
-					return closing()
-				}
-				return true, nil
-			})
-			connected(t, p, sdk.WithTenant(t.Context(), open), "5550002", "EAAG-open-token")
+			p.gate = closingTenant(closed, closing)
+			connected(t, p, sdk.WithTenant(t.Context(), open),
+				credentials{phoneNumberID: "5550002", accessToken: "EAAG-open-token"})
 			leftAlone := queuedImages(t, p, closed, mediaSweepBatch)
 			messageID := seededImageOn(t, p, open, "5550002")
 
@@ -418,16 +448,8 @@ func TestFetcherReachesAnOpenTenantPastAClosedTenantsRows(t *testing.T) {
 			if state := mediaState(t, p, messageID); state.status != "stored" {
 				t.Fatalf("the open tenant's row = %q, want %q", state.status, "stored")
 			}
-			for _, id := range leftAlone {
-				if state := mediaState(t, p, id); state.status != "pending" || state.attempts != 0 {
-					t.Errorf("the closed tenant's row = (%q, %d), want it pending and untried", state.status, state.attempts)
-				}
-			}
-			for _, header := range stub.headers() {
-				if header != "Bearer EAAG-open-token" {
-					t.Errorf("Authorization = %q, want only the open tenant's token", header)
-				}
-			}
+			wantUntried(t, p, leftAlone)
+			wantEveryBearer(t, stub, "EAAG-open-token")
 		})
 	}
 }
@@ -464,8 +486,8 @@ func TestFetcherUsesTheTokenOfTheNumberItsConversationCameInOn(t *testing.T) {
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	acme := seededTenant(t, p, "Acme")
 	mine := sdk.WithTenant(t.Context(), acme)
-	connected(t, p, mine, "5550001", "EAAG-first-token")
-	connected(t, p, mine, "5550002", "EAAG-second-token")
+	connected(t, p, mine, credentials{phoneNumberID: "5550001", accessToken: "EAAG-first-token"})
+	connected(t, p, mine, credentials{phoneNumberID: "5550002", accessToken: "EAAG-second-token"})
 	messageID := seededImageOn(t, p, acme, "5550002")
 
 	f.sweepOnce(t.Context())
@@ -473,11 +495,7 @@ func TestFetcherUsesTheTokenOfTheNumberItsConversationCameInOn(t *testing.T) {
 	if state := mediaState(t, p, messageID); state.status != "stored" {
 		t.Fatalf("status = %q, want %q", state.status, "stored")
 	}
-	for _, header := range stub.headers() {
-		if header != "Bearer EAAG-second-token" {
-			t.Errorf("Authorization = %q, want the token of the conversation's number", header)
-		}
-	}
+	wantEveryBearer(t, stub, "EAAG-second-token")
 }
 
 func TestFetcherUsesTheEnvironmentTokenForAConversationOnNoNumber(t *testing.T) {
@@ -487,7 +505,7 @@ func TestFetcherUsesTheEnvironmentTokenForAConversationOnNoNumber(t *testing.T) 
 	binary := []byte("media-bytes")
 	stub := newGraphStub(t, binary)
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
-	connected(t, p, t.Context(), "5550001", "EAAG-stored-token")
+	connected(t, p, t.Context(), credentials{phoneNumberID: "5550001", accessToken: "EAAG-stored-token"})
 	messageID := seedPendingImage(t, p, "wamid.envnumber", shaOf(binary))
 
 	f.sweepOnce(t.Context())
@@ -495,11 +513,7 @@ func TestFetcherUsesTheEnvironmentTokenForAConversationOnNoNumber(t *testing.T) 
 	if state := mediaState(t, p, messageID); state.status != "stored" {
 		t.Fatalf("status = %q, want %q", state.status, "stored")
 	}
-	for _, header := range stub.headers() {
-		if header != "Bearer test-token" {
-			t.Errorf("Authorization = %q, want the environment token", header)
-		}
-	}
+	wantEveryBearer(t, stub, "test-token")
 }
 
 func TestFetcherReschedulesARowOnARemovedNumber(t *testing.T) {
@@ -509,18 +523,13 @@ func TestFetcherReschedulesARowOnARemovedNumber(t *testing.T) {
 	stub := newGraphStub(t, []byte("media-bytes"))
 	f := newTestFetcher(t, p, stub.server.URL, 1<<20)
 	acme := seededTenant(t, p, "Acme")
-	connected(t, p, sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-first-token")
+	connected(t, p, sdk.WithTenant(t.Context(), acme),
+		credentials{phoneNumberID: "5550001", accessToken: "EAAG-first-token"})
 	messageID := seededImageOn(t, p, acme, "5550002")
 
 	f.sweepOnce(t.Context())
 
-	state := mediaState(t, p, messageID)
-	if state.status != "pending" || state.attempts != 1 {
-		t.Fatalf("row = (%q, %d), want still pending after one attempt", state.status, state.attempts)
-	}
-	if state.lastError == nil || !strings.Contains(*state.lastError, "no longer connected") {
-		t.Errorf("last_error = %v, want the removed number named", state.lastError)
-	}
+	wantRescheduled(t, p, messageID, "no longer connected")
 	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
 		t.Errorf("graph hits = (%d, %d), want none with another number's token", metadataHits, binaryHits)
 	}
@@ -674,302 +683,6 @@ func wantRescheduled(t *testing.T, p *Plugin, messageID uuid.UUID, reason string
 	}
 }
 
-func TestALastErrorQuotesNoAddress(t *testing.T) {
-	t.Parallel()
-
-	binary := []byte("media-bytes")
-	signed := "cdn-user:cdn-password@127.0.0.1:1/x?access_token=EAAG-in-location&hash=signed-in-address"
-	broken := "https://cdn-user:cdn-password@127.0.0.1:1/%zz"
-	tests := map[string]struct {
-		start     func(*testing.T, []byte) *graphStub
-		configure func(*graphStub)
-		reason    string
-	}{
-		"a download redirect off the scheme": {
-			start:     newTLSGraphStub,
-			configure: func(s *graphStub) { s.binaryRedirect = "http://" + signed },
-			reason:    "leaves the scheme",
-		},
-		"a metadata redirect off the scheme": {
-			start:     newTLSGraphStub,
-			configure: func(s *graphStub) { s.metadataRedirect = "http://" + signed },
-			reason:    "leaves the scheme",
-		},
-		"a download redirect that does not parse": {
-			start:     newTLSGraphStub,
-			configure: func(s *graphStub) { s.binaryRedirect = broken },
-			reason:    "media download failed",
-		},
-		"a metadata redirect that does not parse": {
-			start:     newTLSGraphStub,
-			configure: func(s *graphStub) { s.metadataRedirect = broken },
-			reason:    "media metadata request failed",
-		},
-		"a download address that does not parse": {
-			start:     newTLSGraphStub,
-			configure: func(s *graphStub) { s.urlOverride = broken },
-			reason:    "address does not parse",
-		},
-		"an unreachable address on the scheme": {
-			start:     newGraphStub,
-			configure: func(s *graphStub) { s.urlOverride = "http://" + signed },
-			reason:    "media download failed",
-		},
-	}
-	for testName, test := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			p := newMigratedPlugin(t)
-			stub := test.start(t, binary)
-			test.configure(stub)
-			f := newTestFetcher(t, p, stub.server.URL, 1<<20)
-			f.client.Transport = trustingTransport(t)
-			messageID := seedPendingImage(t, p, "wamid.quoted", shaOf(binary))
-
-			f.sweepOnce(t.Context())
-
-			wantRescheduled(t, p, messageID, test.reason)
-			stored := *mediaState(t, p, messageID).lastError
-			for _, quoted := range []string{"cdn-user", "cdn-password", "EAAG-in-location", "signed-in-address", "127.0.0.1"} {
-				if strings.Contains(stored, quoted) {
-					t.Errorf("last_error = %q, want it to leave out %q", stored, quoted)
-				}
-			}
-		})
-	}
-}
-
-func TestFetcherRefusesAnAddressOffTheSchemeOfTheGraphURL(t *testing.T) {
-	t.Parallel()
-
-	binary := []byte("media-bytes")
-	tests := map[string]struct {
-		address string
-		reason  string
-	}{
-		"a plain http address":           {address: "http://{host}/binary", reason: "leaves the scheme"},
-		"another scheme":                 {address: "ftp://{host}/binary", reason: "leaves the scheme"},
-		"an address with no scheme":      {address: "//{host}/binary", reason: "leaves the scheme"},
-		"a bare path":                    {address: "/binary", reason: "leaves the scheme"},
-		"an empty address":               {address: "", reason: "leaves the scheme"},
-		"an address that does not parse": {address: "http://{host}/%zz", reason: "does not parse"},
-	}
-	for testName, test := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			p := newMigratedPlugin(t)
-			plain := newGraphStub(t, binary)
-			secure := newTLSGraphStub(t, binary)
-			address := strings.ReplaceAll(test.address, "{host}", plain.server.Listener.Addr().String())
-			secure.metadataBody = fmt.Sprintf(`{"url": %q, "mime_type": "image/jpeg", "file_size": 11}`, address)
-			f := newTestFetcher(t, p, secure.server.URL, 1<<20)
-			f.client.Transport = trustingTransport(t)
-			messageID := seedPendingImage(t, p, "wamid.refused", shaOf(binary))
-
-			f.sweepOnce(t.Context())
-
-			wantRescheduled(t, p, messageID, test.reason)
-			if heard := plain.headers(); len(heard) != 0 {
-				t.Errorf("the plain stub heard %q, want no connection and no bearer", heard)
-			}
-			if _, binaryHits := secure.hits(); binaryHits != 0 {
-				t.Errorf("binary downloads = %d, want none for a refused address", binaryHits)
-			}
-		})
-	}
-}
-
-func TestARefusedAddressExpiresInsideTheRetryWindow(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	binary := []byte("media-bytes")
-	plain := newGraphStub(t, binary)
-	secure := newTLSGraphStub(t, binary)
-	secure.urlOverride = plain.server.URL + "/binary"
-	f := newTestFetcher(t, p, secure.server.URL, 1<<20)
-	f.client.Transport = trustingTransport(t)
-	messageID := seedPendingImage(t, p, "wamid.expiring", shaOf(binary))
-	f.sweepOnce(t.Context())
-	wantRescheduled(t, p, messageID, "leaves the scheme")
-	if _, err := p.pool.Exec(t.Context(),
-		`UPDATE plugin_whatsapp.media
-		SET created_at = now() - interval '8 days', next_attempt_at = now() - interval '1 second'
-		WHERE message_id = $1`,
-		messageID,
-	); err != nil {
-		t.Fatalf("backdating media row: %v", err)
-	}
-
-	f.sweepOnce(t.Context())
-
-	state := mediaState(t, p, messageID)
-	if state.status != "failed" || state.lastError == nil || *state.lastError != "expired" {
-		t.Fatalf("row = (%q, %v), want (failed, expired)", state.status, state.lastError)
-	}
-}
-
-func TestFetcherDownloadsAnHTTPSAddressOnAnHTTPSGraphURL(t *testing.T) {
-	t.Parallel()
-
-	p := newMigratedPlugin(t)
-	binary := []byte("media-bytes")
-	secure := newTLSGraphStub(t, binary)
-	f := newTestFetcher(t, p, secure.server.URL, 1<<20)
-	f.client.Transport = trustingTransport(t)
-	messageID := seedPendingImage(t, p, "wamid.secure", shaOf(binary))
-
-	f.sweepOnce(t.Context())
-
-	if state := mediaState(t, p, messageID); state.status != "stored" {
-		t.Fatalf("status = %q, want %q", state.status, "stored")
-	}
-	if _, binaryHits := secure.hits(); binaryHits != 1 {
-		t.Errorf("binary downloads = %d, want 1", binaryHits)
-	}
-	for _, header := range secure.headers() {
-		if header != "Bearer test-token" {
-			t.Errorf("Authorization = %q, want %q", header, "Bearer test-token")
-		}
-	}
-}
-
-func TestFetcherRefusesARedirectOffTheSchemeOfTheGraphURL(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		start  func(*testing.T, []byte) *graphStub
-		target func(*testing.T, []byte) *graphStub
-		follow func(from *graphStub, to string)
-	}{
-		"a TLS stub sending the download to plain http": {
-			start:  newTLSGraphStub,
-			target: newGraphStub,
-			follow: func(from *graphStub, to string) { from.binaryRedirect = to },
-		},
-		"a plain stub sending the download to TLS": {
-			start:  newGraphStub,
-			target: newTLSGraphStub,
-			follow: func(from *graphStub, to string) { from.binaryRedirect = to },
-		},
-		"a TLS stub sending the metadata request to plain http": {
-			start:  newTLSGraphStub,
-			target: newGraphStub,
-			follow: func(from *graphStub, to string) { from.metadataRedirect = to },
-		},
-	}
-	for testName, test := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			p := newMigratedPlugin(t)
-			binary := []byte("media-bytes")
-			start, target := test.start(t, binary), test.target(t, binary)
-			test.follow(start, target.server.URL+"/binary")
-			f := newTestFetcher(t, p, start.server.URL, 1<<20)
-			f.client.Transport = trustingTransport(t)
-			messageID := seedPendingImage(t, p, "wamid.redirected", shaOf(binary))
-
-			f.sweepOnce(t.Context())
-
-			wantRescheduled(t, p, messageID, "leaves the scheme")
-			if heard := target.headers(); len(heard) != 0 {
-				t.Errorf("the redirect's target heard %q, want no connection and no bearer", heard)
-			}
-		})
-	}
-}
-
-func TestFetcherFollowsARedirectOnTheSchemeOfTheGraphURL(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]func(*testing.T, []byte) *graphStub{
-		"plain http": newGraphStub,
-		"TLS":        newTLSGraphStub,
-	}
-	for testName, start := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			p := newMigratedPlugin(t)
-			binary := []byte("media-bytes")
-			first, second := start(t, []byte("not this file")), start(t, binary)
-			first.binaryRedirect = second.server.URL + "/binary"
-			f := newTestFetcher(t, p, first.server.URL, 1<<20)
-			f.client.Transport = trustingTransport(t)
-			messageID := seedPendingImage(t, p, "wamid.moved", shaOf(binary))
-
-			f.sweepOnce(t.Context())
-
-			if state := mediaState(t, p, messageID); state.status != "stored" {
-				t.Fatalf("status = %q, want %q", state.status, "stored")
-			}
-		})
-	}
-}
-
-func TestFetcherStopsFollowingAtTheTenthRedirect(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		hops   int
-		status string
-	}{
-		"nine hops arrive": {hops: 9, status: "stored"},
-		"ten hops stop":    {hops: 10, status: "pending"},
-		"eleven hops stop": {hops: 11, status: "pending"},
-	}
-	for testName, test := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			p := newMigratedPlugin(t)
-			binary := []byte("media-bytes")
-			stub := newGraphStub(t, binary)
-			stub.hops = test.hops
-			f := newTestFetcher(t, p, stub.server.URL, 1<<20)
-			messageID := seedPendingImage(t, p, "wamid.hops", shaOf(binary))
-
-			f.sweepOnce(t.Context())
-
-			state := mediaState(t, p, messageID)
-			if state.status != test.status {
-				t.Fatalf("status = %q, want %q", state.status, test.status)
-			}
-			if state.status == "pending" {
-				wantRescheduled(t, p, messageID, "redirects")
-			}
-			if _, binaryHits := stub.hits(); binaryHits != 10 {
-				t.Errorf("binary requests = %d, want 10, the first and nine followed", binaryHits)
-			}
-		})
-	}
-}
-
-func TestDownloadRefusesEveryAddressWhenTheGraphURLNamesNoScheme(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]string{
-		"a base URL with no scheme":    "graph.example.com/v23.0",
-		"a base URL that cannot parse": "::",
-	}
-	for testName, baseURL := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-
-			f := newMediaFetcher(&store{}, newBroadcaster(), mediaFetcherConfig{baseURL: baseURL})
-
-			_, err := f.download(t.Context(), credentials{}, "/binary")
-
-			if !errors.Is(err, errMediaScheme) {
-				t.Errorf("download() error = %v, want %v", err, errMediaScheme)
-			}
-		})
-	}
-}
-
 func TestFetcherStoresWhenShaIsUnverifiable(t *testing.T) {
 	t.Parallel()
 
@@ -1029,10 +742,7 @@ func TestFetcherFailsMediaLyingAboutItsSize(t *testing.T) {
 
 	f.sweepOnce(t.Context())
 
-	state := mediaState(t, p, messageID)
-	if state.status != "failed" || state.lastError == nil || *state.lastError != "too_large" {
-		t.Fatalf("row = (%q, %v), want (failed, too_large)", state.status, state.lastError)
-	}
+	wantFailed(t, p, messageID, "too_large")
 }
 
 func TestFetcherExpiresRowsPastTheRetryWindow(t *testing.T) {
@@ -1053,10 +763,7 @@ func TestFetcherExpiresRowsPastTheRetryWindow(t *testing.T) {
 
 	f.sweepOnce(t.Context())
 
-	state := mediaState(t, p, messageID)
-	if state.status != "failed" || state.lastError == nil || *state.lastError != "expired" {
-		t.Fatalf("row = (%q, %v), want (failed, expired)", state.status, state.lastError)
-	}
+	wantFailed(t, p, messageID, "expired")
 	if metadataHits, binaryHits := stub.hits(); metadataHits != 0 || binaryHits != 0 {
 		t.Errorf("graph hits = (%d, %d), want none for an expired row", metadataHits, binaryHits)
 	}

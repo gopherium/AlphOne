@@ -43,6 +43,17 @@ func arrivedMessage(t *testing.T, p *Plugin, ctx context.Context, sender, wamid 
 	return conversationID
 }
 
+// wantWithheld fails the test unless a listing from another tenant answered nothing and no error.
+func wantWithheld[Row any](t *testing.T, listing string, listed []Row, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("%s() error = %v, want nil", listing, err)
+	}
+	if len(listed) != 0 {
+		t.Errorf("%s() = %+v from another tenant, want them withheld", listing, listed)
+	}
+}
+
 func TestAConversationListingStaysInsideItsTenant(t *testing.T) {
 	t.Parallel()
 
@@ -95,12 +106,7 @@ func TestMessagesStayInsideTheirTenant(t *testing.T) {
 
 	listed, err := p.store.listMessages(t.Context(), held, 10)
 
-	if err != nil {
-		t.Fatalf("listMessages() error = %v, want nil", err)
-	}
-	if len(listed) != 0 {
-		t.Errorf("listMessages() = %+v from another tenant, want the messages withheld", listed)
-	}
+	wantWithheld(t, "listMessages", listed, err)
 }
 
 func TestAContactsConversationsStayInsideTheirTenant(t *testing.T) {
@@ -118,12 +124,7 @@ func TestAContactsConversationsStayInsideTheirTenant(t *testing.T) {
 
 	held, err := p.store.listConversationsByContactIDs(t.Context(), []uuid.UUID{contactID})
 
-	if err != nil {
-		t.Fatalf("listConversationsByContactIDs() error = %v, want nil", err)
-	}
-	if len(held) != 0 {
-		t.Errorf("listConversationsByContactIDs() = %+v from another tenant, want them withheld", held)
-	}
+	wantWithheld(t, "listConversationsByContactIDs", held, err)
 }
 
 func TestAConversationWithholdsAContactOfAnotherTenant(t *testing.T) {
@@ -163,16 +164,11 @@ func TestNumbersStayInsideTheirTenant(t *testing.T) {
 
 	p := newEncryptingPlugin(t)
 	acme := servingTenant(t, p)
-	connected(t, p, acme, "5550001", "EAAG-acme-token")
+	connected(t, p, acme, credentials{phoneNumberID: "5550001", accessToken: "EAAG-acme-token"})
 
 	listed, err := p.store.listNumbers(t.Context())
 
-	if err != nil {
-		t.Fatalf("listNumbers() error = %v, want nil", err)
-	}
-	if len(listed) != 0 {
-		t.Errorf("listNumbers() = %+v from another tenant, want the number withheld", listed)
-	}
+	wantWithheld(t, "listNumbers", listed, err)
 }
 
 func TestAConversationAddressStaysInsideItsTenant(t *testing.T) {

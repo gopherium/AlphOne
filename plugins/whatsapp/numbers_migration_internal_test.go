@@ -90,27 +90,154 @@ func seededContact(t *testing.T, p *Plugin, tenantID uuid.UUID) uuid.UUID {
 	return contactID
 }
 
-// datedConversation stores one conversation with a customer on the number, nil for no number.
-func datedConversation(
-	t *testing.T, p *Plugin, tenantID, contactID uuid.UUID, number *string, createdAt, activeAt time.Time,
-) uuid.UUID {
+// conversationSeed is one conversation with a customer under a chosen age and activity, nil number for no number.
+type conversationSeed struct {
+	id        uuid.UUID
+	tenantID  uuid.UUID
+	contactID uuid.UUID
+	number    *string
+	createdAt time.Time
+	activeAt  time.Time
+}
+
+// datedConversation stores the conversation and returns it with its new id.
+func datedConversation(t *testing.T, p *Plugin, row conversationSeed) conversationSeed {
+	t.Helper()
+	row.id = uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(t.Context(), insertDatedConversation,
+		row.id, row.contactID, "184467235", row.activeAt, row.createdAt, row.tenantID, row.number); err != nil {
+		t.Fatalf("seeding the conversation: %v", err)
+	}
+	return row
+}
+
+// freshConversation stores a conversation of a new contact on the number, opened and active now.
+func freshConversation(t *testing.T, p *Plugin, tenantID uuid.UUID, number *string) conversationSeed {
+	t.Helper()
+	now := time.Now().UTC()
+	return datedConversation(t, p, conversationSeed{
+		tenantID: tenantID, contactID: seededContact(t, p, tenantID), number: number, createdAt: now, activeAt: now,
+	})
+}
+
+// oneMessage stores one inbound message on the conversation and returns its id.
+func oneMessage(t *testing.T, p *Plugin, conversation conversationSeed, wamid string) uuid.UUID {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
-	if _, err := p.pool.Exec(t.Context(), insertDatedConversation,
-		id, contactID, "184467235", activeAt, createdAt, tenantID, number); err != nil {
-		t.Fatalf("seeding the conversation: %v", err)
+	if _, err := p.pool.Exec(t.Context(), insertOneMessage,
+		id, conversation.id, wamid, conversation.tenantID); err != nil {
+		t.Fatalf("seeding the message: %v", err)
 	}
 	return id
 }
 
-// oneMessage stores one inbound message on the conversation and returns its id.
-func oneMessage(t *testing.T, p *Plugin, tenantID, conversationID uuid.UUID, wamid string) uuid.UUID {
+// threeConversations stores a customer on no number and two numbers, one message each, media on the last.
+func threeConversations(
+	t *testing.T, p *Plugin, customer conversationSeed, now time.Time,
+) (conversationSeed, uuid.UUID) {
 	t.Helper()
-	id := uuid.Must(uuid.NewV7())
-	if _, err := p.pool.Exec(t.Context(), insertOneMessage, id, conversationID, wamid, tenantID); err != nil {
-		t.Fatalf("seeding the message: %v", err)
+	onNoNumber, onFirst, onSecond := customer, customer, customer
+	onNoNumber.createdAt, onNoNumber.activeAt = now.Add(-3*time.Hour), now.Add(-3*time.Hour)
+	onFirst.number = addressOf("5550001")
+	onFirst.createdAt, onFirst.activeAt = now.Add(-2*time.Hour), now.Add(-time.Hour)
+	onSecond.number = addressOf("5550002")
+	onSecond.createdAt, onSecond.activeAt = now.Add(-time.Hour), now.Add(-2*time.Hour)
+	keeper := datedConversation(t, p, onNoNumber)
+	oneMessage(t, p, keeper, "wamid.none")
+	oneMessage(t, p, datedConversation(t, p, onFirst), "wamid.first")
+	withMedia := oneMessage(t, p, datedConversation(t, p, onSecond), "wamid.second")
+	ctx := sdk.WithTenant(t.Context(), customer.tenantID)
+	descriptor := mediaDescriptor{mediaID: "MEDIA1", mimeType: "image/png"}
+	if err := insertMediaPending(ctx, p.pool, withMedia, descriptor); err != nil {
+		t.Fatalf("seeding the media: %v", err)
 	}
-	return id
+	return keeper, withMedia
+}
+
+// keptRows counts what one conversation holds after the numbers migration ran down.
+type keptRows struct {
+	messages int
+	media    int
+}
+
+// keptOn reads how many messages the conversation holds and how many media rows the message holds.
+func keptOn(t *testing.T, p *Plugin, conversationID, messageID uuid.UUID) keptRows {
+	t.Helper()
+	var kept keptRows
+	if err := p.pool.QueryRow(t.Context(),
+		`SELECT (SELECT count(*) FROM plugin_whatsapp.messages WHERE conversation_id = $1),
+			(SELECT count(*) FROM plugin_whatsapp.media WHERE message_id = $2)`,
+		conversationID, messageID).Scan(&kept.messages, &kept.media); err != nil {
+		t.Fatalf("reading what the conversation kept: %v", err)
+	}
+	return kept
+}
+
+// lastActivityOf reads when the conversation last moved.
+func lastActivityOf(t *testing.T, p *Plugin, conversationID uuid.UUID) time.Time {
+	t.Helper()
+	var lastActive time.Time
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT last_activity_at FROM plugin_whatsapp.conversations WHERE id = $1", conversationID,
+	).Scan(&lastActive); err != nil {
+		t.Fatalf("reading the last activity: %v", err)
+	}
+	return lastActive
+}
+
+// datedNumber is one stored number under a chosen age.
+type datedNumber struct {
+	tenantID  uuid.UUID
+	number    string
+	createdAt time.Time
+}
+
+// seedDatedNumbers stores each number under its age, its own id standing in for its token.
+func seedDatedNumbers(t *testing.T, p *Plugin, numbers ...datedNumber) {
+	t.Helper()
+	for _, held := range numbers {
+		if _, err := p.pool.Exec(t.Context(), insertDatedCredentials,
+			held.tenantID, held.number, []byte(held.number), held.createdAt); err != nil {
+			t.Fatalf("seeding %s: %v", held.number, err)
+		}
+	}
+}
+
+// numberRowState says what a stored number holds beside its token.
+type numberRowState struct {
+	label        string
+	hasAppSecret bool
+	hasDigest    bool
+	hasAge       bool
+}
+
+// numberStateOf reads what the stored number holds beside its token.
+func numberStateOf(t *testing.T, p *Plugin, number string) numberRowState {
+	t.Helper()
+	var label string
+	var appSecret, digest []byte
+	var createdAt time.Time
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT label, app_secret, verify_token_digest, created_at FROM plugin_whatsapp.credentials"+
+			" WHERE phone_number_id = $1", number).Scan(&label, &appSecret, &digest, &createdAt); err != nil {
+		t.Fatalf("reading the stored number: %v", err)
+	}
+	return numberRowState{
+		label: label, hasAppSecret: appSecret != nil, hasDigest: digest != nil, hasAge: !createdAt.IsZero(),
+	}
+}
+
+// runNumbersMigrationDown steps the plugin back to the version before many numbers.
+func runNumbersMigrationDown(t *testing.T, steps *goose.Provider) {
+	t.Helper()
+	if _, err := steps.DownTo(t.Context(), versionBeforeNumbers); err != nil {
+		t.Fatalf("DownTo(%d) error = %v, want nil", versionBeforeNumbers, err)
+	}
+}
+
+// holdsAnyOf reports whether got holds one of the names.
+func holdsAnyOf(got []string, names ...string) bool {
+	return slices.ContainsFunc(names, func(name string) bool { return slices.Contains(got, name) })
 }
 
 // storedNumberOf returns the number a conversation came in on, nil for none.
@@ -164,17 +291,8 @@ func TestTheNumbersMigrationAdoptsTheOneNumberATenantHeld(t *testing.T) {
 	if number := storedNumberOf(t, p, theirs); number != nil {
 		t.Errorf("the conversation of a tenant with no stored number reads %q, want none", *number)
 	}
-	var label string
-	var appSecret, digest []byte
-	var createdAt time.Time
-	if err := p.pool.QueryRow(t.Context(),
-		"SELECT label, app_secret, verify_token_digest, created_at FROM plugin_whatsapp.credentials"+
-			" WHERE phone_number_id = '5550001'").Scan(&label, &appSecret, &digest, &createdAt); err != nil {
-		t.Fatalf("reading the stored number: %v", err)
-	}
-	if label != "" || appSecret != nil || digest != nil || createdAt.IsZero() {
-		t.Errorf("the row from before = (%q, %v, %v, %v), want no label, no secrets and an age",
-			label, appSecret, digest, createdAt)
+	if got := numberStateOf(t, p, "5550001"); got != (numberRowState{hasAge: true}) {
+		t.Errorf("the row from before = %+v, want no label, no secrets and an age", got)
 	}
 }
 
@@ -217,7 +335,9 @@ func TestAConversationIsUniquePerTenantNumberAndCustomer(t *testing.T) {
 			p, _ := pluginWithNumbers(t)
 			acme := seededTenant(t, p, "Acme")
 			contactID := seededContact(t, p, acme)
-			datedConversation(t, p, acme, contactID, test.first, now, now)
+			datedConversation(t, p, conversationSeed{
+				tenantID: acme, contactID: contactID, number: test.first, createdAt: now, activeAt: now,
+			})
 
 			_, err := p.pool.Exec(t.Context(), insertDatedConversation,
 				uuid.Must(uuid.NewV7()), contactID, "184467235", now, now, acme, test.second)
@@ -238,19 +358,13 @@ func TestATenantKeepsItsOldestNumberWhenTheNumbersMigrationRunsDown(t *testing.T
 	p, steps := pluginWithNumbers(t)
 	acme, single := seededTenant(t, p, "Acme"), seededTenant(t, p, "Globex")
 	now := time.Now().UTC()
-	for number, age := range map[string]time.Duration{"5550001": time.Hour, "5550002": 2 * time.Hour} {
-		createdAt := now.Add(-age)
-		if _, err := p.pool.Exec(t.Context(), insertDatedCredentials, acme, number, []byte(number), createdAt); err != nil {
-			t.Fatalf("seeding %s: %v", number, err)
-		}
-	}
-	if _, err := p.pool.Exec(t.Context(), insertDatedCredentials, single, "5550003", []byte("5550003"), now); err != nil {
-		t.Fatalf("seeding the single number: %v", err)
-	}
+	seedDatedNumbers(t, p,
+		datedNumber{tenantID: acme, number: "5550001", createdAt: now.Add(-time.Hour)},
+		datedNumber{tenantID: acme, number: "5550002", createdAt: now.Add(-2 * time.Hour)},
+		datedNumber{tenantID: single, number: "5550003", createdAt: now},
+	)
 
-	if _, err := steps.DownTo(t.Context(), versionBeforeNumbers); err != nil {
-		t.Fatalf("DownTo(%d) error = %v, want nil", versionBeforeNumbers, err)
-	}
+	runNumbersMigrationDown(t, steps)
 
 	held := collectStrings(t, p, "SELECT phone_number_id FROM plugin_whatsapp.credentials ORDER BY phone_number_id")
 	if want := []string{"5550002", "5550003"}; !slices.Equal(held, want) {
@@ -260,8 +374,8 @@ func TestATenantKeepsItsOldestNumberWhenTheNumbersMigrationRunsDown(t *testing.T
 	if !isUniqueViolation(err) {
 		t.Errorf("a second number in one tenant error = %v, want the old key to refuse it", err)
 	}
-	if got := columnsOf(t, p, "credentials"); slices.Contains(got, "label") || slices.Contains(got, "app_secret") ||
-		slices.Contains(got, "verify_token_digest") || slices.Contains(got, "created_at") {
+	got := columnsOf(t, p, "credentials")
+	if holdsAnyOf(got, "label", "app_secret", "verify_token_digest", "created_at") {
 		t.Errorf("the columns left = %v, want the ones from before", got)
 	}
 }
@@ -273,42 +387,21 @@ func TestACustomerKeepsEveryMessageWhenTheNumbersMigrationRunsDown(t *testing.T)
 	acme, elsewhere := seededTenant(t, p, "Acme"), seededTenant(t, p, "Globex")
 	contactID := seededContact(t, p, acme)
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	keeper := datedConversation(t, p, acme, contactID, nil, now.Add(-3*time.Hour), now.Add(-3*time.Hour))
-	onFirst := datedConversation(t, p, acme, contactID, addressOf("5550001"), now.Add(-2*time.Hour), now.Add(-time.Hour))
-	onSecond := datedConversation(t, p, acme, contactID, addressOf("5550002"), now.Add(-time.Hour), now.Add(-2*time.Hour))
-	apart := datedConversation(t, p, elsewhere, seededContact(t, p, elsewhere), nil, now, now)
-	oneMessage(t, p, acme, keeper, "wamid.none")
-	oneMessage(t, p, acme, onFirst, "wamid.first")
-	withMedia := oneMessage(t, p, acme, onSecond, "wamid.second")
-	oneMessage(t, p, elsewhere, apart, "wamid.apart")
-	ctx := sdk.WithTenant(t.Context(), acme)
-	descriptor := mediaDescriptor{mediaID: "MEDIA1", mimeType: "image/png"}
-	if err := insertMediaPending(ctx, p.pool, withMedia, descriptor); err != nil {
-		t.Fatalf("seeding the media: %v", err)
-	}
+	keeper, withMedia := threeConversations(t, p, conversationSeed{tenantID: acme, contactID: contactID}, now)
+	apart := datedConversation(t, p, conversationSeed{
+		tenantID: elsewhere, contactID: seededContact(t, p, elsewhere), createdAt: now, activeAt: now,
+	})
+	oneMessage(t, p, apart, "wamid.apart")
 
-	if _, err := steps.DownTo(t.Context(), versionBeforeNumbers); err != nil {
-		t.Fatalf("DownTo(%d) error = %v, want nil", versionBeforeNumbers, err)
-	}
+	runNumbersMigrationDown(t, steps)
 
 	if got := tableCount(t, p, "plugin_whatsapp.conversations"); got != 2 {
 		t.Fatalf("conversations left = %d, want one per tenant", got)
 	}
-	var keptMessages, keptMedia int
-	if err := p.pool.QueryRow(t.Context(),
-		`SELECT (SELECT count(*) FROM plugin_whatsapp.messages WHERE conversation_id = $1),
-			(SELECT count(*) FROM plugin_whatsapp.media WHERE message_id = $2)`,
-		keeper, withMedia).Scan(&keptMessages, &keptMedia); err != nil {
-		t.Fatalf("reading what the conversation kept: %v", err)
+	if got := keptOn(t, p, keeper.id, withMedia); got != (keptRows{messages: 3, media: 1}) {
+		t.Errorf("the conversation kept %d messages and %d media, want 3 and 1", got.messages, got.media)
 	}
-	if keptMessages != 3 || keptMedia != 1 {
-		t.Errorf("the conversation kept %d messages and %d media, want 3 and 1", keptMessages, keptMedia)
-	}
-	var lastActive time.Time
-	if err := p.pool.QueryRow(t.Context(),
-		"SELECT last_activity_at FROM plugin_whatsapp.conversations WHERE id = $1", keeper).Scan(&lastActive); err != nil {
-		t.Fatalf("reading the last activity: %v", err)
-	}
+	lastActive := lastActivityOf(t, p, keeper.id)
 	if want := now.Add(-time.Hour); !lastActive.Equal(want) {
 		t.Errorf("last activity = %v, want the newest of the merged conversations %v", lastActive, want)
 	}
