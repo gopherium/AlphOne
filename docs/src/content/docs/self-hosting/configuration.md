@@ -358,6 +358,7 @@ sends. Values come from your Meta app, see
 | `ALPHONE_WHATSAPP_GRAPH_URL` | Graph API base URL. Defaults to `https://graph.facebook.com/v23.0`. Only override it for testing. |
 | `ALPHONE_WHATSAPP_MEDIA_MAX_BYTES` | Largest inbound attachment stored, in bytes. Defaults to 26214400 (25 MiB), enough for every WhatsApp media type except large documents. Attachments over the cap appear in the thread as a named chip without a download. |
 | `ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX` | The most messages and status updates stored from one webhook delivery. Defaults to 2000, above the 1000 updates Meta puts in one delivery. Anything past the cap is dropped and the delivery still answers `200`. A value that is not a whole number above zero stops `serve` and the other commands listed at the top of this page. |
+| `ALPHONE_WHATSAPP_DELIVERY_NUMBERS_MAX` | The most numbers holding their own app secret that one webhook delivery may name. Defaults to 100, since Meta puts one business account in a delivery. A delivery past the cap proves nothing and answers `403`, even when `ALPHONE_WHATSAPP_APP_SECRET` signed it. A value that is not a whole number above zero stops `serve` and the other commands listed at the top of this page. |
 
 A workspace can also connect any number of its own numbers, kept in the
 database instead of in these settings. The access token and the app secret
