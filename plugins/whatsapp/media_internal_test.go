@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// noClosedTenants leaves every tenant inside a claim.
+var noClosedTenants = []uuid.UUID{}
+
 // seedMessage stores one contact, one open conversation and one inbound image message.
 func seedMessage(t *testing.T, p *Plugin, externalID string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
@@ -81,7 +84,7 @@ func TestClaimDueMediaReturnsDuePendingOldestFirst(t *testing.T) {
 		insertPendingMedia(t, p, id, mediaDescriptor{mediaID: "MEDIA-" + id.String(), mimeType: "image/jpeg", sha256: "c2hh"})
 	}
 
-	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 2)
+	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 2, noClosedTenants)
 	if err != nil {
 		t.Fatalf("claimDueMedia() error = %v, want nil", err)
 	}
@@ -107,6 +110,33 @@ func TestClaimDueMediaReturnsDuePendingOldestFirst(t *testing.T) {
 	}
 }
 
+func TestClaimDueMediaTakesTurnsBetweenTenants(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	crowded, quiet := seededTenant(t, p, "Acme"), seededTenant(t, p, "Globex")
+	queuedImages(t, p, crowded, 2*mediaSweepBatch)
+	waiting := queuedImages(t, p, quiet, 2)
+
+	pending, err := p.store.claimDueMedia(t.Context(), time.Now().UTC(), mediaSweepBatch, noClosedTenants)
+	if err != nil {
+		t.Fatalf("claimDueMedia() error = %v, want nil", err)
+	}
+
+	if got, want := len(pending), mediaSweepBatch; got != want {
+		t.Fatalf("len(pending) = %d, want %d", got, want)
+	}
+	claimed := map[uuid.UUID]bool{}
+	for _, row := range pending {
+		claimed[row.MessageID] = true
+	}
+	for _, id := range waiting {
+		if !claimed[id] {
+			t.Errorf("the quiet tenant's row %s was left out behind the crowded tenant's rows", id)
+		}
+	}
+}
+
 func TestClaimDueMediaSkipsFutureAndSettledRows(t *testing.T) {
 	t.Parallel()
 
@@ -129,7 +159,7 @@ func TestClaimDueMediaSkipsFutureAndSettledRows(t *testing.T) {
 		t.Fatalf("markMediaFailed() error = %v, want nil", err)
 	}
 
-	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10)
+	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10, noClosedTenants)
 	if err != nil {
 		t.Fatalf("claimDueMedia() error = %v, want nil", err)
 	}
@@ -238,14 +268,14 @@ func TestRescheduleMediaDefersTheNextAttempt(t *testing.T) {
 		t.Fatalf("rescheduleMedia() error = %v, want nil", err)
 	}
 
-	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10)
+	pending, err := p.store.claimDueMedia(ctx, time.Now().UTC(), 10, noClosedTenants)
 	if err != nil {
 		t.Fatalf("claimDueMedia() error = %v, want nil", err)
 	}
 	if len(pending) != 0 {
 		t.Fatalf("len(pending) before the deferral = %d, want 0", len(pending))
 	}
-	pending, err = p.store.claimDueMedia(ctx, nextAttempt.Add(time.Minute), 10)
+	pending, err = p.store.claimDueMedia(ctx, nextAttempt.Add(time.Minute), 10, noClosedTenants)
 	if err != nil {
 		t.Fatalf("claimDueMedia() after the deferral error = %v, want nil", err)
 	}
@@ -287,7 +317,10 @@ func TestMediaStoreReportsFailures(t *testing.T) {
 	if err := insertMediaPending(t.Context(), s.pool, messageID, mediaDescriptor{}); err == nil {
 		t.Error("insertMediaPending() error = nil, want a connection failure")
 	}
-	if _, err := s.claimDueMedia(t.Context(), time.Now().UTC(), 1); err == nil {
+	if _, err := s.tenantsWithDueMedia(t.Context(), time.Now().UTC()); err == nil {
+		t.Error("tenantsWithDueMedia() error = nil, want a connection failure")
+	}
+	if _, err := s.claimDueMedia(t.Context(), time.Now().UTC(), 1, noClosedTenants); err == nil {
 		t.Error("claimDueMedia() error = nil, want a connection failure")
 	}
 	if err := s.markMediaStored(t.Context(), messageID, nil, "image/jpeg", 0); err == nil {

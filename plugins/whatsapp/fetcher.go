@@ -8,9 +8,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -19,8 +21,7 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// Media download tuning: sweep cadence and bounds, batch size, how long a
-// webhook media id stays retryable, and the default stored blob cap.
+// Media download tuning: sweep bounds, batch size, retry window, stored blob cap and redirect limit.
 const (
 	mediaSweepInterval   = time.Minute
 	mediaSweepTimeout    = 2 * time.Minute
@@ -28,12 +29,32 @@ const (
 	mediaRetryWindow     = 7 * 24 * time.Hour
 	mediaDownloadTimeout = time.Minute
 	defaultMediaMaxBytes = 25 << 20
+	mediaRedirectLimit   = 10
 )
+
+// Media download errors.
+var (
+	errMediaScheme    = errors.New("whatsapp: media address leaves the scheme of the Graph URL")
+	errMediaRedirects = fmt.Errorf("whatsapp: stopped after %d media redirects", mediaRedirectLimit)
+	errMediaAddress   = errors.New("whatsapp: media address does not parse")
+	errMediaMetadata  = errors.New("whatsapp: media metadata request failed")
+	errMediaDownload  = errors.New("whatsapp: media download failed")
+)
+
+// requestFailure answers the fixed text a failed media request stores, otherwise when the failure is not one of ours.
+func requestFailure(err, otherwise error) error {
+	for _, ours := range []error{errMediaScheme, errMediaRedirects} {
+		if errors.Is(err, ours) {
+			return ours
+		}
+	}
+	return otherwise
+}
 
 // mediaFetcherConfig parameterizes a mediaFetcher.
 type mediaFetcherConfig struct {
 	baseURL     string
-	credentials func(ctx context.Context) (credentials, error)
+	credentials func(ctx context.Context, number string) (credentials, error)
 	records     func(ctx context.Context, tenantID uuid.UUID) (bool, error)
 	maxBytes    int64
 	interval    time.Duration
@@ -46,7 +67,7 @@ type mediaFetcher struct {
 	events      *broadcaster
 	client      *http.Client
 	baseURL     string
-	credentials func(ctx context.Context) (credentials, error)
+	credentials func(ctx context.Context, number string) (credentials, error)
 	records     func(ctx context.Context, tenantID uuid.UUID) (bool, error)
 	maxBytes    int64
 	interval    time.Duration
@@ -76,7 +97,7 @@ func newMediaFetcher(s *store, events *broadcaster, cfg mediaFetcherConfig) *med
 	if records == nil {
 		records = func(context.Context, uuid.UUID) (bool, error) { return true, nil }
 	}
-	return &mediaFetcher{
+	f := &mediaFetcher{
 		store:       s,
 		events:      events,
 		client:      newOutboundClient(mediaDownloadTimeout),
@@ -88,6 +109,25 @@ func newMediaFetcher(s *store, events *broadcaster, cfg mediaFetcherConfig) *med
 		timeout:     timeout,
 		nudge:       make(chan struct{}, 1),
 	}
+	f.client.CheckRedirect = f.checkRedirect
+	return f
+}
+
+// checkRedirect keeps a media request on the scheme of the Graph URL and stops it where Go's default does.
+func (f *mediaFetcher) checkRedirect(request *http.Request, via []*http.Request) error {
+	if len(via) >= mediaRedirectLimit {
+		return errMediaRedirects
+	}
+	if !f.onGraphScheme(request.URL) {
+		return errMediaScheme
+	}
+	return nil
+}
+
+// onGraphScheme reports whether an address carries the scheme of the Graph URL, no scheme never matching.
+func (f *mediaFetcher) onGraphScheme(address *url.URL) bool {
+	graph, err := url.Parse(f.baseURL)
+	return err == nil && address.Scheme != "" && address.Scheme == graph.Scheme
 }
 
 // Start launches the download loop in a goroutine. Call it once.
@@ -147,17 +187,33 @@ func (f *mediaFetcher) sweepOnce(ctx context.Context) {
 	defer f.sweeps.Add(1)
 	sweepCtx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
-	pending, err := f.store.claimDueMedia(sweepCtx, time.Now().UTC(), mediaSweepBatch)
+	now := time.Now().UTC()
+	closed, err := f.closedTenants(sweepCtx, now)
+	if err != nil {
+		return
+	}
+	pending, err := f.store.claimDueMedia(sweepCtx, now, mediaSweepBatch, closed)
 	if err != nil {
 		return
 	}
 	for _, row := range pending {
-		rowCtx := sdk.WithTenant(sweepCtx, row.TenantID)
-		if recording, err := f.records(rowCtx, row.TenantID); err != nil || !recording {
-			continue
-		}
-		f.fetchOne(rowCtx, row)
+		f.fetchOne(sdk.WithTenant(sweepCtx, row.TenantID), row)
 	}
+}
+
+// closedTenants returns the tenants holding media due at now that record no traffic, a failing gate counting as closed.
+func (f *mediaFetcher) closedTenants(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
+	due, err := f.store.tenantsWithDueMedia(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+	closed := make([]uuid.UUID, 0, len(due))
+	for _, tenantID := range due {
+		if recording, err := f.records(sdk.WithTenant(ctx, tenantID), tenantID); err != nil || !recording {
+			closed = append(closed, tenantID)
+		}
+	}
+	return closed, nil
 }
 
 // fetchOne resolves one pending media row to stored, rescheduled, or failed.
@@ -166,7 +222,7 @@ func (f *mediaFetcher) fetchOne(ctx context.Context, row pendingMediaRow) {
 		f.settle(ctx, row, "expired")
 		return
 	}
-	creds, err := f.credentials(ctx)
+	creds, err := f.credentials(ctx, row.PhoneNumberID)
 	if err != nil {
 		f.reschedule(ctx, row, err.Error())
 		return
@@ -230,14 +286,14 @@ type mediaMetadata struct {
 // fetchMetadata asks the Graph API as creds where a media asset can be downloaded.
 func (f *mediaFetcher) fetchMetadata(ctx context.Context, creds credentials, mediaID string) (mediaMetadata, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		f.baseURL+"/"+mediaID+"?phone_number_id="+creds.phoneNumberID, nil)
+		f.baseURL+"/"+url.PathEscape(mediaID)+"?phone_number_id="+url.QueryEscape(creds.phoneNumberID), nil)
 	if err != nil {
-		return mediaMetadata{}, fmt.Errorf("whatsapp: build metadata request: %w", err)
+		return mediaMetadata{}, errMediaAddress
 	}
 	request.Header.Set("Authorization", "Bearer "+creds.accessToken)
 	response, err := f.client.Do(request)
 	if err != nil {
-		return mediaMetadata{}, fmt.Errorf("whatsapp: fetch media metadata: %w", err)
+		return mediaMetadata{}, requestFailure(err, errMediaMetadata)
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
@@ -250,17 +306,19 @@ func (f *mediaFetcher) fetchMetadata(ctx context.Context, creds credentials, med
 	return metadata, nil
 }
 
-// download fetches the media bytes from url as creds, reading at most one byte
-// over the fetcher's cap.
-func (f *mediaFetcher) download(ctx context.Context, creds credentials, url string) ([]byte, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// download fetches media as creds from an address on the Graph URL's scheme, reading one byte past the cap at most.
+func (f *mediaFetcher) download(ctx context.Context, creds credentials, address string) ([]byte, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
-		return nil, fmt.Errorf("whatsapp: build download request: %w", err)
+		return nil, errMediaAddress
+	}
+	if !f.onGraphScheme(request.URL) {
+		return nil, errMediaScheme
 	}
 	request.Header.Set("Authorization", "Bearer "+creds.accessToken)
 	response, err := f.client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("whatsapp: download media: %w", err)
+		return nil, requestFailure(err, errMediaDownload)
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {

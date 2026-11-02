@@ -3,6 +3,7 @@
 package whatsapp_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -183,8 +184,9 @@ func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
 	p.UseEncrypter(whatsapp.BoundEncrypter())
 	acme := seedTenant(t, pool)
 	mine := sdk.WithTenant(t.Context(), acme)
-	if err := p.SetCredentials(mine, "555000333", "EAAG-acme-token"); err != nil {
-		t.Fatalf("SetCredentials() error = %v, want nil", err)
+	stored := sdk.ChannelCredentials{Identifier: "555000333", Secret: "EAAG-acme-token"}
+	if err := p.SetChannelCredentials(mine, stored); err != nil {
+		t.Fatalf("SetChannelCredentials() error = %v, want nil", err)
 	}
 	body := numberedEventBody("555000333", "wamid.acme")
 	if recorder := postEvent(t, p.Routes(), sign("app-secret", body), body); recorder.Code != http.StatusOK {
@@ -200,6 +202,183 @@ func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
 	}
 	if stub.lastAuth != "Bearer EAAG-acme-token" {
 		t.Errorf("graph authorization = %q, want the tenant's token", stub.lastAuth)
+	}
+}
+
+// conversationOn returns the conversation stored on a number.
+func conversationOn(t *testing.T, pool *pgxpool.Pool, number string) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		`SELECT id FROM plugin_whatsapp.conversations WHERE phone_number_id = $1`, number,
+	).Scan(&id); err != nil {
+		t.Fatalf("reading the conversation on %s: %v", number, err)
+	}
+	return id
+}
+
+// newTwoNumberTenant returns a sending plugin whose tenant holds two numbers a customer wrote to, beside its context.
+func newTwoNumberTenant(t *testing.T) (*whatsapp.Plugin, *graphStub, *pgxpool.Pool, context.Context) {
+	t.Helper()
+	p, stub, pool := newSendingHarness(t, nil)
+	p.UseEncrypter(whatsapp.BoundEncrypter())
+	acme := seedTenant(t, pool)
+	for _, number := range []string{"5550001", "5550002"} {
+		connectNumber(t, p, acme, number, "secret-"+number)
+		body := numberedEventBody(number, "wamid."+number)
+		if recorder := postEvent(t, p.Routes(), sign("secret-"+number, body), body); recorder.Code != http.StatusOK {
+			t.Fatalf("ingest status = %d, want %d", recorder.Code, http.StatusOK)
+		}
+	}
+	return p, stub, pool, sdk.WithTenant(t.Context(), acme)
+}
+
+func TestAReplyLeavesFromTheNumberItsConversationCameInOn(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool, mine := newTwoNumberTenant(t)
+
+	for _, number := range []string{"5550001", "5550002"} {
+		stub.body = `{"messages":[{"id":"wamid.out.` + number + `"}]}`
+		_, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationOn(t, pool, number), "Ready at 5pm")
+		if err != nil {
+			t.Fatalf("WhatsAppSendMessage() error = %v, want nil", err)
+		}
+		if stub.lastPath != "/"+number+"/messages" {
+			t.Errorf("graph path = %q, want the number the conversation came in on", stub.lastPath)
+		}
+		if stub.lastAuth != "Bearer EAAG-"+number {
+			t.Errorf("graph authorization = %q, want the token of %s", stub.lastAuth, number)
+		}
+	}
+}
+
+func TestAReplyOnARemovedNumberNamesTheReasonAndSendsNothing(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool, mine := newTwoNumberTenant(t)
+	if err := p.RemoveChannelCredentials(mine, "5550001"); err != nil {
+		t.Fatalf("RemoveChannelCredentials() error = %v, want nil", err)
+	}
+
+	_, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationOn(t, pool, "5550001"), "Ready at 5pm")
+
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) || refused.Code != "VALIDATION" || refused.Reason != "number_removed" {
+		t.Errorf("error = %v, want the reason number_removed", err)
+	}
+	if stub.lastAuth != "" {
+		t.Errorf("graph authorization = %q, want no call on a removed number", stub.lastAuth)
+	}
+}
+
+func TestAConversationOnARemovedNumberStaysReadable(t *testing.T) {
+	t.Parallel()
+
+	p, _, pool, mine := newTwoNumberTenant(t)
+	conversationID := conversationOn(t, pool, "5550001")
+	if err := p.RemoveChannelCredentials(mine, "5550001"); err != nil {
+		t.Fatalf("RemoveChannelCredentials() error = %v, want nil", err)
+	}
+
+	read, err := p.QueryResolvers().WhatsAppConversation(mine, conversationID)
+	if err != nil {
+		t.Fatalf("WhatsAppConversation() error = %v, want nil", err)
+	}
+	if read == nil {
+		t.Fatal("WhatsAppConversation() = nil, want the conversation kept")
+	}
+	messages, err := p.WhatsAppConversationResolvers().Messages(mine, read, nil)
+	if err != nil {
+		t.Fatalf("Messages() error = %v, want nil", err)
+	}
+	if len(messages) != 1 {
+		t.Errorf("messages = %d, want the message kept", len(messages))
+	}
+}
+
+func TestANumberAnotherTenantStoredStaysRemovedForTheOneThatLeftIt(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool, mine := newTwoNumberTenant(t)
+	if err := p.RemoveChannelCredentials(mine, "5550001"); err != nil {
+		t.Fatalf("RemoveChannelCredentials() error = %v, want nil", err)
+	}
+	connectNumber(t, p, seedGlobex(t, pool), "5550001", "globex-secret")
+
+	_, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationOn(t, pool, "5550001"), "Ready at 5pm")
+
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) || refused.Reason != "number_removed" {
+		t.Errorf("error = %v, want the reason number_removed", err)
+	}
+	if stub.lastAuth != "" {
+		t.Errorf("graph authorization = %q, want no call with the token of the new holder", stub.lastAuth)
+	}
+}
+
+func TestAReplyOnAnEnvironmentNumberWithoutATokenSendsNothing(t *testing.T) {
+	t.Parallel()
+
+	p, stub, _ := newSendingHarness(t, map[string]string{"ALPHONE_WHATSAPP_ACCESS_TOKEN": ""})
+	p.UseEncrypter(whatsapp.BoundEncrypter())
+	connectNumber(t, p, sdk.DefaultTenantID, "5550001", "secret-5550001")
+	ingestEvent(t, p.Routes(), "wamid.env", "184467235", "Maria Perez", "1751791000", "hello")
+
+	_, err := sendMessage(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
+
+	var refused sdk.GraphError
+	if !errors.As(err, &refused) || refused.Reason != "credentials_missing" {
+		t.Errorf("error = %v, want the missing credentials named as a reason", err)
+	}
+	if stub.lastAuth != "" {
+		t.Errorf("graph authorization = %q, want no call from a number the customer never wrote to", stub.lastAuth)
+	}
+}
+
+func TestAConversationFromBeforeRepliesFromTheOldestNumber(t *testing.T) {
+	t.Parallel()
+
+	p, stub, pool, mine := newTwoNumberTenant(t)
+	conversationID := conversationOn(t, pool, "5550002")
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE plugin_whatsapp.conversations SET phone_number_id = NULL WHERE id = $1`, conversationID); err != nil {
+		t.Fatalf("clearing the number: %v", err)
+	}
+
+	if _, err := p.MutationResolvers().WhatsAppSendMessage(mine, conversationID, "Ready at 5pm"); err != nil {
+		t.Fatalf("WhatsAppSendMessage() error = %v, want nil", err)
+	}
+
+	if stub.lastPath != "/5550001/messages" {
+		t.Errorf("graph path = %q, want the tenant's oldest number", stub.lastPath)
+	}
+}
+
+func TestAnOlderConversationRepliesWithTheStoredTokenOnceTheEnvironmentNumberIsConnected(t *testing.T) {
+	t.Parallel()
+
+	p, stub := newSendingPlugin(t, nil)
+	p.UseEncrypter(whatsapp.BoundEncrypter())
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.older", "184467235", "Maria Perez", "1751791000", "hello")
+	older := onlyConversation(t, p).ID
+	connectNumber(t, p, sdk.DefaultTenantID, "555000222", "secret-555000222")
+	body := numberedEventBody("555000222", "wamid.newer")
+	if recorder := postEvent(t, routes, sign("secret-555000222", body), body); recorder.Code != http.StatusOK {
+		t.Fatalf("ingest status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if held := len(listConversations(t, p, nil)); held != 2 {
+		t.Fatalf("conversations = %d, want the customer's next message on a conversation of its own", held)
+	}
+
+	mustSend(t, p, older, "Ready at 5pm")
+
+	if stub.lastPath != "/555000222/messages" {
+		t.Errorf("graph path = %q, want the environment number", stub.lastPath)
+	}
+	if stub.lastAuth != "Bearer EAAG-555000222" {
+		t.Errorf("graph authorization = %q, want the token of the stored row", stub.lastAuth)
 	}
 }
 

@@ -26,6 +26,13 @@ type sender struct {
 	baseURL string
 }
 
+// newSenderClient returns a client that answers a redirect as the response of a send instead of following it.
+func newSenderClient(timeout time.Duration) *http.Client {
+	client := newOutboundClient(timeout)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return client
+}
+
 type sendTextRequest struct {
 	MessagingProduct string       `json:"messaging_product"`
 	To               string       `json:"to"`
@@ -128,14 +135,17 @@ func (p *Plugin) sendMessage(ctx context.Context, conversationID uuid.UUID, cont
 			Code: "VALIDATION", Reason: "message_content_required", Err: errEmptyMessageContent,
 		}
 	}
-	to, err := p.store.conversationExternalID(ctx, conversationID)
+	to, number, err := p.store.conversationAddress(ctx, conversationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return messageRow{}, sdk.GraphError{Code: "NOT_FOUND", Reason: "conversation_not_found", Err: errConversationNotFound}
 	}
 	if err != nil {
 		return messageRow{}, err
 	}
-	creds, err := p.credentialsFor(ctx)
+	creds, err := p.credentialsFor(ctx, number)
+	if errors.Is(err, errNumberRemoved) {
+		return messageRow{}, sdk.GraphError{Code: "VALIDATION", Reason: "number_removed", Err: err}
+	}
 	if err != nil {
 		return messageRow{}, sdk.GraphError{Code: "VALIDATION", Reason: "credentials_missing", Err: err}
 	}

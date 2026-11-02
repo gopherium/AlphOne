@@ -119,10 +119,11 @@ func (p *Plugin) seedConversationID(
 ) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := p.pool.QueryRow(ctx,
-		"SELECT id FROM plugin_whatsapp.conversations WHERE external_id = $1 AND tenant_id = $2",
+		"SELECT id FROM plugin_whatsapp.conversations"+
+			" WHERE external_id = $1 AND tenant_id = $2 AND phone_number_id IS NULL",
 		externalID, sdk.TenantOrDefault(ctx)).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return upsertConversation(ctx, p.pool, contactID, externalID, activityAt)
+		return upsertConversation(ctx, p.pool, contactID, nil, externalID, activityAt)
 	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: find seeded conversation: %w", err)

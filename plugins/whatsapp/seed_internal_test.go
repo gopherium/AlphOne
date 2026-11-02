@@ -230,7 +230,7 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 				t.Fatalf("resolving owner: %v", err)
 			}
 			conversationID, err := upsertConversation(
-				t.Context(), p.pool, owner.ID, "184467235", now.Add(-2*time.Hour))
+				t.Context(), p.pool, owner.ID, nil, "184467235", now.Add(-2*time.Hour))
 			if err != nil {
 				t.Fatalf("pre-inserting conversation: %v", err)
 			}
@@ -252,6 +252,40 @@ func TestSeedRepairsAPartiallySeededConversation(t *testing.T) {
 
 			assertSeededDataSet(t, p)
 		})
+	}
+}
+
+func TestSeedLeavesAConversationOnANumberAlone(t *testing.T) {
+	t.Parallel()
+
+	p := newSeedReadyPlugin(t)
+	owner, err := p.resolver.Resolve(t.Context(), "whatsapp", "184467235", "María Pérez")
+	if err != nil {
+		t.Fatalf("resolving owner: %v", err)
+	}
+	now := time.Now().UTC()
+	onNumber := datedConversation(t, p, sdk.DefaultTenantID, owner.ID, addressOf("5550001"), now, now)
+
+	if err := p.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+
+	var held int
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM plugin_whatsapp.messages WHERE conversation_id = $1", onNumber).Scan(&held); err != nil {
+		t.Fatalf("counting the messages on the number: %v", err)
+	}
+	if held != 0 {
+		t.Errorf("the conversation on a number took %d demo messages, want none", held)
+	}
+	var demo int
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM plugin_whatsapp.conversations WHERE external_id = '184467235'"+
+			" AND phone_number_id IS NULL").Scan(&demo); err != nil {
+		t.Fatalf("counting the demo conversations: %v", err)
+	}
+	if demo != 1 {
+		t.Errorf("demo conversations on no number = %d, want 1", demo)
 	}
 }
 

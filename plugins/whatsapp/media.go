@@ -39,6 +39,7 @@ type pendingMediaRow struct {
 	Attempts       int       `db:"attempts"`
 	CreatedAt      time.Time `db:"created_at"`
 	TenantID       uuid.UUID `db:"tenant_id"`
+	PhoneNumberID  string    `db:"phone_number_id"`
 }
 
 // storedMediaRow carries a stored blob and its serving metadata.
@@ -84,18 +85,39 @@ func insertMediaPending(ctx context.Context, exec pgxExecutor, messageID uuid.UU
 	return nil
 }
 
-// claimDueMedia returns up to limit pending media rows due for a download attempt, oldest first.
-func (s *store) claimDueMedia(ctx context.Context, now time.Time, limit int) ([]pendingMediaRow, error) {
+// tenantsWithDueMedia returns every tenant holding a pending media row due for a download attempt.
+func (s *store) tenantsWithDueMedia(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
+	rows, _ := s.pool.Query(ctx,
+		`SELECT DISTINCT tenant_id FROM plugin_whatsapp.media WHERE status = 'pending' AND next_attempt_at <= $1`,
+		now,
+	)
+	tenants, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: read tenants with due media: %w", err)
+	}
+	return tenants, nil
+}
+
+// claimDueMedia returns up to limit due media rows outside the closed tenants, taking turns between tenants.
+func (s *store) claimDueMedia(
+	ctx context.Context, now time.Time, limit int, closed []uuid.UUID,
+) ([]pendingMediaRow, error) {
 	rows, _ := s.pool.Query(ctx, `
-		SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts,
-			med.created_at, med.tenant_id
-		FROM plugin_whatsapp.media med
-		JOIN plugin_whatsapp.messages msg
-			ON msg.id = med.message_id AND msg.tenant_id = med.tenant_id
-		WHERE med.status = 'pending' AND med.next_attempt_at <= $1
-		ORDER BY med.created_at, med.message_id
+		SELECT message_id, conversation_id, media_id, sha256, attempts, created_at, tenant_id, phone_number_id
+		FROM (
+			SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts,
+				med.created_at, med.tenant_id, COALESCE(conv.phone_number_id, '') AS phone_number_id,
+				row_number() OVER (PARTITION BY med.tenant_id ORDER BY med.created_at, med.message_id) AS turn
+			FROM plugin_whatsapp.media med
+			JOIN plugin_whatsapp.messages msg
+				ON msg.id = med.message_id AND msg.tenant_id = med.tenant_id
+			JOIN plugin_whatsapp.conversations conv
+				ON conv.id = msg.conversation_id AND conv.tenant_id = msg.tenant_id
+			WHERE med.status = 'pending' AND med.next_attempt_at <= $1 AND med.tenant_id <> ALL($3)
+		) due
+		ORDER BY turn, created_at, message_id
 		LIMIT $2`,
-		now, limit,
+		now, limit, closed,
 	)
 	pending, err := pgx.CollectRows(rows, pgx.RowToStructByName[pendingMediaRow])
 	if err != nil {
