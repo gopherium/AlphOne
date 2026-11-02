@@ -4,10 +4,12 @@ package whatsapp
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/gopherium/alphone/sdk"
 )
@@ -49,7 +51,7 @@ func TestAConversationListingStaysInsideItsTenant(t *testing.T) {
 	arrivedMessage(t, p, acme, "184467235", "wamid.ACME")
 	arrivedMessage(t, p, t.Context(), "184467236", "wamid.OTHER")
 
-	listed, err := p.store.listConversations(acme, 10)
+	listed, err := p.store.listConversations(acme, 10, nil, "")
 
 	if err != nil {
 		t.Fatalf("listConversations() error = %v, want nil", err)
@@ -144,7 +146,7 @@ func TestAConversationWithholdsAContactOfAnotherTenant(t *testing.T) {
 		t.Fatalf("seeding the crossed conversation: %v", err)
 	}
 
-	held, err := p.store.listConversations(sdk.WithTenant(t.Context(), elsewhere), 10)
+	held, err := p.store.listConversations(sdk.WithTenant(t.Context(), elsewhere), 10, nil, "")
 
 	if err != nil {
 		t.Fatalf("listConversations() error = %v, want nil", err)
@@ -154,6 +156,69 @@ func TestAConversationWithholdsAContactOfAnotherTenant(t *testing.T) {
 			t.Error("listConversations() rendered a contact of another tenant, want it withheld")
 		}
 	}
+}
+
+func TestNumbersStayInsideTheirTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newEncryptingPlugin(t)
+	acme := servingTenant(t, p)
+	connected(t, p, acme, "5550001", "EAAG-acme-token")
+
+	listed, err := p.store.listNumbers(t.Context())
+
+	if err != nil {
+		t.Fatalf("listNumbers() error = %v, want nil", err)
+	}
+	if len(listed) != 0 {
+		t.Errorf("listNumbers() = %+v from another tenant, want the number withheld", listed)
+	}
+}
+
+func TestAConversationAddressStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := servingTenant(t, p)
+	held := arrivedMessage(t, p, acme, "184467235", "wamid.ACME")
+
+	if _, _, err := p.store.conversationAddress(acme, held); err != nil {
+		t.Fatalf("conversationAddress() inside the tenant error = %v, want nil", err)
+	}
+
+	if _, _, err := p.store.conversationAddress(t.Context(), held); !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("conversationAddress() from another tenant error = %v, want no rows", err)
+	}
+}
+
+func TestAMessageOnANumberStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	acme := sdk.WithTenant(t.Context(), seededTenant(t, p, "Acme"))
+	globex := sdk.WithTenant(t.Context(), seededTenant(t, p, "Globex"))
+	number := "5550001"
+	onAcme := inboundMessage{
+		sender: "184467235", externalID: "wamid.ACME", content: "hello", contentType: "text",
+		sentAt: time.Now().UTC(), raw: []byte(`{}`), conversationNumber: &number,
+	}
+
+	first := persistedOn(t, p, acme, onAcme)
+	second := persistedOn(t, p, globex, onAcme)
+
+	if first == second {
+		t.Error("two tenants share one conversation for one number, want separate threads")
+	}
+}
+
+// persistedOn stores one inbound message in the tenant ctx serves and returns its conversation.
+func persistedOn(t *testing.T, p *Plugin, ctx context.Context, m inboundMessage) uuid.UUID {
+	t.Helper()
+	conversationID, _, err := p.store.persistInbound(ctx, seededContact(t, p, sdk.TenantOrDefault(ctx)), m)
+	if err != nil {
+		t.Fatalf("persisting the message: %v", err)
+	}
+	return conversationID
 }
 
 func TestABroadcastStaysInsideItsTenant(t *testing.T) {

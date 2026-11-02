@@ -28,6 +28,7 @@ type conversationRow struct {
 	Status             string    `db:"status"`
 	LastActivityAt     time.Time `db:"last_activity_at"`
 	LastMessagePreview *string   `db:"last_message_preview"`
+	Number             *string   `db:"number"`
 }
 
 type messageRow struct {
@@ -47,12 +48,15 @@ type messageRow struct {
 	MediaAnimated *bool     `db:"media_animated"`
 }
 
-// conversationSelect reads a conversation beside its contact and newest preview.
+// conversationSelect reads a conversation beside its contact, its number and newest preview.
 const conversationSelect = `
 	SELECT conv.id, conv.contact_id, c.name AS contact_name, conv.external_id, conv.status,
-		conv.last_activity_at, last_message.preview AS last_message_preview
+		conv.last_activity_at, last_message.preview AS last_message_preview,
+		COALESCE(NULLIF(cred.label, ''), conv.phone_number_id) AS number
 	FROM plugin_whatsapp.conversations conv
 	JOIN core.contacts c ON c.id = conv.contact_id AND c.tenant_id = conv.tenant_id
+	LEFT JOIN plugin_whatsapp.credentials cred
+		ON cred.phone_number_id = conv.phone_number_id AND cred.tenant_id = conv.tenant_id
 	LEFT JOIN LATERAL (
 		SELECT CASE
 			WHEN m.content_type = 'text' OR m.content <> '' THEN LEFT(m.content, 140)
@@ -86,14 +90,16 @@ func (s *store) getConversation(ctx context.Context, id uuid.UUID) (conversation
 	return conversation, nil
 }
 
-// listConversations returns up to limit conversations with their contact names and a preview of their
-// newest message, most recently active first.
-func (s *store) listConversations(ctx context.Context, limit int) ([]conversationRow, error) {
+// listConversations returns up to limit conversations, on one number when given, envNumber holding those storing none.
+func (s *store) listConversations(
+	ctx context.Context, limit int, number *string, envNumber string,
+) ([]conversationRow, error) {
 	rows, _ := s.pool.Query(ctx, conversationSelect+`
-	WHERE conv.tenant_id = $2
+	WHERE conv.tenant_id = $2 AND ($3::text IS NULL OR conv.phone_number_id = $3
+		OR (conv.phone_number_id IS NULL AND $3 = NULLIF($4::text, '')))
 	ORDER BY conv.last_activity_at DESC
 	LIMIT $1`,
-		limit, sdk.TenantOrDefault(ctx),
+		limit, sdk.TenantOrDefault(ctx), number, envNumber,
 	)
 	conversations, err := pgx.CollectRows(rows, pgx.RowToStructByName[conversationRow])
 	if err != nil {
@@ -142,11 +148,12 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 	return messages, nil
 }
 
-// upsertConversation inserts a conversation for the contact or updates its last activity time, returning its id.
+// upsertConversation stores a contact's conversation on a number, nil for none, returning its id.
 func upsertConversation(
 	ctx context.Context,
 	exec pgxExecutor,
 	contactID uuid.UUID,
+	number *string,
 	externalID string,
 	activityAt time.Time,
 ) (uuid.UUID, error) {
@@ -157,12 +164,12 @@ func upsertConversation(
 	var conversationID uuid.UUID
 	err = exec.QueryRow(ctx, `
 		INSERT INTO plugin_whatsapp.conversations
-			(id, contact_id, channel, external_id, status, last_activity_at, created_at, tenant_id)
-		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5, $6)
-		ON CONFLICT (tenant_id, external_id) DO UPDATE
+			(id, contact_id, channel, external_id, status, last_activity_at, created_at, tenant_id, phone_number_id)
+		VALUES ($1, $2, 'whatsapp', $3, 'open', $4, $5, $6, $7)
+		ON CONFLICT (tenant_id, phone_number_id, external_id) DO UPDATE
 		SET last_activity_at = GREATEST(plugin_whatsapp.conversations.last_activity_at, EXCLUDED.last_activity_at)
 		RETURNING id`,
-		id, contactID, externalID, activityAt, time.Now().UTC(), sdk.TenantOrDefault(ctx),
+		id, contactID, externalID, activityAt, time.Now().UTC(), sdk.TenantOrDefault(ctx), number,
 	).Scan(&conversationID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("whatsapp: upsert conversation: %w", err)
@@ -180,7 +187,7 @@ func (s *store) persistInbound(
 	var arrival *messageRow
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		conversationID, err = upsertConversation(ctx, tx, contactID, m.sender, m.sentAt)
+		conversationID, err = upsertConversation(ctx, tx, contactID, m.conversationNumber, m.sender, m.sentAt)
 		if err != nil {
 			return err
 		}
@@ -210,18 +217,18 @@ type outboundMessage struct {
 	raw        json.RawMessage
 }
 
-// conversationExternalID returns the external id of the conversation with the given id.
-func (s *store) conversationExternalID(ctx context.Context, conversationID uuid.UUID) (string, error) {
-	var externalID string
+// conversationAddress returns the external id of the conversation and the number it came in on, empty for none.
+func (s *store) conversationAddress(ctx context.Context, conversationID uuid.UUID) (string, string, error) {
+	var externalID, number string
 	err := s.pool.QueryRow(ctx,
-		`SELECT external_id FROM plugin_whatsapp.conversations
+		`SELECT external_id, COALESCE(phone_number_id, '') FROM plugin_whatsapp.conversations
 		WHERE id = $1 AND tenant_id = $2`,
 		conversationID, sdk.TenantOrDefault(ctx),
-	).Scan(&externalID)
+	).Scan(&externalID, &number)
 	if err != nil {
-		return "", fmt.Errorf("whatsapp: load conversation: %w", err)
+		return "", "", fmt.Errorf("whatsapp: load conversation: %w", err)
 	}
-	return externalID, nil
+	return externalID, number, nil
 }
 
 // appendOutboundMessage stores an outbound message and advances the conversation's last activity time,

@@ -99,7 +99,7 @@ func TestListConversationsPreviewsEveryContentType(t *testing.T) {
 		wantByConversation[conversationID] = tc.want
 	}
 
-	rows, err := p.store.listConversations(ctx, 50)
+	rows, err := p.store.listConversations(ctx, 50, nil, "")
 	if err != nil {
 		t.Fatalf("listConversations() error = %v, want nil", err)
 	}
