@@ -25,6 +25,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
 
+	"github.com/gopherium/alphone/graph/model"
 	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
@@ -64,6 +65,12 @@ const workspaceConversations = "SELECT count(*) FROM plugin_whatsapp.conversatio
 // workspaceContacts counts the contacts of a workspace.
 const workspaceContacts = "SELECT count(*) FROM core.contacts WHERE tenant_id = $1"
 
+// statusOfMessage reads the delivery status a message holds, empty for none.
+const statusOfMessage = "SELECT COALESCE(status, '') FROM plugin_whatsapp.messages WHERE external_id = $1"
+
+// replyIDFormat spells the message id the stand-in for the Graph API gives a reply.
+const replyIDFormat = "wamid.reply.%d"
+
 // sentReply is one reply the stand-in for the Graph API received.
 type sentReply struct {
 	path          string
@@ -91,7 +98,7 @@ func (r *replyRecorder) answer(w http.ResponseWriter, request *http.Request) {
 	r.replies = append(r.replies, sentReply{
 		path: request.URL.Path, authorization: request.Header.Get("Authorization"),
 	})
-	_, _ = fmt.Fprintf(w, `{"messages":[{"id":"wamid.reply.%d"}]}`, len(r.replies))
+	_, _ = fmt.Fprintf(w, `{"messages":[{"id":%q}]}`, fmt.Sprintf(replyIDFormat, len(r.replies)))
 }
 
 // last answers the newest reply and how many arrived.
@@ -159,6 +166,8 @@ func (s *numbersScenario) bindDeliveries(sc *godog.ScenarioContext) {
 	sc.When(`^one delivery for "([^"]*)" and "([^"]*)" arrives signed with the app secret of "([^"]*)"$`, s.deliverMixed)
 	sc.When(`^one delivery for "([^"]*)", the environment number "([^"]*)" and no number `+
 		`arrives signed with the app secret of "([^"]*)"$`, s.deliverAcrossEnvironment)
+	sc.When(`^a status for the newest reply arrives for "([^"]*)" signed with the app secret of "([^"]*)"$`,
+		s.deliverStatusOnNewestReply)
 	sc.Then(`^the delivery is answered with (\d+)$`, s.deliveryAnswered)
 	sc.Step(`^the handshake with the verify token of "([^"]*)" passes$`, s.handshakePasses)
 	sc.Then(`^the handshake with the verify token "([^"]*)" fails$`, s.handshakeFails)
@@ -180,6 +189,7 @@ func (s *numbersScenario) bindReplies(sc *godog.ScenarioContext) {
 // bindAnswers binds the steps that read what the workspaces hold.
 func (s *numbersScenario) bindAnswers(sc *godog.ScenarioContext) {
 	sc.Then(`^the workspace "([^"]*)" lists the WhatsApp numbers "([^"]*)"$`, s.listsNumbers)
+	sc.Then(`^the default workspace lists the WhatsApp numbers "([^"]*)"$`, s.defaultListsNumbers)
 	sc.Then(`^the workspace "([^"]*)" lists no WhatsApp numbers$`, s.listsNoNumbers)
 	sc.Then(`^the workspace "([^"]*)" holds (\d+) conversations?$`, s.holdsConversations)
 	sc.Then(`^the default workspace holds (\d+) conversations?$`, s.defaultHoldsConversations)
@@ -187,8 +197,11 @@ func (s *numbersScenario) bindAnswers(sc *godog.ScenarioContext) {
 	sc.Then(`^the default workspace holds (\d+) contacts?$`, s.defaultHoldsContacts)
 	sc.Then(`^the workspace "([^"]*)" still reads the conversation with "([^"]*)" on "([^"]*)"$`, s.readsConversation)
 	sc.Then(`^the default workspace reads (\d+) conversations? on "([^"]*)"$`, s.defaultReadsOnNumber)
+	sc.Then(`^the default workspace reads the conversation with "([^"]*)" as on "([^"]*)"$`, s.defaultReadsNumberOf)
 	sc.Then(`^the attempt is turned down as "([^"]*)"$`, s.attemptTurnedDown)
 	sc.Then(`^the attempt names no workspace$`, s.attemptNamesNoWorkspace)
+	sc.Then(`^the newest reply holds no delivery status$`, s.newestReplyHoldsNoStatus)
+	sc.Then(`^the newest reply is marked delivered$`, s.newestReplyDelivered)
 }
 
 // numberToken answers the access token a number is connected with.
@@ -367,6 +380,41 @@ func (s *numbersScenario) deliverAcrossEnvironment(number, environment, signer s
 		s.change(number, "184467235"), s.change(environment, "184467236"), s.change("", "184467237"))
 }
 
+// newestReplyID answers the message id the stand-in for the Graph API gave the newest reply.
+func (s *numbersScenario) newestReplyID() string {
+	_, sent := s.replies.last()
+	return fmt.Sprintf(replyIDFormat, sent)
+}
+
+// deliverStatusOnNewestReply delivers a status naming the newest reply on number, signed with the secret of signer.
+func (s *numbersScenario) deliverStatusOnNewestReply(number, signer string) {
+	s.post(numberAppSecret(signer), fmt.Sprintf(`{"field":"messages","value":{"metadata":{"phone_number_id":%q},`+
+		`"statuses":[{"id":%q,"status":"delivered","timestamp":"1751791000","recipient_id":"184467235"}]}}`,
+		number, s.newestReplyID()))
+}
+
+// newestReplyHolds fails unless the newest reply holds want, an empty want meaning no delivery status.
+func (s *numbersScenario) newestReplyHolds(ctx context.Context, want string) error {
+	var status string
+	if err := s.pool.QueryRow(ctx, statusOfMessage, s.newestReplyID()).Scan(&status); err != nil {
+		return err
+	}
+	if status != want {
+		return fmt.Errorf("the newest reply is %q, want %q", status, want)
+	}
+	return nil
+}
+
+// newestReplyHoldsNoStatus fails when the newest reply holds a delivery status.
+func (s *numbersScenario) newestReplyHoldsNoStatus(ctx context.Context) error {
+	return s.newestReplyHolds(ctx, "")
+}
+
+// newestReplyDelivered fails unless the newest reply is marked delivered.
+func (s *numbersScenario) newestReplyDelivered(ctx context.Context) error {
+	return s.newestReplyHolds(ctx, "delivered")
+}
+
 // deliveryAnswered fails unless the last delivery was answered with status.
 func (s *numbersScenario) deliveryAnswered(status int) error {
 	if s.answered != status {
@@ -400,49 +448,56 @@ func (s *numbersScenario) handshakeFails(token string) error {
 	return nil
 }
 
-// conversationID reads the conversation customer holds on number in the workspace called name.
-func (s *numbersScenario) conversationID(ctx context.Context, name, customer, number string) (uuid.UUID, error) {
+// conversationKey names the conversation a customer holds on a number in a workspace.
+type conversationKey struct {
+	workspace string
+	customer  string
+	number    string
+}
+
+// conversationID reads the conversation the key names.
+func (s *numbersScenario) conversationID(ctx context.Context, key conversationKey) (uuid.UUID, error) {
 	var id uuid.UUID
-	err := s.pool.QueryRow(ctx, conversationOnNumber, s.workspaces[name], customer, number).Scan(&id)
+	err := s.pool.QueryRow(ctx, conversationOnNumber, s.workspaces[key.workspace], key.customer, key.number).Scan(&id)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("reading the conversation with %s on %q: %w", customer, number, err)
+		return uuid.Nil, fmt.Errorf("reading the conversation with %s on %q: %w", key.customer, key.number, err)
 	}
 	return id, nil
 }
 
-// sendReply replies to customer on number from the workspace called name.
-func (s *numbersScenario) sendReply(ctx context.Context, name, customer, number string) error {
-	id, err := s.conversationID(ctx, name, customer, number)
+// sendReply replies on the conversation the key names.
+func (s *numbersScenario) sendReply(ctx context.Context, key conversationKey) error {
+	id, err := s.conversationID(ctx, key)
 	if err != nil {
 		return err
 	}
-	_, err = s.plugin.MutationResolvers().WhatsAppSendMessage(s.in(ctx, name), id, "Ready at 5pm")
+	_, err = s.plugin.MutationResolvers().WhatsAppSendMessage(s.in(ctx, key.workspace), id, "Ready at 5pm")
 	return err
 }
 
 // reply replies to customer on number from the workspace called name.
 func (s *numbersScenario) reply(ctx context.Context, name, customer, number string) error {
-	return s.sendReply(ctx, name, customer, number)
+	return s.sendReply(ctx, conversationKey{workspace: name, customer: customer, number: number})
 }
 
 // tryToReply tries to reply to customer on number and keeps what it answered.
 func (s *numbersScenario) tryToReply(ctx context.Context, name, customer, number string) {
-	s.attempt = s.sendReply(ctx, name, customer, number)
+	s.attempt = s.sendReply(ctx, conversationKey{workspace: name, customer: customer, number: number})
 }
 
 // replyOnNoNumber replies to customer from the default workspace on the conversation naming no number.
 func (s *numbersScenario) replyOnNoNumber(ctx context.Context, customer string) error {
-	return s.sendReply(ctx, defaultWorkspace, customer, "")
+	return s.sendReply(ctx, conversationKey{workspace: defaultWorkspace, customer: customer})
 }
 
 // tryToReplyOnNoNumber tries to reply to customer on the conversation naming no number and keeps what it answered.
 func (s *numbersScenario) tryToReplyOnNoNumber(ctx context.Context, customer string) {
-	s.attempt = s.sendReply(ctx, defaultWorkspace, customer, "")
+	s.attempt = s.sendReply(ctx, conversationKey{workspace: defaultWorkspace, customer: customer})
 }
 
 // defaultReplies replies to customer from the default workspace on the conversation carrying number.
 func (s *numbersScenario) defaultReplies(ctx context.Context, customer, number string) error {
-	return s.sendReply(ctx, defaultWorkspace, customer, number)
+	return s.sendReply(ctx, conversationKey{workspace: defaultWorkspace, customer: customer, number: number})
 }
 
 // wantReply fails unless the newest reply left from number with token.
@@ -485,7 +540,7 @@ func (s *numbersScenario) identities(ctx context.Context, name string) ([]string
 	}
 	numbers := make([]string, len(listed))
 	for i, identity := range listed {
-		numbers[i] = identity.Identifier + " " + identity.Label
+		numbers[i] = strings.TrimSpace(identity.Identifier + " " + identity.Label)
 	}
 	return numbers, nil
 }
@@ -500,6 +555,11 @@ func (s *numbersScenario) listsNumbers(ctx context.Context, name, numbers string
 		return fmt.Errorf("the workspace %s lists %q, want %q", name, listed, want)
 	}
 	return nil
+}
+
+// defaultListsNumbers fails unless the default workspace lists exactly the given numbers.
+func (s *numbersScenario) defaultListsNumbers(ctx context.Context, numbers string) error {
+	return s.listsNumbers(ctx, defaultWorkspace, numbers)
 }
 
 // listsNoNumbers fails unless the workspace called name lists no number.
@@ -546,13 +606,20 @@ func (s *numbersScenario) defaultHoldsContacts(ctx context.Context, want int) er
 	return s.count(ctx, workspaceContacts, defaultWorkspace, want)
 }
 
+// readConversation reads through the graph the conversation the key names.
+func (s *numbersScenario) readConversation(
+	ctx context.Context, key conversationKey,
+) (*model.WhatsAppConversation, error) {
+	id, err := s.conversationID(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return s.plugin.QueryResolvers().WhatsAppConversation(s.in(ctx, key.workspace), id)
+}
+
 // readsConversation fails unless the workspace called name still opens its conversation on number.
 func (s *numbersScenario) readsConversation(ctx context.Context, name, customer, number string) error {
-	id, err := s.conversationID(ctx, name, customer, number)
-	if err != nil {
-		return err
-	}
-	read, err := s.plugin.QueryResolvers().WhatsAppConversation(s.in(ctx, name), id)
+	read, err := s.readConversation(ctx, conversationKey{workspace: name, customer: customer, number: number})
 	if err != nil {
 		return err
 	}
@@ -570,6 +637,18 @@ func (s *numbersScenario) defaultReadsOnNumber(ctx context.Context, want int, nu
 	}
 	if len(read) != want {
 		return fmt.Errorf("the default workspace reads %d conversations on %s, want %d", len(read), number, want)
+	}
+	return nil
+}
+
+// defaultReadsNumberOf fails unless the conversation storing no number reads as number to the default workspace.
+func (s *numbersScenario) defaultReadsNumberOf(ctx context.Context, customer, number string) error {
+	read, err := s.readConversation(ctx, conversationKey{workspace: defaultWorkspace, customer: customer})
+	if err != nil {
+		return err
+	}
+	if read.Number == nil || *read.Number != number {
+		return fmt.Errorf("the default workspace reads the number %v, want %s", read.Number, number)
 	}
 	return nil
 }

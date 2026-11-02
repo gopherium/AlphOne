@@ -79,6 +79,19 @@ Feature: A workspace holds many WhatsApp numbers
     And the workspace "Globex" holds 0 conversations
     And the workspace "Globex" holds 0 contacts
 
+  Scenario: A status for one number leaves a message on another number alone
+    Given AlphOne runs its plugins
+    And the workspace "Acme" connects the WhatsApp number "5550001" as "Sales"
+    And the workspace "Acme" connects the WhatsApp number "5550002" as "Support"
+    And the customer "184467235" writes to the WhatsApp number "5550002"
+    When the workspace "Acme" replies to "184467235" on "5550002"
+    And a status for the newest reply arrives for "5550001" signed with the app secret of "5550001"
+    Then the delivery is answered with 200
+    And the newest reply holds no delivery status
+    When a status for the newest reply arrives for "5550002" signed with the app secret of "5550002"
+    Then the delivery is answered with 200
+    And the newest reply is marked delivered
+
   Scenario: The environment secret does not prove a number with its own secret
     Given the environment file names the app secret "env-app-secret"
     And AlphOne runs its plugins
@@ -173,6 +186,16 @@ Feature: A workspace holds many WhatsApp numbers
     And AlphOne runs its plugins
     When the customer "184467235" writes to the environment number "5550009"
     Then the default workspace reads 1 conversation on "5550009"
+
+  Scenario: The default workspace lists the environment number beside a connected number
+    Given the environment file names the WhatsApp number "5550009" with its token
+    And the environment file names the app secret "env-app-secret"
+    And AlphOne runs its plugins
+    And the default workspace connects the WhatsApp number "5550001" as "Sales"
+    When the customer "184467235" writes to the environment number "5550009"
+    Then the default workspace lists the WhatsApp numbers "5550009, 5550001 Sales"
+    And the default workspace reads the conversation with "184467235" as on "5550009"
+    And the workspace "Acme" lists no WhatsApp numbers
 
   Scenario: A reply on the environment number leaves from it while the default workspace holds another number
     Given the environment file names the WhatsApp number "5550009" with its token
