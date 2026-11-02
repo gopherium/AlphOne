@@ -679,9 +679,37 @@ test('reads the contacts afresh each time the list opens', async () => {
 	await screen.findByRole('heading', { level: 2, name: 'New contact' })
 	serving([contactOf('05', 'Grace Hopper', '2026-07-09T10:00:00Z'), ana, ada, maria])
 
-	await userEvent.click(screen.getByRole('link', { name: 'Contacts' }))
+	const menu = screen.getByRole('region', { name: 'Navigation' })
+	await userEvent.click(within(menu).getByRole('link', { name: 'Contacts' }))
 
 	await waitFor(async () => expect((await shownNames())[0]).toBe('Grace Hopper'))
+})
+
+test('leads from a new contact back to the list through its breadcrumb', async () => {
+	renderAt('/contacts/new')
+	await screen.findByRole('heading', { level: 2, name: 'New contact' })
+
+	const breadcrumbs = screen.getByRole('navigation', { name: 'Breadcrumbs' })
+	const link = within(breadcrumbs).getByRole('link', { name: 'Contacts' })
+	expect(link).not.toHaveAttribute('aria-current')
+	await userEvent.click(link)
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Contacts' })).toBeInTheDocument()
+	await rowOf('Ana Lopez')
+})
+
+test('leads from a contact back to the list through its breadcrumb', async () => {
+	detailing()
+	renderAt(`/contacts/${ana.id}`)
+	await screen.findByRole('heading', { level: 2, name: 'Ana Lopez' })
+
+	const breadcrumbs = screen.getByRole('navigation', { name: 'Breadcrumbs' })
+	const link = within(breadcrumbs).getByRole('link', { name: 'Contacts' })
+	expect(link).not.toHaveAttribute('aria-current')
+	await userEvent.click(link)
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Contacts' })).toBeInTheDocument()
+	await rowOf('Ana Lopez')
 })
 
 test('reports when contacts cannot be loaded', async () => {

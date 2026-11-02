@@ -13,6 +13,7 @@ import {
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
+import { ContactBreadcrumbs } from './ContactScreen'
 import { createContactMutation } from './operations'
 
 /** CreatedContact is the contact the creation form hands back. */
@@ -42,7 +43,7 @@ export function NewContactScreen({
 	}
 
 	return (
-		<PageScreen title={__('New contact', 'alphone')} headingLevel={2}>
+		<PageScreen title={__('New contact', 'alphone')} headingLevel={2} breadcrumbs={<ContactBreadcrumbs />}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

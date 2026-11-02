@@ -97,7 +97,7 @@ test('gives the time and the title one lead group that takes the row share, the 
 	const phone = '(max-width: 639px)'
 
 	expect(declarations('.alphone-tasks__lead')).toEqual({ flex: '1', 'min-width': '0' })
-	expect(declarations('.alphone-tasks__contact-block .alphone-tasks__lead')).toEqual({ flex: '1 1 50%' })
+	expect(declarations('.alphone-tasks__contact-block .alphone-tasks__lead')).toEqual({ flex: '1 1 45%' })
 	expect(declarations('.alphone-tasks__lead', phone)).toEqual({ flex: '1 1 60%' })
 	expect(declarations('.alphone-tasks__title')).toEqual({ flex: '1', 'min-width': '0' })
 	expect(declarations('.alphone-tasks__contact-block .alphone-tasks__title')).toEqual({})

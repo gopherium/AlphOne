@@ -8,6 +8,8 @@ import {
 	LoadingScreen,
 	LogItem,
 	LogList,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageScreen,
 	SectionTitle,
 	SelectControl,
@@ -26,10 +28,13 @@ import {
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import type { ConnectionResult, GraphFailure } from '@alphone/frontend-sdk'
+import { Link, useBlocker } from '@tanstack/react-router'
 import { useId, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
+import type { ListedTask } from '../tasks/TaskList'
 import { ContactPanels } from './ContactPanels'
 import { channelItemOf, channelItems } from './channel'
 import {
@@ -40,7 +45,7 @@ import {
 } from './operations'
 import { contactPanels } from './panels'
 
-const contactTasksPageSize = 50
+const contactTasksPageSize = 10
 const contactDetailOperation = 'ContactDetail'
 
 /** ContactDetail is the contact the screen renders, identities included. */
@@ -57,7 +62,21 @@ export interface ContactDetail {
 }
 
 /**
- * Renders one contact's detail: its name, identities and tasks beside its creation date and panels.
+ * Renders the links that lead from a contact page back to the contacts.
+ * @returns The breadcrumbs.
+ */
+export function ContactBreadcrumbs() {
+	return (
+		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
+			<PageBreadcrumb render={<Link to="/contacts" activeOptions={{ exact: true }} />}>
+				{__('Contacts', 'alphone')}
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	)
+}
+
+/**
+ * Renders one contact's page, or what stands in for it while it loads or after it failed to load.
  * @returns The contact screen.
  */
 export function ContactScreen({ contactId }: { contactId: string }) {
@@ -66,37 +85,105 @@ export function ContactScreen({ contactId }: { contactId: string }) {
 		variables: { id: contactId, first: contactTasksPageSize },
 		select: (data) => data.contact?.tasks,
 	})
-	const identitiesHeading = useId()
 	const contact = detail.data?.contact
 
 	if (detail.isPending) {
 		return (
-			<PageScreen title={__('Contact', 'alphone')} headingLevel={2}>
+			<UnloadedContact>
 				<LoadingScreen label={__('Loading contact…', 'alphone')} />
-			</PageScreen>
+			</UnloadedContact>
 		)
 	}
-	if (detail.isError || !contact) {
-		return <ErrorNotice>{__('The contact could not be loaded.', 'alphone')}</ErrorNotice>
+	if (!contact) {
+		return (
+			<UnloadedContact>
+				<ErrorNotice>{__('The contact could not be loaded.', 'alphone')}</ErrorNotice>
+			</UnloadedContact>
+		)
 	}
+	return <ContactRecord key={contact.id} contact={contact} tasks={detail} />
+}
+
+/**
+ * Renders the page of a contact nothing is known of, titled by the kind of record, with no details column.
+ * @param props - What the page shows.
+ * @returns The page.
+ */
+function UnloadedContact({ children }: { children: ReactNode }) {
+	return (
+		<PageScreen title={__('Contact', 'alphone')} headingLevel={2} breadcrumbs={<ContactBreadcrumbs />}>
+			{children}
+		</PageScreen>
+	)
+}
+
+/**
+ * Renders a loaded contact: its tasks and plugin panels as the main work, its name, identities and creation date as
+ * the details, and the Save button of its name in the page header.
+ * @param props - The contact and its tasks.
+ * @returns The contact's page.
+ */
+function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: ConnectionResult<ListedTask> }) {
+	const settled = useContactRefresh()
+	const toaster = useToaster()
+	const identitiesHeading = useId()
+	const nameForm = useId()
+	const [draft, setDraft] = useState<string | null>(null)
+	const [rename, runRename] = useGraphMutation(renameContactMutation)
+	const name = draft ?? contact.name
+	const changed = draft !== null && draft !== contact.name
+	const blank = name.trim() === ''
+	useBlocker({
+		shouldBlockFn: () => !window.confirm(__('Leave this page? The name is not saved.', 'alphone')),
+		disabled: !changed,
+	})
+	const submitRename = async () => {
+		const result = await runRename({ id: contact.id, name })
+		if (result.data) {
+			setDraft(null)
+			toaster.show(__('Name updated.', 'alphone'))
+			settled()
+		}
+	}
+
 	return (
 		<PageScreen
-			title={contact.name}
+			title={blank ? __('Contact', 'alphone') : name}
 			headingLevel={2}
+			breadcrumbs={<ContactBreadcrumbs />}
+			actions={
+				<Button
+					type="submit"
+					form={nameForm}
+					size="compact"
+					disabled={!changed || blank || rename.fetching}
+					loading={rename.fetching}
+				>
+					{__('Save', 'alphone')}
+				</Button>
+			}
 			aside={
 				<>
+					<NameForm
+						id={nameForm}
+						name={name}
+						saving={rename.fetching}
+						failure={rename.error}
+						onEdit={setDraft}
+						onSubmit={() => void submitRename()}
+					/>
+					<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>
+					<IdentityList contact={contact} labelledBy={identitiesHeading} />
+					<AddIdentityForm contact={contact} />
 					<Text className="alphone-contacts__created">
 						{sprintf(__('Created %(date)s', 'alphone'), { date: formatDate(contact.createdAt) })}
 					</Text>
-					<ContactPanels contactId={contact.id} panels={contactPanels} />
 				</>
 			}
+			asideLabel={__('Contact details', 'alphone')}
 		>
-			<RenameForm key={contact.name} contact={contact} />
-			<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>
-			<IdentityList contact={contact} labelledBy={identitiesHeading} />
-			<AddIdentityForm contact={contact} />
-			<ContactTasks contactId={contact.id} tasks={detail} />
+			<ContactTasks contactId={contact.id} tasks={tasks} />
+			<ContactPanels contactId={contact.id} panels={contactPanels} />
 		</PageScreen>
 	)
 }
@@ -255,47 +342,43 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 }
 
 /**
- * Renders the rename form for a loaded contact.
- * @returns The rename form.
+ * Renders the name field in the form the page's Save button submits.
+ * @param props - The form's id, the name shown, whether it is saving, the failed write and the two callbacks.
+ * @returns The name form.
  */
-function RenameForm({ contact }: { contact: ContactDetail }) {
-	const settled = useContactRefresh()
-	const toaster = useToaster()
-	const [name, setName] = useState(contact.name)
-	const [rename, runRename] = useGraphMutation(renameContactMutation)
-	const submitRename = async () => {
-		const result = await runRename({ id: contact.id, name })
-		if (result.data) {
-			toaster.show(__('Name updated.', 'alphone'))
-			settled()
-		}
-	}
-
+function NameForm({
+	id,
+	name,
+	saving,
+	failure,
+	onEdit,
+	onSubmit,
+}: {
+	id: string
+	name: string
+	saving: boolean
+	failure: GraphFailure | undefined
+	onEdit: (name: string) => void
+	onSubmit: () => void
+}) {
 	return (
 		<form
-			className="godmin-form godmin-form--inline"
+			id={id}
+			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void submitRename()
+				onSubmit()
 			}}
 		>
-			<div className="godmin-form__row">
-				<InputControl
-					label={__('Name', 'alphone')}
-					value={name}
-					onChange={(event) => setName(event.target.value)}
-				/>
-				<Button
-					type="submit"
-					disabled={name.trim() === '' || rename.fetching}
-					loading={rename.fetching}
-				>
-					{__('Save', 'alphone')}
-				</Button>
-			</div>
-			{rename.error ? (
+			<InputControl
+				label={__('Name', 'alphone')}
+				value={name}
+				readOnly={saving}
+				onChange={(event) => onEdit(event.target.value)}
+			/>
+			{failure ? (
 				<ErrorNotice>
-					{validationMessage(graphError(rename.error), __('The name could not be updated.', 'alphone'))}
+					{validationMessage(graphError(failure), __('The name could not be updated.', 'alphone'))}
 				</ErrorNotice>
 			) : null}
 		</form>

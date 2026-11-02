@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { renderAt } from './render'
+import { buttonClasses, renderAt } from './render'
 
 const contactID = '0198c000-0000-7000-8000-000000000401'
 const callID = '0198c000-0000-7000-8000-000000000402'
@@ -565,8 +565,56 @@ test('loads more contact tasks through the cursor', async () => {
 	expect(screen.getByText('Call her back')).toBeInTheDocument()
 })
 
+test('keeps the contact and an unsaved name when a later page of tasks fails, then reads it again', async () => {
+	let failing = true
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) => {
+			if (variables.after && failing) {
+				return HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+			}
+			return HttpResponse.json({
+				data: {
+					contact: variables.after
+						? contactDetail(String(variables.id), [taskRow(quoteID, 'Send the quote', tomorrow)])
+						: contactDetail(String(variables.id), [taskRow(callID, 'Call her back', today)], 'CUR1'),
+				},
+			})
+		}),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByText('Call her back')
+	await userEvent.type(screen.getByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Load more tasks' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('Tasks could not be loaded.')
+	expect(screen.getByText('Call her back')).toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez Ltd')
+
+	failing = false
+	await userEvent.click(screen.getByRole('button', { name: 'Load more tasks' }))
+
+	expect(await screen.findByText('Send the quote')).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('draws Load more tasks as the quiet compact button of a long list', async () => {
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: { contact: contactDetail(String(variables.id), [taskRow(callID, 'Call her back', today)], 'CUR1') },
+			}),
+		),
+	)
+	renderAt(`/contacts/${contactID}`)
+	await screen.findByText('Call her back')
+
+	const more = screen.getByRole('button', { name: 'Load more tasks' })
+	expect([...more.classList]).toEqual(buttonClasses('minimal', 'compact', 'neutral'))
+})
+
 test('shows a high task added after loading more at the top of the contact tasks', async () => {
-	tasks = Array.from({ length: 51 }, (_, at) =>
+	tasks = Array.from({ length: 11 }, (_, at) =>
 		taskRow(`0198c000-0000-7000-8000-${String(2000 + at).padStart(12, '0')}`, `Routine task ${at + 1}`, today),
 	)
 	server.use(
@@ -582,7 +630,7 @@ test('shows a high task added after loading more at the top of the contact tasks
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByText('Routine task 1')
 	await userEvent.click(screen.getByRole('button', { name: 'Load more tasks' }))
-	await screen.findByText('Routine task 51')
+	await screen.findByText('Routine task 11')
 
 	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'Approve the pricing')
 	await userEvent.click(screen.getByLabelText('Priority'))
@@ -590,7 +638,7 @@ test('shows a high task added after loading more at the top of the contact tasks
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	const listed = screen.getByRole('list', { name: 'Contact tasks' })
-	await waitFor(() => expect(within(listed).getAllByRole('listitem')).toHaveLength(52))
+	await waitFor(() => expect(within(listed).getAllByRole('listitem')).toHaveLength(12))
 	expect(within(listed).getAllByRole('listitem')[0]).toHaveAttribute('aria-label', 'Approve the pricing')
 })
 
@@ -606,6 +654,9 @@ test('reports when the contact detail cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The contact could not be loaded.',
 	)
+	expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
+	const breadcrumbs = screen.getByRole('navigation', { name: 'Breadcrumbs' })
+	expect(within(breadcrumbs).getByRole('link', { name: 'Contacts' })).toHaveAttribute('href', '/contacts')
 })
 
 test('reports when a contact task cannot be added', async () => {
