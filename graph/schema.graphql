@@ -3,6 +3,7 @@ directive @listSize(slicingArguments: [String!]!) on FIELD_DEFINITION
 directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capability: String) on FIELD_DEFINITION
 type AdminSettings {
 	toastMilliseconds: Int!
+	toastActionMilliseconds: Int!
 	listPageSizes: [Int!]!
 	listPageSize: Int!
 	contactPageCap: Int!
