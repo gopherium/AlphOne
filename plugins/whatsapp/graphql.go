@@ -26,6 +26,7 @@ func toGraphConversation(row conversationRow) *model.WhatsAppConversation {
 		Status:             row.Status,
 		LastActivityAt:     row.LastActivityAt.UTC(),
 		LastMessagePreview: row.LastMessagePreview,
+		Number:             row.Number,
 		Contact:            &model.Contact{ID: row.ContactID, Name: row.ContactName},
 	}
 }
@@ -83,15 +84,15 @@ func (p *Plugin) QueryResolvers() QueryResolvers {
 	return QueryResolvers{plugin: p}
 }
 
-// WhatsAppConversations lists the conversations, most recently active first.
+// WhatsAppConversations lists the conversations, on one number when given, most recently active first.
 func (q QueryResolvers) WhatsAppConversations(
-	ctx context.Context, limit *int,
+	ctx context.Context, limit *int, number *string,
 ) ([]*model.WhatsAppConversation, error) {
 	bounded, err := q.plugin.pages.Limit(limit)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.plugin.store.listConversations(ctx, bounded)
+	rows, err := q.plugin.store.listConversations(ctx, bounded, number, q.plugin.envNumber(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +115,19 @@ func (q QueryResolvers) WhatsAppConversation(
 		return nil, nil
 	}
 	return toGraphConversation(row), nil
+}
+
+// WhatsAppNumbers lists the numbers the calling tenant holds, oldest first.
+func (q QueryResolvers) WhatsAppNumbers(ctx context.Context) ([]*model.WhatsAppNumber, error) {
+	identities, err := q.plugin.ChannelIdentities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	numbers := make([]*model.WhatsAppNumber, len(identities))
+	for i, identity := range identities {
+		numbers[i] = &model.WhatsAppNumber{Identifier: identity.Identifier, Label: identity.Label}
+	}
+	return numbers, nil
 }
 
 // conversationsLoaderKey keys the conversations by contact loader in the request scope.
