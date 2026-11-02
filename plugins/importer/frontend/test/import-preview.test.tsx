@@ -6,8 +6,7 @@ import { use } from 'react'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers, importID } from '../handlers'
-import { ImportScreen } from '../ImportScreen'
-import { renderHosted } from './harness'
+import { renderAt } from './harness'
 
 const pending = new Promise<void>(() => {})
 
@@ -23,7 +22,7 @@ beforeEach(() => {
 })
 
 test('shows a spinner for the preview until its table arrives', async () => {
-	renderHosted(<ImportScreen importId={importID} />)
+	renderAt(`/import/${importID}`)
 
 	const label = await screen.findByText('Loading the preview…')
 	expect(label.closest('.godmin-loading-screen')).not.toBeNull()

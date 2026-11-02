@@ -4,6 +4,8 @@ import {
 	Button,
 	ErrorNotice,
 	LoadingScreen,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageScreen,
 	SectionTitle,
 	SelectControl,
@@ -19,7 +21,7 @@ import {
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { Suspense, lazy, useState } from 'react'
 
 import { columnLabel } from './column'
@@ -54,6 +56,36 @@ export function ImportRouteScreen() {
 }
 
 /**
+ * Renders the link back to the list of imports.
+ * @returns The breadcrumbs of an import page.
+ */
+function ImportBreadcrumbs() {
+	return (
+		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone-importer')}>
+			<PageBreadcrumb render={<Link to="/import" activeOptions={{ exact: true }} />}>
+				{_x('Import', 'admin section', 'alphone-importer')}
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	)
+}
+
+/**
+ * Renders the page of an import that could not be loaded.
+ * @returns The failed page.
+ */
+function FailedImport() {
+	return (
+		<PageScreen
+			title={_x('Import', 'admin section', 'alphone-importer')}
+			breadcrumbs={<ImportBreadcrumbs />}
+			headingLevel={2}
+		>
+			<ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
+		</PageScreen>
+	)
+}
+
+/**
  * Renders one import: its column mapping, its staged rows, and the commit.
  * @returns The import screen.
  */
@@ -62,21 +94,25 @@ export function ImportScreen({ importId }: { importId: string }) {
 	const staged = useImportRows(importId)
 
 	if (detail.error) {
-		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
+		return <FailedImport />
 	}
 	if (!detail.data) {
 		return (
-			<PageScreen title={_x('Import', 'admin section', 'alphone-importer')} headingLevel={2}>
+			<PageScreen
+				title={_x('Import', 'admin section', 'alphone-importer')}
+				breadcrumbs={<ImportBreadcrumbs />}
+				headingLevel={2}
+			>
 				<LoadingScreen label={__('Loading import…', 'alphone-importer')} />
 			</PageScreen>
 		)
 	}
 	const { importJob: stored, importFields } = detail.data
 	if (!stored) {
-		return <ErrorNotice>{__('The import could not be loaded.', 'alphone-importer')}</ErrorNotice>
+		return <FailedImport />
 	}
 	return (
-		<PageScreen title={stored.filename} headingLevel={2}>
+		<PageScreen title={stored.filename} breadcrumbs={<ImportBreadcrumbs />} headingLevel={2}>
 			<MappingForm stored={stored} fields={importFields} />
 			<SectionTitle>{__('Rows', 'alphone-importer')}</SectionTitle>
 			<StagedRows stored={stored} staged={staged} fields={importFields} />
