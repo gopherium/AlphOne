@@ -17,6 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // manyNamedNumbers is how many distinct numbers a body names to prove one query reads them all.
@@ -79,6 +81,70 @@ func signed(secret string, body []byte) string {
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
+// deliveryStatus posts the body to the webhook signed with the secret and answers the status.
+func deliveryStatus(p *Plugin, secret string, body []byte) int {
+	request := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+	request.Header.Set("X-Hub-Signature-256", signed(secret, body))
+	recorder := httptest.NewRecorder()
+	p.Routes().ServeHTTP(recorder, request)
+	return recorder.Code
+}
+
+// storeNamedNumbers stores the numbers bodyNaming names, the first owning holding the app secret own-secret.
+func storeNamedNumbers(t *testing.T, p *Plugin, owning, count int) {
+	t.Helper()
+	for i := range count {
+		stored := sdk.ChannelCredentials{Identifier: fmt.Sprintf("555%04d", i), Secret: "EAAG-token"}
+		if i < owning {
+			stored.AppSecret = "own-secret"
+		}
+		if err := p.SetChannelCredentials(t.Context(), stored); err != nil {
+			t.Fatalf("SetChannelCredentials() error = %v, want nil", err)
+		}
+	}
+}
+
+func TestTheNumbersCapCountsTheOwnSecretsADeliveryNames(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		owning   int
+		bare     int
+		signer   string
+		want     int
+		decrypts int
+	}{
+		"at the cap":                     {owning: 2, signer: "own-secret", want: http.StatusOK, decrypts: 2},
+		"one over the cap":               {owning: 3, signer: "own-secret", want: http.StatusForbidden},
+		"over the cap signed by setting": {owning: 3, signer: "app-secret", want: http.StatusForbidden},
+		"rows holding no secret of their own": {
+			owning: 2, bare: 3, signer: "own-secret", want: http.StatusOK, decrypts: 2,
+		},
+	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			encrypter := &boundEncrypter{}
+			p := newMigratedPlugin(t)
+			p.UseEncrypter(encrypter)
+			p.appSecret = "app-secret"
+			p.deliveryNumbersMax = 2
+			storeNamedNumbers(t, p, test.owning, test.owning+test.bare)
+			encrypter.calls = nil
+
+			status := deliveryStatus(p, test.signer, bodyNaming(test.owning+test.bare))
+
+			if status != test.want {
+				t.Errorf("status = %d, want %d", status, test.want)
+			}
+			if got := len(encrypter.calls); got != test.decrypts {
+				t.Errorf("the encrypter answered %q, want %d decrypts", encrypter.calls, test.decrypts)
+			}
+		})
+	}
+}
+
 func TestAnUnprovenBodyLeavesItsItemsUnread(t *testing.T) {
 	p := &Plugin{store: &store{}}
 	body := bareItems(itemsInAForgedBody)
@@ -96,43 +162,39 @@ func TestAnUnprovenBodyLeavesItsItemsUnread(t *testing.T) {
 	}
 }
 
-func TestABodyNamingManyNumbersReadsThemInOneQuery(t *testing.T) {
+func TestADeliveryReadsTheNumbersItNamesInOneQueryAtMost(t *testing.T) {
 	t.Parallel()
 
-	p := newEncryptingPlugin(t)
-	counter := countingCredentialReads(t, p)
-	body := bodyNaming(manyNamedNumbers)
-	request := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
-	request.Header.Set("X-Hub-Signature-256", signed("a forged secret", body))
-	recorder := httptest.NewRecorder()
-
-	p.Routes().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
+	tests := map[string]struct {
+		appSecret string
+		signer    string
+		body      []byte
+		want      int
+		reads     int64
+	}{
+		"a body naming many numbers reads them in one query": {
+			signer: "a forged secret", body: bodyNaming(manyNamedNumbers), want: http.StatusForbidden, reads: 1,
+		},
+		"a body naming no number never reads the credentials": {
+			appSecret: "app-secret", signer: "app-secret", body: []byte(`{"entry":[]}`), want: http.StatusOK,
+		},
 	}
-	if reads := counter.reads.Load(); reads != 1 {
-		t.Errorf("the delivery read the credentials %d times, want one query for every number", reads)
-	}
-}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 
-func TestABodyNamingNoNumberNeverReadsTheCredentials(t *testing.T) {
-	t.Parallel()
+			p := newEncryptingPlugin(t)
+			p.appSecret = test.appSecret
+			counter := countingCredentialReads(t, p)
 
-	p := newEncryptingPlugin(t)
-	p.appSecret = "app-secret"
-	counter := countingCredentialReads(t, p)
-	body := []byte(`{"entry":[]}`)
-	request := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
-	request.Header.Set("X-Hub-Signature-256", signed("app-secret", body))
-	recorder := httptest.NewRecorder()
+			status := deliveryStatus(p, test.signer, test.body)
 
-	p.Routes().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-	if reads := counter.reads.Load(); reads != 0 {
-		t.Errorf("the delivery read the credentials %d times, want none", reads)
+			if status != test.want {
+				t.Fatalf("status = %d, want %d", status, test.want)
+			}
+			if reads := counter.reads.Load(); reads != test.reads {
+				t.Errorf("the delivery read the credentials %d times, want %d", reads, test.reads)
+			}
+		})
 	}
 }

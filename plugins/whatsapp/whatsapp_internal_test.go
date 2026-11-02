@@ -109,7 +109,9 @@ func TestStoreUpsertConversationReportsFailure(t *testing.T) {
 
 	pool := newUnreachablePool(t)
 
-	_, err := upsertConversation(t.Context(), pool, uuid.Must(uuid.NewV7()), nil, "184467235", time.Now().UTC())
+	key := conversationKey{contactID: uuid.Must(uuid.NewV7()), number: nil, externalID: "184467235"}
+
+	_, err := upsertConversation(t.Context(), pool, key, time.Now().UTC())
 
 	if err == nil {
 		t.Fatal("upsertConversation() error = nil, want a connection failure")
@@ -121,7 +123,8 @@ func TestStoreReportsIDGenerationFailure(t *testing.T) {
 		uuid.SetRand(failingEntropy{})
 		defer uuid.SetRand(nil)
 
-		_, err := upsertConversation(t.Context(), nil, uuid.Nil, nil, "184467235", time.Now())
+		key := conversationKey{contactID: uuid.Nil, number: nil, externalID: "184467235"}
+		_, err := upsertConversation(t.Context(), nil, key, time.Now())
 
 		if !errors.Is(err, errEntropy) {
 			t.Fatalf("upsertConversation() error = %v, want the entropy failure in its chain", err)
@@ -295,29 +298,46 @@ func TestRegisterAppliesTheDefaultDeliveryCap(t *testing.T) {
 	if p.deliveryItemsMax != defaultDeliveryItemsMax {
 		t.Errorf("deliveryItemsMax = %d, want the default %d", p.deliveryItemsMax, defaultDeliveryItemsMax)
 	}
+	if p.deliveryNumbersMax != 100 {
+		t.Errorf("deliveryNumbersMax = %d, want the default 100", p.deliveryNumbersMax)
+	}
+}
+
+func TestRegisterHoldsTheNumbersCapItReads(t *testing.T) {
+	t.Parallel()
+
+	p, err := Register(sdk.Deps{Env: settings(map[string]string{"ALPHONE_WHATSAPP_DELIVERY_NUMBERS_MAX": "7"})})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	if p.deliveryNumbersMax != 7 {
+		t.Errorf("deliveryNumbersMax = %d, want the configured 7", p.deliveryNumbersMax)
+	}
 }
 
 func TestRegisterRejectsAMalformedDeliveryCap(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]string{
+	values := map[string]string{
 		"not a number": "abc",
 		"negative":     "-5",
 		"zero":         "0",
 	}
 
-	for testName, value := range tests {
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
+	for _, setting := range []string{"ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX", "ALPHONE_WHATSAPP_DELIVERY_NUMBERS_MAX"} {
+		for testName, value := range values {
+			t.Run(setting+" "+testName, func(t *testing.T) {
+				t.Parallel()
 
-			env := map[string]string{"ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX": value}
+				_, err := Register(sdk.Deps{Env: settings(map[string]string{setting: value})})
 
-			_, err := Register(sdk.Deps{Env: settings(env)})
-
-			if err == nil || !strings.HasPrefix(err.Error(), "ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX: must ") {
-				t.Errorf("Register() over %q error = %v, want the delivery cap refused by name", value, err)
-			}
-		})
+				if err == nil || !strings.HasPrefix(err.Error(), setting+": must ") {
+					t.Errorf("Register() over %q error = %v, want the cap refused by name", value, err)
+				}
+			})
+		}
 	}
 }
 
@@ -400,8 +420,8 @@ func TestRegisterReadsExactlyThePluginSettings(t *testing.T) {
 
 	want := []string{
 		"ALPHONE_WHATSAPP_ACCESS_TOKEN", "ALPHONE_WHATSAPP_APP_SECRET", "ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX",
-		"ALPHONE_WHATSAPP_GRAPH_URL", "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES", "ALPHONE_WHATSAPP_PHONE_NUMBER_ID",
-		"ALPHONE_WHATSAPP_VERIFY_TOKEN",
+		"ALPHONE_WHATSAPP_DELIVERY_NUMBERS_MAX", "ALPHONE_WHATSAPP_GRAPH_URL", "ALPHONE_WHATSAPP_MEDIA_MAX_BYTES",
+		"ALPHONE_WHATSAPP_PHONE_NUMBER_ID", "ALPHONE_WHATSAPP_VERIFY_TOKEN",
 	}
 	if got := slices.Compact(slices.Sorted(slices.Values(read))); !slices.Equal(got, want) {
 		t.Errorf("Register() read %v, want exactly %v", got, want)

@@ -59,35 +59,55 @@ func parseSignature(header string) ([]byte, bool) {
 	return digest, err == nil
 }
 
-// signedWith reports whether digest is the HMAC-SHA256 of body under secret, an empty secret proving nothing.
-func signedWith(secret, digest, body []byte) bool {
+// signedBody is a delivery's raw body beside the digest its signature header carries.
+type signedBody struct {
+	digest []byte
+	body   []byte
+}
+
+// signedWith reports whether the digest is the HMAC-SHA256 of the body under secret, an empty secret proving nothing.
+func (s signedBody) signedWith(secret []byte) bool {
 	if len(secret) == 0 {
 		return false
 	}
 	mac := hmac.New(sha256.New, secret)
-	mac.Write(body)
-	return hmac.Equal(digest, mac.Sum(nil))
+	mac.Write(s.body)
+	return hmac.Equal(s.digest, mac.Sum(nil))
 }
 
 // proveDelivery answers the routes of the numbers a signature proves and whether any secret proved the body.
 func (p *Plugin) proveDelivery(
-	ctx context.Context, digest, body []byte, named []string,
+	ctx context.Context, signed signedBody, named []string,
 ) (map[string]numberRoute, bool, error) {
 	signers, err := p.store.numberSigners(ctx, named)
 	if err != nil {
 		return nil, false, err
 	}
-	envProven := signedWith([]byte(p.appSecret), digest, body)
+	if ownSecrets(signers) > p.deliveryNumbersMax {
+		return nil, false, nil
+	}
+	envProven := signed.signedWith([]byte(p.appSecret))
 	routes := p.envRoutes(envProven)
 	proven := envProven
 	for _, signer := range signers {
 		delete(routes, signer.phoneNumberID)
-		if p.signerProves(ctx, signer, digest, body, envProven) {
+		if p.signerProves(ctx, signer, signed, envProven) {
 			routes[signer.phoneNumberID] = numberRoute{tenantID: signer.tenantID, number: &signer.phoneNumberID}
 			proven = true
 		}
 	}
 	return routes, proven, nil
+}
+
+// ownSecrets counts the signers holding a secret of their own.
+func ownSecrets(signers []numberSigner) int {
+	held := 0
+	for _, signer := range signers {
+		if signer.appSecret != nil {
+			held++
+		}
+	}
+	return held
 }
 
 // envRoutes answers the routes the environment secret opens, the default tenant's when it proved the body.
@@ -100,7 +120,7 @@ func (p *Plugin) envRoutes(envProven bool) map[string]numberRoute {
 }
 
 // signerProves reports whether a stored number's own secret, or the setting for a row holding none, signed the body.
-func (p *Plugin) signerProves(ctx context.Context, signer numberSigner, digest, body []byte, envProven bool) bool {
+func (p *Plugin) signerProves(ctx context.Context, signer numberSigner, signed signedBody, envProven bool) bool {
 	if signer.appSecret == nil {
 		return envProven
 	}
@@ -108,7 +128,7 @@ func (p *Plugin) signerProves(ctx context.Context, signer numberSigner, digest, 
 	if err != nil {
 		return false
 	}
-	return signedWith(secret, digest, body)
+	return signed.signedWith(secret)
 }
 
 // openRoutes keeps the routes whose tenant still records what a channel delivers.

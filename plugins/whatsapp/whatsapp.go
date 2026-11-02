@@ -36,20 +36,21 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
-	pool             *pgxpool.Pool
-	resolver         sdk.ContactResolver
-	verifyToken      string
-	appSecret        string
-	encrypter        sdk.Encrypter
-	envCredentials   credentials
-	gate             sdk.TenantGate
-	store            *store
-	sender           *sender
-	events           *broadcaster
-	fetcher          *mediaFetcher
-	publisher        sdk.Publisher
-	pages            sdk.PageBounds
-	deliveryItemsMax int
+	pool               *pgxpool.Pool
+	resolver           sdk.ContactResolver
+	verifyToken        string
+	appSecret          string
+	encrypter          sdk.Encrypter
+	envCredentials     credentials
+	gate               sdk.TenantGate
+	store              *store
+	sender             *sender
+	events             *broadcaster
+	fetcher            *mediaFetcher
+	publisher          sdk.Publisher
+	pages              sdk.PageBounds
+	deliveryItemsMax   int
+	deliveryNumbersMax int
 }
 
 // transportTemplate is the pool settings every outbound client is cloned from.
@@ -68,6 +69,10 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		return nil, err
 	}
 	deliveryItemsMax, err := env.Count("DELIVERY_ITEMS_MAX", defaultDeliveryItemsMax)
+	if err != nil {
+		return nil, err
+	}
+	deliveryNumbersMax, err := env.Count("DELIVERY_NUMBERS_MAX", defaultDeliveryNumbersMax)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +100,9 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 			client:  newSenderClient(10 * time.Second),
 			baseURL: graphURL,
 		},
-		events:           newBroadcaster(),
-		deliveryItemsMax: deliveryItemsMax,
+		events:             newBroadcaster(),
+		deliveryItemsMax:   deliveryItemsMax,
+		deliveryNumbersMax: deliveryNumbersMax,
 	}
 	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
 		baseURL:     graphURL,
