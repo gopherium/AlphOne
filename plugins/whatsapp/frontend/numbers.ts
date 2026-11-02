@@ -10,7 +10,7 @@ export type ConnectedNumber = WhatsAppNumbersQuery['whatsAppNumbers'][number]
 
 /**
  * useConnectedNumbers reads the numbers the workspace holds.
- * @returns The numbers, oldest first, none until they load.
+ * @returns The numbers as the graph orders them, none until they load.
  */
 export function useConnectedNumbers(): readonly ConnectedNumber[] {
 	const [numbers] = useGraphQuery({ query: numbersQuery, requestPolicy: 'cache-and-network' })
