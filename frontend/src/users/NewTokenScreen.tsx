@@ -4,6 +4,8 @@ import {
 	Button,
 	ErrorNotice,
 	InputControl,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageScreen,
 	Stack,
 	Text,
@@ -14,6 +16,7 @@ import {
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { TokenArea } from '@alphone/frontend-sdk'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import {
@@ -121,16 +124,23 @@ export function NewTokenScreen() {
 			setSecret(result.data.apiTokenCreate.secret)
 		}
 	}
+	const breadcrumbs = (
+		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
+			<PageBreadcrumb render={<Link to="/users/tokens" activeOptions={{ exact: true }} />}>
+				{__('API tokens', 'alphone')}
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	)
 
 	if (secret !== null) {
 		return (
-			<PageScreen title={__('New token', 'alphone')} headingLevel={2}>
+			<PageScreen title={__('New token', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
 				<MintedSecret secret={secret} />
 			</PageScreen>
 		)
 	}
 	return (
-		<PageScreen title={__('New token', 'alphone')} headingLevel={2}>
+		<PageScreen title={__('New token', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

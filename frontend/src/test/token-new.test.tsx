@@ -3,13 +3,13 @@
 import type { FrontendPlugin } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
-import { screen } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { startAppLocale } from '../i18n/start'
 import { plugins } from '../plugins'
-import { renderAt } from './render'
+import { renderAt, renderRoutedAt } from './render'
 
 const secret = 'a1_dGVzdHNlY3JldHZhbHVlZm9ydGhlbWludGZvcm0'
 
@@ -57,6 +57,15 @@ function servingMint(): { asked: Record<string, unknown> | null } {
 async function fillMintForm() {
 	await userEvent.type(await screen.findByLabelText('Name'), 'automation')
 	await userEvent.click(screen.getByRole('checkbox', { name: 'Read tasks' }))
+}
+
+/**
+ * Returns the breadcrumb that leads to the token list.
+ * @returns The link.
+ */
+async function tokensBreadcrumb() {
+	const breadcrumbs = await screen.findByRole('navigation', { name: 'Breadcrumbs' })
+	return within(breadcrumbs).getByRole('link', { name: 'API tokens' })
 }
 
 /** ENGLISH_AREAS names each core area in English, keyed by its value. */
@@ -112,6 +121,28 @@ test('serves the new token screen at /users/tokens/new', async () => {
 	renderAt('/users/tokens/new')
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'New token' })).toBeInTheDocument()
+})
+
+test('leads the breadcrumb back to the token list', async () => {
+	const { router } = renderRoutedAt('/users/tokens/new')
+	const tokens = await tokensBreadcrumb()
+
+	expect(tokens).toHaveAttribute('href', '/users/tokens')
+	expect(tokens).not.toHaveAttribute('aria-current')
+	await userEvent.click(tokens)
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/users/tokens'))
+})
+
+test('keeps the breadcrumb beside the secret once the token is minted', async () => {
+	servingMint()
+	renderAt('/users/tokens/new')
+
+	await fillMintForm()
+	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
+	await screen.findByText(secret)
+
+	expect(await tokensBreadcrumb()).toHaveAttribute('href', '/users/tokens')
 })
 
 test('names each core area and every wired plugin area in its read and write boxes', async () => {

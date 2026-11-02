@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { createAppRouter } from '../router'
-import { renderAt } from './render'
+import { renderAt, renderRoutedAt } from './render'
 
 const createdID = '0198c000-0000-7000-8000-000000000301'
 const contactID = '0198c000-0000-7000-8000-000000000302'
@@ -109,6 +109,19 @@ test('starts the form on today when no day is given', async () => {
 	renderAt('/tasks/new')
 
 	expect(await screen.findByLabelText('Due date')).toHaveValue(today)
+})
+
+test('leads the breadcrumb back to the day being viewed', async () => {
+	const { router } = renderRoutedAt('/tasks/new?date=2026-08-10')
+	const breadcrumbs = await screen.findByRole('navigation', { name: 'Breadcrumbs' })
+	const tasks = within(breadcrumbs).getByRole('link', { name: 'Tasks' })
+
+	expect(tasks).toHaveAttribute('href', '/tasks?date=2026-08-10')
+	expect(tasks).not.toHaveAttribute('aria-current')
+	await userEvent.click(tasks)
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
+	expect(router.state.location.search).toEqual({ date: '2026-08-10' })
 })
 
 test('creates a task and opens its detail', async () => {

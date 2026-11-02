@@ -22,6 +22,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { isValidDate, timeInput } from './format'
 import { createTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
+import { TaskBreadcrumbs } from './TaskScreen'
 
 const searchDebounceMs = 300
 const contactSearchLimit = 20
@@ -95,7 +96,7 @@ export function NewTaskScreen({
 	}
 
 	return (
-		<PageScreen title={__('New task', 'alphone')} headingLevel={2}>
+		<PageScreen title={__('New task', 'alphone')} breadcrumbs={<TaskBreadcrumbs date={date} />} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

@@ -1,15 +1,40 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test } from 'vitest'
+import { beforeEach, expect, onTestFinished, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { renderAt } from './render'
+import { renderAt, renderRoutedAt } from './render'
 
 const taskID = '0198c000-0000-7000-8000-000000000201'
 const contactID = '0198c000-0000-7000-8000-000000000202'
+
+/** godminStyles is the stylesheet godmin ships. */
+const godminStyles = readFileSync(createRequire(import.meta.url).resolve('@gopherium/godmin/base.css'), 'utf8')
+
+/**
+ * Returns the breadcrumb that leads to the task list.
+ * @returns The link.
+ */
+async function tasksBreadcrumb() {
+	const breadcrumbs = await screen.findByRole('navigation', { name: 'Breadcrumbs' })
+	return within(breadcrumbs).getByRole('link', { name: 'Tasks' })
+}
+
+/**
+ * Applies the rule godmin ships for a title beside breadcrumbs until the test finishes.
+ */
+function applyTitleRule() {
+	const style = document.createElement('style')
+	style.textContent = /\.godmin-page__heading > :last-child \{[^}]*\}/.exec(godminStyles)?.[0] ?? ''
+	document.head.append(style)
+	onTestFinished(() => style.remove())
+}
 
 function taskDetail() {
 	return {
@@ -69,6 +94,42 @@ test('keeps the page chrome while the task is on its way', async () => {
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading task…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
+})
+
+test('leads the breadcrumb to the list while the task is on its way', async () => {
+	server.use(graphql.query('TaskDetail', () => new Promise(() => {})))
+	const { router } = renderRoutedAt(`/tasks/${taskID}`)
+	const tasks = await tasksBreadcrumb()
+
+	expect(tasks).toHaveAttribute('href', '/tasks')
+	expect(tasks).not.toHaveAttribute('aria-current')
+	await userEvent.click(tasks)
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/tasks'))
+})
+
+test('leads the breadcrumb back to the day of the task', async () => {
+	const { router } = renderRoutedAt(`/tasks/${taskID}`)
+	await screen.findByRole('heading', { level: 2, name: 'Call the supplier' })
+	const tasks = await tasksBreadcrumb()
+
+	expect(tasks).toHaveAttribute('href', '/tasks?date=2026-08-10')
+	expect(tasks).not.toHaveAttribute('aria-current')
+	await userEvent.click(tasks)
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()
+	expect(router.state.location.search).toEqual({ date: '2026-08-10' })
+})
+
+test('keeps a long task title on one line beside the breadcrumb, ending in an ellipsis', async () => {
+	const title = 'Call the supplier about every late delivery of boxes, labels and tape this quarter'
+	stored = { ...stored, title }
+	applyTitleRule()
+	renderAt(`/tasks/${taskID}`)
+
+	const heading = await screen.findByRole('heading', { level: 2, name: title })
+
+	expect(heading).toHaveStyle({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })
 })
 
 test('shows the task with its due date and priority', async () => {
@@ -310,6 +371,8 @@ test('reports when the task cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'The task could not be loaded.',
 	)
+	expect(screen.getByRole('heading', { level: 2, name: 'Task' })).toBeInTheDocument()
+	expect(await tasksBreadcrumb()).toHaveAttribute('href', '/tasks')
 })
 
 test('reports when a save is rejected', async () => {
