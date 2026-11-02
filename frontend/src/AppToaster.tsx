@@ -3,27 +3,42 @@
 import { Toaster, __, useAdminSettings } from '@alphone/frontend-sdk'
 import type { ReactNode } from 'react'
 
+/** RegionProps are the tree a toast region wraps and how long each toast stays, the brick defaults when left out. */
+interface RegionProps {
+	children: ReactNode
+	dismissAfter?: number
+	actionDismissAfter?: number
+}
+
 /**
  * Renders the toast region with its translated dismiss hint around the given tree.
- * @param props - The tree the region wraps, and how long a plain toast stays, the brick default when left out.
+ * @param props - The tree the region wraps, and how long a toast with no button and one with a button stay.
  * @returns The wrapped tree with its region.
  */
-function Region({ children, dismissAfter }: { children: ReactNode, dismissAfter?: number }) {
+function Region({ children, dismissAfter, actionDismissAfter }: RegionProps) {
 	return (
-		<Toaster dismissAfter={dismissAfter} dismissLabel={__('Dismiss this notice', 'alphone')}>
+		<Toaster
+			dismissAfter={dismissAfter}
+			actionDismissAfter={actionDismissAfter}
+			dismissLabel={__('Dismiss this notice', 'alphone')}
+		>
 			{children}
 		</Toaster>
 	)
 }
 
 /**
- * Renders the toast region around the signed-in tree, each plain toast staying as long as the admin settings say.
+ * Renders the toast region around the signed-in tree, each toast staying as long as the admin settings say.
  * @param props - The tree the region wraps.
  * @returns The wrapped tree with its region.
  */
 export function AppToaster({ children }: { children: ReactNode }) {
 	const { settings } = useAdminSettings()
-	return <Region dismissAfter={settings?.toastMilliseconds}>{children}</Region>
+	return (
+		<Region dismissAfter={settings?.toastMilliseconds} actionDismissAfter={settings?.toastActionMilliseconds}>
+			{children}
+		</Region>
+	)
 }
 
 /**

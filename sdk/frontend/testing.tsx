@@ -202,6 +202,7 @@ export function paging(sizes: number[], size: number) {
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
+						toastActionMilliseconds: 10000,
 						listPageSizes: sizes,
 						listPageSize: size,
 						contactPageCap: 200,

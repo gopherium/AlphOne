@@ -34,6 +34,7 @@ type Tenant {
 
 type AdminSettings {
   toastMilliseconds: Int!
+  toastActionMilliseconds: Int!
   listPageSizes: [Int!]!
   listPageSize: Int!
   contactPageCap: Int!

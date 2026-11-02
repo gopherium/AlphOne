@@ -434,17 +434,22 @@ func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 	addr, secret := servedSeededBinary(t, databaseURL,
 		"ALPHONE_GRAPH_PAGE_CAP=150",
 		"ALPHONE_TOAST_DURATION=9s",
+		"ALPHONE_TOAST_ACTION_DURATION=14s",
 		"ALPHONE_LIST_PAGE_SIZES=5,15",
 		"ALPHONE_LIST_PAGE_SIZE=15",
 		"ALPHONE_FORMAT_LOCALE=de-DE",
 	)
 
 	read := postGraph(t, addr, secret,
-		`{"query":"{ adminSettings { toastMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`)
+		`{"query":"{ adminSettings { toastMilliseconds toastActionMilliseconds listPageSizes listPageSize `+
+			`contactPageCap formatLocale } }"}`)
 
 	held := read.Data.AdminSettings
 	if held.ToastMilliseconds != 9000 || held.ListPageSize != 15 || held.ContactPageCap != 150 {
 		t.Errorf("admin settings = %+v, want the toast time, opening page and cap the environment names", held)
+	}
+	if held.ToastActionMilliseconds != 14000 {
+		t.Errorf("toastActionMilliseconds = %d, want the 14000 the environment names", held.ToastActionMilliseconds)
 	}
 	if held.FormatLocale != "de-DE" {
 		t.Errorf("formatLocale = %q, want the locale the environment names", held.FormatLocale)
@@ -571,11 +576,12 @@ type graphAnswer struct {
 			} `json:"webhook"`
 		} `json:"createWebhook"`
 		AdminSettings struct {
-			ToastMilliseconds int    `json:"toastMilliseconds"`
-			ListPageSizes     []int  `json:"listPageSizes"`
-			ListPageSize      int    `json:"listPageSize"`
-			ContactPageCap    int    `json:"contactPageCap"`
-			FormatLocale      string `json:"formatLocale"`
+			ToastMilliseconds       int    `json:"toastMilliseconds"`
+			ToastActionMilliseconds int    `json:"toastActionMilliseconds"`
+			ListPageSizes           []int  `json:"listPageSizes"`
+			ListPageSize            int    `json:"listPageSize"`
+			ContactPageCap          int    `json:"contactPageCap"`
+			FormatLocale            string `json:"formatLocale"`
 		} `json:"adminSettings"`
 	} `json:"data"`
 	Errors []struct {

@@ -64,6 +64,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_STREAMS_PER_USER":                 "4",
 		"ALPHONE_STREAM_LIFETIME":                  "3m",
 		"ALPHONE_TOAST_DURATION":                   "9s",
+		"ALPHONE_TOAST_ACTION_DURATION":            "14s",
 		"ALPHONE_LIST_PAGE_SIZES":                  "5,15,30",
 		"ALPHONE_LIST_PAGE_SIZE":                   "15",
 		"ALPHONE_FORMAT_LOCALE":                    "de-DE",
@@ -703,6 +704,10 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 		"a graph cap in words":     {"ALPHONE_GRAPH_PAGE_CAP", "many", "must be a whole number"},
 		"a toast in words": {
 			"ALPHONE_TOAST_DURATION", "a while",
+			"must be a duration such as 6s or 1500ms, in whole milliseconds from 1ms to 2147483647ms",
+		},
+		"an action toast in words": {
+			"ALPHONE_TOAST_ACTION_DURATION", "a while",
 			"must be a duration such as 6s or 1500ms, in whole milliseconds from 1ms to 2147483647ms",
 		},
 		"list pages in words":      {"ALPHONE_LIST_PAGE_SIZES", "10,twenty", "must list positive whole numbers"},

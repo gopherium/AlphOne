@@ -38,9 +38,13 @@ func loadPaging(env gonsole.Env) (graphres.Paging, error) {
 	return graphres.Paging{Size: size, Cap: ceiling}, nil
 }
 
-// loadScreens reads the toast time, the pages a list offers, none past ceiling, and the format locale.
+// loadScreens reads both toast times, the pages a list offers, none past ceiling, and the format locale.
 func loadScreens(env gonsole.Env, ceiling int) (graphres.Screens, error) {
 	toast, err := gonsole.Parse(env, "TOAST_DURATION", graphres.DefaultToastDuration, parseToastDuration)
+	if err != nil {
+		return graphres.Screens{}, err
+	}
+	action, err := gonsole.Parse(env, "TOAST_ACTION_DURATION", graphres.DefaultToastActionDuration, parseToastDuration)
 	if err != nil {
 		return graphres.Screens{}, err
 	}
@@ -60,7 +64,9 @@ func loadScreens(env gonsole.Env, ceiling int) (graphres.Screens, error) {
 	if err != nil {
 		return graphres.Screens{}, err
 	}
-	return graphres.Screens{ToastDuration: toast, PageSizes: sizes, PageSize: size, FormatLocale: locale}, nil
+	return graphres.Screens{
+		ToastDuration: toast, ToastActionDuration: action, PageSizes: sizes, PageSize: size, FormatLocale: locale,
+	}, nil
 }
 
 // parseFormatLocale reads the locale dates and numbers are written in as a canonical BCP 47 tag that names a language.

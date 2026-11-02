@@ -46,11 +46,12 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AdminSettings struct {
-		ContactPageCap    func(childComplexity int) int
-		FormatLocale      func(childComplexity int) int
-		ListPageSize      func(childComplexity int) int
-		ListPageSizes     func(childComplexity int) int
-		ToastMilliseconds func(childComplexity int) int
+		ContactPageCap          func(childComplexity int) int
+		FormatLocale            func(childComplexity int) int
+		ListPageSize            func(childComplexity int) int
+		ListPageSizes           func(childComplexity int) int
+		ToastActionMilliseconds func(childComplexity int) int
+		ToastMilliseconds       func(childComplexity int) int
 	}
 
 	ApiToken struct {
@@ -484,6 +485,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminSettings.ListPageSizes(childComplexity), true
+	case "AdminSettings.toastActionMilliseconds":
+		if e.ComplexityRoot.AdminSettings.ToastActionMilliseconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminSettings.ToastActionMilliseconds(childComplexity), true
 	case "AdminSettings.toastMilliseconds":
 		if e.ComplexityRoot.AdminSettings.ToastMilliseconds == nil {
 			break
@@ -2258,6 +2265,8 @@ func (ec *executionContext) childFields_AdminSettings(ctx context.Context, field
 	switch field.Name {
 	case "toastMilliseconds":
 		return ec.fieldContext_AdminSettings_toastMilliseconds(ctx, field)
+	case "toastActionMilliseconds":
+		return ec.fieldContext_AdminSettings_toastActionMilliseconds(ctx, field)
 	case "listPageSizes":
 		return ec.fieldContext_AdminSettings_listPageSizes(ctx, field)
 	case "listPageSize":
@@ -3938,6 +3947,29 @@ func (ec *executionContext) _AdminSettings_toastMilliseconds(ctx context.Context
 	)
 }
 func (ec *executionContext) fieldContext_AdminSettings_toastMilliseconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AdminSettings_toastActionMilliseconds(ctx context.Context, field graphql.CollectedField, obj *model.AdminSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AdminSettings_toastActionMilliseconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToastActionMilliseconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AdminSettings_toastActionMilliseconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminSettings", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -11207,6 +11239,11 @@ func (ec *executionContext) _AdminSettings(ctx context.Context, sel ast.Selectio
 			out.Values[i] = graphql.MarshalString("AdminSettings")
 		case "toastMilliseconds":
 			out.Values[i] = ec._AdminSettings_toastMilliseconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toastActionMilliseconds":
+			out.Values[i] = ec._AdminSettings_toastActionMilliseconds(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

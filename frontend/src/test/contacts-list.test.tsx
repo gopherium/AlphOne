@@ -161,6 +161,7 @@ function paging(sizes: number[], size: number, cap = 200) {
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
+						toastActionMilliseconds: 10000,
 						listPageSizes: sizes,
 						listPageSize: size,
 						contactPageCap: cap,
@@ -558,6 +559,7 @@ test('waits for the page size before it asks for contacts', async () => {
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
+						toastActionMilliseconds: 10000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,
@@ -584,6 +586,7 @@ test('holds the empty state back from the first render until the first answer', 
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
+						toastActionMilliseconds: 10000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,

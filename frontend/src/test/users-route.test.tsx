@@ -448,6 +448,7 @@ test('keeps the page the address names while the page size is on its way', async
 					adminSettings: {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
+						toastActionMilliseconds: 10000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,

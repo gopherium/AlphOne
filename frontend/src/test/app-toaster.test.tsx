@@ -27,9 +27,34 @@ function PlainRaiser() {
 	return <Button onClick={() => toaster.show('Contact saved.')}>Save</Button>
 }
 
-/** Offers the plain raise button once the admin settings arrived. */
-function SettledRaiser() {
-	return useAdminSettings().settings === undefined ? null : <PlainRaiser />
+/** Offers the given raise button once the admin settings arrived. */
+function Settled({ children }: { children: React.ReactNode }) {
+	return useAdminSettings().settings === undefined ? null : children
+}
+
+/**
+ * Answers the admin settings with the given toast times.
+ * @param toastMilliseconds - How long a toast with no button stays.
+ * @param toastActionMilliseconds - How long a toast with a button stays.
+ */
+function serveToastTimes(toastMilliseconds: number, toastActionMilliseconds: number) {
+	server.use(
+		graphql.query('AdminSettings', () =>
+			HttpResponse.json({
+				data: {
+					adminSettings: {
+						__typename: 'AdminSettings',
+						toastMilliseconds,
+						toastActionMilliseconds,
+						listPageSizes: [10, 20],
+						listPageSize: 20,
+						contactPageCap: 200,
+						formatLocale: 'es-ES',
+					},
+				},
+			}),
+		),
+	)
 }
 
 /**
@@ -60,26 +85,19 @@ test('describes a plain toast with its hint in the language the page shows', asy
 })
 
 test('keeps a plain toast on screen as long as the admin settings say', async () => {
-	server.use(
-		graphql.query('AdminSettings', () =>
-			HttpResponse.json({
-				data: {
-					adminSettings: {
-						__typename: 'AdminSettings',
-						toastMilliseconds: 300,
-						listPageSizes: [10, 20],
-						listPageSize: 20,
-						contactPageCap: 200,
-						formatLocale: 'es-ES',
-					},
-				},
-			}),
-		),
-	)
-	renderToaster(<SettledRaiser />, adminSession)
+	serveToastTimes(300, 60000)
+	renderToaster(<Settled><PlainRaiser /></Settled>, adminSession)
 	fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
 
 	await waitForElementToBeRemoved(() => screen.queryByText('Contact saved.'), { timeout: 2000 })
+})
+
+test('keeps a toast with a button on screen as long as the admin settings say', async () => {
+	serveToastTimes(60000, 300)
+	renderToaster(<Settled><Raiser /></Settled>, adminSession)
+	fireEvent.click(await screen.findByRole('button', { name: 'Complete' }))
+
+	await waitForElementToBeRemoved(() => screen.queryByText('Task completed.'), { timeout: 2000 })
 })
 
 test('raises toasts around a public link screen without asking who is signed in', async () => {
