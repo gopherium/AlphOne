@@ -32,13 +32,18 @@ type credentialServingPlugin struct{ inertPlugin }
 func (credentialServingPlugin) Channel() sdk.Channel { return "whatsapp" }
 
 // SetChannelCredentials stores nothing.
-func (credentialServingPlugin) SetChannelCredentials(context.Context, string, string) error {
+func (credentialServingPlugin) SetChannelCredentials(context.Context, sdk.ChannelCredentials) error {
 	return nil
 }
 
-// ChannelIdentifier answers no configured identifier.
-func (credentialServingPlugin) ChannelIdentifier(context.Context) (string, bool, error) {
-	return "", false, nil
+// ChannelIdentities answers no identity.
+func (credentialServingPlugin) ChannelIdentities(context.Context) ([]sdk.ChannelIdentity, error) {
+	return nil, nil
+}
+
+// RemoveChannelCredentials removes nothing.
+func (credentialServingPlugin) RemoveChannelCredentials(context.Context, string) error {
+	return nil
 }
 
 // credentialTakingPlugin records the providers the host hands it.

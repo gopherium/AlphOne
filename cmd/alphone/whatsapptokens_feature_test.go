@@ -17,6 +17,7 @@ import (
 	"github.com/gopherium/framework/pluginkit"
 
 	"github.com/gopherium/alphone/internal/role"
+	"github.com/gopherium/alphone/plugins/whatsapp"
 	"github.com/gopherium/alphone/sdk"
 )
 
@@ -41,6 +42,14 @@ const workspaceAccessToken = "SELECT access_token FROM plugin_whatsapp.credentia
 
 // workspaceAccessTokens counts the tokens every workspace holds.
 const workspaceAccessTokens = "SELECT count(*) FROM plugin_whatsapp.credentials"
+
+// storeContact stores one contact in a workspace.
+const storeContact = "INSERT INTO core.contacts (id, name, created_at, tenant_id) VALUES ($1, $2, now(), $3)"
+
+// storeConversation stores one conversation in a workspace, on no number.
+const storeConversation = `INSERT INTO plugin_whatsapp.conversations
+	(id, contact_id, channel, external_id, status, last_activity_at, created_at, tenant_id)
+	VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now(), $4)`
 
 // tokensScenario is what one WhatsApp token scenario keeps between its steps.
 type tokensScenario struct {
@@ -122,7 +131,9 @@ func (s *tokensScenario) findWhatsApp() error {
 
 // store stores the number of the workspace called name with its token.
 func (s *tokensScenario) store(ctx context.Context, name, number string) error {
-	return s.whatsApp.SetChannelCredentials(s.in(ctx, name), number, tokenOf(name))
+	return s.whatsApp.SetChannelCredentials(s.in(ctx, name), sdk.ChannelCredentials{
+		Identifier: number, Secret: tokenOf(name),
+	})
 }
 
 // tryToStore tries to store the number of the workspace called name with its token and keeps what it answered.
@@ -138,13 +149,16 @@ func (s *tokensScenario) copyToken(ctx context.Context, from, to string) error {
 	return nil
 }
 
-// numberIn answers what the WhatsApp plugin reads as the number of the workspace ctx serves.
+// numberIn answers what the WhatsApp plugin reads as the oldest number of the workspace ctx serves.
 func (s *tokensScenario) numberIn(ctx context.Context) settingRead {
-	identifier, configured, err := s.whatsApp.ChannelIdentifier(ctx)
-	return settingRead{value: identifier, found: configured, err: err}
+	identities, err := s.whatsApp.ChannelIdentities(ctx)
+	if err != nil || len(identities) == 0 {
+		return settingRead{err: err}
+	}
+	return settingRead{value: identities[0].Identifier, found: true}
 }
 
-// answersNumber fails unless the workspace called name opens its token and answers number.
+// answersNumber fails unless the workspace called name answers number.
 func (s *tokensScenario) answersNumber(ctx context.Context, name, number string) error {
 	if got := s.numberIn(s.in(ctx, name)); got != foundValue(number) {
 		return fmt.Errorf("the WhatsApp number of %s reads %+v, want %q", name, got, number)
@@ -169,10 +183,23 @@ func (s *tokensScenario) storedTokenHides(ctx context.Context, name string) erro
 	return nil
 }
 
-// cannotDecryptToken fails unless the workspace called name finds its token and cannot decrypt it.
+// cannotDecryptToken fails unless a reply from the workspace called name finds its token and cannot decrypt it.
 func (s *tokensScenario) cannotDecryptToken(ctx context.Context, name string) error {
-	if got := s.numberIn(s.in(ctx, name)); !errors.Is(got.err, sdk.ErrCannotDecrypt) || got.found {
-		return fmt.Errorf("the WhatsApp number of %s reads %+v, want nothing beside %v", name, got, sdk.ErrCannotDecrypt)
+	workspace := s.workspaces[name]
+	contactID, conversationID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	if _, err := s.pool.Exec(ctx, storeContact, contactID, "Maria Perez", workspace); err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, storeConversation, conversationID, contactID, "184467235", workspace); err != nil {
+		return err
+	}
+	plugin, compiled := s.whatsApp.(*whatsapp.Plugin)
+	if !compiled {
+		return errors.New("the plugin that offers WhatsApp credentials is not the WhatsApp plugin")
+	}
+	_, err := plugin.MutationResolvers().WhatsAppSendMessage(s.in(ctx, name), conversationID, "Ready at 5pm")
+	if !errors.Is(err, sdk.ErrCannotDecrypt) {
+		return fmt.Errorf("the reply from %s answered %v, want %v", name, err, sdk.ErrCannotDecrypt)
 	}
 	return nil
 }
