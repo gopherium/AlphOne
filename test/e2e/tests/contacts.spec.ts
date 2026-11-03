@@ -65,6 +65,35 @@ test('saves a contact name with Enter and leaves the focus in the field', async 
 	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
 })
 
+test('sends one rename for Enter, none for a clean or blank name and none more while it saves', async ({ page }) => {
+	const stamp = Date.now()
+	const name = `Client ${stamp}`
+	let renames = 0
+
+	await page.goto('/contacts/new')
+	await page.getByLabel('Name').fill(name)
+	await page.getByRole('button', { name: 'Create contact' }).click()
+	await expect(page.getByRole('heading', { name })).toBeVisible()
+	await page.route('**/api/graphql', async (route) => {
+		if (route.request().postData()?.includes('RenameContact')) {
+			renames += 1
+			await new Promise((resolve) => setTimeout(resolve, 300))
+		}
+		await route.continue()
+	})
+
+	const field = page.getByLabel('Name', { exact: true })
+	await field.press('Enter')
+	await field.fill('')
+	await field.press('Enter')
+	await field.fill(`${name} renamed`)
+	await field.press('Enter')
+	await field.press('Enter')
+
+	await expect(page.locator('.godmin-toasts').getByText('Name updated.')).toBeVisible()
+	expect(renames).toBe(1)
+})
+
 test('warns before a reload throws away an unsaved name', async ({ page }) => {
 	const stamp = Date.now()
 	const name = `Client ${stamp}`
