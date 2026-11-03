@@ -2,25 +2,27 @@
 
 import {
 	Button,
-	ErrorNotice,
 	InputControl,
+	ValidatedInputControl,
 	__,
 	_x,
-	graphError,
+	graphExtensions,
 	useGraph,
 	useGraphMutation,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { addedMessage, isValidDate, timeInput } from './format'
 import { createTaskMutation, taskListReads } from './operations'
 import { PrioritySelect } from './PrioritySelect'
+import { titleRequired } from './TaskScreen'
 
 /**
  * Renders the one row form that adds a task, starting on the given day at normal priority.
- * @returns The quick add form and its error.
+ * @returns The quick add form.
  */
 export function QuickAddForm({
 	day,
@@ -35,12 +37,14 @@ export function QuickAddForm({
 }) {
 	const graph = useGraph()
 	const toaster = useToaster()
+	const form = useRef<HTMLFormElement>(null)
 	const titleField = useRef<HTMLInputElement>(null)
 	const [title, setTitle] = useState('')
 	const [picked, setPicked] = useState<{ on: string; value: string } | null>(null)
 	const [time, setTime] = useState('')
 	const [priority, setPriority] = useState(0)
 	const [add, runAdd] = useGraphMutation(createTaskMutation)
+	const refusedTitle = useRefusedField(form, title)
 	const shownDay = useRef(day)
 	useLayoutEffect(() => {
 		shownDay.current = day
@@ -60,53 +64,51 @@ export function QuickAddForm({
 			}
 			graph.refetch(taskListReads)
 			titleField.current?.focus()
+		} else if (graphExtensions(result.error).reason !== titleRequired || !refusedTitle.refuse(result.error, title)) {
+			toaster.show(writeFailure(__('Could not add the task.', 'alphone'), result.error))
 		}
 	}
 
 	return (
-		<>
-			<form
-				className={`godmin-form godmin-form--inline alphone-tasks__add${className === undefined ? '' : ` ${className}`}`}
-				onSubmit={(event) => {
-					event.preventDefault()
-					void submitAdd()
-				}}
-			>
-				<div className="godmin-form__row">
-					<InputControl
+		<form
+			ref={form}
+			className={`godmin-form godmin-form--inline alphone-tasks__add${className === undefined ? '' : ` ${className}`}`}
+			onSubmit={(event) => {
+				event.preventDefault()
+				void submitAdd()
+			}}
+		>
+			<div className="godmin-form__row">
+				<div className="godmin-form__grow">
+					<ValidatedInputControl
 						ref={titleField}
-						className="godmin-form__grow"
 						label={__('Task title', 'alphone')}
 						value={title}
+						customValidity={refusedTitle.validity}
 						onChange={(event) => setTitle(event.target.value)}
 					/>
-					<InputControl
-						label={__('Due date', 'alphone')}
-						type="date"
-						value={dueOn}
-						onChange={(event) => setPicked({ on: day, value: event.target.value })}
-					/>
-					<InputControl
-						label={__('Time', 'alphone')}
-						type="time"
-						value={time}
-						onChange={(event) => setTime(event.target.value)}
-					/>
-					<PrioritySelect value={priority} onChange={setPriority} />
-					<Button
-						type="submit"
-						disabled={title.trim() === '' || !isValidDate(dueOn) || add.fetching}
-						loading={add.fetching}
-					>
-						{__('Add task', 'alphone')}
-					</Button>
 				</div>
-			</form>
-			{add.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(add.error), __('The task could not be added.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
-		</>
+				<InputControl
+					label={__('Due date', 'alphone')}
+					type="date"
+					value={dueOn}
+					onChange={(event) => setPicked({ on: day, value: event.target.value })}
+				/>
+				<InputControl
+					label={__('Time', 'alphone')}
+					type="time"
+					value={time}
+					onChange={(event) => setTime(event.target.value)}
+				/>
+				<PrioritySelect value={priority} onChange={setPriority} />
+				<Button
+					type="submit"
+					disabled={title.trim() === '' || !isValidDate(dueOn) || add.fetching}
+					loading={add.fetching}
+				>
+					{__('Add task', 'alphone')}
+				</Button>
+			</div>
+		</form>
 	)
 }

@@ -21,13 +21,12 @@ export function ContactTasks({
 	tasks: ConnectionResult<ListedTask>
 }) {
 	const today = isoDate(new Date())
-	const { controls, failed } = useRowControls(today)
+	const controls = useRowControls(today)
 
 	return (
 		<div className="alphone-tasks__contact-block">
 			<SectionTitle>{__('Tasks', 'alphone')}</SectionTitle>
 			<QuickAddForm day={today} contactId={contactId} className="alphone-tasks__add--contact" />
-			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
 			<ContactTaskList tasks={tasks} controls={controls} />
 			{tasks.isError ? <ErrorNotice>{__('Tasks could not be loaded.', 'alphone')}</ErrorNotice> : null}
 		</div>

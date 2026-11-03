@@ -2,27 +2,28 @@
 
 import {
 	Button,
-	ErrorNotice,
 	InputControl,
 	PageScreen,
 	Text,
+	ValidatedInputControl,
 	__,
-	graphError,
+	graphExtensions,
 	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { contactNameQuery, contactsQuery } from '../contacts/operations'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { isValidDate, timeInput } from './format'
 import { createTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
-import { TaskBreadcrumbs } from './TaskScreen'
+import { TaskBreadcrumbs, titleRequired } from './TaskScreen'
 
 const searchDebounceMs = 300
 const contactSearchLimit = 20
@@ -78,6 +79,8 @@ export function NewTaskScreen({
 	const [priority, setPriority] = useState(0)
 	const { contact, setContact, naming } = usePickedContact(contactId)
 	const [create, runCreate] = useGraphMutation(createTaskMutation)
+	const form = useRef<HTMLFormElement>(null)
+	const refusedTitle = useRefusedField(form, title)
 	const submit = async () => {
 		const result = await runCreate({
 			input: {
@@ -92,21 +95,25 @@ export function NewTaskScreen({
 			toaster.show(__('Task added.', 'alphone'))
 			graph.refetch(['DayTasks', 'OverdueTasks'])
 			onCreated(result.data.createTask.task)
+		} else if (graphExtensions(result.error).reason !== titleRequired || !refusedTitle.refuse(result.error, title)) {
+			toaster.show(writeFailure(__('Could not create the task.', 'alphone'), result.error))
 		}
 	}
 
 	return (
 		<PageScreen title={__('New task', 'alphone')} breadcrumbs={<TaskBreadcrumbs date={date} />} headingLevel={2}>
 			<form
+				ref={form}
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submit()
 				}}
 			>
-				<InputControl
+				<ValidatedInputControl
 					label={__('Title', 'alphone')}
 					value={title}
+					customValidity={refusedTitle.validity}
 					onChange={(event) => setTitle(event.target.value)}
 				/>
 				<InputControl
@@ -130,11 +137,6 @@ export function NewTaskScreen({
 				>
 					{__('Create task', 'alphone')}
 				</Button>
-				{create.error ? (
-					<ErrorNotice>
-						{validationMessage(graphError(create.error), __('The task could not be created.', 'alphone'))}
-					</ErrorNotice>
-				) : null}
 			</form>
 		</PageScreen>
 	)

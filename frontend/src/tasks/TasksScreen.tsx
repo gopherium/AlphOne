@@ -53,7 +53,7 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		select: (data) => data.tasks,
 		pause: date !== today,
 	})
-	const { controls, failed } = useRowControls(today)
+	const controls = useRowControls(today)
 	const navigate = useNavigate()
 
 	return (
@@ -72,7 +72,6 @@ export function TasksScreen({ date, today }: { date: string; today: string }) {
 		>
 			{date === today ? <OverdueSection tasks={overdue} controls={controls} /> : null}
 			<QuickAddForm day={date} viewDay={(day) => void navigate({ to: '/tasks', search: { date: day } })} />
-			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
 			<TaskSections tasks={tasks} done={done} controls={controls} />
 		</PageScreen>
 	)
