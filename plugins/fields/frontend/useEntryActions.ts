@@ -50,21 +50,26 @@ interface SettleSteps {
 
 /**
  * Holds the state the rows of one repeater share, and the actions that change it.
- * @param props - The contact, the repeater, the entries shown and the report of a repeater gone.
- * @returns The failure to show, the add form's focus count, the add hook, the actions and each row's state.
+ * @param props - The contact, the repeater, every entry, how many the page draws and the report of a repeater gone.
+ * @returns The failure, the add form's focus count, the add hook, the actions, each row's state and the rows drawn.
  */
 export function useEntryActions({
 	contactId,
 	field,
 	entries,
+	shown,
 	onGone,
 }: {
 	contactId: string
 	field: RepeaterRow
 	entries: readonly StoredEntry[]
+	shown: number
 	onGone: GoneHandler
 }) {
 	const [open, setOpen] = useState<{ id: string; as: 'edit' | 'confirm' } | null>(null)
+	const [keptID, setKeptID] = useState('')
+	const reach = (id: string | undefined) => entries.findIndex((entry) => entry.id === id) + 1
+	const listed = entries.slice(0, Math.max(shown, reach(keptID), reach(open?.id)))
 	const [pendingID, setPendingID] = useState('')
 	const [settling, setSettling] = useState<readonly string[]>([])
 	const [failure, setFailure] = useState('')
@@ -77,14 +82,19 @@ export function useEntryActions({
 
 	const focusAdd = () => setAddFocus((count) => count + 1)
 
+	const close = (id: string) => {
+		setOpen(null)
+		setKeptID(id)
+	}
+
 	const added = (from: Element | null) => {
 		setFailure('')
 		whenFocusStayed(from, focusAdd)
 	}
 
 	const leave = (id: string, from: Element | null) => {
-		const next = neighbour(entries, id, settling)
-		setOpen(null)
+		const next = neighbour(listed, id, settling)
+		close(id)
 		setSettling((held) => [...held, id])
 		whenFocusStayed(from, () => (next === '' ? focusAdd() : setRowFocus({ id: next, on: 'first' })))
 	}
@@ -115,7 +125,7 @@ export function useEntryActions({
 			setFailure('')
 		},
 		cancel: (id) => {
-			setOpen(null)
+			close(id)
 			setFailure('')
 			setRowFocus({ id, on: 'first' })
 		},
@@ -133,7 +143,7 @@ export function useEntryActions({
 			settle(id, from, result.error, {
 				fallback: __('The entry could not be saved.', 'alphone-fields'),
 				done: () => {
-					setOpen(null)
+					close(id)
 					toaster.show(__('Entry saved.', 'alphone-fields'))
 					whenFocusStayed(from, () => setRowFocus({ id, on: 'first' }))
 				},
@@ -146,7 +156,7 @@ export function useEntryActions({
 			setRowFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
-			setOpen(null)
+			close(id)
 			setRowFocus({ id, on: 'remove' })
 		},
 		confirm: async (id) => {
@@ -162,7 +172,7 @@ export function useEntryActions({
 					leave(id, from)
 				},
 				refused: () => {
-					setOpen(null)
+					close(id)
 					whenFocusStayed(from, () => setRowFocus({ id, on: 'remove' }))
 				},
 			})
@@ -176,5 +186,5 @@ export function useEntryActions({
 		focus: rowFocus?.id === id ? rowFocus : undefined,
 	})
 
-	return { failure, addFocus, added, on, rowOf }
+	return { failure, addFocus, added, on, rowOf, listed }
 }

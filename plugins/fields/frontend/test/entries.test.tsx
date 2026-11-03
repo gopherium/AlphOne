@@ -1515,6 +1515,42 @@ test('an added entry leaves an open editor on the page with what it holds', asyn
 	expect(moreButton()).toBeInTheDocument()
 })
 
+test('an entry added elsewhere leaves an open editor on the page with what it holds', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(3) })
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Call 2.')
+	await userEvent.type(editor.getByLabelText('Comment'), ' Asked for a quote.')
+	change({ history: [followUp, ...calls(3)] })
+	act(() => {
+		graph.refetch(['ContactFieldValues'])
+	})
+
+	await waitFor(async () => expect((await itemNames())[0]).toBe(followUpName))
+	const open = within(screen.getByRole('form', { name: 'Edit entry: Call 2.' }))
+	expect(open.getByLabelText('Comment')).toHaveValue('Call 2. Asked for a quote.')
+})
+
+test('an editor closed after it was pushed past the page keeps its row there with the focus', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(3) })
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Call 2.')
+	change({ history: [followUp, ...calls(3)] })
+	act(() => {
+		graph.refetch(['ContactFieldValues'])
+	})
+	await waitFor(async () => expect((await itemNames())[0]).toBe(followUpName))
+	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+
+	expect(await itemNames()).toEqual([followUpName, ...callNames(2)])
+	expect(screen.getByRole('button', { name: 'Edit entry: Call 2.' })).toHaveFocus()
+})
+
 test('another contact opens on its first page', async () => {
 	paging([1, 2], 1)
 	serveCatalogue([history])
