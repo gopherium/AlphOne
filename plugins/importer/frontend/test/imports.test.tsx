@@ -197,6 +197,9 @@ const refused = {
 	errors: [{ message: 'the file is neither a CSV nor an Excel workbook', extensions: { code: 'VALIDATION' } }],
 }
 
+/** refusedToast is what an upload the server would not read raises. */
+const refusedToast = 'Could not import the file. the file is neither a CSV nor an Excel workbook'
+
 beforeAll(async () => {
 	await import('../ImportsScreen')
 })
@@ -292,7 +295,9 @@ test('lines every count up on the right, as WordPress sets numbers', async () =>
 test('links every file name to its import', async () => {
 	renderAt('/import')
 
-	expect(await screen.findByRole('link', { name: 'contacts.csv' })).toHaveAttribute('href', `/import/${importID}`)
+	const link = await screen.findByRole('link', { name: 'contacts.csv' })
+	expect(link).toHaveAttribute('href', `/import/${importID}`)
+	expect(link).toHaveAttribute('data-item-id', importID)
 })
 
 test('reads each state as a badge by its label, never by the value the server stores', async () => {
@@ -569,7 +574,7 @@ test('marks no reload after a refused upload, yet still asks for the imports aga
 
 	await choose(new File(['nope'], 'notes.csv', { type: 'text/csv' }))
 
-	expect(await screen.findByRole('alert')).toBeInTheDocument()
+	expect(await screen.findByText(refusedToast, { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
 	release()
 	expect(await screen.findByRole('link', { name: 'meanwhile.csv' })).toBeInTheDocument()
@@ -599,20 +604,31 @@ test('lets the same file be chosen again once an upload started', async () => {
 	expect(fileInput().value).toBe('')
 })
 
-test('reports a refused upload above the list, without a toast', async () => {
+test('reports a refused upload in a toast, with the words of the server, Upload still on', async () => {
 	uploads(() => refused)
 	renderAt('/import')
 	await rowOf('contacts.csv')
 
 	await choose(new File(['nope'], 'notes.csv', { type: 'text/csv' }))
 
-	const alert = await screen.findByRole('alert')
-	expect(alert).toHaveTextContent('the file is neither a CSV nor an Excel workbook')
-	expect(alert.compareDocumentPosition(screen.getByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+	expect(await screen.findByText(refusedToast, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.queryByText('File uploaded.')).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Upload' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('says only what failed when an upload fails with no words from the server', async () => {
+	uploads(() => ({ data: null, errors: [{ message: 'internal error' }] }))
+	renderAt('/import')
+	await rowOf('contacts.csv')
+
+	await choose(csv)
+
+	expect(await screen.findByText('Could not import the file.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('File uploaded.')).not.toBeInTheDocument()
 })
 
-test('clears an earlier upload failure once the next upload starts', async () => {
+test('takes another file after a refused upload', async () => {
 	const fresh = importOf('04', 'uploaded.csv')
 	uploads((count) =>
 		count === 1
@@ -622,12 +638,11 @@ test('clears an earlier upload failure once the next upload starts', async () =>
 	renderAt('/import')
 	await rowOf('contacts.csv')
 	await choose(new File(['nope'], 'notes.csv', { type: 'text/csv' }))
-	expect(await screen.findByRole('alert')).toBeInTheDocument()
+	await screen.findByText(refusedToast, { selector: '.godmin-toast' })
 
 	await choose(csv)
 
 	expect(await screen.findByText('File uploaded.')).toBeInTheDocument()
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a file dialog closed with no file chosen uploads nothing', async () => {

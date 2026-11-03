@@ -8,7 +8,6 @@ import {
 	PageScreen,
 	__,
 	_x,
-	graphError,
 	openOnTap,
 	useAdminSettings,
 	useGraph,
@@ -18,7 +17,7 @@ import {
 	useListView,
 	upload as uploadIcon,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import type { ListRun } from '@alphone/frontend-sdk'
 import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataviews'
@@ -51,7 +50,7 @@ function ImportsEmpty({ narrowed }: { narrowed: boolean }) {
 }
 
 /**
- * Starts an upload, confirming a stored file with a toast that opens its mapping, then reloading the list.
+ * Starts an upload, raising a toast that opens the stored file's mapping or says what failed, then reloading the list.
  * @param run - What the list does around its own reload.
  * @returns The upload state beside the control starting one.
  */
@@ -63,6 +62,7 @@ function useUpload(run: ListRun) {
 	const start = async (file: File) => {
 		const result = await startUpload({ file })
 		if (!result.data) {
+			toaster.show(writeFailure(__('Could not import the file.', 'alphone-importer'), result.error))
 			graph.refetch(['Imports'])
 			return
 		}
@@ -122,11 +122,6 @@ export function ImportsScreen() {
 			listLabel={__('Imports', 'alphone-importer')}
 			listRef={region}
 		>
-			{upload.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(upload.error), __('The file could not be imported.', 'alphone-importer'))}
-				</ErrorNotice>
-			) : null}
 			{imports.error ? (
 				<ErrorNotice>{__('Imports could not be loaded.', 'alphone-importer')}</ErrorNotice>
 			) : (

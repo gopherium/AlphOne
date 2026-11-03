@@ -9,6 +9,7 @@ import {
 	PageScreen,
 	SectionTitle,
 	SelectControl,
+	ValidationError,
 	__,
 	_x,
 	formatNumber,
@@ -18,9 +19,8 @@ import {
 	useGraphMutation,
 	useGraphQuery,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Link, useParams } from '@tanstack/react-router'
 import { Suspense, lazy, useState } from 'react'
 
@@ -163,24 +163,29 @@ function MappingForm({
 	const [assigned, setAssigned] = useState<Record<string, string>>(assignedOf(stored.mapping))
 	const [save, startSave] = useGraphMutation(importSetMappingMutation)
 	const [commit, startCommit] = useGraphMutation(importCommitMutation)
-	const [failure, setFailure] = useState<string>()
 	const refresh = () => graph.refetch(['ImportDetail', 'Imports'])
-	const saveMapping = async () => {
-		setFailure(undefined)
-		const result = await startSave({ id: stored.id, assignments: assignmentsOf(assigned) })
-		setFailure(failureOf(result.error, __('The mapping could not be saved.', 'alphone-importer')))
-		if (result.data) {
-			toaster.show(__('Mapping saved.', 'alphone-importer'))
+	const failed = (sentence: string, error: unknown) => {
+		toaster.show(writeFailure(sentence, error))
+		if (mayReadAgain(error)) {
+			refresh()
 		}
+	}
+	const saveMapping = async () => {
+		const result = await startSave({ id: stored.id, assignments: assignmentsOf(assigned) })
+		if (!result.data) {
+			failed(__('Could not save the mapping.', 'alphone-importer'), result.error)
+			return
+		}
+		toaster.show(__('Mapping saved.', 'alphone-importer'))
 		refresh()
 	}
 	const commitImport = async () => {
-		setFailure(undefined)
 		const result = await startCommit({ id: stored.id })
-		setFailure(failureOf(result.error, __('The import could not be committed.', 'alphone-importer')))
-		if (result.data) {
-			toaster.show(finishedMessage(result.data.importCommit))
+		if (!result.data) {
+			failed(__('Could not commit the import.', 'alphone-importer'), result.error)
+			return
 		}
+		toaster.show(finishedMessage(result.data.importCommit))
 		refresh()
 	}
 
@@ -219,7 +224,6 @@ function MappingForm({
 			>
 				{__('Commit', 'alphone-importer')}
 			</Button>
-			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
 		</form>
 	)
 }
@@ -241,13 +245,12 @@ function finishedMessage(counts: { imported: number; skipped: number; failed: nu
 }
 
 /**
- * Returns the message a refused write shows, or nothing for a write that went through.
- * @param error - The failure the write met, absent when it went through.
- * @param fallback - The message for a failure that names no reason.
- * @returns The message, or undefined.
+ * Reports whether a failed write was refused by a server that can still answer.
+ * @param error - The failure the write met.
+ * @returns Whether the import may be read again.
  */
-function failureOf(error: GraphFailure | undefined, fallback: string): string | undefined {
-	return error === undefined ? undefined : validationMessage(graphError(error), fallback)
+function mayReadAgain(error: unknown): boolean {
+	return graphError(error) instanceof ValidationError
 }
 
 /**
