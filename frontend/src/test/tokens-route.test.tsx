@@ -211,6 +211,12 @@ test('keeps API tokens current in the main menu of an account that cannot open U
 	expect(await menu.findByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
 })
 
+test('marks the title cell of each token, so the focus can find it again after a reload', async () => {
+	renderAt('/users/tokens')
+
+	expect(await screen.findByText(production.name)).toHaveAttribute('data-item-id', production.id)
+})
+
 test('lines the list up with the title, out to the canvas edges, as the Users tab does', async () => {
 	renderAt('/users/tokens')
 

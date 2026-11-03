@@ -5,7 +5,7 @@ import { HttpResponse, delay, graphql, server } from '@alphone/frontend-sdk/test
 import { setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { sessionQueryKey } from '@gopherium/react-auth'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act as actOn, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
@@ -928,6 +928,44 @@ test('puts the focus back on the actions menu of the row once a rename reloaded 
 	reload.release()
 	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
 	expect(menu).toHaveFocus()
+})
+
+/**
+ * Opens the rename of Ada Lovelace, first on a list sorted by name.
+ * @returns The dialog queries.
+ */
+async function openRenameOnNameOrder() {
+	const laidOut = vi
+		.spyOn(HTMLElement.prototype, 'getClientRects')
+		.mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList)
+	onTestFinished(() => laidOut.mockRestore())
+	writesName()
+	renderAt('/contacts?sort=name&order=asc')
+	const dialog = await openRename('Ada Lovelace')
+	await waitFor(() => expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveFocus())
+	return dialog
+}
+
+test('keeps the focus on the contact a rename moved, not on the row now in its place', async () => {
+	await renameTo(await openRenameOnNameOrder(), 'Zoe Lovelace')
+
+	await waitFor(async () => expect(await shownNames()).toEqual(['Ana Lopez', 'Maria Perez', 'Zoe Lovelace']))
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
+	expect((await rowOf('Zoe Lovelace')).getByRole('button', { name: 'Actions' })).toHaveFocus()
+})
+
+test('finds the contact a rename moved when the window narrows in the reload and draws every row anew', async () => {
+	const dialog = await openRenameOnNameOrder()
+	const reload = gate()
+	holdingPages(reload.held)
+
+	await renameTo(dialog, 'Zoe Lovelace')
+	await waitFor(() => expect(screen.getByRole('region', { name: 'Contacts' })).toHaveFocus())
+	actOn(() => setViewport({ matches: true }))
+	reload.release()
+
+	const moved = (await rowOf('Zoe Lovelace')).getByRole('button', { name: 'Actions' })
+	await waitFor(() => expect(moved).toHaveFocus())
 })
 
 test('keeps what the reader typed in an open rename while an earlier rename lands and reloads the list', async () => {
