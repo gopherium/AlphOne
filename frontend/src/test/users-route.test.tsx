@@ -1152,11 +1152,11 @@ test('leads the breadcrumb of the new user form back to the user list', async ()
 	await waitFor(() => expect(router.state.location.pathname).toBe('/users'))
 })
 
-/**
- * Answers every invitation as undelivered, with an activation link to hand over.
- * @param activationLink - The link the answer carries.
- */
-function serveUndeliveredInvite(activationLink: string) {
+/** activationLink is the link an undelivered invitation hands over. */
+const activationLink = '/activate?token=t-4'
+
+/** Answers every invitation as undelivered, with the activation link to hand over. */
+function serveUndeliveredInvite() {
 	server.use(
 		graphql.mutation('Invite', () =>
 			HttpResponse.json({
@@ -1167,7 +1167,7 @@ function serveUndeliveredInvite(activationLink: string) {
 }
 
 test('keeps the breadcrumb beside the activation link', async () => {
-	serveUndeliveredInvite('/activate?token=t-6')
+	serveUndeliveredInvite()
 	renderAt('/users/new')
 	await submitNewUser()
 	await screen.findByLabelText('Activation link')
@@ -1192,7 +1192,7 @@ test('returns to the user list after an invitation went out, confirming it with 
 })
 
 test('leaves the invitation screen once the link is delivered by hand, without a toast', async () => {
-	serveUndeliveredInvite('/activate?token=t-5')
+	serveUndeliveredInvite()
 	renderAt('/users/new')
 	await submitNewUser()
 	await screen.findByLabelText('Activation link')
@@ -1204,12 +1204,12 @@ test('leaves the invitation screen once the link is delivered by hand, without a
 })
 
 test('shows the activation link when no mail server delivered the invitation', async () => {
-	serveUndeliveredInvite('/activate?token=t-4')
+	serveUndeliveredInvite()
 	renderAt('/users/new')
 
 	await submitNewUser()
 
-	expect(await screen.findByLabelText('Activation link')).toHaveValue('/activate?token=t-4')
+	expect(await screen.findByLabelText('Activation link')).toHaveValue(activationLink)
 })
 
 test('surfaces a rejection message from the backend', async () => {
