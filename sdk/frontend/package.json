@@ -17,6 +17,7 @@
 		"@tanstack/react-query": "^5.105.0",
 		"@urql/exchange-graphcache": "9.0.2",
 		"@urql/exchange-retry": "2.0.0",
+		"@wordpress/a11y": "5.0.0",
 		"@wordpress/components": "43.0.0",
 		"@wordpress/dataviews": "21.0.0",
 		"@wordpress/date": "6.0.0",

@@ -15,6 +15,7 @@ import {
 	pencil,
 	trash,
 	validationMessage,
+	writeFailure,
 } from '../index'
 import { textClasses } from '../testing'
 
@@ -149,4 +150,14 @@ test('validation messages surface verbatim and anything else falls back', () => 
 		'task: empty title',
 	)
 	expect(validationMessage(new Error('boom'), 'fallback')).toBe('fallback')
+})
+
+test('a failed write says what failed, then the words a validation error carries', () => {
+	expect(writeFailure('Could not save the task.', new ValidationError('task: empty title'))).toBe(
+		'Could not save the task. task: empty title',
+	)
+})
+
+test('a failed write says only what failed when the server sent no words worth showing', () => {
+	expect(writeFailure('Could not save the task.', new Error('boom'))).toBe('Could not save the task.')
 })

@@ -10,7 +10,7 @@ import { Client, fetchExchange, getOperationName, subscriptionExchange } from 'u
 import type { CombinedError, Exchange, Operation } from 'urql'
 import { pipe, tap } from 'wonka'
 
-import { ValidationError } from './errors'
+import { ValidationError, validationMessage } from './errors'
 import { formatNumber } from './format'
 import type { FrontendPlugin } from './index'
 
@@ -153,6 +153,17 @@ export function graphError(error: unknown): Error | undefined {
 		default:
 			return new Error(message)
 	}
+}
+
+/**
+ * Returns what a failed write says: what failed, then the server's words when it sent some.
+ * @param failed - The sentence naming what failed.
+ * @param error - The failure the write answered with.
+ * @returns The words of the toast.
+ */
+export function writeFailure(failed: string, error: unknown): string {
+	const words = validationMessage(graphError(error), '')
+	return words === '' ? failed : `${failed} ${words}`
 }
 
 /**
