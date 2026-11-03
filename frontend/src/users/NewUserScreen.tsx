@@ -2,39 +2,131 @@
 
 import {
 	Button,
-	ErrorNotice,
 	InputControl,
 	PageBreadcrumb,
 	PageBreadcrumbs,
 	PageScreen,
 	Text,
+	ValidatedInputControl,
+	ValidationError,
 	__,
+	useRefusedField,
 	useSession,
 	useToaster,
+	writeFailure,
 } from '@alphone/frontend-sdk'
-import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/admin'
+import {
+	ValidationError as AccountValidationError,
+	fieldError,
+	invite,
+	usersQueryKey,
+} from '@gopherium/react-auth/admin'
+import type { NewInvite } from '@gopherium/react-auth/admin'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { appErrorTemplates } from '../i18n/errors'
 import { RoleSelect } from './RoleSelect'
-import { roleRefusal, startingRole } from './roles'
+import { refusedRoleCode, startingRole } from './roles'
 
 /**
- * Returns the message shown under the form for a failed invitation.
+ * Returns a failed invitation as the validation error the SDK reads, in the words the reader is told.
  * @param error - The mutation error.
- * @returns The message to show.
+ * @returns The validation error, or nothing when the failure has no words worth showing.
  */
-function inviteErrorText(error: unknown): string {
-	const refused = roleRefusal(error)
-	if (refused !== undefined) {
-		return appErrorTemplates()[refused]
+function inviteFailure(error: unknown): ValidationError | undefined {
+	const role = refusedRoleCode(error)
+	if (role !== undefined) {
+		return new ValidationError(appErrorTemplates()[role])
 	}
-	if (error instanceof ValidationError) {
-		return error.message
-	}
-	return __('The invitation could not be sent.', 'alphone')
+	const words = fieldError(error)?.message ?? (error instanceof AccountValidationError ? error.message : undefined)
+	return words === undefined ? undefined : new ValidationError(words)
+}
+
+/**
+ * Returns the box of the form a failed invitation is about.
+ * @param error - The mutation error.
+ * @returns The box, or nothing when the failure is about no box the form holds.
+ */
+function inviteBox(error: unknown): 'email' | 'name' | undefined {
+	const about = fieldError(error)?.field
+	return about === 'email' || about === 'name' ? about : undefined
+}
+
+/**
+ * Renders the invitation form.
+ * @param props - What runs when the mail went out, and what runs with the link when no mail server delivered it.
+ * @returns The form.
+ */
+function InvitationForm({
+	onDelivered,
+	onUndelivered,
+}: {
+	onDelivered: () => void | Promise<void>
+	onUndelivered: (activationLink: string) => void
+}) {
+	const queryClient = useQueryClient()
+	const toaster = useToaster()
+	const grantable = useSession()?.grantable ?? []
+	const [email, setEmail] = useState('')
+	const [name, setName] = useState('')
+	const [role, setRole] = useState(() => startingRole(grantable))
+	const form = useRef<HTMLFormElement>(null)
+	const refused = { email: useRefusedField(form, email), name: useRefusedField(form, name) }
+	const send = useMutation({
+		mutationFn: (sent: NewInvite) => invite({ ...sent, email: sent.email.trim(), name: sent.name.trim() }),
+		onError: (error, sent) => {
+			const box = inviteBox(error)
+			const failure = inviteFailure(error)
+			if (box === undefined || !refused[box].refuse(failure, sent[box])) {
+				toaster.show(writeFailure(__('Could not send the invitation.', 'alphone'), failure))
+			}
+		},
+		onSuccess: async (invitation) => {
+			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
+			if (invitation.delivered) {
+				toaster.show(__('Invitation sent.', 'alphone'))
+				await onDelivered()
+				return
+			}
+			onUndelivered(invitation.activation_link)
+		},
+	})
+
+	return (
+		<form
+			ref={form}
+			className="godmin-form"
+			onSubmit={(event) => {
+				event.preventDefault()
+				send.mutate({ email, name, role })
+			}}
+		>
+			<ValidatedInputControl
+				label={__('Email', 'alphone')}
+				type="email"
+				autoComplete="off"
+				value={email}
+				customValidity={refused.email.validity}
+				onChange={(event) => setEmail(event.target.value)}
+			/>
+			<ValidatedInputControl
+				label={__('Name', 'alphone')}
+				autoComplete="off"
+				value={name}
+				customValidity={refused.name.validity}
+				onChange={(event) => setName(event.target.value)}
+			/>
+			<RoleSelect grantable={grantable} value={role} onChange={setRole} />
+			<Button
+				type="submit"
+				disabled={email.trim() === '' || name.trim() === '' || send.isPending}
+			>
+				{__('Send invitation', 'alphone')}
+			</Button>
+		</form>
+	)
 }
 
 /**
@@ -44,36 +136,23 @@ function inviteErrorText(error: unknown): string {
  * @returns The new user screen.
  */
 export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
-	const queryClient = useQueryClient()
-	const toaster = useToaster()
-	const grantable = useSession()?.grantable ?? []
-	const [email, setEmail] = useState('')
-	const [name, setName] = useState('')
-	const [role, setRole] = useState(() => startingRole(grantable))
 	const [activationLink, setActivationLink] = useState<string | null>(null)
-	const send = useMutation({
-		mutationFn: () => invite({ email: email.trim(), name: name.trim(), role }),
-		onSuccess: async (invitation) => {
-			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
-			if (invitation.delivered) {
-				toaster.show(__('Invitation sent.', 'alphone'))
-				await onCreated()
-				return
-			}
-			setActivationLink(invitation.activation_link)
-		},
-	})
-	const breadcrumbs = (
-		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
-			<PageBreadcrumb render={<Link to="/users" activeOptions={{ exact: true }} />}>
-				{__('Users', 'alphone')}
-			</PageBreadcrumb>
-		</PageBreadcrumbs>
-	)
 
-	if (activationLink !== null) {
-		return (
-			<PageScreen title={__('New user', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
+	return (
+		<PageScreen
+			title={__('New user', 'alphone')}
+			breadcrumbs={
+				<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
+					<PageBreadcrumb render={<Link to="/users" activeOptions={{ exact: true }} />}>
+						{__('Users', 'alphone')}
+					</PageBreadcrumb>
+				</PageBreadcrumbs>
+			}
+			headingLevel={2}
+		>
+			{activationLink === null ? (
+				<InvitationForm onDelivered={onCreated} onUndelivered={setActivationLink} />
+			) : (
 				<div className="godmin-form">
 					<Text role="status">
 						{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
@@ -85,40 +164,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 					/>
 					<Button onClick={() => onCreated()}>{__('Done', 'alphone')}</Button>
 				</div>
-			</PageScreen>
-		)
-	}
-	return (
-		<PageScreen title={__('New user', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
-			<form
-				className="godmin-form"
-				onSubmit={(event) => {
-					event.preventDefault()
-					send.mutate()
-				}}
-			>
-				<InputControl
-					label={__('Email', 'alphone')}
-					type="email"
-					autoComplete="off"
-					value={email}
-					onChange={(event) => setEmail(event.target.value)}
-				/>
-				<InputControl
-					label={__('Name', 'alphone')}
-					autoComplete="off"
-					value={name}
-					onChange={(event) => setName(event.target.value)}
-				/>
-				<RoleSelect grantable={grantable} value={role} onChange={setRole} />
-				<Button
-					type="submit"
-					disabled={email.trim() === '' || name.trim() === '' || send.isPending}
-				>
-					{__('Send invitation', 'alphone')}
-				</Button>
-				{send.isError ? <ErrorNotice>{inviteErrorText(send.error)}</ErrorNotice> : null}
-			</form>
+			)}
 		</PageScreen>
 	)
 }

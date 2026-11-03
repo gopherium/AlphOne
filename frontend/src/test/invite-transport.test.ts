@@ -2,7 +2,7 @@
 
 import { http, HttpResponse, server } from '@alphone/frontend-sdk/testing'
 import { InvalidTokenError, RateLimitedError, UnauthorizedError } from '@gopherium/react-auth'
-import { RoleNotGrantableError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
+import { RoleNotGrantableError, RoleUnknownError, ValidationError, fieldError } from '@gopherium/react-auth/admin'
 import { expect, test } from 'vitest'
 
 import { graphAuthTransport } from '../auth/graphTransport'
@@ -58,7 +58,7 @@ test('invite answers the activation link when nothing mailed it', async () => {
 	).resolves.toEqual({ delivered: false, activation_link: '/activate?token=t-1' })
 })
 
-test('invite maps the refusals it can meet', async () => {
+test('invite maps the failures it can meet', async () => {
 	graphResponds('mutation Invite', graphError('UNAUTHENTICATED'))
 	await expect(
 		graphAuthTransport.invite({ email: 'maria@example.com', name: 'Maria Perez' }),
@@ -91,6 +91,26 @@ test('invite throws the typed error each role reason names', async () => {
 	expect(
 		await refusedInvitation('VALIDATION', 'role_beyond_reach', 'that role is beyond your own'),
 	).toBeInstanceOf(RoleNotGrantableError)
+})
+
+test.each([
+	{ code: 'VALIDATION', reason: 'email_invalid', field: 'email', message: 'The email address is not correct.' },
+	{
+		code: 'CONFLICT',
+		reason: 'email_taken',
+		field: 'email',
+		message: 'This email is already registered. Please choose another one.',
+	},
+	{ code: 'VALIDATION', reason: 'name_required', field: 'name', message: 'Please provide a name.' },
+	{ code: 'VALIDATION', reason: 'name_too_long', field: 'name', message: 'This name is too long.' },
+])('invite carries the reason $reason, so fieldError names the $field field', async (answer) => {
+	const { code, reason, field, message } = answer
+
+	expect(fieldError(await refusedInvitation(code, reason, 'rejected'))).toEqual({ field, message })
+})
+
+test('invite carries no field when the reason is about none', async () => {
+	expect(fieldError(await refusedInvitation('VALIDATION', 'role_unknown', 'unknown role'))).toBeUndefined()
 })
 
 test('acceptInvite answers the activated identity', async () => {
