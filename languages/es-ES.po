@@ -455,23 +455,27 @@ msgid "That webhook no longer exists."
 msgstr "Ese webhook ya no existe."
 
 #, fuzzy
-msgid "The choice could not be saved."
-msgstr "No se ha podido guardar la elección."
+msgid "Could not save the language."
+msgstr "No se ha podido guardar el idioma."
 
 #, fuzzy
-msgid "The contact could not be created."
+msgid "Could not create the contact."
 msgstr "No se ha podido crear el contacto."
+
+#, fuzzy
+msgid "Could not save the contact."
+msgstr "No se ha podido guardar el contacto."
 
 #, fuzzy
 msgid "The contact could not be loaded."
 msgstr "No se ha podido cargar el contacto."
 
 #, fuzzy
-msgid "The identity could not be added."
+msgid "Could not add the identity."
 msgstr "No se ha podido añadir la identidad."
 
 #, fuzzy
-msgid "The identity could not be removed."
+msgid "Could not remove the identity."
 msgstr "No se ha podido quitar la identidad."
 
 #, fuzzy
@@ -483,11 +487,11 @@ msgid "The languages could not be read."
 msgstr "No se han podido leer los idiomas."
 
 #, fuzzy
-msgid "The task could not be added."
+msgid "Could not add the task."
 msgstr "No se ha podido añadir la tarea."
 
 #, fuzzy
-msgid "The task could not be created."
+msgid "Could not create the task."
 msgstr "No se ha podido crear la tarea."
 
 #, fuzzy
@@ -495,15 +499,15 @@ msgid "The task could not be loaded."
 msgstr "No se ha podido cargar la tarea."
 
 #, fuzzy
-msgid "The task could not be saved."
+msgid "Could not save the task."
 msgstr "No se ha podido guardar la tarea."
 
 #, fuzzy
-msgid "The task could not be updated."
+msgid "Could not update the task."
 msgstr "No se ha podido actualizar la tarea."
 
 #, fuzzy
-msgid "The token could not be created."
+msgid "Could not create the token."
 msgstr "No se ha podido crear el token."
 
 #, fuzzy
@@ -601,6 +605,10 @@ msgstr "Enviar invitación"
 
 #, fuzzy
 msgid "The invitation could not be sent."
+msgstr "No se ha podido enviar la invitación."
+
+#, fuzzy
+msgid "Could not send the invitation."
 msgstr "No se ha podido enviar la invitación."
 
 #, fuzzy
