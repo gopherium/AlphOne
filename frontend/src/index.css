@@ -444,6 +444,14 @@
 	flex-grow: 0;
 }
 
+.godmin-form__row:has(input[data-validity-visible]:invalid) {
+	align-items: flex-start;
+}
+
+.godmin-form__row:has(input[data-validity-visible]:invalid) > button {
+	margin-block-start: calc(var(--wpds-typography-line-height-xs) + var(--wpds-dimension-gap-sm));
+}
+
 /* Small viewport overrides live together at the end of the sheet, so they
    always win over the rules above them without needing extra specificity. */
 @media (max-width: 639px) {
