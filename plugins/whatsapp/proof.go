@@ -118,8 +118,10 @@ func (p *Plugin) envRoutes(envProven bool) map[string]numberRoute {
 		return map[string]numberRoute{}
 	}
 	env := p.envCredentials.phoneNumberID
-	route := numberRoute{tenantID: sdk.DefaultTenantID, statusNumber: &env}
-	return map[string]numberRoute{"": route, env: route}
+	return map[string]numberRoute{
+		"":  {tenantID: sdk.DefaultTenantID},
+		env: {tenantID: sdk.DefaultTenantID, statusNumber: &env},
+	}
 }
 
 // signerProves reports whether a stored number's own secret, or the setting for a row holding none, signed the body.

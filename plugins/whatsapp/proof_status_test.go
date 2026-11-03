@@ -128,20 +128,31 @@ func TestAnEnvironmentStatusMovesAMessageOnItsOwnConversations(t *testing.T) {
 func TestAnEnvironmentStatusLeavesAMessageOnAStoredNumberAlone(t *testing.T) {
 	t.Parallel()
 
-	p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
-	stored := "5550001"
-	connectNumber(t, p, sdk.DefaultTenantID, numberWithSecret(stored, "stored-secret"))
-	onStored := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: &stored, customer: "184467235"}
-	conversationID := seedNumberedConversation(t, pool, onStored)
-	seedOutboundOn(t, pool, conversationID, "wamid.out.stored")
-	body := numberedStatusBody("5550009", "wamid.out.stored", "delivered")
-
-	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	tests := map[string]struct {
+		stored string
+		named  string
+	}{
+		"a status on the environment number, the message on another": {stored: "5550001", named: "5550009"},
+		"a status naming no number, the environment number stored":   {stored: "5550009", named: ""},
 	}
-	wantNoStatus(t, pool, "wamid.out.stored")
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			p, pool := newRoutingPlugin(t, map[string]string{"ALPHONE_WHATSAPP_PHONE_NUMBER_ID": "5550009"})
+			connectNumber(t, p, sdk.DefaultTenantID, numberWithSecret(test.stored, "stored-secret"))
+			onStored := conversationOnNumber{tenantID: sdk.DefaultTenantID, number: &test.stored, customer: "184467235"}
+			seedOutboundOn(t, pool, seedNumberedConversation(t, pool, onStored), "wamid.out.stored")
+			body := numberedStatusBody(test.named, "wamid.out.stored", "delivered")
+
+			recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+			}
+			wantNoStatus(t, pool, "wamid.out.stored")
+		})
+	}
 }
 
 func TestAStoredNumberMovesAMessageOnAConversationOfItsTenantHoldingNoNumber(t *testing.T) {
