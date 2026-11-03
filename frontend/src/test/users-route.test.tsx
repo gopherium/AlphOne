@@ -1152,20 +1152,22 @@ test('leads the breadcrumb of the new user form back to the user list', async ()
 	await waitFor(() => expect(router.state.location.pathname).toBe('/users'))
 })
 
-test('keeps the breadcrumb beside the activation link', async () => {
+/**
+ * Answers every invitation as undelivered, with an activation link to hand over.
+ * @param activationLink - The link the answer carries.
+ */
+function serveUndeliveredInvite(activationLink: string) {
 	server.use(
 		graphql.mutation('Invite', () =>
 			HttpResponse.json({
-				data: {
-					invite: {
-						__typename: 'InvitePayload',
-						delivered: false,
-						activationLink: '/activate?token=t-6',
-					},
-				},
+				data: { invite: { __typename: 'InvitePayload', delivered: false, activationLink } },
 			}),
 		),
 	)
+}
+
+test('keeps the breadcrumb beside the activation link', async () => {
+	serveUndeliveredInvite('/activate?token=t-6')
 	renderAt('/users/new')
 	await submitNewUser()
 	await screen.findByLabelText('Activation link')
@@ -1190,19 +1192,7 @@ test('returns to the user list after an invitation went out, confirming it with 
 })
 
 test('leaves the invitation screen once the link is delivered by hand, without a toast', async () => {
-	server.use(
-		graphql.mutation('Invite', () =>
-			HttpResponse.json({
-				data: {
-					invite: {
-						__typename: 'InvitePayload',
-						delivered: false,
-						activationLink: '/activate?token=t-5',
-					},
-				},
-			}),
-		),
-	)
+	serveUndeliveredInvite('/activate?token=t-5')
 	renderAt('/users/new')
 	await submitNewUser()
 	await screen.findByLabelText('Activation link')
@@ -1214,19 +1204,7 @@ test('leaves the invitation screen once the link is delivered by hand, without a
 })
 
 test('shows the activation link when no mail server delivered the invitation', async () => {
-	server.use(
-		graphql.mutation('Invite', () =>
-			HttpResponse.json({
-				data: {
-					invite: {
-						__typename: 'InvitePayload',
-						delivered: false,
-						activationLink: '/activate?token=t-4',
-					},
-				},
-			}),
-		),
-	)
+	serveUndeliveredInvite('/activate?token=t-4')
 	renderAt('/users/new')
 
 	await submitNewUser()
