@@ -167,28 +167,39 @@ test('reports invalid contact details on create', async () => {
 		),
 	)
 	renderAt('/contacts/new')
+	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(await screen.findByLabelText('Name'), 'X')
+	await userEvent.type(name, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
 
-	expect(await screen.findByText('name is required')).toBeInTheDocument()
+	await screen.findByText('name is required')
+	expect(name).toHaveAccessibleDescription('name is required')
+	expect(name).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(name, 'Y')
+
+	await waitFor(() => expect(screen.queryByText('name is required')).not.toBeInTheDocument())
 })
 
-test('reports a generic message when the create fails otherwise', async () => {
+test('says in a toast that the contact could not be created when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('CreateContact', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/contacts/new')
+	const name = await screen.findByLabelText('Name')
 
-	await userEvent.type(await screen.findByLabelText('Name'), 'X')
+	await userEvent.type(name, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
 
-	expect(
-		await screen.findByText('The contact could not be created.'),
-	).toBeInTheDocument()
+	expect(await screen.findByText('Could not create the contact.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Contact added.')).not.toBeInTheDocument()
+	expect(name).toHaveValue('X')
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Create contact' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
 })
 
 test('drops the session when the create is unauthorized', async () => {
@@ -211,16 +222,8 @@ test('drops the session when the create is unauthorized', async () => {
 })
 
 test('lays the name and Create contact on one form row at the readable width', async () => {
-	server.use(
-		graphql.mutation('CreateContact', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
 	renderAt('/contacts/new')
-	await userEvent.type(await screen.findByLabelText('Name'), 'X')
-	await userEvent.click(screen.getByRole('button', { name: 'Create contact' }))
-	const text = await screen.findByText('The contact could not be created.')
-	const notice = text.closest('[role="alert"]') as HTMLElement
+	await screen.findByLabelText('Name')
 
 	const create = screen.getByRole('button', { name: 'Create contact' })
 	const cells = formRowChildren('Create contact')
@@ -229,9 +232,6 @@ test('lays the name and Create contact on one form row at the readable width', a
 	expect(cells[1]).toBe(create)
 	expect(create.closest('form')).toHaveClass('godmin-form')
 	expect(create.closest('form')).not.toHaveClass('godmin-form--inline')
-	expect(notice).toBeInTheDocument()
-	expect(notice.closest('.godmin-form__row')).toBeNull()
-	expect(notice.closest('form')).toContainElement(create)
 })
 
 test('shows the contact detail with its identities', async () => {
@@ -464,10 +464,65 @@ test('names the owner when the identity belongs to someone else', async () => {
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
+	const value = screen.getByLabelText('Value')
+	await userEvent.type(value, 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	await screen.findByText('Already on contact Bruno.')
+	expect(value).toHaveAccessibleDescription('Already on contact Bruno.')
+	expect(value).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+})
+
+test('takes the message about an identity away when the reader picks another channel', async () => {
+	let adds = 0
+	server.use(
+		graphql.mutation('AddContactIdentity', () => {
+			adds += 1
+			return HttpResponse.json({
+				data: null,
+				errors: [{
+					message: 'contact: identity already exists',
+					extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
+				}],
+			})
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await screen.findByText('Already on contact Bruno.')
+
+	await userEvent.click(screen.getByRole('combobox', { name: 'Channel' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
+
+	await waitFor(() => expect(screen.queryByText('Already on contact Bruno.')).not.toBeInTheDocument())
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await waitFor(() => expect(adds).toBe(2))
+})
+
+test.each([
+	['identity_channel_required', 'contact: empty channel'],
+	['channel_not_writable', 'contact: channel not writable'],
+])('says in a toast that the identity could not be added for the channel reason %s', async (reason, words) => {
+	server.use(
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: words, extensions: { code: 'VALIDATION', reason } }],
+			}),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
 	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('Already on contact Bruno.')
+	const toast = await screen.findByText(`Could not add the identity. ${words}`, { selector: '.godmin-toast' })
+	expect(toast).toBeInTheDocument()
+	expect(screen.getByLabelText('Value')).toBeValid()
 })
 
 test('shows the backend message when the identity is invalid', async () => {
@@ -485,7 +540,12 @@ test('shows the backend message when the identity is invalid', async () => {
 	await userEvent.type(screen.getByLabelText('Value'), 'abc')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('contact: empty identifier')
+	await screen.findByText('contact: empty identifier')
+	expect(screen.getByLabelText('Value')).toHaveAccessibleDescription('contact: empty identifier')
+
+	await userEvent.type(screen.getByLabelText('Value'), 'd')
+
+	await waitFor(() => expect(screen.queryByText('contact: empty identifier')).not.toBeInTheDocument())
 })
 
 test('falls back to the backend message when the conflict names no owner', async () => {
@@ -506,14 +566,11 @@ test('falls back to the backend message when the conflict names no owner', async
 	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'contact: identity already exists',
-	)
+	await screen.findByText('contact: identity already exists')
+	expect(screen.getByLabelText('Value')).toHaveAccessibleDescription('contact: identity already exists')
 })
 
-
-
-test('reports a generic message when the identity add fails otherwise', async () => {
+test('says in a toast that the identity could not be added when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('AddContactIdentity', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -525,23 +582,17 @@ test('reports a generic message when the identity add fails otherwise', async ()
 	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'The identity could not be added.',
-	)
+	expect(await screen.findByText('Could not add the identity.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Identity added.')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Value')).toHaveValue('maria@example.com')
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Add identity' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
 })
 
 test('lays the channel, value, label and Add identity on one form row', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-	const notice = await screen.findByRole('alert')
 
 	const add = screen.getByRole('button', { name: 'Add identity' })
 	const cells = formRowChildren('Add identity')
@@ -550,8 +601,6 @@ test('lays the channel, value, label and Add identity on one form row', async ()
 	expectFieldIn(cells[1], 'Value')
 	expectFieldIn(cells[2], 'Label')
 	expect(cells[3]).toBe(add)
-	expect(notice.closest('.godmin-form__row')).toBeNull()
-	expect(notice.closest('form')).toContainElement(add)
 })
 
 test('drops the session when the identity add is unauthorized', async () => {
@@ -653,7 +702,7 @@ test('keeps a remove button spinning while its own removal waits and another one
 	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('reports a failed removal', async () => {
+test('says in a toast that an identity could not be removed', async () => {
 	server.use(
 		graphql.mutation('DeleteContactIdentity', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -664,9 +713,7 @@ test('reports a failed removal', async () => {
 
 	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'The identity could not be removed.',
-	)
+	expect(await screen.findByText('Could not remove the identity.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
 })
@@ -976,31 +1023,13 @@ test('reports invalid contact details on rename', async () => {
 	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(await screen.findByText('invalid contact details')).toBeInTheDocument()
+	await screen.findByText('invalid contact details')
+	expect(name).toHaveAccessibleDescription('invalid contact details')
+	expect(name).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 })
 
-test('reports a generic message when the rename fails otherwise', async () => {
-	server.use(
-		graphql.mutation('RenameContact', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'bad gateway' }] }),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	const name = await screen.findByLabelText('Name')
-
-	await userEvent.type(name, ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-	expect(
-		await screen.findByText('The name could not be updated.'),
-	).toBeInTheDocument()
-	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
-	expect(name).toHaveValue('Ana García Ltd')
-	expect(name).toBeEnabled()
-	expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled', 'true')
-})
-
-test('surfaces the backend message for unreadable rename rejections', async () => {
+test('takes the message about a name away as the reader edits it', async () => {
 	server.use(
 		graphql.mutation('RenameContact', () =>
 			HttpResponse.json({
@@ -1011,11 +1040,69 @@ test('surfaces the backend message for unreadable rename rejections', async () =
 	)
 	renderAt(`/contacts/${anaID}`)
 	const name = await screen.findByLabelText('Name')
+	await userEvent.type(name, ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('invalid contact details')
+
+	await userEvent.type(name, ' Inc')
+
+	await waitFor(() => expect(screen.queryByText('invalid contact details')).not.toBeInTheDocument())
+	expect(name).toBeValid()
+})
+
+test('forgets a refused name once another one saves', async () => {
+	server.use(
+		graphql.mutation('RenameContact', ({ variables }) => {
+			if (variables.name === 'Ana García Ltd') {
+				return HttpResponse.json({
+					data: null,
+					errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
+				})
+			}
+			return HttpResponse.json({
+				data: { renameContact: { __typename: 'Contact', id: anaID, name: String(variables.name) } },
+			})
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	await userEvent.type(name, ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('invalid contact details')
+
+	await userEvent.type(name, ' Inc')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
+	await userEvent.clear(name)
+	await userEvent.type(name, 'Ana García Ltd')
+
+	expect(name).toBeValid()
+	expect(screen.queryByText('invalid contact details')).not.toBeInTheDocument()
+})
+
+test('says in a toast that the contact could not be saved when the failure is about no field', async () => {
+	let renames = 0
+	server.use(
+		graphql.mutation('RenameContact', () => {
+			renames += 1
+			return HttpResponse.json({ data: null, errors: [{ message: 'bad gateway' }] })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
 
 	await userEvent.type(name, ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(await screen.findByText('invalid contact details')).toBeInTheDocument()
+	expect(await screen.findByText('Could not save the contact.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
+	expect(name).toHaveValue('Ana García Ltd')
+	expect(name).toBeEnabled()
+	expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled', 'true')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(renames).toBe(2))
 })
 
 test('drops the session when the rename is unauthorized', async () => {

@@ -2,16 +2,15 @@
 
 import {
 	Button,
-	ErrorNotice,
-	InputControl,
 	PageScreen,
+	ValidatedInputControl,
 	__,
-	graphError,
 	useGraphMutation,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { ContactBreadcrumbs } from './ContactScreen'
 import { createContactMutation } from './operations'
@@ -34,17 +33,22 @@ export function NewContactScreen({
 	const toaster = useToaster()
 	const [name, setName] = useState('')
 	const [create, runCreate] = useGraphMutation(createContactMutation)
+	const form = useRef<HTMLFormElement>(null)
+	const refusedName = useRefusedField(form, name)
 	const submit = async () => {
 		const result = await runCreate({ name })
 		if (result.data) {
 			toaster.show(__('Contact added.', 'alphone'))
 			onCreated(result.data.createContact)
+		} else if (!refusedName.refuse(result.error, name)) {
+			toaster.show(writeFailure(__('Could not create the contact.', 'alphone'), result.error))
 		}
 	}
 
 	return (
 		<PageScreen title={__('New contact', 'alphone')} headingLevel={2} breadcrumbs={<ContactBreadcrumbs />}>
 			<form
+				ref={form}
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
@@ -52,9 +56,10 @@ export function NewContactScreen({
 				}}
 			>
 				<div className="godmin-form__row">
-					<InputControl
+					<ValidatedInputControl
 						label={__('Name', 'alphone')}
 						value={name}
+						customValidity={refusedName.validity}
 						onChange={(event) => setName(event.target.value)}
 					/>
 					<Button
@@ -65,11 +70,6 @@ export function NewContactScreen({
 						{__('Create contact', 'alphone')}
 					</Button>
 				</div>
-				{create.error ? (
-					<ErrorNotice>
-						{validationMessage(graphError(create.error), __('The contact could not be created.', 'alphone'))}
-					</ErrorNotice>
-				) : null}
 			</form>
 		</PageScreen>
 	)
