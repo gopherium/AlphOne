@@ -169,7 +169,7 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 						name={name}
 						saving={rename.fetching}
 						failure={rename.error}
-						onEdit={setDraft}
+						onEdit={(edited) => setDraft(edited === contact.name ? null : edited)}
 						onSubmit={() => void submitRename()}
 					/>
 					<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>

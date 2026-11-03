@@ -83,11 +83,11 @@ function serveEmptyList() {
 }
 
 /**
- * Serves a contact whose name a rename changes.
- * @param start - The name the contact starts with.
+ * Serves a contact named Ana García whose name a rename changes.
+ * @returns The way to rename the contact to Maria Perez on the server.
  */
-function serveRenames(start: string) {
-	let currentName = start
+function serveRenames() {
+	let currentName = 'Ana García'
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({ data: { contact: detailFor(String(variables.id), currentName, []) } }),
@@ -99,6 +99,9 @@ function serveRenames(start: string) {
 			})
 		}),
 	)
+	return () => {
+		currentName = 'Maria Perez'
+	}
 }
 
 /**
@@ -736,7 +739,7 @@ test('renames a contact', async () => {
 })
 
 test('saves the name when the reader presses Enter in its field', async () => {
-	serveRenames('Ana García')
+	serveRenames()
 	renderAt(`/contacts/${anaID}`)
 
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd{Enter}')
@@ -869,7 +872,7 @@ test('never asks before leaving a clean contact', async () => {
 test('never asks before leaving a saved name', async () => {
 	const confirm = answerConfirm(false)
 	serveEmptyList()
-	serveRenames('Ana García')
+	serveRenames()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -901,18 +904,9 @@ test('drops an unsaved name when the page moves on to another contact', async ()
 	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
 })
 
-test('follows a newer name from the server once the rename is saved', async () => {
-	let currentName = 'Ana García'
+/** Adds an identity, which reads the contact again, and expects the page to show the newer name with Save off. */
+async function expectNewerNameAfterReread() {
 	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({ data: { contact: detailFor(String(variables.id), currentName, []) } }),
-		),
-		graphql.mutation('RenameContact', ({ variables }) => {
-			currentName = String(variables.name)
-			return HttpResponse.json({
-				data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: currentName } },
-			})
-		}),
 		graphql.mutation('AddContactIdentity', () =>
 			HttpResponse.json({
 				data: {
@@ -927,18 +921,34 @@ test('follows a newer name from the server once the rename is saved', async () =
 			}),
 		),
 	)
-	renderAt(`/contacts/${anaID}`)
-	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-	await screen.findByText('Name updated.')
-	currentName = 'Maria Perez'
-
 	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
 	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
 	expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
+}
+
+test('follows a newer name from the server once the rename is saved', async () => {
+	const renameElsewhere = serveRenames()
+	renderAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('Name updated.')
+	renameElsewhere()
+
+	await expectNewerNameAfterReread()
+})
+
+test('follows a newer name from the server once the reader undid an edit', async () => {
+	const renameElsewhere = serveRenames()
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	await userEvent.type(name, ' Ltd')
+	await userEvent.type(name, '{Backspace}{Backspace}{Backspace}{Backspace}')
+	renameElsewhere()
+
+	await expectNewerNameAfterReread()
 })
 
 test('fills the column with the add identity form', async () => {
