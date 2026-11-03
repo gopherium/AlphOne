@@ -1551,6 +1551,22 @@ test('an editor closed after it was pushed past the page keeps its row there wit
 	expect(screen.getByRole('button', { name: 'Edit entry: Call 2.' })).toHaveFocus()
 })
 
+test('saving an entry that one added elsewhere pushes down keeps its row on the page with the focus', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(3) })
+	capture('UpdateContactFieldEntry', updated)
+
+	renderPanel()
+	const editor = await editEntry('Call 2.')
+	change({ history: [followUp, ...calls(3)] })
+	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
+
+	await waitFor(async () => expect((await itemNames())[0]).toBe(followUpName))
+	expect(await itemNames()).toEqual([followUpName, ...callNames(2)])
+	expect(screen.getByRole('button', { name: 'Edit entry: Call 2.' })).toHaveFocus()
+})
+
 /**
  * Opens the editor of the second call, and has two entries added elsewhere push it to fourth place on a page of two.
  * @returns The editor and the way to change what the graph holds.
