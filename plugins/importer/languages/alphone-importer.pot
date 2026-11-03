@@ -40,6 +40,15 @@ msgstr ""
 msgid "Contacts file"
 msgstr ""
 
+msgid "Could not commit the import."
+msgstr ""
+
+msgid "Could not import the file."
+msgstr ""
+
+msgid "Could not save the mapping."
+msgstr ""
+
 msgid "Fields that no longer exist: %(fields)s."
 msgstr ""
 
@@ -109,19 +118,10 @@ msgstr ""
 msgid "That import no longer exists."
 msgstr ""
 
-msgid "The file could not be imported."
-msgstr ""
-
 msgid "The file runs past %(maxBytes)s bytes."
 msgstr ""
 
-msgid "The import could not be committed."
-msgstr ""
-
 msgid "The import could not be loaded."
-msgstr ""
-
-msgid "The mapping could not be saved."
 msgstr ""
 
 msgid "The mapping does not fit the columns the file holds."
