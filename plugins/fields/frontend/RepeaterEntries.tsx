@@ -4,17 +4,19 @@ import {
 	Button,
 	Card,
 	ErrorNotice,
+	LoadMore,
 	LogList,
 	SectionTitle,
 	Stack,
 	Text,
 	__,
 	sprintf,
+	useAdminSettings,
 	useGraph,
 	useGraphMutation,
 	useToaster,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import type { AdminSettingsRead, GraphFailure } from '@alphone/frontend-sdk'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { EntryCells } from './cells'
@@ -28,7 +30,20 @@ import { useEntryActions } from './useEntryActions'
 import type { GoneHandler } from './useEntryActions'
 
 /**
- * Renders one repeater of a contact as a card: its heading in the header, one add form and its entries, newest first.
+ * Returns how many entries a first page draws: none until the page size arrives, every one when it cannot be read.
+ * @param sizing - The read of the admin settings.
+ * @param total - The entries the repeater holds.
+ * @returns The count to draw.
+ */
+function firstPageOf({ settings, failed }: AdminSettingsRead, total: number) {
+	if (settings === undefined) {
+		return failed ? total : 0
+	}
+	return settings.listPageSize
+}
+
+/**
+ * Renders one repeater of a contact as a card: its heading in the header, one add form and a page of its entries.
  * @param props - The contact, the repeater, its stored value and the report of a repeater gone.
  * @returns The repeater card.
  */
@@ -45,7 +60,14 @@ export function RepeaterEntries({
 }) {
 	const heading = useId()
 	const entries = useMemo(() => entriesOf(stored), [stored])
-	const actions = useEntryActions({ contactId, field, entries, onGone })
+	const firstPage = firstPageOf(useAdminSettings(), entries.length)
+	const actions = useEntryActions({ contactId, field, entries, firstPage, onGone })
+	const listed = actions.listed
+	const more = {
+		hasNextPage: listed.length > 0 && listed.length < entries.length,
+		isFetchingNextPage: false,
+		fetchNextPage: async () => actions.loadMore(),
+	}
 
 	return (
 		<Card.Root role="group" aria-labelledby={heading}>
@@ -64,11 +86,10 @@ export function RepeaterEntries({
 						onGone={onGone}
 					/>
 					{actions.failure !== '' && <ErrorNotice>{actions.failure}</ErrorNotice>}
-					{entries.length === 0 ? (
-						<Text role="status">{__('No entries yet.', 'alphone-fields')}</Text>
-					) : (
+					{entries.length === 0 && <Text role="status">{__('No entries yet.', 'alphone-fields')}</Text>}
+					{listed.length > 0 && (
 						<LogList aria-labelledby={heading}>
-							{entries.map((entry) => (
+							{listed.map((entry) => (
 								<EntryRow
 									key={entry.id}
 									entry={entry}
@@ -79,6 +100,7 @@ export function RepeaterEntries({
 							))}
 						</LogList>
 					)}
+					<LoadMore query={more}>{__('Load more entries', 'alphone-fields')}</LoadMore>
 				</Stack>
 			</Card.Content>
 		</Card.Root>

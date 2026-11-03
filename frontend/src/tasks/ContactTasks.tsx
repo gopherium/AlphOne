@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, SectionTitle, Text, __ } from '@alphone/frontend-sdk'
+import { ErrorNotice, LoadMore, SectionTitle, Text, __ } from '@alphone/frontend-sdk'
 import type { ConnectionResult } from '@alphone/frontend-sdk'
 
 import { isoDate } from './format'
@@ -29,6 +29,7 @@ export function ContactTasks({
 			<QuickAddForm day={today} contactId={contactId} className="alphone-tasks__add--contact" />
 			{failed ? <ErrorNotice>{__('The task could not be updated.', 'alphone')}</ErrorNotice> : null}
 			<ContactTaskList tasks={tasks} controls={controls} />
+			{tasks.isError ? <ErrorNotice>{__('Tasks could not be loaded.', 'alphone')}</ErrorNotice> : null}
 		</div>
 	)
 }
@@ -51,11 +52,7 @@ function ContactTaskList({
 	return (
 		<>
 			<TaskList label={__('Contact tasks', 'alphone')} tasks={rows} controls={controls} showDueDate />
-			{tasks.hasNextPage ? (
-				<Button onClick={() => void tasks.fetchNextPage()} disabled={tasks.isFetchingNextPage}>
-					{__('Load more tasks', 'alphone')}
-				</Button>
-			) : null}
+			<LoadMore query={tasks}>{__('Load more tasks', 'alphone')}</LoadMore>
 		</>
 	)
 }

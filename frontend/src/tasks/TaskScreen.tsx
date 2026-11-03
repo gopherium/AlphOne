@@ -5,6 +5,8 @@ import {
 	ErrorNotice,
 	InputControl,
 	LoadingScreen,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageScreen,
 	Text,
 	__,
@@ -37,6 +39,20 @@ interface DetailedTask {
 }
 
 /**
+ * Renders the link back to the task list, on one day when the page knows it.
+ * @returns The breadcrumbs of a task page.
+ */
+export function TaskBreadcrumbs({ date }: { date?: string }) {
+	return (
+		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
+			<PageBreadcrumb render={<Link to="/tasks" search={{ date }} activeOptions={{ exact: true }} />}>
+				{__('Tasks', 'alphone')}
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	)
+}
+
+/**
  * Renders one task with its editable fields and contact link.
  * @returns The task screen.
  */
@@ -50,16 +66,20 @@ export function TaskScreen({ taskId }: { taskId: string }) {
 
 	if (result.fetching && task === undefined) {
 		return (
-			<PageScreen title={__('Task', 'alphone')} headingLevel={2}>
+			<PageScreen title={__('Task', 'alphone')} breadcrumbs={<TaskBreadcrumbs />} headingLevel={2}>
 				<LoadingScreen label={__('Loading task…', 'alphone')} />
 			</PageScreen>
 		)
 	}
 	if (result.error || !task) {
-		return <ErrorNotice>{__('The task could not be loaded.', 'alphone')}</ErrorNotice>
+		return (
+			<PageScreen title={__('Task', 'alphone')} breadcrumbs={<TaskBreadcrumbs />} headingLevel={2}>
+				<ErrorNotice>{__('The task could not be loaded.', 'alphone')}</ErrorNotice>
+			</PageScreen>
+		)
 	}
 	return (
-		<PageScreen title={task.title} headingLevel={2}>
+		<PageScreen title={task.title} breadcrumbs={<TaskBreadcrumbs date={task.dueOn} />} headingLevel={2}>
 			{task.contact ? <ContactLink contact={task.contact} /> : null}
 			<TaskForm key={`${task.title}-${task.dueOn}-${task.dueTime}`} task={task} />
 		</PageScreen>

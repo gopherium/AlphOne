@@ -7,6 +7,8 @@ import {
 	ErrorNotice,
 	IconButton,
 	LoadMore,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageScreen,
 	SectionTitle,
 	ValidationError,
@@ -15,6 +17,24 @@ import {
 	validationMessage,
 } from '../index'
 import { textClasses } from '../testing'
+
+test('hands plugins the breadcrumbs of a page opened from a list', () => {
+	render(
+		<PageScreen
+			title="Maria Perez"
+			breadcrumbs={
+				<PageBreadcrumbs label="Breadcrumbs">
+					<PageBreadcrumb render={<a href="/contacts" />}>Contacts</PageBreadcrumb>
+				</PageBreadcrumbs>
+			}
+		>
+			body
+		</PageScreen>,
+	)
+
+	expect(screen.getByRole('navigation', { name: 'Breadcrumbs' })).toBeInTheDocument()
+	expect(screen.getByRole('link', { name: 'Contacts' })).toHaveAttribute('href', '/contacts')
+})
 
 test('hands plugins a section title a size above the field labels', () => {
 	render(<SectionTitle>Fields</SectionTitle>)

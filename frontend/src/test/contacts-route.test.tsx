@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
-import { renderAt } from './render'
+import { busyClasses, compactClasses, renderAt, renderRoutedAt } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
 const brunoID = '0198c000-0000-7000-8000-000000000002'
@@ -58,6 +58,58 @@ function formRowChildren(button: string) {
 function expectFieldIn(child: Element | undefined, label: string) {
 	expect(child).toContainElement(screen.getByLabelText(label))
 	expect(child).toContainElement(screen.getByText(label))
+}
+
+/**
+ * Answers the browser's confirm box for one test.
+ * @param answer - What the reader answers.
+ * @returns The spy that records each question.
+ */
+function answerConfirm(answer: boolean) {
+	const confirm = vi.spyOn(window, 'confirm').mockReturnValue(answer)
+	onTestFinished(() => confirm.mockRestore())
+	return confirm
+}
+
+/**
+ * Serves the contacts list empty, so a test can land on it.
+ */
+function serveEmptyList() {
+	server.use(
+		graphql.query('ContactPage', () =>
+			HttpResponse.json({ data: { contactPage: { __typename: 'ContactPage', items: [], total: 0, limit: 20 } } }),
+		),
+	)
+}
+
+/**
+ * Serves a contact named Ana García whose name a rename changes.
+ * @returns The way to rename the contact to Maria Perez on the server.
+ */
+function serveRenames() {
+	let currentName = 'Ana García'
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({ data: { contact: detailFor(String(variables.id), currentName, []) } }),
+		),
+		graphql.mutation('RenameContact', ({ variables }) => {
+			currentName = String(variables.name)
+			return HttpResponse.json({
+				data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: currentName } },
+			})
+		}),
+	)
+	return () => {
+		currentName = 'Maria Perez'
+	}
+}
+
+/**
+ * Returns the link of the page's breadcrumbs that leads to the contacts.
+ * @returns The link.
+ */
+function contactsCrumb() {
+	return within(screen.getByRole('navigation', { name: 'Breadcrumbs' })).getByRole('link', { name: 'Contacts' })
 }
 
 afterEach(() => {
@@ -239,13 +291,46 @@ test('shows a channel that no one names by its key', async () => {
 	expect(screen.getByText('telegram: 184467235')).toBeInTheDocument()
 })
 
-test('sets the creation date beside the contact work', async () => {
+test('sets the name, the identities and the creation date in the details and the tasks in the main work', async () => {
 	renderAt(`/contacts/${anaID}`)
 
 	const created = await screen.findByText('Created 06/07/2026')
-	expect(created.closest('.godmin-page__aside')).not.toBeNull()
-	expect(screen.getByRole('heading', { name: 'Identities' }).closest('.godmin-page__main')).not.toBeNull()
+	const details = screen.getByRole('region', { name: 'Contact details' })
+	expect(details).toHaveClass('godmin-page__aside')
+	expect(details).toContainElement(screen.getByLabelText('Name'))
+	expect(details).toContainElement(screen.getByRole('heading', { name: 'Identities' }))
+	expect(details).toContainElement(screen.getByRole('list', { name: 'Identities' }))
+	expect(details).toContainElement(screen.getByRole('button', { name: 'Add identity' }))
+	expect(details.lastElementChild).toBe(created)
 	expect(screen.getByRole('heading', { name: 'Tasks' }).closest('.godmin-page__main')).not.toBeNull()
+})
+
+test('sets the plugin panels in the main work under the tasks', async () => {
+	server.use(
+		graphql.query('Fields', () =>
+			HttpResponse.json({
+				data: {
+					fields: [{
+						__typename: 'FieldDefinition',
+						id: '0198c000-0000-7000-8000-000000000021',
+						name: 'region',
+						label: 'Region',
+						kind: 'TEXT',
+						subFields: [],
+					}],
+				},
+			}),
+		),
+		graphql.query('ContactFieldValues', ({ variables }) =>
+			HttpResponse.json({ data: { contact: { __typename: 'Contact', id: variables.id, region: null } } }),
+		),
+	)
+	renderAt(`/contacts/${anaID}`)
+
+	const fields = await screen.findByRole('heading', { name: 'Fields' })
+	expect(fields.closest('.godmin-page__main')).not.toBeNull()
+	const tasks = screen.getByRole('heading', { name: 'Tasks' })
+	expect(tasks.compareDocumentPosition(fields) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
 test('sets the section headings a size above the field labels', async () => {
@@ -648,44 +733,232 @@ test('renames a contact', async () => {
 	await userEvent.type(name, 'Ana García Ltd')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(
-		await screen.findByRole('heading', { name: 'Ana García Ltd' }),
-	).toBeInTheDocument()
-	expect(screen.getByText('Name updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Name updated.')).toBeInTheDocument()
+	expect(screen.getByRole('heading', { name: 'Ana García Ltd' })).toBeInTheDocument()
+	expect(name).toHaveValue('Ana García Ltd')
 })
 
-test('lays the name and Save on one form row', async () => {
-	server.use(
-		graphql.mutation('RenameContact', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'bad gateway' }] }),
-		),
-	)
+test('saves the name when the reader presses Enter in its field', async () => {
+	serveRenames()
 	renderAt(`/contacts/${anaID}`)
-	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-	const text = await screen.findByText('The name could not be updated.')
-	const notice = text.closest('[role="alert"]') as HTMLElement
 
-	const save = screen.getByRole('button', { name: 'Save' })
-	const cells = formRowChildren('Save')
-	expect(cells).toHaveLength(2)
-	expectFieldIn(cells[0], 'Name')
-	expect(cells[1]).toBe(save)
-	expect(notice).toBeInTheDocument()
-	expect(notice.closest('.godmin-form__row')).toBeNull()
-	expect(notice.closest('form')).toContainElement(save)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd{Enter}')
+
+	expect(await screen.findByText('Name updated.')).toBeInTheDocument()
+	expect(screen.getByRole('heading', { name: 'Ana García Ltd' })).toBeInTheDocument()
 })
 
-test('fills the column with the rename and add identity forms', async () => {
+test('sets Save last in the page head, compact and off while the name is clean', async () => {
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
-	for (const button of ['Save', 'Add identity']) {
-		expect(screen.getByRole('button', { name: button }).closest('form')).toHaveClass(
-			'godmin-form',
-			'godmin-form--inline',
-		)
-	}
+	const save = screen.getByRole('button', { name: 'Save' })
+	const head = save.closest('.godmin-page__head') as HTMLElement
+	expect(head).not.toBeNull()
+	expect(within(head).getAllByRole('button').at(-1)).toBe(save)
+	expect([...save.classList]).toEqual(expect.arrayContaining(compactClasses()))
+	expect(save).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('turns Save on after an edit and off again when the name reads as saved', async () => {
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	const save = screen.getByRole('button', { name: 'Save' })
+
+	await userEvent.type(name, ' Ltd')
+	expect(save).not.toHaveAttribute('aria-disabled', 'true')
+
+	await userEvent.type(name, '{Backspace}{Backspace}{Backspace}{Backspace}')
+	expect(save).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('shows Save loading and locks the name field while the rename runs', async () => {
+	server.use(graphql.mutation('RenameContact', () => new Promise(() => {})))
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	const save = screen.getByRole('button', { name: 'Save' })
+
+	await userEvent.type(name, ' Ltd')
+	await userEvent.click(save)
+
+	await waitFor(() => expect(name).toHaveAttribute('readonly'))
+	expect(name).toHaveValue('Ana García Ltd')
+	expect(save).toHaveAttribute('aria-disabled', 'true')
+	expect([...save.classList]).toEqual(expect.arrayContaining(busyClasses()))
+})
+
+test('keeps the focus in the name field while Enter saves it', async () => {
+	server.use(graphql.mutation('RenameContact', () => new Promise(() => {})))
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+
+	await userEvent.type(name, ' Ltd{Enter}')
+
+	await waitFor(() => expect(name).toHaveAttribute('readonly'))
+	expect(name).toBeEnabled()
+	expect(name).toHaveFocus()
+})
+
+test('sets the name field alone in a stacked form', async () => {
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+
+	const form = name.closest('form')
+	expect(form).toHaveClass('godmin-form')
+	expect(form).not.toHaveClass('godmin-form--inline')
+	expect(name.closest('.godmin-form__row')).toBeNull()
+	expect(form).not.toContainElement(screen.getByRole('button', { name: 'Save' }))
+})
+
+test('follows the name field in the title and falls back on Contact while it is empty', async () => {
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+
+	await userEvent.type(name, ' Ltd')
+	expect(screen.getByRole('heading', { level: 2, name: 'Ana García Ltd' })).toBeInTheDocument()
+
+	await userEvent.clear(name)
+	expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
+})
+
+test('stays on the contact when the reader refuses to leave an unsaved name', async () => {
+	const confirm = answerConfirm(false)
+	serveEmptyList()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(contactsCrumb())
+
+	await waitFor(() => expect(confirm).toHaveBeenCalledWith('Leave this page? The name is not saved.'))
+	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
+	expect(screen.getByLabelText('Name')).toHaveValue('Ana García Ltd')
+})
+
+test('leaves the contact when the reader accepts to lose an unsaved name', async () => {
+	const confirm = answerConfirm(true)
+	serveEmptyList()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(contactsCrumb())
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
+	expect(confirm).toHaveBeenCalledOnce()
+})
+
+test('asks before the sidebar leaves an unsaved name', async () => {
+	const confirm = answerConfirm(false)
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(within(screen.getByRole('region', { name: 'Navigation' })).getByRole('link', { name: 'Tasks' }))
+
+	await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
+	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
+})
+
+test('never asks before leaving a clean contact', async () => {
+	const confirm = answerConfirm(false)
+	serveEmptyList()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(contactsCrumb())
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
+	expect(confirm).not.toHaveBeenCalled()
+})
+
+test('never asks before leaving a saved name', async () => {
+	const confirm = answerConfirm(false)
+	serveEmptyList()
+	serveRenames()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('Name updated.')
+
+	await userEvent.click(contactsCrumb())
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
+	expect(confirm).not.toHaveBeenCalled()
+})
+
+test('drops an unsaved name when the page moves on to another contact', async () => {
+	answerConfirm(true)
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					contact: detailFor(String(variables.id), variables.id === anaID ? 'Ana García' : 'Maria Perez', []),
+				},
+			}),
+		),
+	)
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await act(() => router.navigate({ to: '/contacts/$contactId', params: { contactId: brunoID } }))
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
+})
+
+/** Adds an identity, which reads the contact again, and expects the page to show the newer name with Save off. */
+async function expectNewerNameAfterReread() {
+	server.use(
+		graphql.mutation('AddContactIdentity', () =>
+			HttpResponse.json({
+				data: {
+					addContactIdentity: {
+						__typename: 'ContactIdentity',
+						id: identityID1,
+						channel: 'email',
+						identifier: 'maria@example.com',
+						displayName: '',
+					},
+				},
+			}),
+		),
+	)
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
+	expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
+}
+
+test('follows a newer name from the server once the rename is saved', async () => {
+	const renameElsewhere = serveRenames()
+	renderAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('Name updated.')
+	renameElsewhere()
+
+	await expectNewerNameAfterReread()
+})
+
+test('follows a newer name from the server once the reader undid an edit', async () => {
+	const renameElsewhere = serveRenames()
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	await userEvent.type(name, ' Ltd')
+	await userEvent.type(name, '{Backspace}{Backspace}{Backspace}{Backspace}')
+	renameElsewhere()
+
+	await expectNewerNameAfterReread()
+})
+
+test('fills the column with the add identity form', async () => {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	expect(screen.getByRole('button', { name: 'Add identity' }).closest('form')).toHaveClass(
+		'godmin-form',
+		'godmin-form--inline',
+	)
 })
 
 test('reports invalid contact details on rename', async () => {
@@ -722,6 +995,9 @@ test('reports a generic message when the rename fails otherwise', async () => {
 		await screen.findByText('The name could not be updated.'),
 	).toBeInTheDocument()
 	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
+	expect(name).toHaveValue('Ana García Ltd')
+	expect(name).toBeEnabled()
+	expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('surfaces the backend message for unreadable rename rejections', async () => {
@@ -772,6 +1048,19 @@ test('reports when the contact cannot be loaded', async () => {
 	renderAt(`/contacts/${anaID}`)
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
+	expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
+	expect(contactsCrumb()).toHaveAttribute('href', '/contacts')
+	expect(screen.queryByRole('region', { name: 'Contact details' })).not.toBeInTheDocument()
+})
+
+test('keeps the breadcrumb and names the kind of record while the contact loads', async () => {
+	server.use(graphql.query('ContactDetail', () => new Promise(() => {})))
+
+	renderAt(`/contacts/${anaID}`)
+
+	expect(await screen.findByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
+	expect(contactsCrumb()).toHaveAttribute('href', '/contacts')
+	expect(screen.queryByRole('region', { name: 'Contact details' })).not.toBeInTheDocument()
 })
 
 test('drops the session when the contact detail is unauthorized', async () => {

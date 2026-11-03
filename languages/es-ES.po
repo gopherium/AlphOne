@@ -91,6 +91,10 @@ msgid "Ask for tasks by one filter at a time."
 msgstr "Pide las tareas con un solo filtro a la vez."
 
 #, fuzzy
+msgid "Breadcrumbs"
+msgstr "Migas de pan"
+
+#, fuzzy
 msgid "Channel"
 msgstr "Canal"
 
@@ -113,6 +117,10 @@ msgstr "Completar"
 #, fuzzy
 msgid "Contact"
 msgstr "Contacto"
+
+#, fuzzy
+msgid "Contact details"
+msgstr "Detalles del contacto"
 
 #, fuzzy
 msgid "Contact tasks"
@@ -205,6 +213,10 @@ msgstr "Idioma"
 #, fuzzy
 msgid "Last used"
 msgstr "Último uso"
+
+#, fuzzy
+msgid "Leave this page? The name is not saved."
+msgstr "¿Salir de esta página? El nombre no se ha guardado."
 
 #, fuzzy
 msgid "Link a contact"

@@ -153,13 +153,31 @@ Users finds API tokens in the menu where Users would be, the way
 WordPress shows Profile in its place, and its tokens page reads API
 tokens with no tabs at all.
 
-Pass `aside` to show a second column beside the content, for details that
-sit next to the main work. On a wide page it starts 320px wide. On a narrow
-page it moves under the content, and an aside that renders nothing takes no
-room.
+Pass `aside` to show a second column beside the content, for the short
+fields and facts of one record, such as its customer and its dates. What
+grows, such as the lines of an invoice, stays in the content. On a narrow
+page the aside moves under the content, and an aside that renders nothing
+takes no room. `asideLabel` names the column for a screen reader, so pass it
+with `aside`:
 
-A plugin's contact panel always renders in the contact page's aside, so
-design it for a 320px column.
+```tsx
+<PageScreen
+	title="Invoice 1042"
+	headingLevel={2}
+	aside={<InvoiceDetails />}
+	asideLabel="Invoice details"
+>
+	<InvoiceLines />
+</PageScreen>
+```
+
+A page with an `aside` keeps its title in view, and on a wide page each
+column scrolls on its own. That works only with no element of your own
+around `PageScreen`.
+
+A plugin's contact panel always renders in the contact page's main column,
+under the tasks. That column changes width with the screen, so let your
+panel fill the room it gets.
 
 A panel may load on demand too. Hand `contactPanels` a
 `lazyRouteComponent`, as `plugins/fields/frontend/index.ts` does:
@@ -175,8 +193,64 @@ The host starts loading every such panel as the contact page opens, so
 its code arrives while the contact itself loads. Until it arrives, the
 panel takes no room.
 
+Every page opened from a list takes breadcrumbs, a create page too. They
+are the links back to that list, and they sit before the title:
+
+```tsx
+import { PageBreadcrumb, PageBreadcrumbs, PageScreen } from '@alphone/frontend-sdk'
+import { Link } from '@tanstack/react-router'
+
+<PageScreen
+	title="Invoice 1042"
+	headingLevel={2}
+	breadcrumbs={
+		<PageBreadcrumbs label="Breadcrumbs">
+			<PageBreadcrumb
+				render={<Link to="/invoices" activeOptions={{ exact: true }} />}
+			>
+				Invoices
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	}
+>
+	<InvoiceLines />
+</PageScreen>
+```
+
+`label` names the links for a screen reader, so translate it.
+`activeOptions={{ exact: true }}` keeps the router from marking the link
+as the current page, as it does for a tab. Leave out the page on screen,
+since its title already names it. Beside breadcrumbs the title stays on one
+line, so a long title ends in an ellipsis.
+
+A record that is still loading, or that failed to load, keeps its
+breadcrumbs and has no `aside`. Its title names the kind of record, such as
+Invoice.
+
 Put navigation and creation controls in `actions`. A form's submit
 button belongs at the bottom of the form, not in the header.
+
+A page with an `aside` is the exception. Its title stays in view, so it
+takes one compact **Save**, last in `actions`, for the record's fields in
+both columns:
+
+```tsx
+<Button
+	type="submit"
+	form={formId}
+	size="compact"
+	disabled={!changed || saving}
+	loading={saving}
+>
+	Save
+</Button>
+```
+
+`form` holds the `id` of the form the button submits, so Enter in a field
+still saves. Name `saving` in `disabled` too, since `loading` alone does not
+turn off a button that has `disabled`. A row added to a list keeps its own
+button, and so does a contact panel, since a panel cannot reach the page
+header.
 
 Your screen renders in two shells without doing anything. On a wide
 viewport it sits beside the sidebar. Below 1024px the sidebar

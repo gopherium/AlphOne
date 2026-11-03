@@ -63,19 +63,23 @@ async function openContact(page: Page, request: APIRequestContext, size: { width
 	return { stamp, list, fields }
 }
 
-test('sets the fields beside the tasks on a desktop', async ({ page, request }) => {
+test('sets the fields under the tasks and the name beside them on a desktop', async ({ page, request }) => {
 	const { list, fields } = await openContact(page, request, { width: 1280, height: 720 })
+	const details = page.getByRole('region', { name: 'Contact details' })
+	const name = await boxOf(page, details.getByLabel('Name', { exact: true }))
 
-	expect(fields.x).toBeGreaterThanOrEqual(list.x + list.width)
-	expect(fields.y).toBeLessThan(list.y + list.height)
+	expect(fields.y).toBeGreaterThanOrEqual(list.y + list.height)
+	expect(name.x).toBeGreaterThanOrEqual(list.x + list.width)
+	expect(name.y).toBeLessThan(list.y + list.height)
 })
 
-test('stacks the fields under the tasks on a tablet and keeps the task form inside', async ({ page, request }) => {
-	const { stamp, fields } = await openContact(page, request, { width: 800, height: 1000 })
+test('stacks the details under the main work on a tablet and keeps the task form inside', async ({ page, request }) => {
+	const { stamp } = await openContact(page, request, { width: 800, height: 1000 })
 	const main = await boxOf(page, page.locator('.godmin-page__main'))
+	const details = await boxOf(page, page.getByRole('region', { name: 'Contact details' }))
 	const form = await boxOf(page, page.locator('.alphone-tasks__add--contact'))
 
-	expect(fields.y, 'the tablet stacks the fields under the tasks').toBeGreaterThanOrEqual(main.y + main.height)
+	expect(details.y, 'the tablet stacks the details under the main work').toBeGreaterThanOrEqual(main.y + main.height)
 	expect(form.x + form.width).toBeLessThanOrEqual(main.x + main.width + 0.5)
 	const share = await page.evaluate((name) => {
 		const row = [...document.querySelectorAll('.alphone-tasks__row')].find(
@@ -117,20 +121,19 @@ test('moves the fields under the tasks on a phone', async ({ page, request }) =>
 	expect(fields.y).toBeGreaterThanOrEqual(list.y + list.height)
 })
 
-test('keeps the tasks at their width and gives the fields the rest of a wide screen', async ({ page, request }) => {
+test('gives the tasks and the fields all the room the details leave on a wide screen', async ({ page, request }) => {
 	const { list, fields } = await openContact(page, request, { width: 1920, height: 1080 })
 	const main = await boxOf(page, page.locator('.godmin-page__main'))
-	const aside = await boxOf(page, page.locator('.godmin-page__aside'))
+	const details = await boxOf(page, page.getByRole('region', { name: 'Contact details' }))
 
-	expect(main.width).toBeGreaterThanOrEqual(559)
-	expect(main.width).toBeLessThanOrEqual(562)
-	expect(aside.width).toBeGreaterThanOrEqual(900)
-	expect(fields.x).toBeGreaterThanOrEqual(list.x + list.width)
+	expect(Math.abs(details.width - 408)).toBeLessThanOrEqual(1)
+	expect(Math.abs(main.width - 1140)).toBeLessThanOrEqual(1)
+	expect(fields.y).toBeGreaterThanOrEqual(list.y + list.height)
 })
 
-test('sets the identity fields on one line with room for a long channel name', async ({ page, request }) => {
+test('sets Channel and Value on a line and Label and Add identity on the next', async ({ page, request }) => {
 	await openContact(page, request, { width: 1920, height: 1080 })
-	const fields = await Promise.all(
+	const [channel, value, label] = await Promise.all(
 		[
 			page.getByRole('combobox', { name: 'Channel' }),
 			page.getByLabel('Value', { exact: true }),
@@ -139,9 +142,12 @@ test('sets the identity fields on one line with room for a long channel name', a
 	)
 	const add = await boxOf(page, page.getByRole('button', { name: 'Add identity', exact: true }))
 
-	for (const box of fields) {
-		expect(Math.abs(box.y - fields[0].y)).toBeLessThanOrEqual(2)
+	for (const box of [channel, value, label]) {
 		expect(box.width).toBeGreaterThanOrEqual(160)
 	}
-	expect(Math.abs(add.x + add.width - (fields[2].x + fields[2].width))).toBeLessThanOrEqual(2)
+	expect(Math.abs(value.y - channel.y)).toBeLessThanOrEqual(2)
+	expect(label.y).toBeGreaterThanOrEqual(channel.y + channel.height)
+	expect(Math.abs(add.y + add.height - (label.y + label.height))).toBeLessThanOrEqual(2)
+	expect(add.x).toBeGreaterThanOrEqual(label.x + label.width)
+	expect(Math.abs(add.x + add.width - (value.x + value.width))).toBeLessThanOrEqual(2)
 })

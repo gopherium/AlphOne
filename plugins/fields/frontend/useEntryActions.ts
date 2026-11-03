@@ -49,19 +49,40 @@ interface SettleSteps {
 }
 
 /**
+ * Holds how many entries a repeater draws, which a row open or taking the focus raises and Load more raises by a page.
+ * @param entries - Every entry.
+ * @param firstPage - How many entries the first page draws.
+ * @param kept - The rows that stay drawn: the one open and the one taking the focus.
+ * @returns The entries drawn and the way to open one more page.
+ */
+function useDrawnEntries(entries: readonly StoredEntry[], firstPage: number, kept: readonly (string | undefined)[]) {
+	const [held, setHeld] = useState(0)
+	const reach = Math.max(...kept.map((id) => entries.findIndex((entry) => entry.id === id) + 1))
+	if (reach > held) {
+		setHeld(reach)
+	}
+	return {
+		listed: entries.slice(0, Math.max(firstPage, held, reach)),
+		loadMore: () => setHeld((rows) => Math.max(rows, firstPage) + firstPage),
+	}
+}
+
+/**
  * Holds the state the rows of one repeater share, and the actions that change it.
- * @param props - The contact, the repeater, the entries shown and the report of a repeater gone.
- * @returns The failure to show, the add form's focus count, the add hook, the actions and each row's state.
+ * @param props - The contact, the repeater, every entry, the size of a first page and the report of a repeater gone.
+ * @returns The failure, the add focus count, the add hook, the actions, each row's state, the rows and Load more.
  */
 export function useEntryActions({
 	contactId,
 	field,
 	entries,
+	firstPage,
 	onGone,
 }: {
 	contactId: string
 	field: RepeaterRow
 	entries: readonly StoredEntry[]
+	firstPage: number
 	onGone: GoneHandler
 }) {
 	const [open, setOpen] = useState<{ id: string; as: 'edit' | 'confirm' } | null>(null)
@@ -70,6 +91,7 @@ export function useEntryActions({
 	const [failure, setFailure] = useState('')
 	const [rowFocus, setRowFocus] = useState<RowFocus | null>(null)
 	const [addFocus, setAddFocus] = useState(0)
+	const { listed, loadMore } = useDrawnEntries(entries, firstPage, [open?.id, rowFocus?.id])
 	const [, runUpdate] = useGraphMutation(updateContactFieldEntryMutation)
 	const [, runDelete] = useGraphMutation(deleteContactFieldEntryMutation)
 	const graph = useGraph()
@@ -83,7 +105,7 @@ export function useEntryActions({
 	}
 
 	const leave = (id: string, from: Element | null) => {
-		const next = neighbour(entries, id, settling)
+		const next = neighbour(listed, id, settling)
 		setOpen(null)
 		setSettling((held) => [...held, id])
 		whenFocusStayed(from, () => (next === '' ? focusAdd() : setRowFocus({ id: next, on: 'first' })))
@@ -176,5 +198,5 @@ export function useEntryActions({
 		focus: rowFocus?.id === id ? rowFocus : undefined,
 	})
 
-	return { failure, addFocus, added, on, rowOf }
+	return { failure, addFocus, added, on, rowOf, listed, loadMore }
 }

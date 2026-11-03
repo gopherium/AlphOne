@@ -28,18 +28,96 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await page.getByRole('button', { name: `Remove ${email}` }).click()
 	await expect(page.getByText('No identities yet.')).toBeVisible()
 
-	await page.getByRole('link', { name: 'Contacts' }).click()
+	const menu = page.getByRole('region', { name: 'Navigation' })
+	await menu.getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
 	await page.getByRole('link', { name }).first().click()
 	await expect(page.getByRole('heading', { name })).toBeVisible()
 
 	await page.getByLabel('Name', { exact: true }).fill(renamed)
 	await page.getByRole('button', { name: 'Save', exact: true }).click()
+	await expect(page.locator('.godmin-toasts').getByText('Name updated.')).toBeVisible()
 	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
 
-	await page.getByRole('link', { name: 'Contacts' }).click()
+	await menu.getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
 	await expect(page.getByRole('row').filter({ hasText: renamed })).toHaveCount(1)
+})
+
+test('saves a contact name with Enter and leaves the focus in the field', async ({ page }) => {
+	const stamp = Date.now()
+	const name = `Client ${stamp}`
+	const renamed = `Client ${stamp} renamed`
+
+	await page.goto('/contacts/new')
+	await page.getByLabel('Name').fill(name)
+	await page.getByRole('button', { name: 'Create contact' }).click()
+	await expect(page.getByRole('heading', { name })).toBeVisible()
+
+	const field = page.getByLabel('Name', { exact: true })
+	await field.fill(renamed)
+	await field.press('Enter')
+
+	await expect(page.locator('.godmin-toasts').getByText('Name updated.')).toBeVisible()
+	await expect(field).toBeFocused()
+
+	await page.reload()
+	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
+})
+
+test('sends one rename for Enter, none for a clean or blank name and none more while it saves', async ({ page }) => {
+	const stamp = Date.now()
+	const name = `Client ${stamp}`
+	let renames = 0
+
+	await page.goto('/contacts/new')
+	await page.getByLabel('Name').fill(name)
+	await page.getByRole('button', { name: 'Create contact' }).click()
+	await expect(page.getByRole('heading', { name })).toBeVisible()
+	await page.route('**/api/graphql', async (route) => {
+		if (route.request().postData()?.includes('RenameContact')) {
+			renames += 1
+			await new Promise((resolve) => setTimeout(resolve, 300))
+		}
+		await route.continue()
+	})
+
+	const field = page.getByLabel('Name', { exact: true })
+	await field.press('Enter')
+	await field.fill('')
+	await field.press('Enter')
+	await field.fill(`${name} renamed`)
+	await field.press('Enter')
+	await field.press('Enter')
+
+	await expect(page.locator('.godmin-toasts').getByText('Name updated.')).toBeVisible()
+	expect(renames).toBe(1)
+})
+
+test('warns before a reload throws away an unsaved name', async ({ page }) => {
+	const stamp = Date.now()
+	const name = `Client ${stamp}`
+	const renamed = `Client ${stamp} again`
+
+	await page.goto('/contacts/new')
+	await page.getByLabel('Name').fill(name)
+	await page.getByRole('button', { name: 'Create contact' }).click()
+	await expect(page.getByRole('heading', { name })).toBeVisible()
+
+	const field = page.getByLabel('Name', { exact: true })
+	await field.click()
+	await field.fill(renamed)
+	await expect(page.getByRole('heading', { name: renamed })).toBeVisible()
+
+	let asked = ''
+	page.once('dialog', (dialog) => {
+		asked = dialog.type()
+		void dialog.accept()
+	})
+	await page.reload()
+
+	expect(asked).toBe('beforeunload')
+	await expect(field).toHaveValue(name)
 })
 
 test('renames a contact from its row in a dialog that hands the Name field the focus', async ({ page }) => {
@@ -52,7 +130,7 @@ test('renames a contact from its row in a dialog that hands the Name field the f
 	await page.getByRole('button', { name: 'Create contact' }).click()
 	await expect(page.getByRole('heading', { name })).toBeVisible()
 
-	await page.getByRole('link', { name: 'Contacts' }).click()
+	await page.getByRole('region', { name: 'Navigation' }).getByRole('link', { name: 'Contacts' }).click()
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
 	const row = page.getByRole('row').filter({ hasText: name })
 	await row.getByRole('button', { name: 'Actions' }).click()

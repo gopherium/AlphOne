@@ -6,17 +6,26 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, test } from 'vitest'
 
-import { ImportScreen } from '../ImportScreen'
 import { handlers, importID } from '../handlers'
 import { plugin } from '../index'
 import { routes } from '../routes'
-import { inSpanish, renderHosted } from './harness'
+import { inSpanish, renderAt } from './harness'
 
 /**
- * Renders the import screen for the fixture import, below a toaster.
+ * Renders the import screen for the fixture import at its own address, below a toaster.
+ * @returns The router, to read where a test ended up.
  */
 function renderScreen() {
-	renderHosted(<ImportScreen importId={importID} />)
+	return renderAt(`/import/${importID}`)
+}
+
+/**
+ * Returns the breadcrumb that leads to the list of imports.
+ * @returns The link.
+ */
+async function importBreadcrumb() {
+	const breadcrumbs = await screen.findByRole('navigation', { name: 'Breadcrumbs' })
+	return within(breadcrumbs).getByRole('link', { name: 'Import' })
 }
 
 /**
@@ -89,6 +98,7 @@ test('keeps the page chrome while the import is on its way', async () => {
 	const status = screen.getByRole('status')
 	expect(status).toHaveTextContent('Loading import…')
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
+	expect(await importBreadcrumb()).toHaveAttribute('href', '/import')
 })
 
 test('heads the loading page with the name the menu gives the section, in Spanish too', async () => {
@@ -104,6 +114,19 @@ test('the screen names the file it is mapping', async () => {
 	renderScreen()
 
 	expect(await screen.findByRole('heading', { name: 'contacts.csv' })).toBeInTheDocument()
+})
+
+test('the breadcrumb leads back to the list of imports', async () => {
+	const router = renderScreen()
+	await screen.findByRole('heading', { name: 'contacts.csv' })
+	const imports = await importBreadcrumb()
+
+	expect(imports).toHaveAttribute('href', '/import')
+	expect(imports).not.toHaveAttribute('aria-current')
+	await userEvent.click(imports)
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/import'))
+	expect(await screen.findByRole('heading', { level: 2, name: 'Import' })).toBeInTheDocument()
 })
 
 test('the screen sets the Rows heading a size above the field labels', async () => {
@@ -420,6 +443,8 @@ test('the screen reports an import it cannot read', async () => {
 	renderScreen()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
+	expect(screen.getByRole('heading', { level: 2, name: 'Import' })).toBeInTheDocument()
+	expect(await importBreadcrumb()).toHaveAttribute('href', '/import')
 })
 
 test('the screen reports an import that is gone', async () => {
@@ -432,4 +457,6 @@ test('the screen reports an import that is gone', async () => {
 	renderScreen()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
+	expect(screen.getByRole('heading', { level: 2, name: 'Import' })).toBeInTheDocument()
+	expect(await importBreadcrumb()).toHaveAttribute('href', '/import')
 })

@@ -139,6 +139,9 @@ msgstr ""
 msgid "Avatar"
 msgstr ""
 
+msgid "Breadcrumbs"
+msgstr ""
+
 msgid "Cancel"
 msgstr ""
 
@@ -173,6 +176,9 @@ msgid "Contact"
 msgstr ""
 
 msgid "Contact added."
+msgstr ""
+
+msgid "Contact details"
 msgstr ""
 
 msgid "Contact tasks"
@@ -266,6 +272,9 @@ msgid "Language"
 msgstr ""
 
 msgid "Last used"
+msgstr ""
+
+msgid "Leave this page? The name is not saved."
 msgstr ""
 
 msgid "Link a contact"

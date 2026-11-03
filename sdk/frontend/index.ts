@@ -112,6 +112,8 @@ export {
 	MenuCount,
 	NavigationScreen,
 	Page as PageScreen,
+	PageBreadcrumb,
+	PageBreadcrumbs,
 	PageTab,
 	PageTabs,
 	PageTitle,

@@ -40,9 +40,10 @@ browser's Back button brings you back to the same place.
 
 Open the actions menu at the end of a contact's row and choose
 **Rename…**. Type the new name and press **Save**. You can also open the
-contact and edit the name field there. The new name applies everywhere
-immediately, including past conversations in the WhatsApp inbox, because
-conversations reference the contact rather than copying its name.
+contact, edit the name field there and press **Save** in the page header.
+The new name applies everywhere immediately, including past conversations
+in the WhatsApp inbox, because conversations reference the contact rather
+than copying its name.
 
 The rename dialog closes the moment you press **Save**, and **Save** is
 off only while the name is blank. When the rename fails, a message at the
@@ -83,10 +84,14 @@ at the end of its line.
 
 ## The contact page
 
-A contact's page has two columns. The left one holds the name, the
-identities and the tasks, which is where the work happens. The right one
-holds the date the contact was created and the custom fields. On a narrow
-screen the right column moves under the tasks.
+A contact's page has two columns. The wide one holds the tasks and the
+custom fields, which is where the work happens. The narrow one holds the
+name, the identities and the date the contact was created. On a narrow
+screen that column moves under the custom fields.
+
+If you leave the page before you save a new name, the page asks you first.
+It asks only about the name, not about a custom field or a form you have
+not saved.
 
 The tasks have their own **Add task** form. Type a title, pick the
 **Due date**, a **Time** if the task has one and the **Priority**, then

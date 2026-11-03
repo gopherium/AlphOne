@@ -1,8 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, ErrorNotice, InputControl, PageScreen, Text, __, useSession, useToaster } from '@alphone/frontend-sdk'
+import {
+	Button,
+	ErrorNotice,
+	InputControl,
+	PageBreadcrumb,
+	PageBreadcrumbs,
+	PageScreen,
+	Text,
+	__,
+	useSession,
+	useToaster,
+} from '@alphone/frontend-sdk'
 import { ValidationError, invite, usersQueryKey } from '@gopherium/react-auth/admin'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { appErrorTemplates } from '../i18n/errors'
@@ -51,10 +63,17 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 			setActivationLink(invitation.activation_link)
 		},
 	})
+	const breadcrumbs = (
+		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
+			<PageBreadcrumb render={<Link to="/users" activeOptions={{ exact: true }} />}>
+				{__('Users', 'alphone')}
+			</PageBreadcrumb>
+		</PageBreadcrumbs>
+	)
 
 	if (activationLink !== null) {
 		return (
-			<PageScreen title={__('New user', 'alphone')} headingLevel={2}>
+			<PageScreen title={__('New user', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
 				<div className="godmin-form">
 					<Text role="status">
 						{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
@@ -70,7 +89,7 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 		)
 	}
 	return (
-		<PageScreen title={__('New user', 'alphone')} headingLevel={2}>
+		<PageScreen title={__('New user', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
 			<form
 				className="godmin-form"
 				onSubmit={(event) => {

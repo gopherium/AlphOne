@@ -13,7 +13,7 @@ import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
 import { gate } from './gate'
-import { badgeClasses, buttonClasses, renderAt } from './render'
+import { badgeClasses, buttonClasses, renderAt, renderRoutedAt } from './render'
 
 /** account is one user as the users query answers it. */
 interface account {
@@ -1132,6 +1132,49 @@ async function submitNewUser() {
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 }
 
+/**
+ * Returns the breadcrumb that leads to the user list.
+ * @returns The link.
+ */
+async function usersBreadcrumb() {
+	const breadcrumbs = await screen.findByRole('navigation', { name: 'Breadcrumbs' })
+	return within(breadcrumbs).getByRole('link', { name: 'Users' })
+}
+
+test('leads the breadcrumb of the new user form back to the user list', async () => {
+	const { router } = renderRoutedAt('/users/new')
+	const users = await usersBreadcrumb()
+
+	expect(users).toHaveAttribute('href', '/users')
+	expect(users).not.toHaveAttribute('aria-current')
+	await userEvent.click(users)
+
+	await waitFor(() => expect(router.state.location.pathname).toBe('/users'))
+})
+
+/** activationLink is the link an undelivered invitation hands over. */
+const activationLink = '/activate?token=t-4'
+
+/** Answers every invitation as undelivered, with the activation link to hand over. */
+function serveUndeliveredInvite() {
+	server.use(
+		graphql.mutation('Invite', () =>
+			HttpResponse.json({
+				data: { invite: { __typename: 'InvitePayload', delivered: false, activationLink } },
+			}),
+		),
+	)
+}
+
+test('keeps the breadcrumb beside the activation link', async () => {
+	serveUndeliveredInvite()
+	renderAt('/users/new')
+	await submitNewUser()
+	await screen.findByLabelText('Activation link')
+
+	expect(await usersBreadcrumb()).toHaveAttribute('href', '/users')
+})
+
 test('returns to the user list after an invitation went out, confirming it with a toast', async () => {
 	server.use(
 		graphql.mutation('Invite', () =>
@@ -1149,19 +1192,7 @@ test('returns to the user list after an invitation went out, confirming it with 
 })
 
 test('leaves the invitation screen once the link is delivered by hand, without a toast', async () => {
-	server.use(
-		graphql.mutation('Invite', () =>
-			HttpResponse.json({
-				data: {
-					invite: {
-						__typename: 'InvitePayload',
-						delivered: false,
-						activationLink: '/activate?token=t-5',
-					},
-				},
-			}),
-		),
-	)
+	serveUndeliveredInvite()
 	renderAt('/users/new')
 	await submitNewUser()
 	await screen.findByLabelText('Activation link')
@@ -1173,24 +1204,12 @@ test('leaves the invitation screen once the link is delivered by hand, without a
 })
 
 test('shows the activation link when no mail server delivered the invitation', async () => {
-	server.use(
-		graphql.mutation('Invite', () =>
-			HttpResponse.json({
-				data: {
-					invite: {
-						__typename: 'InvitePayload',
-						delivered: false,
-						activationLink: '/activate?token=t-4',
-					},
-				},
-			}),
-		),
-	)
+	serveUndeliveredInvite()
 	renderAt('/users/new')
 
 	await submitNewUser()
 
-	expect(await screen.findByLabelText('Activation link')).toHaveValue('/activate?token=t-4')
+	expect(await screen.findByLabelText('Activation link')).toHaveValue(activationLink)
 })
 
 test('surfaces a rejection message from the backend', async () => {

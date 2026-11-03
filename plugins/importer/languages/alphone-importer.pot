@@ -22,6 +22,9 @@ msgstr ""
 msgid "Another contact already holds an address in this row."
 msgstr ""
 
+msgid "Breadcrumbs"
+msgstr ""
+
 msgid "Bring contacts in from CSV and Excel files."
 msgstr ""
 
