@@ -30,17 +30,16 @@ import { useEntryActions } from './useEntryActions'
 import type { GoneHandler } from './useEntryActions'
 
 /**
- * Returns how many entries a repeater draws: none until the page size arrives, every one when it cannot be read.
+ * Returns how many entries a first page draws: none until the page size arrives, every one when it cannot be read.
  * @param sizing - The read of the admin settings.
- * @param pages - The pages the reader opened.
  * @param total - The entries the repeater holds.
  * @returns The count to draw.
  */
-function entriesToDraw({ settings, failed }: AdminSettingsRead, pages: number, total: number) {
+function firstPageOf({ settings, failed }: AdminSettingsRead, total: number) {
 	if (settings === undefined) {
 		return failed ? total : 0
 	}
-	return pages * settings.listPageSize
+	return settings.listPageSize
 }
 
 /**
@@ -61,15 +60,13 @@ export function RepeaterEntries({
 }) {
 	const heading = useId()
 	const entries = useMemo(() => entriesOf(stored), [stored])
-	const sizing = useAdminSettings()
-	const [pages, setPages] = useState(1)
-	const shown = entriesToDraw(sizing, pages, entries.length)
-	const actions = useEntryActions({ contactId, field, entries, shown, onGone })
+	const firstPage = firstPageOf(useAdminSettings(), entries.length)
+	const actions = useEntryActions({ contactId, field, entries, firstPage, onGone })
 	const listed = actions.listed
 	const more = {
 		hasNextPage: listed.length > 0 && listed.length < entries.length,
 		isFetchingNextPage: false,
-		fetchNextPage: async () => setPages((held) => held + 1),
+		fetchNextPage: async () => actions.loadMore(),
 	}
 
 	return (

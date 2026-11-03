@@ -1551,6 +1551,57 @@ test('an editor closed after it was pushed past the page keeps its row there wit
 	expect(screen.getByRole('button', { name: 'Edit entry: Call 2.' })).toHaveFocus()
 })
 
+/**
+ * Opens the editor of the second call, and has two entries added elsewhere push it to fourth place on a page of two.
+ * @returns The editor and the way to change what the graph holds.
+ */
+async function pushSecondCallDown() {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(5) })
+
+	const { graph } = renderPanel()
+	const editor = await editEntry('Call 2.')
+	change({ history: [followUp, offerSent, ...calls(5)] })
+	act(() => {
+		graph.refetch(['ContactFieldValues'])
+	})
+	await waitFor(async () => expect(await itemNames()).toHaveLength(4))
+	return { editor, change }
+}
+
+test('Load more entries opens a whole page past an open editor that was pushed down', async () => {
+	await pushSecondCallDown()
+
+	await loadMore()
+
+	await waitFor(async () => expect(await itemNames()).toHaveLength(6))
+	expect(screen.getByRole('form', { name: 'Edit entry: Call 2.' })).toBeInTheDocument()
+})
+
+test('Load more entries opens a whole page past a closed editor that was pushed down', async () => {
+	const { editor } = await pushSecondCallDown()
+	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+
+	await loadMore()
+
+	await waitFor(async () => expect(await itemNames()).toHaveLength(6))
+})
+
+test('removing an entry that was pushed down keeps on the page the neighbour taking the focus', async () => {
+	const { editor, change } = await pushSecondCallDown()
+	capture('DeleteContactFieldEntry', removed)
+	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+	change({ history: [followUp, offerSent, calls(5)[0], ...calls(5).slice(2)] })
+
+	await removeEntry('Call 2.')
+
+	await waitFor(async () =>
+		expect(await itemNames()).toEqual([followUpName, offerSentName, 'Call 1.', 'Call 3.']),
+	)
+	expect(firstButton(screen.getByRole('listitem', { name: 'Call 1.' }))).toHaveFocus()
+})
+
 test('another contact opens on its first page', async () => {
 	paging([1, 2], 1)
 	serveCatalogue([history])
