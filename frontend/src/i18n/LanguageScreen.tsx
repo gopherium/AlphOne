@@ -10,9 +10,10 @@ import {
 	Text,
 	__,
 	displayLocale,
-	graphError,
 	useGraphMutation,
 	useGraphQuery,
+	useToaster,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
@@ -23,11 +24,11 @@ import { setLocaleMutation, supportedLocalesQuery } from './localeOperations'
  * @returns The language screen element.
  */
 export function LanguageScreen() {
+	const toaster = useToaster()
 	const [asked] = useGraphQuery({ query: supportedLocalesQuery })
 	const [written, runSetLocale] = useGraphMutation(setLocaleMutation)
 	const [chosen, setChosen] = useState(displayLocale())
 	const [saved, setSaved] = useState(false)
-	const [notice, setNotice] = useState('')
 	if (asked.error !== undefined) {
 		return (
 			<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
@@ -50,12 +51,11 @@ export function LanguageScreen() {
 	const submit = async () => {
 		const answered = await runSetLocale({ locale: chosen })
 		if (answered.data) {
-			setNotice('')
 			setSaved(true)
 			return
 		}
 		setSaved(false)
-		setNotice(graphError(answered.error)?.message ?? __('The choice could not be saved.', 'alphone'))
+		toaster.show(writeFailure(__('Could not save the language.', 'alphone'), answered.error))
 	}
 	return (
 		<PageScreen title={__('Language', 'alphone')} headingLevel={2}>
@@ -70,7 +70,6 @@ export function LanguageScreen() {
 					{__('Save', 'alphone')}
 				</Button>
 				{saved && <Text role="status">{__('The language changes when the page next loads.', 'alphone')}</Text>}
-				{notice !== '' && <ErrorNotice>{notice}</ErrorNotice>}
 			</Stack>
 		</PageScreen>
 	)
