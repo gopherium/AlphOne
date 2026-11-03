@@ -52,6 +52,9 @@ const removed = { data: { deleteContactFieldEntry: true } }
 /** updated is the body a successful edit answers. */
 const updated = { data: { updateContactFieldEntry: { id: ID2, comment: 'Edited.' } } }
 
+/** TOAST reads a text inside a toast. */
+const TOAST = { selector: '.godmin-toast' }
+
 /** NOW is the moment every test starts at. */
 const NOW = new Date('2026-09-27T12:00:00Z')
 
@@ -629,7 +632,7 @@ test('an add answered while a removal is confirmed leaves focus on Keep', async 
 	expect(screen.getByRole('button', { name: 'Keep' })).toHaveFocus()
 })
 
-test('a refused add shows the reason and keeps the draft', async () => {
+test('a refused add shows the reason in a toast and keeps the draft with Add on', async () => {
 	speakTemplates()
 	serveCatalogue([history])
 	serveValues({ history: null })
@@ -640,8 +643,12 @@ test('a refused add shows the reason and keeps the draft', async () => {
 	await userEvent.type(form.getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('Fill in at least one part of the entry.')
+	expect(
+		await screen.findByText('Could not add the entry. Fill in at least one part of the entry.', TOAST),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(form.getByLabelText('Comment')).toHaveValue('x')
+	await waitFor(() => expect(addButton()).not.toHaveAttribute('aria-disabled', 'true'))
 	expect(graph.refetch).not.toHaveBeenCalled()
 })
 
@@ -655,7 +662,9 @@ test('a full list names its most entries and reads the list again', async () => 
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('This list is full. It holds 1.500 entries at most.')
+	expect(
+		await screen.findByText('Could not add the entry. This list is full. It holds 1.500 entries at most.', TOAST),
+	).toBeInTheDocument()
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 })
 
@@ -669,7 +678,7 @@ test('an add to a contact that is gone says so', async () => {
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('That contact no longer exists.')
+	expect(await screen.findByText('Could not add the entry. That contact no longer exists.', TOAST)).toBeInTheDocument()
 })
 
 test('an add to a repeater archived elsewhere reads the catalogue again', async () => {
@@ -686,11 +695,12 @@ test('an add to a repeater archived elsewhere reads the catalogue again', async 
 
 	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
-	expect(screen.getByRole('alert')).toHaveTextContent('That field is not one this contact holds.')
+	expect(await screen.findByText('That field is not one this contact holds.', TOAST)).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
 })
 
-test('an add refused as a repeater gone shows one notice', async () => {
+test('an add refused as a repeater gone shows one toast, the words of the server alone', async () => {
 	speakTemplates()
 	serveCatalogue([history, jobTitle])
 	serveValues({ history: null, jobTitle: null })
@@ -701,10 +711,12 @@ test('an add refused as a repeater gone shows one notice', async () => {
 	await userEvent.click(addButton())
 
 	await waitFor(() => expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus())
-	expect(screen.getAllByRole('alert')).toHaveLength(1)
+	expect(screen.getAllByText(/./, TOAST).map((toast) => toast.textContent)).toEqual([
+		'That field is not one this contact holds.',
+	])
 })
 
-test('an add that fails otherwise shows the fallback', async () => {
+test('an add that fails otherwise says only that it failed', async () => {
 	serveCatalogue([history])
 	serveValues({ history: null })
 	capture('AddContactFieldEntry', { errors: [{ message: 'boom' }] })
@@ -713,7 +725,7 @@ test('an add that fails otherwise shows the fallback', async () => {
 	await userEvent.type((await addForm()).getByLabelText('Comment'), 'x')
 	await userEvent.click(addButton())
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be added.')
+	expect(await screen.findByText('Could not add the entry.', TOAST)).toBeInTheDocument()
 	expect(screen.queryByText('Entry added.')).not.toBeInTheDocument()
 })
 
@@ -900,7 +912,7 @@ test('a removal answered as not found says so and reads the list again', async (
 	const { graph } = renderPanel()
 	await removeEntry(firstCallName)
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('That entry no longer exists.')
+	expect(await screen.findByText('Could not remove the entry. That entry no longer exists.', TOAST)).toBeInTheDocument()
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveAttribute(
 		'aria-disabled',
@@ -916,71 +928,12 @@ test('a refused removal keeps the entry usable', async () => {
 	renderPanel()
 	await removeEntry(firstCallName)
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be removed.')
+	expect(await screen.findByText('Could not remove the entry.', TOAST)).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	const kept = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(kept).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(kept).toHaveFocus())
 	expect(screen.queryByText('Entry removed.')).not.toBeInTheDocument()
-})
-
-test('a second removal clears the last failure while it runs', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [firstCall] })
-	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-
-	renderPanel()
-	await removeEntry(firstCallName)
-	await screen.findByRole('alert')
-	const removing = hold('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-	await removeEntry(firstCallName)
-	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
-
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	removing.release()
-	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be removed.')
-})
-
-test('asking to remove an entry clears an earlier failure', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [firstCall] })
-	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-
-	renderPanel()
-	await removeEntry(firstCallName)
-	await screen.findByRole('alert')
-	await userEvent.click(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` }))
-
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-})
-
-test('Edit clears an earlier failure', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [firstCall] })
-	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-
-	renderPanel()
-	await removeEntry(firstCallName)
-	await screen.findByRole('alert')
-	await editEntry(firstCallName)
-
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-})
-
-test('an added entry clears an earlier failure', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [firstCall] })
-	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
-	capture('AddContactFieldEntry', added)
-
-	renderPanel()
-	await removeEntry(firstCallName)
-	await screen.findByRole('alert')
-	const comment = (await addForm()).getByLabelText('Comment')
-	await userEvent.type(comment, 'x')
-	await userEvent.click(addButton())
-
-	await waitFor(() => expect(comment).toHaveValue(''))
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a removal from a repeater archived elsewhere reads the catalogue again', async () => {
@@ -996,7 +949,7 @@ test('a removal from a repeater archived elsewhere reads the catalogue again', a
 
 	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
-	expect(screen.getByRole('alert')).toHaveTextContent('That field is not one this contact holds.')
+	expect(await screen.findByText('That field is not one this contact holds.', TOAST)).toBeInTheDocument()
 	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
 })
 
@@ -1247,7 +1200,7 @@ test('a saved entry closes the editor, reads the list again and puts focus on Ed
 	expect(screen.getByText('Entry saved.')).toBeInTheDocument()
 })
 
-test('a refused save keeps the editor and its draft', async () => {
+test('a refused save shows the reason in a toast and keeps the editor, its draft and Save on', async () => {
 	speakTemplates()
 	serveCatalogue([history])
 	serveValues({ history: [offerSent] })
@@ -1258,8 +1211,13 @@ test('a refused save keeps the editor and its draft', async () => {
 	await userEvent.type(editor.getByLabelText('Comment'), ' More.')
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('That value does not match the kind the field declares.')
+	expect(
+		await screen.findByText('Could not save the entry. That value does not match the kind the field declares.', TOAST),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(editor.getByLabelText('Comment')).toHaveValue(`${offerSent.comment} More.`)
+	const save = editor.getByRole('button', { name: 'Save entry' })
+	await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled', 'true'))
 })
 
 test('a save answered as not found says so and passes focus on', async () => {
@@ -1272,7 +1230,7 @@ test('a save answered as not found says so and passes focus on', async () => {
 	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('That entry no longer exists.')
+	expect(await screen.findByText('Could not save the entry. That entry no longer exists.', TOAST)).toBeInTheDocument()
 	expect(screen.queryByRole('form', { name: /^Edit entry/ })).not.toBeInTheDocument()
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(screen.getByRole('button', { name: `Edit entry: ${offerSentName}` })).toHaveAttribute('aria-disabled', 'true')
@@ -1293,11 +1251,11 @@ test('a save to a repeater archived elsewhere reads the catalogue again', async 
 
 	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
-	expect(screen.getByRole('alert')).toHaveTextContent('That field is not one this contact holds.')
+	expect(await screen.findByText('That field is not one this contact holds.', TOAST)).toBeInTheDocument()
 	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
 })
 
-test('a save that fails otherwise shows the fallback', async () => {
+test('a save that fails otherwise says only that it failed', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent] })
 	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
@@ -1306,40 +1264,24 @@ test('a save that fails otherwise shows the fallback', async () => {
 	const editor = await editEntry(offerSentName)
 	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+	expect(await screen.findByText('Could not save the entry.', TOAST)).toBeInTheDocument()
 	expect(screen.queryByText('Entry saved.')).not.toBeInTheDocument()
 })
 
-test('Cancel clears the failure of a refused save', async () => {
+test('pressing Save entry again after a failed save says so again', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent] })
 	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
 	const editor = await editEntry(offerSentName)
-	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
-	await screen.findByRole('alert')
-	await userEvent.click(editor.getByRole('button', { name: 'Cancel' }))
+	const save = editor.getByRole('button', { name: 'Save entry' })
+	await userEvent.click(save)
+	await screen.findByText('Could not save the entry.', TOAST)
+	await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled', 'true'))
+	await userEvent.click(save)
 
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-})
-
-test('a second save clears the last failure while it runs', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [offerSent] })
-	capture('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
-
-	renderPanel()
-	const editor = await editEntry(offerSentName)
-	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
-	await screen.findByRole('alert')
-	const updating = hold('UpdateContactFieldEntry', { errors: [{ message: 'boom' }] })
-	await userEvent.click(editor.getByRole('button', { name: 'Save entry' }))
-	await waitFor(() => expect(updating.called).toHaveBeenCalledOnce())
-
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	updating.release()
-	expect(await screen.findByRole('alert')).toHaveTextContent('The entry could not be saved.')
+	await waitFor(() => expect(screen.getAllByText('Could not save the entry.', TOAST)).toHaveLength(2))
 })
 
 test('the editor of a sub field named after a built-in member starts blank', async () => {

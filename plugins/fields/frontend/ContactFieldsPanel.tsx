@@ -7,12 +7,11 @@ import {
 	LoadingScreen,
 	SectionTitle,
 	Stack,
-	graphError,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import { useId, useState } from 'react'
 
@@ -59,10 +58,10 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 		query: contactValuesDocument(fields.map((field) => field.name)),
 		variables: { id: contactId },
 	})
-	const [gone, setGone] = useState('')
+	const toaster = useToaster()
 	const heading = useId()
 	const onGone: GoneHandler = (message, from) => {
-		setGone(message)
+		toaster.show(message)
 		whenFocusStayed(from, () => (document.getElementById(heading) as HTMLElement).focus())
 	}
 	let body = <LoadingScreen label={__('Loading fields…', 'alphone-fields')} />
@@ -78,7 +77,6 @@ function FieldValues({ contactId, fields }: { contactId: string; fields: FieldRo
 			<SectionTitle id={heading} tabIndex={-1}>
 				{__('Fields', 'alphone-fields')}
 			</SectionTitle>
-			{gone !== '' && <ErrorNotice>{gone}</ErrorNotice>}
 			{body}
 		</Stack>
 	)
@@ -143,7 +141,7 @@ function fieldRuns(fields: FieldRow[]) {
  * Holds the unsaved edits of every plain field of one contact, and the save that writes them all at once.
  * @param contactId - The contact the values belong to.
  * @param fields - The fields of the contact.
- * @returns The edits, what records one, the save, the run pressed last, whether it runs and the last failure.
+ * @returns The edits, what records one, the save, the run pressed last and whether it runs.
  */
 function useFieldEdits(contactId: string, fields: FieldRow[]) {
 	const [edited, setEdited] = useState<Record<string, string>>({})
@@ -154,11 +152,13 @@ function useFieldEdits(contactId: string, fields: FieldRow[]) {
 	const save = (run: string) => {
 		setPressedRun(run)
 		void write({ contactId, values: writable(fields, edited) }).then((result) => {
-			if (!result.error) {
-				setEdited((held) => unsent(held, edited))
-				toaster.show(__('Fields saved.', 'alphone-fields'))
-				graph.refetch([valuesOperation])
+			if (result.error) {
+				toaster.show(writeFailure(__('Could not save the fields.', 'alphone-fields'), result.error))
+				return
 			}
+			setEdited((held) => unsent(held, edited))
+			toaster.show(__('Fields saved.', 'alphone-fields'))
+			graph.refetch([valuesOperation])
 		})
 	}
 	return {
@@ -167,7 +167,6 @@ function useFieldEdits(contactId: string, fields: FieldRow[]) {
 		save,
 		pressedRun,
 		saving: written.fetching,
-		failure: written.error,
 	}
 }
 
@@ -187,7 +186,7 @@ type FieldEdits = ReturnType<typeof useFieldEdits>
 /**
  * Renders the form editing one run of a contact's plain fields, its Save fields on once the run is edited.
  * @param props - The run of plain fields, the values the graph answered and the edits every form shares.
- * @returns The value form, with the notice of a failed save pressed in it.
+ * @returns The value form.
  */
 function FieldsForm({
 	fields,
@@ -216,11 +215,6 @@ function FieldsForm({
 					onChange={(next) => edits.edit(field.name, next)}
 				/>
 			))}
-			{edits.failure && pressed ? (
-				<ErrorNotice>
-					{validationMessage(graphError(edits.failure), __('The fields could not be saved.', 'alphone-fields'))}
-				</ErrorNotice>
-			) : null}
 			<Button type="submit" disabled={!changed || edits.saving} loading={edits.saving && pressed}>
 				{__('Save fields', 'alphone-fields')}
 			</Button>

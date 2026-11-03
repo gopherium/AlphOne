@@ -47,6 +47,17 @@ export function entryMessage(error: GraphFailure, fallback: string): string {
 }
 
 /**
+ * Returns what a failed entry call says in a toast: what failed, then the words a reader is shown when there are some.
+ * @param failed - The sentence naming what failed.
+ * @param error - The failure the call answered with.
+ * @returns The words of the toast.
+ */
+export function entryFailure(failed: string, error: GraphFailure): string {
+	const words = entryMessage(error, '')
+	return words === '' ? failed : `${failed} ${words}`
+}
+
+/**
  * Returns what an entry call's answer asks the screen to do.
  * @param error - The failure the call answered with, if any.
  * @returns The outcome.

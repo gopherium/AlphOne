@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, adminSession, graphql, http, paging, server } from '@alphone/frontend-sdk/testing'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, test, vi } from 'vitest'
 
@@ -26,6 +26,9 @@ const birthDate = {
 	kind: 'DATE',
 	subFields: [],
 }
+
+/** TOAST reads a text inside a toast. */
+const TOAST = { selector: '.godmin-toast' }
 
 beforeEach(() => {
 	server.use(http.get('/api/auth/session', () => HttpResponse.json(adminSession)))
@@ -89,7 +92,7 @@ test('saving sends the edited value under its field name', async () => {
 	expect(await screen.findByText('Fields saved.')).toBeInTheDocument()
 })
 
-test('a refused save is reported', async () => {
+test('a refused save says so in a toast and keeps the edits with Save fields on', async () => {
 	serveCatalogue([birthDate])
 	serveValues({ birthDate: null })
 	server.use(
@@ -106,11 +109,28 @@ test('a refused save is reported', async () => {
 	)
 
 	renderPanel()
+	const input = await screen.findByLabelText('Birth date')
+	await userEvent.type(input, '1990-04-17')
+	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
+
+	expect(await screen.findByText('Could not save the fields. fields: birthDate expects DATE', TOAST)).toBeInTheDocument()
+	expect(screen.queryByText('Fields saved.')).not.toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(input).toHaveValue('1990-04-17')
+	const save = screen.getByRole('button', { name: 'Save fields' })
+	await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled', 'true'))
+})
+
+test('a save that fails with no words from the server says only what failed', async () => {
+	serveCatalogue([birthDate])
+	serveValues({ birthDate: null })
+	server.use(graphql.mutation('WriteContactFields', () => HttpResponse.json({ errors: [{ message: 'boom' }] })))
+
+	renderPanel()
 	await userEvent.type(await screen.findByLabelText('Birth date'), '1990-04-17')
 	await userEvent.click(screen.getByRole('button', { name: 'Save fields' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(/expects DATE/)
-	expect(screen.queryByText('Fields saved.')).not.toBeInTheDocument()
+	expect(await screen.findByText('Could not save the fields.', TOAST)).toBeInTheDocument()
 })
 
 const loyaltyPoints = {
@@ -421,7 +441,7 @@ test('a save clears the edits of every run and shows the values read again', asy
 test.each([
 	{ label: 'Birth date', text: '1990-04-17' },
 	{ label: 'Job title', text: 'Rear Admiral' },
-])('a refused save from the $label run shows one notice inside that form', async ({ label, text }) => {
+])('a refused save from the $label run shows one toast and no notice in the page', async ({ label, text }) => {
 	serveCatalogue([birthDate, history, jobTitle])
 	serveValues({ birthDate: null, history: null, jobTitle: null })
 	server.use(
@@ -434,32 +454,25 @@ test.each([
 	await userEvent.type(await screen.findByLabelText(label), text)
 	await userEvent.click(saveOf(label))
 
-	const notice = await screen.findByRole('alert')
-	expect(screen.getAllByRole('alert')).toHaveLength(1)
-	expect(saveOf(label).closest('form')).toContainElement(notice)
+	await screen.findByText('Could not save the fields. fields: birthDate expects DATE', TOAST)
+	expect(screen.getAllByText(/expects DATE/)).toHaveLength(1)
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('a refused save keeps its notice in the pressed run when the repeater before it goes', async () => {
-	serveCatalogue([birthDate, history, jobTitle])
-	serveValues({ birthDate: null, history: null, jobTitle: null })
-	server.use(
-		graphql.mutation('WriteContactFields', () =>
-			HttpResponse.json({ errors: [{ message: 'fields: jobTitle refused', extensions: { code: 'VALIDATION' } }] }),
-		),
-	)
+test('pressing Save fields again after a refused save says so again', async () => {
+	serveCatalogue([birthDate])
+	serveValues({ birthDate: null })
+	server.use(graphql.mutation('WriteContactFields', () => HttpResponse.json({ errors: [{ message: 'boom' }] })))
 
-	const { graph } = renderPanel()
-	await userEvent.type(await screen.findByLabelText('Job title'), 'Rear Admiral')
-	await userEvent.click(saveOf('Job title'))
-	await screen.findByRole('alert')
-	serveCatalogue([birthDate, jobTitle])
-	serveValues({ birthDate: null, jobTitle: null })
-	await act(async () => {
-		graph.refetch(['Fields'])
-	})
+	renderPanel()
+	await userEvent.type(await screen.findByLabelText('Birth date'), '1990-04-17')
+	const save = screen.getByRole('button', { name: 'Save fields' })
+	await userEvent.click(save)
+	await screen.findByText('Could not save the fields.', TOAST)
+	await waitFor(() => expect(save).not.toHaveAttribute('aria-disabled', 'true'))
+	await userEvent.click(save)
 
-	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
-	await waitFor(() => expect(saveOf('Job title').closest('form')).toContainElement(screen.getByRole('alert')))
+	await waitFor(() => expect(screen.getAllByText('Could not save the fields.', TOAST)).toHaveLength(2))
 })
 
 test('a save shows its spinner only on the Save fields pressed and keeps every Save fields off', async () => {
