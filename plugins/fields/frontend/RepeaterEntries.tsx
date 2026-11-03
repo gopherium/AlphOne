@@ -63,7 +63,8 @@ export function RepeaterEntries({
 	const entries = useMemo(() => entriesOf(stored), [stored])
 	const sizing = useAdminSettings()
 	const [pages, setPages] = useState(1)
-	const listed = entries.slice(0, entriesToDraw(sizing, pages, entries.length))
+	const [added, setAdded] = useState(0)
+	const listed = entries.slice(0, entriesToDraw(sizing, pages, entries.length) + added)
 	const actions = useEntryActions({ contactId, field, entries: listed, onGone })
 	const more = {
 		hasNextPage: listed.length > 0 && listed.length < entries.length,
@@ -84,7 +85,10 @@ export function RepeaterEntries({
 						contactId={contactId}
 						field={field}
 						focusCount={actions.addFocus}
-						onAdded={actions.added}
+						onAdded={(from) => {
+							setAdded((held) => held + 1)
+							actions.added(from)
+						}}
 						onGone={onGone}
 					/>
 					{actions.failure !== '' && <ErrorNotice>{actions.failure}</ErrorNotice>}

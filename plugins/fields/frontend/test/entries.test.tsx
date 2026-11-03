@@ -1496,6 +1496,25 @@ test('an added entry keeps the pages already open', async () => {
 	await waitFor(async () => expect(await itemNames()).toEqual([followUpName, ...callNames(3)]))
 })
 
+test('an added entry leaves an open editor on the page with what it holds', async () => {
+	paging([2, 4], 2)
+	serveCatalogue([history])
+	const change = serveChangingValues({ history: calls(3) })
+	capture('AddContactFieldEntry', added)
+
+	renderPanel()
+	const editor = await editEntry('Call 2.')
+	await userEvent.type(editor.getByLabelText('Comment'), ' Asked for a quote.')
+	change({ history: [followUp, ...calls(3)] })
+	await userEvent.type((await addForm()).getByLabelText('Comment'), 'Follow-up call.')
+	await userEvent.click(addButton())
+
+	await waitFor(async () => expect((await itemNames())[0]).toBe(followUpName))
+	const open = within(screen.getByRole('form', { name: 'Edit entry: Call 2.' }))
+	expect(open.getByLabelText('Comment')).toHaveValue('Call 2. Asked for a quote.')
+	expect(moreButton()).toBeInTheDocument()
+})
+
 test('another contact opens on its first page', async () => {
 	paging([1, 2], 1)
 	serveCatalogue([history])
