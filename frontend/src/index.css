@@ -28,6 +28,15 @@
 	white-space: nowrap;
 }
 
+.alphone-conversation__number {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--wpds-typography-font-size-sm);
+	font-weight: var(--wpds-typography-font-weight-default);
+	line-height: var(--wpds-typography-line-height-xs);
+}
+
 .alphone-conversation__bottom {
 	display: flex;
 	align-items: center;
@@ -47,6 +56,10 @@
 	line-height: var(--wpds-typography-line-height-xs);
 }
 
+.alphone-conversation-filter {
+	margin-block-end: var(--wpds-dimension-gap-sm);
+}
+
 .alphone-thread {
 	display: flex;
 	flex-direction: column;
@@ -58,6 +71,15 @@
 	flex: none;
 	padding: 16px 24px;
 	border-bottom: 1px solid var(--wpds-color-stroke-surface-neutral);
+}
+
+.alphone-thread__number {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--wpds-typography-font-size-sm);
+	line-height: var(--wpds-typography-line-height-xs);
 }
 
 .alphone-thread__log {

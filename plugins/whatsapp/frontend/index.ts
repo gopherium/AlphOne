@@ -29,7 +29,10 @@ export const plugin: FrontendPlugin = {
 		},
 	}],
 	tokenAreas: [{ value: 'whatsapp', label: 'WhatsApp' }],
-	graphKeys: { WhatsAppMedia: () => null },
+	graphKeys: {
+		WhatsAppMedia: () => null,
+		WhatsAppNumber: (data) => String(data.identifier),
+	},
 	locale: { domain: DOMAIN, load: globCatalogs(catalogs) },
 	errorTemplates,
 }

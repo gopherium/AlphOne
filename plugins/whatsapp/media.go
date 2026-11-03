@@ -39,6 +39,13 @@ type pendingMediaRow struct {
 	Attempts       int       `db:"attempts"`
 	CreatedAt      time.Time `db:"created_at"`
 	TenantID       uuid.UUID `db:"tenant_id"`
+	PhoneNumberID  string    `db:"phone_number_id"`
+}
+
+// mediaBlob is the bytes of a downloaded asset beside their type.
+type mediaBlob struct {
+	data     []byte
+	mimeType string
 }
 
 // storedMediaRow carries a stored blob and its serving metadata.
@@ -84,18 +91,39 @@ func insertMediaPending(ctx context.Context, exec pgxExecutor, messageID uuid.UU
 	return nil
 }
 
-// claimDueMedia returns up to limit pending media rows due for a download attempt, oldest first.
-func (s *store) claimDueMedia(ctx context.Context, now time.Time, limit int) ([]pendingMediaRow, error) {
+// tenantsWithDueMedia returns every tenant holding a pending media row due for a download attempt.
+func (s *store) tenantsWithDueMedia(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
+	rows, _ := s.pool.Query(ctx,
+		`SELECT DISTINCT tenant_id FROM plugin_whatsapp.media WHERE status = 'pending' AND next_attempt_at <= $1`,
+		now,
+	)
+	tenants, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: read tenants with due media: %w", err)
+	}
+	return tenants, nil
+}
+
+// claimDueMedia returns up to limit due media rows outside the closed tenants, taking turns between tenants.
+func (s *store) claimDueMedia(
+	ctx context.Context, now time.Time, limit int, closed []uuid.UUID,
+) ([]pendingMediaRow, error) {
 	rows, _ := s.pool.Query(ctx, `
-		SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts,
-			med.created_at, med.tenant_id
-		FROM plugin_whatsapp.media med
-		JOIN plugin_whatsapp.messages msg
-			ON msg.id = med.message_id AND msg.tenant_id = med.tenant_id
-		WHERE med.status = 'pending' AND med.next_attempt_at <= $1
-		ORDER BY med.created_at, med.message_id
+		SELECT message_id, conversation_id, media_id, sha256, attempts, created_at, tenant_id, phone_number_id
+		FROM (
+			SELECT med.message_id, msg.conversation_id, med.media_id, med.sha256, med.attempts,
+				med.created_at, med.tenant_id, COALESCE(conv.phone_number_id, '') AS phone_number_id,
+				row_number() OVER (PARTITION BY med.tenant_id ORDER BY med.created_at, med.message_id) AS turn
+			FROM plugin_whatsapp.media med
+			JOIN plugin_whatsapp.messages msg
+				ON msg.id = med.message_id AND msg.tenant_id = med.tenant_id
+			JOIN plugin_whatsapp.conversations conv
+				ON conv.id = msg.conversation_id AND conv.tenant_id = msg.tenant_id
+			WHERE med.status = 'pending' AND med.next_attempt_at <= $1 AND med.tenant_id <> ALL($3)
+		) due
+		ORDER BY turn, created_at, message_id
 		LIMIT $2`,
-		now, limit,
+		now, limit, closed,
 	)
 	pending, err := pgx.CollectRows(rows, pgx.RowToStructByName[pendingMediaRow])
 	if err != nil {
@@ -104,48 +132,42 @@ func (s *store) claimDueMedia(ctx context.Context, now time.Time, limit int) ([]
 	return pending, nil
 }
 
-// markMediaStored saves a downloaded blob on a still pending media row.
-func (s *store) markMediaStored(
-	ctx context.Context, messageID uuid.UUID, data []byte, mimeType string, fileSize int64,
-) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE plugin_whatsapp.media
-		SET status = 'stored', data = $2, mime_type = $3, file_size = $4, last_error = NULL, stored_at = $5
-		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $6`,
-		messageID, data, mimeType, fileSize, time.Now().UTC(), sdk.TenantOrDefault(ctx),
-	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: mark media stored: %w", err)
+// updateMedia runs one statement on a media row, naming the step in any failure.
+func (s *store) updateMedia(ctx context.Context, step, statement string, args ...any) error {
+	if _, err := s.pool.Exec(ctx, statement, args...); err != nil {
+		return fmt.Errorf("whatsapp: %s: %w", step, err)
 	}
 	return nil
 }
 
+// markMediaStored saves a downloaded blob on a still pending media row.
+func (s *store) markMediaStored(ctx context.Context, messageID uuid.UUID, blob mediaBlob) error {
+	return s.updateMedia(ctx, "mark media stored", `
+		UPDATE plugin_whatsapp.media
+		SET status = 'stored', data = $2, mime_type = $3, file_size = $4, last_error = NULL, stored_at = $5
+		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $6`,
+		messageID, blob.data, blob.mimeType, int64(len(blob.data)), time.Now().UTC(), sdk.TenantOrDefault(ctx),
+	)
+}
+
 // markMediaFailed retires a still pending media row with the failure reason.
 func (s *store) markMediaFailed(ctx context.Context, messageID uuid.UUID, reason string) error {
-	_, err := s.pool.Exec(ctx, `
+	return s.updateMedia(ctx, "mark media failed", `
 		UPDATE plugin_whatsapp.media
 		SET status = 'failed', last_error = $2
 		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $3`,
 		messageID, reason, sdk.TenantOrDefault(ctx),
 	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: mark media failed: %w", err)
-	}
-	return nil
 }
 
 // rescheduleMedia records a failed download attempt and defers the next one.
 func (s *store) rescheduleMedia(
 	ctx context.Context, messageID uuid.UUID, reason string, nextAttemptAt time.Time,
 ) error {
-	_, err := s.pool.Exec(ctx, `
+	return s.updateMedia(ctx, "reschedule media", `
 		UPDATE plugin_whatsapp.media
 		SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3
 		WHERE message_id = $1 AND status = 'pending' AND tenant_id = $4`,
 		messageID, reason, nextAttemptAt, sdk.TenantOrDefault(ctx),
 	)
-	if err != nil {
-		return fmt.Errorf("whatsapp: reschedule media: %w", err)
-	}
-	return nil
 }

@@ -39,7 +39,7 @@ func TestTheListsAnswerWithinTheHostPageBounds(t *testing.T) {
 	t.Cleanup(func() { _ = p.Stop(context.Background()) })
 	past := 4
 
-	_, conversations := p.QueryResolvers().WhatsAppConversations(t.Context(), &past)
+	_, conversations := p.QueryResolvers().WhatsAppConversations(t.Context(), &past, nil)
 	_, messages := p.WhatsAppConversationResolvers().Messages(t.Context(),
 		&model.WhatsAppConversation{ID: uuid.Must(uuid.NewV7())}, &past)
 

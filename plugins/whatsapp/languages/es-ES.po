@@ -198,3 +198,31 @@ msgstr "Mensaje no compatible."
 #, fuzzy
 msgid "status"
 msgstr "estado"
+
+#, fuzzy
+msgid "All numbers"
+msgstr "Todos los números"
+
+#, fuzzy
+msgid "Another workspace already holds that number."
+msgstr "Otro espacio de trabajo ya tiene ese número."
+
+#, fuzzy
+msgid "Filter by number"
+msgstr "Filtrar por número"
+
+#, fuzzy
+msgid "No conversations on this number."
+msgstr "No hay conversaciones en este número."
+
+#, fuzzy
+msgid "Number: %(number)s"
+msgstr "Número: %(number)s"
+
+#, fuzzy
+msgid "That number is no longer connected."
+msgstr "Ese número ya no está conectado."
+
+#, fuzzy
+msgid "WhatsApp number"
+msgstr "Número de WhatsApp"

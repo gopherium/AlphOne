@@ -22,7 +22,7 @@ func seedStoredMedia(
 	insertPendingMedia(t, p, messageID, mediaDescriptor{
 		mediaID: "MEDIA1", mimeType: "application/octet-stream", sha256: sha, filename: filename,
 	})
-	if err := p.store.markMediaStored(t.Context(), messageID, data, mimeType, int64(len(data))); err != nil {
+	if err := p.store.markMediaStored(t.Context(), messageID, mediaBlob{data: data, mimeType: mimeType}); err != nil {
 		t.Fatalf("markMediaStored() error = %v, want nil", err)
 	}
 	return conversationID, messageID

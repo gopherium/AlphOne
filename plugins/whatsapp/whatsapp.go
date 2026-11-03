@@ -5,6 +5,7 @@ package whatsapp
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
 	"embed"
@@ -35,19 +36,21 @@ var migrationSource = mustSub(migrations, "migrations")
 
 // Plugin connects WhatsApp conversations to the CRM core.
 type Plugin struct {
-	pool           *pgxpool.Pool
-	resolver       sdk.ContactResolver
-	verifyToken    string
-	appSecret      string
-	encrypter      sdk.Encrypter
-	envCredentials credentials
-	gate           sdk.TenantGate
-	store          *store
-	sender         *sender
-	events         *broadcaster
-	fetcher        *mediaFetcher
-	publisher      sdk.Publisher
-	pages          sdk.PageBounds
+	pool               *pgxpool.Pool
+	resolver           sdk.ContactResolver
+	verifyToken        string
+	appSecret          string
+	encrypter          sdk.Encrypter
+	envCredentials     credentials
+	gate               sdk.TenantGate
+	store              *store
+	sender             *sender
+	events             *broadcaster
+	fetcher            *mediaFetcher
+	publisher          sdk.Publisher
+	pages              sdk.PageBounds
+	deliveryItemsMax   int
+	deliveryNumbersMax int
 }
 
 // transportTemplate is the pool settings every outbound client is cloned from.
@@ -62,6 +65,14 @@ func newOutboundClient(timeout time.Duration) *http.Client {
 func Register(deps sdk.Deps) (*Plugin, error) {
 	env := deps.Env.Within("WHATSAPP_")
 	maxBytes, err := env.Count("MEDIA_MAX_BYTES", defaultMediaMaxBytes)
+	if err != nil {
+		return nil, err
+	}
+	deliveryItemsMax, err := env.Count("DELIVERY_ITEMS_MAX", defaultDeliveryItemsMax)
+	if err != nil {
+		return nil, err
+	}
+	deliveryNumbersMax, err := env.Count("DELIVERY_NUMBERS_MAX", defaultDeliveryNumbersMax)
 	if err != nil {
 		return nil, err
 	}
@@ -86,10 +97,12 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		},
 		store: &store{pool: pool},
 		sender: &sender{
-			client:  newOutboundClient(10 * time.Second),
+			client:  newSenderClient(10 * time.Second),
 			baseURL: graphURL,
 		},
-		events: newBroadcaster(),
+		events:             newBroadcaster(),
+		deliveryItemsMax:   deliveryItemsMax,
+		deliveryNumbersMax: deliveryNumbersMax,
 	}
 	p.fetcher = newMediaFetcher(p.store, p.events, mediaFetcherConfig{
 		baseURL:     graphURL,
@@ -161,15 +174,34 @@ func (p *Plugin) PublicPaths() []string {
 func (p *Plugin) handleVerify() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		tokenMatches := subtle.ConstantTimeCompare([]byte(query.Get("hub.verify_token")), []byte(p.verifyToken)) == 1
-		if p.verifyToken == "" || query.Get("hub.mode") != "subscribe" || !tokenMatches {
-			w.WriteHeader(http.StatusForbidden)
+		status := p.verifyStatus(r.Context(), query.Get("hub.mode"), query.Get("hub.verify_token"))
+		if status != http.StatusOK {
+			w.WriteHeader(status)
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(query.Get("hub.challenge")))
 	}
+}
+
+// verifyStatus answers the status of a handshake carrying the mode and the token.
+func (p *Plugin) verifyStatus(ctx context.Context, mode, token string) int {
+	if mode != "subscribe" || token == "" {
+		return http.StatusForbidden
+	}
+	if subtle.ConstantTimeCompare([]byte(token), []byte(p.verifyToken)) == 1 {
+		return http.StatusOK
+	}
+	digest := sha256.Sum256([]byte(token))
+	held, err := p.store.holdsVerifyDigest(ctx, digest[:])
+	if err != nil {
+		return http.StatusInternalServerError
+	}
+	if !held {
+		return http.StatusForbidden
+	}
+	return http.StatusOK
 }
 
 // Migrate creates and updates the plugin-owned plugin_whatsapp schema.

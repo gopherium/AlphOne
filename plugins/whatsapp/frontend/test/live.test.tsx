@@ -36,7 +36,7 @@ test('reruns the plugin queries when a conversation event arrives', async () => 
 
 	fake.emit({ whatsAppConversationEvent: 'conversation-id' })
 
-	expect(fake.graph.refetch).toHaveBeenCalledWith(['WhatsAppConversations', 'WhatsAppThread'])
+	expect(fake.graph.refetch).toHaveBeenCalledWith(['WhatsAppConversations', 'WhatsAppThread', 'WhatsAppNumbers'])
 })
 
 test('ends the subscription on unmount', async () => {

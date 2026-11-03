@@ -4,13 +4,12 @@ package whatsapp
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -23,21 +22,39 @@ import (
 // eventMessageReceived names the event a stored inbound message announces.
 const eventMessageReceived = "whatsapp.message.received"
 
+// defaultDeliveryItemsMax is how many items one delivery stores when the setting is unset.
+const defaultDeliveryItemsMax = 2000
+
+// defaultDeliveryNumbersMax is how many numbers with their own secret one delivery names when the setting is unset.
+const defaultDeliveryNumbersMax = 100
+
 type inboundMessage struct {
-	externalID    string
-	sender        string
-	senderName    string
-	content       string
-	contentType   string
-	media         *mediaDescriptor
-	sentAt        time.Time
-	raw           json.RawMessage
-	phoneNumberID string
+	externalID         string
+	sender             string
+	senderName         string
+	content            string
+	contentType        string
+	media              *mediaDescriptor
+	sentAt             time.Time
+	raw                json.RawMessage
+	tenantID           uuid.UUID
+	conversationNumber *string
 }
 
 type webhookPayload struct {
 	Entry []struct {
 		Changes []webhookChange `json:"changes"`
+	} `json:"entry"`
+}
+
+// webhookNames is the part of a delivery read before any secret proves it.
+type webhookNames struct {
+	Entry []struct {
+		Changes []struct {
+			Value struct {
+				Metadata webhookMetadata `json:"metadata"`
+			} `json:"value"`
+		} `json:"changes"`
 	} `json:"entry"`
 }
 
@@ -63,10 +80,11 @@ type webhookSender struct {
 }
 
 type statusUpdate struct {
-	wamid         string
-	status        string
-	detail        string
-	phoneNumberID string
+	wamid    string
+	status   string
+	detail   string
+	tenantID uuid.UUID
+	number   *string
 }
 
 type webhookStatus struct {
@@ -79,6 +97,7 @@ type webhookStatus struct {
 }
 
 type webhookBatch struct {
+	limit    int
 	messages []inboundMessage
 	statuses []statusUpdate
 }
@@ -128,8 +147,7 @@ type webhookReaction struct {
 	Emoji string `json:"emoji"`
 }
 
-// handleEvents returns an HTTP handler that verifies the webhook
-// signature, parses the inbound messages, and ingests them.
+// handleEvents returns an HTTP handler that reads one webhook delivery and answers what became of it.
 func (p *Plugin) handleEvents() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -137,94 +155,119 @@ func (p *Plugin) handleEvents() http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if !p.signatureValid(r.Header.Get("X-Hub-Signature-256"), body) {
+		digest, shaped := parseSignature(r.Header.Get("X-Hub-Signature-256"))
+		if !shaped {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		batch, err := parseWebhook(body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if err := p.ingestBatch(r.Context(), batch); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(p.receive(r.Context(), digest, body))
 	}
 }
 
-// ingestBatch stores the messages and applies the status updates of one batch,
-// each inside the tenant owning the number it arrived on.
+// receive stores what a delivery's signature proves, answering the status Meta reads.
+func (p *Plugin) receive(ctx context.Context, digest, body []byte) int {
+	signed := signedBody{digest: digest, body: body}
+	named, err := namedNumbers(body)
+	if err != nil {
+		if signed.signedWith([]byte(p.appSecret)) {
+			return http.StatusBadRequest
+		}
+		return http.StatusForbidden
+	}
+	routes, proven, err := p.proveDelivery(ctx, signed, named)
+	if err != nil {
+		return http.StatusInternalServerError
+	}
+	if !proven {
+		return http.StatusForbidden
+	}
+	open, err := p.openRoutes(ctx, routes)
+	if err != nil {
+		return http.StatusInternalServerError
+	}
+	batch, err := parseWebhook(body, open, p.deliveryItemsMax)
+	if err != nil {
+		return http.StatusBadRequest
+	}
+	if err := p.ingestBatch(ctx, batch); err != nil {
+		return http.StatusInternalServerError
+	}
+	return http.StatusOK
+}
+
+// ingestBatch stores the messages and applies the status updates of a batch, each in its own tenant.
 func (p *Plugin) ingestBatch(ctx context.Context, batch webhookBatch) error {
 	for _, m := range batch.messages {
-		routed, known, err := p.routeByNumber(ctx, m.phoneNumberID)
-		if err != nil {
-			return err
-		}
-		if !known {
-			continue
-		}
-		if err := p.ingest(routed, m); err != nil {
+		if err := p.ingest(sdk.WithTenant(ctx, m.tenantID), m); err != nil {
 			return err
 		}
 	}
 	for _, u := range batch.statuses {
-		routed, known, err := p.routeByNumber(ctx, u.phoneNumberID)
-		if err != nil {
-			return err
-		}
-		if !known {
-			continue
-		}
-		if err := p.applyStatus(routed, u); err != nil {
+		if err := p.applyStatus(sdk.WithTenant(ctx, u.tenantID), u); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// signatureValid reports whether header holds a valid HMAC-SHA256
-// signature of body computed with the app secret.
-func (p *Plugin) signatureValid(header string, body []byte) bool {
-	if p.appSecret == "" {
-		return false
+// namedNumbers decodes the distinct numbers a delivery names, leaving out any Postgres cannot hold as text.
+func namedNumbers(body []byte) ([]string, error) {
+	var payload webhookNames
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("whatsapp: decode numbers: %w", err)
 	}
-	mac := hmac.New(sha256.New, []byte(p.appSecret))
-	mac.Write(body)
-	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(header), []byte(expected))
+	named := map[string]struct{}{}
+	for _, entry := range payload.Entry {
+		for _, change := range entry.Changes {
+			number := change.Value.Metadata.PhoneNumberID
+			if number != "" && !strings.ContainsRune(number, 0) {
+				named[number] = struct{}{}
+			}
+		}
+	}
+	return slices.Collect(maps.Keys(named)), nil
 }
 
-// parseWebhook decodes a webhook payload into the attributable inbound
-// messages and delivery status updates it contains.
-func parseWebhook(body []byte) (webhookBatch, error) {
+// parseWebhook decodes the items of a delivery that sit on an open route, up to limit of them.
+func parseWebhook(body []byte, open map[string]numberRoute, limit int) (webhookBatch, error) {
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return webhookBatch{}, fmt.Errorf("whatsapp: decode payload: %w", err)
 	}
-	var batch webhookBatch
+	batch := webhookBatch{limit: limit}
 	for _, entry := range payload.Entry {
 		for _, change := range entry.Changes {
-			batch.collect(change)
+			if route, proven := open[change.Value.Metadata.PhoneNumberID]; proven {
+				batch.collect(change, route)
+			}
 		}
 	}
 	return batch, nil
 }
 
-// collect appends the attributable messages and status updates in change,
-// each stamped with the number it arrived on.
-func (b *webhookBatch) collect(change webhookChange) {
+// full reports whether the batch holds as many items as a delivery may store.
+func (b *webhookBatch) full() bool {
+	return len(b.messages)+len(b.statuses) >= b.limit
+}
+
+// collect appends a change's messages and status updates, stamped with its route, until the batch is full.
+func (b *webhookBatch) collect(change webhookChange, route numberRoute) {
 	names := senderNames(change.Value.Contacts)
 	for _, raw := range change.Value.Messages {
+		if b.full() {
+			return
+		}
 		if m, ok := parseMessage(names, raw); ok {
-			m.phoneNumberID = change.Value.Metadata.PhoneNumberID
+			m.tenantID, m.conversationNumber = route.tenantID, route.number
 			b.messages = append(b.messages, m)
 		}
 	}
 	for _, raw := range change.Value.Statuses {
+		if b.full() {
+			return
+		}
 		if u, ok := parseStatus(raw); ok {
-			u.phoneNumberID = change.Value.Metadata.PhoneNumberID
+			u.tenantID, u.number = route.tenantID, route.statusNumber
 			b.statuses = append(b.statuses, u)
 		}
 	}

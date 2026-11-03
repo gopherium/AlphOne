@@ -11,11 +11,13 @@ import {
 	Text,
 	VisuallyHidden,
 	formatTime,
+	graphError,
 	graphExtensions,
 	sprintf,
 	useGraphMutation,
 	useGraphQuery,
 	useGraphSubscription,
+	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -23,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDay, formatDayLabel, formatFileSize } from './format'
 import { useMediaBlob } from './media'
 import type { ThreadMessageFragment } from './gql/graphql'
+import { useConnectedNumbers } from './numbers'
 import {
 	messageReceivedSubscription,
 	sendMessageMutation,
@@ -122,17 +125,17 @@ function MessageBubble({ message }: { message: Message }) {
 }
 
 /**
- * Copy for a failed reply attempt, using the Graph code when the backend
- * surfaced one.
+ * Copy for a failed reply attempt, from the Graph code or else the reason the backend named.
  * @param error - The reply mutation error.
  * @returns The operator-facing line under the composer.
  */
 function replyErrorCopy(error: GraphFailure): string {
+	const fallback = __('The reply could not be sent.', 'alphone-whatsapp')
 	const metaCode = graphExtensions(error).metaCode
 	if (typeof metaCode === 'number') {
-		return copyForFailureCode(metaCode) ?? __('The reply could not be sent.', 'alphone-whatsapp')
+		return copyForFailureCode(metaCode) ?? fallback
 	}
-	return __('The reply could not be sent.', 'alphone-whatsapp')
+	return validationMessage(graphError(error), fallback)
 }
 
 /**
@@ -418,17 +421,23 @@ function mergeById(loaded: readonly Message[], arrivals: readonly Message[]): Me
 }
 
 /**
- * Renders a WhatsApp conversation thread under its header.
+ * Renders a WhatsApp conversation thread under a header naming its number when the workspace holds more than one.
  * @returns The thread element.
  */
 export function Thread({ conversationId }: { conversationId: string }) {
 	const { thread, conversation, messages, append } = useThread(conversationId)
+	const manyNumbers = useConnectedNumbers().length > 1
 	return (
 		<div className="alphone-thread">
 			<header className="alphone-thread__header">
 				<PageTitle variant="heading-md" level={2}>
 					{conversation?.contact.name ?? __('Conversation', 'alphone-whatsapp')}
 				</PageTitle>
+				{manyNumbers && conversation?.number ? (
+					<Text className="alphone-thread__number">
+						{sprintf(__('Number: %(number)s', 'alphone-whatsapp'), { number: conversation.number })}
+					</Text>
+				) : null}
 			</header>
 			<ThreadBody
 				conversationId={conversationId}

@@ -3,12 +3,13 @@
 import { graphql } from './gql'
 
 export const conversationsQuery = graphql(`
-	query WhatsAppConversations {
-		whatsAppConversations {
+	query WhatsAppConversations($number: String) {
+		whatsAppConversations(number: $number) {
 			id
 			status
 			lastActivityAt
 			lastMessagePreview
+			number
 			contact {
 				id
 				name
@@ -17,10 +18,20 @@ export const conversationsQuery = graphql(`
 	}
 `)
 
+export const numbersQuery = graphql(`
+	query WhatsAppNumbers {
+		whatsAppNumbers {
+			identifier
+			label
+		}
+	}
+`)
+
 export const threadQuery = graphql(`
 	query WhatsAppThread($conversationId: UUID!) {
 		whatsAppConversation(id: $conversationId) {
 			id
+			number
 			contact {
 				id
 				name

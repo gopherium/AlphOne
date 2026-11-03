@@ -607,6 +607,8 @@ The stock plugins add their own:
 | `message_content_required` | | a message needs text |
 | `conversation_not_found` | | the id names no conversation |
 | `upstream_failed` | | the messaging platform did not accept |
+| `number_removed` | | the number the conversation came in on is no longer connected |
+| `channel_number_taken` | | another workspace holds the number, and the answer never names that workspace |
 | `import_not_found` | | the id names no import |
 | `file_too_large` | `maxBytes` | the upload is past the cap |
 | `file_unreadable` | | the file is not a CSV or spreadsheet AlphOne reads |
@@ -737,7 +739,7 @@ cannot drift. Point a client at the endpoint, or read
 | Webhooks | `webhooks`, `webhookEvents` | `createWebhook`, `deleteWebhook` |
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
-| WhatsApp | `whatsAppConversations`, `whatsAppConversation` | `whatsAppSendMessage` |
+| WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
 | Admin settings | `adminSettings` | |
 | Version | `version` | |
 

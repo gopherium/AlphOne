@@ -98,7 +98,7 @@ func TestWebhookEventsRejectsInvalidSignatures(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := newPlugin(t, "", nil, map[string]string{
+			routes := newPlugin(t, unreachableDatabaseURL, nil, map[string]string{
 				"ALPHONE_WHATSAPP_APP_SECRET": tc.configuredSecret,
 			}).Routes()
 
@@ -125,7 +125,7 @@ func TestWebhookEventsRejectsMalformedPayloads(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
-			routes := newPlugin(t, "", nil, map[string]string{
+			routes := newPlugin(t, unreachableDatabaseURL, nil, map[string]string{
 				"ALPHONE_WHATSAPP_APP_SECRET": "app-secret",
 			}).Routes()
 
@@ -370,6 +370,15 @@ func seedTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return id
 }
 
+// storeNumber stores the number 5550001 under the tenant with a token alone.
+func storeNumber(t *testing.T, p *whatsapp.Plugin, tenantID uuid.UUID) {
+	t.Helper()
+	stored := sdk.ChannelCredentials{Identifier: "5550001", Secret: "EAAG-5550001"}
+	if err := p.SetChannelCredentials(sdk.WithTenant(t.Context(), tenantID), stored); err != nil {
+		t.Fatalf("SetChannelCredentials() error = %v, want nil", err)
+	}
+}
+
 // numberedEventBody returns an inbound message payload naming the number it arrived on.
 func numberedEventBody(phoneNumberID, wamid string) []byte {
 	return fmt.Appendf(nil, `{
@@ -413,9 +422,7 @@ func TestWebhookEventsLandInTheNumbersTenant(t *testing.T) {
 
 	p, pool := newRoutingPlugin(t, nil)
 	acme := seedTenant(t, pool)
-	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
-		t.Fatalf("SetCredentials() error = %v, want nil", err)
-	}
+	storeNumber(t, p, acme)
 	body := numberedEventBody("5550001", "wamid.routed")
 
 	recorder := postEvent(t, p.Routes(), sign("app-secret", body), body)
@@ -579,9 +586,7 @@ func TestWebhookStatusesRouteByTheirNumber(t *testing.T) {
 
 	p, pool := newRoutingPlugin(t, nil)
 	acme := seedTenant(t, pool)
-	if err := p.SetCredentials(sdk.WithTenant(t.Context(), acme), "5550001", "EAAG-acme-token"); err != nil {
-		t.Fatalf("SetCredentials() error = %v, want nil", err)
-	}
+	storeNumber(t, p, acme)
 	seedOutboundRow(t, pool, "wamid.out.routed", acme)
 
 	stray := numberedStatusBody("5559999", "wamid.out.routed", "delivered")

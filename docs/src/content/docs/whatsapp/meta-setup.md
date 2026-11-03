@@ -187,3 +187,33 @@ If it does not:
 - **Sending fails after a day**: the Graph API returns error 190, which
   means the temporary test token expired. Generate the permanent token
   from step 5 or regenerate a new test token from step 2 and replace it in `.env`.
+
+## More than one number
+
+The four values in `.env` connect one number. A workspace can hold more, each
+with its own access token and its own label, kept in the database as
+[Configuration](/self-hosting/configuration/#whatsapp-plugin) describes. A
+number from another Meta app also carries that app's secret and verify token,
+because each app signs its webhooks with its own secret. The webhook address
+stays the same for every number.
+
+Subscribe a number from another Meta app to the **messages** field only,
+because a delivery that names no number can only be proved by
+`ALPHONE_WHATSAPP_APP_SECRET`.
+
+Each number keeps its own conversations. A customer who writes to two numbers
+has two conversations, because each has its own 24-hour window, and a reply
+leaves from the number the customer wrote to. Once a workspace holds more than
+one number, the inbox shows which number a conversation came in on and offers a
+filter. Removing a number keeps its conversations readable, but a reply on one
+of them answers that the number is no longer connected.
+
+The number in `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` is listed beside the numbers a
+workspace connects and keeps working. Removing a stored copy of it leaves it
+working from the settings.
+
+Before you remove a number, turn its subscription off in Meta. After the
+removal, a delivery signed with the number's own app secret answers `403`, and
+Meta keeps retrying it. A delivery signed with `ALPHONE_WHATSAPP_APP_SECRET`
+answers `200` and AlphOne drops it, so Meta does not retry and that message is
+lost.

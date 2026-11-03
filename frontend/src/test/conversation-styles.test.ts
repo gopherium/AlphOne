@@ -24,6 +24,30 @@ test('keeps the preview at the default weight, so only the top line of the open 
 	})
 })
 
+test('cuts a long number on its own line, so it never widens a row on a phone', () => {
+	expect(declarations('.alphone-conversation__number')).toMatchObject({
+		overflow: 'hidden',
+		'text-overflow': 'ellipsis',
+		'white-space': 'nowrap',
+		'font-weight': expect.stringMatching(/^var\(--wpds-typography-font-weight-default\)$/),
+	})
+})
+
+test('cuts a long number in the thread header, so it never widens the canvas on a phone', () => {
+	expect(declarations('.alphone-thread__number')).toMatchObject({
+		display: 'block',
+		overflow: 'hidden',
+		'text-overflow': 'ellipsis',
+		'white-space': 'nowrap',
+	})
+})
+
+test('holds the number filter apart from the rows under it', () => {
+	expect(declarations('.alphone-conversation-filter')).toEqual({
+		'margin-block-end': expect.stringMatching(/^var\(--wpds-dimension-gap-sm\)$/),
+	})
+})
+
 test('draws no hover, focus or current state of its own on a conversation row', () => {
 	expect(declarations('.alphone-conversation:hover')).toEqual({})
 	expect(declarations('.alphone-conversation:focus-visible')).toEqual({})

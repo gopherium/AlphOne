@@ -231,8 +231,9 @@ type Query {
 	imports: [ImportJob!]! @scope(area: "imports", write: false)
 	importJob(id: UUID!): ImportJob @scope(area: "imports", write: false)
 	importFields: [ImportField!]! @scope(area: "imports", write: false)
-	whatsAppConversations(limit: Int): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false) @listSize(slicingArguments: ["limit"])
+	whatsAppConversations(limit: Int, number: String): [WhatsAppConversation!]! @scope(area: "whatsapp", write: false) @listSize(slicingArguments: ["limit"])
 	whatsAppConversation(id: UUID!): WhatsAppConversation @scope(area: "whatsapp", write: false)
+	whatsAppNumbers: [WhatsAppNumber!]! @scope(area: "whatsapp", write: false)
 }
 enum SortOrder {
 	ASC
@@ -306,6 +307,7 @@ type WhatsAppConversation {
 	status: String!
 	lastActivityAt: DateTime!
 	lastMessagePreview: String
+	number: String
 	contact: Contact! @goField(forceResolver: true)
 	messages(limit: Int): [WhatsAppMessage!]! @goField(forceResolver: true) @listSize(slicingArguments: ["limit"])
 }
@@ -328,4 +330,8 @@ type WhatsAppMessage {
 	status: String
 	statusDetail: String
 	media: WhatsAppMedia
+}
+type WhatsAppNumber {
+	identifier: String!
+	label: String!
 }

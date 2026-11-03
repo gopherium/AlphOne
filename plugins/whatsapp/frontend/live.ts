@@ -12,6 +12,6 @@ const conversationEventSubscription = `subscription WhatsAppConversationEvent { 
 export function useLiveUpdates() {
 	const graph = useGraph()
 	useGraphEvents(graph, conversationEventSubscription, () => {
-		graph.refetch(['WhatsAppConversations', 'WhatsAppThread'])
+		graph.refetch(['WhatsAppConversations', 'WhatsAppThread', 'WhatsAppNumbers'])
 	})
 }

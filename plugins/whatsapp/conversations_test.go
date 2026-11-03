@@ -29,7 +29,7 @@ func listConversations(
 	t *testing.T, p *whatsapp.Plugin, limit *int,
 ) []*model.WhatsAppConversation {
 	t.Helper()
-	conversations, err := p.QueryResolvers().WhatsAppConversations(t.Context(), limit)
+	conversations, err := p.QueryResolvers().WhatsAppConversations(t.Context(), limit, nil)
 	if err != nil {
 		t.Fatalf("WhatsAppConversations() error = %v, want nil", err)
 	}

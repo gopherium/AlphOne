@@ -124,8 +124,9 @@ server, because a watcher on `:latest` applies it on its own.
   encrypted with `ALPHONE_ENCRYPTION_KEY`, see
   [WhatsApp plugin](/self-hosting/configuration/#whatsapp-plugin). A
   token stored under the old key no longer opens and has to be entered
-  again. Until then the default workspace also ignores
-  `ALPHONE_WHATSAPP_ACCESS_TOKEN`.
+  again. Until then a conversation on that stored number cannot reply, and
+  the default workspace ignores `ALPHONE_WHATSAPP_ACCESS_TOKEN` when the
+  stored number is the one in `ALPHONE_WHATSAPP_PHONE_NUMBER_ID`.
 - AlphOne keeps a `storage` schema in its database for the files
   plugins keep. It creates the schema on its first start, and with the
   default settings you set nothing. It checks at start that it can reach
@@ -139,6 +140,13 @@ server, because a watcher on `:latest` applies it on its own.
 - `ALPHONE_CONTACT_MATCH_MAX` is new and defaults to 100. A value AlphOne
   refuses stops `serve`, see
   [Contacts](/self-hosting/configuration/#contacts).
+- A workspace can hold many WhatsApp numbers, each with its own conversations,
+  so a customer who writes to two numbers has two conversations. A delivery is
+  stored only when its signature proves the number it names, see
+  [More than one number](/whatsapp/meta-setup/#more-than-one-number). If the
+  default workspace held both `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` and a different
+  stored number, its older conversations now read as the stored number, and a
+  customer who writes to the number in the settings opens a new conversation.
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
