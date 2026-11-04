@@ -24,6 +24,7 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useLastAnswer,
 	useRefusedField,
 	useToaster,
 	writeFailure,
@@ -126,23 +127,24 @@ const LABEL_REASONS = new Set(['field_label_required', 'field_label_too_long'])
  */
 export function FieldsScreen() {
 	const [catalogue] = useGraphQuery({ query: fieldCatalogueQuery, requestPolicy: 'cache-and-network' })
+	const answer = useLastAnswer(catalogue.data)
 	const reload = useCatalogueRefresh()
 
-	if (catalogue.fetching && !catalogue.data) {
+	if (catalogue.fetching && !answer) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 				<LoadingScreen label={__('Loading fields…', 'alphone-fields')} />
 			</PageScreen>
 		)
 	}
-	if (catalogue.error) {
+	if (catalogue.error && !answer) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 				<ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 			</PageScreen>
 		)
 	}
-	const rows = catalogueRows(catalogue.data)
+	const rows = catalogueRows(answer)
 	return (
 		<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 			<Stack direction="column" gap="lg">

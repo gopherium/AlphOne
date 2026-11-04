@@ -757,6 +757,30 @@ test('a repeater answered about a label says so in a toast and can be sent again
 	await waitFor(() => expect(defines).toBe(2))
 })
 
+test('a refused define keeps the form and what it holds when the read after the answer fails too', async () => {
+	serveFieldCatalogue([])
+	let reads = 0
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	server.use(
+		graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))),
+		graphql.query('FieldCatalogue', () => {
+			reads += 1
+			return HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] })
+		}),
+	)
+
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
+	await waitFor(() => expect(reads).toBe(1))
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getAllByLabelText('Label')[0]).toHaveValue('History')
+	expect(screen.getByRole('group', { name: 'Sub field 1' })).toBeInTheDocument()
+})
+
 test('the catalogue shows a repeater beside the labels of its sub fields', async () => {
 	serveFieldCatalogue([history])
 
