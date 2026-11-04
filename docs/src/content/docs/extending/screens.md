@@ -905,7 +905,7 @@ there. `useRefusedField` holds the message and `ValidatedInputControl` shows
 it. It goes as the reader edits.
 
 Anything else goes in a toast. `writeFailure` returns what failed, then the
-server's words when it sent some.
+server's words when it named a reason or refused the values.
 
 ```tsx
 const form = useRef<HTMLFormElement>(null)
@@ -934,6 +934,10 @@ field no longer holds what was sent, so the toast covers those cases too.
 A field holding a message blocks its form until the message goes. When another
 control changes what the server would answer, pass both to `useRefusedField`,
 such as `${channel}:${value}`, and hand `refuse` the same string.
+
+A screen that reads again after a failed write passes what the read holds to
+`useLastAnswer`, so a read that fails too leaves the form and its edits on
+screen.
 
 A check before sending stays under its field. `ErrorNotice` is for a failed
 load. A failure in a dialog or in a run over list rows goes in a toast, as
