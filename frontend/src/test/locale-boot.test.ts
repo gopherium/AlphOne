@@ -7,10 +7,19 @@ import { resetLocale } from '@gopherium/gottext/testing'
 import { __ } from '@wordpress/i18n'
 import { afterEach, expect, test } from 'vitest'
 
-import { fetchLocale } from '../i18n/api'
+import { fetchBoot } from '../i18n/api'
 import { DOMAIN, declaredEntries, localeEntries, startAppLocale } from '../i18n/start'
 import { plugins } from '../plugins'
 import { appErrorTemplates, declaredTemplates } from '../i18n/errors'
+
+/** PRIVACY_URL is a privacy policy address an install can publish. */
+const PRIVACY_URL = 'https://example.com/legal/privacy'
+
+/** TERMS_URL is a terms of service address an install can publish. */
+const TERMS_URL = 'https://example.com/legal/terms'
+
+/** NO_ADDRESSES is the answer of an install publishing no legal page. */
+const NO_ADDRESSES = { privacyUrl: '', termsUrl: '' }
 
 afterEach(() => {
 	resetLocale()
@@ -19,7 +28,7 @@ afterEach(() => {
 test('answers the locale the graph resolves', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
 
-	expect(await fetchLocale()).toBe('es-ES')
+	expect((await fetchBoot()).locale).toBe('es-ES')
 })
 
 test('answers the default when the graph refuses the ask', async () => {
@@ -28,19 +37,48 @@ test('answers the default when the graph refuses the ask', async () => {
 			HttpResponse.json({ errors: [{ message: 'authentication required' }] })),
 	)
 
-	expect(await fetchLocale()).toBe('en-US')
+	expect(await fetchBoot()).toEqual({ locale: 'en-US', legal: NO_ADDRESSES })
 })
 
 test('answers the default when the server cannot be reached', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.error()))
 
-	expect(await fetchLocale()).toBe('en-US')
+	expect(await fetchBoot()).toEqual({ locale: 'en-US', legal: NO_ADDRESSES })
 })
 
 test('answers the default when the graph answers nothing readable', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: {} })))
 
-	expect(await fetchLocale()).toBe('en-US')
+	expect(await fetchBoot()).toEqual({ locale: 'en-US', legal: NO_ADDRESSES })
+})
+
+test('asks for the legal addresses in the same read as the locale', async () => {
+	let asked = ''
+	server.use(
+		graphql.query('AppLocale', ({ query }) => {
+			asked = query
+			return HttpResponse.json({
+				data: { locale: 'es-ES', legalLinks: { privacyUrl: PRIVACY_URL, termsUrl: TERMS_URL } },
+			})
+		}),
+	)
+
+	expect(await fetchBoot()).toEqual({
+		locale: 'es-ES',
+		legal: { privacyUrl: PRIVACY_URL, termsUrl: TERMS_URL },
+	})
+	expect(asked).toBe('query AppLocale { locale legalLinks { privacyUrl termsUrl } }')
+})
+
+test('answers an address the install left unset as empty', async () => {
+	server.use(
+		graphql.query('AppLocale', () =>
+			HttpResponse.json({
+				data: { locale: 'en-US', legalLinks: { privacyUrl: null, termsUrl: TERMS_URL } },
+			})),
+	)
+
+	expect((await fetchBoot()).legal).toEqual({ privacyUrl: '', termsUrl: TERMS_URL })
 })
 
 test('settles the interface on the locale the graph resolves', async () => {
@@ -48,15 +86,32 @@ test('settles the interface on the locale the graph resolves', async () => {
 
 	const settled = await startAppLocale()
 
-	expect(settled).toBe('es-ES')
+	expect(settled.locale).toBe('es-ES')
 	expect(displayLocale()).toBe('es-ES')
 })
 
 test('settles on the default when the graph cannot say', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.error()))
 
-	expect(await startAppLocale()).toBe('en-US')
+	expect((await startAppLocale()).locale).toBe('en-US')
 	expect(displayLocale()).toBe('en-US')
+})
+
+test('hands back the legal addresses from the one read that settled the locale', async () => {
+	let reads = 0
+	server.use(
+		graphql.query('AppLocale', () => {
+			reads += 1
+			return HttpResponse.json({
+				data: { locale: 'es-ES', legalLinks: { privacyUrl: PRIVACY_URL, termsUrl: TERMS_URL } },
+			})
+		}),
+	)
+
+	const settled = await startAppLocale()
+
+	expect(settled.legal).toEqual({ privacyUrl: PRIVACY_URL, termsUrl: TERMS_URL })
+	expect(reads).toBe(1)
 })
 
 test('names the domain AlphOne strings answer under', () => {
