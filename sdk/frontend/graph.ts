@@ -156,13 +156,22 @@ export function graphError(error: unknown): Error | undefined {
 }
 
 /**
- * Returns what a failed write says: what failed, then the server's words when it sent some.
+ * Reports whether a failure is an answer naming the reason the server refused.
+ * @param error - The failure to read.
+ * @returns Whether a reason came with it.
+ */
+function namesReason(error: unknown): error is CombinedError {
+	return answeredFailure(error) && typeof graphExtensions(error).reason === 'string'
+}
+
+/**
+ * Returns what a failed write says: what failed, then the server's words when it named a reason or refused the values.
  * @param failed - The sentence naming what failed.
  * @param error - The failure the write answered with.
  * @returns The words of the toast.
  */
 export function writeFailure(failed: string, error: unknown): string {
-	const words = validationMessage(graphError(error), '')
+	const words = namesReason(error) ? spokenMessage(error) : validationMessage(graphError(error), '')
 	return words === '' ? failed : `${failed} ${words}`
 }
 
