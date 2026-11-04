@@ -27,6 +27,9 @@ const REFUSED_WORDS = 'refused'
 /** ORDER_REFUSED is the toast of an order refused because the field list changed. */
 const ORDER_REFUSED = 'Could not order the fields. The field list just changed. The new order was not saved.'
 
+/** READ_FAILED is the answer of a read the server could not run. */
+const READ_FAILED = { data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }
+
 /** scrolled records every scroll into view an element asks for. */
 const scrolled = vi.fn()
 
@@ -757,7 +760,7 @@ test('a repeater answered about a label says so in a toast and can be sent again
 	await waitFor(() => expect(defines).toBe(2))
 })
 
-test('a refused define keeps the form and what it holds when the read after the answer fails too', async () => {
+test('a refused define keeps the form beside a notice when the read after the answer fails too', async () => {
 	serveFieldCatalogue([])
 	let reads = 0
 	renderScreen()
@@ -767,7 +770,7 @@ test('a refused define keeps the form and what it holds when the read after the 
 		graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))),
 		graphql.query('FieldCatalogue', () => {
 			reads += 1
-			return HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] })
+			return HttpResponse.json(READ_FAILED)
 		}),
 	)
 
@@ -775,8 +778,7 @@ test('a refused define keeps the form and what it holds when the read after the 
 
 	await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
 	await waitFor(() => expect(reads).toBe(1))
-	await new Promise((resolve) => setTimeout(resolve, 50))
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
 	expect(screen.getAllByLabelText('Label')[0]).toHaveValue('History')
 	expect(screen.getByRole('group', { name: 'Sub field 1' })).toBeInTheDocument()
 })
@@ -1612,6 +1614,100 @@ test('the archive question stays open and locked until the read drops the row', 
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
 	releaseRead()
 	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveFocus())
+})
+
+/**
+ * Makes every later read fail once the returned release runs, holding each read until then.
+ * @returns The release.
+ */
+function failReadsOnRelease() {
+	let release = () => {}
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', async () => {
+			await held
+			return HttpResponse.json(READ_FAILED)
+		}),
+	)
+	return () => release()
+}
+
+/** Makes the server answer that an archive worked. */
+function acceptArchives() {
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json({ data: { archiveField: true } })))
+}
+
+test('a read that fails after an archive frees the rows beside a notice', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+
+	await archiveField('Shoe size')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
+	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveFocus())
+})
+
+test('a read that failed before an archive leaves its question locked until the next read answers', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json(refusal('NOT_FOUND', 'field_not_found'))))
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+	await archiveField('Shoe size')
+	await screen.findByRole('alert')
+	acceptArchives()
+	const release = failReadsOnRelease()
+
+	await archiveField('Shoe size')
+	await settle()
+
+	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
+	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	release()
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a read that fails after an archive leaves a focus the reader moved elsewhere', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	const release = failReadsOnRelease()
+	await archiveField('Shoe size')
+	await settle()
+	const label = screen.getAllByLabelText('Label')[0]
+	act(() => label.focus())
+
+	release()
+
+	await screen.findByRole('alert')
+	await settle()
+	expect(label).toHaveFocus()
+})
+
+test('a read that works after one that failed takes the notice away and shows what it holds', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+	await archiveField('Shoe size')
+	await screen.findByRole('alert')
+	serveFieldCatalogue([nickname])
+
+	await archiveField('Birth date')
+
+	expect(await screen.findByText('Nickname')).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.queryByText('Shoe size')).not.toBeInTheDocument()
 })
 
 test('an archive lost on the way can be confirmed again', async () => {

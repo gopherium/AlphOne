@@ -29,6 +29,7 @@ import {
 	useToaster,
 	writeFailure,
 } from '@alphone/frontend-sdk'
+import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
@@ -86,10 +87,11 @@ interface TrashFocus {
 	on: 'trash' | 'keep'
 }
 
-/** ArchiveQuestion is the row whose trash asks before it archives, and whether its archive is under way. */
+/** ArchiveQuestion is the row asking before it archives, whether its archive is under way and where focus sat. */
 interface ArchiveQuestion {
 	id: string
 	locked: boolean
+	from: Element | null
 }
 
 /** ArchiveRow is how one row's trash shows: asking, locked while an archive is under way, and the focus to take. */
@@ -129,6 +131,7 @@ export function FieldsScreen() {
 	const [catalogue] = useGraphQuery({ query: fieldCatalogueQuery, requestPolicy: 'cache-and-network' })
 	const answer = useLastAnswer(catalogue.data)
 	const reload = useCatalogueRefresh()
+	const failed = <ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 
 	if (catalogue.fetching && !answer) {
 		return (
@@ -140,7 +143,7 @@ export function FieldsScreen() {
 	if (catalogue.error && !answer) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
-				<ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
+				{failed}
 			</PageScreen>
 		)
 	}
@@ -148,7 +151,8 @@ export function FieldsScreen() {
 	return (
 		<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 			<Stack direction="column" gap="lg">
-				<FieldList fields={rows.live} onChanged={reload} />
+				{catalogue.error ? failed : null}
+				<FieldList fields={rows.live} onChanged={reload} readFailure={catalogue.error} />
 				<Stack direction="column" gap="sm">
 					<SectionTitle>{__('Add a field', 'alphone-fields')}</SectionTitle>
 					<AddFieldForm known={rows} onAnswered={reload} />
@@ -184,12 +188,20 @@ function useCatalogueRefresh() {
 
 /**
  * Renders the live fields in the order the reader set, each row moving and archiving its field, or a placeholder.
- * @param props - The live fields in the order the server answered and the reload run after an archive or an order.
+ * @param props - The live fields in the server's order, the reload after an archive or an order, the read's failure.
  * @returns The field list.
  */
-function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () => void }) {
+function FieldList({
+	fields,
+	onChanged,
+	readFailure,
+}: {
+	fields: FieldRow[]
+	onChanged: () => void
+	readFailure: GraphFailure | undefined
+}) {
 	const order = useFieldOrder(fields, onChanged)
-	const archiving = useArchive(order.rows, onChanged)
+	const archiving = useArchive(order.rows, onChanged, readFailure)
 	const region = useRef<HTMLDivElement>(null)
 	const body = useRef<HTMLTableSectionElement>(null)
 	const onLeave = useFocusKept(region, body, order.rows)
@@ -227,25 +239,44 @@ function NoFields() {
 }
 
 /**
+ * Reports whether this render holds a read failure no earlier render held.
+ * @param failure - The failure of the latest read.
+ * @returns Whether the failure is new.
+ */
+function useNewFailure(failure: GraphFailure | undefined) {
+	const [seen, setSeen] = useState(failure)
+	if (seen !== failure) {
+		setSeen(failure)
+	}
+	return Boolean(failure) && seen !== failure
+}
+
+/**
  * Holds the question the trash asks before an archive, one row at a time, and the archive its Archive button runs.
  * @param rows - The rows in the order shown.
  * @param onChanged - The reload run after every answer an archive gets.
+ * @param readFailure - The latest read's failure, which frees a question waiting for that read.
  * @returns How each row's trash shows and the actions.
  */
-function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
+function useArchive(rows: readonly FieldRow[], onChanged: () => void, readFailure: GraphFailure | undefined) {
 	const toaster = useToaster()
 	const [, archive] = useGraphMutation(archiveFieldMutation)
 	const [question, setQuestion] = useState<ArchiveQuestion | null>(null)
 	const [focus, setFocus] = useState<TrashFocus | null>(null)
+	const readFailed = useNewFailure(readFailure)
 	if (question !== null && !rows.some((row) => row.id === question.id)) {
 		setQuestion(null)
 	}
 	if (focus !== null && !rows.some((row) => row.id === focus.id)) {
 		setFocus(null)
 	}
+	if (readFailed && question?.locked) {
+		setQuestion(null)
+		whenFocusStayed(question.from, () => setFocus({ id: question.id, on: 'trash' }))
+	}
 	const on: ArchiveHandlers = {
 		ask: (id) => {
-			setQuestion({ id, locked: false })
+			setQuestion({ id, locked: false, from: null })
 			setFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
@@ -254,7 +285,7 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
 		},
 		confirm: (id) => {
 			const from = document.activeElement
-			setQuestion({ id, locked: true })
+			setQuestion({ id, locked: true, from })
 			void archive({ id }).then((result) => {
 				if (result.error) {
 					setQuestion(null)
