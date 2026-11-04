@@ -162,6 +162,7 @@ export { DrilldownItem, NavigationItem, NavigationList } from '@gopherium/godmin
 export type { MenuItem } from '@gopherium/godmin/router'
 export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
+export { useLastAnswer } from './lastAnswer'
 export { useRefusedField } from './refusedField'
 export { MANAGE_USERS, useSession } from './session'
 export { can } from '@gopherium/react-auth'
