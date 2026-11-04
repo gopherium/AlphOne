@@ -330,6 +330,10 @@ msgid "Priority"
 msgstr "Prioridad"
 
 #, fuzzy
+msgid "Privacy policy"
+msgstr "Política de privacidad"
+
+#, fuzzy
 msgid "Read %(area)s"
 msgstr "Leer %(area)s"
 
@@ -393,6 +397,10 @@ msgstr "Tareas"
 #, fuzzy
 msgid "Tasks could not be loaded."
 msgstr "No se han podido cargar las tareas."
+
+#, fuzzy
+msgid "Terms of service"
+msgstr "Condiciones del servicio"
 
 #, fuzzy
 msgid "That account no longer exists."

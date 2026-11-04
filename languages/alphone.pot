@@ -421,6 +421,9 @@ msgstr ""
 msgid "Priority"
 msgstr ""
 
+msgid "Privacy policy"
+msgstr ""
+
 msgid "Read %(area)s"
 msgstr ""
 
@@ -532,6 +535,9 @@ msgid "Tasks"
 msgstr ""
 
 msgid "Tasks could not be loaded."
+msgstr ""
+
+msgid "Terms of service"
 msgstr ""
 
 msgid "That account no longer exists."
