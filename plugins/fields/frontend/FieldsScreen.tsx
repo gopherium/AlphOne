@@ -550,6 +550,16 @@ function labelHeld(label: string, live: FieldRow[]) {
 }
 
 /**
+ * Reports whether a failed define is about the label the form holds, a repeater sending sub field labels too.
+ * @param reason - The reason the define answered with.
+ * @param repeater - Whether the define sent a repeater.
+ * @returns Whether the message belongs under the label.
+ */
+function aboutFormLabel(reason: string, repeater: boolean) {
+	return !repeater && LABEL_REASONS.has(reason)
+}
+
+/**
  * Renders the form defining one new field, naming it from its label.
  * @param props - The names a new field steps past and the reload run after every answer the server gives.
  * @returns The add field form.
@@ -588,7 +598,7 @@ function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: ()
 		if (RACED.has(reason)) {
 			setRefused((held) => [...held, name])
 		}
-		if (!LABEL_REASONS.has(reason) || !refusedLabel.refuse(result.error, label)) {
+		if (!aboutFormLabel(reason, repeater) || !refusedLabel.refuse(result.error, label)) {
 			toaster.show(writeFailure(__('Could not add the field.', 'alphone-fields'), result.error))
 		}
 	}

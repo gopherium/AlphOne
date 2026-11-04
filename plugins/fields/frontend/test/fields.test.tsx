@@ -734,6 +734,29 @@ async function addSubField(label: string, kind: string) {
 	await userEvent.click(await screen.findByRole('option', { name: kind }))
 }
 
+test('a repeater answered about a label says so in a toast and can be sent again', async () => {
+	serveFieldCatalogue([])
+	let defines = 0
+	server.use(
+		graphql.mutation('DefineField', () => {
+			defines += 1
+			return HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))
+		}),
+	)
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	expect(await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)).toBeInTheDocument()
+	expect(screen.getAllByLabelText('Label')[0]).toBeValid()
+
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defines).toBe(2))
+})
+
 test('the catalogue shows a repeater beside the labels of its sub fields', async () => {
 	serveFieldCatalogue([history])
 
