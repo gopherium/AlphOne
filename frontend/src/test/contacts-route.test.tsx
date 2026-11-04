@@ -732,18 +732,21 @@ test('keeps a remove button spinning while its own removal waits and another one
 	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('says in a toast that an identity could not be removed', async () => {
-	server.use(
-		graphql.mutation('DeleteContactIdentity', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
+test.each([
+	{ answered: { message: 'internal error' }, toast: 'Could not remove the identity.' },
+	{
+		answered: { message: 'identity not found', extensions: { code: 'NOT_FOUND', reason: 'identity_not_found' } },
+		toast: 'Could not remove the identity. That address is no longer on this contact.',
+	},
+])('says in a toast that an identity could not be removed: $toast', async ({ answered, toast }) => {
+	configureAppErrorText()
+	server.use(graphql.mutation('DeleteContactIdentity', () => HttpResponse.json({ data: null, errors: [answered] })))
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
 	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
 
-	expect(await screen.findByText('Could not remove the identity.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await screen.findByText(toast, { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
 })
