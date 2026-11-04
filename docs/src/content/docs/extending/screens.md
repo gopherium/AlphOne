@@ -931,8 +931,9 @@ const save = async () => {
 `refuse` answers false when the failure has no words to show, or when the
 field no longer holds what was sent, so the toast covers those cases too.
 
-A field holding a message blocks its form until the reader edits it. Call
-`forget` when another control changes what the server would answer.
+A field holding a message blocks its form until the message goes. When another
+control changes what the server would answer, pass both to `useRefusedField`,
+such as `${channel}:${value}`, and hand `refuse` the same string.
 
 A check before sending stays under its field. `ErrorNotice` is for a failed
 load. A failure in a dialog or in a run over list rows goes in a toast, as
