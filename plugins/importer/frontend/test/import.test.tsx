@@ -361,6 +361,28 @@ test.each(writes)(
 	20000,
 )
 
+test.each(writes)(
+	'$button keeps the form and the chosen field beside one notice when every read after the answer fails',
+	async (write) => {
+		const failedRead = { data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }
+		refusing(write.operation, write.words)
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		server.use(
+			graphql.query('ImportDetail', () => HttpResponse.json(failedRead)),
+			graphql.query('ImportRows', () => HttpResponse.json(failedRead)),
+		)
+
+		await userEvent.click(screen.getByRole('button', { name: write.button }))
+
+		await screen.findByText(`${write.failed} ${write.words}`, { selector: '.godmin-toast' })
+		expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
+		expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
+		expect(screen.getByRole('button', { name: write.button })).not.toHaveAttribute('aria-disabled', 'true')
+	},
+	20000,
+)
+
 test('a read that works again after one that failed brings the import up to date', async () => {
 	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
 	await renderSettled()
