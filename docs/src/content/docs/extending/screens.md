@@ -937,7 +937,8 @@ such as `${channel}:${value}`, and hand `refuse` the same string.
 
 A screen that reads again after a failed write passes what the read holds to
 `useLastAnswer`, so a read that fails too leaves the form and its edits on
-screen.
+screen. The screen still shows `ErrorNotice` for that read, and frees anything
+that was waiting for it.
 
 A check before sending stays under its field. `ErrorNotice` is for a failed
 load. A failure in a dialog or in a run over list rows goes in a toast, as
