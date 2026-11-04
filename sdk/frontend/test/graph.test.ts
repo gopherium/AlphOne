@@ -7,7 +7,7 @@ import { pipe, subscribe } from 'wonka'
 
 import { ValidationError, validationMessage } from '../errors'
 import { rememberFormatLocale } from '../format'
-import { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText } from '../graph'
+import { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText, writeFailure } from '../graph'
 import { HttpResponse, graphql, http, server } from '../testing'
 
 const versionQuery = gql`
@@ -546,6 +546,38 @@ test('renders a refused answer from the template its reason names', async () => 
 	const result = await graph.client.query(versionQuery, {}).toPromise()
 
 	expect(graphError(result.error)?.message).toBe('Escribe un nombre.')
+})
+
+/** codesWithReasons are the codes of answers that are no check on the values yet name a reason. */
+const codesWithReasons = ['NOT_FOUND', 'UNAUTHORIZED', 'RATE_LIMITED']
+
+test.each(codesWithReasons)('a failed write adds the words of a %s answer that names its reason', async (code) => {
+	configureErrorText({ templates: () => ({ named_reason: 'The words of the reason.' }), fallback: () => '' })
+	server.use(
+		graphql.query('Version', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'not for the reader', extensions: { code, reason: 'named_reason' } }],
+			})),
+	)
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(writeFailure('Could not save it.', result.error)).toBe('Could not save it. The words of the reason.')
+})
+
+test.each([
+	{ message: 'internal error', extensions: { code: 'INTERNAL' } },
+	{ message: 'no definition holds that id', extensions: { code: 'NOT_FOUND' } },
+	{ message: 'the requested element is null' },
+])('a failed write says only what failed when an answer names no reason: $message', async (answered) => {
+	server.use(graphql.query('Version', () => HttpResponse.json({ data: null, errors: [answered] })))
+	const { graph } = newClient()
+
+	const result = await graph.client.query(versionQuery, {}).toPromise()
+
+	expect(writeFailure('Could not save it.', result.error)).toBe('Could not save it.')
 })
 
 test('fills a template from the numbers the answer carries, written in the format locale', async () => {

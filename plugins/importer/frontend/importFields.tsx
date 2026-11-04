@@ -72,7 +72,7 @@ export function importFields(): Field<ImportSummary>[] {
 			enableHiding: false,
 			filterBy: false,
 			render: ({ item }) => (
-				<Link to="/import/$importId" params={{ importId: item.id }}>
+				<Link to="/import/$importId" params={{ importId: item.id }} data-item-id={item.id}>
 					{item.filename}
 				</Link>
 			),

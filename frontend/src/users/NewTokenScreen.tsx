@@ -2,22 +2,23 @@
 
 import {
 	Button,
-	ErrorNotice,
-	InputControl,
 	PageBreadcrumb,
 	PageBreadcrumbs,
 	PageScreen,
 	Stack,
 	Text,
+	ValidatedInputControl,
 	__,
-	graphError,
+	graphExtensions,
 	sprintf,
 	useGraphMutation,
-	validationMessage,
+	useRefusedField,
+	useToaster,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import type { TokenArea } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import {
 	defaultLifetime,
@@ -26,6 +27,9 @@ import {
 	lifetimeDays,
 } from './tokenFormat'
 import { apiTokenCreateMutation } from './tokenOperations'
+
+/** nameReason is the reason a mint fails for that is about its name. */
+const nameReason = 'token_name_required'
 
 /** grants is the access a token may be granted in one area. */
 type Grants = Record<string, 'read' | 'write' | undefined>
@@ -111,17 +115,22 @@ function MintedSecret({ secret }: { secret: string }) {
  * @returns The new token screen.
  */
 export function NewTokenScreen() {
+	const toaster = useToaster()
 	const [name, setName] = useState('')
 	const [grants, setGrants] = useState<Grants>({})
 	const [lifetime, setLifetime] = useState(defaultLifetime)
 	const [secret, setSecret] = useState<string | null>(null)
 	const [mint, runMint] = useGraphMutation(apiTokenCreateMutation)
+	const form = useRef<HTMLFormElement>(null)
+	const refusedName = useRefusedField(form, name)
 	const areas = grantableAreas()
 	const scopes = scopesOf(areas, grants)
 	const submit = async () => {
 		const result = await runMint({ name, scopes, ttlDays: lifetimeDays(lifetime) })
 		if (result.data) {
 			setSecret(result.data.apiTokenCreate.secret)
+		} else if (graphExtensions(result.error).reason !== nameReason || !refusedName.refuse(result.error, name)) {
+			toaster.show(writeFailure(__('Could not create the token.', 'alphone'), result.error))
 		}
 	}
 	const breadcrumbs = (
@@ -142,15 +151,17 @@ export function NewTokenScreen() {
 	return (
 		<PageScreen title={__('New token', 'alphone')} breadcrumbs={breadcrumbs} headingLevel={2}>
 			<form
+				ref={form}
 				className="godmin-form"
 				onSubmit={(event) => {
 					event.preventDefault()
 					void submit()
 				}}
 			>
-				<InputControl
+				<ValidatedInputControl
 					label={__('Name', 'alphone')}
 					value={name}
+					customValidity={refusedName.validity}
 					onChange={(event) => setName(event.target.value)}
 				/>
 				<fieldset>
@@ -191,11 +202,6 @@ export function NewTokenScreen() {
 				>
 					{__('Create token', 'alphone')}
 				</Button>
-				{mint.error ? (
-					<ErrorNotice>
-						{validationMessage(graphError(mint.error), __('The token could not be created.', 'alphone'))}
-					</ErrorNotice>
-				) : null}
 			</form>
 		</PageScreen>
 	)

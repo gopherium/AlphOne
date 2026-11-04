@@ -12,13 +12,13 @@ import {
 	__,
 	_x,
 	formatNumber,
-	graphError,
 	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useLastAnswer,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Link, useParams } from '@tanstack/react-router'
@@ -52,7 +52,7 @@ const unmapped = 'not-imported'
  */
 export function ImportRouteScreen() {
 	const { importId } = useParams({ from: '/import/$importId' })
-	return <ImportScreen importId={importId} />
+	return <ImportScreen key={importId} importId={importId} />
 }
 
 /**
@@ -92,11 +92,12 @@ function FailedImport() {
 export function ImportScreen({ importId }: { importId: string }) {
 	const [detail] = useGraphQuery({ query: importDetailQuery, variables: { id: importId } })
 	const staged = useImportRows(importId)
+	const answer = useLastAnswer(detail.data)
 
-	if (detail.error) {
+	if (detail.error && !answer) {
 		return <FailedImport />
 	}
-	if (!detail.data) {
+	if (!answer) {
 		return (
 			<PageScreen
 				title={_x('Import', 'admin section', 'alphone-importer')}
@@ -107,7 +108,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 			</PageScreen>
 		)
 	}
-	const { importJob: stored, importFields } = detail.data
+	const { importJob: stored, importFields } = answer
 	if (!stored) {
 		return <FailedImport />
 	}
@@ -163,24 +164,29 @@ function MappingForm({
 	const [assigned, setAssigned] = useState<Record<string, string>>(assignedOf(stored.mapping))
 	const [save, startSave] = useGraphMutation(importSetMappingMutation)
 	const [commit, startCommit] = useGraphMutation(importCommitMutation)
-	const [failure, setFailure] = useState<string>()
 	const refresh = () => graph.refetch(['ImportDetail', 'Imports'])
-	const saveMapping = async () => {
-		setFailure(undefined)
-		const result = await startSave({ id: stored.id, assignments: assignmentsOf(assigned) })
-		setFailure(failureOf(result.error, __('The mapping could not be saved.', 'alphone-importer')))
-		if (result.data) {
-			toaster.show(__('Mapping saved.', 'alphone-importer'))
+	const failed = (sentence: string, error: GraphFailure | undefined) => {
+		toaster.show(writeFailure(sentence, error))
+		if (!error?.networkError) {
+			refresh()
 		}
+	}
+	const saveMapping = async () => {
+		const result = await startSave({ id: stored.id, assignments: assignmentsOf(assigned) })
+		if (!result.data) {
+			failed(__('Could not save the mapping.', 'alphone-importer'), result.error)
+			return
+		}
+		toaster.show(__('Mapping saved.', 'alphone-importer'))
 		refresh()
 	}
 	const commitImport = async () => {
-		setFailure(undefined)
 		const result = await startCommit({ id: stored.id })
-		setFailure(failureOf(result.error, __('The import could not be committed.', 'alphone-importer')))
-		if (result.data) {
-			toaster.show(finishedMessage(result.data.importCommit))
+		if (!result.data) {
+			failed(__('Could not commit the import.', 'alphone-importer'), result.error)
+			return
 		}
+		toaster.show(finishedMessage(result.data.importCommit))
 		refresh()
 	}
 
@@ -219,7 +225,6 @@ function MappingForm({
 			>
 				{__('Commit', 'alphone-importer')}
 			</Button>
-			{failure === undefined ? null : <ErrorNotice>{failure}</ErrorNotice>}
 		</form>
 	)
 }
@@ -238,16 +243,6 @@ function finishedMessage(counts: { imported: number; skipped: number; failed: nu
 			failed: formatNumber(counts.failed),
 		},
 	)
-}
-
-/**
- * Returns the message a refused write shows, or nothing for a write that went through.
- * @param error - The failure the write met, absent when it went through.
- * @param fallback - The message for a failure that names no reason.
- * @returns The message, or undefined.
- */
-function failureOf(error: GraphFailure | undefined, fallback: string): string | undefined {
-	return error === undefined ? undefined : validationMessage(graphError(error), fallback)
 }
 
 /**

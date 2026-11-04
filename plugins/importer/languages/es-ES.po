@@ -146,7 +146,7 @@ msgid "That import no longer exists."
 msgstr "Esa importación ya no existe."
 
 #, fuzzy
-msgid "The file could not be imported."
+msgid "Could not import the file."
 msgstr "No se ha podido importar el archivo."
 
 #, fuzzy
@@ -154,7 +154,7 @@ msgid "The file runs past %(maxBytes)s bytes."
 msgstr "El archivo pasa de %(maxBytes)s bytes."
 
 #, fuzzy
-msgid "The import could not be committed."
+msgid "Could not commit the import."
 msgstr "No se ha podido confirmar la importación."
 
 #, fuzzy
@@ -162,7 +162,7 @@ msgid "The import could not be loaded."
 msgstr "No se ha podido cargar la importación."
 
 #, fuzzy
-msgid "The mapping could not be saved."
+msgid "Could not save the mapping."
 msgstr "No se ha podido guardar la asignación."
 
 #, fuzzy

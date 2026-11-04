@@ -202,6 +202,39 @@ msgstr ""
 msgid "Copy the secret now, it is never shown again."
 msgstr ""
 
+msgid "Could not add the identity."
+msgstr ""
+
+msgid "Could not add the task."
+msgstr ""
+
+msgid "Could not create the contact."
+msgstr ""
+
+msgid "Could not create the task."
+msgstr ""
+
+msgid "Could not create the token."
+msgstr ""
+
+msgid "Could not remove the identity."
+msgstr ""
+
+msgid "Could not save the contact."
+msgstr ""
+
+msgid "Could not save the language."
+msgstr ""
+
+msgid "Could not save the task."
+msgstr ""
+
+msgid "Could not send the invitation."
+msgstr ""
+
+msgid "Could not update the task."
+msgstr ""
+
 msgid "Create contact"
 msgstr ""
 
@@ -543,19 +576,7 @@ msgstr ""
 msgid "That webhook no longer exists."
 msgstr ""
 
-msgid "The choice could not be saved."
-msgstr ""
-
-msgid "The contact could not be created."
-msgstr ""
-
 msgid "The contact could not be loaded."
-msgstr ""
-
-msgid "The identity could not be added."
-msgstr ""
-
-msgid "The identity could not be removed."
 msgstr ""
 
 msgid "The invitation could not be sent."
@@ -576,22 +597,7 @@ msgstr ""
 msgid "The role of that account just changed. Reload the page and try again."
 msgstr ""
 
-msgid "The task could not be added."
-msgstr ""
-
-msgid "The task could not be created."
-msgstr ""
-
 msgid "The task could not be loaded."
-msgstr ""
-
-msgid "The task could not be saved."
-msgstr ""
-
-msgid "The task could not be updated."
-msgstr ""
-
-msgid "The token could not be created."
 msgstr ""
 
 msgid "The token could not be revoked."

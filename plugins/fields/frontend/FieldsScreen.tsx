@@ -14,18 +14,20 @@ import {
 	SelectControl,
 	Stack,
 	Text,
+	ValidatedInputControl,
 	__,
 	formatList,
 	formatNumber,
-	graphError,
 	keyFromLabel,
 	list,
 	sprintf,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useLastAnswer,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -85,10 +87,12 @@ interface TrashFocus {
 	on: 'trash' | 'keep'
 }
 
-/** ArchiveQuestion is the row whose trash asks before it archives, and whether its archive is under way. */
+/** ArchiveQuestion is a row asking before it archives, its archive under way, the read after it and where focus sat. */
 interface ArchiveQuestion {
 	id: string
 	locked: boolean
+	reading: boolean
+	from: Element | null
 }
 
 /** ArchiveRow is how one row's trash shows: asking, locked while an archive is under way, and the focus to take. */
@@ -114,11 +118,11 @@ interface Archiving {
 /** TRASH is the place of the trash among the buttons of a row's controls. */
 const TRASH = 2
 
-/** FormNotice is the notice the add form shows: a label a live field holds, the last define refusal, or none. */
-type FormNotice = 'label' | 'define' | null
-
 /** RACED are the reasons a define answers when another field took its name first. */
 const RACED = new Set(['field_name_taken', 'field_kind_locked'])
+
+/** LABEL_REASONS are the reasons a define answers about the label it was sent. */
+const LABEL_REASONS = new Set(['field_label_required', 'field_label_too_long'])
 
 /**
  * Renders the catalogue of contact fields an operator defines.
@@ -126,27 +130,30 @@ const RACED = new Set(['field_name_taken', 'field_kind_locked'])
  */
 export function FieldsScreen() {
 	const [catalogue] = useGraphQuery({ query: fieldCatalogueQuery, requestPolicy: 'cache-and-network' })
+	const answer = useLastAnswer(catalogue.data)
 	const reload = useCatalogueRefresh()
+	const failed = <ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
 
-	if (catalogue.fetching && !catalogue.data) {
+	if (catalogue.fetching && !answer) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 				<LoadingScreen label={__('Loading fields…', 'alphone-fields')} />
 			</PageScreen>
 		)
 	}
-	if (catalogue.error) {
+	if (catalogue.error && !answer) {
 		return (
 			<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
-				<ErrorNotice>{__('The fields could not be loaded.', 'alphone-fields')}</ErrorNotice>
+				{failed}
 			</PageScreen>
 		)
 	}
-	const rows = catalogueRows(catalogue.data)
+	const rows = catalogueRows(answer)
 	return (
 		<PageScreen title={__('Fields', 'alphone-fields')} headingLevel={2}>
 			<Stack direction="column" gap="lg">
-				<FieldList fields={rows.live} onChanged={reload} />
+				{catalogue.error ? failed : null}
+				<FieldList fields={rows.live} onChanged={reload} readFailure={catalogue.error} />
 				<Stack direction="column" gap="sm">
 					<SectionTitle>{__('Add a field', 'alphone-fields')}</SectionTitle>
 					<AddFieldForm known={rows} onAnswered={reload} />
@@ -182,35 +189,39 @@ function useCatalogueRefresh() {
 
 /**
  * Renders the live fields in the order the reader set, each row moving and archiving its field, or a placeholder.
- * @param props - The live fields in the order the server answered and the reload run after an archive or an order.
- * @returns The field list beside the notices of a failed archive or order.
+ * @param props - The live fields in the server's order, the reload after an archive or an order, the read's failure.
+ * @returns The field list.
  */
-function FieldList({ fields, onChanged }: { fields: FieldRow[]; onChanged: () => void }) {
+function FieldList({
+	fields,
+	onChanged,
+	readFailure,
+}: {
+	fields: FieldRow[]
+	onChanged: () => void
+	readFailure: GraphFailure | undefined
+}) {
 	const order = useFieldOrder(fields, onChanged)
-	const archiving = useArchive(order.rows, onChanged)
+	const archiving = useArchive(order.rows, onChanged, readFailure)
 	const region = useRef<HTMLDivElement>(null)
 	const body = useRef<HTMLTableSectionElement>(null)
 	const onLeave = useFocusKept(region, body, order.rows)
 	const empty = order.rows.length === 0
 
 	return (
-		<Stack direction="column" gap="sm">
-			<FailureNotice failure={archiving.failure} fallback={__('The field could not be archived.', 'alphone-fields')} />
-			<FailureNotice failure={order.failure} fallback={__('The fields could not be ordered.', 'alphone-fields')} />
-			<div
-				ref={region}
-				className="godmin-table-scroll"
-				role="region"
-				aria-label={__('Fields', 'alphone-fields')}
-				tabIndex={empty ? -1 : 0}
-			>
-				{empty ? (
-					<NoFields />
-				) : (
-					<FieldTable rows={order.rows} body={body} onMove={order.move} archiving={archiving} onLeave={onLeave} />
-				)}
-			</div>
-		</Stack>
+		<div
+			ref={region}
+			className="godmin-table-scroll"
+			role="region"
+			aria-label={__('Fields', 'alphone-fields')}
+			tabIndex={empty ? -1 : 0}
+		>
+			{empty ? (
+				<NoFields />
+			) : (
+				<FieldTable rows={order.rows} body={body} onMove={order.move} archiving={archiving} onLeave={onLeave} />
+			)}
+		</div>
 	)
 }
 
@@ -229,37 +240,44 @@ function NoFields() {
 }
 
 /**
- * Renders the notice of a failed write, or nothing when the last one succeeded.
- * @param props - The failure of the last write answered and the words used when its reason has none.
- * @returns The notice, or null.
+ * Reports whether this render holds a read failure no earlier render held.
+ * @param failure - The failure of the latest read.
+ * @returns Whether the failure is new.
  */
-function FailureNotice({ failure, fallback }: { failure: GraphFailure | undefined; fallback: string }) {
-	if (!failure) {
-		return null
+function useNewFailure(failure: GraphFailure | undefined) {
+	const [seen, setSeen] = useState(failure)
+	if (seen !== failure) {
+		setSeen(failure)
 	}
-	return <ErrorNotice>{validationMessage(graphError(failure), fallback)}</ErrorNotice>
+	return Boolean(failure) && seen !== failure
 }
 
 /**
  * Holds the question the trash asks before an archive, one row at a time, and the archive its Archive button runs.
  * @param rows - The rows in the order shown.
  * @param onChanged - The reload run after every answer an archive gets.
- * @returns How each row's trash shows, the actions and the failure of the last archive answered.
+ * @param readFailure - The latest read's failure, which frees a question waiting for that read.
+ * @returns How each row's trash shows and the actions.
  */
-function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
+function useArchive(rows: readonly FieldRow[], onChanged: () => void, readFailure: GraphFailure | undefined) {
 	const toaster = useToaster()
-	const [archived, archive] = useGraphMutation(archiveFieldMutation)
+	const [, archive] = useGraphMutation(archiveFieldMutation)
 	const [question, setQuestion] = useState<ArchiveQuestion | null>(null)
 	const [focus, setFocus] = useState<TrashFocus | null>(null)
+	const readFailed = useNewFailure(readFailure)
 	if (question !== null && !rows.some((row) => row.id === question.id)) {
 		setQuestion(null)
 	}
 	if (focus !== null && !rows.some((row) => row.id === focus.id)) {
 		setFocus(null)
 	}
+	if (readFailed && question?.reading) {
+		setQuestion(null)
+		whenFocusStayed(question.from, () => setFocus({ id: question.id, on: 'trash' }))
+	}
 	const on: ArchiveHandlers = {
 		ask: (id) => {
-			setQuestion({ id, locked: false })
+			setQuestion({ id, locked: false, reading: false, from: null })
 			setFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
@@ -268,12 +286,14 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
 		},
 		confirm: (id) => {
 			const from = document.activeElement
-			setQuestion({ id, locked: true })
+			setQuestion({ id, locked: true, reading: false, from })
 			void archive({ id }).then((result) => {
 				if (result.error) {
 					setQuestion(null)
+					toaster.show(writeFailure(__('Could not archive the field.', 'alphone-fields'), result.error))
 					whenFocusStayed(from, () => setFocus({ id, on: 'trash' }))
 				} else {
+					setQuestion({ id, locked: true, reading: true, from })
 					toaster.show(__('Field archived.', 'alphone-fields'))
 				}
 				onChanged()
@@ -285,7 +305,7 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void) {
 		locked: question?.locked === true,
 		focus: focus?.id === id ? focus : undefined,
 	})
-	return { rowOf, on, failure: archived.error }
+	return { rowOf, on }
 }
 
 /**
@@ -565,6 +585,16 @@ function labelHeld(label: string, live: FieldRow[]) {
 }
 
 /**
+ * Reports whether a failed define is about the label the form holds, a repeater sending sub field labels too.
+ * @param reason - The reason the define answered with.
+ * @param repeater - Whether the define sent a repeater.
+ * @returns Whether the message belongs under the label.
+ */
+function aboutFormLabel(reason: string, repeater: boolean) {
+	return !repeater && LABEL_REASONS.has(reason)
+}
+
+/**
  * Renders the form defining one new field, naming it from its label.
  * @param props - The names a new field steps past and the reload run after every answer the server gives.
  * @returns The add field form.
@@ -572,59 +602,67 @@ function labelHeld(label: string, live: FieldRow[]) {
 function AddFieldForm({ known, onAnswered }: { known: KnownNames; onAnswered: () => void }) {
 	const toaster = useToaster()
 	const [label, setLabel] = useState('')
-	const [notice, setNotice] = useState<FormNotice>(null)
+	const [labelTaken, setLabelTaken] = useState(false)
 	const [kind, setKind] = useState<FieldKind>('TEXT')
 	const [subFields, setSubFields] = useState<DraftSubField[]>([])
 	const [refused, setRefused] = useState<readonly string[]>([])
 	const kinds = kindItems()
 	const [defined, define] = useGraphMutation(defineFieldMutation)
+	const form = useRef<HTMLFormElement>(null)
+	const refusedLabel = useRefusedField(form, label)
 	const repeater = kind === 'REPEATER'
+	const submit = async () => {
+		const taken = labelHeld(label, known.live)
+		setLabelTaken(taken)
+		if (taken) {
+			return
+		}
+		const name = fieldName(label, known, refused)
+		const sent = repeater ? namedSubFields(subFields) : undefined
+		const result = await define({ name, label, kind, subFields: sent })
+		if (!result.error?.networkError) {
+			onAnswered()
+		}
+		if (!result.error) {
+			setLabel('')
+			setSubFields([])
+			toaster.show(__('Field added.', 'alphone-fields'))
+			return
+		}
+		const reason = reasonOf(result.error)
+		if (RACED.has(reason)) {
+			setRefused((held) => [...held, name])
+		}
+		if (!aboutFormLabel(reason, repeater) || !refusedLabel.refuse(result.error, label)) {
+			toaster.show(writeFailure(__('Could not add the field.', 'alphone-fields'), result.error))
+		}
+	}
 
 	return (
 		<form
+			ref={form}
 			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
-				if (labelHeld(label, known.live)) {
-					setNotice('label')
-					return
-				}
-				const name = fieldName(label, known, refused)
-				const sent = repeater ? namedSubFields(subFields) : undefined
-				void define({ name, label, kind, subFields: sent }).then((result) => {
-					if (!result.error?.networkError) {
-						onAnswered()
-					}
-					setNotice(result.error ? 'define' : null)
-					if (!result.error) {
-						setLabel('')
-						setSubFields([])
-						toaster.show(__('Field added.', 'alphone-fields'))
-					} else if (RACED.has(reasonOf(result.error))) {
-						setRefused((held) => [...held, name])
-					}
-				})
+				void submit()
 			}}
 		>
-			{notice === 'label' ? (
+			{labelTaken ? (
 				<ErrorNotice>{__('A field with that label already exists.', 'alphone-fields')}</ErrorNotice>
 			) : null}
-			{notice === 'define' && defined.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(defined.error), __('The field could not be defined.', 'alphone-fields'))}
-				</ErrorNotice>
-			) : null}
 			<div className="godmin-form__row">
-				<InputControl
-					className="godmin-form__grow"
-					label={__('Label', 'alphone-fields')}
-					autoComplete="off"
-					value={label}
-					onChange={(event) => {
-						setLabel(event.target.value)
-						setNotice((held) => (held === 'label' ? null : held))
-					}}
-				/>
+				<div className="godmin-form__grow">
+					<ValidatedInputControl
+						label={__('Label', 'alphone-fields')}
+						autoComplete="off"
+						value={label}
+						customValidity={refusedLabel.validity}
+						onChange={(event) => {
+							setLabel(event.target.value)
+							setLabelTaken(false)
+						}}
+					/>
+				</div>
 				<SelectControl
 					label={__('Kind', 'alphone-fields')}
 					items={kinds}

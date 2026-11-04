@@ -65,6 +65,7 @@ export function userFields(users: readonly Account[]): Field<Account>[] {
 			enableGlobalSearch: true,
 			enableHiding: false,
 			filterBy: false,
+			render: ({ item }) => <span data-item-id={item.id}>{item.name}</span>,
 		},
 		{ id: 'email', label: __('Email', 'alphone'), type: 'text', enableGlobalSearch: true, filterBy: false },
 		{

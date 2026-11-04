@@ -14,6 +14,7 @@ import {
 	SectionTitle,
 	SelectControl,
 	Text,
+	ValidatedInputControl,
 	ValidationError,
 	__,
 	channelName,
@@ -25,13 +26,14 @@ import {
 	useConnection,
 	useGraph,
 	useGraphMutation,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import type { ConnectionResult, GraphFailure } from '@alphone/frontend-sdk'
 import { Link, useBlocker } from '@tanstack/react-router'
-import { useId, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useId, useRef, useState } from 'react'
+import type { ComponentProps, ReactNode, RefObject } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
 import type { ListedTask } from '../tasks/TaskList'
@@ -47,6 +49,9 @@ import { contactPanels } from './panels'
 
 const contactTasksPageSize = 10
 const contactDetailOperation = 'ContactDetail'
+
+/** The reasons an added identity fails for that are about its channel, not its value. */
+const channelReasons: readonly unknown[] = ['identity_channel_required', 'channel_not_writable']
 
 /** ContactDetail is the contact the screen renders, identities included. */
 export interface ContactDetail {
@@ -128,9 +133,11 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 	const toaster = useToaster()
 	const identitiesHeading = useId()
 	const nameForm = useId()
+	const form = useRef<HTMLFormElement>(null)
 	const [draft, setDraft] = useState<string | null>(null)
 	const [rename, runRename] = useGraphMutation(renameContactMutation)
 	const name = draft ?? contact.name
+	const refusedName = useRefusedField(form, name)
 	const changed = draft !== null && draft !== contact.name
 	const blank = name.trim() === ''
 	useBlocker({
@@ -143,6 +150,8 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 			setDraft(null)
 			toaster.show(__('Name updated.', 'alphone'))
 			settled()
+		} else if (!refusedName.refuse(result.error, name)) {
+			toaster.show(writeFailure(__('Could not save the contact.', 'alphone'), result.error))
 		}
 	}
 
@@ -166,9 +175,10 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 				<>
 					<NameForm
 						id={nameForm}
+						form={form}
 						name={name}
 						saving={rename.fetching}
-						failure={rename.error}
+						validity={refusedName.validity}
 						onEdit={(edited) => setDraft(edited === contact.name ? null : edited)}
 						onSubmit={() => void submitRename()}
 					/>
@@ -231,7 +241,7 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
 	const settled = useContactRefresh()
 	const toaster = useToaster()
 	const [removing, setRemoving] = useState<readonly string[]>([])
-	const [remove, runRemove] = useGraphMutation(deleteContactIdentityMutation)
+	const [, runRemove] = useGraphMutation(deleteContactIdentityMutation)
 	const removeIdentity = async (identityId: string) => {
 		setRemoving((pending) => [...pending, identityId])
 		const result = await runRemove({ contactId: contact.id, identityId })
@@ -239,6 +249,8 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
 		if (result.data) {
 			toaster.show(__('Identity removed.', 'alphone'))
 			settled()
+		} else {
+			toaster.show(writeFailure(__('Could not remove the identity.', 'alphone'), result.error))
 		}
 	}
 
@@ -246,31 +258,26 @@ function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelle
 		return <Text role="status">{__('No identities yet.', 'alphone')}</Text>
 	}
 	return (
-		<>
-			<LogList aria-labelledby={labelledBy}>
-				{contact.identities.map((identity) => (
-					<LogItem
-						key={identity.id}
-						aria-label={identityText(identity)}
-						label={<Text>{identityText(identity)}</Text>}
-						actions={
-							<IconButton
-								icon={trash}
-								variant="minimal"
-								tone="neutral"
-								size="compact"
-								label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-								loading={removing.includes(identity.id)}
-								onClick={() => void removeIdentity(identity.id)}
-							/>
-						}
-					/>
-				))}
-			</LogList>
-			{remove.error ? (
-				<ErrorNotice>{__('The identity could not be removed.', 'alphone')}</ErrorNotice>
-			) : null}
-		</>
+		<LogList aria-labelledby={labelledBy}>
+			{contact.identities.map((identity) => (
+				<LogItem
+					key={identity.id}
+					aria-label={identityText(identity)}
+					label={<Text>{identityText(identity)}</Text>}
+					actions={
+						<IconButton
+							icon={trash}
+							variant="minimal"
+							tone="neutral"
+							size="compact"
+							label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
+							loading={removing.includes(identity.id)}
+							onClick={() => void removeIdentity(identity.id)}
+						/>
+					}
+				/>
+			))}
+		</LogList>
 	)
 }
 
@@ -285,6 +292,9 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const [identifier, setIdentifier] = useState('')
 	const [label, setLabel] = useState('')
 	const [add, runAdd] = useGraphMutation(addContactIdentityMutation)
+	const form = useRef<HTMLFormElement>(null)
+	const identity = `${channel}:${identifier}`
+	const refusedValue = useRefusedField(form, identity)
 	const channels = channelItems()
 	const submitIdentity = async () => {
 		const result = await runAdd({
@@ -296,11 +306,18 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 			setLabel('')
 			toaster.show(__('Identity added.', 'alphone'))
 			settled()
+			return
+		}
+		const failure = identityError(result.error)
+		const aboutChannel = channelReasons.includes(graphExtensions(result.error).reason)
+		if (aboutChannel || !refusedValue.refuse(failure, identity)) {
+			toaster.show(writeFailure(__('Could not add the identity.', 'alphone'), failure))
 		}
 	}
 
 	return (
 		<form
+			ref={form}
 			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {
 				event.preventDefault()
@@ -314,9 +331,10 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 					value={channels.find((option) => option.value === channel)}
 					onValueChange={(item) => setChannel(channelItemOf(item).value)}
 				/>
-				<InputControl
+				<ValidatedInputControl
 					label={__('Value', 'alphone')}
 					value={identifier}
+					customValidity={refusedValue.validity}
 					onChange={(event) => setIdentifier(event.target.value)}
 				/>
 				<InputControl
@@ -332,37 +350,35 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 					{__('Add identity', 'alphone')}
 				</Button>
 			</div>
-			{add.error ? (
-				<ErrorNotice>
-					{validationMessage(identityError(add.error), __('The identity could not be added.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
 		</form>
 	)
 }
 
 /**
  * Renders the name field in the form the page's Save button submits.
- * @param props - The form's id, the name shown, whether it is saving, the failed write and the two callbacks.
+ * @param props - The form's id and element, the name shown, whether it is saving, its validity and the two callbacks.
  * @returns The name form.
  */
 function NameForm({
 	id,
+	form,
 	name,
 	saving,
-	failure,
+	validity,
 	onEdit,
 	onSubmit,
 }: {
 	id: string
+	form: RefObject<HTMLFormElement | null>
 	name: string
 	saving: boolean
-	failure: GraphFailure | undefined
+	validity: ComponentProps<typeof ValidatedInputControl>['customValidity']
 	onEdit: (name: string) => void
 	onSubmit: () => void
 }) {
 	return (
 		<form
+			ref={form}
 			id={id}
 			className="godmin-form"
 			onSubmit={(event) => {
@@ -370,17 +386,13 @@ function NameForm({
 				onSubmit()
 			}}
 		>
-			<InputControl
+			<ValidatedInputControl
 				label={__('Name', 'alphone')}
 				value={name}
 				readOnly={saving}
+				customValidity={validity}
 				onChange={(event) => onEdit(event.target.value)}
 			/>
-			{failure ? (
-				<ErrorNotice>
-					{validationMessage(graphError(failure), __('The name could not be updated.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
 		</form>
 	)
 }

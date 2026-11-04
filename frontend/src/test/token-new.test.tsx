@@ -7,8 +7,10 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
+import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { plugins } from '../plugins'
+import { gate } from './gate'
 import { renderAt, renderRoutedAt } from './render'
 
 const secret = 'a1_dGVzdHNlY3JldHZhbHVlZm9ydGhlbWludGZvcm0'
@@ -284,7 +286,56 @@ test('says so when the clipboard refuses the secret', async () => {
 	vi.unstubAllGlobals()
 })
 
-test('surfaces a rejection message from the backend', async () => {
+/** nameRefused is the answer the server gives a mint with no name. */
+const nameRefused = {
+	data: null,
+	errors: [{ message: 'apitoken: empty name', extensions: { code: 'VALIDATION', reason: 'token_name_required' } }],
+}
+
+test('says under the name what the server said about it, and takes it away as the reader edits', async () => {
+	configureAppErrorText()
+	server.use(graphql.mutation('ApiTokenCreate', () => HttpResponse.json(nameRefused)))
+	renderAt('/users/tokens/new')
+
+	await fillMintForm()
+	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
+
+	await screen.findByText('A token needs a name.')
+	const name = screen.getByLabelText('Name')
+	expect(name).toHaveAccessibleDescription('A token needs a name.')
+	expect(name).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(name, 's')
+
+	await waitFor(() => expect(screen.queryByText('A token needs a name.')).not.toBeInTheDocument())
+})
+
+test('says in a toast what the server said about a name the reader changed while the mint was on its way', async () => {
+	configureAppErrorText()
+	const answer = gate()
+	server.use(
+		graphql.mutation('ApiTokenCreate', async () => {
+			await answer.held
+			return HttpResponse.json(nameRefused)
+		}),
+	)
+	renderAt('/users/tokens/new')
+
+	await fillMintForm()
+	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
+	const name = screen.getByLabelText('Name')
+	await userEvent.type(name, 's')
+	answer.release()
+
+	expect(
+		await screen.findByText('Could not create the token. A token needs a name.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(name).toBeValid()
+	expect(name).toHaveValue('automations')
+})
+
+test('says in a toast what the server said when it is about no field', async () => {
 	server.use(
 		graphql.mutation('ApiTokenCreate', () =>
 			HttpResponse.json({
@@ -298,10 +349,14 @@ test('surfaces a rejection message from the backend', async () => {
 	await fillMintForm()
 	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
 
-	expect(await screen.findByText('apitoken: malformed scope')).toBeInTheDocument()
+	expect(
+		await screen.findByText('Could not create the token. apitoken: malformed scope', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toBeValid()
 })
 
-test('falls back to generic copy when the mint fails otherwise', async () => {
+test('says in a toast that the token could not be created when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('ApiTokenCreate', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -312,5 +367,11 @@ test('falls back to generic copy when the mint fails otherwise', async () => {
 	await fillMintForm()
 	await userEvent.click(screen.getByRole('button', { name: 'Create token' }))
 
-	expect(await screen.findByText('The token could not be created.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not create the token.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toHaveValue('automation')
+	expect(screen.getByRole('checkbox', { name: 'Read tasks' })).toBeChecked()
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Create token' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
 })

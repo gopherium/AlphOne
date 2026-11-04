@@ -35,6 +35,15 @@ import {
 } from './tasksScreen'
 import type { TaskRow } from './tasksScreen'
 
+/** The words the server answers a task with no title with. */
+const emptyTitle = 'task: empty title'
+
+/** The answer the server gives a task with no title. */
+const emptyTitleAnswer = {
+	data: null,
+	errors: [{ message: emptyTitle, extensions: { code: 'VALIDATION', reason: 'task_title_required' } }],
+}
+
 let tasks: TaskRow[] = []
 let overdue: TaskRow[] = []
 const { created, listedDates, overdueBefore, patched, serveDay, servePerDay, serveRanked } = taskServer(
@@ -182,7 +191,7 @@ test('undoes a reopen from its toast', async () => {
 	expect(patched[1]).toEqual({ id: doneID, body: { status: 'done', due_on: undefined } })
 })
 
-test('shows a failed undo in the notice of the screen', async () => {
+test('says in a toast that undoing a completion failed', async () => {
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
@@ -196,7 +205,24 @@ test('shows a failed undo in the notice of the screen', async () => {
 
 	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The task could not be updated.')
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
+})
+
+test('says in a toast that undoing a postpone failed', async () => {
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
+	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
+	await screen.findByText(movedToast(tomorrow))
+	server.use(
+		graphql.mutation('UpdateTask', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+
+	await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 })
 
 test('marks a raised priority on the row', async () => {
@@ -498,11 +524,6 @@ test('does not add a task without a title', async () => {
 })
 
 test('lays the task title, the due date, the time, the priority and Add task on one form row', async () => {
-	server.use(
-		graphql.mutation('CreateTask', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
 	const title = screen.getByRole('textbox', { name: 'Task title' })
@@ -523,12 +544,6 @@ test('lays the task title, the due date, the time, the priority and Add task on 
 	expect(fieldCells).not.toContain(add)
 	expect(add.parentElement).toBe(row)
 	expect(cells.at(-1)).toBe(add)
-
-	await userEvent.type(title, 'X')
-	await userEvent.click(add)
-
-	const notice = await screen.findByText('The task could not be added.')
-	expect(notice.closest('.godmin-form__row')).toBeNull()
 })
 
 test('lets the quick add form fill its column as one row', async () => {
@@ -710,25 +725,77 @@ test('reports when the tasks cannot be loaded', async () => {
 	)
 })
 
-test('reports when a task cannot be added', async () => {
+test('shows under Task title what the server says, with the focus there, until the reader edits it', async () => {
+	server.use(graphql.mutation('CreateTask', () => HttpResponse.json(emptyTitleAnswer)))
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await screen.findByText(emptyTitle)
+	expect(title).toHaveAccessibleDescription(emptyTitle)
+	expect(title).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(title, 'Y')
+
+	await waitFor(() => expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument())
+	expect(title).toBeValid()
+})
+
+test('shows nothing when a title the server turned down before an add is typed again', async () => {
 	server.use(
-		graphql.mutation('CreateTask', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
-			}),
+		graphql.mutation('CreateTask', ({ variables }) =>
+			(variables.input as { title: string }).title === 'X' ? HttpResponse.json(emptyTitleAnswer) : undefined,
 		),
 	)
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
-
-	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await screen.findByText(emptyTitle)
+	await userEvent.clear(title)
+	await userEvent.type(title, 'Call Maria Perez')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+	await screen.findByText('Task added.')
 
-	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
+	await userEvent.type(title, 'X')
+
+	expect(title).toHaveValue('X')
+	expect(title).toBeValid()
+	expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument()
 })
 
-test('reports a generic message when adding fails otherwise', async () => {
+test('says in a toast what the server said about a title the reader has changed since', async () => {
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async () => {
+			await held
+			return HttpResponse.json(emptyTitleAnswer)
+		}),
+	)
+	renderAt('/tasks')
+	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
+	await userEvent.type(title, 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
+
+	await userEvent.type(title, 'Y')
+	release?.()
+
+	expect(
+		await screen.findByText(`Could not add the task. ${emptyTitle}`, { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(title).toBeValid()
+})
+
+test('says in a toast that the task could not be added when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -736,12 +803,15 @@ test('reports a generic message when adding fails otherwise', async () => {
 	)
 	renderAt('/tasks')
 	await screen.findByText('Call the supplier')
+	const title = screen.getByRole('textbox', { name: 'Task title' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
-	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not add the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	expect(title).toHaveValue('X')
+	expect(screen.getByRole('button', { name: 'Add task' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('tells the reader why the add was refused as a write from another site', async () => {
@@ -761,12 +831,13 @@ test('tells the reader why the add was refused as a write from another site', as
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
 	expect(await screen.findByText(
-		'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+		'Could not add the task. '
+			+ 'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+		{ selector: '.godmin-toast' },
 	)).toBeInTheDocument()
-	expect(screen.queryByText('The task could not be added.')).not.toBeInTheDocument()
 })
 
-test('reports when a task cannot be updated', async () => {
+test('says in a toast that a task could not be updated', async () => {
 	server.use(
 		graphql.mutation('UpdateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -778,11 +849,11 @@ test('reports when a task cannot be updated', async () => {
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
 	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
-	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Task completed.')).not.toBeInTheDocument()
 })
 
-test('reports the backend message when an update is rejected', async () => {
+test('says in a toast what the server says when an update is rejected', async () => {
 	server.use(
 		graphql.mutation('UpdateTask', () =>
 			HttpResponse.json({
@@ -797,7 +868,9 @@ test('reports the backend message when an update is rejected', async () => {
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
 	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
-	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(
+		await screen.findByText('Could not update the task. task: invalid status', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
 })
 
 
@@ -1101,7 +1174,7 @@ test('leaves the day alone when pushing a task fails', async () => {
 	const row = screen.getByRole('listitem', { name: 'Call the supplier' })
 	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
-	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.getByText('Call the supplier')).toBeInTheDocument()
 	expect(screen.queryByText(movedToast(tomorrow))).not.toBeInTheDocument()
 })

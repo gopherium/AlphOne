@@ -625,13 +625,13 @@ test('enables a disabled account from the Enable its row draws', async () => {
 	expect(writes).toEqual([{ id: barred.id, disabled: false }])
 })
 
-test('puts the focus on the checkbox of the row once its pressed Enable went with the reload', async () => {
+test('puts the focus on the actions of the row once its pressed Enable went with the reload', async () => {
 	writesDisabled()
 	renderAt('/users')
 
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Enable' }))
 
-	await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Ana Lopez' })).toHaveFocus())
+	await waitFor(async () => expect((await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' })).toHaveFocus())
 	expect((await rowOf('Ana Lopez')).queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
 })
 
@@ -1212,7 +1212,7 @@ test('shows the activation link when no mail server delivered the invitation', a
 	expect(await screen.findByLabelText('Activation link')).toHaveValue(activationLink)
 })
 
-test('surfaces a rejection message from the backend', async () => {
+test('says in a toast what the server said when it names no reason', async () => {
 	server.use(
 		graphql.mutation('Invite', () =>
 			HttpResponse.json({
@@ -1225,10 +1225,14 @@ test('surfaces a rejection message from the backend', async () => {
 
 	await submitNewUser()
 
-	expect(await screen.findByText('that name is too long')).toBeInTheDocument()
+	expect(
+		await screen.findByText('Could not send the invitation. that name is too long', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Name')).toBeValid()
 })
 
-test('falls back to generic copy when the invitation fails otherwise', async () => {
+test('says in a toast that the invitation could not be sent when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('Invite', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -1238,7 +1242,37 @@ test('falls back to generic copy when the invitation fails otherwise', async () 
 
 	await submitNewUser()
 
-	expect(await screen.findByText('The invitation could not be sent.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not send the invitation.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Email')).toHaveValue('ada@example.com')
+	expect(screen.getByLabelText('Name')).toHaveValue('Ada Lovelace')
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Send invitation' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
+})
+
+test('says in a toast that the invitation failed once the reader left the form for the list', async () => {
+	const answer = gate()
+	server.use(
+		graphql.mutation('Invite', async () => {
+			await answer.held
+			return HttpResponse.json({
+				data: null,
+				errors: [{ message: 'name too long', extensions: { code: 'VALIDATION', reason: 'name_too_long' } }],
+			})
+		}),
+	)
+	renderAt('/users/new')
+
+	await submitNewUser()
+	await userEvent.click(await usersBreadcrumb())
+	await screen.findByRole('heading', { level: 2, name: 'Users' })
+	answer.release()
+
+	expect(
+		await screen.findByText('Could not send the invitation. This name is too long.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
 })
 
 test('drops the session when the users request is unauthorized', async () => {

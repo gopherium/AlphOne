@@ -42,7 +42,7 @@ function tokenOf(id: string, name: string, changes: Partial<token> = {}): token 
 		scopes: ['contacts:read', 'tasks:write'],
 		createdAt: '2026-07-06T10:00:00Z',
 		lastUsedAt: '2026-08-01T09:30:00Z',
-		expiresAt: '2026-11-04T10:00:00Z',
+		expiresAt: '2099-11-04T10:00:00Z',
 		...changes,
 	}
 }
@@ -58,7 +58,7 @@ const report = tokenOf('a3', 'Monthly report', {
 	scopes: ['tasks:read'],
 	createdAt: '2026-07-08T10:00:00Z',
 	lastUsedAt: '2026-08-20T09:30:00Z',
-	expiresAt: '2026-12-01T10:00:00Z',
+	expiresAt: '2099-12-01T10:00:00Z',
 })
 
 /** held is the token list the listing answers, changed by the revokes. */
@@ -211,6 +211,12 @@ test('keeps API tokens current in the main menu of an account that cannot open U
 	expect(await menu.findByRole('link', { name: 'API tokens' })).toHaveAttribute('aria-current', 'page')
 })
 
+test('marks the title cell of each token, so the focus can find it again after a reload', async () => {
+	renderAt('/users/tokens')
+
+	expect(await screen.findByText(production.name)).toHaveAttribute('data-item-id', production.id)
+})
+
 test('lines the list up with the title, out to the canvas edges, as the Users tab does', async () => {
 	renderAt('/users/tokens')
 
@@ -255,7 +261,7 @@ test('shows every token with its dates', async () => {
 	const row = await rowOf('n8n production')
 	expect(row.getByText('Jul 6, 2026 10:00 am')).toBeInTheDocument()
 	expect(row.getByText('Aug 1, 2026 9:30 am')).toBeInTheDocument()
-	expect(row.getByText('Nov 4, 2026 10:00 am')).toBeInTheDocument()
+	expect(row.getByText('Nov 4, 2099 10:00 am')).toBeInTheDocument()
 })
 
 test('says plainly when a token never expires and was never used', async () => {

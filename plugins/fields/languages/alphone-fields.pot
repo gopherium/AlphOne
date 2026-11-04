@@ -67,6 +67,27 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
+msgid "Could not add the entry."
+msgstr ""
+
+msgid "Could not add the field."
+msgstr ""
+
+msgid "Could not archive the field."
+msgstr ""
+
+msgid "Could not order the fields."
+msgstr ""
+
+msgid "Could not remove the entry."
+msgstr ""
+
+msgid "Could not save the entry."
+msgstr ""
+
+msgid "Could not save the fields."
+msgstr ""
+
 msgid "Edit entry: %(name)s"
 msgstr ""
 
@@ -184,21 +205,6 @@ msgstr ""
 msgid "The contact already holds a detail by that name."
 msgstr ""
 
-msgid "The entry could not be added."
-msgstr ""
-
-msgid "The entry could not be removed."
-msgstr ""
-
-msgid "The entry could not be saved."
-msgstr ""
-
-msgid "The field could not be archived."
-msgstr ""
-
-msgid "The field could not be defined."
-msgstr ""
-
 msgid "The field list just changed. Press Add field again."
 msgstr ""
 
@@ -206,12 +212,6 @@ msgid "The field list just changed. The new order was not saved."
 msgstr ""
 
 msgid "The fields could not be loaded."
-msgstr ""
-
-msgid "The fields could not be ordered."
-msgstr ""
-
-msgid "The fields could not be saved."
 msgstr ""
 
 msgid "This list is full. It holds %(max)s entries at most."

@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { EntryText } from './cellText'
 import { neighbour, typedEntry } from './entries'
 import type { RepeaterRow, StoredEntry } from './entries'
-import { entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
+import { entryFailure, entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
 import { whenFocusStayed } from './focus'
 import { deleteContactFieldEntryMutation, updateContactFieldEntryMutation } from './operations'
 
@@ -43,7 +43,7 @@ export type GoneHandler = (message: string, from: Element | null) => void
 
 /** SettleSteps are what a settled call does once it succeeds and once it is plainly refused. */
 interface SettleSteps {
-	fallback: string
+	failed: string
 	done: () => void
 	refused: () => void
 }
@@ -70,7 +70,7 @@ function useDrawnEntries(entries: readonly StoredEntry[], firstPage: number, kep
 /**
  * Holds the state the rows of one repeater share, and the actions that change it.
  * @param props - The contact, the repeater, every entry, the size of a first page and the report of a repeater gone.
- * @returns The failure, the add focus count, the add hook, the actions, each row's state, the rows and Load more.
+ * @returns The add focus count, the add hook, the actions, each row's state, the rows and Load more.
  */
 export function useEntryActions({
 	contactId,
@@ -88,7 +88,6 @@ export function useEntryActions({
 	const [open, setOpen] = useState<{ id: string; as: 'edit' | 'confirm' } | null>(null)
 	const [pendingID, setPendingID] = useState('')
 	const [settling, setSettling] = useState<readonly string[]>([])
-	const [failure, setFailure] = useState('')
 	const [rowFocus, setRowFocus] = useState<RowFocus | null>(null)
 	const [addFocus, setAddFocus] = useState(0)
 	const { listed, loadMore } = useDrawnEntries(entries, firstPage, [open?.id, rowFocus?.id])
@@ -100,7 +99,6 @@ export function useEntryActions({
 	const focusAdd = () => setAddFocus((count) => count + 1)
 
 	const added = (from: Element | null) => {
-		setFailure('')
 		whenFocusStayed(from, focusAdd)
 	}
 
@@ -118,12 +116,11 @@ export function useEntryActions({
 			steps.done()
 			return
 		}
-		const message = entryMessage(error as GraphFailure, steps.fallback)
 		if (outcome === 'field-gone') {
-			onGone(message, from)
+			onGone(entryMessage(error as GraphFailure, steps.failed), from)
 			return
 		}
-		setFailure(message)
+		toaster.show(entryFailure(steps.failed, error as GraphFailure))
 		if (outcome === 'entry-gone') {
 			leave(id, from)
 			return
@@ -134,16 +131,13 @@ export function useEntryActions({
 	const on: EntryHandlers = {
 		edit: (id) => {
 			setOpen({ id, as: 'edit' })
-			setFailure('')
 		},
 		cancel: (id) => {
 			setOpen(null)
-			setFailure('')
 			setRowFocus({ id, on: 'first' })
 		},
 		save: async (id, draft) => {
 			const from = document.activeElement
-			setFailure('')
 			setPendingID(id)
 			const result = await runUpdate({
 				contactId,
@@ -153,7 +147,7 @@ export function useEntryActions({
 			})
 			setPendingID('')
 			settle(id, from, result.error, {
-				fallback: __('The entry could not be saved.', 'alphone-fields'),
+				failed: __('Could not save the entry.', 'alphone-fields'),
 				done: () => {
 					setOpen(null)
 					toaster.show(__('Entry saved.', 'alphone-fields'))
@@ -164,7 +158,6 @@ export function useEntryActions({
 		},
 		remove: (id) => {
 			setOpen({ id, as: 'confirm' })
-			setFailure('')
 			setRowFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
@@ -173,12 +166,11 @@ export function useEntryActions({
 		},
 		confirm: async (id) => {
 			const from = document.activeElement
-			setFailure('')
 			setPendingID(id)
 			const result = await runDelete({ contactId, field: field.name, entryId: id })
 			setPendingID('')
 			settle(id, from, result.error, {
-				fallback: __('The entry could not be removed.', 'alphone-fields'),
+				failed: __('Could not remove the entry.', 'alphone-fields'),
 				done: () => {
 					toaster.show(__('Entry removed.', 'alphone-fields'))
 					leave(id, from)
@@ -198,5 +190,5 @@ export function useEntryActions({
 		focus: rowFocus?.id === id ? rowFocus : undefined,
 	})
 
-	return { failure, addFocus, added, on, rowOf, listed, loadMore }
+	return { addFocus, added, on, rowOf, listed, loadMore }
 }

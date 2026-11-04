@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useGraphMutation } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import { __, useGraphMutation, useToaster, writeFailure } from '@alphone/frontend-sdk'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { orderFieldsMutation } from './operations'
@@ -11,21 +10,21 @@ interface Ordered {
 	id: string
 }
 
-/** FieldOrder is the order the list shows, the move that changes it and the failure of the last order answered. */
+/** FieldOrder is the order the list shows and the move that changes it. */
 interface FieldOrder<T> {
 	rows: readonly T[]
 	move: (at: number, offset: number) => void
-	failure: GraphFailure | undefined
 }
 
 /**
  * Returns the live fields in the order to show, with the move that saves a new order one save at a time.
  * @param fields - The live fields in the order the server answered.
  * @param onAnswered - The reload run once the last save is answered, and after a refused one.
- * @returns The rows, the move and the failure of the last order answered.
+ * @returns The rows and the move.
  */
 export function useFieldOrder<T extends Ordered>(fields: readonly T[], onAnswered: () => void): FieldOrder<T> {
-	const [ordered, order] = useGraphMutation(orderFieldsMutation)
+	const toaster = useToaster()
+	const [, order] = useGraphMutation(orderFieldsMutation)
 	const [local, setLocal] = useState<readonly string[] | null>(null)
 	const [saving, setSaving] = useState(false)
 	const inFlight = useRef(false)
@@ -53,6 +52,9 @@ export function useFieldOrder<T extends Ordered>(fields: readonly T[], onAnswere
 			}
 			inFlight.current = false
 			setSaving(false)
+			if (result.error) {
+				toaster.show(writeFailure(__('Could not order the fields.', 'alphone-fields'), result.error))
+			}
 			if (result.error?.networkError) {
 				setLocal(before)
 				return
@@ -70,7 +72,7 @@ export function useFieldOrder<T extends Ordered>(fields: readonly T[], onAnswere
 			save(next, local)
 		}
 	}
-	return { rows, move, failure: ordered.error }
+	return { rows, move }
 }
 
 /**

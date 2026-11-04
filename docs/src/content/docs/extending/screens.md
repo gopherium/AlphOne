@@ -628,10 +628,16 @@ Pass its `region` to `PageScreen` as `listRef`, with a `listLabel`, so
 a keyboard reader keeps their place. As the list starts to reload, the
 region takes a focus from the table or the footer. After a run started
 from the keyboard it draws the focus ring. Once the new rows land the
-focus goes back to the control the reader pressed, or to the first
-control of the row in its place. It stays on the region when that
-control is a primary action, so a one click action never takes a
-second Enter meant for another row.
+focus goes back to the control the reader pressed, then to the same item
+wherever its row now sits, then to the first control of the row in its
+place. It stays on the region when that control is a primary action, so
+a one click action never takes a second Enter meant for another row.
+
+To let it find the same item, mark the title cell of the list:
+
+```tsx
+render: ({ item }) => <span data-item-id={item.id}>{item.name}</span>
+```
 
 Give every bulk action an `icon`. On a medium wide screen the toolbar
 shows only the icon. When one row was picked and it failed, show the
@@ -891,19 +897,56 @@ render: ({ item }) => listDate(item.createdAt)
 
 ## Failures in forms
 
-`validationMessage` shows a backend validation message verbatim and
-falls back to your own copy for anything else. `ErrorNotice` is for a
-failed load and for a form on its own page. A failure in a dialog or
-in a run over list rows goes in a toast, as [Dialogs](#dialogs) says.
+A failed write shows in one of two places, and the reader's edits stay in
+the fields.
+
+A server message about one field goes under that field, and the focus moves
+there. `useRefusedField` holds the message and `ValidatedInputControl` shows
+it. It goes as the reader edits.
+
+Anything else goes in a toast. `writeFailure` returns what failed, then the
+server's words when it named a reason or refused the values.
 
 ```tsx
-<ErrorNotice>
-	{validationMessage(create.error, 'The invoice could not be saved.')}
-</ErrorNotice>
+const form = useRef<HTMLFormElement>(null)
+const refusedName = useRefusedField(form, name)
+
+const save = async () => {
+	const result = await runSave({ name })
+	if (!result.data && !refusedName.refuse(result.error, name)) {
+		toaster.show(writeFailure(__('Could not save the invoice.', 'acme-billing'), result.error))
+	}
+}
+
+<form ref={form}>
+	<ValidatedInputControl
+		label={__('Name', 'acme-billing')}
+		value={name}
+		customValidity={refusedName.validity}
+		onChange={(event) => setName(event.target.value)}
+	/>
+</form>
 ```
 
-Throw `ValidationError` from your API layer when the backend rejects the
-input, and anything else for a genuine failure.
+`refuse` answers false when the failure has no words to show, or when the
+field no longer holds what was sent, so the toast covers those cases too.
+
+A field holding a message blocks its form until the message goes. When another
+control changes what the server would answer, pass both to `useRefusedField`,
+such as `${channel}:${value}`, and hand `refuse` the same string.
+
+A screen that reads again after a failed write passes what the read holds to
+`useLastAnswer`, so a read that fails too leaves the form and its edits on
+screen. The screen still shows `ErrorNotice` for that read, and frees anything
+that was waiting for it.
+
+A check before sending stays under its field. `ErrorNotice` is for a failed
+load. A failure in a dialog or in a run over list rows goes in a toast, as
+[Dialogs](#dialogs) says.
+
+`validationMessage` shows a backend validation message verbatim and falls back
+to your own copy for anything else. Throw `ValidationError` from your API layer
+when the backend rejects the input, and anything else for a genuine failure.
 
 A reason the server stores beside a record, such as the reason on an import
 row, arrives as a `code` and its `meta`, or as null when the record needs
@@ -1146,7 +1189,7 @@ last one is a convention a reviewer will hold you to.
 | Draw an empty list with `EmptyState` | `ListEmpty` | source invariant |
 | Leave a table outside the scrolling region | Wrap it in `godmin-table-scroll` | source invariant |
 | Let a screen spill sideways on a phone | Keep it inside the canvas | end to end fit sweep |
-| Put failure copy in a plain `Text` | `ErrorNotice` for a failed load or a form on its own page, a toast for a dialog or a list run | screen tests assert the alert role or the toast |
+| Put failure copy in a plain `Text` | `ErrorNotice` for a failed load, `useRefusedField` for a message about one field, a toast for any other failed write | screen tests assert the alert role, the field's description or the toast |
 | Cap the page width yourself | Let the page span the canvas | end to end geometry test |
 | Hand roll a load more button | `LoadMore` | convention |
 

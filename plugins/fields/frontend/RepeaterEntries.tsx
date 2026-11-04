@@ -3,7 +3,6 @@
 import {
 	Button,
 	Card,
-	ErrorNotice,
 	LoadMore,
 	LogList,
 	SectionTitle,
@@ -22,7 +21,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { EntryCells } from './cells'
 import { draftCells, entriesOf, holdsInput, localDay, typedEntry } from './entries'
 import type { RepeaterRow } from './entries'
-import { entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
+import { entryFailure, entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
 import { EntryRow } from './EntryRow'
 import { focusFirstControl } from './focus'
 import { addContactFieldEntryMutation } from './operations'
@@ -85,7 +84,6 @@ export function RepeaterEntries({
 						onAdded={actions.added}
 						onGone={onGone}
 					/>
-					{actions.failure !== '' && <ErrorNotice>{actions.failure}</ErrorNotice>}
 					{entries.length === 0 && <Text role="status">{__('No entries yet.', 'alphone-fields')}</Text>}
 					{listed.length > 0 && (
 						<LogList aria-labelledby={heading}>
@@ -132,7 +130,7 @@ function AddEntryForm({
 	const formRef = useRef<HTMLFormElement>(null)
 	const shown = draftCells(field.subFields, picked, localDay(new Date()))
 	const label = sprintf(__('Add an entry to %(label)s', 'alphone-fields'), { label: field.label })
-	const fallback = __('The entry could not be added.', 'alphone-fields')
+	const failed = __('Could not add the entry.', 'alphone-fields')
 
 	useEffect(() => {
 		if (focusCount > 0) {
@@ -150,7 +148,9 @@ function AddEntryForm({
 			toaster.show(__('Entry added.', 'alphone-fields'))
 			onAdded(from)
 		} else if (outcome === 'field-gone') {
-			onGone(entryMessage(result.error as GraphFailure, fallback), from)
+			onGone(entryMessage(result.error as GraphFailure, failed), from)
+		} else {
+			toaster.show(entryFailure(failed, result.error as GraphFailure))
 		}
 	}
 
@@ -170,9 +170,6 @@ function AddEntryForm({
 				disabled={add.fetching}
 				onChange={(name, text) => setPicked((held) => new Map(held).set(name, text))}
 			/>
-			{add.error && outcomeOf(add.error) !== 'field-gone' ? (
-				<ErrorNotice>{entryMessage(add.error, fallback)}</ErrorNotice>
-			) : null}
 			<Button
 				type="submit"
 				disabled={!holdsInput(field.subFields, picked) || add.fetching}

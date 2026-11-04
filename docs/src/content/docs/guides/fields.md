@@ -141,8 +141,8 @@ keeps an import from quietly overwriting work.
 
 AlphOne refuses a value that does not match the kind. A `Date` field will not
 accept `not a date`, and a `Number` field will not accept `4.5`, because whole
-numbers are what it holds. You see the reason in the group whose
-**Save fields** you pressed, and nothing is stored.
+numbers are what it holds. A toast at the bottom of the screen says why, and
+nothing is stored.
 
 This is why the kind cannot be changed after a field exists. Changing it would
 leave old values that no longer fit.
@@ -160,10 +160,10 @@ asks before it archives the field, as the next section explains.
 
 The list changes as soon as you press an arrow, and the new order is saved for
 everyone in your workspace. If the save fails, the fields go back to where
-they were and the screen says **The fields could not be ordered.** If someone
-added or archived a field after you opened the screen, the move is refused
-with **The field list just changed. The new order was not saved.** The list
-then shows the fields as they are now, so move the field again.
+they were and a toast says **Could not order the fields.** If someone added or
+archived a field after you opened the screen, the same toast goes on to say
+**The field list just changed. The new order was not saved.** The list then
+shows the fields as they are now, so move the field again.
 
 The contact page shows your fields in this order, repeaters too. The mapping
 dropdown of an import and `fields` in the API use the same order. A repeater
@@ -178,8 +178,8 @@ leave the field as it is. The question starts on **Keep**, so pressing Enter
 by mistake keeps the field.
 
 Once you confirm, the field disappears from the contact screen and from the
-API. If the archive fails, the screen says so and the trash icon comes back,
-so you can try again.
+API. If the archive fails, a toast says so and the trash icon comes back, so
+you can try again.
 
 Archiving does not delete anything, even though the icon is a trash can. The
 values stay in the database, and the archived field keeps its name. So a new

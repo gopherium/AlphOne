@@ -9,20 +9,25 @@ import {
 	PageBreadcrumbs,
 	PageScreen,
 	Text,
+	ValidatedInputControl,
 	__,
-	graphError,
+	graphExtensions,
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useRefusedField,
 	useToaster,
-	validationMessage,
+	writeFailure,
 } from '@alphone/frontend-sdk'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { isValidDate, statusMessage, timeChange } from './format'
 import { taskDetailQuery, updateTaskMutation } from './operations'
 import { PrioritySelect } from './PrioritySelect'
+
+/** titleRequired is the reason a task write fails for that is about its title. */
+export const titleRequired = 'task_title_required'
 
 /** taskOperations names the documents a task write must refresh. */
 const taskOperations = ['TaskDetail', 'DayTasks', 'OverdueTasks']
@@ -107,38 +112,57 @@ function ContactLink({ contact }: { contact: { id: string; name: string } }) {
 function TaskForm({ task }: { task: DetailedTask }) {
 	const graph = useGraph()
 	const toaster = useToaster()
+	const form = useRef<HTMLFormElement>(null)
 	const [title, setTitle] = useState(task.title)
 	const [dueOn, setDueOn] = useState(task.dueOn)
 	const [time, setTime] = useState(task.dueTime ?? '')
 	const [priority, setPriority] = useState(task.priority)
 	const [save, runSave] = useGraphMutation(updateTaskMutation)
 	const [toggle, runToggle] = useGraphMutation(updateTaskMutation)
+	const refusedTitle = useRefusedField(form, title)
 	const status = task.status === 'done' ? 'open' : 'done'
-	const runUpdate = async (
-		run: typeof runSave,
-		input: { title?: string; dueOn?: string; dueTime?: string | null; priority?: number; status?: string },
-		message: string,
-	) => {
-		const result = await run({ id: task.id, input })
+	const settled = (message: string) => {
+		toaster.show(message)
+		graph.refetch(taskOperations)
+	}
+	const failed = (error: unknown) => {
+		toaster.show(writeFailure(__('Could not save the task.', 'alphone'), error))
+	}
+	const submitSave = async () => {
+		const result = await runSave({
+			id: task.id,
+			input: { title, dueOn, ...timeChange(time, task.dueTime), priority },
+		})
 		if (result.data) {
-			toaster.show(message)
-			graph.refetch(taskOperations)
+			settled(__('Task saved.', 'alphone'))
+		} else if (graphExtensions(result.error).reason !== titleRequired || !refusedTitle.refuse(result.error, title)) {
+			failed(result.error)
+		}
+	}
+	const submitToggle = async () => {
+		const result = await runToggle({ id: task.id, input: { status } })
+		if (result.data) {
+			settled(statusMessage(status))
+		} else {
+			failed(result.error)
 		}
 	}
 
 	return (
 		<form
+			ref={form}
 			className="godmin-form"
 			onSubmit={(event) => {
 				event.preventDefault()
-				void runUpdate(
-					runSave,
-					{ title, dueOn, ...timeChange(time, task.dueTime), priority },
-					__('Task saved.', 'alphone'),
-				)
+				void submitSave()
 			}}
 		>
-			<InputControl label={__('Title', 'alphone')} value={title} onChange={(event) => setTitle(event.target.value)} />
+			<ValidatedInputControl
+				label={__('Title', 'alphone')}
+				value={title}
+				customValidity={refusedTitle.validity}
+				onChange={(event) => setTitle(event.target.value)}
+			/>
 			<InputControl
 				label={__('Due date', 'alphone')}
 				type="date"
@@ -163,17 +187,11 @@ function TaskForm({ task }: { task: DetailedTask }) {
 				<Button
 					variant="outline"
 					loading={toggle.fetching}
-					onClick={() => void runUpdate(runToggle, { status }, statusMessage(status))}
+					onClick={() => void submitToggle()}
 				>
 					{task.status === 'done' ? __('Reopen', 'alphone') : __('Complete', 'alphone')}
 				</Button>
 			</div>
-			{save.error ? (
-				<ErrorNotice>
-					{validationMessage(graphError(save.error), __('The task could not be saved.', 'alphone'))}
-				</ErrorNotice>
-			) : null}
-			{toggle.error ? <ErrorNotice>{__('The task could not be saved.', 'alphone')}</ErrorNotice> : null}
 		</form>
 	)
 }

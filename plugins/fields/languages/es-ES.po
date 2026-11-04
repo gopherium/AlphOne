@@ -246,24 +246,24 @@ msgid "The contact already holds a detail by that name."
 msgstr "El contacto ya tiene un dato con ese nombre."
 
 #, fuzzy
-msgid "The entry could not be added."
+msgid "Could not add the entry."
 msgstr "No se ha podido añadir la entrada."
 
 #, fuzzy
-msgid "The entry could not be removed."
+msgid "Could not remove the entry."
 msgstr "No se ha podido quitar la entrada."
 
 #, fuzzy
-msgid "The entry could not be saved."
+msgid "Could not save the entry."
 msgstr "No se ha podido guardar la entrada."
 
 #, fuzzy
-msgid "The field could not be archived."
+msgid "Could not archive the field."
 msgstr "No se ha podido archivar el campo."
 
 #, fuzzy
-msgid "The field could not be defined."
-msgstr "No se ha podido definir el campo."
+msgid "Could not add the field."
+msgstr "No se ha podido añadir el campo."
 
 #, fuzzy
 msgid "The field list just changed. Press Add field again."
@@ -278,11 +278,11 @@ msgid "The fields could not be loaded."
 msgstr "No se han podido cargar los campos."
 
 #, fuzzy
-msgid "The fields could not be ordered."
+msgid "Could not order the fields."
 msgstr "No se han podido ordenar los campos."
 
 #, fuzzy
-msgid "The fields could not be saved."
+msgid "Could not save the fields."
 msgstr "No se han podido guardar los campos."
 
 #, fuzzy

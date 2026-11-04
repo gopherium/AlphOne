@@ -62,6 +62,7 @@ export function tokenFields(tokens: readonly ApiToken[]): Field<ApiToken>[] {
 			enableGlobalSearch: true,
 			enableHiding: false,
 			filterBy: false,
+			render: ({ item }) => <span data-item-id={item.id}>{item.name}</span>,
 		},
 		{
 			id: 'scopes',

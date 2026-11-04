@@ -14,6 +14,18 @@ import { renderAt, renderRoutedAt } from './render'
 const taskID = '0198c000-0000-7000-8000-000000000201'
 const contactID = '0198c000-0000-7000-8000-000000000202'
 
+/** The words the server answers a task with no title with. */
+const emptyTitle = 'task: empty title'
+
+/** The answer the server gives a task with no title. */
+const emptyTitleAnswer = {
+	data: null,
+	errors: [{ message: emptyTitle, extensions: { code: 'VALIDATION', reason: 'task_title_required' } }],
+}
+
+/** The answer the server gives a write it cannot finish, naming no field. */
+const internalErrorAnswer = { data: null, errors: [{ message: 'internal error' }] }
+
 /** godminStyles is the stylesheet godmin ships. */
 const godminStyles = readFileSync(createRequire(import.meta.url).resolve('@gopherium/godmin/base.css'), 'utf8')
 
@@ -375,12 +387,82 @@ test('reports when the task cannot be loaded', async () => {
 	expect(await tasksBreadcrumb()).toHaveAttribute('href', '/tasks')
 })
 
-test('reports when a save is rejected', async () => {
+test('shows under Title what the server says about it, with the focus there, until the reader edits it', async () => {
+	server.use(graphql.mutation('UpdateTask', () => HttpResponse.json(emptyTitleAnswer)))
+	renderAt(`/tasks/${taskID}`)
+	const title = await screen.findByLabelText('Title')
+
+	await userEvent.type(title, ' back')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await screen.findByText(emptyTitle)
+	expect(title).toHaveAccessibleDescription(emptyTitle)
+	expect(title).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(title, ' soon')
+
+	await waitFor(() => expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument())
+	expect(title).toBeValid()
+})
+
+test('shows nothing when a title the server turned down before a save is typed again', async () => {
+	server.use(
+		graphql.mutation('UpdateTask', ({ variables }) =>
+			(variables.input as { title?: string }).title === 'Call the supplier back'
+				? HttpResponse.json(emptyTitleAnswer)
+				: undefined,
+		),
+	)
+	renderAt(`/tasks/${taskID}`)
+	const title = await screen.findByLabelText('Title')
+	await userEvent.type(title, ' back')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText(emptyTitle)
+	await userEvent.clear(title)
+	await userEvent.type(title, 'Call the supplier')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	await screen.findByText('Task saved.')
+
+	await userEvent.type(title, ' back')
+
+	expect(title).toHaveValue('Call the supplier back')
+	expect(title).toBeValid()
+	expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument()
+})
+
+test('says in a toast that the task could not be saved when the failure is about no field', async () => {
+	let saves = 0
+	server.use(
+		graphql.mutation('UpdateTask', () => {
+			saves += 1
+			return HttpResponse.json(internalErrorAnswer)
+		}),
+	)
+	renderAt(`/tasks/${taskID}`)
+	const title = await screen.findByLabelText('Title')
+
+	await userEvent.type(title, ' back')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	expect(await screen.findByText('Could not save the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('Task saved.')).not.toBeInTheDocument()
+	expect(title).toHaveValue('Call the supplier back')
+	expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute('aria-disabled', 'true')
+
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+	await waitFor(() => expect(saves).toBe(2))
+})
+
+test('says in a toast what the server says about anything but the title', async () => {
 	server.use(
 		graphql.mutation('UpdateTask', () =>
 			HttpResponse.json({
 				data: null,
-				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+				errors: [
+					{ message: 'task: invalid priority', extensions: { code: 'VALIDATION', reason: 'task_priority_unknown' } },
+				],
 			}),
 		),
 	)
@@ -390,37 +472,68 @@ test('reports when a save is rejected', async () => {
 	await userEvent.type(title, ' back')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
+	expect(
+		await screen.findByText('Could not save the task. task: invalid priority', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(title).toBeValid()
 })
 
-test('reports a generic message when a save fails otherwise', async () => {
+test('says in a toast what the server said about a title the reader has changed since', async () => {
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
 	server.use(
-		graphql.mutation('UpdateTask', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
+		graphql.mutation('UpdateTask', async () => {
+			await held
+			return HttpResponse.json(emptyTitleAnswer)
+		}),
 	)
 	renderAt(`/tasks/${taskID}`)
 	const title = await screen.findByLabelText('Title')
-
 	await userEvent.type(title, ' back')
 	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-	expect(await screen.findByText('The task could not be saved.')).toBeInTheDocument()
-	expect(screen.queryByText('Task saved.')).not.toBeInTheDocument()
+	await userEvent.type(title, ' soon')
+	release?.()
+
+	expect(
+		await screen.findByText(`Could not save the task. ${emptyTitle}`, { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(title).toBeValid()
 })
 
-test('reports when completing from the detail fails', async () => {
-	server.use(
-		graphql.mutation('UpdateTask', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
+test('says in a toast when completing from the detail fails', async () => {
+	server.use(graphql.mutation('UpdateTask', () => HttpResponse.json(internalErrorAnswer)))
 	renderAt(`/tasks/${taskID}`)
 
 	await userEvent.click(await screen.findByRole('button', { name: 'Complete' }))
 
-	expect(await screen.findByText('The task could not be saved.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not save the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Task completed.')).not.toBeInTheDocument()
+})
+
+test('says in a toast when reopening from the detail fails', async () => {
+	stored = { ...stored, status: 'done' }
+	server.use(graphql.mutation('UpdateTask', () => HttpResponse.json(internalErrorAnswer)))
+	renderAt(`/tasks/${taskID}`)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Reopen' }))
+
+	expect(await screen.findByText('Could not save the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('Task reopened.')).not.toBeInTheDocument()
+})
+
+test('keeps a failed Complete in a toast, whatever field the server names', async () => {
+	server.use(graphql.mutation('UpdateTask', () => HttpResponse.json(emptyTitleAnswer)))
+	renderAt(`/tasks/${taskID}`)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Complete' }))
+
+	expect(
+		await screen.findByText(`Could not save the task. ${emptyTitle}`, { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.getByLabelText('Title')).toBeValid()
 })
 
 test('drops the session when the task detail is unauthorized', async () => {

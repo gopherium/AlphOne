@@ -12,6 +12,9 @@ const contactID = '0198c000-0000-7000-8000-000000000401'
 const callID = '0198c000-0000-7000-8000-000000000402'
 const quoteID = '0198c000-0000-7000-8000-000000000403'
 
+/** The words the server answers a task with no title with. */
+const emptyTitle = 'task: empty title'
+
 // These dates are computed independently of the screen's own date helper.
 function localDate(offsetDays: number) {
 	const at = new Date()
@@ -455,11 +458,6 @@ test('adds a task for the contact with no time while the Time field stays empty'
 })
 
 test('lays the task title, the due date, the time, the priority and Add task on one form row', async () => {
-	server.use(
-		graphql.mutation('CreateTask', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
 	const title = screen.getByRole('textbox', { name: 'Task title' })
@@ -479,12 +477,6 @@ test('lays the task title, the due date, the time, the priority and Add task on 
 	expect(fieldCells.map((cell) => cells.indexOf(cell as Element))).toEqual([0, 1, 2, 3])
 	expect(add.parentElement).toBe(row)
 	expect(cells.at(-1)).toBe(add)
-
-	await userEvent.type(title, 'X')
-	await userEvent.click(add)
-
-	const notice = await screen.findByText('The task could not be added.')
-	expect(notice.closest('.godmin-form__row')).toBeNull()
 })
 
 test('lets the contact task form fill its column as one row', async () => {
@@ -659,22 +651,31 @@ test('reports when the contact detail cannot be loaded', async () => {
 	expect(within(breadcrumbs).getByRole('link', { name: 'Contacts' })).toHaveAttribute('href', '/contacts')
 })
 
-test('reports when a contact task cannot be added', async () => {
+test('shows under Task title what the server says, with the focus there, until the reader edits it', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({
 				data: null,
-				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
+				errors: [{ message: emptyTitle, extensions: { code: 'VALIDATION', reason: 'task_title_required' } }],
 			}),
 		),
 	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
+	const title = screen.getByRole('textbox', { name: 'Task title' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
-	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
+	await screen.findByText(emptyTitle)
+	expect(title).toHaveAccessibleDescription(emptyTitle)
+	expect(title).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(title, 'Y')
+
+	await waitFor(() => expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument())
+	expect(title).toBeValid()
 })
 
 test('disables the row control while its update is in flight', async () => {
@@ -707,7 +708,7 @@ test('disables the row control while its update is in flight', async () => {
 	release?.()
 })
 
-test('reports a generic message when adding fails otherwise', async () => {
+test('says in a toast that the task could not be added when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -715,15 +716,17 @@ test('reports a generic message when adding fails otherwise', async () => {
 	)
 	renderAt(`/contacts/${contactID}`)
 	await screen.findByRole('list', { name: 'Contact tasks' })
+	const title = screen.getByRole('textbox', { name: 'Task title' })
 
-	await userEvent.type(screen.getByRole('textbox', { name: 'Task title' }), 'X')
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
 
-	expect(await screen.findByText('The task could not be added.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not add the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	expect(title).toHaveValue('X')
 })
 
-test('reports when a contact task cannot be updated', async () => {
+test('says in a toast that a contact task could not be updated', async () => {
 	server.use(
 		graphql.mutation('UpdateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -735,7 +738,7 @@ test('reports when a contact task cannot be updated', async () => {
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
 	await userEvent.click(within(row).getByRole('button', { name: 'Postpone' }))
 
-	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText(movedToast(tomorrow))).not.toBeInTheDocument()
 })
 
@@ -766,6 +769,6 @@ test('leaves the list alone when completing a contact task fails', async () => {
 	const row = screen.getByRole('listitem', { name: 'Call her back' })
 	await userEvent.click(within(row).getByRole('checkbox', { name: 'Complete' }))
 
-	expect(await screen.findByText('The task could not be updated.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not update the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.getByText('Call her back')).toBeInTheDocument()
 })

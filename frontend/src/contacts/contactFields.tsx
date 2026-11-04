@@ -31,6 +31,7 @@ export function contactFields(): Field<ContactRow>[] {
 			type: 'text',
 			enableHiding: false,
 			filterBy: false,
+			render: ({ item }) => <span data-item-id={item.id}>{item.name}</span>,
 		},
 		{
 			id: 'identity',

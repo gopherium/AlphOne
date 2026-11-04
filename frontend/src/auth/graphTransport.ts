@@ -214,8 +214,8 @@ function toInvitation(report: { delivered: boolean; activationLink?: string | nu
 	return { delivered: false, activation_link: report.activationLink }
 }
 
-/** inviteRefusals maps each reason an invitation is refused for onto the typed error it throws. */
-const inviteRefusals = new Map<string, new (message: string) => Error>([
+/** inviteErrors maps each reason an invitation is refused for onto the typed error it throws. */
+const inviteErrors = new Map<string, new (message: string) => Error>([
 	['role_unknown', RoleUnknownError],
 	['role_beyond_reach', RoleNotGrantableError],
 ])
@@ -243,12 +243,12 @@ function refuseInvitation(code: string | undefined, reason: string | undefined, 
  * @param message - The message the error carried.
  */
 function refuseInvitationDetails(code: string | undefined, reason: string | undefined, message: string): void {
-	const refused = inviteRefusals.get(reason ?? '')
+	const refused = inviteErrors.get(reason ?? '')
 	if (refused) {
 		throw new refused(message)
 	}
 	if (code === 'VALIDATION' || code === 'CONFLICT') {
-		throw new ValidationError(message)
+		throw new ValidationError(message, { code: reason })
 	}
 }
 

@@ -10,6 +10,14 @@ const fields = '.alphone-tasks__add .godmin-form__row > :not(.godmin-form__grow,
 /** phone is the condition of the small viewport block. */
 const phone = '(max-width: 639px)'
 
+test('keeps the controls of a form row on one line while a message shows under one of them', () => {
+	const row = '.godmin-form__row:has(input[data-validity-visible]:invalid)'
+	expect(declarations(row)).toEqual({ 'align-items': 'flex-start' })
+	const belowTheLabel = declarations(`${row} > button`)['margin-block-start']
+	expect(belowTheLabel).toContain('--wpds-typography-line-height-xs')
+	expect(belowTheLabel).toContain('--wpds-dimension-gap-sm')
+})
+
 test('lets only the quick add title grow, the date, the time and the priority keeping their basis', () => {
 	expect(declarations(fields)).toEqual({ 'flex-grow': '0' })
 })

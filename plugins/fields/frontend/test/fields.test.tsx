@@ -18,6 +18,18 @@ import { plugin } from '../index'
 import { routes } from '../routes'
 import { capture, hold, refusal, renderHosted, speakTemplates } from './harness'
 
+/** TOAST reads a text inside a toast. */
+const TOAST = { selector: '.godmin-toast' }
+
+/** REFUSED_WORDS are what a refused answer says while no template speaks for its reason. */
+const REFUSED_WORDS = 'refused'
+
+/** ORDER_REFUSED is the toast of an order refused because the field list changed. */
+const ORDER_REFUSED = 'Could not order the fields. The field list just changed. The new order was not saved.'
+
+/** READ_FAILED is the answer of a read the server could not run. */
+const READ_FAILED = { data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }
+
 /** scrolled records every scroll into view an element asks for. */
 const scrolled = vi.fn()
 
@@ -225,18 +237,102 @@ test('refuses a label a live field already has', async () => {
 	expect(defined).not.toHaveBeenCalled()
 })
 
-test('a refused label replaces the notice of an earlier failure', async () => {
+test('a label a live field holds shows its one notice once a refused label is edited away', async () => {
 	serveFieldCatalogue([birthDate])
 	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))))
 
 	renderScreen()
 	await defineLabelled('Anniversary')
-	await screen.findByRole('alert')
+	await screen.findByText(REFUSED_WORDS)
 	await userEvent.clear(screen.getByLabelText('Label'))
 	await defineLabelled('Birth date')
 
 	expect(await screen.findByText('A field with that label already exists.')).toBeInTheDocument()
 	expect(screen.getAllByRole('alert')).toHaveLength(1)
+	expect(screen.queryByText(REFUSED_WORDS)).not.toBeInTheDocument()
+})
+
+test.each([
+	['field_label_required', 'A field needs a label.'],
+	['field_label_too_long', 'That label is too long. Try a shorter one.'],
+])('a define refused with %s shows under Label with the focus there until the reader edits', async (reason, words) => {
+	speakTemplates()
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', reason))))
+
+	renderScreen()
+	await submitField()
+
+	const label = screen.getByLabelText('Label')
+	await screen.findByText(words)
+	expect(label).toHaveAccessibleDescription(words)
+	expect(label).toHaveFocus()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(label, 's')
+
+	await waitFor(() => expect(screen.queryByText(words)).not.toBeInTheDocument())
+})
+
+test('an empty label answered as required shows under Label until the reader types', async () => {
+	speakTemplates()
+	serveFieldCatalogue([])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_required'))))
+
+	renderScreen()
+	await screen.findByText(/No fields yet/i)
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	const label = screen.getByLabelText('Label')
+	await screen.findByText('A field needs a label.')
+	expect(label).toHaveAccessibleDescription('A field needs a label.')
+	expect(label).toHaveFocus()
+
+	await userEvent.type(label, 'A')
+
+	await waitFor(() => expect(screen.queryByText('A field needs a label.')).not.toBeInTheDocument())
+})
+
+test('a label refused earlier shows nothing when typed again after a define succeeded', async () => {
+	serveFieldCatalogue([])
+	let answers = 0
+	server.use(
+		graphql.mutation('DefineField', () => {
+			answers += 1
+			return HttpResponse.json(
+				answers === 1 ? refusal('VALIDATION', 'field_label_too_long') : { data: { defineField: birthDate } },
+			)
+		}),
+	)
+
+	renderScreen()
+	await defineLabelled('Anniversary')
+	await screen.findByText(REFUSED_WORDS)
+	const label = screen.getByLabelText('Label')
+	await userEvent.clear(label)
+	await defineLabelled('Birth date')
+	await screen.findByText('Field added.')
+	await userEvent.type(label, 'Anniversary')
+
+	expect(screen.queryByText(REFUSED_WORDS)).not.toBeInTheDocument()
+	expect(label).toBeValid()
+})
+
+test('a label refused after the reader edited it says so in a toast', async () => {
+	serveFieldCatalogue([])
+	const defining = hold('DefineField', refusal('VALIDATION', 'field_label_too_long'))
+
+	renderScreen()
+	await submitField()
+	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
+	const label = screen.getByLabelText('Label')
+	await userEvent.type(label, 's')
+	defining.release()
+
+	expect(await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)).toBeInTheDocument()
+	expect(label).toBeValid()
+	expect(label).toHaveValue('Birth dates')
 })
 
 test('typing another label clears the label notice', async () => {
@@ -342,7 +438,10 @@ test('a taken name is reported word for word', async () => {
 	renderScreen()
 	await submitField()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(/holds that name/)
+	expect(
+		await screen.findByText('Could not add the field. fields: another definition holds that name', TOAST),
+	).toBeInTheDocument()
+	expect(screen.getByLabelText('Label')).toBeValid()
 })
 
 test('a name taken meanwhile asks to press Add field again', async () => {
@@ -353,8 +452,12 @@ test('a name taken meanwhile asks to press Add field again', async () => {
 	renderScreen()
 	await submitField()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. Press Add field again.')
+	expect(
+		await screen.findByText('Could not add the field. The field list just changed. Press Add field again.', TOAST),
+	).toBeInTheDocument()
 	expect(screen.queryByText('Field added.')).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Label')).toBeValid()
+	expect(screen.getByLabelText('Label')).toHaveValue('Birth date')
 })
 
 test('an archived field holding the name asks to press Add field again', async () => {
@@ -365,7 +468,9 @@ test('an archived field holding the name asks to press Add field again', async (
 	renderScreen()
 	await submitField()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. Press Add field again.')
+	expect(
+		await screen.findByText('Could not add the field. The field list just changed. Press Add field again.', TOAST),
+	).toBeInTheDocument()
 })
 
 test('the catalogue is read again after a refused define', async () => {
@@ -380,7 +485,7 @@ test('the catalogue is read again after a refused define', async () => {
 
 	renderScreen()
 	await submitField()
-	await screen.findByRole('alert')
+	await screen.findByText(REFUSED_WORDS)
 
 	await waitFor(() => expect(reads).toBe(2))
 })
@@ -399,7 +504,7 @@ test.each(['field_name_taken', 'field_kind_locked'])(
 
 		renderScreen()
 		await submitField()
-		await screen.findByRole('alert')
+		await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
 		await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
 		await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
@@ -407,7 +512,7 @@ test.each(['field_name_taken', 'field_kind_locked'])(
 	},
 )
 
-test('a refusal that is not a race sends the same name again', async () => {
+test('a define refused for a reason that is no race sends the same name again', async () => {
 	serveFieldCatalogue([])
 	const defined = vi.fn()
 	server.use(
@@ -415,7 +520,7 @@ test('a refusal that is not a race sends the same name again', async () => {
 			defined(variables)
 			return HttpResponse.json(
 				defined.mock.calls.length === 1
-					? refusal('VALIDATION', 'field_label_too_long')
+					? refusal('VALIDATION', 'field_name_malformed')
 					: { data: { defineField: birthDate } },
 			)
 		}),
@@ -423,11 +528,27 @@ test('a refusal that is not a race sends the same name again', async () => {
 
 	renderScreen()
 	await submitField()
-	await screen.findByRole('alert')
+	await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
 	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate'])
+})
+
+test('a label refused by the server is not sent again until the reader edits it', async () => {
+	serveFieldCatalogue([])
+	const defined = capture('DefineField', refusal('VALIDATION', 'field_label_too_long'))
+
+	renderScreen()
+	await submitField()
+	await screen.findByText(REFUSED_WORDS)
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+	await settle()
+
+	expect(defined).toHaveBeenCalledOnce()
+	await userEvent.type(screen.getByLabelText('Label'), 's')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+	await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
 })
 
 test('a define lost on the way keeps the form and its draft', async () => {
@@ -438,25 +559,24 @@ test('a define lost on the way keeps the form and its draft', async () => {
 	renderScreen(graph)
 	await defineLabelled('Anniversary')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be defined.')
+	expect(await screen.findByText('Could not add the field.', TOAST)).toBeInTheDocument()
 	expect(graph.refetch).not.toHaveBeenCalled()
 	expect(screen.getByLabelText('Label')).toHaveValue('Anniversary')
 	expect(screen.queryByText('Field added.')).not.toBeInTheDocument()
 })
 
-test('a refused label drops an earlier failure for good', async () => {
+test('a refused label typed again shows nothing, so it can be sent again', async () => {
 	serveFieldCatalogue([birthDate])
 	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))))
 
 	renderScreen()
 	await defineLabelled('Anniversary')
-	await screen.findByRole('alert')
+	await screen.findByText(REFUSED_WORDS)
 	await userEvent.clear(screen.getByLabelText('Label'))
-	await defineLabelled('Birth date')
-	await screen.findByText('A field with that label already exists.')
-	await userEvent.type(screen.getByLabelText('Label'), 's')
+	await userEvent.type(screen.getByLabelText('Label'), 'Anniversary')
 
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.queryByText(REFUSED_WORDS)).not.toBeInTheDocument()
+	expect(screen.getByLabelText('Label')).toBeValid()
 })
 
 test('the chosen kind is sent with the definition', async () => {
@@ -552,9 +672,8 @@ test('a failed archive is reported', async () => {
 	renderScreen()
 	await archiveField('Birth date')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'The field could not be archived.',
-	)
+	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('Field archived.')).not.toBeInTheDocument()
 })
 
@@ -576,7 +695,12 @@ test('a validation error is reported word for word', async () => {
 	renderScreen()
 	await submitField()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(/camelCase/)
+	expect(
+		await screen.findByText(
+			'Could not add the field. fields: a name is camelCase, starting with a lowercase letter',
+			TOAST,
+		),
+	).toBeInTheDocument()
 })
 
 const history = {
@@ -612,6 +736,52 @@ async function addSubField(label: string, kind: string) {
 	await userEvent.click(row.getByRole('combobox', { name: 'Kind' }))
 	await userEvent.click(await screen.findByRole('option', { name: kind }))
 }
+
+test('a repeater answered about a label says so in a toast and can be sent again', async () => {
+	serveFieldCatalogue([])
+	let defines = 0
+	server.use(
+		graphql.mutation('DefineField', () => {
+			defines += 1
+			return HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))
+		}),
+	)
+
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	expect(await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)).toBeInTheDocument()
+	expect(screen.getAllByLabelText('Label')[0]).toBeValid()
+
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await waitFor(() => expect(defines).toBe(2))
+})
+
+test('a refused define keeps the form beside a notice when the read after the answer fails too', async () => {
+	serveFieldCatalogue([])
+	let reads = 0
+	renderScreen()
+	await startRepeater()
+	await addSubField('Date', 'Date')
+	server.use(
+		graphql.mutation('DefineField', () => HttpResponse.json(refusal('VALIDATION', 'field_label_too_long'))),
+		graphql.query('FieldCatalogue', () => {
+			reads += 1
+			return HttpResponse.json(READ_FAILED)
+		}),
+	)
+
+	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
+
+	await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
+	await waitFor(() => expect(reads).toBe(1))
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
+	expect(screen.getAllByLabelText('Label')[0]).toHaveValue('History')
+	expect(screen.getByRole('group', { name: 'Sub field 1' })).toBeInTheDocument()
+})
 
 test('the catalogue shows a repeater beside the labels of its sub fields', async () => {
 	serveFieldCatalogue([history])
@@ -762,7 +932,7 @@ test('lays the label and the kind on one form row', async () => {
 	await startRepeater()
 	await userEvent.click(screen.getByRole('button', { name: 'Add sub field' }))
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
-	const notice = await screen.findByRole('alert')
+	await screen.findByText('Could not add the field.', TOAST)
 
 	const label = screen.getAllByLabelText('Label')[0]
 	const kind = screen.getAllByRole('combobox', { name: 'Kind' })[0]
@@ -772,8 +942,6 @@ test('lays the label and the kind on one form row', async () => {
 	expect(row.children).toHaveLength(2)
 	expect(row.children[0]).toContainElement(label)
 	expect(row.children[1]).toContainElement(kind)
-	expect(notice).toHaveTextContent('The field could not be defined.')
-	expect(notice.closest('.godmin-form__row')).toBeNull()
 	expect(screen.getByRole('group', { name: 'Sub field 1' }).closest('.godmin-form__row')).toBeNull()
 	expect(screen.getByRole('button', { name: 'Add field' }).closest('.godmin-form__row')).toBeNull()
 })
@@ -1046,7 +1214,7 @@ test.each([
 	renderScreen()
 	await archiveField('Birth date')
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
 	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
 	const trash = screen.getByRole('button', { name: 'Archive Birth date' })
 	await waitFor(() => expect(trash).toHaveFocus())
@@ -1065,7 +1233,7 @@ test('a failed archive leaves focus where the reader moved it', async () => {
 	await userEvent.click(label)
 	archiving.release()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
 	await settle()
 	expect(label).toHaveFocus()
 })
@@ -1165,7 +1333,7 @@ test('a refused order drops the moves made while it was unanswered and shows the
 	served = [birthDate, shoeSize, nickname, hatSize]
 	refused.release()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field list just changed. The new order was not saved.')
+	expect(await screen.findByText(ORDER_REFUSED, TOAST)).toBeInTheDocument()
 	expect(await screen.findByRole('button', { name: 'Archive Hat size' })).toBeInTheDocument()
 	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size', 'Nickname', 'Hat size'])
 	await settle()
@@ -1198,7 +1366,7 @@ test('an order lost after an earlier one was saved keeps the order the earlier o
 	await waitFor(() => expect(ordered).toHaveBeenCalledTimes(1))
 	answerFirst()
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await screen.findByText('Could not order the fields.', TOAST)).toBeInTheDocument()
 	expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Nickname'])
 	expect(ordered).toHaveBeenCalledTimes(2)
 	await userEvent.click(screen.getByRole('button', { name: 'Move Nickname up' }))
@@ -1265,8 +1433,23 @@ test('a failed order puts the rows back and says so', async () => {
 	renderScreen()
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await screen.findByText('Could not order the fields.', TOAST)).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
+})
+
+test('each failed order says so once', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	server.use(graphql.mutation('OrderFields', () => HttpResponse.error()))
+
+	renderScreen()
+	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
+	await screen.findByText('Could not order the fields.', TOAST)
+	await settle()
+	expect(screen.getAllByText('Could not order the fields.', TOAST)).toHaveLength(1)
+	await userEvent.click(screen.getByRole('button', { name: 'Move Birth date down' }))
+
+	await waitFor(() => expect(screen.getAllByText('Could not order the fields.', TOAST)).toHaveLength(2))
 })
 
 test('a refused order says it was not saved and shows the server order at once', async () => {
@@ -1291,9 +1474,7 @@ test('a refused order says it was not saved and shows the server order at once',
 	renderScreen()
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'The field list just changed. The new order was not saved.',
-	)
+	expect(await screen.findByText(ORDER_REFUSED, TOAST)).toBeInTheDocument()
 	await waitFor(() => expect(reads).toHaveBeenCalledTimes(2))
 	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
 	releaseRead()
@@ -1306,9 +1487,9 @@ test('a refused order reads the catalogue again', async () => {
 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
-	await screen.findByRole('alert')
+	await screen.findByText(`Could not order the fields. ${REFUSED_WORDS}`, TOAST)
 
-	expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue'])
+	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['FieldCatalogue']))
 })
 
 test('an order lost on the way puts the rows back without reading the catalogue again', async () => {
@@ -1319,7 +1500,7 @@ test('an order lost on the way puts the rows back without reading the catalogue 
 	renderScreen(graph)
 	await userEvent.click(await screen.findByRole('button', { name: 'Move Birth date down' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be ordered.')
+	expect(await screen.findByText('Could not order the fields.', TOAST)).toBeInTheDocument()
 	expect(await shownLabels()).toEqual(['Birth date', 'Shoe size'])
 	expect(graph.refetch).not.toHaveBeenCalled()
 })
@@ -1435,6 +1616,120 @@ test('the archive question stays open and locked until the read drops the row', 
 	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveFocus())
 })
 
+/**
+ * Makes every later read fail once the returned release runs, holding each read until then.
+ * @returns The release.
+ */
+function failReadsOnRelease() {
+	let release = () => {}
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.query('FieldCatalogue', async () => {
+			await held
+			return HttpResponse.json(READ_FAILED)
+		}),
+	)
+	return () => release()
+}
+
+/** Makes the server answer that an archive worked. */
+function acceptArchives() {
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json({ data: { archiveField: true } })))
+}
+
+test('a read that fails after an archive frees the rows beside a notice', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+
+	await archiveField('Shoe size')
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
+	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveFocus())
+})
+
+test('a read that failed before an archive leaves its question locked until the next read answers', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json(refusal('NOT_FOUND', 'field_not_found'))))
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+	await archiveField('Shoe size')
+	await screen.findByRole('alert')
+	acceptArchives()
+	const release = failReadsOnRelease()
+
+	await archiveField('Shoe size')
+	await settle()
+
+	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
+	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	release()
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a read failing while an archive is on its way leaves its question locked until the answer', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	const archive = hold('ArchiveField', { data: { archiveField: true } })
+	const { graph } = fakeGraphClient([plugin])
+	renderScreen(graph)
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+
+	await archiveField('Shoe size')
+	act(() => graph.refetch(['FieldCatalogue']))
+
+	await screen.findByRole('alert')
+	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
+	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
+	archive.release()
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('a read that fails after an archive leaves a focus the reader moved elsewhere', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	const release = failReadsOnRelease()
+	await archiveField('Shoe size')
+	await settle()
+	const label = screen.getAllByLabelText('Label')[0]
+	act(() => label.focus())
+
+	release()
+
+	await screen.findByRole('alert')
+	await settle()
+	expect(label).toHaveFocus()
+})
+
+test('a read that works after one that failed takes the notice away and shows what it holds', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+	acceptArchives()
+	renderScreen()
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+	await archiveField('Shoe size')
+	await screen.findByRole('alert')
+	serveFieldCatalogue([nickname])
+
+	await archiveField('Birth date')
+
+	expect(await screen.findByText('Nickname')).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.queryByText('Shoe size')).not.toBeInTheDocument()
+})
+
 test('an archive lost on the way can be confirmed again', async () => {
 	serveFieldCatalogue([birthDate])
 	const archived = vi.fn()
@@ -1447,7 +1742,7 @@ test('an archive lost on the way can be confirmed again', async () => {
 
 	renderScreen()
 	await archiveField('Birth date')
-	expect(await screen.findByRole('alert')).toHaveTextContent('The field could not be archived.')
+	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
 	await archiveField('Birth date')
 
 	await waitFor(() => expect(archived).toHaveBeenCalledTimes(2))

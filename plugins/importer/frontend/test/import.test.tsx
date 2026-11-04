@@ -59,6 +59,12 @@ const importFields = [
 	{ __typename: 'ImportField', name: 'phone', label: 'Phone', required: false },
 ]
 
+/** refusedMappingToast is what a mapping the server refuses raises. */
+const refusedMappingToast = 'Could not save the mapping. no assignment claims the required field "name"'
+
+/** refusedCommitToast is what a commit the server refuses raises. */
+const refusedCommitToast = 'Could not commit the import. the import carries no mapping yet'
+
 /**
  * Renders the screen and waits until its mapping form has settled.
  */
@@ -73,7 +79,7 @@ async function renderSettled() {
  * @param field - The field label to choose.
  */
 async function chooseField(column: string, field: string) {
-	await userEvent.click(await screen.findByLabelText(column))
+	await userEvent.click(await screen.findByRole('combobox', { name: column }))
 	await userEvent.click(await screen.findByRole('option', { name: field }))
 	await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
 }
@@ -166,30 +172,6 @@ test(
 	20000,
 )
 
-test('a refused mapping is reported', async () => {
-	server.use(
-		graphql.mutation('ImportSetMapping', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [
-					{
-						message: 'no assignment claims the required field "name"',
-						extensions: { code: 'VALIDATION' },
-					},
-				],
-			}),
-		),
-	)
-	await renderSettled()
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
-
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'no assignment claims the required field "name"',
-	)
-	expect(screen.queryByText('Mapping saved.')).not.toBeInTheDocument()
-})
-
 test('the commit turns the rows into contacts and says what it did with them', async () => {
 	let committed: unknown = null
 	server.use(
@@ -216,28 +198,6 @@ test('the commit turns the rows into contacts and says what it did with them', a
 	expect(await screen.findByText('Import finished: 1.234 imported, 1 skipped, 0 failed.')).toBeInTheDocument()
 })
 
-test('a refused commit is reported', async () => {
-	server.use(
-		graphql.mutation('ImportCommit', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [
-					{
-						message: 'the import carries no mapping yet',
-						extensions: { code: 'VALIDATION' },
-					},
-				],
-			}),
-		),
-	)
-	await renderSettled()
-
-	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
-
-	expect(await screen.findByRole('alert')).toHaveTextContent('the import carries no mapping yet')
-	expect(screen.queryByText(/^Import finished/)).not.toBeInTheDocument()
-})
-
 /**
  * Serves an error for the named mutation.
  * @param operation - The mutation the server refuses.
@@ -251,82 +211,213 @@ function refusing(operation: string, message: string) {
 	)
 }
 
+/** writes are the two writes the mapping form runs, with how each is told apart. */
+const writes = [
+	{
+		operation: 'ImportSetMapping',
+		button: 'Save mapping',
+		failed: 'Could not save the mapping.',
+		words: 'no assignment claims the required field "name"',
+		worked: /^Mapping saved/,
+	},
+	{
+		operation: 'ImportCommit',
+		button: 'Commit',
+		failed: 'Could not commit the import.',
+		words: 'the import carries no mapping yet',
+		worked: /^Import finished/,
+	},
+]
+
+test.each(writes)('$button says in a toast that the server refused it, in its words', async (write) => {
+	refusing(write.operation, write.words)
+	await renderSettled()
+
+	await userEvent.click(await screen.findByRole('button', { name: write.button }))
+
+	expect(await screen.findByText(`${write.failed} ${write.words}`, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.queryByText(write.worked)).not.toBeInTheDocument()
+})
+
+test.each(writes)('$button says only what failed with no words from the server, and reads again', async (write) => {
+	server.use(
+		graphql.mutation(write.operation, () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
+		),
+	)
+	await renderSettled()
+	detailOf({ filename: 'read-again.csv' })
+
+	await userEvent.click(await screen.findByRole('button', { name: write.button }))
+
+	expect(await screen.findByText(write.failed, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { name: 'read-again.csv' })).toBeInTheDocument()
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test(
-	'a mapping that saves takes away the refused commit before it',
+	'a refused mapping keeps the chosen field once the import is read again, both buttons still on',
 	async () => {
+		refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		detailOf({ filename: 'read-again.csv' })
+
+		await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+
+		await screen.findByText(refusedMappingToast, { selector: '.godmin-toast' })
+		await screen.findByRole('heading', { name: 'read-again.csv' })
+		expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
+		expect(screen.getByRole('button', { name: 'Save mapping' })).not.toHaveAttribute('aria-disabled', 'true')
+		expect(screen.getByRole('button', { name: 'Commit' })).not.toHaveAttribute('aria-disabled', 'true')
+	},
+	20000,
+)
+
+test(
+	'a mapping still saves after a refused commit, the chosen field kept',
+	async () => {
+		let saved: unknown = null
 		refusing('ImportCommit', 'the import carries no mapping yet')
 		server.use(
-			graphql.mutation('ImportSetMapping', () =>
-				HttpResponse.json({
+			graphql.mutation('ImportSetMapping', ({ variables }) => {
+				saved = variables.assignments
+				return HttpResponse.json({
 					data: {
 						importSetMapping: {
 							__typename: 'ImportJob',
 							id: importID,
 							state: 'ready',
-							mapping: [{ __typename: 'ImportAssignment', column: 0, field: 'name' }],
+							mapping: [{ __typename: 'ImportAssignment', column: 1, field: 'phone' }],
 						},
 					},
-				}),
-			),
+				})
+			}),
 		)
 		await renderSettled()
-		await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
-		await screen.findByRole('alert')
+		await chooseField('Email', 'Phone')
+		detailOf({ filename: 'read-again.csv' })
+		await userEvent.click(screen.getByRole('button', { name: 'Commit' }))
+		await screen.findByText(refusedCommitToast, { selector: '.godmin-toast' })
+		await screen.findByRole('heading', { name: 'read-again.csv' })
+		expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
 
-		await chooseField('Name', 'Name')
 		await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
 
 		expect(await screen.findByText('Mapping saved.')).toBeInTheDocument()
-		expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+		expect(saved).toEqual([{ column: 1, field: 'phone' }])
 	},
 	20000,
 )
 
-test('a commit that runs takes away the refused mapping before it', async () => {
-	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
-	server.use(
-		graphql.mutation('ImportCommit', () =>
-			HttpResponse.json({
-				data: {
-					importCommit: { __typename: 'ImportCommitPayload', id: importID, imported: 2, skipped: 0, failed: 0 },
-				},
+/**
+ * Proves the form still holds the chosen field and its button stays on, a moment after a failed write.
+ * @param write - The write that failed.
+ */
+async function expectFormKept(write: (typeof writes)[number]) {
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
+	expect(screen.getByRole('button', { name: write.button })).not.toHaveAttribute('aria-disabled', 'true')
+}
+
+test.each(writes)(
+	'$button keeps the form and the chosen field when the server gives no answer at all',
+	async (write) => {
+		server.use(graphql.mutation(write.operation, () => HttpResponse.error()))
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		server.use(graphql.query('ImportDetail', () => HttpResponse.error()))
+
+		await userEvent.click(screen.getByRole('button', { name: write.button }))
+
+		await screen.findByText(write.failed, { selector: '.godmin-toast' })
+		await expectFormKept(write)
+	},
+	20000,
+)
+
+test.each(writes)(
+	'$button keeps the form and the chosen field when the read after the answer fails too',
+	async (write) => {
+		let reads = 0
+		refusing(write.operation, write.words)
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		server.use(
+			graphql.query('ImportDetail', () => {
+				reads += 1
+				return HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] })
 			}),
+		)
+
+		await userEvent.click(screen.getByRole('button', { name: write.button }))
+
+		await screen.findByText(`${write.failed} ${write.words}`, { selector: '.godmin-toast' })
+		await waitFor(() => expect(reads).toBe(1))
+		await expectFormKept(write)
+	},
+	20000,
+)
+
+test.each(writes)(
+	'$button keeps the form and the chosen field beside one notice when every read after the answer fails',
+	async (write) => {
+		const failedRead = { data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }
+		refusing(write.operation, write.words)
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		server.use(
+			graphql.query('ImportDetail', () => HttpResponse.json(failedRead)),
+			graphql.query('ImportRows', () => HttpResponse.json(failedRead)),
+		)
+
+		await userEvent.click(screen.getByRole('button', { name: write.button }))
+
+		await screen.findByText(`${write.failed} ${write.words}`, { selector: '.godmin-toast' })
+		expect(await screen.findByRole('alert')).toHaveTextContent('The import could not be loaded.')
+		expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
+		expect(screen.getByRole('button', { name: write.button })).not.toHaveAttribute('aria-disabled', 'true')
+	},
+	20000,
+)
+
+test('a read that works again after one that failed brings the import up to date', async () => {
+	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+	await renderSettled()
+	server.use(
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }),
 		),
 	)
-	await renderSettled()
-	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
-	await screen.findByRole('alert')
-
-	await userEvent.click(screen.getByRole('button', { name: 'Commit' }))
-
-	expect(await screen.findByText('Import finished: 2 imported, 0 skipped, 0 failed.')).toBeInTheDocument()
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-})
-
-test('a mapping on its way already takes away the refused commit before it', async () => {
-	refusing('ImportCommit', 'the import carries no mapping yet')
-	server.use(graphql.mutation('ImportSetMapping', () => new Promise(() => {})))
-	await renderSettled()
-	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
-	await screen.findByRole('alert')
+	await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+	await screen.findByText(refusedMappingToast, { selector: '.godmin-toast' })
+	detailOf({ filename: 'read-again.csv' })
 
 	await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
 
-	await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-	expect(screen.getByRole('button', { name: 'Save mapping' })).toHaveAttribute('aria-disabled', 'true')
+	expect(await screen.findByRole('heading', { name: 'read-again.csv' })).toBeInTheDocument()
 })
 
-test('a commit on its way already takes away the refused mapping before it', async () => {
-	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+test('a mapping on its way turns Save mapping off', async () => {
+	server.use(graphql.mutation('ImportSetMapping', () => new Promise(() => {})))
+	await renderSettled()
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
+
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Save mapping' })).toHaveAttribute('aria-disabled', 'true'),
+	)
+})
+
+test('a commit on its way turns Commit off', async () => {
 	server.use(graphql.mutation('ImportCommit', () => new Promise(() => {})))
 	await renderSettled()
-	await userEvent.click(await screen.findByRole('button', { name: 'Save mapping' }))
-	await screen.findByRole('alert')
 
-	await userEvent.click(screen.getByRole('button', { name: 'Commit' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Commit' }))
 
-	await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-	expect(screen.getByRole('button', { name: 'Commit' })).toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Commit' })).toHaveAttribute('aria-disabled', 'true'))
 })
 
 test('a committed import accepts neither a mapping nor another commit', async () => {

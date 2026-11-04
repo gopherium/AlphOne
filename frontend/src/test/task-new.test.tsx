@@ -12,6 +12,15 @@ import { renderAt, renderRoutedAt } from './render'
 const createdID = '0198c000-0000-7000-8000-000000000301'
 const contactID = '0198c000-0000-7000-8000-000000000302'
 
+/** The words the server answers a task with no title with. */
+const emptyTitle = 'task: empty title'
+
+/** The answer the server gives a task with no title. */
+const emptyTitleAnswer = {
+	data: null,
+	errors: [{ message: emptyTitle, extensions: { code: 'VALIDATION', reason: 'task_title_required' } }],
+}
+
 // today is computed independently of the screen's own date helper.
 const today = new Date().toLocaleDateString('en-CA')
 
@@ -360,36 +369,89 @@ test('keeps Create task off while the due date is empty', async () => {
 	expect(screen.getByRole('button', { name: 'Create task' })).toHaveAttribute('aria-disabled', 'true')
 })
 
-test('reports when the task is rejected', async () => {
-	server.use(
-		graphql.mutation('CreateTask', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'task: empty title', extensions: { code: 'VALIDATION' } }],
-			}),
-		),
-	)
+test('shows under Title what the server says about it, with the focus there, until the reader edits it', async () => {
+	server.use(graphql.mutation('CreateTask', () => HttpResponse.json(emptyTitleAnswer)))
 	renderAt('/tasks/new')
+	const title = await screen.findByLabelText('Title')
 
-	await userEvent.type(await screen.findByLabelText('Title'), 'X')
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
 
-	expect(await screen.findByText('task: empty title')).toBeInTheDocument()
+	await screen.findByText(emptyTitle)
+	expect(title).toHaveAccessibleDescription(emptyTitle)
+	expect(title).toHaveFocus()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+
+	await userEvent.type(title, 'Y')
+
+	await waitFor(() => expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument())
+	expect(title).toBeValid()
 })
 
-test('reports a generic message when creation fails otherwise', async () => {
+test('says in a toast that the task could not be created when the failure is about no field', async () => {
 	server.use(
 		graphql.mutation('CreateTask', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	renderAt('/tasks/new')
+	const title = await screen.findByLabelText('Title')
 
-	await userEvent.type(await screen.findByLabelText('Title'), 'X')
+	await userEvent.type(title, 'X')
 	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
 
-	expect(await screen.findByText('The task could not be created.')).toBeInTheDocument()
+	expect(await screen.findByText('Could not create the task.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Task added.')).not.toBeInTheDocument()
+	expect(title).toHaveValue('X')
+	expect(screen.getByRole('button', { name: 'Create task' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('says in a toast what the server says about anything but the title', async () => {
+	server.use(
+		graphql.mutation('CreateTask', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{ message: 'task: invalid priority', extensions: { code: 'VALIDATION', reason: 'task_priority_unknown' } },
+				],
+			}),
+		),
+	)
+	renderAt('/tasks/new')
+	const title = await screen.findByLabelText('Title')
+
+	await userEvent.type(title, 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	expect(
+		await screen.findByText('Could not create the task. task: invalid priority', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(title).toBeValid()
+})
+
+test('says in a toast what the server said about a title the reader has changed since', async () => {
+	let release: (() => void) | undefined
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	server.use(
+		graphql.mutation('CreateTask', async () => {
+			await held
+			return HttpResponse.json(emptyTitleAnswer)
+		}),
+	)
+	renderAt('/tasks/new')
+	const title = await screen.findByLabelText('Title')
+	await userEvent.type(title, 'X')
+	await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+
+	await userEvent.type(title, 'Y')
+	release?.()
+
+	expect(
+		await screen.findByText(`Could not create the task. ${emptyTitle}`, { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(title).toBeValid()
 })
 
 test('drops the session when creation is unauthorized', async () => {

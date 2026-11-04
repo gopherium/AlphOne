@@ -4,7 +4,7 @@ import { _x } from '@alphone/frontend-sdk'
 import { RoleNotGrantableError, RoleUnknownError } from '@gopherium/react-auth/admin'
 
 /** The error code each turned down role write answers with, by the error it raises. */
-const refusals: [new (...args: never[]) => Error, string][] = [
+const refusedRoles: [new (...args: never[]) => Error, string][] = [
 	[RoleNotGrantableError, 'role_beyond_reach'],
 	[RoleUnknownError, 'role_unknown'],
 ]
@@ -47,6 +47,6 @@ export function startingRole(grantable: string[]): string {
  * @param error - The failure the write raised.
  * @returns The error code, or nothing.
  */
-export function roleRefusal(error: unknown): string | undefined {
-	return refusals.find(([refused]) => error instanceof refused)?.[1]
+export function refusedRoleCode(error: unknown): string | undefined {
+	return refusedRoles.find(([refused]) => error instanceof refused)?.[1]
 }
