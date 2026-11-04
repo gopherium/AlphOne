@@ -293,7 +293,8 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 	const [label, setLabel] = useState('')
 	const [add, runAdd] = useGraphMutation(addContactIdentityMutation)
 	const form = useRef<HTMLFormElement>(null)
-	const refusedValue = useRefusedField(form, identifier)
+	const identity = `${channel}:${identifier}`
+	const refusedValue = useRefusedField(form, identity)
 	const channels = channelItems()
 	const submitIdentity = async () => {
 		const result = await runAdd({
@@ -309,7 +310,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 		}
 		const failure = identityError(result.error)
 		const aboutChannel = channelReasons.includes(graphExtensions(result.error).reason)
-		if (aboutChannel || !refusedValue.refuse(failure, identifier)) {
+		if (aboutChannel || !refusedValue.refuse(failure, identity)) {
 			toaster.show(writeFailure(__('Could not add the identity.', 'alphone'), failure))
 		}
 	}
@@ -328,10 +329,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 					label={__('Channel', 'alphone')}
 					items={channels}
 					value={channels.find((option) => option.value === channel)}
-					onValueChange={(item) => {
-						refusedValue.forget()
-						setChannel(channelItemOf(item).value)
-					}}
+					onValueChange={(item) => setChannel(channelItemOf(item).value)}
 				/>
 				<ValidatedInputControl
 					label={__('Value', 'alphone')}

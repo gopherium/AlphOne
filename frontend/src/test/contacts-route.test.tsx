@@ -112,6 +112,43 @@ function contactsCrumb() {
 	return within(screen.getByRole('navigation', { name: 'Breadcrumbs' })).getByRole('link', { name: 'Contacts' })
 }
 
+/** The answer of a value another contact already holds. */
+const heldByBruno = {
+	data: null,
+	errors: [{
+		message: 'contact: identity already exists',
+		extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
+	}],
+}
+
+/** The answer of a rename the server refuses. */
+const refusedRename = {
+	data: null,
+	errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
+}
+
+/**
+ * Opens the contact and presses Add identity with an email in Value.
+ */
+async function addEmailIdentity() {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
+	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+}
+
+/**
+ * Opens the contact, edits its name and presses Save.
+ * @returns The name field.
+ */
+async function saveEditedName() {
+	renderAt(`/contacts/${anaID}`)
+	const name = await screen.findByLabelText('Name')
+	await userEvent.type(name, ' Ltd')
+	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	return name
+}
+
 afterEach(() => {
 	resetLocaleData(undefined, 'alphone-whatsapp')
 })
@@ -450,24 +487,11 @@ test('marks the channel the reader chose as the selected option', async () => {
 })
 
 test('names the owner when the identity belongs to someone else', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{
-					message: 'contact: identity already exists',
-					extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
-				}],
-			}),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
+	server.use(graphql.mutation('AddContactIdentity', () => HttpResponse.json(heldByBruno)))
+
+	await addEmailIdentity()
 
 	const value = screen.getByLabelText('Value')
-	await userEvent.type(value, 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
 	await screen.findByText('Already on contact Bruno.')
 	expect(value).toHaveAccessibleDescription('Already on contact Bruno.')
 	expect(value).toHaveFocus()
@@ -479,19 +503,10 @@ test('takes the message about an identity away when the reader picks another cha
 	server.use(
 		graphql.mutation('AddContactIdentity', () => {
 			adds += 1
-			return HttpResponse.json({
-				data: null,
-				errors: [{
-					message: 'contact: identity already exists',
-					extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
-				}],
-			})
+			return HttpResponse.json(heldByBruno)
 		}),
 	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await addEmailIdentity()
 	await screen.findByText('Already on contact Bruno.')
 
 	await userEvent.click(screen.getByRole('combobox', { name: 'Channel' }))
@@ -500,6 +515,30 @@ test('takes the message about an identity away when the reader picks another cha
 	await waitFor(() => expect(screen.queryByText('Already on contact Bruno.')).not.toBeInTheDocument())
 	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 	await waitFor(() => expect(adds).toBe(2))
+})
+
+test('puts the answer about a value in a toast when the reader picked another channel before it came', async () => {
+	let answer = () => {}
+	const answered = new Promise<void>((resolve) => {
+		answer = resolve
+	})
+	server.use(
+		graphql.mutation('AddContactIdentity', async () => {
+			await answered
+			return HttpResponse.json(heldByBruno)
+		}),
+	)
+	await addEmailIdentity()
+
+	await userEvent.click(screen.getByRole('combobox', { name: 'Channel' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
+	answer()
+
+	const toast = await screen.findByText('Could not add the identity. Already on contact Bruno.', {
+		selector: '.godmin-toast',
+	})
+	expect(toast).toBeInTheDocument()
+	expect(screen.getByLabelText('Value')).toBeValid()
 })
 
 test.each([
@@ -514,11 +553,8 @@ test.each([
 			}),
 		),
 	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await addEmailIdentity()
 
 	const toast = await screen.findByText(`Could not add the identity. ${words}`, { selector: '.godmin-toast' })
 	expect(toast).toBeInTheDocument()
@@ -560,11 +596,8 @@ test('falls back to the backend message when the conflict names no owner', async
 			}),
 		),
 	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await addEmailIdentity()
 
 	await screen.findByText('contact: identity already exists')
 	expect(screen.getByLabelText('Value')).toHaveAccessibleDescription('contact: identity already exists')
@@ -576,11 +609,8 @@ test('says in a toast that the identity could not be added when the failure is a
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
+	await addEmailIdentity()
 
 	expect(await screen.findByText('Could not add the identity.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('Identity added.')).not.toBeInTheDocument()
@@ -1009,19 +1039,9 @@ test('fills the column with the add identity form', async () => {
 })
 
 test('reports invalid contact details on rename', async () => {
-	server.use(
-		graphql.mutation('RenameContact', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
-			}),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	const name = await screen.findByLabelText('Name')
+	server.use(graphql.mutation('RenameContact', () => HttpResponse.json(refusedRename)))
 
-	await userEvent.type(name, ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	const name = await saveEditedName()
 
 	await screen.findByText('invalid contact details')
 	expect(name).toHaveAccessibleDescription('invalid contact details')
@@ -1030,18 +1050,8 @@ test('reports invalid contact details on rename', async () => {
 })
 
 test('takes the message about a name away as the reader edits it', async () => {
-	server.use(
-		graphql.mutation('RenameContact', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
-			}),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	const name = await screen.findByLabelText('Name')
-	await userEvent.type(name, ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	server.use(graphql.mutation('RenameContact', () => HttpResponse.json(refusedRename)))
+	const name = await saveEditedName()
 	await screen.findByText('invalid contact details')
 
 	await userEvent.type(name, ' Inc')
@@ -1050,24 +1060,18 @@ test('takes the message about a name away as the reader edits it', async () => {
 	expect(name).toBeValid()
 })
 
-test('forgets a refused name once another one saves', async () => {
+test('shows nothing when a refused name is typed again after another one saved', async () => {
 	server.use(
 		graphql.mutation('RenameContact', ({ variables }) => {
 			if (variables.name === 'Ana García Ltd') {
-				return HttpResponse.json({
-					data: null,
-					errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
-				})
+				return HttpResponse.json(refusedRename)
 			}
 			return HttpResponse.json({
 				data: { renameContact: { __typename: 'Contact', id: anaID, name: String(variables.name) } },
 			})
 		}),
 	)
-	renderAt(`/contacts/${anaID}`)
-	const name = await screen.findByLabelText('Name')
-	await userEvent.type(name, ' Ltd')
-	await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+	const name = await saveEditedName()
 	await screen.findByText('invalid contact details')
 
 	await userEvent.type(name, ' Inc')
