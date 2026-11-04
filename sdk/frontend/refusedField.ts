@@ -20,10 +20,10 @@ function reportFields(form: HTMLFormElement | null) {
 }
 
 /**
- * Holds what the server said about one field, shown under it until the field holds another value.
+ * Holds what the server said about one field, shown under it until what the answer depends on changes.
  * @param form - The form the field sits in.
- * @param held - The value the field holds now.
- * @returns The custom validity the field takes, the way to refuse a sent value and the way to forget one.
+ * @param held - What the answer depends on now, the value of the field in most forms.
+ * @returns The custom validity the field takes and the way to refuse what was sent.
  */
 export function useRefusedField(form: RefObject<HTMLFormElement | null>, held: string) {
 	const [refused, setRefused] = useState<{ message: string; value: string }>()
@@ -50,6 +50,5 @@ export function useRefusedField(form: RefObject<HTMLFormElement | null>, held: s
 			setRefused({ message, value: sent })
 			return true
 		},
-		forget: () => setRefused(undefined),
 	}
 }

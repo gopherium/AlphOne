@@ -20,7 +20,7 @@ function spokenRegion() {
 	return document.querySelector('#a11y-speak-assertive')
 }
 
-/** Renders a form whose Send refuses what was sent, and whose Forget clears that. */
+/** Renders a form whose Send refuses what was sent. */
 function RefusableForm({
 	sentAs = refusedName,
 	failure = new ValidationError(serverWords),
@@ -48,7 +48,6 @@ function RefusableForm({
 			>
 				Send
 			</Button>
-			<Button onClick={refused.forget}>Forget</Button>
 		</>
 	)
 }
@@ -107,17 +106,6 @@ test('shows nothing when the reader types the refused value again, so it can be 
 
 	await waitFor(() => expect(screen.queryByText(serverWords)).not.toBeInTheDocument())
 	expect(field).toBeValid()
-})
-
-test('forgets the message at once while the field still holds the value', async () => {
-	render(<RefusableForm />)
-	fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-	await screen.findByText(serverWords)
-
-	fireEvent.click(screen.getByRole('button', { name: 'Forget' }))
-
-	await waitFor(() => expect(screen.queryByText(serverWords)).not.toBeInTheDocument())
-	expect(screen.getByRole('textbox', { name: 'Name' })).toBeValid()
 })
 
 test('answers no and shows nothing when the field has moved on from the value sent', () => {
