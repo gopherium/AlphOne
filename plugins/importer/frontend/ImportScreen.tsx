@@ -9,11 +9,9 @@ import {
 	PageScreen,
 	SectionTitle,
 	SelectControl,
-	ValidationError,
 	__,
 	_x,
 	formatNumber,
-	graphError,
 	sprintf,
 	useGraph,
 	useGraphMutation,
@@ -21,6 +19,7 @@ import {
 	useToaster,
 	writeFailure,
 } from '@alphone/frontend-sdk'
+import type { GraphFailure } from '@alphone/frontend-sdk'
 import { Link, useParams } from '@tanstack/react-router'
 import { Suspense, lazy, useState } from 'react'
 
@@ -164,9 +163,9 @@ function MappingForm({
 	const [save, startSave] = useGraphMutation(importSetMappingMutation)
 	const [commit, startCommit] = useGraphMutation(importCommitMutation)
 	const refresh = () => graph.refetch(['ImportDetail', 'Imports'])
-	const failed = (sentence: string, error: unknown) => {
+	const failed = (sentence: string, error: GraphFailure | undefined) => {
 		toaster.show(writeFailure(sentence, error))
-		if (mayReadAgain(error)) {
+		if (!error?.networkError) {
 			refresh()
 		}
 	}
@@ -242,15 +241,6 @@ function finishedMessage(counts: { imported: number; skipped: number; failed: nu
 			failed: formatNumber(counts.failed),
 		},
 	)
-}
-
-/**
- * Reports whether a failed write was refused by a server that can still answer.
- * @param error - The failure the write met.
- * @returns Whether the import may be read again.
- */
-function mayReadAgain(error: unknown): boolean {
-	return graphError(error) instanceof ValidationError
 }
 
 /**

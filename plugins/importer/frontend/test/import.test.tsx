@@ -211,7 +211,7 @@ function refusing(operation: string, message: string) {
 	)
 }
 
-/** writes are the two writes the mapping form runs, with how each is told apart and how a read of it fails. */
+/** writes are the two writes the mapping form runs, with how each is told apart. */
 const writes = [
 	{
 		operation: 'ImportSetMapping',
@@ -219,7 +219,6 @@ const writes = [
 		failed: 'Could not save the mapping.',
 		words: 'no assignment claims the required field "name"',
 		worked: /^Mapping saved/,
-		lost: () => HttpResponse.error(),
 	},
 	{
 		operation: 'ImportCommit',
@@ -227,7 +226,6 @@ const writes = [
 		failed: 'Could not commit the import.',
 		words: 'the import carries no mapping yet',
 		worked: /^Import finished/,
-		lost: () => HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 	},
 ]
 
@@ -242,17 +240,19 @@ test.each(writes)('$button says in a toast that the server refused it, in its wo
 	expect(screen.queryByText(write.worked)).not.toBeInTheDocument()
 })
 
-test.each(writes)('$button says only what failed when the server sent no words', async (write) => {
+test.each(writes)('$button says only what failed with no words from the server, and reads again', async (write) => {
 	server.use(
 		graphql.mutation(write.operation, () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
 		),
 	)
 	await renderSettled()
+	detailOf({ filename: 'read-again.csv' })
 
 	await userEvent.click(await screen.findByRole('button', { name: write.button }))
 
 	expect(await screen.findByText(write.failed, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await screen.findByRole('heading', { name: 'read-again.csv' })).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
@@ -312,12 +312,12 @@ test(
 )
 
 test.each(writes)(
-	'$button keeps the form and the chosen field when it fails while the import cannot be read either',
+	'$button keeps the form and the chosen field when the server gives no answer at all',
 	async (write) => {
-		server.use(graphql.mutation(write.operation, write.lost))
+		server.use(graphql.mutation(write.operation, () => HttpResponse.error()))
 		await renderSettled()
 		await chooseField('Email', 'Phone')
-		server.use(graphql.query('ImportDetail', write.lost))
+		server.use(graphql.query('ImportDetail', () => HttpResponse.error()))
 
 		await userEvent.click(screen.getByRole('button', { name: write.button }))
 
