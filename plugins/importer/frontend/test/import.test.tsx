@@ -311,6 +311,17 @@ test(
 	20000,
 )
 
+/**
+ * Proves the form still holds the chosen field and its button stays on, a moment after a failed write.
+ * @param write - The write that failed.
+ */
+async function expectFormKept(write: (typeof writes)[number]) {
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
+	expect(screen.getByRole('button', { name: write.button })).not.toHaveAttribute('aria-disabled', 'true')
+}
+
 test.each(writes)(
 	'$button keeps the form and the chosen field when the server gives no answer at all',
 	async (write) => {
@@ -322,13 +333,50 @@ test.each(writes)(
 		await userEvent.click(screen.getByRole('button', { name: write.button }))
 
 		await screen.findByText(write.failed, { selector: '.godmin-toast' })
-		await new Promise((resolve) => setTimeout(resolve, 50))
-		expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-		expect(screen.getByRole('combobox', { name: 'Email' })).toHaveTextContent('Phone')
-		expect(screen.getByRole('button', { name: write.button })).not.toHaveAttribute('aria-disabled', 'true')
+		await expectFormKept(write)
 	},
 	20000,
 )
+
+test.each(writes)(
+	'$button keeps the form and the chosen field when the read after the answer fails too',
+	async (write) => {
+		let reads = 0
+		refusing(write.operation, write.words)
+		await renderSettled()
+		await chooseField('Email', 'Phone')
+		server.use(
+			graphql.query('ImportDetail', () => {
+				reads += 1
+				return HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] })
+			}),
+		)
+
+		await userEvent.click(screen.getByRole('button', { name: write.button }))
+
+		await screen.findByText(`${write.failed} ${write.words}`, { selector: '.godmin-toast' })
+		await waitFor(() => expect(reads).toBe(1))
+		await expectFormKept(write)
+	},
+	20000,
+)
+
+test('a read that works again after one that failed brings the import up to date', async () => {
+	refusing('ImportSetMapping', 'no assignment claims the required field "name"')
+	await renderSettled()
+	server.use(
+		graphql.query('ImportDetail', () =>
+			HttpResponse.json({ data: null, errors: [{ message: 'internal error', extensions: { code: 'INTERNAL' } }] }),
+		),
+	)
+	await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+	await screen.findByText(refusedMappingToast, { selector: '.godmin-toast' })
+	detailOf({ filename: 'read-again.csv' })
+
+	await userEvent.click(screen.getByRole('button', { name: 'Save mapping' }))
+
+	expect(await screen.findByRole('heading', { name: 'read-again.csv' })).toBeInTheDocument()
+})
 
 test('a mapping on its way turns Save mapping off', async () => {
 	server.use(graphql.mutation('ImportSetMapping', () => new Promise(() => {})))

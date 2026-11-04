@@ -16,6 +16,7 @@ import {
 	useGraph,
 	useGraphMutation,
 	useGraphQuery,
+	useLastAnswer,
 	useToaster,
 	writeFailure,
 } from '@alphone/frontend-sdk'
@@ -51,7 +52,7 @@ const unmapped = 'not-imported'
  */
 export function ImportRouteScreen() {
 	const { importId } = useParams({ from: '/import/$importId' })
-	return <ImportScreen importId={importId} />
+	return <ImportScreen key={importId} importId={importId} />
 }
 
 /**
@@ -91,11 +92,12 @@ function FailedImport() {
 export function ImportScreen({ importId }: { importId: string }) {
 	const [detail] = useGraphQuery({ query: importDetailQuery, variables: { id: importId } })
 	const staged = useImportRows(importId)
+	const answer = useLastAnswer(detail.data)
 
-	if (detail.error) {
+	if (detail.error && !answer) {
 		return <FailedImport />
 	}
-	if (!detail.data) {
+	if (!answer) {
 		return (
 			<PageScreen
 				title={_x('Import', 'admin section', 'alphone-importer')}
@@ -106,7 +108,7 @@ export function ImportScreen({ importId }: { importId: string }) {
 			</PageScreen>
 		)
 	}
-	const { importJob: stored, importFields } = detail.data
+	const { importJob: stored, importFields } = answer
 	if (!stored) {
 		return <FailedImport />
 	}
