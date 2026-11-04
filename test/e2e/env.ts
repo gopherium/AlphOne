@@ -17,3 +17,8 @@ export const credentials = {
 	password: process.env.ALPHONE_E2E_PASSWORD ?? 'correct horse battery',
 	name: process.env.ALPHONE_E2E_NAME ?? 'Grace Hopper',
 }
+
+export const legalAddresses = {
+	privacy: process.env.ALPHONE_E2E_PRIVACY_URL ?? 'https://example.com/privacy',
+	terms: process.env.ALPHONE_E2E_TERMS_URL ?? 'https://example.com/terms',
+}
