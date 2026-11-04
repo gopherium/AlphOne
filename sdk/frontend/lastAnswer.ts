@@ -9,8 +9,9 @@ import { useState } from 'react'
  */
 export function useLastAnswer<T>(data: T | null | undefined): T | undefined {
 	const [held, setHeld] = useState<T>()
-	if (data && data !== held) {
-		setHeld(data)
+	const answer = data ?? held
+	if (answer !== held) {
+		setHeld(answer)
 	}
-	return data ?? held
+	return answer
 }

@@ -46,6 +46,16 @@ test('keeps the answer through a later read that holds nothing', () => {
 	expect(result.current).toBe(first)
 })
 
+test('keeps an answer that reads as false', () => {
+	const { result, rerender } = renderHook(({ count }: { count: number | undefined }) => useLastAnswer(count), {
+		initialProps: { count: 0 as number | undefined },
+	})
+
+	rerender({ count: undefined })
+
+	expect(result.current).toBe(0)
+})
+
 test('moves on to the next answer', () => {
 	const { result, rerender } = renderRead()
 
