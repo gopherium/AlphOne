@@ -87,10 +87,11 @@ interface TrashFocus {
 	on: 'trash' | 'keep'
 }
 
-/** ArchiveQuestion is the row asking before it archives, whether its archive is under way and where focus sat. */
+/** ArchiveQuestion is a row asking before it archives, its archive under way, the read after it and where focus sat. */
 interface ArchiveQuestion {
 	id: string
 	locked: boolean
+	reading: boolean
 	from: Element | null
 }
 
@@ -270,13 +271,13 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void, readFailur
 	if (focus !== null && !rows.some((row) => row.id === focus.id)) {
 		setFocus(null)
 	}
-	if (readFailed && question?.locked) {
+	if (readFailed && question?.reading) {
 		setQuestion(null)
 		whenFocusStayed(question.from, () => setFocus({ id: question.id, on: 'trash' }))
 	}
 	const on: ArchiveHandlers = {
 		ask: (id) => {
-			setQuestion({ id, locked: false, from: null })
+			setQuestion({ id, locked: false, reading: false, from: null })
 			setFocus({ id, on: 'keep' })
 		},
 		keep: (id) => {
@@ -285,13 +286,14 @@ function useArchive(rows: readonly FieldRow[], onChanged: () => void, readFailur
 		},
 		confirm: (id) => {
 			const from = document.activeElement
-			setQuestion({ id, locked: true, from })
+			setQuestion({ id, locked: true, reading: false, from })
 			void archive({ id }).then((result) => {
 				if (result.error) {
 					setQuestion(null)
 					toaster.show(writeFailure(__('Could not archive the field.', 'alphone-fields'), result.error))
 					whenFocusStayed(from, () => setFocus({ id, on: 'trash' }))
 				} else {
+					setQuestion({ id, locked: true, reading: true, from })
 					toaster.show(__('Field archived.', 'alphone-fields'))
 				}
 				onChanged()

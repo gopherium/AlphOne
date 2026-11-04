@@ -1675,6 +1675,26 @@ test('a read that failed before an archive leaves its question locked until the 
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
+test('a read failing while an archive is on its way leaves its question locked until the answer', async () => {
+	serveFieldCatalogue([birthDate, shoeSize, nickname])
+	const archive = hold('ArchiveField', { data: { archiveField: true } })
+	const { graph } = fakeGraphClient([plugin])
+	renderScreen(graph)
+	await screen.findByRole('button', { name: 'Archive Shoe size' })
+	failReadsOnRelease()()
+
+	await archiveField('Shoe size')
+	act(() => graph.refetch(['FieldCatalogue']))
+
+	await screen.findByRole('alert')
+	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
+	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
+	archive.release()
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
 test('a read that fails after an archive leaves a focus the reader moved elsewhere', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	acceptArchives()
