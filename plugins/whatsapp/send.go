@@ -35,9 +35,20 @@ func newSenderClient(timeout time.Duration) *http.Client {
 
 type sendTextRequest struct {
 	MessagingProduct string       `json:"messaging_product"`
-	To               string       `json:"to"`
+	To               string       `json:"to,omitempty"`
+	Recipient        string       `json:"recipient,omitempty"`
 	Type             string       `json:"type"`
 	Text             sendTextBody `json:"text"`
+}
+
+// addressedTo returns the request sent to a user ID through recipient, and to any other address through to.
+func (r sendTextRequest) addressedTo(address string) sendTextRequest {
+	if isUserID(address) {
+		r.Recipient = address
+		return r
+	}
+	r.To = address
+	return r
 }
 
 type sendTextBody struct {
@@ -59,10 +70,9 @@ func (e graphError) Error() string {
 func (s *sender) sendText(ctx context.Context, creds credentials, to, body string) (string, json.RawMessage, error) {
 	payload, _ := json.Marshal(sendTextRequest{
 		MessagingProduct: "whatsapp",
-		To:               to,
 		Type:             "text",
 		Text:             sendTextBody{Body: body},
-	})
+	}.addressedTo(to))
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

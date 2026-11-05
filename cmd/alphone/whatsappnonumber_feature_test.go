@@ -29,6 +29,8 @@ func (s *numbersScenario) bindSenders(sc *godog.ScenarioContext) {
 	sc.Step(`^the person "([^"]*)" with no name writes with no phone number to "([^"]*)"$`, s.writeWithNoName)
 	sc.Step(`^the person "([^"]*)" with the phone number "([^"]*)" writes to "([^"]*)"$`, s.writeWithBoth)
 	sc.When(`^a message with no sender arrives for "([^"]*)"$`, s.deliverWithNoSender)
+	sc.When(`^a status for the newest reply to the user ID "([^"]*)" arrives for "([^"]*)"$`,
+		s.deliverStatusToUserID)
 	sc.Then(`^the workspace "([^"]*)" holds a contact named "([^"]*)" on "([^"]*)"$`, s.holdsContactOn)
 	sc.Then(`^the workspace "([^"]*)" holds (\d+) messages? in the conversation with "([^"]*)" on "([^"]*)"$`,
 		s.holdsMessages)
@@ -78,6 +80,13 @@ func (s *numbersScenario) writeWithBoth(userID, phone, number string) error {
 // deliverWithNoSender delivers a message to number naming no sender at all.
 func (s *numbersScenario) deliverWithNoSender(number string) {
 	s.post(numberAppSecret(number), senderChange(number, "", s.textMessage("")))
+}
+
+// deliverStatusToUserID delivers a status on the newest reply to userID, naming the user ID and no phone number.
+func (s *numbersScenario) deliverStatusToUserID(userID, number string) {
+	s.post(numberAppSecret(number), fmt.Sprintf(`{"field":"messages","value":{"metadata":{"phone_number_id":%q},`+
+		`"statuses":[{"id":%q,"status":"delivered","timestamp":"1751791000","recipient_user_id":%q}]}}`,
+		number, s.newestReplyID(), userID))
 }
 
 // holdsContactOn fails unless the workspace called name links identifier to a contact named contact.

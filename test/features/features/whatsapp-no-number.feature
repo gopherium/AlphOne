@@ -13,14 +13,12 @@ Feature: A WhatsApp sender who shares no phone number
     And AlphOne runs its plugins
     And the workspace "Acme" connects the WhatsApp number "5550001" as "Sales"
 
-  @wip
   Scenario: A sender with no phone number reaches the inbox under their profile name
     When the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     Then the workspace "Acme" holds 1 conversation
     And the workspace "Acme" holds 1 contact
     And the workspace "Acme" holds a contact named "Maria Perez" on "US.184467235"
 
-  @wip
   Scenario: Two messages from one user ID stay in one conversation
     When the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     And the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
@@ -28,23 +26,20 @@ Feature: A WhatsApp sender who shares no phone number
     And the workspace "Acme" holds 1 contact
     And the workspace "Acme" holds 2 messages in the conversation with "US.184467235" on "5550001"
 
-  @wip
   Scenario: A sender with no name at all is named after the user ID
     When the person "US.184467235" with no name writes with no phone number to "5550001"
     Then the workspace "Acme" holds a contact named "US.184467235" on "US.184467235"
 
-  @wip
   Scenario: A reply to a user ID leaves through the recipient field
     Given the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     When the workspace "Acme" replies to "US.184467235" on "5550001"
     Then the reply names "US.184467235" as its recipient and has no to field
     And the reply leaves from "5550001" with its token
 
-  @wip
   Scenario: A status moves a reply sent to a user ID
     Given the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     When the workspace "Acme" replies to "US.184467235" on "5550001"
-    And a status for the newest reply arrives for "5550001" signed with the app secret of "5550001"
+    And a status for the newest reply to the user ID "US.184467235" arrives for "5550001"
     Then the newest reply is marked delivered
 
   Scenario: A message carrying both a phone number and a user ID stays under the phone number
@@ -53,14 +48,12 @@ Feature: A WhatsApp sender who shares no phone number
     When the workspace "Acme" replies to "184467235" on "5550001"
     Then the reply names "184467235" in its to field and has no recipient
 
-  @wip
   Scenario: A person known by phone who later writes with only a user ID gets a second contact
     Given the person "US.184467235" with the phone number "184467235" writes to "5550001"
     When the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     Then the workspace "Acme" holds 2 contacts
     And the workspace "Acme" holds 2 conversations
 
-  @wip
   Scenario: A person known by phone on one number who writes to another with only a user ID gets a second contact
     Given the workspace "Acme" connects the WhatsApp number "5550002" as "Support"
     And the person "US.184467235" with the phone number "184467235" writes to "5550001"
@@ -68,7 +61,6 @@ Feature: A WhatsApp sender who shares no phone number
     Then the workspace "Acme" holds 2 contacts
     And the workspace "Acme" holds 2 conversations
 
-  @wip
   Scenario: A person who moves between a user ID and a phone number keeps one conversation for each
     Given the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
     And the person "US.184467235" with the phone number "184467235" writes to "5550001"
@@ -79,7 +71,6 @@ Feature: A WhatsApp sender who shares no phone number
     When the workspace "Acme" replies to "US.184467235" on "5550001"
     Then the reply names "US.184467235" as its recipient and has no to field
 
-  @wip
   Scenario: One user ID reaching two workspaces stays apart
     Given the workspace "Globex" connects the WhatsApp number "5550002" as "Front desk"
     When the person "US.184467235" named "Maria Perez" writes with no phone number to "5550001"
