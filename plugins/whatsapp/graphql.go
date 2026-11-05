@@ -227,7 +227,7 @@ func (w WhatsAppConversationResolvers) Contact(
 	return obj.Contact, nil
 }
 
-// Messages lists the conversation's messages, oldest first.
+// Messages lists the conversation's newest messages, oldest first.
 func (w WhatsAppConversationResolvers) Messages(
 	ctx context.Context, obj *model.WhatsAppConversation, limit *int,
 ) ([]*model.WhatsAppMessage, error) {

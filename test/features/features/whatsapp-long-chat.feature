@@ -16,7 +16,6 @@ Feature: A long WhatsApp chat opens on its newest messages
     When the workspace "Acme" reads 10 messages of the conversation with "184467235" on "5550001"
     Then the messages read are "message 1, message 2, message 3, message 4, message 5"
 
-  @wip
   Scenario: Opening a long chat reads its newest messages, oldest first
     When the workspace "Acme" reads 2 messages of the conversation with "184467235" on "5550001"
     Then the messages read are "message 4, message 5"

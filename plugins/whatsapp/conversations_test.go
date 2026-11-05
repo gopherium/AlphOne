@@ -189,6 +189,30 @@ func TestListMessagesReturnsChronologicalThread(t *testing.T) {
 	}
 }
 
+func TestListMessagesPastTheLimitAnswersTheNewestOldestFirst(t *testing.T) {
+	t.Parallel()
+
+	p, _ := newIngestingPlugin(t)
+	routes := p.Routes()
+	ingestEvent(t, routes, "wamid.1", "184467235", "Maria Perez", "1751791000", "first")
+	ingestEvent(t, routes, "wamid.2", "184467235", "Maria Perez", "1751791100", "second")
+	ingestEvent(t, routes, "wamid.3", "184467235", "Maria Perez", "1751791200", "third")
+	limit := 2
+
+	got, err := p.WhatsAppConversationResolvers().Messages(t.Context(), onlyConversation(t, p), &limit)
+	if err != nil {
+		t.Fatalf("Messages() error = %v, want nil", err)
+	}
+
+	contents := make([]string, len(got))
+	for i, message := range got {
+		contents[i] = message.Content
+	}
+	if strings.Join(contents, ", ") != "second, third" {
+		t.Errorf("page = %q, want the newest two messages, oldest first", contents)
+	}
+}
+
 func TestListMessagesUnknownConversationIsEmpty(t *testing.T) {
 	t.Parallel()
 

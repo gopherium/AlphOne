@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -125,8 +126,7 @@ func (s *store) listConversationsByContactIDs(
 	return conversations, nil
 }
 
-// listMessages returns up to limit messages for the given conversation with
-// their media state, oldest first.
+// listMessages returns the newest limit messages of the given conversation with their media state, oldest first.
 func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
 	rows, _ := s.pool.Query(ctx, `
 		SELECT m.id, m.external_id, m.direction, m.content, m.content_type, m.sent_at,
@@ -137,7 +137,7 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 		LEFT JOIN plugin_whatsapp.media med
 			ON med.message_id = m.id AND med.tenant_id = m.tenant_id
 		WHERE m.conversation_id = $1 AND m.tenant_id = $3
-		ORDER BY m.sent_at ASC, m.id ASC
+		ORDER BY m.sent_at DESC, m.id DESC
 		LIMIT $2`,
 		conversationID, limit, sdk.TenantOrDefault(ctx),
 	)
@@ -145,6 +145,7 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: list messages: %w", err)
 	}
+	slices.Reverse(messages)
 	return messages, nil
 }
 
