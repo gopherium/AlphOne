@@ -291,6 +291,58 @@ test('keeps one copy of an arrival the thread reload also returns', async () => 
 	expect(await screen.findAllByText('One more thing')).toHaveLength(1)
 })
 
+test('lists an arrival older than the loaded rows in its sent order', async () => {
+	threadOf(
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b2',
+			content: 'Later message',
+			sentAt: '2026-07-06T10:30:00Z',
+		}),
+	)
+	const fake = renderThread()
+	await screen.findByText('Later message')
+
+	fake.emit({
+		whatsAppMessageReceived: message({
+			id: '019f4a00-0000-7000-8000-0000000000b1',
+			content: 'Earlier message',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
+	})
+	await screen.findByText('Earlier message')
+
+	const contents = screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
+	expect(contents.findIndex((text) => text.includes('Earlier message'))).toBeLessThan(
+		contents.findIndex((text) => text.includes('Later message')),
+	)
+})
+
+test('lists two messages sent in the same second by their ids', async () => {
+	threadOf(
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b2',
+			content: 'Higher id',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
+	)
+	const fake = renderThread()
+	await screen.findByText('Higher id')
+
+	fake.emit({
+		whatsAppMessageReceived: message({
+			id: '019f4a00-0000-7000-8000-0000000000b1',
+			content: 'Lower id',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
+	})
+	await screen.findByText('Lower id')
+
+	const contents = screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
+	expect(contents.findIndex((text) => text.includes('Lower id'))).toBeLessThan(
+		contents.findIndex((text) => text.includes('Higher id')),
+	)
+})
+
 test('reports when the reply cannot be sent', async () => {
 	const user = userEvent.setup()
 	server.use(

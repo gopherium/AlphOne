@@ -410,14 +410,25 @@ function appendTo(setArrivals: (update: (current: Message[]) => Message[]) => vo
 }
 
 /**
- * mergeById returns the loaded messages followed by the arrivals they lack.
+ * mergeById returns the loaded messages and the arrivals they lack, in the order the database lists them.
  * @param loaded - The messages the thread document returned.
- * @param arrivals - The messages delivered since, newest last.
+ * @param arrivals - The messages delivered since.
  * @returns The merged messages, oldest first.
  */
 function mergeById(loaded: readonly Message[], arrivals: readonly Message[]): Message[] {
 	const known = new Set(loaded.map((message) => message.id))
-	return [...loaded, ...arrivals.filter((message) => !known.has(message.id))]
+	return [...loaded, ...arrivals.filter((message) => !known.has(message.id))].sort(inSentOrder)
+}
+
+/**
+ * Compares two messages the way the database orders them, by sent time and then by id.
+ * @param first - One message.
+ * @param second - The other message.
+ * @returns A negative number when the first comes before the second.
+ */
+function inSentOrder(first: Message, second: Message): number {
+	const bySentTime = Date.parse(first.sentAt) - Date.parse(second.sentAt)
+	return bySentTime || Number(first.id > second.id) - Number(first.id < second.id)
 }
 
 /**
