@@ -121,6 +121,7 @@ type numbersScenario struct {
 	plugin    *whatsapp.Plugin
 	answered  int
 	delivered int
+	read      []string
 }
 
 // initializeWhatsAppNumbers returns the binding of the WhatsApp number steps, t holding their databases.
@@ -135,6 +136,7 @@ func initializeWhatsAppNumbers(t *testing.T) func(*godog.ScenarioContext) {
 		s.bindReplies(sc)
 		s.bindAnswers(sc)
 		s.bindSenders(sc)
+		s.bindLongChat(sc)
 		sc.After(func(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
 			s.replies.server.Close()
 			return ctx, s.stop(ctx)
