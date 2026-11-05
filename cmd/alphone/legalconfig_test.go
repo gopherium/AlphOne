@@ -141,9 +141,8 @@ func TestABadLegalAddressLeavesTheAccountCommandsAlone(t *testing.T) {
 	}
 }
 
-// loadWithAnswerRoom loads two long addresses under a cap leaving spare bytes beyond what they need.
-func loadWithAnswerRoom(spare int) error {
-	address := "https://example.com/" + strings.Repeat("a", 480)
+// loadWithAnswerRoom loads an address as both legal pages under a cap leaving spare bytes beyond what they need.
+func loadWithAnswerRoom(address string, spare int) error {
 	_, err := loadRunConfig(testkit.Getenv(map[string]string{
 		"ALPHONE_DATABASE_URL":                     "postgres://localhost/x",
 		"ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES": strconv.Itoa(2*answerBytes(address) + legalAnswerRoom + spare),
@@ -156,12 +155,21 @@ func loadWithAnswerRoom(spare int) error {
 func TestTheLegalAddressesMustFitTheAnonymousAnswer(t *testing.T) {
 	t.Parallel()
 
-	err := loadWithAnswerRoom(-1)
-	if err == nil || !strings.Contains(err.Error(), "ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES") {
-		t.Errorf("loadRunConfig() error = %v, want one naming the answer cap", err)
-	}
-	if err := loadWithAnswerRoom(0); err != nil {
-		t.Errorf("loadRunConfig() at the cap error = %v, want nil", err)
+	for name, address := range map[string]string{
+		"two long addresses": "https://example.com/" + strings.Repeat("a", 480),
+		"no address":         "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := loadWithAnswerRoom(address, -1)
+			if err == nil || !strings.Contains(err.Error(), "ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES") {
+				t.Errorf("loadRunConfig() error = %v, want one naming the answer cap", err)
+			}
+			if err := loadWithAnswerRoom(address, 0); err != nil {
+				t.Errorf("loadRunConfig() at the cap error = %v, want nil", err)
+			}
+		})
 	}
 }
 
@@ -193,18 +201,5 @@ func TestTheAnswerRoomHoldsTheRestOfTheBootAnswer(t *testing.T) {
 	}
 	if len(rest) > legalAnswerRoom {
 		t.Errorf("the rest of the boot answer takes %d bytes, want at most %d", len(rest), legalAnswerRoom)
-	}
-}
-
-func TestAnInstallWithNoLegalAddressIgnoresTheAnswerCap(t *testing.T) {
-	t.Parallel()
-
-	_, err := loadRunConfig(testkit.Getenv(map[string]string{
-		"ALPHONE_DATABASE_URL":                     "postgres://localhost/x",
-		"ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES": "64",
-	}))
-
-	if err != nil {
-		t.Errorf("loadRunConfig() error = %v, want nil", err)
 	}
 }

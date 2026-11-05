@@ -26,14 +26,13 @@ func loadLegalLinks(env gonsole.Env, answerMax int64) (graphres.LegalLinks, erro
 	if err != nil {
 		return graphres.LegalLinks{}, err
 	}
-	links := graphres.LegalLinks{Privacy: privacy, Terms: terms}
 	held := int64(answerBytes(privacy) + answerBytes(terms) + legalAnswerRoom)
-	if links != (graphres.LegalLinks{}) && held > answerMax {
+	if held > answerMax {
 		return graphres.LegalLinks{}, fmt.Errorf("%s and %s: must leave %d bytes of %s, which is %d",
 			env.Key("PRIVACY_URL"), env.Key("TERMS_URL"), legalAnswerRoom,
 			env.Key("GRAPH_ANONYMOUS_ANSWER_MAX_BYTES"), answerMax)
 	}
-	return links, nil
+	return graphres.LegalLinks{Privacy: privacy, Terms: terms}, nil
 }
 
 // answerBytes returns the bytes an address takes in a graph answer.
