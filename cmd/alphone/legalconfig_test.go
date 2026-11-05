@@ -57,6 +57,7 @@ func TestALegalAddressIsKeptAsWritten(t *testing.T) {
 		"https://example.com/legal/privacy/",
 		"http://example.com/privacy",
 		"https://example.com:8443/privacy",
+		"https://example.com:65535/privacy",
 		"https://example.com/legal?page=privacy",
 		"https://example.com/legal#privacy",
 		"https://example.com",
@@ -84,6 +85,8 @@ func TestALegalAddressRefusesWhatALinkMustNeverCarry(t *testing.T) {
 		"no scheme":         "example.com/legal/privacy",
 		"no host":           "https:///legal/privacy",
 		"a port alone":      "https://:8443/legal/privacy",
+		"a port past 65535": "https://example.com:65536/legal/privacy",
+		"a zero port":       "https://example.com:0/legal/privacy",
 		"a user":            "https://user@example.com/legal/privacy",
 		"a user and secret": "https://user:secret@example.com/legal/privacy",
 		"a space":           "https://exa mple.com/legal/privacy",
@@ -162,9 +165,11 @@ func TestTheLegalAddressesMustFitTheAnonymousAnswer(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
+			least := 2*answerBytes(address) + legalAnswerRoom
+			want := "ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES: must be at least " + strconv.Itoa(least)
 			err := loadWithAnswerRoom(address, -1)
-			if err == nil || !strings.Contains(err.Error(), "ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES") {
-				t.Errorf("loadRunConfig() error = %v, want one naming the answer cap", err)
+			if err == nil || !strings.HasPrefix(err.Error(), want) {
+				t.Errorf("loadRunConfig() error = %v, want one starting %q", err, want)
 			}
 			if err := loadWithAnswerRoom(address, 0); err != nil {
 				t.Errorf("loadRunConfig() at the cap error = %v, want nil", err)

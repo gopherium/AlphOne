@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/gopherium/framework/gonsole"
 
@@ -28,9 +29,8 @@ func loadLegalLinks(env gonsole.Env, answerMax int64) (graphres.LegalLinks, erro
 	}
 	held := int64(answerBytes(privacy) + answerBytes(terms) + legalAnswerRoom)
 	if held > answerMax {
-		return graphres.LegalLinks{}, fmt.Errorf("%s and %s: must leave %d bytes of %s, which is %d",
-			env.Key("PRIVACY_URL"), env.Key("TERMS_URL"), legalAnswerRoom,
-			env.Key("GRAPH_ANONYMOUS_ANSWER_MAX_BYTES"), answerMax)
+		return graphres.LegalLinks{}, fmt.Errorf("%s: must be at least %d, the boot read with %s and %s, got %d",
+			env.Key("GRAPH_ANONYMOUS_ANSWER_MAX_BYTES"), held, env.Key("PRIVACY_URL"), env.Key("TERMS_URL"), answerMax)
 	}
 	return graphres.LegalLinks{Privacy: privacy, Terms: terms}, nil
 }
@@ -56,5 +56,17 @@ func parseLegalURL(value string) (string, error) {
 	if held.User != nil {
 		return "", errors.New("must carry no user or password")
 	}
+	if !portInRange(held.Port()) {
+		return "", errors.New("must carry a port from 1 to 65535")
+	}
 	return value, nil
+}
+
+// portInRange reports whether a port is left out or runs from 1 to 65535.
+func portInRange(port string) bool {
+	if port == "" {
+		return true
+	}
+	number, err := strconv.ParseUint(port, 10, 16)
+	return err == nil && number > 0
 }
