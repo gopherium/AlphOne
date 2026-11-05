@@ -199,4 +199,6 @@ e2e-reset: e2e-db-reset e2e-seed
 
 e2e: e2e-reset
 	ALPHONE_E2E_DATABASE_URL="$(E2E_DATABASE_URL)" \
+		ALPHONE_E2E_PRIVACY_URL="$(E2E_PRIVACY_URL)" \
+		ALPHONE_E2E_TERMS_URL="$(E2E_TERMS_URL)" \
 		pnpm --filter @alphone/e2e exec playwright test
