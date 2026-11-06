@@ -17,6 +17,7 @@ import {
 	useGraphMutation,
 	useGraphQuery,
 	useGraphSubscription,
+	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { GraphFailure } from '@alphone/frontend-sdk'
@@ -521,6 +522,21 @@ function ThreadBody({
 }
 
 /**
+ * useGoneRef returns a ref that holds true once the component has left the screen.
+ * @returns The ref.
+ */
+function useGoneRef() {
+	const goneRef = useRef(false)
+	useEffect(() => {
+		goneRef.current = false
+		return () => {
+			goneRef.current = true
+		}
+	}, [])
+	return goneRef
+}
+
+/**
  * Renders the reply composer for a conversation.
  * @returns The composer form.
  */
@@ -533,6 +549,8 @@ function ThreadComposer({
 }) {
 	const [draft, setDraft] = useState('')
 	const [reply, send] = useGraphMutation(sendMessageMutation)
+	const toaster = useToaster()
+	const goneRef = useGoneRef()
 	return (
 		<form
 			className="alphone-composer"
@@ -545,7 +563,13 @@ function ThreadComposer({
 						onSent(result.data.whatsAppSendMessage)
 						return
 					}
-					setDraft(content)
+					if (!goneRef.current) {
+						setDraft(content)
+						return
+					}
+					if (result.error) {
+						toaster.show(replyErrorCopy(result.error))
+					}
 				})
 			}}
 		>

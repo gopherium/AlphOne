@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
+import { GraphProvider, Toaster, configureErrorText } from '@alphone/frontend-sdk'
 import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import type { FakeGraph } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { errorTemplates } from '../errorTemplates'
@@ -66,19 +67,22 @@ function threadOf(...messages: Record<string, unknown>[]) {
 	threadOn(null, ...messages)
 }
 
-/** Renders the thread under a fresh query client and a drivable graph client. */
-function renderThread(): FakeGraph {
+/** Renders the thread under a fresh query client and a drivable graph client, in StrictMode when asked. */
+function renderThread({ strict = false }: { strict?: boolean } = {}): FakeGraph {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
 	const fake = fakeGraphClient([plugin])
-	render(
+	const tree = (
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>
-				<Thread conversationId={conversationId} />
+				<Toaster>
+					<Thread conversationId={conversationId} />
+				</Toaster>
 			</GraphProvider>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	)
+	render(strict ? <StrictMode>{tree}</StrictMode> : tree)
 	return fake
 }
 
@@ -362,6 +366,28 @@ test('reports when the reply cannot be sent', async () => {
 
 	expect(await screen.findByText(/could not be sent/i)).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
+})
+
+test('keeps a reply that fails on screen in the composer under StrictMode, with no toast', async () => {
+	const user = userEvent.setup()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
+			}),
+		),
+	)
+
+	renderThread({ strict: true })
+	await screen.findByText('Hi, is the order ready?')
+
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be sent/i)
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
+	expect(screen.getAllByText(/could not be sent/i)).toHaveLength(1)
 })
 
 test('says the number is gone when a reply meets a removed number', async () => {
