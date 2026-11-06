@@ -3,7 +3,7 @@ title: Privacy policy
 description: What data an AlphOne deployment processes, where it lives, and how to have it deleted.
 ---
 
-*Effective date: 2026-07-18*
+*Effective date: 2026-11-06*
 
 This policy covers this **documentation site** (`docs.alph.one`) and
 describes how an **AlphOne deployment** handles WhatsApp data. When a
@@ -21,7 +21,8 @@ When you send a WhatsApp message to a number connected to an AlphOne
 deployment, Meta's WhatsApp Business Cloud API delivers it to that
 deployment, which stores:
 
-- your phone number and WhatsApp profile name
+- your phone number, the WhatsApp user ID Meta sends with it or in its
+  place, and your WhatsApp profile name
 - the content of your messages, including attachments
 - message timestamps and delivery metadata
 

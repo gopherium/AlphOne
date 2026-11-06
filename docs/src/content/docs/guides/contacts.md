@@ -11,11 +11,17 @@ the **Contacts** entry in the menu is where you manage them.
 
 Most contacts create themselves. The first time someone messages your
 WhatsApp number, AlphOne creates a contact named after their WhatsApp
-profile name and links their phone number to it as an identity.
+profile name and links their phone number to it as an identity. A person
+who uses a WhatsApp username may hide their phone number. AlphOne then
+links the user ID Meta sends, such as `US.184467235`, in its place.
 
 When a person hides their profile name, the contact is named after the
-raw phone number instead. Those number-named contacts are expected, and
-fixing them is the point of the next section.
+raw phone number or user ID instead. Those number-named contacts are
+expected, and fixing them is the point of the next section.
+
+If someone wrote by phone and later writes with only a user ID, or first
+writes to a second WhatsApp number with only a user ID, AlphOne shows a
+second contact. Contacts cannot be merged yet.
 
 You can also add a contact by hand with the **Add Contact** button, for
 people you want in the CRM before they ever message you.
