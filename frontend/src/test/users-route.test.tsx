@@ -710,8 +710,8 @@ test('says why an enable was refused when the roles the reader may give went sta
 				data: null,
 				errors: [
 					{
-						message: 'that role is beyond your own',
-						extensions: { code: 'VALIDATION', reason: 'role_beyond_reach' },
+						message: 'you are not allowed to give users that role',
+						extensions: { code: 'VALIDATION', reason: 'role_not_grantable' },
 					},
 				],
 			}),
@@ -722,7 +722,7 @@ test('says why an enable was refused when the roles the reader may give went sta
 	await act('Maria Perez', 'Enable')
 
 	expect(
-		await screen.findByText('That role holds more than your own, or nothing declares it.', { selector: '.godmin-toast' }),
+		await screen.findByText('Sorry, you are not allowed to give users that role.', { selector: '.godmin-toast' }),
 	).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('"Maria Perez" enabled.')).not.toBeInTheDocument()
@@ -982,18 +982,24 @@ test('closes the role modal without writing when the reader cancels', async () =
 	expect(asked).toEqual([])
 })
 
-test('shows why a role could not be changed inside the modal', async () => {
+test.each([
+	{
+		refused: 'an account the reader may not edit',
+		reason: 'user_not_editable',
+		sentence: 'Sorry, you are not allowed to edit this user.',
+	},
+	{
+		refused: 'a role the reader may not give',
+		reason: 'role_not_grantable',
+		sentence: 'Sorry, you are not allowed to give users that role.',
+	},
+])('shows inside the modal why a role could not be changed on $refused', async ({ reason, sentence }) => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('SetUserRole', () =>
 			HttpResponse.json({
 				data: null,
-				errors: [
-					{
-						message: 'user: the role outranks the caller',
-						extensions: { code: 'VALIDATION', reason: 'role_beyond_reach' },
-					},
-				],
+				errors: [{ message: 'user: the role outranks the caller', extensions: { code: 'VALIDATION', reason } }],
 			}),
 		),
 	)
@@ -1005,9 +1011,7 @@ test('shows why a role could not be changed inside the modal', async () => {
 	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
 	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent(
-		'That role holds more than your own, or nothing declares it.',
-	)
+	expect(await dialog.findByRole('alert')).toHaveTextContent(sentence)
 	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
 })
 

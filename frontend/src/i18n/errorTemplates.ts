@@ -62,7 +62,8 @@ export function errorTemplates(): Record<string, string> {
 		self_disable_refused: __('You cannot disable your own account.', DOMAIN),
 		self_role_refused: __('You cannot change your own role.', DOMAIN),
 		last_privileged_refused: __('Somebody must be able to manage users.', DOMAIN),
-		role_beyond_reach: __('That role holds more than your own, or nothing declares it.', DOMAIN),
+		user_not_editable: __('Sorry, you are not allowed to edit this user.', DOMAIN),
+		role_not_grantable: __('Sorry, you are not allowed to give users that role.', DOMAIN),
 		role_changed: __('The role of that account just changed. Reload the page and try again.', DOMAIN),
 		role_unknown: __('Nothing declares that role.', DOMAIN),
 	}

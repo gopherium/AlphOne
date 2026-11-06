@@ -5,7 +5,7 @@ import { RoleNotGrantableError, RoleUnknownError } from '@gopherium/react-auth/a
 
 /** The error code each turned down role write answers with, by the error it raises. */
 const refusedRoles: [new (...args: never[]) => Error, string][] = [
-	[RoleNotGrantableError, 'role_beyond_reach'],
+	[RoleNotGrantableError, 'role_not_grantable'],
 	[RoleUnknownError, 'role_unknown'],
 ]
 
