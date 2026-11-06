@@ -133,10 +133,10 @@ function MessageBubble({ message }: { message: Message }) {
 
 /**
  * Copy for a failed reply attempt, from the Graph code or else the reason the backend named.
- * @param error - The reply mutation error.
+ * @param error - The reply mutation error, undefined when the send answered neither data nor an error.
  * @returns The operator-facing line under the composer.
  */
-function replyErrorCopy(error: GraphFailure): string {
+function replyErrorCopy(error: GraphFailure | undefined): string {
 	const fallback = __('The reply could not be sent.', 'alphone-whatsapp')
 	const metaCode = graphExtensions(error).metaCode
 	if (typeof metaCode === 'number') {
@@ -616,9 +616,7 @@ function ThreadComposer({
 						setDraft(content)
 						return
 					}
-					if (result.error) {
-						toaster.show(replyErrorCopy(result.error))
-					}
+					toaster.show(replyErrorCopy(result.error))
 				})
 			}}
 		>

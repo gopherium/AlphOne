@@ -262,6 +262,29 @@ test('shows a reply that fails after the reader moved on in a toast, leaving the
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
 })
 
+test('shows a reply answered with neither data nor an error after the reader moved on in a toast', async () => {
+	const user = userEvent.setup()
+	let answer: () => void = () => {}
+	threadsByConversation()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			return HttpResponse.json({ data: null })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	await openNextConversation(router)
+	answer()
+
+	expect(await screen.findByText('The reply could not be sent.', TOAST)).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
+})
+
 test('keeps a reply that lands after the reader moved on out of the next conversation, with no toast', async () => {
 	const user = userEvent.setup()
 	let answer: () => void = () => {}
