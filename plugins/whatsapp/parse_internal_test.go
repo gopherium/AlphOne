@@ -8,16 +8,25 @@ import (
 	"time"
 )
 
-// webhookBody returns a webhook payload wrapping the given message element.
-func webhookBody(message string) []byte {
+// changeBody returns a webhook payload whose one change carries the given value fields.
+func changeBody(fields string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
 		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
 			"messaging_product": "whatsapp",
-			"contacts": [{"wa_id": "184467235", "profile": {"name": "María Pérez"}}],
-			"messages": [%s]
+			%s
 		}}]}]
-	}`, message)
+	}`, fields)
+}
+
+// senderBody returns a webhook payload carrying one contact and one message element.
+func senderBody(contact, message string) []byte {
+	return changeBody(fmt.Sprintf(`"contacts": [%s], "messages": [%s]`, contact, message))
+}
+
+// webhookBody returns a webhook payload wrapping the given message element.
+func webhookBody(message string) []byte {
+	return senderBody(`{"wa_id": "184467235", "profile": {"name": "María Pérez"}}`, message)
 }
 
 // parsedWhole decodes a body whose changes name no number, with room for every item.
@@ -249,18 +258,6 @@ func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 	}
 }
 
-// senderBody returns a webhook payload carrying one contact and one message element.
-func senderBody(contact, message string) []byte {
-	return fmt.Appendf(nil, `{
-		"object": "whatsapp_business_account",
-		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
-			"messaging_product": "whatsapp",
-			"contacts": [%s],
-			"messages": [%s]
-		}}]}]
-	}`, contact, message)
-}
-
 // userIDContact is a contact that names a sender by user ID and profile name only.
 const userIDContact = `{"user_id": "US.184467235", "profile": {"name": "Maria Perez", "username": "mariaperez"}}`
 
@@ -288,7 +285,7 @@ func onlyParsedMessage(t *testing.T, body []byte) inboundMessage {
 	return messages[0]
 }
 
-func TestParseMessagesTakesTheUserIDWhenNoPhoneNumberArrives(t *testing.T) {
+func TestParseMessagesTakesTheUserIDAndItsContactNameWhenNoPhoneNumberArrives(t *testing.T) {
 	t.Parallel()
 
 	got := onlyParsedMessage(t, senderBody(userIDContact, userIDMessage))
@@ -296,13 +293,6 @@ func TestParseMessagesTakesTheUserIDWhenNoPhoneNumberArrives(t *testing.T) {
 	if got.sender != "US.184467235" {
 		t.Errorf("sender = %q, want %q", got.sender, "US.184467235")
 	}
-}
-
-func TestParseMessagesNamesASenderWithNoPhoneNumberFromTheContactsUserID(t *testing.T) {
-	t.Parallel()
-
-	got := onlyParsedMessage(t, senderBody(userIDContact, userIDMessage))
-
 	if got.senderName != "Maria Perez" {
 		t.Errorf("senderName = %q, want %q", got.senderName, "Maria Perez")
 	}
@@ -352,13 +342,7 @@ func TestNamedNumbersRejectsEnvelopeGarbage(t *testing.T) {
 
 // statusEnvelope returns a webhook payload wrapping the given status elements.
 func statusEnvelope(statuses string) []byte {
-	return fmt.Appendf(nil, `{
-		"object": "whatsapp_business_account",
-		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
-			"messaging_product": "whatsapp",
-			"statuses": [%s]
-		}}]}]
-	}`, statuses)
+	return changeBody(fmt.Sprintf(`"statuses": [%s]`, statuses))
 }
 
 func TestParseWebhookStatuses(t *testing.T) {

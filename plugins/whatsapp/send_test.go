@@ -220,14 +220,26 @@ func sentFields(t *testing.T, stub *graphStub) map[string]any {
 	return fields
 }
 
-// wantAddressed fails unless fields names address in field and leaves the other field out.
-func wantAddressed(t *testing.T, fields map[string]any, field, other, address string) {
+// addressing names the payload field a send carries its address in and the field it leaves out.
+type addressing struct {
+	field string
+	other string
+}
+
+// throughRecipient is how a send addresses a user ID.
+var throughRecipient = addressing{field: "recipient", other: "to"}
+
+// throughTo is how a send addresses a phone number or a lid.
+var throughTo = addressing{field: "to", other: "recipient"}
+
+// wantAddressed fails unless fields names address in the field of by and leaves its other field out.
+func wantAddressed(t *testing.T, fields map[string]any, by addressing, address string) {
 	t.Helper()
-	if fields[field] != address {
-		t.Errorf("graph payload %s = %v, want %s", field, fields[field], address)
+	if fields[by.field] != address {
+		t.Errorf("graph payload %s = %v, want %s", by.field, fields[by.field], address)
 	}
-	if left, named := fields[other]; named {
-		t.Errorf("graph payload also names %s = %v, want no %s", other, left, other)
+	if left, named := fields[by.other]; named {
+		t.Errorf("graph payload also names %s = %v, want no %s", by.other, left, by.other)
 	}
 }
 
@@ -239,7 +251,7 @@ func TestSendMessageUsesRecipientAndNoToForAUserIDAddress(t *testing.T) {
 
 	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
 
-	wantAddressed(t, sentFields(t, stub), "recipient", "to", "US.184467235")
+	wantAddressed(t, sentFields(t, stub), throughRecipient, "US.184467235")
 }
 
 func TestSendMessageUsesToAndNoRecipientForAPhoneAddress(t *testing.T) {
@@ -250,7 +262,7 @@ func TestSendMessageUsesToAndNoRecipientForAPhoneAddress(t *testing.T) {
 
 	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
 
-	wantAddressed(t, sentFields(t, stub), "to", "recipient", "184467235")
+	wantAddressed(t, sentFields(t, stub), throughTo, "184467235")
 }
 
 func TestSendMessageUsesToForALidAddress(t *testing.T) {
@@ -261,7 +273,7 @@ func TestSendMessageUsesToForALidAddress(t *testing.T) {
 
 	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
 
-	wantAddressed(t, sentFields(t, stub), "to", "recipient", "184467235@lid")
+	wantAddressed(t, sentFields(t, stub), throughTo, "184467235@lid")
 }
 
 func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {

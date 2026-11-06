@@ -105,18 +105,41 @@ func wantMessages(t *testing.T, rows []messageRow, want ...uuid.UUID) {
 	}
 }
 
+// pageBefore lists up to two messages of the conversation that come before the given message.
+func pageBefore(t *testing.T, p *Plugin, conversationID, before uuid.UUID) []messageRow {
+	t.Helper()
+	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &before)
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+	return rows
+}
+
+// oldestOf returns the message the store names as the oldest of the conversation.
+func oldestOf(t *testing.T, p *Plugin, conversationID uuid.UUID) *uuid.UUID {
+	t.Helper()
+	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
+	if err != nil {
+		t.Fatalf("oldestMessageID() error = %v, want nil", err)
+	}
+	return oldest
+}
+
+// wantOldest fails unless oldest names the message want.
+func wantOldest(t *testing.T, oldest *uuid.UUID, want uuid.UUID) {
+	t.Helper()
+	if oldest == nil || *oldest != want {
+		t.Errorf("oldestMessageID() = %v, want %s", oldest, want)
+	}
+}
+
 func TestListMessagesAnswersThePageBeforeTheGivenMessage(t *testing.T) {
 	t.Parallel()
 
 	p := newMigratedPlugin(t)
 	conversationID, ids := storedThread(t, p, minutesApart(5)...)
 
-	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &ids[3])
-	if err != nil {
-		t.Fatalf("listMessages() error = %v, want nil", err)
-	}
-
-	wantMessages(t, rows, ids[1], ids[2])
+	wantMessages(t, pageBefore(t, p, conversationID, ids[3]), ids[1], ids[2])
 }
 
 func TestListMessagesOrdersSameSecondPagesByID(t *testing.T) {
@@ -125,12 +148,7 @@ func TestListMessagesOrdersSameSecondPagesByID(t *testing.T) {
 	p := newMigratedPlugin(t)
 	conversationID, ids := storedThread(t, p, sameSecond(4)...)
 
-	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &ids[2])
-	if err != nil {
-		t.Fatalf("listMessages() error = %v, want nil", err)
-	}
-
-	wantMessages(t, rows, ids[0], ids[1])
+	wantMessages(t, pageBefore(t, p, conversationID, ids[2]), ids[0], ids[1])
 }
 
 func TestListMessagesBeforeAnUnknownMessageIsEmpty(t *testing.T) {
@@ -138,14 +156,8 @@ func TestListMessagesBeforeAnUnknownMessageIsEmpty(t *testing.T) {
 
 	p := newMigratedPlugin(t)
 	conversationID, _ := storedThread(t, p, minutesApart(3)...)
-	unknown := uuid.Must(uuid.NewV7())
 
-	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &unknown)
-	if err != nil {
-		t.Fatalf("listMessages() error = %v, want nil", err)
-	}
-
-	wantMessages(t, rows)
+	wantMessages(t, pageBefore(t, p, conversationID, uuid.Must(uuid.NewV7())))
 }
 
 func TestListMessagesBeforeAMessageOfAnotherConversationIsEmpty(t *testing.T) {
@@ -155,12 +167,7 @@ func TestListMessagesBeforeAMessageOfAnotherConversationIsEmpty(t *testing.T) {
 	conversationID, _ := storedThread(t, p, minutesApart(3)...)
 	_, others := storedThread(t, p, minutesApart(3)...)
 
-	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &others[2])
-	if err != nil {
-		t.Fatalf("listMessages() error = %v, want nil", err)
-	}
-
-	wantMessages(t, rows)
+	wantMessages(t, pageBefore(t, p, conversationID, others[2]))
 }
 
 func TestOldestMessageIDNamesTheFirstMessageSentEvenWhenItArrivedLate(t *testing.T) {
@@ -170,14 +177,7 @@ func TestOldestMessageIDNamesTheFirstMessageSentEvenWhenItArrivedLate(t *testing
 	times := minutesApart(3)
 	conversationID, ids := storedThread(t, p, times[1], times[0], times[2])
 
-	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
-	if err != nil {
-		t.Fatalf("oldestMessageID() error = %v, want nil", err)
-	}
-
-	if oldest == nil || *oldest != ids[1] {
-		t.Errorf("oldestMessageID() = %v, want %s", oldest, ids[1])
-	}
+	wantOldest(t, oldestOf(t, p, conversationID), ids[1])
 }
 
 func TestOldestMessageIDBreaksASameSecondTieByID(t *testing.T) {
@@ -186,14 +186,7 @@ func TestOldestMessageIDBreaksASameSecondTieByID(t *testing.T) {
 	p := newMigratedPlugin(t)
 	conversationID, ids := storedThread(t, p, sameSecond(3)...)
 
-	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
-	if err != nil {
-		t.Fatalf("oldestMessageID() error = %v, want nil", err)
-	}
-
-	if oldest == nil || *oldest != ids[0] {
-		t.Errorf("oldestMessageID() = %v, want %s", oldest, ids[0])
-	}
+	wantOldest(t, oldestOf(t, p, conversationID), ids[0])
 }
 
 func TestOldestMessageIDIsNilForAConversationWithNoMessages(t *testing.T) {
@@ -202,12 +195,7 @@ func TestOldestMessageIDIsNilForAConversationWithNoMessages(t *testing.T) {
 	p := newMigratedPlugin(t)
 	conversationID, _ := storedThread(t, p)
 
-	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
-	if err != nil {
-		t.Fatalf("oldestMessageID() error = %v, want nil", err)
-	}
-
-	if oldest != nil {
+	if oldest := oldestOf(t, p, conversationID); oldest != nil {
 		t.Errorf("oldestMessageID() = %s, want nil", *oldest)
 	}
 }
