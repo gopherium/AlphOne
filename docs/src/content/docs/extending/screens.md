@@ -375,7 +375,8 @@ column readable. A form inside a dialog is `FormBody` instead, as
 For a list read with `useConnection`, `LoadMore` renders the next page
 button and hides itself once every page is loaded. When the list is
 refetched, every loaded page is read again from the first, so the rows keep
-their current order.
+their current order. If new rows at the top push the last loaded rows down,
+the reading goes on until it reaches them, so no loaded row drops out.
 
 ```tsx
 <LoadMore query={invoices}>Load more</LoadMore>
