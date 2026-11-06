@@ -107,8 +107,30 @@ test('serves the thread for a conversation URL', async () => {
 	).toBeInTheDocument()
 })
 
-/** Serves each conversation's thread with one message that names the conversation. */
-function threadsByConversation() {
+/**
+ * Builds the reply the first conversation receives.
+ * @returns The reply as the graph returns it.
+ */
+function replyInFirst() {
+	return {
+		__typename: 'WhatsAppMessage',
+		id: 'reply-in-first',
+		externalId: 'wamid.reply',
+		direction: 'outbound',
+		content: 'Ready at 5pm',
+		contentType: 'text',
+		sentAt: '2026-07-06T09:10:00Z',
+		status: 'sent',
+		statusDetail: null,
+		media: null,
+	}
+}
+
+/**
+ * Serves each conversation's thread with one message naming it, the first one also holding its replies.
+ * @param stored - The replies the first conversation holds so far, read on every request.
+ */
+function threadsByConversation(stored: Record<string, unknown>[] = []) {
 	server.use(
 		graphql.query('WhatsAppThread', ({ variables }) =>
 			HttpResponse.json({
@@ -117,6 +139,7 @@ function threadsByConversation() {
 						__typename: 'WhatsAppConversation',
 						id: variables.conversationId,
 						number: null,
+						oldestMessageId: `message-${variables.conversationId}`,
 						contact: { __typename: 'Contact', id: `contact-${variables.conversationId}`, name: 'Maria Perez' },
 						messages: [
 							{
@@ -131,6 +154,7 @@ function threadsByConversation() {
 								statusDetail: null,
 								media: null,
 							},
+							...(variables.conversationId === firstConversation ? stored : []),
 						],
 					},
 				},
@@ -247,22 +271,7 @@ test('keeps a reply that lands after the reader moved on out of the next convers
 			await new Promise<void>((resolve) => {
 				answer = resolve
 			})
-			return HttpResponse.json({
-				data: {
-					whatsAppSendMessage: {
-						__typename: 'WhatsAppMessage',
-						id: 'reply-in-first',
-						externalId: 'wamid.reply',
-						direction: 'outbound',
-						content: 'Ready at 5pm',
-						contentType: 'text',
-						sentAt: '2026-07-06T09:10:00Z',
-						status: 'sent',
-						statusDetail: null,
-						media: null,
-					},
-				},
-			})
+			return HttpResponse.json({ data: { whatsAppSendMessage: replyInFirst() } })
 		}),
 	)
 	const router = await openFirstConversation()
@@ -277,6 +286,36 @@ test('keeps a reply that lands after the reader moved on out of the next convers
 
 	expect(screen.queryByText('Ready at 5pm')).toBeNull()
 	expect(document.querySelector('.godmin-toast')).toBeNull()
+})
+
+test('shows a reply that landed after the reader moved on once they come back', async () => {
+	const user = userEvent.setup()
+	const stored: Record<string, unknown>[] = []
+	let answer: () => void = () => {}
+	threadsByConversation(stored)
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			stored.push(replyInFirst())
+			return HttpResponse.json({ data: { whatsAppSendMessage: replyInFirst() } })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+	await openNextConversation(router)
+	await act(async () => {
+		answer()
+		await new Promise((resolve) => setTimeout(resolve, 100))
+	})
+
+	await act(() =>
+		router.navigate({ to: '/whatsapp/conversations/$conversationId', params: { conversationId: firstConversation } }),
+	)
+
+	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
 })
 
 test('navigates from a conversation in the inbox to its thread', async () => {

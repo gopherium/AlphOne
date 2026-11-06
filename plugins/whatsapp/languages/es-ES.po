@@ -184,6 +184,10 @@ msgid "Sent"
 msgstr "Enviado"
 
 #, fuzzy
+msgid "Show older messages"
+msgstr "Mostrar mensajes anteriores"
+
+#, fuzzy
 msgid "Sticker"
 msgstr "Sticker"
 

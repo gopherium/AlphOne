@@ -48,6 +48,7 @@ test('a client keying the plugin caches a thread with media without warning', as
 						__typename: 'WhatsAppConversation',
 						id: 'id-conversation',
 						number: null,
+						oldestMessageId: 'id-message',
 						contact: { __typename: 'Contact', id: 'id-contact', name: 'Maria Perez' },
 						messages: [
 							{

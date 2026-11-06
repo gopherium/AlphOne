@@ -3,7 +3,9 @@
 import {
 	__,
 	Button,
+	ErrorNotice,
 	InputControl,
+	LoadMore,
 	LoadingScreen,
 	PageTitle,
 	Skeleton,
@@ -14,18 +16,19 @@ import {
 	graphError,
 	graphExtensions,
 	sprintf,
+	useConnection,
 	useGraphMutation,
-	useGraphQuery,
 	useGraphSubscription,
 	useToaster,
 	validationMessage,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ConnectionPage, ConnectionResult, GraphFailure } from '@alphone/frontend-sdk'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { UIEvent } from 'react'
 
 import { formatDay, formatDayLabel, formatFileSize } from './format'
 import { useMediaBlob } from './media'
-import type { ThreadMessageFragment } from './gql/graphql'
+import type { ThreadMessageFragment, WhatsAppThreadQuery } from './gql/graphql'
 import { useConnectedNumbers } from './numbers'
 import {
 	messageReceivedSubscription,
@@ -39,6 +42,9 @@ type Message = ThreadMessageFragment
 
 /** MessageMedia is one message's attachment as the graph selects it. */
 type MessageMedia = NonNullable<Message['media']>
+
+/** ThreadRead is the paged read of a conversation's messages beside its document. */
+type ThreadRead = ConnectionResult<Message, WhatsAppThreadQuery>
 
 /**
  * Returns the tick glyphs by status, read fresh so the loaded catalogue answers.
@@ -376,14 +382,14 @@ function DocumentChip({
 }
 
 /**
- * useThread reads the conversation, appending the arrivals its subscription
+ * useThread reads the conversation a page at a time, appending the arrivals its subscription
  * delivers so a new message needs no reload.
  * @param conversationId - The conversation to read.
- * @returns The thread result beside its merged messages.
+ * @returns The thread read beside its merged messages.
  */
 function useThread(conversationId: string) {
 	const [arrivals, setArrivals] = useState<Message[]>([])
-	const [thread] = useGraphQuery({ query: threadQuery, variables: { conversationId } })
+	const thread = useConnection({ query: threadQuery, variables: { conversationId }, select: threadPage })
 	useGraphSubscription(
 		{ query: messageReceivedSubscription, variables: { conversationId } },
 		(_previous, frame) => {
@@ -391,12 +397,32 @@ function useThread(conversationId: string) {
 			return frame
 		},
 	)
-	const loaded = thread.data?.whatsAppConversation
-	const messages = useMemo(
-		() => mergeById(loaded?.messages ?? [], arrivals),
-		[loaded, arrivals],
-	)
-	return { thread, conversation: loaded, messages, append: appendTo(setArrivals) }
+	return {
+		thread,
+		conversation: thread.data?.whatsAppConversation,
+		messages: mergeById(thread.rows, arrivals),
+		append: appendTo(setArrivals),
+	}
+}
+
+/**
+ * Shapes one page of the thread document into the page useConnection reads, ending on its oldest message.
+ * @param data - The thread document.
+ * @returns The page, or null when the conversation is missing.
+ */
+function threadPage(data: WhatsAppThreadQuery): ConnectionPage<Message> | null {
+	const conversation = data.whatsAppConversation
+	if (!conversation) {
+		return null
+	}
+	const oldestLoaded = conversation.messages[0]?.id
+	return {
+		edges: conversation.messages.map((node) => ({ node })),
+		pageInfo: {
+			hasNextPage: oldestLoaded !== undefined && oldestLoaded !== conversation.oldestMessageId,
+			endCursor: oldestLoaded,
+		},
+	}
 }
 
 /**
@@ -451,15 +477,48 @@ export function Thread({ conversationId }: { conversationId: string }) {
 					</Text>
 				) : null}
 			</header>
-			<ThreadBody
-				conversationId={conversationId}
-				error={thread.error !== undefined}
-				loaded={conversation !== undefined}
-				messages={messages}
-				onSent={append}
-			/>
+			<ThreadBody conversationId={conversationId} thread={thread} messages={messages} onSent={append} />
 		</div>
 	)
+}
+
+/**
+ * useThreadScroll keeps the log on the newest message while the reader follows it, and on the same row while
+ * older messages load.
+ * @param thread - The thread read.
+ * @param count - How many messages the log lists.
+ * @returns The log ref beside its scroll handler.
+ */
+function useThreadScroll(thread: ThreadRead, count: number) {
+	const logRef = useRef<HTMLDivElement>(null)
+	const followRef = useRef(true)
+	const distanceFromBottomRef = useRef<number | null>(null)
+	useLayoutEffect(() => {
+		const log = logRef.current
+		if (!log) {
+			return
+		}
+		if (thread.isFetchingNextPage) {
+			distanceFromBottomRef.current = log.scrollHeight - log.scrollTop
+			return
+		}
+		if (distanceFromBottomRef.current !== null) {
+			log.scrollTop = log.scrollHeight - distanceFromBottomRef.current
+			distanceFromBottomRef.current = null
+			return
+		}
+		if (followRef.current) {
+			log.scrollTop = log.scrollHeight
+		}
+	}, [thread.data, count, thread.isFetchingNextPage])
+	const onScroll = (event: UIEvent<HTMLDivElement>) => {
+		const log = event.currentTarget
+		followRef.current = log.scrollHeight - log.scrollTop - log.clientHeight < followThresholdPx
+		if (distanceFromBottomRef.current !== null) {
+			distanceFromBottomRef.current = log.scrollHeight - log.scrollTop
+		}
+	}
+	return { logRef, onScroll }
 }
 
 /**
@@ -469,47 +528,37 @@ export function Thread({ conversationId }: { conversationId: string }) {
  */
 function ThreadBody({
 	conversationId,
-	error,
-	loaded,
+	thread,
 	messages,
 	onSent,
 }: {
 	conversationId: string
-	error: boolean
-	loaded: boolean
+	thread: ThreadRead
 	messages: Message[]
 	onSent: (message: Message) => void
 }) {
-	const logRef = useRef<HTMLDivElement>(null)
-	const followRef = useRef(true)
-	useEffect(() => {
-		const log = logRef.current
-		if (log && followRef.current) {
-			log.scrollTop = log.scrollHeight
-		}
-	}, [messages])
-
-	if (error) {
+	const { logRef, onScroll } = useThreadScroll(thread, messages.length)
+	const conversation = thread.data?.whatsAppConversation
+	if (thread.isError && !conversation) {
 		return <Text role="alert">{__('Messages could not be loaded.', 'alphone-whatsapp')}</Text>
 	}
-	if (!loaded) {
+	if (conversation === undefined) {
 		return <LoadingScreen label={__('Loading messages…', 'alphone-whatsapp')} />
 	}
 	return (
 		<>
+			{thread.isError ? <ErrorNotice>{__('Messages could not be loaded.', 'alphone-whatsapp')}</ErrorNotice> : null}
 			<div
 				role="log"
 				aria-label={__('Messages', 'alphone-whatsapp')}
 				className="alphone-thread__log"
 				tabIndex={0}
 				ref={logRef}
-				onScroll={(event) => {
-					const log = event.currentTarget
-					followRef.current =
-						log.scrollHeight - log.scrollTop - log.clientHeight <
-						followThresholdPx
-				}}
+				onScroll={onScroll}
 			>
+				<Stack direction="row" justify="center">
+					<LoadMore query={thread}>{__('Show older messages', 'alphone-whatsapp')}</LoadMore>
+				</Stack>
 				{messages.length === 0 ? (
 					<Text role="status">{__('No messages yet.', 'alphone-whatsapp')}</Text>
 				) : (

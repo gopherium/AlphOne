@@ -85,6 +85,7 @@ function threadOf(...messages: Array<Record<string, unknown>>) {
 						__typename: 'WhatsAppConversation',
 						id: conversationId,
 						number: null,
+						oldestMessageId: messages[0]?.id ?? null,
 						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
 						messages,
 					},
