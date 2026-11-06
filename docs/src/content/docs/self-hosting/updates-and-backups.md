@@ -106,6 +106,13 @@ server, because a watcher on `:latest` applies it on its own.
 - Only accounts that may manage users open Users and New user. A member
   who opens them lands on the home screen and finds their API tokens in
   the menu where Users was.
+- The GraphQL API refuses an account write in WordPress's two ways. A
+  write on an account whose role carries a capability the caller's role
+  lacks answers the reason `user_not_editable`. Giving a role the caller
+  may not give, or enabling an account whose role nothing declares,
+  answers `role_not_grantable`. Earlier releases answered
+  `role_beyond_reach` for both. A program that reads those reasons needs
+  updating, see [roles](/reference/graphql-api/#roles).
 - `ALPHONE_PUBLIC_URL` is now read without a mail relay too. On an
   install that sends no mail, a value AlphOne refuses now stops `serve`,
   the account commands that take `-as`, `migrate`, `seed -yes` and

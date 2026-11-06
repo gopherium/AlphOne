@@ -180,21 +180,24 @@ Nobody changes its own role, and nobody disables its own account. Both are
 refused with code `VALIDATION` and the messages `you cannot change your own
 role` and `you cannot disable your own account`.
 
-Writing a role the caller does not hold itself is refused the same way, with
-`that role is beyond your own`. A caller may only write a role whose
-capabilities it already holds, and may only touch an account whose current role
-it likewise holds. So an admin can neither grant a role reaching further than
-admin nor demote or disable an account already holding one, whether that role
-came with the product or with a plugin.
+Touching an account whose role the caller does not hold itself is refused the
+same way, with `you are not allowed to edit this user` and the reason
+`user_not_editable`. Writing a role the caller does not hold itself is refused
+with `you are not allowed to give users that role` and the reason
+`role_not_grantable`. A write that does both answers `user_not_editable`. A
+caller may only write a role whose capabilities it already holds, and may only
+touch an account whose current role it likewise holds. So an admin can neither
+grant a role reaching further than admin nor demote or disable an account
+already holding one, whether that role came with the product or with a plugin.
 
 A write that would leave no enabled account able to manage users is refused with
 `the last admin cannot be unseated`.
 
 An account that holds no role, or one nothing declares any more, such as one a
 removed plugin declared, can still be disabled or given a role.
-`setUserDisabled` refuses to enable it with `that role is beyond your own` and
-the reason `role_beyond_reach`. Give it a declared role with `setUserRole`
-first, then enable it.
+`setUserDisabled` refuses to enable it with `you are not allowed to give users
+that role` and the reason `role_not_grantable`. Give it a declared role with
+`setUserRole` first, then enable it.
 
 `users` marks each account with `withinReach`, true when the caller holds
 `manage_users` and its role reaches that account by the rules above. A caller
@@ -593,7 +596,8 @@ The reasons the core answers with:
 | `self_disable_refused` | | nobody disables its own account |
 | `self_role_refused` | | nobody changes its own role |
 | `last_privileged_refused` | | the last account able to manage users stays |
-| `role_beyond_reach` | | the role holds more than the caller does, or the account being enabled holds no role or one nothing declares |
+| `user_not_editable` | | the account holds a role carrying more than the caller's |
+| `role_not_grantable` | | the role holds more than the caller does, or the account being enabled holds no role or one nothing declares |
 | `role_unknown` | `field` | nothing declares the role |
 | `role_changed` | | someone changed the account's role between the check and the write, and nothing was written |
 
