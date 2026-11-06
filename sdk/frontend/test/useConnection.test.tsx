@@ -133,6 +133,56 @@ test('reads every loaded page again in order when its list is refetched', async 
 	expect(result.current.hasNextPage).toBe(false)
 })
 
+/** Renders the hook on pages of two and loads the second page of the four rows served. */
+async function renderTwoPages() {
+	const graph = createGraphClient({ onSessionExpired: vi.fn() })
+	const { result } = renderConnection({ first: 2 }, graph)
+	await waitFor(() => expect(result.current.hasNextPage).toBe(true))
+	void result.current.fetchNextPage()
+	await waitFor(() => expect(result.current.rows).toHaveLength(4))
+	return { graph, result }
+}
+
+/** Loads four rows in two pages of two, then lists the added rows above them and rereads the pages. */
+async function rereadAfterAdding(added: TaskNode[]) {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report')
+	servePaged(() => listed)
+	const { graph, result } = await renderTwoPages()
+	listed = [...added, ...listed]
+	graph.refetch(['Tasks'])
+	return { listed, result }
+}
+
+test('keeps the last loaded row when a new row at the head pushes it past the pages read before', async () => {
+	const { listed, result } = await rereadAfterAdding(rowsOf('Approve the pricing'))
+
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(titles(listed)))
+	expect(result.current.hasNextPage).toBe(false)
+})
+
+test('keeps every loaded row when more new rows than a page arrive at the head', async () => {
+	const { listed, result } = await rereadAfterAdding(rowsOf('Approve the pricing', 'Renew the contract'))
+
+	await waitFor(() => expect(titles(result.current.rows)).toHaveLength(6))
+	expect(titles(result.current.rows)).toEqual(titles(listed))
+	expect(result.current.hasNextPage).toBe(false)
+})
+
+test('reads one page past the loaded rows when the last loaded row left the list', async () => {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report')
+	listed = [...listed, ...rowsOf('Chase it', 'Pay it', 'Quote the job', 'Renew the contract')]
+	const asked = servePaged(() => listed)
+	const { graph, result } = await renderTwoPages()
+
+	listed = listed.filter((row) => row.title !== 'File the report')
+	graph.refetch(['Tasks'])
+
+	await waitFor(() => expect(asked.filter((after) => after !== null)).toHaveLength(3))
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(titles(listed).slice(0, 6)))
+	expect(asked.filter((after) => after !== null)).toEqual(['send', 'send', 'chase'])
+	expect(result.current.hasNextPage).toBe(true)
+})
+
 test('keeps offering more after a reread when the list holds further pages', async () => {
 	const listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report', 'Chase it')
 	const asked = servePaged(() => listed)
@@ -212,6 +262,7 @@ test('keeps the newest reread when an older one lands last', async () => {
 		'Approve the pricing',
 		'Call the supplier',
 		'Send the quote',
+		'Book the courier',
 	])
 })
 
@@ -726,8 +777,8 @@ test('settles a burst of refetches on the newest list with one walk at a time', 
 	await settle()
 	await settle()
 
-	expect(titles(result.current.rows)).toEqual(titles(listed).slice(0, 4))
-	expect(gate.reads.slice(before).filter((read) => read.after !== null).length).toBeLessThanOrEqual(2)
+	expect(titles(result.current.rows)).toEqual(titles(listed))
+	expect(gate.reads.slice(before).filter((read) => read.after === 'renew').length).toBeLessThanOrEqual(2)
 })
 
 test('clears a failed load more once its list is refetched', async () => {

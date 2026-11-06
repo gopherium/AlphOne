@@ -62,6 +62,13 @@ interface loaderInput<TData, TVariables extends AnyVariables, TNode> {
 	paused: boolean
 }
 
+/** loadedRows is what a reread reads again: the page count past the first, every loaded id and the last page's ids. */
+interface loadedRows {
+	count: number
+	ids: Set<unknown>
+	last: Set<unknown>
+}
+
 /**
  * Pages one Relay connection by cursor, reading every loaded page again in order whenever its list is refetched.
  * @param options - The document, its variables, the page selector, and the pause flag.
@@ -198,7 +205,7 @@ async function reread<TData, TVariables extends AnyVariables, TNode>(
 		loader.failed = false
 		return
 	}
-	const pages = await rereadPages(input.client, input.options, loader.pages.length)
+	const pages = await rereadPages(input.client, input.options, loadedRowsOf(input.head, loader.pages))
 	if (generation === loader.generation) {
 		loader.failed = pages === undefined
 		loader.pages = pages ?? loader.pages
@@ -232,16 +239,16 @@ async function readMore<TData, TVariables extends AnyVariables, TNode>(
 }
 
 /**
- * Reads the first page and up to count pages after it, each from the cursor the one before it ends on.
+ * Reads the first page and the pages after it by cursor until the loaded rows are read again.
  * @param client - The graph client reading the pages.
  * @param options - The connection's document, variables and page selector.
- * @param count - How many pages past the first to read.
+ * @param loaded - The rows loaded before the reread.
  * @returns The pages past the first, as many as the list still holds, or undefined when a read failed.
  */
 async function rereadPages<TData, TVariables extends AnyVariables, TNode>(
 	client: Client,
 	options: ConnectionOptions<TData, TVariables, TNode>,
-	count: number,
+	loaded: loadedRows,
 ): Promise<ConnectionPage<TNode>[] | undefined> {
 	const pages: ConnectionPage<TNode>[] = []
 	let after: string | null | undefined
@@ -255,8 +262,42 @@ async function rereadPages<TData, TVariables extends AnyVariables, TNode>(
 		if (!page.pageInfo.hasNextPage) {
 			break
 		}
-	} while (pages.length <= count)
+	} while (readsOn(pages, loaded))
 	return pages.slice(1)
+}
+
+/**
+ * Reports whether a reread reads on, up to the loaded count and past it until the last loaded page is read again.
+ * @param pages - The pages the reread has read, the first page first.
+ * @param loaded - The rows loaded before the reread.
+ * @returns Whether to read on, past the loaded count only while the page just read held a loaded row.
+ */
+function readsOn<TNode>(pages: ConnectionPage<TNode>[], loaded: loadedRows): boolean {
+	if (pages.length <= loaded.count) {
+		return true
+	}
+	const read = idsOf(pages)
+	const latest = idsOf(pages.slice(-1))
+	return [...loaded.last].some((id) => !read.has(id)) && [...latest].some((id) => loaded.ids.has(id))
+}
+
+/**
+ * Returns the rows a reread reads again, from the first page and the pages past it.
+ * @param head - The first page, if it answers the current variables.
+ * @param pages - The pages past the first.
+ * @returns The page count beside the ids of every loaded row and of the last page's rows.
+ */
+function loadedRowsOf<TNode>(head: ConnectionPage<TNode> | undefined, pages: ConnectionPage<TNode>[]): loadedRows {
+	return { count: pages.length, ids: idsOf([head, ...pages]), last: idsOf(pages.slice(-1)) }
+}
+
+/**
+ * Returns the ids of the rows the given pages hold.
+ * @param pages - The pages, the first possibly not loaded yet.
+ * @returns The ids, rows without one left out.
+ */
+function idsOf<TNode>(pages: (ConnectionPage<TNode> | undefined)[]): Set<unknown> {
+	return new Set(rowsOf(pages).map(idOf).filter((id) => id !== undefined))
 }
 
 /**
@@ -308,13 +349,22 @@ function rowsOf<TNode>(pages: (ConnectionPage<TNode> | undefined)[]): TNode[] {
 	const seen = new Set<unknown>()
 	const rows: TNode[] = []
 	for (const edge of pages.flatMap((page) => page?.edges ?? [])) {
-		const id = (edge.node as { id?: unknown }).id
+		const id = idOf(edge.node)
 		if (id === undefined || !seen.has(id)) {
 			seen.add(id)
 			rows.push(edge.node)
 		}
 	}
 	return rows
+}
+
+/**
+ * Returns the id a node carries.
+ * @param node - The node.
+ * @returns The id, undefined when the node has none.
+ */
+function idOf(node: unknown): unknown {
+	return (node as { id?: unknown }).id
 }
 
 /**
