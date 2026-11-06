@@ -95,8 +95,10 @@ func coreSettings() map[string]string {
 	}
 }
 
-// settingsReadElsewhere names the example file settings that a command or the Go tests read, not the server.
+// settingsReadElsewhere names the example file settings that gonsole, a command or the Go tests read, not the server.
 var settingsReadElsewhere = []string{
+	"ALPHONE_MAX_PROCS",
+	"ALPHONE_MEMORY_LIMIT_MB",
 	"ALPHONE_TEST_DATABASE_URL",
 	"ALPHONE_TEST_DATABASE_MAX_AGE",
 	"ALPHONE_TEST_S3_ENDPOINT",
