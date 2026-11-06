@@ -24,13 +24,15 @@ const messageWithContent = "SELECT id FROM plugin_whatsapp.messages WHERE conver
 // bindLongChat binds the steps that read a long chat one page at a time.
 func (s *numbersScenario) bindLongChat(sc *godog.ScenarioContext) {
 	sc.Given(`^the customer "([^"]*)" wrote (\d+) messages to the WhatsApp number "([^"]*)"$`, s.writeMany)
-	sc.When(`^the workspace "([^"]*)" reads (\d+) messages of the conversation with "([^"]*)" on "([^"]*)"$`,
-		s.readNewest)
-	sc.When(`^the workspace "([^"]*)" reads (\d+) messages before "([^"]*)" `+
-		`of the conversation with "([^"]*)" on "([^"]*)"$`, s.readBefore)
+	sc.Given(`^the workspace "([^"]*)" opens the conversation with "([^"]*)" on "([^"]*)"$`, s.opensConversation)
+	sc.When(`^it reads (\d+) messages(?: before "([^"]*)")?$`, s.readMessages)
 	sc.Then(`^the messages read are "([^"]*)"$`, s.messagesRead)
-	sc.Then(`^the workspace "([^"]*)" names "([^"]*)" as the oldest message `+
-		`of the conversation with "([^"]*)" on "([^"]*)"$`, s.namesOldest)
+	sc.Then(`^it names "([^"]*)" as the oldest message$`, s.namesOldest)
+}
+
+// opensConversation keeps the conversation with customer on number in the workspace called name for the reads after it.
+func (s *numbersScenario) opensConversation(name, customer, number string) {
+	s.opened = conversationKey{workspace: name, customer: customer, number: number}
 }
 
 // writeMany delivers count text messages from customer to number in one delivery, one second apart.
@@ -58,14 +60,37 @@ func (s *numbersScenario) messageID(ctx context.Context, key conversationKey, co
 	return id, nil
 }
 
-// readPage reads up to limit messages of the conversation the key names, before the given message when one is named.
-func (s *numbersScenario) readPage(ctx context.Context, key conversationKey, limit int, before *uuid.UUID) error {
-	conversation, err := s.readConversation(ctx, key)
+// pageRequest names up to limit messages of a conversation, before the message holding content when one is named.
+type pageRequest struct {
+	conversation conversationKey
+	limit        int
+	before       string
+}
+
+// pageStart answers the id of the message the request reads before, nil when it names none.
+func (s *numbersScenario) pageStart(ctx context.Context, request pageRequest) (*uuid.UUID, error) {
+	if request.before == "" {
+		return nil, nil
+	}
+	id, err := s.messageID(ctx, request.conversation, request.before)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+// readPage reads the messages the request names and keeps their content in order.
+func (s *numbersScenario) readPage(ctx context.Context, request pageRequest) error {
+	conversation, err := s.readConversation(ctx, request.conversation)
+	if err != nil {
+		return err
+	}
+	before, err := s.pageStart(ctx, request)
 	if err != nil {
 		return err
 	}
 	messages, err := s.plugin.WhatsAppConversationResolvers().Messages(
-		s.in(ctx, key.workspace), conversation, &limit, before,
+		s.in(ctx, request.conversation.workspace), conversation, &request.limit, before,
 	)
 	if err != nil {
 		return err
@@ -77,21 +102,9 @@ func (s *numbersScenario) readPage(ctx context.Context, key conversationKey, lim
 	return nil
 }
 
-// readNewest reads up to limit messages of the conversation with customer on number, naming no starting message.
-func (s *numbersScenario) readNewest(ctx context.Context, name string, limit int, customer, number string) error {
-	return s.readPage(ctx, conversationKey{workspace: name, customer: customer, number: number}, limit, nil)
-}
-
-// readBefore reads up to limit messages of the conversation with customer on number that come before content.
-func (s *numbersScenario) readBefore(
-	ctx context.Context, name string, limit int, content, customer, number string,
-) error {
-	key := conversationKey{workspace: name, customer: customer, number: number}
-	before, err := s.messageID(ctx, key, content)
-	if err != nil {
-		return err
-	}
-	return s.readPage(ctx, key, limit, &before)
+// readMessages reads up to limit messages of the opened conversation, before content when named.
+func (s *numbersScenario) readMessages(ctx context.Context, limit int, content string) error {
+	return s.readPage(ctx, pageRequest{conversation: s.opened, limit: limit, before: content})
 }
 
 // messagesRead fails unless the last read answered exactly the given messages in that order.
@@ -102,9 +115,9 @@ func (s *numbersScenario) messagesRead(want string) error {
 	return nil
 }
 
-// namesOldest fails unless the conversation with customer on number names content as its oldest message.
-func (s *numbersScenario) namesOldest(ctx context.Context, name, content, customer, number string) error {
-	key := conversationKey{workspace: name, customer: customer, number: number}
+// namesOldest fails unless the opened conversation names content as its oldest message.
+func (s *numbersScenario) namesOldest(ctx context.Context, content string) error {
+	key := s.opened
 	conversation, err := s.readConversation(ctx, key)
 	if err != nil {
 		return err
@@ -113,7 +126,7 @@ func (s *numbersScenario) namesOldest(ctx context.Context, name, content, custom
 	if err != nil {
 		return err
 	}
-	oldest, err := s.plugin.WhatsAppConversationResolvers().OldestMessageID(s.in(ctx, name), conversation)
+	oldest, err := s.plugin.WhatsAppConversationResolvers().OldestMessageID(s.in(ctx, key.workspace), conversation)
 	if err != nil {
 		return err
 	}

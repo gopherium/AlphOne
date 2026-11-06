@@ -122,6 +122,7 @@ type numbersScenario struct {
 	answered  int
 	delivered int
 	read      []string
+	opened    conversationKey
 }
 
 // initializeWhatsAppNumbers returns the binding of the WhatsApp number steps, t holding their databases.

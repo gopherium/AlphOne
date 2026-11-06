@@ -102,7 +102,8 @@ func (s *numbersScenario) holdsContactOn(ctx context.Context, name, contact, ide
 }
 
 // holdsMessages fails unless the conversation with customer on number holds want messages.
-func (s *numbersScenario) holdsMessages(ctx context.Context, name string, want int, customer, number string) error {
+func (s *numbersScenario) holdsMessages(name string, want int, customer, number string) error {
+	ctx := s.t.Context()
 	id, err := s.conversationID(ctx, conversationKey{workspace: name, customer: customer, number: number})
 	if err != nil {
 		return err
