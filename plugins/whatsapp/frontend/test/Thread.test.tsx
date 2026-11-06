@@ -116,6 +116,62 @@ function rowTexts(): string[] {
 /** OLDER names the button that loads the older messages. */
 const OLDER = { name: 'Show older messages' }
 
+/** Lists one message, delivers an arrival, and returns the row each one is listed on. */
+async function rowsAfterArrival(loaded: ReturnType<typeof message>, arrival: ReturnType<typeof message>) {
+	threadOf(loaded)
+	const fake = renderThread()
+	await screen.findByText(loaded.content)
+
+	fake.emit({ whatsAppMessageReceived: arrival })
+	await screen.findByText(arrival.content)
+
+	const contents = rowTexts()
+	return {
+		loaded: contents.findIndex((text) => text.includes(loaded.content)),
+		arrival: contents.findIndex((text) => text.includes(arrival.content)),
+	}
+}
+
+/** Loads the older page of a long chat whose log reports the given metrics, and returns the spy on each scroll set. */
+async function loadOlderMessages({
+	clientHeight,
+	scrollTop,
+	scrolled,
+	scrolledTo,
+}: {
+	clientHeight: number
+	scrollTop: number
+	scrolled: boolean
+	scrolledTo?: number
+}) {
+	const user = userEvent.setup()
+	let height = 1000
+	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(() => height)
+	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(clientHeight)
+	const scrollTopGet = vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(scrollTop)
+	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
+	const gate = heldGate()
+	chatInPagesOfTwo(chatOf(4), gate.wait)
+	renderThread()
+	const button = await screen.findByRole('button', OLDER)
+	const log = screen.getByRole('log')
+	if (scrolled) {
+		fireEvent.scroll(log)
+	}
+	scrollTopSet.mockClear()
+
+	await user.click(button)
+	await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
+	if (scrolledTo !== undefined) {
+		scrollTopGet.mockReturnValue(scrolledTo)
+		fireEvent.scroll(log)
+	}
+	height = 1600
+	gate.open()
+	await screen.findByText('Message 1')
+	return scrollTopSet
+}
+
 /** Serves the thread document with the given messages. */
 function threadOf(...messages: Record<string, unknown>[]) {
 	threadOn(null, ...messages)
@@ -138,6 +194,22 @@ function renderThread({ strict = false }: { strict?: boolean } = {}): FakeGraph 
 	)
 	render(strict ? <StrictMode>{tree}</StrictMode> : tree)
 	return fake
+}
+
+/** upstreamFailure answers every send with a failure the provider reported. */
+const upstreamFailure = graphql.mutation('WhatsAppSendMessage', () =>
+	HttpResponse.json({
+		data: null,
+		errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
+	}),
+)
+
+/** Waits for the first message, then types hello into the composer and sends it. */
+async function sendReply() {
+	const user = userEvent.setup()
+	await screen.findByText('Hi, is the order ready?')
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
+	await user.click(screen.getByRole('button', { name: /send/i }))
 }
 
 test('shows a spinner in place of the log while the messages arrive', async () => {
@@ -347,94 +419,54 @@ test('keeps one copy of an arrival the thread reload also returns', async () => 
 })
 
 test('lists an arrival older than the loaded rows in its sent order', async () => {
-	threadOf(
+	const rows = await rowsAfterArrival(
 		message({
 			id: '019f4a00-0000-7000-8000-0000000000b2',
 			content: 'Later message',
 			sentAt: '2026-07-06T10:30:00Z',
 		}),
-	)
-	const fake = renderThread()
-	await screen.findByText('Later message')
-
-	fake.emit({
-		whatsAppMessageReceived: message({
+		message({
 			id: '019f4a00-0000-7000-8000-0000000000b1',
 			content: 'Earlier message',
 			sentAt: '2026-07-06T10:00:00Z',
 		}),
-	})
-	await screen.findByText('Earlier message')
-
-	const contents = screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
-	expect(contents.findIndex((text) => text.includes('Earlier message'))).toBeLessThan(
-		contents.findIndex((text) => text.includes('Later message')),
 	)
+
+	expect(rows.arrival).toBeLessThan(rows.loaded)
 })
 
 test('lists two messages sent in the same second by their ids', async () => {
-	threadOf(
+	const rows = await rowsAfterArrival(
 		message({
 			id: '019f4a00-0000-7000-8000-0000000000b2',
 			content: 'Higher id',
 			sentAt: '2026-07-06T10:00:00Z',
 		}),
-	)
-	const fake = renderThread()
-	await screen.findByText('Higher id')
-
-	fake.emit({
-		whatsAppMessageReceived: message({
+		message({
 			id: '019f4a00-0000-7000-8000-0000000000b1',
 			content: 'Lower id',
 			sentAt: '2026-07-06T10:00:00Z',
 		}),
-	})
-	await screen.findByText('Lower id')
-
-	const contents = screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
-	expect(contents.findIndex((text) => text.includes('Lower id'))).toBeLessThan(
-		contents.findIndex((text) => text.includes('Higher id')),
 	)
+
+	expect(rows.arrival).toBeLessThan(rows.loaded)
 })
 
 test('reports when the reply cannot be sent', async () => {
-	const user = userEvent.setup()
-	server.use(
-		graphql.mutation('WhatsAppSendMessage', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
-			}),
-		),
-	)
+	server.use(upstreamFailure)
 
 	renderThread()
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByText(/could not be sent/i)).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
 })
 
 test('keeps a reply that fails on screen in the composer under StrictMode, with no toast', async () => {
-	const user = userEvent.setup()
-	server.use(
-		graphql.mutation('WhatsAppSendMessage', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
-			}),
-		),
-	)
+	server.use(upstreamFailure)
 
 	renderThread({ strict: true })
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be sent/i)
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
@@ -442,7 +474,6 @@ test('keeps a reply that fails on screen in the composer under StrictMode, with 
 })
 
 test('says the number is gone when a reply meets a removed number', async () => {
-	const user = userEvent.setup()
 	configureErrorText({ templates: errorTemplates, fallback: () => '' })
 	server.use(
 		graphql.mutation('WhatsAppSendMessage', () =>
@@ -459,17 +490,13 @@ test('says the number is gone when a reply meets a removed number', async () => 
 	)
 
 	renderThread()
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('That number is no longer connected.')
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
 })
 
 test('explains a rejected reply with the code the graph surfaced', async () => {
-	const user = userEvent.setup()
 	server.use(
 		graphql.mutation('WhatsAppSendMessage', () =>
 			HttpResponse.json({
@@ -485,10 +512,7 @@ test('explains a rejected reply with the code the graph surfaced', async () => {
 	)
 
 	renderThread()
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/24-hour/i)
 })
@@ -588,72 +612,19 @@ test('hides the button once the oldest message is loaded', async () => {
 })
 
 test('keeps the reader on the same row when older messages load', async () => {
-	const user = userEvent.setup()
-	let height = 1000
-	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(() => height)
-	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(100)
-	vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(0)
-	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
-	const gate = heldGate()
-	chatInPagesOfTwo(chatOf(4), gate.wait)
-	renderThread()
-	const button = await screen.findByRole('button', OLDER)
-	fireEvent.scroll(screen.getByRole('log'))
-	scrollTopSet.mockClear()
-
-	await user.click(button)
-	await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
-	height = 1600
-	gate.open()
-	await screen.findByText('Message 1')
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 100, scrollTop: 0, scrolled: true })
 
 	expect(scrollTopSet).toHaveBeenLastCalledWith(600)
 })
 
 test('does not jump to the newest message when older messages load while following', async () => {
-	const user = userEvent.setup()
-	let height = 1000
-	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(() => height)
-	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(900)
-	vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(50)
-	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
-	const gate = heldGate()
-	chatInPagesOfTwo(chatOf(4), gate.wait)
-	renderThread()
-	const button = await screen.findByRole('button', OLDER)
-	scrollTopSet.mockClear()
-
-	await user.click(button)
-	await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
-	height = 1600
-	gate.open()
-	await screen.findByText('Message 1')
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 900, scrollTop: 50, scrolled: false })
 
 	expect(scrollTopSet).toHaveBeenLastCalledWith(650)
 })
 
 test('keeps the row the reader scrolls to while older messages load', async () => {
-	const user = userEvent.setup()
-	let height = 1000
-	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(() => height)
-	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(100)
-	const scrollTopGet = vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(0)
-	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
-	const gate = heldGate()
-	chatInPagesOfTwo(chatOf(4), gate.wait)
-	renderThread()
-	const button = await screen.findByRole('button', OLDER)
-	const log = screen.getByRole('log')
-	fireEvent.scroll(log)
-	scrollTopSet.mockClear()
-
-	await user.click(button)
-	await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
-	scrollTopGet.mockReturnValue(300)
-	fireEvent.scroll(log)
-	height = 1600
-	gate.open()
-	await screen.findByText('Message 1')
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 100, scrollTop: 0, scrolled: true, scrolledTo: 300 })
 
 	expect(scrollTopSet).toHaveBeenLastCalledWith(900)
 })
@@ -699,6 +670,30 @@ test('moves the ticks on an older row when a conversation event rereads the page
 
 	expect(await screen.findByText('Message delivered')).toBeInTheDocument()
 	expect(screen.queryByText('Message sent')).toBeNull()
+})
+
+test('keeps the oldest loaded row listed when a new message rereads the pages', async () => {
+	const user = userEvent.setup()
+	const chat = chatOf(4)
+	chat[1] = chatMessage(2, { direction: 'outbound', status: 'sent' })
+	chatInPagesOfTwo(chat)
+	const fake = renderThread()
+	await user.click(await screen.findByRole('button', OLDER))
+	await screen.findByText('Message 1')
+
+	chat[1] = chatMessage(2, { direction: 'outbound', status: 'delivered' })
+	chat.push(chatMessage(5))
+	act(() => fake.graph.refetch(['WhatsAppThread']))
+	await screen.findByText('Message delivered')
+
+	expect(screen.getAllByText(/^Message \d$/).map((node) => node.textContent)).toEqual([
+		'Message 1',
+		'Message 2',
+		'Message 3',
+		'Message 4',
+		'Message 5',
+	])
+	expect(screen.queryByRole('button', OLDER)).toBeNull()
 })
 
 test('shows a notice when an older page cannot be reached and keeps the log and the composer', async () => {
