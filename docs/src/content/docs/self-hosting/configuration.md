@@ -48,7 +48,7 @@ seconds and gives up after five minutes.
 | `ALPHONE_WEB_DIR` | no | unset | Directory holding the built frontend, served for all non-API paths. The container image sets `/web`. Unset, only the API is served, which suits development behind Vite. |
 | `ALPHONE_PUBLIC_URL` | no | unset | The address people reach AlphOne at, such as `https://crm.example.com`. It must be an `http` or `https` address of a site root, with no path, query or fragment. Plugins get it with or without a mail relay, for example to send people back to AlphOne from another site. An invitation link that AlphOne shows for you to pass on starts with it too. Unset, that link holds only its path, such as `/activate?token=...`. A mail relay requires it, because the link in every mail leads back to it. A value AlphOne refuses stops `serve` and the other commands listed at the top of this page. |
 | `ALPHONE_PRIVACY_URL` | no | unset | The address of your privacy policy, such as `https://example.com/privacy`. It shows as a link under the form on the sign-in, lost password, set password and reset password screens. It must be an `http` or `https` address with a host and no user or password, and it may carry a port from 1 to 65535, a path, a query and a fragment. Unset, no link shows. |
-| `ALPHONE_TERMS_URL` | no | unset | The address of your terms of service, shown and checked the same way as `ALPHONE_PRIVACY_URL`. The two together must leave 256 bytes of `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES`, since the sign-in screens read them with no identity. |
+| `ALPHONE_TERMS_URL` | no | unset | The address of your terms of service, shown and checked the same way as `ALPHONE_PRIVACY_URL`. The two together, each counted as written in JSON with its quotes, must leave 256 bytes of `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES`, since the sign-in screens read them with no identity. |
 | `ALPHONE_TRUSTED_PROXIES` | no | unset | Comma-separated CIDR ranges allowed to set `X-Forwarded-For`, e.g. `172.18.0.0/16`. Only addresses in these ranges are trusted when the login rate limiter resolves the client IP. A peer outside them is limited by its own address, whatever header it sends. A range written in IPv4-mapped form, such as `::ffff:172.18.0.0/112`, counts as the IPv4 range it covers, and one shorter than `/96` stops `serve`. Unset, the direct peer address is used. **Set this whenever AlphOne runs behind a reverse proxy**, or all visitors share one rate-limit bucket. Each entry must be CIDR notation. A bare IP is refused. |
 | `ALPHONE_DEV_GRAPHIQL` | no | unset | Any non-empty value serves the interactive GraphiQL page on `GET /api/graphql`. Development only. |
 
@@ -136,7 +136,7 @@ value in words, or a byte size written with a unit such as `1MiB`.
 | `ALPHONE_GRAPH_ANONYMOUS_MAX_BYTES` | The largest graph request body from a caller who is not signed in, in bytes. Defaults to 16384, which is 16 KiB. The longest valid sign in, a 254 character address with a 1024 character password, is under 7000 bytes, and about 15500 bytes from a client that escapes every character. Such a caller sends JSON only. A multipart request or a larger body from one gets the `UNAUTHENTICATED` error before it takes a slot. |
 | `ALPHONE_GRAPH_ANONYMOUS_MAX_TOKENS` | The most tokens the query of a caller who is not signed in holds. A token is one name, value, mark such as `{` or `:`, or comment. Defaults to 64. The largest query a screen sends before sign in, the sign in or the one accepting an invitation, holds 38. A longer query gets the `UNAUTHENTICATED` error before it takes a slot. |
 | `ALPHONE_GRAPH_ANONYMOUS_QUERY_MAX_BYTES` | The largest query a caller who is not signed in sends, in bytes. Defaults to 1024. The largest query a screen sends before sign in is 212 bytes. Send credentials as variables, since a long password written into the query goes over this cap. A larger query gets the `UNAUTHENTICATED` error before it takes a slot. |
-| `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES` | The largest answer a caller who is not signed in gets, in bytes. Defaults to 16384, which is 16 KiB. Such an answer is held in memory and its slot freed before it is sent, so a caller who reads slowly never holds a slot. A sign in answer is under 1000 bytes. A larger answer is replaced by the `UNAUTHENTICATED` error. It must leave 256 bytes beside `ALPHONE_PRIVACY_URL` and `ALPHONE_TERMS_URL`, or `serve` will not start. |
+| `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES` | The largest answer a caller who is not signed in gets, in bytes. Defaults to 16384, which is 16 KiB. Such an answer is held in memory and its slot freed before it is sent, so a caller who reads slowly never holds a slot. A sign in answer is under 1000 bytes. A larger answer is replaced by the `UNAUTHENTICATED` error. It must hold 256 bytes beside `ALPHONE_PRIVACY_URL` and `ALPHONE_TERMS_URL`, each counted as written in JSON with its quotes, so at least 260 when neither is set, or `serve` will not start. |
 | `ALPHONE_GRAPH_ANONYMOUS_PER_IP` | How many graph requests callers who are not signed in run at once from one client address. Defaults to 5. A signed out screen sends at most two at once, the locale and a sign in. The address is the one `ALPHONE_TRUSTED_PROXIES` names, so behind a proxy that list leaves out, every visitor shares the proxy's address and this one budget. |
 | `ALPHONE_GRAPH_ANONYMOUS_CEILING` | How many graph requests callers who are not signed in run at once from every address together. Defaults to 20. |
 | `ALPHONE_STREAMS_PER_USER` | How many subscriptions one caller holds open at once, and apart from them how many plugin requests. Defaults to 5 of each. |
@@ -166,6 +166,18 @@ longer than the three added together. The Docker Compose file in
 | `ALPHONE_SHUTDOWN_GRACE` | How long running requests get to finish once a stop begins. Defaults to `10s`. The requests still running after that are cancelled. |
 | `ALPHONE_SHUTDOWN_CANCEL_GRACE` | How long the cancelled requests get to end before AlphOne closes their connections. Defaults to `5s`. |
 | `ALPHONE_SHUTDOWN_STOP_GRACE` | How long the plugins get to stop once the requests are over. Defaults to `5s`. |
+
+## Processors and memory
+
+Each value is a whole number. Unset, AlphOne leaves both to Go, which runs
+on as many processors as the container may use and sets no memory limit.
+A value can only lower what Go would pick. A value AlphOne refuses stops
+`serve` and `alphone check`.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_MAX_PROCS` | The most processors that run AlphOne's code at once. It must stand at or below the processors of the machine. |
+| `ALPHONE_MEMORY_LIMIT_MB` | The memory, in megabytes of 1048576 bytes, that AlphOne tries to stay under by freeing memory sooner. |
 
 ## Webhooks
 
