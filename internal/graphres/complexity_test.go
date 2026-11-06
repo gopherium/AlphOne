@@ -257,11 +257,13 @@ func TestWhatsAppScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 				contact { id name }
 			}
 		}`,
-		"thread": `query WhatsAppThread($conversationId: UUID!) {
+		"thread": `query WhatsAppThread($conversationId: UUID!, $after: UUID) {
 			whatsAppConversation(id: $conversationId) {
 				id
+				number
+				oldestMessageId
 				contact { id name }
-				messages {
+				messages(before: $after) {
 					id externalId direction content contentType sentAt status statusDetail
 					media { status mimeType filename fileSize voice animated downloadPath }
 				}
