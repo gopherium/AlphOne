@@ -79,7 +79,8 @@ func TestPresentErrorSpeaksTheBrickErrorsInItsOwnVoice(t *testing.T) {
 		{"own role", authkit.ErrSelfRole, "you cannot change your own role"},
 		{"own account", authkit.ErrSelfDisable, "you cannot disable your own account"},
 		{"last privileged", gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
-		{"beyond reach", authkit.ErrBeyondReach, "that role is beyond your own"},
+		{"not editable", authkit.ErrUserNotEditable, "you are not allowed to edit this user"},
+		{"not grantable", authkit.ErrRoleNotGrantable, "you are not allowed to give users that role"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -106,7 +107,8 @@ func TestEverySpokenErrorKeepsItsMessage(t *testing.T) {
 		authkit.ErrSelfRole,
 		authkit.ErrSelfDisable,
 		gouncer.ErrLastPrivileged,
-		authkit.ErrBeyondReach,
+		authkit.ErrUserNotEditable,
+		authkit.ErrRoleNotGrantable,
 	} {
 		presented := graphres.PresentError(context.Background(), spoken)
 

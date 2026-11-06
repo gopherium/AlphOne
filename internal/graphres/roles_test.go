@@ -119,18 +119,30 @@ func wantUnknownRole(t *testing.T, raw json.RawMessage) {
 	}
 }
 
-// wantBeyondReach checks the first error answers a role beyond the caller's reach in the deployment's own voice.
-func wantBeyondReach(t *testing.T, raw json.RawMessage) {
+// wantNotEditable checks the first error answers an account beyond the caller's reach in the deployment's own voice.
+func wantNotEditable(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	wantRefusal(t, raw, "user_not_editable", "you are not allowed to edit this user")
+}
+
+// wantNotGrantable checks the first error answers a role the caller may not give in the deployment's own voice.
+func wantNotGrantable(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	wantRefusal(t, raw, "role_not_grantable", "you are not allowed to give users that role")
+}
+
+// wantRefusal checks the first error answers VALIDATION with the reason and the message.
+func wantRefusal(t *testing.T, raw json.RawMessage, reason, message string) {
 	t.Helper()
 	refused := refusalOf(t, raw)
-	if got := refused.Message; got != "that role is beyond your own" {
-		t.Errorf("message = %q, want that role is beyond your own", got)
+	if got := refused.Message; got != message {
+		t.Errorf("message = %q, want %q", got, message)
 	}
 	if got := refused.Extensions["code"]; got != "VALIDATION" {
 		t.Errorf("code = %v, want VALIDATION", got)
 	}
-	if got := refused.Extensions["reason"]; got != "role_beyond_reach" {
-		t.Errorf("reason = %v, want role_beyond_reach", got)
+	if got := refused.Extensions["reason"]; got != reason {
+		t.Errorf("reason = %v, want %s", got, reason)
 	}
 }
 
@@ -335,9 +347,7 @@ func TestInviteRefusesARoleBeyondTheCallersReach(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if len(answered.Errors) == 0 {
-		t.Error("invite answered no error, want an admin refused a role it does not hold")
-	}
+	wantNotGrantable(t, answered.Errors)
 }
 
 func TestMeAnswersTheCapabilitiesTheRoleHolds(t *testing.T) {
@@ -466,9 +476,7 @@ func TestSetUserRoleRefusesGrantingBeyondTheCallersReach(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if len(answered.Errors) == 0 {
-		t.Error("setUserRole answered no error, want an admin refused a role it does not hold")
-	}
+	wantNotGrantable(t, answered.Errors)
 	if got := store.Users[held.ID].Role; got != role.Member.String() {
 		t.Errorf("stored role = %q, want the refused write to store nothing", got)
 	}
@@ -477,21 +485,28 @@ func TestSetUserRoleRefusesGrantingBeyondTheCallersReach(t *testing.T) {
 func TestSetUserRoleRefusesTouchingAnAccountBeyondTheCallersReach(t *testing.T) {
 	t.Parallel()
 
-	store, held := roledStore(t, "steward")
-	resolver := newAuthResolver(store)
-	actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
-	client := newActingClient(t, resolver, actor)
+	for name, given := range map[string]string{
+		"a role the caller may give":     role.Member.String(),
+		"a role the caller may not give": "steward",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	answered, err := client.RawPost(settingRole(held.ID, role.Member.String()))
+			store, held := roledStore(t, "steward")
+			resolver := newAuthResolver(store)
+			actor := authkit.Identity{ID: uuid.Must(uuid.NewV7()), Role: role.Admin.String()}
+			client := newActingClient(t, resolver, actor)
 
-	if err != nil {
-		t.Fatalf("RawPost() error = %v, want nil", err)
-	}
-	if len(answered.Errors) == 0 {
-		t.Error("setUserRole answered no error, want an admin refused an account holding more")
-	}
-	if got := store.Users[held.ID].Role; got != "steward" {
-		t.Errorf("stored role = %q, want the refused write to leave it", got)
+			answered, err := client.RawPost(settingRole(held.ID, given))
+
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+			wantNotEditable(t, answered.Errors)
+			if got := store.Users[held.ID].Role; got != "steward" {
+				t.Errorf("stored role = %q, want the refused write to leave it", got)
+			}
+		})
 	}
 }
 
@@ -600,7 +615,7 @@ func TestSetUserDisabledRefusesEnablingAnAccountWhoseRoleNobodyDeclares(t *testi
 			if err != nil {
 				t.Fatalf("RawPost() error = %v, want nil", err)
 			}
-			wantBeyondReach(t, answered.Errors)
+			wantNotGrantable(t, answered.Errors)
 			if !store.Users[held.ID].Disabled {
 				t.Error("the account is enabled, want the refused write to leave it disabled")
 			}
@@ -662,9 +677,7 @@ func TestSetUserDisabledRefusesAnAccountBeyondTheCallersReach(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RawPost() error = %v, want nil", err)
 	}
-	if len(answered.Errors) == 0 {
-		t.Error("setUserDisabled answered no error, want an admin refused an account holding more")
-	}
+	wantNotEditable(t, answered.Errors)
 	if store.Users[held.ID].Disabled {
 		t.Error("the account is barred, want the refused write to leave it")
 	}
