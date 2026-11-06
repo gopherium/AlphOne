@@ -248,7 +248,7 @@ func TestMessagesListCarriesDeliveryStatus(t *testing.T) {
 		wamid: "wamid.out.list", status: "failed", detail: "131047 Re-engagement message",
 	})
 
-	rows, err := p.store.listMessages(t.Context(), conversationID, 50)
+	rows, err := p.store.listMessages(t.Context(), conversationID, 50, nil)
 	if err != nil {
 		t.Fatalf("listMessages() error = %v, want nil", err)
 	}
@@ -264,7 +264,7 @@ func TestMessagesListCarriesDeliveryStatus(t *testing.T) {
 	}
 
 	messages, err := p.WhatsAppConversationResolvers().Messages(
-		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil)
+		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}
@@ -276,7 +276,7 @@ func TestMessagesListCarriesDeliveryStatus(t *testing.T) {
 	}
 
 	inboundConversation, _ := seedMessage(t, p, "wamid.in.nullstatus")
-	inboundRows, err := p.store.listMessages(t.Context(), inboundConversation, 50)
+	inboundRows, err := p.store.listMessages(t.Context(), inboundConversation, 50, nil)
 	if err != nil {
 		t.Fatalf("listMessages() for the inbound thread error = %v, want nil", err)
 	}

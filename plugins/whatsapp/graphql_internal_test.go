@@ -41,7 +41,7 @@ func TestTheListsAnswerWithinTheHostPageBounds(t *testing.T) {
 
 	_, conversations := p.QueryResolvers().WhatsAppConversations(t.Context(), &past, nil)
 	_, messages := p.WhatsAppConversationResolvers().Messages(t.Context(),
-		&model.WhatsAppConversation{ID: uuid.Must(uuid.NewV7())}, &past)
+		&model.WhatsAppConversation{ID: uuid.Must(uuid.NewV7())}, &past, nil)
 
 	for name, err := range map[string]error{"conversations": conversations, "messages": messages} {
 		var coded sdk.GraphError

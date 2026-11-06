@@ -374,7 +374,7 @@ func TestAConversationOnARemovedNumberStaysReadable(t *testing.T) {
 	if read == nil {
 		t.Fatal("WhatsAppConversation() = nil, want the conversation kept")
 	}
-	messages, err := p.WhatsAppConversationResolvers().Messages(mine, read, nil)
+	messages, err := p.WhatsAppConversationResolvers().Messages(mine, read, nil, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}

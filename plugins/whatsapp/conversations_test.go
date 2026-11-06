@@ -42,7 +42,7 @@ func listMessages(
 ) []*model.WhatsAppMessage {
 	t.Helper()
 	messages, err := p.WhatsAppConversationResolvers().Messages(
-		t.Context(), &model.WhatsAppConversation{ID: id}, nil)
+		t.Context(), &model.WhatsAppConversation{ID: id}, nil, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}
@@ -199,7 +199,7 @@ func TestListMessagesPastTheLimitAnswersTheNewestOldestFirst(t *testing.T) {
 	ingestEvent(t, routes, "wamid.3", "184467235", "Maria Perez", "1751791200", "third")
 	limit := 2
 
-	got, err := p.WhatsAppConversationResolvers().Messages(t.Context(), onlyConversation(t, p), &limit)
+	got, err := p.WhatsAppConversationResolvers().Messages(t.Context(), onlyConversation(t, p), &limit, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}

@@ -338,8 +338,9 @@ type ComplexityRoot struct {
 		ID                 func(childComplexity int) int
 		LastActivityAt     func(childComplexity int) int
 		LastMessagePreview func(childComplexity int) int
-		Messages           func(childComplexity int, limit *int) int
+		Messages           func(childComplexity int, limit *int, before *uuid.UUID) int
 		Number             func(childComplexity int) int
+		OldestMessageID    func(childComplexity int) int
 		Status             func(childComplexity int) int
 	}
 
@@ -455,7 +456,8 @@ type TaskResolver interface {
 }
 type WhatsAppConversationResolver interface {
 	Contact(ctx context.Context, obj *model.WhatsAppConversation) (*model.Contact, error)
-	Messages(ctx context.Context, obj *model.WhatsAppConversation, limit *int) ([]*model.WhatsAppMessage, error)
+	OldestMessageID(ctx context.Context, obj *model.WhatsAppConversation) (*uuid.UUID, error)
+	Messages(ctx context.Context, obj *model.WhatsAppConversation, limit *int, before *uuid.UUID) ([]*model.WhatsAppMessage, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -1881,13 +1883,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.WhatsAppConversation.Messages(childComplexity, args["limit"].(*int)), true
+		return e.ComplexityRoot.WhatsAppConversation.Messages(childComplexity, args["limit"].(*int), args["before"].(*uuid.UUID)), true
 	case "WhatsAppConversation.number":
 		if e.ComplexityRoot.WhatsAppConversation.Number == nil {
 			break
 		}
 
 		return e.ComplexityRoot.WhatsAppConversation.Number(childComplexity), true
+	case "WhatsAppConversation.oldestMessageId":
+		if e.ComplexityRoot.WhatsAppConversation.OldestMessageID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WhatsAppConversation.OldestMessageID(childComplexity), true
 	case "WhatsAppConversation.status":
 		if e.ComplexityRoot.WhatsAppConversation.Status == nil {
 			break
@@ -2278,7 +2286,8 @@ type WhatsAppConversation {
   lastMessagePreview: String
   number: String
   contact: Contact! @goField(forceResolver: true)
-  messages(limit: Int): [WhatsAppMessage!]!
+  oldestMessageId: UUID @goField(forceResolver: true)
+  messages(limit: Int, before: UUID): [WhatsAppMessage!]!
     @goField(forceResolver: true)
     @listSize(slicingArguments: ["limit"])
 }
@@ -2783,6 +2792,8 @@ func (ec *executionContext) childFields_WhatsAppConversation(ctx context.Context
 		return ec.fieldContext_WhatsAppConversation_number(ctx, field)
 	case "contact":
 		return ec.fieldContext_WhatsAppConversation_contact(ctx, field)
+	case "oldestMessageId":
+		return ec.fieldContext_WhatsAppConversation_oldestMessageId(ctx, field)
 	case "messages":
 		return ec.fieldContext_WhatsAppConversation_messages(ctx, field)
 	}
@@ -3960,6 +3971,14 @@ func (ec *executionContext) field_WhatsAppConversation_messages_args(ctx context
 		return nil, err
 	}
 	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "before",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["before"] = arg1
 	return args, nil
 }
 
@@ -9718,6 +9737,29 @@ func (ec *executionContext) fieldContext_WhatsAppConversation_contact(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _WhatsAppConversation_oldestMessageId(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WhatsAppConversation_oldestMessageId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.WhatsAppConversation().OldestMessageID(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *uuid.UUID) graphql.Marshaler {
+			return ec.marshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_WhatsAppConversation_oldestMessageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WhatsAppConversation", field, true, true, errors.New("field of type UUID does not have child fields"))
+}
+
 func (ec *executionContext) _WhatsAppConversation_messages(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppConversation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9728,7 +9770,7 @@ func (ec *executionContext) _WhatsAppConversation_messages(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.WhatsAppConversation().Messages(ctx, obj, fc.Args["limit"].(*int))
+			return ec.Resolvers.WhatsAppConversation().Messages(ctx, obj, fc.Args["limit"].(*int), fc.Args["before"].(*uuid.UUID))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.WhatsAppMessage) graphql.Marshaler {
@@ -14340,6 +14382,44 @@ func (ec *executionContext) _WhatsAppConversation(ctx context.Context, sel ast.S
 				}()
 				res = ec._WhatsAppConversation_contact(ctx, field, obj)
 				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "oldestMessageId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WhatsAppConversation_oldestMessageId(ctx, field, obj)
+				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res

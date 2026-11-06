@@ -39,6 +39,179 @@ func seedPreviewConversation(
 	return conversationID
 }
 
+// storedThread stores a conversation whose messages carry the given sent times and returns it with their ids in order.
+func storedThread(t *testing.T, p *Plugin, sentAt ...time.Time) (uuid.UUID, []uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	contactID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(ctx,
+		`INSERT INTO core.contacts (id, name, created_at) VALUES ($1, $2, $3)`,
+		contactID, "Maria Perez", time.Now().UTC(),
+	); err != nil {
+		t.Fatalf("inserting contact: %v", err)
+	}
+	conversationID := uuid.Must(uuid.NewV7())
+	if _, err := p.pool.Exec(ctx,
+		`INSERT INTO plugin_whatsapp.conversations (id, contact_id, channel, external_id, status,
+			last_activity_at, created_at)
+		VALUES ($1, $2, 'whatsapp', $3, 'open', now(), now())`,
+		conversationID, contactID, conversationID.String(),
+	); err != nil {
+		t.Fatalf("inserting conversation: %v", err)
+	}
+	ids := make([]uuid.UUID, len(sentAt))
+	for i, at := range sentAt {
+		ids[i] = uuid.Must(uuid.NewV7())
+		if _, err := p.pool.Exec(ctx,
+			`INSERT INTO plugin_whatsapp.messages (id, conversation_id, external_id, direction, content,
+				content_type, sent_at, raw, created_at)
+			VALUES ($1, $2, $3, 'inbound', $4, 'text', $5, '{}', now())`,
+			ids[i], conversationID, ids[i].String(), fmt.Sprintf("message %d", i+1), at,
+		); err != nil {
+			t.Fatalf("inserting message %d: %v", i+1, err)
+		}
+	}
+	return conversationID, ids
+}
+
+// minutesApart returns count sent times one minute apart.
+func minutesApart(count int) []time.Time {
+	first := time.Date(2026, time.July, 18, 12, 0, 0, 0, time.UTC)
+	times := make([]time.Time, count)
+	for i := range times {
+		times[i] = first.Add(time.Duration(i) * time.Minute)
+	}
+	return times
+}
+
+// sameSecond returns count sent times that all fall in one second.
+func sameSecond(count int) []time.Time {
+	times := make([]time.Time, count)
+	for i := range times {
+		times[i] = time.Date(2026, time.July, 18, 12, 0, 0, 0, time.UTC)
+	}
+	return times
+}
+
+// wantMessages fails unless rows hold exactly the given ids in that order.
+func wantMessages(t *testing.T, rows []messageRow, want ...uuid.UUID) {
+	t.Helper()
+	got := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		got[i] = row.ID
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("messages = %v, want %v", got, want)
+	}
+}
+
+func TestListMessagesAnswersThePageBeforeTheGivenMessage(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, ids := storedThread(t, p, minutesApart(5)...)
+
+	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &ids[3])
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+
+	wantMessages(t, rows, ids[1], ids[2])
+}
+
+func TestListMessagesOrdersSameSecondPagesByID(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, ids := storedThread(t, p, sameSecond(4)...)
+
+	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &ids[2])
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+
+	wantMessages(t, rows, ids[0], ids[1])
+}
+
+func TestListMessagesBeforeAnUnknownMessageIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, _ := storedThread(t, p, minutesApart(3)...)
+	unknown := uuid.Must(uuid.NewV7())
+
+	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &unknown)
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+
+	wantMessages(t, rows)
+}
+
+func TestListMessagesBeforeAMessageOfAnotherConversationIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, _ := storedThread(t, p, minutesApart(3)...)
+	_, others := storedThread(t, p, minutesApart(3)...)
+
+	rows, err := p.store.listMessages(t.Context(), conversationID, 2, &others[2])
+	if err != nil {
+		t.Fatalf("listMessages() error = %v, want nil", err)
+	}
+
+	wantMessages(t, rows)
+}
+
+func TestOldestMessageIDNamesTheFirstMessageSentEvenWhenItArrivedLate(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	times := minutesApart(3)
+	conversationID, ids := storedThread(t, p, times[1], times[0], times[2])
+
+	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
+	if err != nil {
+		t.Fatalf("oldestMessageID() error = %v, want nil", err)
+	}
+
+	if oldest == nil || *oldest != ids[1] {
+		t.Errorf("oldestMessageID() = %v, want %s", oldest, ids[1])
+	}
+}
+
+func TestOldestMessageIDBreaksASameSecondTieByID(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, ids := storedThread(t, p, sameSecond(3)...)
+
+	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
+	if err != nil {
+		t.Fatalf("oldestMessageID() error = %v, want nil", err)
+	}
+
+	if oldest == nil || *oldest != ids[0] {
+		t.Errorf("oldestMessageID() = %v, want %s", oldest, ids[0])
+	}
+}
+
+func TestOldestMessageIDIsNilForAConversationWithNoMessages(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	conversationID, _ := storedThread(t, p)
+
+	oldest, err := p.store.oldestMessageID(t.Context(), conversationID)
+	if err != nil {
+		t.Fatalf("oldestMessageID() error = %v, want nil", err)
+	}
+
+	if oldest != nil {
+		t.Errorf("oldestMessageID() = %s, want nil", *oldest)
+	}
+}
+
 func TestGetConversationReportsAReadFailure(t *testing.T) {
 	t.Parallel()
 
@@ -153,7 +326,7 @@ func TestListMessagesOrdersSameSecondMessagesByID(t *testing.T) {
 		}
 	}
 
-	messages, err := p.store.listMessages(ctx, conversationID, 50)
+	messages, err := p.store.listMessages(ctx, conversationID, 50, nil)
 	if err != nil {
 		t.Fatalf("listMessages() error = %v, want nil", err)
 	}

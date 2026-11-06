@@ -104,9 +104,43 @@ func TestMessagesStayInsideTheirTenant(t *testing.T) {
 	acme := servingTenant(t, p)
 	held := arrivedMessage(t, p, acme, "184467235", "wamid.ACME")
 
-	listed, err := p.store.listMessages(t.Context(), held, 10)
+	listed, err := p.store.listMessages(t.Context(), held, 10, nil)
 
 	wantWithheld(t, "listMessages", listed, err)
+}
+
+func TestMessagesBeforeAnotherTenantsMessageStayWithheld(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	theirs := arrivedMessage(t, p, servingTenant(t, p), "184467235", "wamid.ACME")
+	var theirMessage uuid.UUID
+	if err := p.pool.QueryRow(t.Context(),
+		"SELECT id FROM plugin_whatsapp.messages WHERE conversation_id = $1", theirs,
+	).Scan(&theirMessage); err != nil {
+		t.Fatalf("loading their message: %v", err)
+	}
+	mine, _ := storedThread(t, p, minutesApart(3)...)
+
+	listed, err := p.store.listMessages(t.Context(), mine, 10, &theirMessage)
+
+	wantWithheld(t, "listMessages", listed, err)
+}
+
+func TestTheOldestMessageIDStaysInsideItsTenant(t *testing.T) {
+	t.Parallel()
+
+	p := newMigratedPlugin(t)
+	theirs := arrivedMessage(t, p, servingTenant(t, p), "184467235", "wamid.ACME")
+
+	oldest, err := p.store.oldestMessageID(t.Context(), theirs)
+	if err != nil {
+		t.Fatalf("oldestMessageID() error = %v, want nil", err)
+	}
+
+	if oldest != nil {
+		t.Errorf("oldestMessageID() = %s from another tenant, want it withheld", *oldest)
+	}
 }
 
 func TestAContactsConversationsStayInsideTheirTenant(t *testing.T) {

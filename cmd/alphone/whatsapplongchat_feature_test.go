@@ -64,10 +64,9 @@ func (s *numbersScenario) readPage(ctx context.Context, key conversationKey, lim
 	if err != nil {
 		return err
 	}
-	if before != nil {
-		return godog.ErrPending
-	}
-	messages, err := s.plugin.WhatsAppConversationResolvers().Messages(s.in(ctx, key.workspace), conversation, &limit)
+	messages, err := s.plugin.WhatsAppConversationResolvers().Messages(
+		s.in(ctx, key.workspace), conversation, &limit, before,
+	)
 	if err != nil {
 		return err
 	}
@@ -106,13 +105,22 @@ func (s *numbersScenario) messagesRead(want string) error {
 // namesOldest fails unless the conversation with customer on number names content as its oldest message.
 func (s *numbersScenario) namesOldest(ctx context.Context, name, content, customer, number string) error {
 	key := conversationKey{workspace: name, customer: customer, number: number}
-	if _, err := s.readConversation(ctx, key); err != nil {
+	conversation, err := s.readConversation(ctx, key)
+	if err != nil {
 		return err
 	}
-	if _, err := s.messageID(ctx, key, content); err != nil {
+	want, err := s.messageID(ctx, key, content)
+	if err != nil {
 		return err
 	}
-	return godog.ErrPending
+	oldest, err := s.plugin.WhatsAppConversationResolvers().OldestMessageID(s.in(ctx, name), conversation)
+	if err != nil {
+		return err
+	}
+	if oldest == nil || *oldest != want {
+		return fmt.Errorf("the conversation names %v as its oldest message, want %s", oldest, want)
+	}
+	return nil
 }
 
 func TestWhatsAppLongChat(t *testing.T) {
