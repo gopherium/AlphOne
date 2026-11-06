@@ -163,6 +163,8 @@ E2E_SMTP_PORT ?= 4792
 E2E_PUBLIC_URL ?= http://localhost:8080
 E2E_WEBHOOK_ALLOWED_HOSTS ?= 127.0.0.1/32
 E2E_ENCRYPTION_KEY ?= e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0
+E2E_PRIVACY_URL ?= https://example.com/privacy
+E2E_TERMS_URL ?= https://example.com/terms
 
 e2e-build:
 	pnpm --filter @alphone/frontend build
@@ -179,6 +181,8 @@ e2e-serve: db-up e2e-build
 		ALPHONE_PUBLIC_URL="$(E2E_PUBLIC_URL)" \
 		ALPHONE_WEBHOOK_ALLOWED_HOSTS="$(E2E_WEBHOOK_ALLOWED_HOSTS)" \
 		ALPHONE_ENCRYPTION_KEY="$(E2E_ENCRYPTION_KEY)" \
+		ALPHONE_PRIVACY_URL="$(E2E_PRIVACY_URL)" \
+		ALPHONE_TERMS_URL="$(E2E_TERMS_URL)" \
 		./alphone serve
 
 e2e-db-reset: db-up
@@ -195,4 +199,6 @@ e2e-reset: e2e-db-reset e2e-seed
 
 e2e: e2e-reset
 	ALPHONE_E2E_DATABASE_URL="$(E2E_DATABASE_URL)" \
+		ALPHONE_E2E_PRIVACY_URL="$(E2E_PRIVACY_URL)" \
+		ALPHONE_E2E_TERMS_URL="$(E2E_TERMS_URL)" \
 		pnpm --filter @alphone/e2e exec playwright test

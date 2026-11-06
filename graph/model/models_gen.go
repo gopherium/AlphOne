@@ -188,6 +188,11 @@ type InvitePayload struct {
 	ActivationLink *string `json:"activationLink,omitempty"`
 }
 
+type LegalLinks struct {
+	PrivacyURL *string `json:"privacyUrl,omitempty"`
+	TermsURL   *string `json:"termsUrl,omitempty"`
+}
+
 type LoginPayload struct {
 	Me *Identity `json:"me"`
 }

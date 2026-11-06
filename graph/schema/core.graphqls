@@ -41,12 +41,18 @@ type AdminSettings {
   formatLocale: String!
 }
 
+type LegalLinks {
+  privacyUrl: String
+  termsUrl: String
+}
+
 type Query {
   version: String! @scope(area: "meta", write: false)
   tenant: Tenant! @scope(area: "meta", write: false)
   locale: String! @scope(area: "meta", write: false)
   supportedLocales: [String!]! @scope(area: "meta", write: false)
   adminSettings: AdminSettings! @scope(area: "meta", write: false)
+  legalLinks: LegalLinks! @scope(area: "meta", write: false)
 }
 
 extend type Mutation {

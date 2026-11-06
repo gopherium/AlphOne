@@ -18,7 +18,7 @@ import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
 import { AppToaster, PublicToaster } from './AppToaster'
 import { graphAuthTransport } from './auth/graphTransport'
-import { LoginSlot, publicAuthScreen } from './auth/PublicAuth'
+import { LoginSlot, legalLinks, publicAuthScreen } from './auth/PublicAuth'
 import { BootLoading } from './boot'
 import { configureAppChannelNames } from './contacts/channel'
 import { configureAppErrorText } from './i18n/errors'
@@ -26,7 +26,7 @@ import { startAppLocale } from './i18n/start'
 import { plugins } from './plugins'
 import { createAppRouter } from './router'
 
-await startAppLocale()
+const { legal } = await startAppLocale()
 configureAppErrorText()
 configureAppChannelNames()
 
@@ -37,7 +37,8 @@ const graph = createGraphClient({
 	plugins,
 })
 const router = createAppRouter()
-const publicScreen = publicAuthScreen(new URL(window.location.href), () => {
+const links = legalLinks(legal)
+const publicScreen = publicAuthScreen(new URL(window.location.href), links, () => {
 	window.location.assign('/')
 })
 
@@ -49,7 +50,7 @@ createRoot(document.getElementById('root')!).render(
 					{publicScreen === null ? (
 						<AppToaster>
 							<AuthGate
-								loginScreen={(onLogin) => <LoginSlot onLogin={onLogin} />}
+								loginScreen={(onLogin) => <LoginSlot links={links} onLogin={onLogin} />}
 								loading={<BootLoading />}
 								error={<Text role="alert">{__('Something went wrong.', 'alphone')}</Text>}
 							>

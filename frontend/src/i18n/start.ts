@@ -7,7 +7,8 @@ import { DOMAIN as BRICK_DOMAIN, catalogFor as brickCatalogFor } from '@gopheriu
 
 import type { FrontendPlugin } from '@alphone/frontend-sdk'
 
-import { DEFAULT_LOCALE, fetchLocale } from './api'
+import { DEFAULT_LOCALE, fetchBoot } from './api'
+import type { BootAnswer } from './api'
 import { plugins } from '../plugins'
 
 /** DOMAIN is the text domain AlphOne's own strings answer under. */
@@ -40,8 +41,10 @@ export function localeEntries(): CatalogEntry[] {
 
 /**
  * Settles the locale the interface stands in and loads the catalogues it reads.
- * @returns The settled locale.
+ * @returns The answer of the read that settled the locale.
  */
-export async function startAppLocale(): Promise<string> {
-	return startLocale(fetchLocale, localeEntries(), { defaultLocale: DEFAULT_LOCALE })
+export async function startAppLocale(): Promise<BootAnswer> {
+	const read = fetchBoot()
+	await startLocale(async () => (await read).locale, localeEntries(), { defaultLocale: DEFAULT_LOCALE })
+	return read
 }

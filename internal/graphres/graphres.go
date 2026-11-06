@@ -255,6 +255,8 @@ type Resolver struct {
 	Paging Paging
 	// Screens carries the settings the admin screens read once.
 	Screens Screens
+	// Legal carries the addresses of the install's legal pages.
+	Legal LegalLinks
 }
 
 // publish announces an event in the caller's tenant unless no publisher is wired.

@@ -3,16 +3,22 @@
 package graphres
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
-func TestOnlyLoginFieldsRejectsAnEmptySelection(t *testing.T) {
+func TestSelectsOnlyRejectsAnEmptySelection(t *testing.T) {
 	t.Parallel()
 
-	if onlyLoginFields(nil) {
-		t.Error("onlyLoginFields(nil) = true, want false")
+	for name, allowed := range map[string]map[string]bool{
+		"queries":   anonymousQueryFields,
+		"mutations": anonymousMutationFields,
+	} {
+		if selectsOnly(nil, allowed) {
+			t.Errorf("selectsOnly(nil, %s) = true, want false", name)
+		}
 	}
 }
 
@@ -29,18 +35,45 @@ func TestAnonymousOperationRefusesASubscription(t *testing.T) {
 	}
 }
 
-func TestOnlyLocaleFieldsRejectsAFragmentSelection(t *testing.T) {
+func TestSelectsOnlyRejectsAFragmentSelection(t *testing.T) {
 	t.Parallel()
 
-	if onlyLocaleFields(ast.SelectionSet{&ast.FragmentSpread{Name: "sneaky"}}) {
-		t.Error("onlyLocaleFields(fragment) = true, want only the plain field admitted")
+	for name, selection := range map[string]ast.Selection{
+		"a spread":          &ast.FragmentSpread{Name: "sneaky"},
+		"an inline section": &ast.InlineFragment{TypeCondition: "Query"},
+	} {
+		if selectsOnly(ast.SelectionSet{selection}, anonymousQueryFields) {
+			t.Errorf("selectsOnly(%s) = true, want only a plain field admitted", name)
+		}
 	}
 }
 
-func TestOnlyLocaleFieldsRejectsAnEmptySelection(t *testing.T) {
+func TestTheAnonymousSetsStaySplitByOperationKind(t *testing.T) {
 	t.Parallel()
 
-	if onlyLocaleFields(nil) {
-		t.Error("onlyLocaleFields(nil) = true, want false")
+	query := &ast.OperationDefinition{
+		Operation:    ast.Query,
+		SelectionSet: ast.SelectionSet{&ast.Field{Name: "login"}},
+	}
+	mutation := &ast.OperationDefinition{
+		Operation:    ast.Mutation,
+		SelectionSet: ast.SelectionSet{&ast.Field{Name: "legalLinks"}},
+	}
+
+	if anonymousOperation(query) {
+		t.Error("anonymousOperation(a query named login) = true, want the mutation set kept apart")
+	}
+	if anonymousOperation(mutation) {
+		t.Error("anonymousOperation(a mutation named legalLinks) = true, want the query set kept apart")
+	}
+}
+
+func TestTheAnonymousQueriesAreExactlyTheLocaleAndTheLegalLinks(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]bool{"locale": true, "legalLinks": true}
+
+	if !maps.Equal(anonymousQueryFields, want) {
+		t.Errorf("anonymousQueryFields = %v, want %v", anonymousQueryFields, want)
 	}
 }

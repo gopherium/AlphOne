@@ -21,7 +21,13 @@ var anonymousMutationFields = map[string]bool{
 	"resetPassword":        true,
 }
 
-// AnonymousGate rejects anonymous operations reaching beyond login and the locale.
+// anonymousQueryFields names the root queries an anonymous caller may select.
+var anonymousQueryFields = map[string]bool{
+	"locale":     true,
+	"legalLinks": true,
+}
+
+// AnonymousGate rejects anonymous operations reaching beyond login, the locale and the legal links.
 func AnonymousGate(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 	if authkit.IdentityFromContext(ctx).ID != uuid.Nil {
 		return next(ctx)
@@ -37,39 +43,22 @@ func AnonymousGate(ctx context.Context, next graphql.OperationHandler) graphql.R
 func anonymousOperation(operation *ast.OperationDefinition) bool {
 	switch operation.Operation {
 	case ast.Mutation:
-		return onlyLoginFields(operation.SelectionSet)
+		return selectsOnly(operation.SelectionSet, anonymousMutationFields)
 	case ast.Query:
-		return onlyLocaleFields(operation.SelectionSet)
+		return selectsOnly(operation.SelectionSet, anonymousQueryFields)
 	default:
 		return false
 	}
 }
 
-// localeFieldName is the one root query an anonymous caller may select.
-const localeFieldName = "locale"
-
-// onlyLocaleFields reports whether every root selection is the plain locale field.
-func onlyLocaleFields(selections ast.SelectionSet) bool {
+// selectsOnly reports whether every root selection is a plain field of the allowed set.
+func selectsOnly(selections ast.SelectionSet, allowed map[string]bool) bool {
 	if len(selections) == 0 {
 		return false
 	}
 	for _, selection := range selections {
 		field, ok := selection.(*ast.Field)
-		if !ok || field.Name != localeFieldName {
-			return false
-		}
-	}
-	return true
-}
-
-// onlyLoginFields reports whether every root selection is a plain anonymous mutation field.
-func onlyLoginFields(selections ast.SelectionSet) bool {
-	if len(selections) == 0 {
-		return false
-	}
-	for _, selection := range selections {
-		field, ok := selection.(*ast.Field)
-		if !ok || !anonymousMutationFields[field.Name] {
+		if !ok || !allowed[field.Name] {
 			return false
 		}
 	}

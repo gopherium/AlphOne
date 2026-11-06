@@ -418,9 +418,9 @@ func TestMainBinaryStoresAndAnswersTheLocale(t *testing.T) {
 	}
 }
 
-func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
-	t.Parallel()
-
+// seededDatabaseURL returns a database the binary seeded with the demo data.
+func seededDatabaseURL(t *testing.T) string {
+	t.Helper()
 	binary, env := testkit.CoverBinary(t, "ALPHONE_", "alphone")
 	databaseURL := testDatabaseURL(t)
 	var stderr bytes.Buffer
@@ -431,7 +431,33 @@ func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
 	if err := seedCmd.Run(); err != nil {
 		t.Fatalf("seed: %v, stderr: %s", err, stderr.String())
 	}
-	addr, secret := servedSeededBinary(t, databaseURL,
+	return databaseURL
+}
+
+func TestMainBinaryServesTheLegalLinksTheEnvironmentNames(t *testing.T) {
+	t.Parallel()
+
+	addr, _ := servedSeededBinary(t, seededDatabaseURL(t),
+		"ALPHONE_PRIVACY_URL=https://example.com/legal/privacy",
+		"ALPHONE_TERMS_URL=https://example.com/legal/terms",
+	)
+
+	answered := postGraphAnonymously(t, "http://"+addr, `{"query":"{ legalLinks { privacyUrl termsUrl } }"}`)
+
+	var read graphAnswer
+	if err := json.Unmarshal([]byte(answered), &read); err != nil {
+		t.Fatalf("decoding %s: %v", answered, err)
+	}
+	held := read.Data.LegalLinks
+	if held.PrivacyURL != "https://example.com/legal/privacy" || held.TermsURL != "https://example.com/legal/terms" {
+		t.Errorf("legal links = %+v, want the addresses the environment names", held)
+	}
+}
+
+func TestMainBinaryServesTheAdminSettingsTheEnvironmentNames(t *testing.T) {
+	t.Parallel()
+
+	addr, secret := servedSeededBinary(t, seededDatabaseURL(t),
 		"ALPHONE_GRAPH_PAGE_CAP=150",
 		"ALPHONE_TOAST_DURATION=9s",
 		"ALPHONE_TOAST_ACTION_DURATION=14s",
@@ -583,6 +609,10 @@ type graphAnswer struct {
 			ContactPageCap          int    `json:"contactPageCap"`
 			FormatLocale            string `json:"formatLocale"`
 		} `json:"adminSettings"`
+		LegalLinks struct {
+			PrivacyURL string `json:"privacyUrl"`
+			TermsURL   string `json:"termsUrl"`
+		} `json:"legalLinks"`
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`

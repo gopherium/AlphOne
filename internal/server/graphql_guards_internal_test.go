@@ -261,7 +261,8 @@ func TestAnonymousDocumentsWithinTheirCapsReachTheGraph(t *testing.T) {
 		"    __typename\n  }\n}"
 	atTheTokenCap := "{ " + strings.Repeat("x ", 62) + "}"
 	atTheByteCap := "{ " + strings.Repeat("y", 1020) + " }"
-	for _, query := range []string{invitation, "query AppLocale {\n  locale\n}", atTheTokenCap, atTheByteCap} {
+	boot := "query AppLocale { locale legalLinks { privacyUrl termsUrl } }"
+	for _, query := range []string{invitation, boot, atTheTokenCap, atTheByteCap} {
 		guarded, _, passed := refusingGuard(GraphBounds{})
 		recorder := httptest.NewRecorder()
 
