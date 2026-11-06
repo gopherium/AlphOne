@@ -180,15 +180,14 @@ Nobody changes its own role, and nobody disables its own account. Both are
 refused with code `VALIDATION` and the messages `you cannot change your own
 role` and `you cannot disable your own account`.
 
-Touching an account whose role the caller does not hold itself is refused the
-same way, with `you are not allowed to edit this user` and the reason
-`user_not_editable`. Writing a role the caller does not hold itself is refused
-with `you are not allowed to give users that role` and the reason
-`role_not_grantable`. A write that does both answers `user_not_editable`. A
-caller may only write a role whose capabilities it already holds, and may only
-touch an account whose current role it likewise holds. So an admin can neither
-grant a role reaching further than admin nor demote or disable an account
-already holding one, whether that role came with the product or with a plugin.
+Touching an account whose role carries a capability the caller's role lacks is
+refused the same way, with `you are not allowed to edit this user` and the
+reason `user_not_editable`. Writing a role that carries a capability the
+caller's role lacks is refused with `you are not allowed to give users that
+role` and the reason `role_not_grantable`. A write that does both answers
+`user_not_editable`. So an admin can neither grant a role reaching further than
+admin nor demote or disable an account already holding one, whether that role
+came with the product or with a plugin.
 
 A write that would leave no enabled account able to manage users is refused with
 `the last admin cannot be unseated`.
