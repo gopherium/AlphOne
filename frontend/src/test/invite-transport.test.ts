@@ -89,7 +89,7 @@ async function refusedInvitation(code: string, reason: string, message: string):
 test('invite throws the typed error each role reason names', async () => {
 	expect(await refusedInvitation('VALIDATION', 'role_unknown', 'unknown role')).toBeInstanceOf(RoleUnknownError)
 	expect(
-		await refusedInvitation('VALIDATION', 'role_beyond_reach', 'that role is beyond your own'),
+		await refusedInvitation('VALIDATION', 'role_not_grantable', 'you are not allowed to give users that role'),
 	).toBeInstanceOf(RoleNotGrantableError)
 })
 

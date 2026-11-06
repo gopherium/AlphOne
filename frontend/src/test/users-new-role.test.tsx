@@ -116,9 +116,9 @@ test.each([
 	},
 	{
 		refused: 'a role holding more than the reader holds',
-		message: 'that role is beyond your own',
-		extensions: { code: 'VALIDATION', reason: 'role_beyond_reach' },
-		sentence: 'That role holds more than your own, or nothing declares it.',
+		message: 'you are not allowed to give users that role',
+		extensions: { code: 'VALIDATION', reason: 'role_not_grantable' },
+		sentence: 'Sorry, you are not allowed to give users that role.',
 	},
 ])('says in a toast why the server refused $refused, never in its raw words', async (answer) => {
 	invitationRefused(answer.message, answer.extensions)

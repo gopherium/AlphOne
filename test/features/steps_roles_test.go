@@ -147,8 +147,8 @@ func registerUndeclaredRoleSteps(sc *godog.ScenarioContext) {
 			return w.answeredWithoutError()
 		})
 
-	sc.Then(`^the operation is refused as beyond the admin's reach$`, func(ctx context.Context) error {
-		return worldFrom(ctx).refusedAsBeyondReach()
+	sc.Then(`^the operation is refused as a role the admin may not give$`, func(ctx context.Context) error {
+		return worldFrom(ctx).refusedAsNotGrantable()
 	})
 
 	sc.Then(`^that user is (still disabled|enabled)$`, func(ctx context.Context, state string) error {
@@ -174,8 +174,8 @@ func settingUserDisabled(userID uuid.UUID, disabled bool) string {
 	return fmt.Sprintf(`{"query":"mutation { setUserDisabled(id: \"%s\", disabled: %t) }"}`, userID, disabled)
 }
 
-// refusedAsBeyondReach reports whether the last operation was refused as an account beyond the caller's reach.
-func (w *world) refusedAsBeyondReach() error {
+// refusedAsNotGrantable reports whether the last operation was refused as a role the caller may not give.
+func (w *world) refusedAsNotGrantable() error {
 	parsed, err := w.scopeErrors()
 	if err != nil {
 		return err
@@ -184,8 +184,8 @@ func (w *world) refusedAsBeyondReach() error {
 		return fmt.Errorf("errors = %v, want exactly one error", parsed.Errors)
 	}
 	refused := parsed.Errors[0].Extensions
-	if refused["code"] != "VALIDATION" || refused["reason"] != "role_beyond_reach" {
-		return fmt.Errorf("extensions = %v, want code VALIDATION and reason role_beyond_reach", refused)
+	if refused["code"] != "VALIDATION" || refused["reason"] != "role_not_grantable" {
+		return fmt.Errorf("extensions = %v, want code VALIDATION and reason role_not_grantable", refused)
 	}
 	return nil
 }

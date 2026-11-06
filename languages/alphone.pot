@@ -504,6 +504,12 @@ msgstr ""
 msgid "Something went wrong. Try again."
 msgstr ""
 
+msgid "Sorry, you are not allowed to edit this user."
+msgstr ""
+
+msgid "Sorry, you are not allowed to give users that role."
+msgstr ""
+
 msgid "Status"
 msgstr ""
 
@@ -562,9 +568,6 @@ msgid "That page marker is not one AlphOne issued."
 msgstr ""
 
 msgid "That priority is not one AlphOne offers."
-msgstr ""
-
-msgid "That role holds more than your own, or nothing declares it."
 msgstr ""
 
 msgid "That status is not one AlphOne offers."

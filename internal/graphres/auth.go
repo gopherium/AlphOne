@@ -185,10 +185,10 @@ func (m MutationResolvers) SetUserDisabled(ctx context.Context, id uuid.UUID, di
 // SetUserRole stands one user in the tier it names, refusing an account whose role moved after the check.
 func (m MutationResolvers) SetUserRole(ctx context.Context, id uuid.UUID, tier string) (bool, error) {
 	actor := authkit.IdentityFromContext(ctx)
-	if err := m.root.refuseGrant(actor.Role, tier); err != nil {
-		return false, err
-	}
 	return m.root.writeWithinReach(ctx, actor, id, func(held string) error {
+		if err := m.root.refuseGrant(actor.Role, tier); err != nil {
+			return err
+		}
 		return m.root.Admin.SetAccountRoleFrom(ctx, actor.ID, id, held, tier)
 	})
 }

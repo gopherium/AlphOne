@@ -44,7 +44,8 @@ var validationErrors = []error{
 	authkit.ErrSelfDisable,
 	authkit.ErrSelfRole,
 	gouncer.ErrLastPrivileged,
-	authkit.ErrBeyondReach,
+	authkit.ErrUserNotEditable,
+	authkit.ErrRoleNotGrantable,
 	apitoken.ErrEmptyName,
 	apitoken.ErrMalformedScope,
 	apitoken.ErrNoScopes,
@@ -88,7 +89,8 @@ var reasonsFor = []struct {
 	{authkit.ErrSelfDisable, "self_disable_refused", nil},
 	{authkit.ErrSelfRole, "self_role_refused", nil},
 	{gouncer.ErrLastPrivileged, "last_privileged_refused", nil},
-	{authkit.ErrBeyondReach, "role_beyond_reach", nil},
+	{authkit.ErrUserNotEditable, "user_not_editable", nil},
+	{authkit.ErrRoleNotGrantable, "role_not_grantable", nil},
 	{apitoken.ErrEmptyName, "token_name_required", nil},
 	{apitoken.ErrMalformedScope, "scope_malformed", nil},
 	{apitoken.ErrNoScopes, "scopes_required", nil},
@@ -132,7 +134,8 @@ var spokenAs = []struct {
 	{authkit.ErrSelfRole, "you cannot change your own role"},
 	{authkit.ErrSelfDisable, "you cannot disable your own account"},
 	{gouncer.ErrLastPrivileged, "the last admin cannot be unseated"},
-	{authkit.ErrBeyondReach, "that role is beyond your own"},
+	{authkit.ErrUserNotEditable, "you are not allowed to edit this user"},
+	{authkit.ErrRoleNotGrantable, "you are not allowed to give users that role"},
 }
 
 // speak rewrites a brick error so no package name reaches a caller.

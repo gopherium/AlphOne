@@ -217,7 +217,7 @@ function toInvitation(report: { delivered: boolean; activationLink?: string | nu
 /** inviteErrors maps each reason an invitation is refused for onto the typed error it throws. */
 const inviteErrors = new Map<string, new (message: string) => Error>([
 	['role_unknown', RoleUnknownError],
-	['role_beyond_reach', RoleNotGrantableError],
+	['role_not_grantable', RoleNotGrantableError],
 ])
 
 /**

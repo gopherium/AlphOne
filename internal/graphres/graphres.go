@@ -91,7 +91,7 @@ func (r *Resolver) heldWithinReach(ctx context.Context, actor authkit.Identity, 
 			return "", gouncer.ErrUserNotFound
 		}
 		if !r.reaches(actor.Role, account.Role) {
-			return "", authkit.ErrBeyondReach
+			return "", authkit.ErrUserNotEditable
 		}
 		return account.Role, nil
 	}
@@ -123,7 +123,7 @@ func (r *Resolver) refuseGrant(actor, tier string) error {
 		return authkit.ErrUnknownRole
 	}
 	if !r.Roles.Outranks(actor, tier) {
-		return authkit.ErrBeyondReach
+		return authkit.ErrRoleNotGrantable
 	}
 	return nil
 }

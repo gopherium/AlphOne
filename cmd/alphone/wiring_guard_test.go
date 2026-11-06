@@ -146,7 +146,7 @@ func TestTheGraphAccountWritesCheckThePluginRoles(t *testing.T) {
 		t.Errorf("SetAccountRole(steward) error = %v, want the role the plugin declares known", err)
 	}
 	err = resolver.Admin.SetAccountDisabledFrom(t.Context(), uuid.New(), uuid.New(), "auditor", false)
-	if !errors.Is(err, authkit.ErrBeyondReach) {
+	if !errors.Is(err, authkit.ErrRoleNotGrantable) {
 		t.Errorf("SetAccountDisabledFrom(auditor, enable) error = %v, want the enable of an undeclared role refused", err)
 	}
 	_, err = resolver.Invites.Invite(t.Context(), "maria.perez@example.com", "Maria Perez", "steward")

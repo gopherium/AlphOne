@@ -47,7 +47,7 @@ Feature: A role narrows what a user may do
   Scenario Outline: An admin enables an account holding <case> only once it holds a declared role
     Given a disabled user holding the role "<held>"
     When the admin's session enables that user
-    Then the operation is refused as beyond the admin's reach
+    Then the operation is refused as a role the admin may not give
     And that user is still disabled
     When the admin's session gives that user the role "member"
     And the admin's session enables that user

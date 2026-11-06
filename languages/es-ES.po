@@ -383,6 +383,14 @@ msgid "Something went wrong. Try again."
 msgstr "Algo ha ido mal. Inténtalo de nuevo."
 
 #, fuzzy
+msgid "Sorry, you are not allowed to edit this user."
+msgstr "Lo siento, no tienes permisos para modificar este usuario."
+
+#, fuzzy
+msgid "Sorry, you are not allowed to give users that role."
+msgstr "Lo siento, no tienes permisos para dar ese rol a los usuarios."
+
+#, fuzzy
 msgid "Status"
 msgstr "Estado"
 
@@ -433,10 +441,6 @@ msgstr "Ese marcador de página no es uno de los que AlphOne ha emitido."
 #, fuzzy
 msgid "That priority is not one AlphOne offers."
 msgstr "Esa prioridad no es una de las que AlphOne ofrece."
-
-#, fuzzy
-msgid "That role holds more than your own, or nothing declares it."
-msgstr "Ese rol abarca más que el tuyo, o nada lo declara."
 
 #, fuzzy
 msgid "Nothing declares that role."
