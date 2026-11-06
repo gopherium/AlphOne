@@ -154,6 +154,30 @@ server, because a watcher on `:latest` applies it on its own.
   default workspace held both `ALPHONE_WHATSAPP_PHONE_NUMBER_ID` and a different
   stored number, its older conversations now read as the stored number, and a
   customer who writes to the number in the settings opens a new conversation.
+- AlphOne needs PostgreSQL 15 or newer. On an older server the first start
+  stops at the WhatsApp numbers migration. The Compose file in
+  [Install](/self-hosting/install/) runs PostgreSQL 18.
+- The first start after the update rewrites every WhatsApp conversation of
+  a workspace that stored its own number, before AlphOne listens. It takes
+  about 12 seconds for each million conversations, and their table takes
+  twice its space until PostgreSQL vacuums it.
+- `ALPHONE_GRAPH_ANONYMOUS_ANSWER_MAX_BYTES` under 260 now stops `serve`
+  and `alphone check`, since the answer must hold what the sign-in screens
+  read, see [Graph limits](/self-hosting/configuration/#graph-limits).
+- `ALPHONE_TOAST_DURATION` now times only the toasts with no button. A
+  toast with a button, such as Undo, stays for
+  `ALPHONE_TOAST_ACTION_DURATION`, 10 seconds unless you set it, see
+  [Lists, toasts and formats](/self-hosting/configuration/#lists-toasts-and-formats).
+- `ALPHONE_PRIVACY_URL` and `ALPHONE_TERMS_URL` are new and optional. Set
+  them to link your privacy policy and terms of service under the sign-in
+  screens. A value AlphOne refuses stops `serve`, see
+  [Core](/self-hosting/configuration/#core).
+- `ALPHONE_WHATSAPP_DELIVERY_ITEMS_MAX`,
+  `ALPHONE_WHATSAPP_DELIVERY_NUMBERS_MAX`, `ALPHONE_MAX_PROCS` and
+  `ALPHONE_MEMORY_LIMIT_MB` are new. Their defaults need nothing from you,
+  and a value AlphOne refuses stops `serve`, see
+  [WhatsApp plugin](/self-hosting/configuration/#whatsapp-plugin) and
+  [Processors and memory](/self-hosting/configuration/#processors-and-memory).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
@@ -193,6 +217,12 @@ newer version migrated, but it cannot open the secrets plugins saved
 since. It also needs `ALPHONE_WHATSAPP_CREDENTIALS_KEY` set again for the
 WhatsApp tokens saved before the update. Restore the backup when you need
 everything exactly as it was.
+
+A release from before a workspace could hold many WhatsApp numbers also
+starts on a database the newer version migrated and reads everything, but
+every WhatsApp delivery and every number it stores fails. Restore the
+backup to go back to it. Rolling that migration back by hand keeps only
+the oldest number of each workspace.
 
 If you ever roll a migration back by hand, know that the role each
 account holds is the thing most easily lost. It lives in a `role`

@@ -5,7 +5,7 @@ description: Run AlphOne on your own server with Docker Compose, a PostgreSQL co
 
 AlphOne ships as a single container image. The Go binary inside serves
 both the JSON API and the built frontend, so a production deployment is
-exactly two containers: AlphOne and PostgreSQL. You bring the third
+exactly two containers: AlphOne and PostgreSQL 15 or newer. You bring the third
 piece, an HTTPS reverse proxy. The examples below use
 [Caddy](https://caddyserver.com/) running in Docker, but any proxy that
 terminates TLS works the same way.
