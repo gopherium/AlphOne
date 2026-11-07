@@ -2,9 +2,13 @@
 
 import { listDate as writtenListDate, startListDates } from '@gopherium/godmin/dates'
 import { displayLocale } from '@gopherium/gottext'
+import { getSettings } from '@wordpress/date'
 
 /** started names the interface language the list dates were last started in. */
 let started: string | undefined
+
+/** startedWith holds the date settings the last start here left behind. */
+let startedWith: ReturnType<typeof getSettings> | undefined
 
 /**
  * Returns a moment as the abbreviated date and time a list shows, in the interface language.
@@ -13,9 +17,10 @@ let started: string | undefined
  */
 export function listDate(at: Date | string): string {
 	const locale = displayLocale()
-	if (started !== locale) {
+	if (started !== locale || getSettings() !== startedWith) {
 		startListDates(locale)
 		started = locale
+		startedWith = getSettings()
 	}
 	return writtenListDate(at)
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { LIST_CHROME_DOMAIN, listChromeCatalogFor } from '@gopherium/godmin'
+import { startListDates } from '@gopherium/godmin/dates'
 import { rememberLocale } from '@gopherium/gottext'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
@@ -38,4 +39,13 @@ test('writes list dates again in the language a later boot settles on', async ()
 	await readInSpanish()
 
 	expect(listDate('2026-08-03T09:05:00Z')).toBe('3 Ago 2026 09:05')
+})
+
+test('writes list dates in the interface language after a start elsewhere left them in another', async () => {
+	expect(listDate('2026-08-03T09:05:00Z')).toBe('Aug 3, 2026 9:05 am')
+	setLocaleData(await listChromeCatalogFor('es-ES'), LIST_CHROME_DOMAIN)
+	startListDates('es-ES')
+	resetLocaleData(undefined, LIST_CHROME_DOMAIN)
+
+	expect(listDate('2026-08-03T09:05:00Z')).toBe('Aug 3, 2026 9:05 am')
 })
