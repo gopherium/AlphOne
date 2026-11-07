@@ -343,10 +343,6 @@ msgstr "Reabrir"
 msgid "Revoke"
 msgstr "Revocar"
 
-#, fuzzy
-msgid "Role"
-msgstr "Rol"
-
 msgid "Save"
 msgstr "Guardar"
 

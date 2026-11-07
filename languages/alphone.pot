@@ -406,9 +406,6 @@ msgstr[1] ""
 msgid "Revoke…"
 msgstr ""
 
-msgid "Role"
-msgstr ""
-
 msgid "Save"
 msgstr ""
 
