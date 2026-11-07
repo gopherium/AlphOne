@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { printGraphDocument } from '@alphone/frontend-sdk'
+import { graphFetch, printGraphDocument } from '@alphone/frontend-sdk'
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core'
 
 import {
@@ -9,7 +9,18 @@ import {
 	RateLimitedError,
 	UnauthorizedError,
 } from '@gopherium/react-auth'
-import { RoleNotGrantableError, RoleUnknownError, ValidationError } from '@gopherium/react-auth/admin'
+import {
+	LastPrivilegedError,
+	RoleChangedError,
+	RoleNotGrantableError,
+	RoleRefusedError,
+	RoleUnknownError,
+	SelfDisableError,
+	SelfRoleError,
+	UserNotEditableError,
+	UserNotFoundError,
+	ValidationError,
+} from '@gopherium/react-auth/admin'
 import type {
 	Invitation,
 	NewInvite,
@@ -28,14 +39,16 @@ import {
 	logoutMutation,
 	meQuery,
 	requestPasswordResetMutation,
+	resendInviteMutation,
 	resetPasswordMutation,
 	setUserDisabledMutation,
+	setUserRoleMutation,
 	usersQuery,
 } from './operations'
 
 interface GraphError {
 	message: string
-	extensions?: { code?: string; reason?: string; retryAfter?: number }
+	extensions?: { code?: string; reason?: string; meta?: Record<string, unknown>; retryAfter?: number }
 }
 
 interface GraphResult<TData> {
@@ -44,7 +57,31 @@ interface GraphResult<TData> {
 }
 
 /**
- * Posts one typed operation to the graph endpoint.
+ * Posts one typed operation to the graph endpoint, refusing a rate limited answer.
+ * @param document - The typed operation document.
+ * @param variables - The operation variables.
+ * @param signal - Aborts the in-flight request.
+ * @returns The raw answer.
+ */
+async function post<TData, TVariables>(
+	document: TypedDocumentNode<TData, TVariables>,
+	variables?: TVariables,
+	signal?: AbortSignal,
+): Promise<Response> {
+	const response = await graphFetch('/api/graphql', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ query: printGraphDocument(document), variables }),
+		signal,
+	})
+	if (response.status === 429) {
+		throw new RateLimitedError('too many requests')
+	}
+	return response
+}
+
+/**
+ * Posts one typed operation to the graph endpoint, failing on any answer that is not ok.
  * @param document - The typed operation document.
  * @param variables - The operation variables.
  * @param signal - Aborts the in-flight request.
@@ -55,19 +92,41 @@ async function execute<TData, TVariables>(
 	variables?: TVariables,
 	signal?: AbortSignal,
 ): Promise<GraphResult<TData>> {
-	const response = await fetch('/api/graphql', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ query: printGraphDocument(document), variables }),
-		signal,
-	})
-	if (response.status === 429) {
-		throw new RateLimitedError('too many requests')
-	}
+	const response = await post(document, variables, signal)
 	if (!response.ok) {
 		throw new Error(`graphql request failed with status ${response.status}`)
 	}
 	return (await response.json()) as GraphResult<TData>
+}
+
+/**
+ * Posts one account write to the graph endpoint, reading the reason a refused answer names.
+ * @param document - The typed operation document.
+ * @param variables - The operation variables.
+ * @returns The parsed data and errors envelope.
+ */
+async function executeWrite<TData, TVariables>(
+	document: TypedDocumentNode<TData, TVariables>,
+	variables: TVariables,
+): Promise<GraphResult<TData>> {
+	const response = await post(document, variables)
+	if (!response.ok) {
+		return refusedAnswer(response)
+	}
+	return (await response.json()) as GraphResult<TData>
+}
+
+/**
+ * Returns the graph errors of an answer that is not ok, when its first error names a reason.
+ * @param response - The answer whose status is not ok.
+ * @returns The parsed answer naming the reason it was refused for.
+ */
+async function refusedAnswer<TData>(response: Response): Promise<GraphResult<TData>> {
+	const answer = (await response.json().catch(() => undefined)) as GraphResult<TData> | null | undefined
+	if (!answer?.errors?.[0]?.extensions?.reason) {
+		throw new Error(`graphql request failed with status ${response.status}`)
+	}
+	return answer
 }
 
 /**
@@ -214,41 +273,60 @@ function toInvitation(report: { delivered: boolean; activationLink?: string | nu
 	return { delivered: false, activation_link: report.activationLink }
 }
 
-/** inviteErrors maps each reason an invitation is refused for onto the typed error it throws. */
-const inviteErrors = new Map<string, new (message: string) => Error>([
-	['role_unknown', RoleUnknownError],
+/** accountErrors maps each reason an account write is refused for onto the typed error it throws. */
+const accountErrors = new Map<string, new (message: string) => Error>([
+	['user_not_editable', UserNotEditableError],
 	['role_not_grantable', RoleNotGrantableError],
+	['role_unknown', RoleUnknownError],
+	['self_role_refused', SelfRoleError],
+	['self_disable_refused', SelfDisableError],
+	['last_privileged_refused', LastPrivilegedError],
+	['role_changed', RoleChangedError],
+	['user_not_found', UserNotFoundError],
+	['capability_missing', RoleRefusedError],
 ])
 
 /**
- * Refuses an invitation answer by the code and the reason the graph carried.
- * @param code - The extensions code of the first error.
- * @param reason - The stable reason of the first error.
- * @param message - The message the error carried.
+ * Refuses an account write by the code and the reason the graph carried.
+ * @param result - The parsed graph response.
  */
-function refuseInvitation(code: string | undefined, reason: string | undefined, message: string): void {
+function refuseAccountWrite<TData>(result: GraphResult<TData>): void {
+	const code = firstCode(result)
 	if (code === 'UNAUTHENTICATED') {
 		throw new UnauthorizedError('session expired')
 	}
 	if (code === 'RATE_LIMITED') {
 		throw new RateLimitedError('too many requests')
 	}
-	refuseInvitationDetails(code, reason, message)
+	const first = result.errors?.[0]
+	if (first) {
+		refuseAccountReason(first)
+	}
 }
 
 /**
- * Refuses the details of an invitation by the reason and the code the graph carried.
- * @param code - The extensions code of the first error.
- * @param reason - The stable reason of the first error.
- * @param message - The message the error carried.
+ * Refuses an account write by the typed error its reason maps onto.
+ * @param error - The first error the graph carried.
  */
-function refuseInvitationDetails(code: string | undefined, reason: string | undefined, message: string): void {
-	const refused = inviteErrors.get(reason ?? '')
+function refuseAccountReason(error: GraphError): void {
+	const refused = accountErrors.get(error.extensions?.reason ?? '')
 	if (refused) {
-		throw new refused(message)
+		throw new refused(error.message)
 	}
+	refuseUnmappedReason(error)
+}
+
+/**
+ * Refuses an account write whose reason maps onto no typed error, as a validation or a plain error naming it.
+ * @param error - The first error the graph carried.
+ */
+function refuseUnmappedReason(error: GraphError): void {
+	const { code, reason, meta } = error.extensions ?? {}
 	if (code === 'VALIDATION' || code === 'CONFLICT') {
-		throw new ValidationError(message, { code: reason })
+		throw new ValidationError(error.message, { code: reason, meta })
+	}
+	if (reason !== undefined) {
+		throw Object.assign(new Error('account write refused'), { code: reason })
 	}
 }
 
@@ -258,16 +336,30 @@ function refuseInvitationDetails(code: string | undefined, reason: string | unde
  * @returns The delivery report, carrying the link when nothing mailed it.
  */
 async function invite(input: NewInvite): Promise<Invitation> {
-	const result = await execute(inviteMutation, {
+	const result = await executeWrite(inviteMutation, {
 		email: input.email,
 		name: input.name,
 		role: input.role ?? null,
 	})
-	refuseInvitation(firstCode(result), firstReason(result), firstMessage(result, 'invalid invitation details'))
+	refuseAccountWrite(result)
 	if (!result.data) {
 		throw new Error(firstMessage(result, 'inviting failed'))
 	}
 	return toInvitation(result.data.invite)
+}
+
+/**
+ * Sends a new invitation to a pending account through the resendInvite mutation.
+ * @param email - The address of the invited account.
+ * @returns The delivery report, carrying the link when nothing mailed it.
+ */
+async function resendInvite(email: string): Promise<Invitation> {
+	const result = await executeWrite(resendInviteMutation, { email })
+	refuseAccountWrite(result)
+	if (!result.data) {
+		throw new Error(firstMessage(result, 'resending the invitation failed'))
+	}
+	return toInvitation(result.data.resendInvite)
 }
 
 /**
@@ -334,16 +426,23 @@ async function resetPassword(token: string, password: string): Promise<void> {
  * @param disabled - Whether the account should be disabled.
  */
 async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
-	const result = await execute(setUserDisabledMutation, { id, disabled })
-	const code = firstCode(result)
-	if (code === 'UNAUTHENTICATED') {
-		throw new UnauthorizedError('session expired')
-	}
-	if (code === 'VALIDATION') {
-		throw new ValidationError(firstMessage(result, 'invalid update'))
-	}
+	const result = await executeWrite(setUserDisabledMutation, { id, disabled })
+	refuseAccountWrite(result)
 	if (result.errors?.length) {
 		throw new Error(firstMessage(result, 'updating user failed'))
+	}
+}
+
+/**
+ * Sets the role an account holds through the setUserRole mutation.
+ * @param id - The identifier of the account to update.
+ * @param role - The role the account is to hold.
+ */
+async function setUserRole(id: string, role: string): Promise<void> {
+	const result = await executeWrite(setUserRoleMutation, { id, role })
+	refuseAccountWrite(result)
+	if (result.errors?.length) {
+		throw new Error(firstMessage(result, 'changing the role failed'))
 	}
 }
 
@@ -357,7 +456,9 @@ export const graphAuthTransport = {
 	isSessionRevoked,
 	fetchUsers,
 	setUserDisabled,
+	setUserRole,
 	invite,
+	resendInvite,
 	acceptInvite,
 	requestPasswordReset,
 	resetPassword,
