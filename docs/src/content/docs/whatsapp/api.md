@@ -12,6 +12,9 @@ oldest first. To read further back, pass the `id` of the oldest message you
 hold as `before`. `oldestMessageId` names the first message of the chat, so
 you can tell when you have reached it.
 
+Each page holds `limit` messages, or `ALPHONE_GRAPH_PAGE_SIZE` when you name
+none. A `before` that names no message of that chat answers an empty list.
+
 A workspace can hold many numbers. `whatsAppNumbers` lists them, each by its
 `identifier` and `label`, and never answers a secret. On the default workspace
 the number in the environment file comes first, unless the workspace stores
