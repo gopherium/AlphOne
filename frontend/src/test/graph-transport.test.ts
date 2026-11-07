@@ -287,16 +287,20 @@ test('setUserRole and resendInvite throw the graph failure without a mapped code
 	await expect(graphAuthTransport.resendInvite(maria.email)).rejects.toThrow(upstreamFailure)
 })
 
-test('a 403 router refusal of an account write carries request_cross_origin as code, as the SDK reads it', async () => {
+test('every account write the router refuses fails as a plain error carrying its reason', async () => {
 	server.use(
 		http.post('/api/graphql', () =>
 			HttpResponse.json({ error: crossOriginWords, code: crossOriginReason }, { status: 403 })),
 	)
 
-	const refused = await refusalOf(graphAuthTransport.setUserRole(maria.id, editorRole))
+	for (const { write } of accountWrites) {
+		const refused = await refusalOf(write())
 
-	expect(refused).toBeInstanceOf(ValidationError)
-	expect(refused).toHaveProperty('code', crossOriginReason)
+		expect(refused).toBeInstanceOf(Error)
+		expect(refused).not.toBeInstanceOf(ValidationError)
+		expect(refused).toHaveProperty('code', crossOriginReason)
+		expect(String((refused as Error).message)).not.toContain(crossOriginWords)
+	}
 })
 
 test('a 403 router refusal of a password write fails with its status, as before', async () => {

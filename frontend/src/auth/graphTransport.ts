@@ -91,7 +91,7 @@ async function execute<TData, TVariables>(
 }
 
 /**
- * Posts one account write to the graph endpoint, reading the reason a refused answer names.
+ * Posts one account write to the graph endpoint, failing a refused request with the reason its answer names.
  * @param document - The typed operation document.
  * @param variables - The operation variables.
  * @returns The parsed data and errors envelope.
@@ -102,22 +102,29 @@ async function executeWrite<TData, TVariables>(
 ): Promise<GraphResult<TData>> {
 	const response = await post(document, variables)
 	if (!response.ok) {
-		return refusedAnswer(response)
+		throw await refusedRequest(response)
 	}
 	return (await response.json()) as GraphResult<TData>
 }
 
 /**
- * Returns the graph errors of an answer that is not ok, when its first error names a reason.
- * @param response - The answer whose status is not ok.
- * @returns The parsed answer naming the reason it was refused for.
+ * Returns the plain error a refused account write fails with, carrying its reason as code.
+ * @param reason - The stable reason the server named.
+ * @returns The error.
  */
-async function refusedAnswer<TData>(response: Response): Promise<GraphResult<TData>> {
-	const answer = (await response.json().catch(() => undefined)) as GraphResult<TData> | null | undefined
-	if (!answer?.errors?.[0]?.extensions?.reason) {
-		throw new Error(`graphql request failed with status ${response.status}`)
-	}
-	return answer
+function refusedWrite(reason: string): Error {
+	return Object.assign(new Error('account write refused'), { code: reason })
+}
+
+/**
+ * Returns the error an account write request turned down by the server fails with.
+ * @param response - The answer whose status is not ok.
+ * @returns A plain error carrying the reason the answer names, else one naming the status.
+ */
+async function refusedRequest(response: Response): Promise<Error> {
+	const answer = (await response.json().catch(() => undefined)) as GraphResult<unknown> | null | undefined
+	const reason = answer?.errors?.[0]?.extensions?.reason
+	return reason ? refusedWrite(reason) : new Error(`graphql request failed with status ${response.status}`)
 }
 
 /**
@@ -316,7 +323,7 @@ function refuseUnmappedReason(error: GraphError): void {
 		throw new ValidationError(error.message, { code: reason, meta })
 	}
 	if (reason !== undefined) {
-		throw Object.assign(new Error('account write refused'), { code: reason })
+		throw refusedWrite(reason)
 	}
 }
 
