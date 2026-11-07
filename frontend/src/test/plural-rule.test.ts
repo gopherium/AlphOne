@@ -21,10 +21,6 @@ const countPrinted = /%(\(\w+\))?[sd]/
 
 /** pluralMessages are the plural messages the core screens use. */
 const pluralMessages = [
-	'%s user could not be disabled.',
-	'%s user could not be enabled.',
-	'%s user disabled.',
-	'%s user enabled.',
 	'%s token could not be revoked.',
 	'%s token revoked.',
 	'Revoke %s token? This cannot be undone.',
