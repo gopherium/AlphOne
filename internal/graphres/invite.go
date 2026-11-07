@@ -51,20 +51,13 @@ func (m MutationResolvers) ResendInvite(ctx context.Context, email string) (*mod
 	return m.resend(ctx, email)
 }
 
-// resend replaces the pending token behind email, staying neutral for every other address.
+// resend replaces the pending token behind email, neutral for every other address and any account beyond reach.
 func (m MutationResolvers) resend(ctx context.Context, email string) (*model.InvitePayload, error) {
-	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
-	if errors.Is(err, gouncer.ErrUserNotFound) {
-		return deliveredPayload(), nil
-	}
+	held, open, err := m.resendable(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-	sharing, err := m.root.sharesTenant(ctx, authkit.IdentityFromContext(ctx).ID, held.ID)
-	if err != nil {
-		return nil, err
-	}
-	if !sharing {
+	if !open {
 		return deliveredPayload(), nil
 	}
 	token, err := m.root.Invites.ResendInvite(ctx, email)
@@ -75,6 +68,23 @@ func (m MutationResolvers) resend(ctx context.Context, email string) (*model.Inv
 		return nil, err
 	}
 	return m.deliverInvite(ctx, held.Email, held.Name, token)
+}
+
+// resendable returns the account behind email and whether the caller shares its tenant and reaches its role.
+func (m MutationResolvers) resendable(ctx context.Context, email string) (gouncer.User, bool, error) {
+	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
+	if errors.Is(err, gouncer.ErrUserNotFound) {
+		return gouncer.User{}, false, nil
+	}
+	if err != nil {
+		return gouncer.User{}, false, err
+	}
+	actor := authkit.IdentityFromContext(ctx)
+	sharing, err := m.root.sharesTenant(ctx, actor.ID, held.ID)
+	if err != nil {
+		return gouncer.User{}, false, err
+	}
+	return held, sharing && m.root.reaches(actor.Role, held.Role), nil
 }
 
 // normalizedEmail returns the address the store keys an account under.

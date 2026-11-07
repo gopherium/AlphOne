@@ -104,7 +104,7 @@ export function useUserActions(session: Session | null, run: ListRun, bulk: Bulk
 				label: __('Resend invitation…', 'alphone'),
 				modalHeader: __('Resend invitation', 'alphone'),
 				modalFocusOnMount: 'firstContentElement',
-				isEligible: (user) => !user.confirmed && !user.disabled,
+				isEligible: (user) => changeable(user) && !user.confirmed && !user.disabled,
 				RenderModal: ResendModal,
 			},
 			{

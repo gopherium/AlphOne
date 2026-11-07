@@ -121,6 +121,35 @@ test('offers a resend only on the accounts still awaiting activation', async () 
 	expect(await actionsOf('ana@example.com')).not.toContain('Resend invitation…')
 })
 
+test('offers nothing on an invited account beyond the reader’s reach', async () => {
+	server.use(
+		graphql.query('Users', () =>
+			HttpResponse.json({
+				data: {
+					users: [
+						{
+							__typename: 'User',
+							id: '0198b2f0-0000-7000-8000-000000000005',
+							email: 'beyond.reach@example.com',
+							name: 'Grace Hopper',
+							disabled: false,
+							confirmed: false,
+							createdAt: '2026-07-09T10:00:00Z',
+							role: 'steward',
+							withinReach: false,
+						},
+					],
+				},
+			}),
+		),
+	)
+	renderAt('/users')
+
+	const row = await rowFor('beyond.reach@example.com')
+	expect(row.getByText('Invited')).toBeInTheDocument()
+	expect(row.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
+})
+
 test('lists the actions that open a modal first, with an ellipsis, and the one that acts at once last', async () => {
 	renderAt('/users')
 
