@@ -7,6 +7,9 @@ import { credentials } from '../env'
 import { graph } from '../graph'
 import { startMailSink } from '../mail'
 
+/** smallestPageSize is the smallest page size the admin settings offer when the environment names none. */
+const smallestPageSize = 10
+
 /**
  * Invites one member per name, every address carrying a mark the list is searched by.
  * @param request - The Playwright request context carrying the credential.
@@ -78,10 +81,11 @@ test('searches the users and narrows them by status through the filter button', 
 
 test('pages the users newest first, and Back returns to the same page', async ({ page, request }) => {
 	const mark = `page-${Date.now()}`
-	const [oldest] = await inviteAll(request, mark, ['Ana Lopez', 'Luis Garcia', 'Maria Perez'])
+	const names = Array.from({ length: smallestPageSize + 1 }, (_, at) => `Maria Perez ${at}`)
+	const [oldest] = await inviteAll(request, mark, names)
 
-	await page.goto(`/users?search=${mark}&perPage=2`)
-	await expect(page.getByRole('row')).toHaveCount(3)
+	await page.goto(`/users?search=${mark}&perPage=${smallestPageSize}`)
+	await expect(page.getByRole('row')).toHaveCount(smallestPageSize + 1)
 	await expect(rowOf(page, oldest)).toBeHidden()
 	await page.getByRole('button', { name: 'Next page' }).click()
 
@@ -142,6 +146,26 @@ test('disables and enables several users at once, one toast each time', async ({
 	await expect(rowOf(page, first).getByText('Invited', { exact: true })).toBeVisible()
 })
 
+test('changes the role of two users at once', async ({ page, request }) => {
+	const mark = `roles-${Date.now()}`
+	const [first, second] = await inviteAll(request, mark, ['Ana Lopez', 'Maria Perez'])
+
+	await page.goto(`/users?search=${mark}`)
+	await page.getByRole('checkbox', { name: 'Ana Lopez' }).check()
+	await page.getByRole('checkbox', { name: 'Maria Perez' }).check()
+	const bulkBar = page.locator('.dataviews-bulk-actions-footer__action-buttons')
+	await bulkBar.getByRole('button', { name: 'Change role…' }).click()
+	const dialog = page.getByRole('dialog', { name: 'Change role' })
+	await expect(dialog.getByText('Choose the role of 2 users.')).toBeVisible()
+	await dialog.getByRole('combobox', { name: 'Role' }).click()
+	await page.getByRole('option', { name: 'Administrator', exact: true }).click()
+	await dialog.getByRole('button', { name: 'Change role' }).click()
+
+	await expect(page.locator('.godmin-toasts').getByText('Changed roles.')).toBeVisible()
+	await expect(rowOf(page, first).getByRole('cell', { name: 'Administrator', exact: true })).toBeVisible()
+	await expect(rowOf(page, second).getByRole('cell', { name: 'Administrator', exact: true })).toBeVisible()
+})
+
 test.describe('on a phone', () => {
 	test.use({ viewport: { width: 390, height: 844 } })
 
@@ -151,5 +175,16 @@ test.describe('on a phone', () => {
 		await expect(page.getByRole('heading', { level: 2, name: 'Users' })).toBeVisible()
 		await expect(page.getByText(credentials.email).first()).toBeVisible()
 		await expect(page.locator('table')).toHaveCount(0)
+	})
+
+	test('a tap on a phone row opens Change role', async ({ page, request }) => {
+		const mark = `tap-${Date.now()}`
+		await inviteAll(request, mark, ['Maria Perez'])
+
+		await page.goto(`/users?search=${mark}`)
+		await page.getByRole('button', { name: 'Maria Perez', exact: true }).click()
+
+		const dialog = page.getByRole('dialog', { name: 'Change role' })
+		await expect(dialog.getByText('Choose the role of Maria Perez.')).toBeVisible()
 	})
 })
