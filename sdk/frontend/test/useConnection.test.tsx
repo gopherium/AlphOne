@@ -168,7 +168,7 @@ test('keeps every loaded row when more new rows than a page arrive at the head',
 	expect(result.current.hasNextPage).toBe(false)
 })
 
-test('reads one page past the loaded rows when the last loaded row left the list', async () => {
+test('reads one page past the loaded rows and keeps their count when the last loaded row left the list', async () => {
 	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report')
 	listed = [...listed, ...rowsOf('Chase it', 'Pay it', 'Quote the job', 'Renew the contract')]
 	const asked = servePaged(() => listed)
@@ -178,8 +178,23 @@ test('reads one page past the loaded rows when the last loaded row left the list
 	graph.refetch(['Tasks'])
 
 	await waitFor(() => expect(asked.filter((after) => after !== null)).toHaveLength(3))
-	await waitFor(() => expect(titles(result.current.rows)).toEqual(titles(listed).slice(0, 6)))
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(titles(listed).slice(0, 4)))
 	expect(asked.filter((after) => after !== null)).toEqual(['send', 'send', 'chase'])
+	expect(result.current.hasNextPage).toBe(true)
+})
+
+test('reads no further than the loaded pages when every loaded row left the list', async () => {
+	let listed = rowsOf('Call the supplier', 'Send the quote', 'Book the courier', 'File the report')
+	const rest = rowsOf('Chase it', 'Pay it', 'Quote the job', 'Renew the contract', 'Sign the lease', 'Test the build')
+	listed = [...listed, ...rest]
+	const asked = servePaged(() => listed)
+	const { graph, result } = await renderTwoPages()
+
+	listed = rest
+	graph.refetch(['Tasks'])
+
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(titles(rest).slice(0, 4)))
+	expect(asked.filter((after) => after !== null)).toEqual(['send', 'pay'])
 	expect(result.current.hasNextPage).toBe(true)
 })
 
@@ -255,15 +270,11 @@ test('keeps the newest reread when an older one lands last', async () => {
 	await waitFor(() => expect(titles(result.current.rows)[0]).toBe('Renew the contract'))
 	await waitFor(() => expect(titles(result.current.rows)).toHaveLength(4))
 	release()
-	await new Promise((resolve) => setTimeout(resolve, 50))
 
-	expect(titles(result.current.rows)).toEqual([
-		'Renew the contract',
-		'Approve the pricing',
-		'Call the supplier',
-		'Send the quote',
-		'Book the courier',
-	])
+	const newest = ['Renew the contract', 'Approve the pricing', 'Call the supplier', 'Send the quote', 'Book the courier']
+	await waitFor(() => expect(titles(result.current.rows)).toEqual(newest))
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	expect(titles(result.current.rows)).toEqual(newest)
 })
 
 /** Answers the open and done lists a row at a time, holding the later pages of open work until released. */
