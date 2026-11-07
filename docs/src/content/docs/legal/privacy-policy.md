@@ -3,7 +3,7 @@ title: Privacy policy
 description: What data an AlphOne deployment processes, where it lives, and how to have it deleted.
 ---
 
-*Effective date: 2026-11-06*
+*Effective date: 2026-11-07*
 
 This policy covers this **documentation site** (`docs.alph.one`) and
 describes how an **AlphOne deployment** handles WhatsApp data. When a
