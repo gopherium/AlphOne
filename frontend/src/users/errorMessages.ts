@@ -9,5 +9,6 @@ import { appErrorTemplates } from '../i18n/errors'
  * @returns The words, keyed by code.
  */
 export function accountErrorMessages(): ErrorMessages {
-	return { request_cross_origin: appErrorTemplates().request_cross_origin }
+	const templates = appErrorTemplates()
+	return { request_cross_origin: templates.request_cross_origin, tenant_deactivated: templates.tenant_deactivated }
 }

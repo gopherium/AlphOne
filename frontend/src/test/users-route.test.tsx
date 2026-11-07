@@ -1118,6 +1118,11 @@ test.each([
 		code: 'CONFLICT',
 		words: 'The role of that account just changed. Reload the page and try again.',
 	},
+	{
+		reason: 'tenant_deactivated',
+		code: 'UNAUTHORIZED',
+		words: 'This workspace has been deactivated. Contact your operator.',
+	},
 ])('says in a toast why a role change was refused for $reason, the dialog closed', async ({ reason, code, words }) => {
 	configureAppErrorText()
 	server.use(
