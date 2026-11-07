@@ -178,6 +178,15 @@ server, because a watcher on `:latest` applies it on its own.
   and a value AlphOne refuses stops `serve`, see
   [WhatsApp plugin](/self-hosting/configuration/#whatsapp-plugin) and
   [Processors and memory](/self-hosting/configuration/#processors-and-memory).
+- `whatsAppConversation.messages` answers the newest messages of a chat,
+  still listed oldest first. Earlier releases answered the oldest ones, so
+  a program that reads a long chat now gets its end and reads further back
+  with `before`, see [WhatsApp API](/whatsapp/api/).
+- A message from someone who hides their phone number is now stored under
+  the user ID Meta sends, such as `US.184467235`. Earlier releases skipped
+  it and still answered `200`, so those messages do not come back. An
+  automation that reads a WhatsApp identity as a phone number needs to
+  allow for a user ID, see [Contacts](/guides/contacts/).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
@@ -223,6 +232,14 @@ starts on a database the newer version migrated and reads everything, but
 every WhatsApp delivery and every number it stores fails. Restore the
 backup to go back to it. Rolling that migration back by hand keeps only
 the oldest number of each workspace.
+
+A release from before AlphOne kept WhatsApp user IDs starts and reads
+everything, since no migration came with them. It skips every new message
+from someone who hides their phone number and still answers `200`, so Meta
+does not send it again. Its replies to such a person go out in `to`, where
+Meta expects a phone number, so do not answer those conversations on it. A
+page left open from the newer release cannot load a chat until it is
+reloaded.
 
 If you ever roll a migration back by hand, know that the role each
 account holds is the thing most easily lost. It lives in a `role`
