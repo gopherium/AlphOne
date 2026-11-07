@@ -2,12 +2,13 @@
 
 import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { beforeAll, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('@alphone/frontend-sdk/dataviews', () => ({
 	DataViews: () => <table />,
 	DataForm: () => <form />,
 	filterSortAndPaginate: (data: unknown[]) => ({ data, paginationInfo: { totalItems: data.length, totalPages: 1 } }),
+	readyListDates: () => {},
 	useEnableWpCompatOverlaySlot: () => {},
 }))
 
@@ -56,6 +57,10 @@ const paths: Record<string, string> = Object.assign(
 	corePaths,
 	...pluginOutlines.map((outline) => outline.paths),
 )
+
+beforeAll(async () => {
+	await import('../users/UsersScreen')
+})
 
 beforeEach(() => {
 	server.use(

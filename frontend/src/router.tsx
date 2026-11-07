@@ -20,7 +20,7 @@ import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
 import { newTaskSearch } from './tasks/newTaskSearch'
-import { NewTokenRoute, NewUserRoute } from './userRoutes'
+import { NewTokenRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -93,7 +93,7 @@ const newUserRoute = createRoute({
 	getParentRoute: () => adminRoute,
 	path: '/users/new',
 	staticData: { capability: MANAGE_USERS },
-	component: NewUserRoute,
+	component: lazyRouteComponent(() => import('./users/NewUserScreen'), 'NewUserRoute'),
 })
 
 const tokensRoute = createRoute({

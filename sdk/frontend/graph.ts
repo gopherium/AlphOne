@@ -427,7 +427,7 @@ async function graphReadable(response: Response): Promise<Response> {
  * @param init - The request options.
  * @returns The answer the graph client reads.
  */
-async function graphFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function graphFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
 	return graphReadable(await fetch(input, init))
 }
 

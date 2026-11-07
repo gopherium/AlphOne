@@ -47,10 +47,6 @@ msgstr "Añadir contacto"
 msgid "Add Token"
 msgstr "Añadir token"
 
-#, fuzzy
-msgid "Add User"
-msgstr "Añadir usuario"
-
 msgid "Add task"
 msgstr "Añadir tarea"
 
@@ -170,9 +166,6 @@ msgstr "Creado"
 msgid "Created %(date)s"
 msgstr "Creado el %(date)s"
 
-msgid "Disable"
-msgstr "Desactivar"
-
 #, fuzzy
 msgid "Done (%(count)s)"
 msgstr "Hechas (%(count)s)"
@@ -191,9 +184,6 @@ msgstr "Fecha de vencimiento"
 
 msgid "Email"
 msgstr "Correo electrónico"
-
-msgid "Enable"
-msgstr "Activar"
 
 #, fuzzy
 msgid "Expires"
@@ -298,10 +288,6 @@ msgid "No open tasks."
 msgstr "No hay tareas abiertas."
 
 #, fuzzy
-msgid "No users yet"
-msgstr "Todavía no hay usuarios"
-
-#, fuzzy
 msgid "Nothing due today"
 msgstr "No hay nada que venza hoy"
 
@@ -357,10 +343,6 @@ msgstr "Reabrir"
 msgid "Revoke"
 msgstr "Revocar"
 
-#, fuzzy
-msgid "Role"
-msgstr "Rol"
-
 msgid "Save"
 msgstr "Guardar"
 
@@ -389,10 +371,6 @@ msgstr "Lo siento, no tienes permisos para modificar este usuario."
 #, fuzzy
 msgid "Sorry, you are not allowed to give users that role."
 msgstr "Lo siento, no tienes permisos para dar ese rol a los usuarios."
-
-#, fuzzy
-msgid "Status"
-msgstr "Estado"
 
 #, fuzzy
 msgid "Task"
@@ -544,9 +522,6 @@ msgstr "No se han podido cargar los tokens."
 msgid "Users"
 msgstr "Usuarios"
 
-msgid "Users could not be loaded."
-msgstr "No se han podido cargar los usuarios."
-
 #, fuzzy
 msgid "Value"
 msgstr "Valor"
@@ -608,16 +583,8 @@ msgid "No mail server is configured. Deliver the activation link by hand."
 msgstr "No hay servidor de correo configurado. Entrega el enlace de activación a mano."
 
 #, fuzzy
-msgid "Resend invitation"
-msgstr "Reenviar invitación"
-
-#, fuzzy
 msgid "Send invitation"
 msgstr "Enviar invitación"
-
-#, fuzzy
-msgid "The invitation could not be sent."
-msgstr "No se ha podido enviar la invitación."
 
 #, fuzzy
 msgid "Could not send the invitation."
@@ -636,14 +603,6 @@ msgid "Postpone"
 msgstr "Posponer"
 
 #, fuzzy
-msgid "\"%(name)s\" disabled."
-msgstr "«%(name)s» se ha desactivado."
-
-#, fuzzy
-msgid "\"%(name)s\" enabled."
-msgstr "«%(name)s» se ha reactivado."
-
-#, fuzzy
 msgid "\"%(name)s\" revoked."
 msgstr "«%(name)s» revocado."
 
@@ -660,34 +619,6 @@ msgid_plural "%s tokens revoked."
 msgstr[0] "%s token revocado."
 msgstr[1] "%s de tokens revocados."
 msgstr[2] "%s tokens revocados."
-
-#, fuzzy
-msgid "%s user could not be disabled."
-msgid_plural "%s users could not be disabled."
-msgstr[0] "No se ha podido desactivar %s usuario."
-msgstr[1] "No se han podido desactivar %s de usuarios."
-msgstr[2] "No se han podido desactivar %s usuarios."
-
-#, fuzzy
-msgid "%s user could not be enabled."
-msgid_plural "%s users could not be enabled."
-msgstr[0] "No se ha podido reactivar %s usuario."
-msgstr[1] "No se han podido reactivar %s de usuarios."
-msgstr[2] "No se han podido reactivar %s usuarios."
-
-#, fuzzy
-msgid "%s user disabled."
-msgid_plural "%s users disabled."
-msgstr[0] "%s usuario desactivado."
-msgstr[1] "%s de usuarios desactivados."
-msgstr[2] "%s usuarios desactivados."
-
-#, fuzzy
-msgid "%s user enabled."
-msgid_plural "%s users enabled."
-msgstr[0] "%s usuario reactivado."
-msgstr[1] "%s de usuarios reactivados."
-msgstr[2] "%s usuarios reactivados."
 
 msgid "A lifetime runs to %(maxDays)s days at most."
 msgstr "Una duración llega como mucho a %(maxDays)s días."
@@ -714,20 +645,8 @@ msgid "Cancel"
 msgstr "Cancelar"
 
 #, fuzzy
-msgid "Change role"
-msgstr "Cambiar el rol"
-
-#, fuzzy
-msgid "Change role…"
-msgstr "Cambiar el rol…"
-
-#, fuzzy
 msgid "Channels"
 msgstr "Canales"
-
-#, fuzzy
-msgid "Choose the role of %(name)s."
-msgstr "Elige el rol de %(name)s."
 
 #, fuzzy
 msgid "Contact added."
@@ -750,20 +669,12 @@ msgid "Identity removed."
 msgstr "Identidad quitada."
 
 #, fuzzy
-msgid "Invitation sent to \"%(name)s\"."
-msgstr "Invitación enviada a «%(name)s»."
-
-#, fuzzy
 msgid "Manage the people you work with and how to reach them."
 msgstr "Gestiona las personas con las que trabajas y cómo contactar con ellas."
 
 #, fuzzy
 msgid "Manage the tokens your programs sign in with."
 msgstr "Gestiona los tokens con los que entran tus programas."
-
-#, fuzzy
-msgid "Manage who can sign in and what they can do."
-msgstr "Gestiona quién puede entrar y qué puede hacer."
 
 #, fuzzy
 msgid "Name updated."
@@ -782,10 +693,6 @@ msgid "Rename…"
 msgstr "Renombrar…"
 
 #, fuzzy
-msgid "Resend invitation…"
-msgstr "Reenviar invitación…"
-
-#, fuzzy
 msgid "Revoke \"%(name)s\"? This cannot be undone."
 msgstr "¿Revocar «%(name)s»? Esto no se puede deshacer."
 
@@ -801,24 +708,12 @@ msgid "Revoke…"
 msgstr "Revocar…"
 
 #, fuzzy
-msgid "Role changed for \"%(name)s\"."
-msgstr "Rol de «%(name)s» cambiado."
-
-#, fuzzy
 msgid "Search contacts…"
 msgstr "Buscar contactos…"
 
 #, fuzzy
 msgid "Search tokens…"
 msgstr "Buscar tokens…"
-
-#, fuzzy
-msgid "Search users…"
-msgstr "Buscar usuarios…"
-
-#, fuzzy
-msgid "Send a new invitation to \"%(name)s\" (%(email)s)? The link sent before stops working."
-msgstr "¿Enviar una invitación nueva a «%(name)s» (%(email)s)? El enlace anterior dejará de funcionar."
 
 #, fuzzy
 msgid "Task added for %(date)s."
@@ -853,24 +748,12 @@ msgid "The name could not be updated."
 msgstr "No se ha podido actualizar el nombre."
 
 #, fuzzy
-msgid "The role could not be changed."
-msgstr "No se ha podido cambiar el rol."
-
-#, fuzzy
 msgid "The role of that account just changed. Reload the page and try again."
 msgstr "El rol de esa cuenta acaba de cambiar. Recarga la página e inténtalo de nuevo."
 
 #, fuzzy
 msgid "The token could not be revoked."
 msgstr "No se ha podido revocar el token."
-
-#, fuzzy
-msgid "The user could not be disabled."
-msgstr "No se ha podido desactivar el usuario."
-
-#, fuzzy
-msgid "The user could not be enabled."
-msgstr "No se ha podido reactivar el usuario."
 
 #, fuzzy
 msgid "Too many attempts. Wait %(retryAfter)s seconds and try again."
@@ -980,21 +863,6 @@ msgid "webhooks"
 msgstr "webhooks"
 
 #, fuzzy
-msgctxt "user status"
-msgid "Active"
-msgstr "Activo"
-
-#, fuzzy
-msgctxt "user status"
-msgid "Disabled"
-msgstr "Desactivado"
-
-#, fuzzy
-msgctxt "user status"
-msgid "Invited"
-msgstr "Invitado"
-
-#, fuzzy
 msgctxt "role"
 msgid "Administrator"
 msgstr "Administrador"
@@ -1003,8 +871,3 @@ msgstr "Administrador"
 msgctxt "role"
 msgid "Member"
 msgstr "Miembro"
-
-#, fuzzy
-msgctxt "role"
-msgid "No role"
-msgstr "Sin rol"

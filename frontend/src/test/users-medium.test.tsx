@@ -92,4 +92,5 @@ test('draws each bulk action with an icon, the only part of it a medium screen s
 	const bar = within(footer)
 	expect((await bar.findByRole('button', { name: 'Disable' })).querySelector('svg')).not.toBeNull()
 	expect(bar.getByRole('button', { name: 'Enable' }).querySelector('svg')).not.toBeNull()
+	expect(bar.getByRole('button', { name: 'Change role…' }).querySelector('svg')).not.toBeNull()
 })

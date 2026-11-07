@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { rememberFormatLocale } from '@alphone/frontend-sdk'
-import { HttpResponse, adminSession, delay, graphql, paging, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, delay, graphql, http, paging, server } from '@alphone/frontend-sdk/testing'
 import { setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { screen, waitFor, within } from '@testing-library/react'
@@ -13,7 +13,7 @@ import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
 import { gate } from './gate'
-import { badgeClasses, buttonClasses, renderAt, renderRoutedAt } from './render'
+import { buttonClasses, compactClasses, renderAt, renderRoutedAt } from './render'
 
 /** account is one user as the users query answers it. */
 interface account {
@@ -109,6 +109,22 @@ async function act(name: string, action: string) {
 	await userEvent.click(await screen.findByRole('menuitem', { name: action }))
 }
 
+/**
+ * Opens the view options of the table and returns their popover.
+ * @returns The popover queries.
+ */
+async function viewOptions() {
+	await screen.findByRole('table')
+	await userEvent.click(screen.getByRole('button', { name: 'View options' }))
+	return within(
+		await waitFor(() => {
+			const popover = document.querySelector<HTMLElement>('.dataviews-config__popover')
+			expect(popover).not.toBeNull()
+			return popover as HTMLElement
+		}),
+	)
+}
+
 beforeAll(async () => {
 	await import('../users/UsersScreen')
 })
@@ -201,7 +217,8 @@ test('draws Add User as a compact button, as a WordPress page header does', asyn
 	renderAt('/users')
 
 	const add = await screen.findByRole('link', { name: 'Add User' })
-	expect([...add.classList]).toEqual(buttonClasses('solid', 'compact'))
+	expect(add).toHaveAttribute('href', '/users/new')
+	expect(add).toHaveClass(...buttonClasses('solid', 'compact').slice(-3))
 })
 
 test('names the list region Users', async () => {
@@ -226,7 +243,8 @@ test('shows an empty state with a solid add button at its default size when no a
 	const title = await screen.findByRole('heading', { level: 3, name: 'No users yet' })
 	const add = within(title.closest('.godmin-empty') as HTMLElement).getByRole('link', { name: 'Add User' })
 	expect(add).toHaveAttribute('href', '/users/new')
-	expect([...add.classList]).toEqual(buttonClasses('solid'))
+	expect(add).toHaveClass(...buttonClasses('solid').slice(-3))
+	expect(add).not.toHaveClass(...compactClasses())
 })
 
 test('says no result came back when a search finds no account, and offers no add button', async () => {
@@ -248,14 +266,6 @@ test('reads each account status as a badge', async () => {
 	expect((await rowOf('Maria Perez')).getByText('Invited')).toBeInTheDocument()
 })
 
-test('draws a disabled account with the outline badge, white inside a grey border', async () => {
-	holding([signedIn, barred])
-	renderAt('/users')
-
-	const badge = (await rowOf('Ana Lopez')).getByText('Disabled')
-	expect([...badge.classList]).toEqual(badgeClasses('none'))
-})
-
 test('reads each status in Spanish so it agrees with the user, and offers to activate a disabled one', async () => {
 	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
 	await startAppLocale()
@@ -270,13 +280,13 @@ test('reads each status in Spanish so it agrees with the user, and offers to act
 	expect(await screen.findByRole('menuitem', { name: 'Activar' })).toBeInTheDocument()
 })
 
-test('reads the role every account holds by its label', async () => {
+test('reads the role every account holds by its label, None for one holding no role as WordPress does', async () => {
 	holding([signedIn, colleague, accountOf('fc', 'Maria Perez', { role: '' })])
 	renderAt('/users')
 
 	expect((await rowOf('Ada Lovelace')).getByText('Member')).toBeInTheDocument()
 	expect((await rowOf(signedIn.name)).getByText('Administrator')).toBeInTheDocument()
-	expect((await rowOf('Maria Perez')).getByText('No role')).toBeInTheDocument()
+	expect((await rowOf('Maria Perez')).getByText('None')).toBeInTheDocument()
 })
 
 test('reads each core role in Spanish, the way the user reads every other label', async () => {
@@ -288,7 +298,7 @@ test('reads each core role in Spanish, the way the user reads every other label'
 
 	expect((await rowOf('Ada Lovelace')).getByText('Miembro')).toBeInTheDocument()
 	expect((await rowOf(signedIn.name)).getByText('Administrador')).toBeInTheDocument()
-	expect((await rowOf('Maria Perez')).getByText('Sin rol')).toBeInTheDocument()
+	expect((await rowOf('Maria Perez')).getByText('Ninguno')).toBeInTheDocument()
 })
 
 test('reads a role a plugin adds by its stored name with a capital first letter', async () => {
@@ -334,17 +344,45 @@ test('draws the initials avatar before every name in the list a phone shows', as
 	expect(avatar.parentElement).toHaveClass('dataviews-view-list__media-wrapper')
 })
 
-test('dates every account in the page language', async () => {
+test('dates every account in the page language once Created is shown', async () => {
 	renderAt('/users')
+	await rowOf('Ana Lopez')
+
+	await userEvent.click((await viewOptions()).getByRole('button', { name: 'Created' }))
 
 	expect((await rowOf('Ana Lopez')).getByText('Jul 8, 2026 10:00 am')).toBeInTheDocument()
 })
 
-test('sorts the accounts by when they were created, newest first, when the address names no order', async () => {
+test('dates every account in Spanish once Created is shown to a Spanish reader', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	renderAt('/users')
+	await rowOf('Ana Lopez')
+
+	await userEvent.click((await viewOptions()).getByRole('button', { name: 'Creado' }))
+
+	expect((await rowOf('Ana Lopez')).getByText('8 Jul 2026 10:00')).toBeInTheDocument()
+})
+
+test('sorts the accounts newest first when the address names no order, with no Created column', async () => {
 	renderAt('/users')
 
 	expect(await shownNames()).toEqual([barred.name, colleague.name, signedIn.name])
-	expect(screen.getByRole('columnheader', { name: /Created/ })).toHaveAttribute('aria-sort', 'descending')
+	expect(screen.queryByRole('columnheader', { name: /Created/ })).not.toBeInTheDocument()
+})
+
+test('offers Created under View options, unticked, and shows it sorted newest first once picked', async () => {
+	renderAt('/users')
+	await rowOf('Ada Lovelace')
+	expect(screen.queryByRole('columnheader', { name: /Created/ })).not.toBeInTheDocument()
+
+	const created = (await viewOptions()).getByRole('button', { name: 'Created' })
+	expect(created.querySelector('svg')).toBeNull()
+	await userEvent.click(created)
+
+	expect(await screen.findByRole('columnheader', { name: /Created/ })).toHaveAttribute('aria-sort', 'descending')
+	expect(await shownNames()).toEqual([barred.name, colleague.name, signedIn.name])
 })
 
 test('sorts the accounts by the field and direction the address names', async () => {
@@ -357,6 +395,18 @@ test('sorts the accounts by name from A to Z when the address says so', async ()
 	renderAt('/users?sort=name&order=asc')
 
 	expect(await shownNames()).toEqual([colleague.name, barred.name, signedIn.name])
+})
+
+test('never sorts by Status or Role, as WordPress sorts only its Username and Email columns', async () => {
+	renderAt('/users')
+	await screen.findByRole('table')
+
+	for (const name of ['Status', 'Role']) {
+		await userEvent.click(screen.getByRole('button', { name }))
+		expect(await screen.findByRole('menuitem', { name: 'Hide column' })).toBeInTheDocument()
+		expect(screen.queryByRole('menuitemradio', { name: 'Sort ascending' })).not.toBeInTheDocument()
+		await userEvent.keyboard('{Escape}')
+	}
 })
 
 test('searches the accounts by name', async () => {
@@ -418,6 +468,16 @@ test('offers as roles only the ones the accounts hold, by their labels from A to
 	expect(offered).toEqual(['Administrator', 'Member', 'No role'])
 })
 
+test('offers as statuses only the ones the accounts hold, as WordPress lists only the roles in use', async () => {
+	renderAt('/users?filters=' + encodeURIComponent(JSON.stringify([{ field: 'status', operator: 'isAny', value: [] }])))
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Filter' }))
+	await userEvent.click(await screen.findByRole('button', { name: 'Status', pressed: false }))
+
+	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
+	expect(offered).toEqual(['Active', 'Disabled'])
+})
+
 test('pages the accounts by the page size the admin settings name', async () => {
 	paging([2, 4], 2)
 	renderAt('/users')
@@ -426,6 +486,13 @@ test('pages the accounts by the page size the admin settings name', async () => 
 	await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
 
 	await waitFor(async () => expect(await shownNames()).toEqual([signedIn.name]))
+})
+
+test('pages by the size the admin settings name when the address names one they do not offer', async () => {
+	paging([2, 4], 2)
+	renderAt('/users?perPage=3')
+
+	expect(await shownNames()).toEqual(['Ana Lopez', 'Ada Lovelace'])
 })
 
 test('offers as page sizes the ones the admin settings name', async () => {
@@ -500,6 +567,16 @@ test('offers no enable on the signed-in account, even while it reads disabled', 
 	expect(own.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
 })
 
+test('offers no resend on the signed-in account, even while it reads invited', async () => {
+	holding([{ ...signedIn, confirmed: false }, colleague])
+	renderAt('/users')
+
+	await rowOf('Ada Lovelace')
+	const own = await rowOf(signedIn.name)
+	expect(own.getByText('Invited')).toBeInTheDocument()
+	expect(own.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
+})
+
 test('draws Enable on a disabled row as its primary action, and never Disable', async () => {
 	renderAt('/users')
 
@@ -511,28 +588,29 @@ test('draws Enable on a disabled row as its primary action, and never Disable', 
 
 /**
  * Returns the labels of the actions the Actions menu of one row lists, closing the menu again.
- * @param name - The account the row shows.
+ * @param row - The row queries.
  * @returns The action labels.
  */
-async function menuOf(name: string) {
-	await userEvent.click((await rowOf(name)).getByRole('button', { name: 'Actions' }))
+async function menuOf(row: ReturnType<typeof within>) {
+	await userEvent.click(row.getByRole('button', { name: 'Actions' }))
 	const labels = (await screen.findAllByRole('menuitem')).map((item) => item.textContent)
 	await userEvent.keyboard('{Escape}')
 	await waitFor(() => expect(screen.queryByRole('menuitem')).not.toBeInTheDocument())
 	return labels
 }
 
-test('offers no role change, disable or enable on an account beyond the reach of the reader', async () => {
+test('offers no role change, resend, disable or enable on an account beyond the reach of the reader', async () => {
 	holding([
 		signedIn,
 		accountOf('fd', 'Maria Perez'),
 		accountOf('fb', 'Higher Role Account', { role: 'steward', withinReach: false }),
 		accountOf('fa', 'Disabled Higher Role Account', { role: 'steward', disabled: true, withinReach: false }),
+		accountOf('f9', 'Invited Higher Role Account', { role: 'steward', confirmed: false, withinReach: false }),
 	])
 	renderAt('/users')
 
-	expect(await menuOf('Maria Perez')).toEqual(['Change role…', 'Disable'])
-	for (const name of ['Higher Role Account', 'Disabled Higher Role Account']) {
+	expect(await menuOf(await rowOf('Maria Perez'))).toEqual(['Change role…', 'Disable'])
+	for (const name of ['Higher Role Account', 'Disabled Higher Role Account', 'Invited Higher Role Account']) {
 		const row = await rowOf(name)
 		expect(row.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
 		expect(row.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
@@ -553,8 +631,7 @@ test('offers Enable only on a disabled account whose role the reader may give', 
 	for (const name of ['No Role Account', 'Lost Role Account']) {
 		const row = await rowOf(name)
 		expect(row.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
-		expect(row.getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
-		expect(await menuOf(name)).toEqual(['Change role…'])
+		expect(await menuOf(row)).toEqual(['Change role…'])
 	}
 })
 
@@ -566,13 +643,14 @@ test('lays the accounts out as a list on a phone', async () => {
 	expect(screen.queryByRole('table')).not.toBeInTheDocument()
 })
 
-test('leaves a row unselected when a tap lands on it on a phone', async () => {
+test('opens Change role from a tap on a phone row the reader may change, leaving the row unselected', async () => {
 	setViewport({ matches: true })
 	renderAt('/users')
 
 	const item = await screen.findByRole('button', { name: 'Ada Lovelace' })
 	await userEvent.click(item)
 
+	expect((await roleDialog()).getByText('Choose the role of Ada Lovelace.')).toBeInTheDocument()
 	expect(item).toHaveAttribute('aria-pressed', 'false')
 	expect(item.closest('[role="row"]')).not.toHaveClass('is-selected')
 })
@@ -728,6 +806,58 @@ test('says why an enable was refused when the roles the reader may give went sta
 	expect(screen.queryByText('"Maria Perez" enabled.')).not.toBeInTheDocument()
 })
 
+test('says in a toast that a disable from another site was refused, in the words AlphOne gives it', async () => {
+	configureAppErrorText()
+	server.use(
+		http.post('/api/graphql', async ({ request }) => {
+			const { query } = (await request.clone().json()) as { query: string }
+			return query.includes('SetUserDisabled')
+				? HttpResponse.json({ error: 'cross-origin request refused', code: 'request_cross_origin' }, { status: 403 })
+				: undefined
+		}),
+	)
+	renderAt('/users')
+
+	await act('Ada Lovelace', 'Disable')
+
+	expect(
+		await screen.findByText(
+			'This request came from a page on another site, so it was refused. Open the admin on this site and try again.',
+			{ selector: '.godmin-toast' },
+		),
+	).toBeInTheDocument()
+	expect(screen.queryByText('cross-origin request refused')).not.toBeInTheDocument()
+})
+
+test('says in WordPress words that the reader may no longer edit users when its role lost the capability', async () => {
+	configureAppErrorText()
+	server.use(
+		graphql.mutation('SetUserDisabled', () =>
+			HttpResponse.json({
+				data: null,
+				errors: [
+					{
+						message: 'admin required',
+						extensions: {
+							code: 'UNAUTHORIZED',
+							reason: 'capability_missing',
+							meta: { scope: 'users:write', capability: 'manage_users' },
+						},
+					},
+				],
+			}),
+		),
+	)
+	renderAt('/users')
+
+	await act('Ada Lovelace', 'Disable')
+
+	expect(
+		await screen.findByText('Sorry, you are not allowed to edit users.', { selector: '.godmin-toast' }),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/manage_users/)).not.toBeInTheDocument()
+})
+
 /**
  * Ticks the selection box of every named account.
  * @param names - The accounts to select.
@@ -841,23 +971,58 @@ function writesRole() {
 	return asked
 }
 
-test('changes the role of another account in a modal and names the account in a toast', async () => {
+/**
+ * Returns the open Change role dialog.
+ * @returns The dialog queries.
+ */
+async function roleDialog() {
+	return within(await screen.findByRole('dialog', { name: 'Change role' }))
+}
+
+/** Picks Administrator in the open Change role dialog and sends it. */
+async function changeToAdministrator() {
+	await userEvent.click((await roleDialog()).getByRole('combobox', { name: 'Role' }))
+	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
+	await userEvent.click((await roleDialog()).getByRole('button', { name: 'Change role' }))
+}
+
+test('opens Change role from a click on the name of an account the reader may change', async () => {
+	renderAt('/users')
+
+	await userEvent.click((await rowOf(colleague.name)).getByText(colleague.name))
+
+	expect((await roleDialog()).getByText('Choose the role of Ada Lovelace.')).toBeInTheDocument()
+})
+
+test('changes the role of every selected account from the bulk bar with one toast', async () => {
+	holding([signedIn, colleague, accountOf('fd', 'Maria Perez')])
+	const asked = writesRole()
+	renderAt('/users')
+
+	await select('Ada Lovelace', 'Maria Perez')
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Change role…' }))
+	expect((await roleDialog()).getByText('Choose the role of 2 users.')).toBeInTheDocument()
+	await changeToAdministrator()
+
+	expect(await screen.findByText('Changed roles.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(asked).toEqual(['admin', 'admin'])
+	expect(document.querySelectorAll('.godmin-toast')).toHaveLength(1)
+})
+
+test('changes the role of another account in a dialog and names the account in a toast', async () => {
 	const asked = writesRole()
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog', { name: 'Change role' }))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
 	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
 	expect(asked).toEqual(['admin'])
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-	expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument()
+	await waitFor(async () => expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument())
 })
 
-test('closes a role change with its toast as the write ends, the old rows busy until they reload', async () => {
+test('closes Change role as it is sent, then toasts and keeps the old rows busy until they reload', async () => {
 	writesRole()
 	renderAt('/users')
 	await rowOf('Ada Lovelace')
@@ -870,14 +1035,11 @@ test('closes a role change with its toast as the write ends, the old rows busy u
 	)
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
-	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
+	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
 	expect((await rowOf('Ada Lovelace')).getByText('Member')).toBeInTheDocument()
 	reload.release()
 	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
@@ -889,10 +1051,7 @@ test('gives the focus back to the actions of the row once a role change reloaded
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
 	await screen.findByText('Role changed for "Ada Lovelace".')
 	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
@@ -900,7 +1059,7 @@ test('gives the focus back to the actions of the row once a role change reloaded
 	await waitFor(() => expect(row.getByRole('button', { name: 'Actions' })).toHaveFocus())
 })
 
-test('marks no reload after a failed role change, and reloads behind a modal that keeps the pick', async () => {
+test('says in a toast that a role change failed, marks no reload, and opens again on the role it picked', async () => {
 	renderAt('/users')
 	await rowOf('Ada Lovelace')
 	const reload = gate()
@@ -918,57 +1077,25 @@ test('marks no reload after a failed role change, and reloads behind a modal tha
 	)
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('The role could not be changed.')
+	expect(await screen.findByText('The role could not be changed.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	await waitFor(() => expect(reads).toBe(1))
-	expect(screen.getByRole('table', { hidden: true })).not.toHaveAttribute('aria-busy', 'true')
+	expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true')
 	reload.release()
 	expect(await screen.findByText('reloaded@example.com')).toBeInTheDocument()
-	expect(dialog.getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
-	expect(dialog.getByRole('alert')).toHaveTextContent('The role could not be changed.')
+	await act('Ada Lovelace', 'Change role…')
+	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
 })
 
-test('offers only the roles the reader may grant', async () => {
+test('offers only the roles the reader may grant, the one with the fewest capabilities first', async () => {
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
 	await userEvent.click(await screen.findByRole('combobox', { name: 'Role' }))
 
 	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
-	expect(offered).toEqual(['Administrator', 'Member'])
-})
-
-test('lifts the role choices into the overlay slot that stacks above the modal', async () => {
-	renderAt('/users')
-
-	await act('Ada Lovelace', 'Change role…')
-	await userEvent.click(await screen.findByRole('combobox', { name: 'Role' }))
-
-	const choice = await screen.findByRole('option', { name: 'Administrator' })
-	expect(choice.closest('[data-wp-compat-overlay-slot]')).not.toBeNull()
-})
-
-test('opens the role change in a small modal naming the account, with Cancel as an accent text button', async () => {
-	renderAt('/users')
-
-	await act('Ada Lovelace', 'Change role…')
-
-	const dialog = await screen.findByRole('dialog', { name: 'Change role' })
-	expect(dialog).toHaveClass('has-size-small')
-	expect(within(dialog).getByText('Choose the role of Ada Lovelace.')).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
-})
-
-test('waits for another role before it writes one', async () => {
-	renderAt('/users')
-
-	await act('Ada Lovelace', 'Change role…')
-
-	expect(await screen.findByRole('button', { name: 'Change role' })).toHaveAttribute('aria-disabled', 'true')
+	expect(offered).toEqual(['Member', 'Administrator'])
 })
 
 test('closes the role modal without writing when the reader cancels', async () => {
@@ -982,116 +1109,39 @@ test('closes the role modal without writing when the reader cancels', async () =
 	expect(asked).toEqual([])
 })
 
-test('says inside the modal that the reader may not edit the account', async () => {
+test.each([
+	{ reason: 'user_not_editable', code: 'VALIDATION', words: 'Sorry, you are not allowed to edit this user.' },
+	{ reason: 'role_not_grantable', code: 'VALIDATION', words: 'Sorry, you are not allowed to give users that role.' },
+	{ reason: 'role_unknown', code: 'VALIDATION', words: 'Sorry, you are not allowed to give users that role.' },
+	{
+		reason: 'role_changed',
+		code: 'CONFLICT',
+		words: 'The role of that account just changed. Reload the page and try again.',
+	},
+	{
+		reason: 'tenant_deactivated',
+		code: 'UNAUTHORIZED',
+		words: 'This workspace has been deactivated. Contact your operator.',
+	},
+])('says in a toast why a role change was refused for $reason, the dialog closed', async ({ reason, code, words }) => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('SetUserRole', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [
-					{
-						message: 'you are not allowed to edit this user',
-						extensions: { code: 'VALIDATION', reason: 'user_not_editable' },
-					},
-				],
-			}),
+			HttpResponse.json({ data: null, errors: [{ message: 'role write refused', extensions: { code, reason } }] }),
 		),
 	)
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('Sorry, you are not allowed to edit this user.')
-	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
-})
-
-test('says inside the modal that the reader may not give the role', async () => {
-	configureAppErrorText()
-	server.use(
-		graphql.mutation('SetUserRole', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [
-					{
-						message: 'you are not allowed to give users that role',
-						extensions: { code: 'VALIDATION', reason: 'role_not_grantable' },
-					},
-				],
-			}),
-		),
-	)
-	renderAt('/users')
-
-	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
-
-	expect(await dialog.findByRole('alert')).toHaveTextContent('Sorry, you are not allowed to give users that role.')
-	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
-})
-
-test('says inside the modal that nothing declares the role the reader picked', async () => {
-	configureAppErrorText()
-	holding([signedIn, accountOf('fd', 'Maria Perez')])
-	server.use(
-		graphql.mutation('SetUserRole', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [
-					{
-						message: 'unknown role',
-						extensions: { code: 'VALIDATION', reason: 'role_unknown', meta: { field: 'role' } },
-					},
-				],
-			}),
-		),
-	)
-	renderAt('/users')
-
-	await act('Maria Perez', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
-
-	expect(await dialog.findByRole('alert')).toHaveTextContent('Nothing declares that role.')
-	expect(screen.queryByText('unknown role')).not.toBeInTheDocument()
-	expect(screen.queryByText(/Role changed/)).not.toBeInTheDocument()
-})
-
-test('says inside the modal that the role of the account just changed', async () => {
-	configureAppErrorText()
-	holding([signedIn, accountOf('fd', 'Maria Perez')])
-	server.use(
-		graphql.mutation('SetUserRole', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'role changed', extensions: { code: 'CONFLICT', reason: 'role_changed' } }],
-			}),
-		),
-	)
-	renderAt('/users')
-
-	await act('Maria Perez', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
-
-	expect(await dialog.findByRole('alert')).toHaveTextContent(
-		'The role of that account just changed. Reload the page and try again.',
-	)
-	expect(screen.queryByText('role changed')).not.toBeInTheDocument()
+	expect(await screen.findByText(words, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+	expect(screen.queryByText('role write refused')).not.toBeInTheDocument()
 	expect(screen.queryByText(/Role changed for/)).not.toBeInTheDocument()
 })
 
-test('reloads the accounts after a refused role change, keeping the role the reader picked', async () => {
+test('reads the accounts again after a refused role change, then opens again on the role the reader sent', async () => {
 	configureAppErrorText()
 	holding([signedIn, accountOf('fd', 'Maria Perez')])
 	server.use(
@@ -1106,23 +1156,19 @@ test('reloads the accounts after a refused role change, keeping the role the rea
 	renderAt('/users')
 
 	await act('Maria Perez', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await userEvent.click((await roleDialog()).getByRole('button', { name: 'Change role' }))
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent(
-		'The role of that account just changed. Reload the page and try again.',
-	)
-	await waitFor(() =>
-		expect(dialog.getByRole('button', { name: 'Change role' })).toHaveAttribute('aria-disabled', 'true'),
-	)
-	expect(dialog.getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
-	await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
-	expect((await rowOf('Maria Perez')).getByText('Administrator')).toBeInTheDocument()
+	expect(
+		await screen.findByText('The role of that account just changed. Reload the page and try again.', {
+			selector: '.godmin-toast',
+		}),
+	).toBeInTheDocument()
+	await waitFor(async () => expect((await rowOf('Maria Perez')).getByText('Administrator')).toBeInTheDocument())
+	await act('Maria Perez', 'Change role…')
+	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Member')
 })
 
-test('says plainly that a role could not be changed when the server names no reason', async () => {
+test('says plainly in a toast that a role could not be changed when the server names no reason', async () => {
 	server.use(
 		graphql.mutation('SetUserRole', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -1131,12 +1177,10 @@ test('says plainly that a role could not be changed when the server names no rea
 	renderAt('/users')
 
 	await act('Ada Lovelace', 'Change role…')
-	const dialog = within(await screen.findByRole('dialog'))
-	await userEvent.click(dialog.getByRole('combobox', { name: 'Role' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Administrator' }))
-	await userEvent.click(dialog.getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
-	expect(await dialog.findByRole('alert')).toHaveTextContent('The role could not be changed.')
+	expect(await screen.findByText('The role could not be changed.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
 test('navigates to the users screen from the main menu', async () => {

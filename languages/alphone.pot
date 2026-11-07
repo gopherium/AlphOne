@@ -7,12 +7,6 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone\n"
 
-msgid "\"%(name)s\" disabled."
-msgstr ""
-
-msgid "\"%(name)s\" enabled."
-msgstr ""
-
 msgid "\"%(name)s\" revoked."
 msgstr ""
 
@@ -23,26 +17,6 @@ msgstr[1] ""
 
 msgid "%s token revoked."
 msgid_plural "%s tokens revoked."
-msgstr[0] ""
-msgstr[1] ""
-
-msgid "%s user could not be disabled."
-msgid_plural "%s users could not be disabled."
-msgstr[0] ""
-msgstr[1] ""
-
-msgid "%s user could not be enabled."
-msgid_plural "%s users could not be enabled."
-msgstr[0] ""
-msgstr[1] ""
-
-msgid "%s user disabled."
-msgid_plural "%s users disabled."
-msgstr[0] ""
-msgstr[1] ""
-
-msgid "%s user enabled."
-msgid_plural "%s users enabled."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -89,9 +63,6 @@ msgid "Add Contact"
 msgstr ""
 
 msgid "Add Token"
-msgstr ""
-
-msgid "Add User"
 msgstr ""
 
 msgid "Add a task above, or open a contact and create one from their page."
@@ -145,12 +116,6 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-msgid "Change role"
-msgstr ""
-
-msgid "Change role…"
-msgstr ""
-
 msgid "Channel"
 msgstr ""
 
@@ -164,9 +129,6 @@ msgid "Choose at least one event to send."
 msgstr ""
 
 msgid "Choose the channel this address belongs to."
-msgstr ""
-
-msgid "Choose the role of %(name)s."
 msgstr ""
 
 msgid "Complete"
@@ -250,9 +212,6 @@ msgstr ""
 msgid "Created %(date)s"
 msgstr ""
 
-msgid "Disable"
-msgstr ""
-
 msgid "Dismiss this notice"
 msgstr ""
 
@@ -274,9 +233,6 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-msgid "Enable"
-msgstr ""
-
 msgid "Expires"
 msgstr ""
 
@@ -290,9 +246,6 @@ msgid "Identity added."
 msgstr ""
 
 msgid "Identity removed."
-msgstr ""
-
-msgid "Invitation sent to \"%(name)s\"."
 msgstr ""
 
 msgid "Invitation sent."
@@ -343,9 +296,6 @@ msgstr ""
 msgid "Manage the tokens your programs sign in with."
 msgstr ""
 
-msgid "Manage who can sign in and what they can do."
-msgstr ""
-
 msgid "Name"
 msgstr ""
 
@@ -389,9 +339,6 @@ msgid "No mail server is configured. Deliver the activation link by hand."
 msgstr ""
 
 msgid "No open tasks."
-msgstr ""
-
-msgid "No users yet"
 msgstr ""
 
 msgid "Nothing declares that role."
@@ -445,12 +392,6 @@ msgstr ""
 msgid "Reopen"
 msgstr ""
 
-msgid "Resend invitation"
-msgstr ""
-
-msgid "Resend invitation…"
-msgstr ""
-
 msgid "Revoke"
 msgstr ""
 
@@ -465,12 +406,6 @@ msgstr[1] ""
 msgid "Revoke…"
 msgstr ""
 
-msgid "Role"
-msgstr ""
-
-msgid "Role changed for \"%(name)s\"."
-msgstr ""
-
 msgid "Save"
 msgstr ""
 
@@ -481,12 +416,6 @@ msgid "Search contacts…"
 msgstr ""
 
 msgid "Search tokens…"
-msgstr ""
-
-msgid "Search users…"
-msgstr ""
-
-msgid "Send a new invitation to \"%(name)s\" (%(email)s)? The link sent before stops working."
 msgstr ""
 
 msgid "Send invitation"
@@ -508,9 +437,6 @@ msgid "Sorry, you are not allowed to edit this user."
 msgstr ""
 
 msgid "Sorry, you are not allowed to give users that role."
-msgstr ""
-
-msgid "Status"
 msgstr ""
 
 msgid "Task"
@@ -588,9 +514,6 @@ msgstr ""
 msgid "The contact could not be loaded."
 msgstr ""
 
-msgid "The invitation could not be sent."
-msgstr ""
-
 msgid "The language changes when the page next loads."
 msgstr ""
 
@@ -600,9 +523,6 @@ msgstr ""
 msgid "The name could not be updated."
 msgstr ""
 
-msgid "The role could not be changed."
-msgstr ""
-
 msgid "The role of that account just changed. Reload the page and try again."
 msgstr ""
 
@@ -610,12 +530,6 @@ msgid "The task could not be loaded."
 msgstr ""
 
 msgid "The token could not be revoked."
-msgstr ""
-
-msgid "The user could not be disabled."
-msgstr ""
-
-msgid "The user could not be enabled."
 msgstr ""
 
 msgid "This link is no longer valid. Ask for a new one."
@@ -652,9 +566,6 @@ msgid "User sections"
 msgstr ""
 
 msgid "Users"
-msgstr ""
-
-msgid "Users could not be loaded."
 msgstr ""
 
 msgid "Value"
@@ -723,10 +634,6 @@ msgctxt "role"
 msgid "Member"
 msgstr ""
 
-msgctxt "role"
-msgid "No role"
-msgstr ""
-
 msgctxt "task priority"
 msgid "High"
 msgstr ""
@@ -769,16 +676,4 @@ msgstr ""
 
 msgctxt "token lifetime"
 msgid "Never"
-msgstr ""
-
-msgctxt "user status"
-msgid "Active"
-msgstr ""
-
-msgctxt "user status"
-msgid "Disabled"
-msgstr ""
-
-msgctxt "user status"
-msgid "Invited"
 msgstr ""
