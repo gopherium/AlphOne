@@ -219,6 +219,11 @@ the reason `role_changed`. Sending it again checks the new role.
 `invite` takes an optional `role`. Leaving it out starts the account as a
 `member`.
 
+`resendInvite` answers as delivered and sends nothing for an unknown
+address, an account in another workspace, or an account whose role carries
+a capability the caller's role lacks. `invite` on an address that already
+has such an account answers the same.
+
 ### Roles and scopes together
 
 A role narrows the user. A scope narrows what a token carries of that user's
