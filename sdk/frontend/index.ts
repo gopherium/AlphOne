@@ -167,7 +167,15 @@ export { useRefusedField } from './refusedField'
 export { MANAGE_USERS, useSession } from './session'
 export { can } from '@gopherium/react-auth'
 export type { Capability, Role, Session } from './session'
-export { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText, writeFailure } from './graph'
+export {
+	configureErrorText,
+	createGraphClient,
+	graphError,
+	graphExtensions,
+	graphFetch,
+	reasonText,
+	writeFailure,
+} from './graph'
 export type { ErrorCopy, StoredReason } from './graph'
 export type { GraphClient, GraphKeys } from './graph'
 export { GraphProvider, useGraph } from './GraphProvider'
