@@ -21,16 +21,7 @@ import {
 	UserNotFoundError,
 	ValidationError,
 } from '@gopherium/react-auth/admin'
-import type {
-	Invitation,
-	NewInvite,
-	User as BrickAccount,
-} from '@gopherium/react-auth/admin'
-
-/**
- * Account is one user account as the admin screens consume it.
- */
-export type Account = BrickAccount & { withinReach: boolean }
+import type { Invitation, NewInvite, User } from '@gopherium/react-auth/admin'
 
 import {
 	acceptInviteMutation,
@@ -171,7 +162,7 @@ function toAccount(user: {
 	createdAt: string
 	role?: string
 	withinReach: boolean
-}): Account {
+}): User {
 	return {
 		id: user.id,
 		email: user.email,
@@ -181,7 +172,6 @@ function toAccount(user: {
 		created_at: new Date(user.createdAt),
 		role: user.role ?? '',
 		editable: user.withinReach,
-		withinReach: user.withinReach,
 	}
 }
 
@@ -247,7 +237,7 @@ async function isSessionRevoked(signal?: AbortSignal): Promise<boolean> {
  * @param signal - Aborts the in-flight request.
  * @returns The accounts as the admin screens consume them.
  */
-async function fetchUsers(signal?: AbortSignal): Promise<Account[]> {
+async function fetchUsers(signal?: AbortSignal): Promise<User[]> {
 	const result = await execute(usersQuery, undefined, signal)
 	if (firstCode(result) === 'UNAUTHENTICATED') {
 		throw new UnauthorizedError('session expired')

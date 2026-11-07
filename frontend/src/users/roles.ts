@@ -2,6 +2,7 @@
 
 import { _x } from '@alphone/frontend-sdk'
 import { RoleNotGrantableError, RoleUnknownError } from '@gopherium/react-auth/admin'
+import type { RoleLabels } from '@gopherium/react-auth/wpds/users'
 
 /** The error code each turned down role write answers with, by the error it raises. */
 const refusedRoles: [new (...args: never[]) => Error, string][] = [
@@ -13,12 +14,11 @@ const refusedRoles: [new (...args: never[]) => Error, string][] = [
  * Returns the label each core role reads as, read fresh so the loaded catalogue answers.
  * @returns The labels, keyed by the role the server stores.
  */
-function coreRoleLabels(): Map<string, string> {
-	return new Map<string, string>([
-		['admin', _x('Administrator', 'role', 'alphone')],
-		['member', _x('Member', 'role', 'alphone')],
-		['', _x('No role', 'role', 'alphone')],
-	])
+export function roleLabels(): RoleLabels {
+	return {
+		admin: _x('Administrator', 'role', 'alphone'),
+		member: _x('Member', 'role', 'alphone'),
+	}
 }
 
 /**
@@ -27,7 +27,8 @@ function coreRoleLabels(): Map<string, string> {
  * @returns The label.
  */
 export function roleLabel(role: string): string {
-	return coreRoleLabels().get(role) ?? role.charAt(0).toUpperCase() + role.slice(1)
+	const labels = roleLabels()
+	return Object.hasOwn(labels, role) ? labels[role] : role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 /** memberRole is the core role carrying no capability. */

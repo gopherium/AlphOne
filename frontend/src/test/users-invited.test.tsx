@@ -316,8 +316,8 @@ test('says why a resend failed in a toast in the words the reason names, the con
 				data: null,
 				errors: [
 					{
-						message: 'invite: the address is malformed',
-						extensions: { code: 'VALIDATION', reason: 'email_invalid' },
+						message: 'user: no account holds that identifier',
+						extensions: { code: 'NOT_FOUND', reason: 'user_not_found' },
 					},
 				],
 			}),
@@ -328,9 +328,8 @@ test('says why a resend failed in a toast in the words the reason names, the con
 
 	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
 
-	expect(
-		await screen.findByText('Write the address as a full email address.', { selector: '.godmin-toast' }),
-	).toBeInTheDocument()
+	expect(await screen.findByText('Invalid user ID.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(screen.queryByText(/no account holds/)).not.toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })

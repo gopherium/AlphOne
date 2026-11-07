@@ -200,7 +200,7 @@ test('fetchUsers carries the confirmation of every account', async () => {
 	expect(held.confirmed).toBe(false)
 })
 
-test('fetchUsers carries whether the reader may change each account', async () => {
+test('fetchUsers asks the graph whether the reader may change each account', async () => {
 	let asked = ''
 	server.use(
 		http.post('/api/graphql', async ({ request }) => {
@@ -224,10 +224,9 @@ test('fetchUsers carries whether the reader may change each account', async () =
 		}),
 	)
 
-	const [held] = await graphAuthTransport.fetchUsers()
+	await graphAuthTransport.fetchUsers()
 
 	expect(asked).toContain('withinReach')
-	expect(held.withinReach).toBe(false)
 })
 
 test.each([true, false])('fetchUsers answers editable as %s from the reach of the reader', async (withinReach) => {
