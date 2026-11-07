@@ -11,16 +11,23 @@ let started: string | undefined
 let startedWith: ReturnType<typeof getSettings> | undefined
 
 /**
- * Returns a moment as the abbreviated date and time a list shows, in the interface language.
- * @param at - The moment, as a Date or as the text a server stored.
- * @returns The date and time, such as Oct 13, 2026 5:04 pm.
+ * Starts the list dates in the interface language unless they already stand in it.
  */
-export function listDate(at: Date | string): string {
+export function readyListDates(): void {
 	const locale = displayLocale()
 	if (started !== locale || getSettings() !== startedWith) {
 		startListDates(locale)
 		started = locale
 		startedWith = getSettings()
 	}
+}
+
+/**
+ * Returns a moment as the abbreviated date and time a list shows, in the interface language.
+ * @param at - The moment, as a Date or as the text a server stored.
+ * @returns The date and time, such as Oct 13, 2026 5:04 pm.
+ */
+export function listDate(at: Date | string): string {
+	readyListDates()
 	return writtenListDate(at)
 }

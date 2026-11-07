@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { LIST_CHROME_DOMAIN, listChromeCatalogFor } from '@gopherium/godmin'
-import { startListDates } from '@gopherium/godmin/dates'
+import { startListDates, listDate as writtenListDate } from '@gopherium/godmin/dates'
 import { rememberLocale } from '@gopherium/gottext'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
 import { afterEach, expect, test } from 'vitest'
 
-import { listDate } from '../dataviews'
+import { listDate, readyListDates } from '../dataviews'
 
 /** Settles the interface on Spanish with the list catalogue loaded. */
 async function readInSpanish(): Promise<void> {
@@ -26,6 +26,14 @@ test('writes a moment a server stored as the date and time a list shows', () => 
 
 test('writes a moment handed as a date the same way', () => {
 	expect(listDate(new Date('2026-10-13T15:04:00Z'))).toBe('Oct 13, 2026 3:04 pm')
+})
+
+test('readies the list dates in the reader’s language for a list that writes them through godmin', async () => {
+	await readInSpanish()
+
+	readyListDates()
+
+	expect(writtenListDate('2026-08-03T09:05:00Z')).toBe('3 Ago 2026 09:05')
 })
 
 test('writes list dates in the language the reader settled on', async () => {
