@@ -20,7 +20,7 @@ and two from the plugins it ships:
 | ----- | ---- | -------------- |
 | `task.created` | core | A task is created, by a person or by an integration |
 | `task.completed` | core | A task moves into `done` |
-| `contact.created` | core | A contact is created, including one created by an inbound message from an unknown number |
+| `contact.created` | core | A contact is created, including one created by an inbound message from an unknown sender |
 | `whatsapp.message.received` | the `whatsapp` plugin | An inbound WhatsApp message is stored |
 | `import.completed` | the `importer` plugin | An import finishes turning its rows into contacts |
 
