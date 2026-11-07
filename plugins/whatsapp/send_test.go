@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -192,6 +193,89 @@ func TestSendMessageDeliversReply(t *testing.T) {
 	}
 }
 
+// ingestUserIDEvent posts one signed text message whose sender carries a user ID and no phone number.
+func ingestUserIDEvent(t *testing.T, routes http.Handler, wamid, userID string) {
+	t.Helper()
+	body := fmt.Appendf(nil, `{
+		"object": "whatsapp_business_account",
+		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
+			"messaging_product": "whatsapp",
+			"contacts": [{"user_id": %q, "profile": {"name": "Maria Perez"}}],
+			"messages": [{"from_user_id": %q, "id": %q, "timestamp": "1751791000", "type": "text",
+				"text": {"body": "hello"}}]
+		}}]}]
+	}`, userID, userID, wamid)
+	if recorder := postEvent(t, routes, sign("app-secret", body), body); recorder.Code != http.StatusOK {
+		t.Fatalf("ingesting %s status = %d, want %d", wamid, recorder.Code, http.StatusOK)
+	}
+}
+
+// sentFields returns the fields of the last request the stub graph server received.
+func sentFields(t *testing.T, stub *graphStub) map[string]any {
+	t.Helper()
+	var fields map[string]any
+	if err := json.Unmarshal(stub.lastBody, &fields); err != nil {
+		t.Fatalf("decoding graph payload %q: %v", stub.lastBody, err)
+	}
+	return fields
+}
+
+// addressing names the payload field a send carries its address in and the field it leaves out.
+type addressing struct {
+	field string
+	other string
+}
+
+// throughRecipient is how a send addresses a user ID.
+var throughRecipient = addressing{field: "recipient", other: "to"}
+
+// throughTo is how a send addresses a phone number or a lid.
+var throughTo = addressing{field: "to", other: "recipient"}
+
+// wantAddressed fails unless fields names address in the field of by and leaves its other field out.
+func wantAddressed(t *testing.T, fields map[string]any, by addressing, address string) {
+	t.Helper()
+	if fields[by.field] != address {
+		t.Errorf("graph payload %s = %v, want %s", by.field, fields[by.field], address)
+	}
+	if left, named := fields[by.other]; named {
+		t.Errorf("graph payload also names %s = %v, want no %s", by.other, left, by.other)
+	}
+}
+
+func TestSendMessageUsesRecipientAndNoToForAUserIDAddress(t *testing.T) {
+	t.Parallel()
+
+	p, stub := newSendingPlugin(t, nil)
+	ingestUserIDEvent(t, p.Routes(), "wamid.u", "US.184467235")
+
+	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
+
+	wantAddressed(t, sentFields(t, stub), throughRecipient, "US.184467235")
+}
+
+func TestSendMessageUsesToAndNoRecipientForAPhoneAddress(t *testing.T) {
+	t.Parallel()
+
+	p, stub := newSendingPlugin(t, nil)
+	ingestEvent(t, p.Routes(), "wamid.p", "184467235", "Maria Perez", "1751791000", "hello")
+
+	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
+
+	wantAddressed(t, sentFields(t, stub), throughTo, "184467235")
+}
+
+func TestSendMessageUsesToForALidAddress(t *testing.T) {
+	t.Parallel()
+
+	p, stub := newSendingPlugin(t, nil)
+	ingestEvent(t, p.Routes(), "wamid.l", "184467235@lid", "Maria Perez", "1751791000", "hello")
+
+	mustSend(t, p, onlyConversation(t, p).ID, "Ready at 5pm")
+
+	wantAddressed(t, sentFields(t, stub), throughTo, "184467235@lid")
+}
+
 func TestSendMessageUsesTheCallersTenantCredentials(t *testing.T) {
 	t.Parallel()
 
@@ -302,7 +386,7 @@ func TestAConversationOnARemovedNumberStaysReadable(t *testing.T) {
 	if read == nil {
 		t.Fatal("WhatsAppConversation() = nil, want the conversation kept")
 	}
-	messages, err := p.WhatsAppConversationResolvers().Messages(mine, read, nil)
+	messages, err := p.WhatsAppConversationResolvers().Messages(mine, read, nil, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}

@@ -74,6 +74,7 @@ type webhookMetadata struct {
 
 type webhookSender struct {
 	WaID    string `json:"wa_id"`
+	UserID  string `json:"user_id"`
 	Profile struct {
 		Name string `json:"name"`
 	} `json:"profile"`
@@ -103,11 +104,12 @@ type webhookBatch struct {
 }
 
 type webhookMessage struct {
-	From      string `json:"from"`
-	ID        string `json:"id"`
-	Timestamp string `json:"timestamp"`
-	Type      string `json:"type"`
-	Text      struct {
+	From       string `json:"from"`
+	FromUserID string `json:"from_user_id"`
+	ID         string `json:"id"`
+	Timestamp  string `json:"timestamp"`
+	Type       string `json:"type"`
+	Text       struct {
 		Body string `json:"body"`
 	} `json:"text"`
 	Image    *webhookMedia        `json:"image"`
@@ -273,13 +275,30 @@ func (b *webhookBatch) collect(change webhookChange, route numberRoute) {
 	}
 }
 
-// senderNames returns the display name of each sender in contacts by wa id.
+// senderNames returns the display name of each sender in contacts by phone number and by user ID.
 func senderNames(contacts []webhookSender) map[string]string {
-	names := make(map[string]string, len(contacts))
+	names := make(map[string]string, 2*len(contacts))
 	for _, sender := range contacts {
 		names[sender.WaID] = sender.Profile.Name
+		names[sender.UserID] = sender.Profile.Name
 	}
 	return names
+}
+
+// senderOf returns the address a message came from, empty when it has none to store.
+func senderOf(m webhookMessage) string {
+	if m.From != "" {
+		return m.From
+	}
+	if isUserID(m.FromUserID) {
+		return m.FromUserID
+	}
+	return ""
+}
+
+// isUserID reports whether an address has the shape of a WhatsApp user ID, which always holds a period.
+func isUserID(address string) bool {
+	return strings.Contains(address, ".")
 }
 
 // parseStatus converts one webhook status entry into a status update,
@@ -321,13 +340,14 @@ func parseMessage(names map[string]string, raw json.RawMessage) (inboundMessage,
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return inboundMessage{}, false
 	}
-	if m.From == "" || m.ID == "" {
+	sender := senderOf(m)
+	if sender == "" || m.ID == "" {
 		return inboundMessage{}, false
 	}
 	message := inboundMessage{
 		externalID: m.ID,
-		sender:     m.From,
-		senderName: names[m.From],
+		sender:     sender,
+		senderName: names[sender],
 		sentAt:     parseTimestamp(m.Timestamp),
 		raw:        raw,
 	}

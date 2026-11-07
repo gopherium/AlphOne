@@ -124,6 +124,9 @@ msgstr ""
 msgid "Sent"
 msgstr ""
 
+msgid "Show older messages"
+msgstr ""
+
 msgid "Sticker"
 msgstr ""
 

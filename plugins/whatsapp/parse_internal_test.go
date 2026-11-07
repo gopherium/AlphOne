@@ -8,16 +8,25 @@ import (
 	"time"
 )
 
-// webhookBody returns a webhook payload wrapping the given message element.
-func webhookBody(message string) []byte {
+// changeBody returns a webhook payload whose one change carries the given value fields.
+func changeBody(fields string) []byte {
 	return fmt.Appendf(nil, `{
 		"object": "whatsapp_business_account",
 		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
 			"messaging_product": "whatsapp",
-			"contacts": [{"wa_id": "184467235", "profile": {"name": "María Pérez"}}],
-			"messages": [%s]
+			%s
 		}}]}]
-	}`, message)
+	}`, fields)
+}
+
+// senderBody returns a webhook payload carrying one contact and one message element.
+func senderBody(contact, message string) []byte {
+	return changeBody(fmt.Sprintf(`"contacts": [%s], "messages": [%s]`, contact, message))
+}
+
+// webhookBody returns a webhook payload wrapping the given message element.
+func webhookBody(message string) []byte {
+	return senderBody(`{"wa_id": "184467235", "profile": {"name": "María Pérez"}}`, message)
 }
 
 // parsedWhole decodes a body whose changes name no number, with room for every item.
@@ -249,6 +258,72 @@ func TestParseMessagesSkipsUnattributableElements(t *testing.T) {
 	}
 }
 
+// userIDContact is a contact that names a sender by user ID and profile name only.
+const userIDContact = `{"user_id": "US.184467235", "profile": {"name": "Maria Perez", "username": "mariaperez"}}`
+
+// userIDMessage is a text message element that names its sender by user ID only.
+const userIDMessage = `{"from_user_id": "US.184467235", "id": "wamid.u", "timestamp": "1751791000", "type": "text",` +
+	` "text": {"body": "hello"}}`
+
+// parsedMessages decodes body and returns the messages it holds.
+func parsedMessages(t *testing.T, body []byte) []inboundMessage {
+	t.Helper()
+	batch, err := parsedWhole(body)
+	if err != nil {
+		t.Fatalf("parseWebhook() error = %v, want nil", err)
+	}
+	return batch.messages
+}
+
+// onlyParsedMessage decodes body and returns its single message.
+func onlyParsedMessage(t *testing.T, body []byte) inboundMessage {
+	t.Helper()
+	messages := parsedMessages(t, body)
+	if got, want := len(messages), 1; got != want {
+		t.Fatalf("len(messages) = %d, want %d", got, want)
+	}
+	return messages[0]
+}
+
+func TestParseMessagesTakesTheUserIDAndItsContactNameWhenNoPhoneNumberArrives(t *testing.T) {
+	t.Parallel()
+
+	got := onlyParsedMessage(t, senderBody(userIDContact, userIDMessage))
+
+	if got.sender != "US.184467235" {
+		t.Errorf("sender = %q, want %q", got.sender, "US.184467235")
+	}
+	if got.senderName != "Maria Perez" {
+		t.Errorf("senderName = %q, want %q", got.senderName, "Maria Perez")
+	}
+}
+
+func TestParseMessagesSkipsAUserIDWithNoPeriod(t *testing.T) {
+	t.Parallel()
+
+	contact := `{"user_id": "184467235", "profile": {"name": "Maria Perez"}}`
+	message := `{"from_user_id": "184467235", "id": "wamid.n", "timestamp": "1751791000", "type": "text",` +
+		` "text": {"body": "hello"}}`
+
+	if got := parsedMessages(t, senderBody(contact, message)); len(got) != 0 {
+		t.Errorf("messages = %+v, want a user ID with no period skipped", got)
+	}
+}
+
+func TestParseMessagesTakesThePhoneNumberWhenBothArrive(t *testing.T) {
+	t.Parallel()
+
+	contact := `{"wa_id": "184467235", "user_id": "US.184467235", "profile": {"name": "Maria Perez"}}`
+	message := `{"from": "184467235", "from_user_id": "US.184467235", "id": "wamid.b", "timestamp": "1751791000",` +
+		` "type": "text", "text": {"body": "hello"}}`
+
+	got := onlyParsedMessage(t, senderBody(contact, message))
+
+	if got.sender != "184467235" || got.senderName != "Maria Perez" {
+		t.Errorf("sender = %q named %q, want 184467235 named Maria Perez", got.sender, got.senderName)
+	}
+}
+
 func TestParseMessagesRejectsEnvelopeGarbage(t *testing.T) {
 	t.Parallel()
 
@@ -267,13 +342,7 @@ func TestNamedNumbersRejectsEnvelopeGarbage(t *testing.T) {
 
 // statusEnvelope returns a webhook payload wrapping the given status elements.
 func statusEnvelope(statuses string) []byte {
-	return fmt.Appendf(nil, `{
-		"object": "whatsapp_business_account",
-		"entry": [{"id": "0", "changes": [{"field": "messages", "value": {
-			"messaging_product": "whatsapp",
-			"statuses": [%s]
-		}}]}]
-	}`, statuses)
+	return changeBody(fmt.Sprintf(`"statuses": [%s]`, statuses))
 }
 
 func TestParseWebhookStatuses(t *testing.T) {

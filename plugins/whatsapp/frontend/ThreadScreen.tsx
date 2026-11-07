@@ -12,5 +12,5 @@ export function ThreadScreen() {
 	const { conversationId } = useParams({
 		from: '/whatsapp/conversations/$conversationId',
 	})
-	return <Thread conversationId={conversationId} />
+	return <Thread key={conversationId} conversationId={conversationId} />
 }

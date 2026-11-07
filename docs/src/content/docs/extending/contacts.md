@@ -4,10 +4,10 @@ description: Find the contacts behind the addresses your plugin meets, one or ma
 ---
 
 A channel plugin, such as WhatsApp or a mail plugin, meets people by their
-address: a phone number, a WhatsApp number or an email address. AlphOne keeps
-one contact per person and links each of their addresses to it. The SDK calls
-a linked address an **identity**. It is made of a channel, such as `email`,
-and an identifier, such as `maria.perez@example.com`.
+address: a phone number, a WhatsApp number or user ID, or an email address.
+AlphOne keeps one contact per person and links each of their addresses to it.
+The SDK calls a linked address an **identity**. It is made of a channel, such
+as `email`, and an identifier, such as `maria.perez@example.com`.
 
 Your plugin gets four helpers for contacts in `sdk.Deps`. Keep the ones you
 need from `Register`:

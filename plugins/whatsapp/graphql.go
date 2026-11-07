@@ -227,15 +227,22 @@ func (w WhatsAppConversationResolvers) Contact(
 	return obj.Contact, nil
 }
 
-// Messages lists the conversation's messages, oldest first.
+// OldestMessageID names the conversation's first message in thread order, nil for none.
+func (w WhatsAppConversationResolvers) OldestMessageID(
+	ctx context.Context, obj *model.WhatsAppConversation,
+) (*uuid.UUID, error) {
+	return w.plugin.store.oldestMessageID(ctx, obj.ID)
+}
+
+// Messages lists the conversation's newest messages sent before the given one, when named, oldest first.
 func (w WhatsAppConversationResolvers) Messages(
-	ctx context.Context, obj *model.WhatsAppConversation, limit *int,
+	ctx context.Context, obj *model.WhatsAppConversation, limit *int, before *uuid.UUID,
 ) ([]*model.WhatsAppMessage, error) {
 	bounded, err := w.plugin.pages.Limit(limit)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := w.plugin.store.listMessages(ctx, obj.ID, bounded)
+	rows, err := w.plugin.store.listMessages(ctx, obj.ID, bounded, before)
 	if err != nil {
 		return nil, err
 	}

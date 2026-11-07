@@ -173,7 +173,7 @@ func TestMediaDownloadRejectsMalformedIDs(t *testing.T) {
 func threadMedia(t *testing.T, p *Plugin, conversationID uuid.UUID) map[uuid.UUID]*model.WhatsAppMedia {
 	t.Helper()
 	messages, err := p.WhatsAppConversationResolvers().Messages(
-		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil)
+		t.Context(), &model.WhatsAppConversation{ID: conversationID}, nil, nil)
 	if err != nil {
 		t.Fatalf("Messages() error = %v, want nil", err)
 	}

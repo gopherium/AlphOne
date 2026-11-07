@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider, configureErrorText } from '@alphone/frontend-sdk'
+import { GraphProvider, Toaster, configureErrorText } from '@alphone/frontend-sdk'
 import { HttpResponse, fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import type { FakeGraph } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { errorTemplates } from '../errorTemplates'
@@ -38,27 +39,137 @@ function message(fields: Record<string, unknown> = {}) {
 	}
 }
 
+/** Builds the conversation of the thread document, its oldest message the first one given unless named. */
+function conversationOf(
+	number: string | null,
+	messages: Record<string, unknown>[],
+	oldestMessageId: unknown = messages[0]?.id ?? null,
+) {
+	return {
+		__typename: 'WhatsAppConversation',
+		id: conversationId,
+		number,
+		oldestMessageId,
+		contact: {
+			__typename: 'Contact',
+			id: '019f4a00-0000-7000-8000-0000000000a1',
+			name: 'John Doe',
+		},
+		messages,
+	}
+}
+
 /** Serves the thread document of a conversation on a number with the given messages. */
 function threadOn(number: string | null, ...messages: Record<string, unknown>[]) {
 	server.use(
 		graphql.query('WhatsAppThread', () =>
-			HttpResponse.json({
-				data: {
-					whatsAppConversation: {
-						__typename: 'WhatsAppConversation',
-						id: conversationId,
-						number,
-						contact: {
-							__typename: 'Contact',
-							id: '019f4a00-0000-7000-8000-0000000000a1',
-							name: 'John Doe',
-						},
-						messages,
-					},
-				},
-			}),
+			HttpResponse.json({ data: { whatsAppConversation: conversationOf(number, messages) } }),
 		),
 	)
+}
+
+/** Builds message n of a long chat, sent n minutes past ten. */
+function chatMessage(n: number, fields: Record<string, unknown> = {}) {
+	const two = String(n).padStart(2, '0')
+	return message({
+		id: `019f4a00-0000-7000-8000-0000000001${two}`,
+		externalId: `wamid.chat.${two}`,
+		content: `Message ${n}`,
+		sentAt: `2026-07-06T10:${two}:00Z`,
+		...fields,
+	})
+}
+
+/** Builds the first n messages of a long chat, oldest first. */
+function chatOf(n: number) {
+	return Array.from({ length: n }, (_, index) => chatMessage(index + 1))
+}
+
+/** Serves a chat two messages at a time from the chat as it stands, an older page only once the gate opens. */
+function chatInPagesOfTwo(chat: Record<string, unknown>[], gate: () => Promise<void> = async () => {}) {
+	server.use(
+		graphql.query('WhatsAppThread', async ({ variables }) => {
+			if (variables.after) {
+				await gate()
+			}
+			const end = variables.after ? chat.findIndex((row) => row.id === variables.after) : chat.length
+			const page = chat.slice(Math.max(0, end - 2), end)
+			return HttpResponse.json({ data: { whatsAppConversation: conversationOf(null, page, chat[0]?.id) } })
+		}),
+	)
+}
+
+/** Returns a gate that holds every read until it opens. */
+function heldGate() {
+	let open: () => void = () => {}
+	const opened = new Promise<void>((resolve) => {
+		open = resolve
+	})
+	return { wait: () => opened, open: () => open() }
+}
+
+/** Returns the text of every row in the log, in order. */
+function rowTexts(): string[] {
+	return screen.getAllByRole('listitem').map((item) => item.textContent ?? '')
+}
+
+/** OLDER names the button that loads the older messages. */
+const OLDER = { name: 'Show older messages' }
+
+/** Lists one message, delivers an arrival, and returns the row each one is listed on. */
+async function rowsAfterArrival(loaded: ReturnType<typeof message>, arrival: ReturnType<typeof message>) {
+	threadOf(loaded)
+	const fake = renderThread()
+	await screen.findByText(loaded.content)
+
+	fake.emit({ whatsAppMessageReceived: arrival })
+	await screen.findByText(arrival.content)
+
+	const contents = rowTexts()
+	return {
+		loaded: contents.findIndex((text) => text.includes(loaded.content)),
+		arrival: contents.findIndex((text) => text.includes(arrival.content)),
+	}
+}
+
+/** Loads the older page of a long chat whose log reports the given metrics, and returns the spy on each scroll set. */
+async function loadOlderMessages({
+	clientHeight,
+	scrollTop,
+	scrolled,
+	scrolledTo,
+}: {
+	clientHeight: number
+	scrollTop: number
+	scrolled: boolean
+	scrolledTo?: number
+}) {
+	const user = userEvent.setup()
+	let height = 1000
+	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(() => height)
+	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(clientHeight)
+	const scrollTopGet = vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(scrollTop)
+	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
+	const gate = heldGate()
+	chatInPagesOfTwo(chatOf(4), gate.wait)
+	renderThread()
+	const button = await screen.findByRole('button', OLDER)
+	const log = screen.getByRole('log')
+	if (scrolled) {
+		fireEvent.scroll(log)
+	}
+	scrollTopSet.mockClear()
+
+	await user.click(button)
+	await waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
+	if (scrolledTo !== undefined) {
+		scrollTopGet.mockReturnValue(scrolledTo)
+		fireEvent.scroll(log)
+	}
+	height = 1600
+	gate.open()
+	await screen.findByText('Message 1')
+	return scrollTopSet
 }
 
 /** Serves the thread document with the given messages. */
@@ -66,20 +177,39 @@ function threadOf(...messages: Record<string, unknown>[]) {
 	threadOn(null, ...messages)
 }
 
-/** Renders the thread under a fresh query client and a drivable graph client. */
-function renderThread(): FakeGraph {
+/** Renders the thread under a fresh query client and a drivable graph client, in StrictMode when asked. */
+function renderThread({ strict = false }: { strict?: boolean } = {}): FakeGraph {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	})
 	const fake = fakeGraphClient([plugin])
-	render(
+	const tree = (
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={fake.graph}>
-				<Thread conversationId={conversationId} />
+				<Toaster>
+					<Thread conversationId={conversationId} />
+				</Toaster>
 			</GraphProvider>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	)
+	render(strict ? <StrictMode>{tree}</StrictMode> : tree)
 	return fake
+}
+
+/** upstreamFailure answers every send with a failure the provider reported. */
+const upstreamFailure = graphql.mutation('WhatsAppSendMessage', () =>
+	HttpResponse.json({
+		data: null,
+		errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
+	}),
+)
+
+/** Waits for the first message, then types hello into the composer and sends it. */
+async function sendReply() {
+	const user = userEvent.setup()
+	await screen.findByText('Hi, is the order ready?')
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
+	await user.click(screen.getByRole('button', { name: /send/i }))
 }
 
 test('shows a spinner in place of the log while the messages arrive', async () => {
@@ -183,6 +313,7 @@ test('shows an empty state when the conversation has no messages', async () => {
 	renderThread()
 
 	expect(await screen.findByText(/no messages yet/i)).toBeInTheDocument()
+	expect(screen.queryByRole('button', OLDER)).toBeNull()
 })
 
 test('reports when messages cannot be loaded', async () => {
@@ -197,21 +328,27 @@ test('reports when messages cannot be loaded', async () => {
 	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 })
 
+test('shows the alert and no composer when the first read answers a null conversation with errors', async () => {
+	server.use(
+		graphql.query('WhatsAppThread', () =>
+			HttpResponse.json({
+				data: { whatsAppConversation: null },
+				errors: [{ message: 'internal error', path: ['whatsAppConversation', 'messages'] }],
+			}),
+		),
+	)
+
+	renderThread()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('Messages could not be loaded.')
+	expect(screen.queryByRole('textbox', { name: /reply/i })).toBeNull()
+})
+
 test('sends a reply and shows it in the thread', async () => {
 	const user = userEvent.setup()
 	server.use(
 		graphql.query('WhatsAppThread', () =>
-			HttpResponse.json({
-				data: {
-					whatsAppConversation: {
-						__typename: 'WhatsAppConversation',
-						id: conversationId,
-						number: null,
-						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
-						messages: [message()],
-					},
-				},
-			}),
+			HttpResponse.json({ data: { whatsAppConversation: conversationOf(null, [message()]) } }),
 		),
 		graphql.mutation('WhatsAppSendMessage', ({ variables }) =>
 			HttpResponse.json({
@@ -245,17 +382,7 @@ test('appends an arriving message without refetching the thread', async () => {
 	server.use(
 		graphql.query('WhatsAppThread', () => {
 			threadReads += 1
-			return HttpResponse.json({
-				data: {
-					whatsAppConversation: {
-						__typename: 'WhatsAppConversation',
-						id: conversationId,
-						number: null,
-						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
-						messages: [message()],
-					},
-				},
-			})
+			return HttpResponse.json({ data: { whatsAppConversation: conversationOf(null, [message()]) } })
 		}),
 	)
 	const fake = renderThread()
@@ -291,29 +418,62 @@ test('keeps one copy of an arrival the thread reload also returns', async () => 
 	expect(await screen.findAllByText('One more thing')).toHaveLength(1)
 })
 
-test('reports when the reply cannot be sent', async () => {
-	const user = userEvent.setup()
-	server.use(
-		graphql.mutation('WhatsAppSendMessage', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'upstream failure', extensions: { code: 'UPSTREAM' } }],
-			}),
-		),
+test('lists an arrival older than the loaded rows in its sent order', async () => {
+	const rows = await rowsAfterArrival(
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b2',
+			content: 'Later message',
+			sentAt: '2026-07-06T10:30:00Z',
+		}),
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b1',
+			content: 'Earlier message',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
 	)
 
-	renderThread()
-	await screen.findByText('Hi, is the order ready?')
+	expect(rows.arrival).toBeLessThan(rows.loaded)
+})
 
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+test('lists two messages sent in the same second by their ids', async () => {
+	const rows = await rowsAfterArrival(
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b2',
+			content: 'Higher id',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
+		message({
+			id: '019f4a00-0000-7000-8000-0000000000b1',
+			content: 'Lower id',
+			sentAt: '2026-07-06T10:00:00Z',
+		}),
+	)
+
+	expect(rows.arrival).toBeLessThan(rows.loaded)
+})
+
+test('reports when the reply cannot be sent', async () => {
+	server.use(upstreamFailure)
+
+	renderThread()
+	await sendReply()
 
 	expect(await screen.findByText(/could not be sent/i)).toBeInTheDocument()
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
 })
 
+test('keeps a reply that fails on screen in the composer under StrictMode, with no toast', async () => {
+	server.use(upstreamFailure)
+
+	renderThread({ strict: true })
+	await sendReply()
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(/could not be sent/i)
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
+	expect(screen.getAllByText(/could not be sent/i)).toHaveLength(1)
+})
+
 test('says the number is gone when a reply meets a removed number', async () => {
-	const user = userEvent.setup()
 	configureErrorText({ templates: errorTemplates, fallback: () => '' })
 	server.use(
 		graphql.mutation('WhatsAppSendMessage', () =>
@@ -330,17 +490,13 @@ test('says the number is gone when a reply meets a removed number', async () => 
 	)
 
 	renderThread()
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('That number is no longer connected.')
 	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('hello')
 })
 
 test('explains a rejected reply with the code the graph surfaced', async () => {
-	const user = userEvent.setup()
 	server.use(
 		graphql.mutation('WhatsAppSendMessage', () =>
 			HttpResponse.json({
@@ -356,10 +512,7 @@ test('explains a rejected reply with the code the graph surfaced', async () => {
 	)
 
 	renderThread()
-	await screen.findByText('Hi, is the order ready?')
-
-	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'hello')
-	await user.click(screen.getByRole('button', { name: /send/i }))
+	await sendReply()
 
 	expect(await screen.findByRole('alert')).toHaveTextContent(/24-hour/i)
 })
@@ -409,4 +562,152 @@ test('follows the newest message unless the reader scrolls up', async () => {
 	})
 	await screen.findByText('second')
 	expect(scrollTopSet).toHaveBeenCalledTimes(2)
+})
+
+test('hides the older messages button when the first page holds the oldest message', async () => {
+	chatInPagesOfTwo(chatOf(2))
+	renderThread()
+
+	await screen.findByText('Message 1')
+
+	expect(screen.queryByRole('button', OLDER)).toBeNull()
+})
+
+test('shows the older messages button while older messages remain', async () => {
+	chatInPagesOfTwo(chatOf(3))
+	renderThread()
+
+	expect(await screen.findByRole('button', OLDER)).toBeInTheDocument()
+	expect(screen.queryByText('Message 1')).toBeNull()
+})
+
+test('adds the older page above the rows already shown', async () => {
+	const user = userEvent.setup()
+	chatInPagesOfTwo(chatOf(4))
+	renderThread()
+
+	await user.click(await screen.findByRole('button', OLDER))
+	await screen.findByText('Message 1')
+
+	expect(rowTexts().filter((text) => text.startsWith('Received'))).toEqual([
+		expect.stringContaining('Message 1'),
+		expect.stringContaining('Message 2'),
+		expect.stringContaining('Message 3'),
+		expect.stringContaining('Message 4'),
+	])
+})
+
+test('hides the button once the oldest message is loaded', async () => {
+	const user = userEvent.setup()
+	chatInPagesOfTwo(chatOf(6))
+	renderThread()
+
+	await user.click(await screen.findByRole('button', OLDER))
+	await screen.findByText('Message 3')
+	expect(screen.getByRole('button', OLDER)).toBeInTheDocument()
+	await user.click(screen.getByRole('button', OLDER))
+	await screen.findByText('Message 1')
+
+	expect(screen.queryByRole('button', OLDER)).toBeNull()
+})
+
+test('keeps the reader on the same row when older messages load', async () => {
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 100, scrollTop: 0, scrolled: true })
+
+	expect(scrollTopSet).toHaveBeenLastCalledWith(600)
+})
+
+test('does not jump to the newest message when older messages load while following', async () => {
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 900, scrollTop: 50, scrolled: false })
+
+	expect(scrollTopSet).toHaveBeenLastCalledWith(650)
+})
+
+test('keeps the row the reader scrolls to while older messages load', async () => {
+	const scrollTopSet = await loadOlderMessages({ clientHeight: 100, scrollTop: 0, scrolled: true, scrolledTo: 300 })
+
+	expect(scrollTopSet).toHaveBeenLastCalledWith(900)
+})
+
+test('lists each row once when new messages move the first page and an older page repeats an arrival', async () => {
+	const user = userEvent.setup()
+	const chat = chatOf(4)
+	chatInPagesOfTwo(chat)
+	const fake = renderThread()
+	await screen.findByText('Message 4')
+
+	for (const n of [5, 6, 7]) {
+		chat.push(chatMessage(n))
+		fake.emit({ whatsAppMessageReceived: chatMessage(n) })
+	}
+	act(() => fake.graph.refetch(['WhatsAppThread']))
+	await waitFor(() => expect(screen.queryByText('Message 4')).toBeNull())
+	await user.click(screen.getByRole('button', OLDER))
+	await screen.findByText('Message 4')
+
+	for (const n of [4, 5, 6, 7]) {
+		expect(screen.getAllByText(`Message ${n}`)).toHaveLength(1)
+	}
+	expect(rowTexts().filter((text) => text.startsWith('Received'))).toEqual([
+		expect.stringContaining('Message 4'),
+		expect.stringContaining('Message 5'),
+		expect.stringContaining('Message 6'),
+		expect.stringContaining('Message 7'),
+	])
+})
+
+test('moves the ticks on an older row when a conversation event rereads the pages', async () => {
+	const user = userEvent.setup()
+	const chat = chatOf(4)
+	chat[0] = chatMessage(1, { direction: 'outbound', status: 'sent' })
+	chatInPagesOfTwo(chat)
+	const fake = renderThread()
+	await user.click(await screen.findByRole('button', OLDER))
+	expect(await screen.findByText('Message sent')).toBeInTheDocument()
+
+	chat[0] = chatMessage(1, { direction: 'outbound', status: 'delivered' })
+	act(() => fake.graph.refetch(['WhatsAppThread']))
+
+	expect(await screen.findByText('Message delivered')).toBeInTheDocument()
+	expect(screen.queryByText('Message sent')).toBeNull()
+})
+
+test('keeps the oldest loaded row listed when a new message rereads the pages', async () => {
+	const user = userEvent.setup()
+	const chat = chatOf(4)
+	chat[1] = chatMessage(2, { direction: 'outbound', status: 'sent' })
+	chatInPagesOfTwo(chat)
+	const fake = renderThread()
+	await user.click(await screen.findByRole('button', OLDER))
+	await screen.findByText('Message 1')
+
+	chat[1] = chatMessage(2, { direction: 'outbound', status: 'delivered' })
+	chat.push(chatMessage(5))
+	act(() => fake.graph.refetch(['WhatsAppThread']))
+	await screen.findByText('Message delivered')
+
+	expect(screen.getAllByText(/^Message \d$/).map((node) => node.textContent)).toEqual([
+		'Message 1',
+		'Message 2',
+		'Message 3',
+		'Message 4',
+		'Message 5',
+	])
+	expect(screen.queryByRole('button', OLDER)).toBeNull()
+})
+
+test('shows a notice when an older page cannot be reached and keeps the log and the composer', async () => {
+	const user = userEvent.setup()
+	chatInPagesOfTwo(chatOf(4))
+	server.use(
+		graphql.query('WhatsAppThread', ({ variables }) => (variables.after ? HttpResponse.error() : undefined)),
+	)
+	renderThread()
+
+	await user.click(await screen.findByRole('button', OLDER))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent('Messages could not be loaded.')
+	expect(within(screen.getByRole('log')).queryByRole('alert')).toBeNull()
+	expect(screen.getByText('Message 3')).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: /reply/i })).toBeInTheDocument()
 })

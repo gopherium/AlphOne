@@ -7,6 +7,11 @@ Conversations, messages and replies are graph operations. Read them as
 `whatsAppConversations`, `whatsAppConversation.messages` and
 `whatsAppSendMessage` in the [GraphQL API](/reference/graphql-api/).
 
+`whatsAppConversation.messages` answers the newest page of a chat, listed
+oldest first. To read further back, pass the `id` of the oldest message you
+hold as `before`. `oldestMessageId` names the first message of the chat, so
+you can tell when you have reached it.
+
 A workspace can hold many numbers. `whatsAppNumbers` lists them, each by its
 `identifier` and `label`, and never answers a secret. On the default workspace
 the number in the environment file comes first, unless the workspace stores
@@ -58,6 +63,12 @@ proves has been stored, `400` for an unreadable payload the signature proves
 or that is signed with `ALPHONE_WHATSAPP_APP_SECRET`, and `500` when reading
 or storing fails so that Meta retries. Redelivered messages are recognised
 and stored once.
+
+A person who uses a WhatsApp username may hide their phone number. Meta then
+sends a user ID such as `US.184467235` in `from_user_id`. The plugin stores it
+as the person's address and replies through `recipient`. A message that
+carries neither a phone number nor a user ID of that form is skipped, and the
+delivery still answers `200`.
 
 Both routes are reachable without a session, which is why the signature
 check matters. The media download needs one.

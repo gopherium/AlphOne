@@ -358,6 +358,37 @@ func TestGraphContactEdgeGroupsConversationsPerContact(t *testing.T) {
 	}
 }
 
+func TestGraphConversationReadsBackFromAMessageAndNamesItsOldest(t *testing.T) {
+	t.Parallel()
+
+	p, pool := newMessagingPlugin(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	maria := seedGraphContact(t, pool, "Maria Perez", now)
+	conversationID := seedGraphConversation(t, pool, maria, "184467235@lid", now)
+	first := seedGraphMessage(t, pool, conversationID, "wamid.1", "first", "text", now.Add(-3*time.Minute))
+	seedGraphMessage(t, pool, conversationID, "wamid.2", "second", "text", now.Add(-2*time.Minute))
+	third := seedGraphMessage(t, pool, conversationID, "wamid.3", "third", "text", now.Add(-time.Minute))
+	client := newGraphQLClient(t, p, pool)
+
+	var response struct {
+		WhatsAppConversation struct {
+			OldestMessageID string
+			Messages        []graphMessage
+		}
+	}
+	client.MustPost(`query ($id: UUID!, $before: UUID) { whatsAppConversation(id: $id) {
+		oldestMessageId messages(limit: 1, before: $before) { content } } }`, &response,
+		gqlclient.Var("id", conversationID.String()), gqlclient.Var("before", third.String()))
+
+	got := response.WhatsAppConversation
+	if len(got.Messages) != 1 || got.Messages[0].Content != "second" {
+		t.Errorf("messages before the third = %+v, want only the second", got.Messages)
+	}
+	if got.OldestMessageID != first.String() {
+		t.Errorf("oldestMessageId = %q, want %q", got.OldestMessageID, first)
+	}
+}
+
 func TestGraphConversationContactRepairsCoreFields(t *testing.T) {
 	t.Parallel()
 
@@ -546,8 +577,11 @@ func TestGraphQueriesSurfaceStoreFailures(t *testing.T) {
 		t.Fatalf("dropping the messages table: %v", err)
 	}
 	conversation := &model.WhatsAppConversation{ID: conversationID}
-	if _, err := p.WhatsAppConversationResolvers().Messages(t.Context(), conversation, nil); err == nil {
+	if _, err := p.WhatsAppConversationResolvers().Messages(t.Context(), conversation, nil, nil); err == nil {
 		t.Error("Messages() on a dropped table error = nil, want error")
+	}
+	if _, err := p.WhatsAppConversationResolvers().OldestMessageID(t.Context(), conversation); err == nil {
+		t.Error("OldestMessageID() on a dropped table error = nil, want error")
 	}
 
 	if _, err := pool.Exec(t.Context(), `DROP TABLE plugin_whatsapp.conversations CASCADE`); err != nil {

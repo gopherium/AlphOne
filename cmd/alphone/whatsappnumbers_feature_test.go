@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -75,6 +76,7 @@ const replyIDFormat = "wamid.reply.%d"
 type sentReply struct {
 	path          string
 	authorization string
+	body          string
 }
 
 // replyRecorder stands in for the Graph API, keeping every reply it receives.
@@ -93,10 +95,11 @@ func newReplyRecorder() *replyRecorder {
 
 // answer keeps one reply and answers its message id.
 func (r *replyRecorder) answer(w http.ResponseWriter, request *http.Request) {
+	body, _ := io.ReadAll(request.Body)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.replies = append(r.replies, sentReply{
-		path: request.URL.Path, authorization: request.Header.Get("Authorization"),
+		path: request.URL.Path, authorization: request.Header.Get("Authorization"), body: string(body),
 	})
 	_, _ = fmt.Fprintf(w, `{"messages":[{"id":%q}]}`, fmt.Sprintf(replyIDFormat, len(r.replies)))
 }
@@ -118,6 +121,8 @@ type numbersScenario struct {
 	plugin    *whatsapp.Plugin
 	answered  int
 	delivered int
+	read      []string
+	opened    conversationKey
 }
 
 // initializeWhatsAppNumbers returns the binding of the WhatsApp number steps, t holding their databases.
@@ -131,6 +136,8 @@ func initializeWhatsAppNumbers(t *testing.T) func(*godog.ScenarioContext) {
 		s.bindDeliveries(sc)
 		s.bindReplies(sc)
 		s.bindAnswers(sc)
+		s.bindSenders(sc)
+		s.bindLongChat(sc)
 		sc.After(func(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
 			s.replies.server.Close()
 			return ctx, s.stop(ctx)
@@ -502,9 +509,9 @@ func (s *numbersScenario) defaultReplies(ctx context.Context, customer, number s
 
 // wantReply fails unless the newest reply left from number with token.
 func (s *numbersScenario) wantReply(number, token string) error {
-	want := sentReply{path: "/" + number + "/messages", authorization: "Bearer " + token}
-	if got, _ := s.replies.last(); got != want {
-		return fmt.Errorf("the reply left as %+v, want %+v", got, want)
+	path, authorization := "/"+number+"/messages", "Bearer "+token
+	if got, _ := s.replies.last(); got.path != path || got.authorization != authorization {
+		return fmt.Errorf("the reply left on %s as %s, want %s as %s", got.path, got.authorization, path, authorization)
 	}
 	return nil
 }

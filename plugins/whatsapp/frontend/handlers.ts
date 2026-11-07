@@ -99,6 +99,7 @@ export const handlers = [
 					__typename: 'WhatsAppConversation',
 					id: conversations[0].id,
 					number: conversations[0].number,
+					oldestMessageId: '019f4a00-0000-7000-8000-0000000000b1',
 					contact: conversations[0].contact,
 					messages: [
 						threadMessage('019f4a00-0000-7000-8000-0000000000b1', 'wamid.HBgLMTU1NTAwMDExMQ', {

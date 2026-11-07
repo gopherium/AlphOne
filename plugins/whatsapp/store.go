@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -125,9 +126,10 @@ func (s *store) listConversationsByContactIDs(
 	return conversations, nil
 }
 
-// listMessages returns up to limit messages for the given conversation with
-// their media state, oldest first.
-func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limit int) ([]messageRow, error) {
+// listMessages returns the newest limit messages of a conversation before the named one, oldest first.
+func (s *store) listMessages(
+	ctx context.Context, conversationID uuid.UUID, limit int, before *uuid.UUID,
+) ([]messageRow, error) {
 	rows, _ := s.pool.Query(ctx, `
 		SELECT m.id, m.external_id, m.direction, m.content, m.content_type, m.sent_at,
 			m.status, m.status_detail,
@@ -137,15 +139,38 @@ func (s *store) listMessages(ctx context.Context, conversationID uuid.UUID, limi
 		LEFT JOIN plugin_whatsapp.media med
 			ON med.message_id = m.id AND med.tenant_id = m.tenant_id
 		WHERE m.conversation_id = $1 AND m.tenant_id = $3
-		ORDER BY m.sent_at ASC, m.id ASC
+			AND ($4::uuid IS NULL OR (m.sent_at, m.id) < (
+				SELECT before_row.sent_at, before_row.id FROM plugin_whatsapp.messages before_row
+				WHERE before_row.id = $4 AND before_row.conversation_id = $1 AND before_row.tenant_id = $3))
+		ORDER BY m.sent_at DESC, m.id DESC
 		LIMIT $2`,
-		conversationID, limit, sdk.TenantOrDefault(ctx),
+		conversationID, limit, sdk.TenantOrDefault(ctx), before,
 	)
 	messages, err := pgx.CollectRows(rows, pgx.RowToStructByName[messageRow])
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp: list messages: %w", err)
 	}
+	slices.Reverse(messages)
 	return messages, nil
+}
+
+// oldestMessageID returns the first message of the given conversation in thread order, nil for none.
+func (s *store) oldestMessageID(ctx context.Context, conversationID uuid.UUID) (*uuid.UUID, error) {
+	var oldest uuid.UUID
+	err := s.pool.QueryRow(ctx, `
+		SELECT id FROM plugin_whatsapp.messages
+		WHERE conversation_id = $1 AND tenant_id = $2
+		ORDER BY sent_at ASC, id ASC
+		LIMIT 1`,
+		conversationID, sdk.TenantOrDefault(ctx),
+	).Scan(&oldest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: oldest message: %w", err)
+	}
+	return &oldest, nil
 }
 
 // conversationKey names a contact's conversation with a customer on a number, nil for none.

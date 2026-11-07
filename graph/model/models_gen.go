@@ -284,6 +284,7 @@ type WhatsAppConversation struct {
 	LastMessagePreview *string            `json:"lastMessagePreview,omitempty"`
 	Number             *string            `json:"number,omitempty"`
 	Contact            *Contact           `json:"contact"`
+	OldestMessageID    *uuid.UUID         `json:"oldestMessageId,omitempty"`
 	Messages           []*WhatsAppMessage `json:"messages"`
 }
 

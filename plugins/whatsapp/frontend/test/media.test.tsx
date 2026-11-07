@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { GraphProvider } from '@alphone/frontend-sdk'
+import { GraphProvider, Toaster } from '@alphone/frontend-sdk'
 import { fakeGraphClient, graphql, server } from '@alphone/frontend-sdk/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
@@ -85,6 +85,7 @@ function threadOf(...messages: Array<Record<string, unknown>>) {
 						__typename: 'WhatsAppConversation',
 						id: conversationId,
 						number: null,
+						oldestMessageId: messages[0]?.id ?? null,
 						contact: { __typename: 'Contact', id: 'contact-id', name: 'John Doe' },
 						messages,
 					},
@@ -133,7 +134,9 @@ function renderThread(): QueryClient {
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
-				<Thread conversationId={conversationId} />
+				<Toaster>
+					<Thread conversationId={conversationId} />
+				</Toaster>
 			</GraphProvider>
 		</QueryClientProvider>,
 	)

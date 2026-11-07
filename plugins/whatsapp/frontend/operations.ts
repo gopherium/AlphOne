@@ -28,15 +28,16 @@ export const numbersQuery = graphql(`
 `)
 
 export const threadQuery = graphql(`
-	query WhatsAppThread($conversationId: UUID!) {
+	query WhatsAppThread($conversationId: UUID!, $after: UUID) {
 		whatsAppConversation(id: $conversationId) {
 			id
 			number
+			oldestMessageId
 			contact {
 				id
 				name
 			}
-			messages {
+			messages(before: $after) {
 				...ThreadMessage
 			}
 		}

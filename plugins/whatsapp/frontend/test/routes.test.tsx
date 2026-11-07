@@ -1,16 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { adminSession, renderPluginAt, server } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, adminSession, graphql, renderPluginAt, server } from '@alphone/frontend-sdk/testing'
 import { createRootRoute, createRouter } from '@tanstack/react-router'
-import { screen, waitFor, within } from '@testing-library/react'
+import type { AnyRouter } from '@tanstack/react-router'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { handlers } from '../handlers'
 import { plugin } from '../index'
 import { routes } from '../routes'
 
 beforeEach(() => server.use(...handlers))
+afterEach(() => vi.restoreAllMocks())
+
+/** The conversation a reader opens first. */
+const firstConversation = '019f4a00-0000-7000-8000-000000000001'
+
+/** The conversation a reader opens next. */
+const nextConversation = '019f4a00-0000-7000-8000-000000000002'
+
+/** TOAST reads a text inside a toast. */
+const TOAST = { selector: '.godmin-toast' }
 
 /**
  * Returns the sidebar the host draws.
@@ -94,6 +105,240 @@ test('serves the thread for a conversation URL', async () => {
 	expect(
 		await screen.findByText('Hi, is the order ready?'),
 	).toBeInTheDocument()
+})
+
+/**
+ * Builds the reply the first conversation receives.
+ * @returns The reply as the graph returns it.
+ */
+function replyInFirst() {
+	return {
+		__typename: 'WhatsAppMessage',
+		id: 'reply-in-first',
+		externalId: 'wamid.reply',
+		direction: 'outbound',
+		content: 'Ready at 5pm',
+		contentType: 'text',
+		sentAt: '2026-07-06T09:10:00Z',
+		status: 'sent',
+		statusDetail: null,
+		media: null,
+	}
+}
+
+/**
+ * Serves each conversation's thread with one message naming it, the first one also holding its replies.
+ * @param stored - The replies the first conversation holds so far, read on every request.
+ */
+function threadsByConversation(stored: Record<string, unknown>[] = []) {
+	server.use(
+		graphql.query('WhatsAppThread', ({ variables }) =>
+			HttpResponse.json({
+				data: {
+					whatsAppConversation: {
+						__typename: 'WhatsAppConversation',
+						id: variables.conversationId,
+						number: null,
+						oldestMessageId: `message-${variables.conversationId}`,
+						contact: { __typename: 'Contact', id: `contact-${variables.conversationId}`, name: 'Maria Perez' },
+						messages: [
+							{
+								__typename: 'WhatsAppMessage',
+								id: `message-${variables.conversationId}`,
+								externalId: `wamid.${variables.conversationId}`,
+								direction: 'inbound',
+								content: `Message in ${variables.conversationId}`,
+								contentType: 'text',
+								sentAt: '2026-07-06T09:05:00Z',
+								status: null,
+								statusDetail: null,
+								media: null,
+							},
+							...(variables.conversationId === firstConversation ? stored : []),
+						],
+					},
+				},
+			}),
+		),
+	)
+}
+
+/**
+ * Opens a conversation's thread and waits for its message.
+ * @returns The router the plugin is mounted in.
+ */
+async function openFirstConversation(): Promise<AnyRouter> {
+	const { router } = renderPluginAt(plugin, `/whatsapp/conversations/${firstConversation}`, {
+		session: adminSession,
+	})
+	await screen.findByText(`Message in ${firstConversation}`)
+	return router
+}
+
+/**
+ * Moves the reader to the next conversation and waits for its message.
+ * @param router - The router the plugin is mounted in.
+ */
+async function openNextConversation(router: AnyRouter) {
+	await act(() =>
+		router.navigate({ to: '/whatsapp/conversations/$conversationId', params: { conversationId: nextConversation } }),
+	)
+	await screen.findByText(`Message in ${nextConversation}`)
+}
+
+test('opens the next conversation on its newest message after the reader scrolled up', async () => {
+	vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(400)
+	vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(100)
+	vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(0)
+	const scrollTopSet = vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(() => {})
+	threadsByConversation()
+	const router = await openFirstConversation()
+	fireEvent.scroll(screen.getByRole('log', { name: 'Messages' }))
+	scrollTopSet.mockClear()
+
+	await openNextConversation(router)
+
+	expect(scrollTopSet).toHaveBeenLastCalledWith(400)
+})
+
+test('drops the half-typed reply when the next conversation opens', async () => {
+	const user = userEvent.setup()
+	threadsByConversation()
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Half a reply')
+
+	await openNextConversation(router)
+
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
+})
+
+test('drops the live messages of a conversation when the next one opens', async () => {
+	threadsByConversation()
+	const { router, emit } = renderPluginAt(plugin, `/whatsapp/conversations/${firstConversation}`, {
+		session: adminSession,
+	})
+	await screen.findByText(`Message in ${firstConversation}`)
+	emit({
+		whatsAppMessageReceived: {
+			__typename: 'WhatsAppMessage',
+			id: 'arrival-in-first',
+			externalId: 'wamid.arrival',
+			direction: 'inbound',
+			content: 'Arrived in the first conversation',
+			contentType: 'text',
+			sentAt: '2026-07-06T09:06:00Z',
+			status: null,
+			statusDetail: null,
+			media: null,
+		},
+	})
+	await screen.findByText('Arrived in the first conversation')
+
+	await openNextConversation(router)
+
+	expect(screen.queryByText('Arrived in the first conversation')).toBeNull()
+})
+
+test('shows a reply that fails after the reader moved on in a toast, leaving the next composer empty', async () => {
+	const user = userEvent.setup()
+	let answer: () => void = () => {}
+	threadsByConversation()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			return HttpResponse.json({ data: null, errors: [{ message: 'upstream failure' }] })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	await openNextConversation(router)
+	answer()
+
+	expect(await screen.findByText('The reply could not be sent.', TOAST)).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
+})
+
+test('shows a reply answered with neither data nor an error after the reader moved on in a toast', async () => {
+	const user = userEvent.setup()
+	let answer: () => void = () => {}
+	threadsByConversation()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			return HttpResponse.json({ data: null })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	await openNextConversation(router)
+	answer()
+
+	expect(await screen.findByText('The reply could not be sent.', TOAST)).toBeInTheDocument()
+	expect(screen.getByRole('textbox', { name: /reply/i })).toHaveValue('')
+})
+
+test('keeps a reply that lands after the reader moved on out of the next conversation, with no toast', async () => {
+	const user = userEvent.setup()
+	let answer: () => void = () => {}
+	threadsByConversation()
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			return HttpResponse.json({ data: { whatsAppSendMessage: replyInFirst() } })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+
+	await openNextConversation(router)
+	await act(async () => {
+		answer()
+		await new Promise((resolve) => setTimeout(resolve, 100))
+	})
+
+	expect(screen.queryByText('Ready at 5pm')).toBeNull()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+})
+
+test('shows a reply that landed after the reader moved on once they come back', async () => {
+	const user = userEvent.setup()
+	const stored: Record<string, unknown>[] = []
+	let answer: () => void = () => {}
+	threadsByConversation(stored)
+	server.use(
+		graphql.mutation('WhatsAppSendMessage', async () => {
+			await new Promise<void>((resolve) => {
+				answer = resolve
+			})
+			stored.push(replyInFirst())
+			return HttpResponse.json({ data: { whatsAppSendMessage: replyInFirst() } })
+		}),
+	)
+	const router = await openFirstConversation()
+	await user.type(screen.getByRole('textbox', { name: /reply/i }), 'Ready at 5pm')
+	await user.click(screen.getByRole('button', { name: /send/i }))
+	await openNextConversation(router)
+	await act(async () => {
+		answer()
+		await new Promise((resolve) => setTimeout(resolve, 100))
+	})
+
+	await act(() =>
+		router.navigate({ to: '/whatsapp/conversations/$conversationId', params: { conversationId: firstConversation } }),
+	)
+
+	expect(await screen.findByText('Ready at 5pm')).toBeInTheDocument()
 })
 
 test('navigates from a conversation in the inbox to its thread', async () => {
