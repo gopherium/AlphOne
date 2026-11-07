@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { displayLocale } from '@gopherium/gottext'
+import { displayLocale, rememberFormatLocale as rememberGottextFormat } from '@gopherium/gottext'
 
 /** named holds the locale the server named for dates, times, numbers and money. */
 let named: string | undefined
@@ -18,11 +18,12 @@ const DAY: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year
 const CLOCK: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
 
 /**
- * Stores the locale dates, times, numbers and money are written in.
+ * Stores the locale dates, times, numbers and money are written in, here and in gottext.
  * @param locale - The locale the server named, or undefined to forget it.
  */
 export function rememberFormatLocale(locale: string | undefined): void {
 	named = locale
+	rememberGottextFormat(locale)
 }
 
 /**

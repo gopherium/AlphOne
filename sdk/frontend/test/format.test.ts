@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { rememberLocale } from '@gopherium/gottext'
+import { formatNumber as gottextNumber, rememberLocale } from '@gopherium/gottext'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 
@@ -100,6 +100,13 @@ test('writes the conventions of the locale the server names', () => {
 	rememberFormatLocale('en-GB')
 
 	expect(formatNumber(1234.5)).toBe('1,234.5')
+})
+
+test('hands the format locale to the numbers gottext writes', () => {
+	rememberLocale('en-US')
+	rememberFormatLocale('es-ES')
+
+	expect(gottextNumber(1234.56)).toBe('1.234,56')
 })
 
 test('writes in the interface locale until the server names a format locale', () => {
