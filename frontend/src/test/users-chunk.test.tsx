@@ -10,6 +10,12 @@ test('loads the users list in a chunk of its own, off the first paint', () => {
 	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
 })
 
+test('loads the new user form in a chunk of its own, off the first paint', () => {
+	const { component } = createAppRouter().routesById['/admin/users/new'].options
+
+	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
+})
+
 test('loads the tokens list in a chunk of its own, off the first paint', () => {
 	const { component } = createAppRouter().routesById['/users/tokens'].options
 

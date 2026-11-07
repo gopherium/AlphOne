@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { _x } from '@alphone/frontend-sdk'
-import { RoleNotGrantableError, RoleUnknownError } from '@gopherium/react-auth/admin'
 import type { RoleLabels } from '@gopherium/react-auth/wpds/users'
-
-/** The error code each turned down role write answers with, by the error it raises. */
-const refusedRoles: [new (...args: never[]) => Error, string][] = [
-	[RoleNotGrantableError, 'role_not_grantable'],
-	[RoleUnknownError, 'role_unknown'],
-]
 
 /**
  * Returns the label each core role reads as, read fresh so the loaded catalogue answers.
@@ -21,16 +14,6 @@ export function roleLabels(): RoleLabels {
 	}
 }
 
-/**
- * Returns the label a role reads as, a role a plugin adds reading as its stored name with a capital first letter.
- * @param role - The role the account holds.
- * @returns The label.
- */
-export function roleLabel(role: string): string {
-	const labels = roleLabels()
-	return Object.hasOwn(labels, role) ? labels[role] : role.charAt(0).toUpperCase() + role.slice(1)
-}
-
 /** memberRole is the core role carrying no capability. */
 const memberRole = 'member'
 
@@ -41,13 +24,4 @@ const memberRole = 'member'
  */
 export function startingRole(grantable: string[]): string {
 	return grantable.includes(memberRole) ? memberRole : (grantable.at(-1) ?? memberRole)
-}
-
-/**
- * Returns the code a turned down role write carries, none for any other failure.
- * @param error - The failure the write raised.
- * @returns The error code, or nothing.
- */
-export function refusedRoleCode(error: unknown): string | undefined {
-	return refusedRoles.find(([refused]) => error instanceof refused)?.[1]
 }

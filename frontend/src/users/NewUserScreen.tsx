@@ -22,13 +22,23 @@ import {
 	usersQueryKey,
 } from '@gopherium/react-auth/admin'
 import type { NewInvite } from '@gopherium/react-auth/admin'
+import { RoleSelect, errorMessageOf } from '@gopherium/react-auth/wpds/users'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 
-import { appErrorTemplates } from '../i18n/errors'
-import { RoleSelect } from './RoleSelect'
-import { refusedRoleCode, startingRole } from './roles'
+import { accountErrorMessages } from './errorMessages'
+import { roleLabels, startingRole } from './roles'
+
+/**
+ * Returns the words a refused invitation reads as, the server's own only for a refused value it named no code for.
+ * @param error - The mutation error.
+ * @returns The words, empty when the refusal has none worth showing.
+ */
+function refusalWords(error: unknown): string {
+	const unnamed = error instanceof AccountValidationError && error.code === undefined ? error.message : ''
+	return errorMessageOf(error, accountErrorMessages(), unnamed)
+}
 
 /**
  * Returns a failed invitation as the validation error the SDK reads, in the words the reader is told.
@@ -36,12 +46,8 @@ import { refusedRoleCode, startingRole } from './roles'
  * @returns The validation error, or nothing when the failure has no words worth showing.
  */
 function inviteFailure(error: unknown): ValidationError | undefined {
-	const role = refusedRoleCode(error)
-	if (role !== undefined) {
-		return new ValidationError(appErrorTemplates()[role])
-	}
-	const words = fieldError(error)?.message ?? (error instanceof AccountValidationError ? error.message : undefined)
-	return words === undefined ? undefined : new ValidationError(words)
+	const words = fieldError(error)?.message ?? refusalWords(error)
+	return words === '' ? undefined : new ValidationError(words)
 }
 
 /**
@@ -118,7 +124,7 @@ function InvitationForm({
 				customValidity={refused.name.validity}
 				onChange={(event) => setName(event.target.value)}
 			/>
-			<RoleSelect grantable={grantable} value={role} onChange={setRole} />
+			<RoleSelect grantable={grantable} value={role} onChange={setRole} roleLabels={roleLabels()} />
 			<Button
 				type="submit"
 				disabled={email.trim() === '' || name.trim() === '' || send.isPending}
@@ -135,7 +141,7 @@ function InvitationForm({
  * @param onCreated - Called once the invitation is handled.
  * @returns The new user screen.
  */
-export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
+function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> }) {
 	const [activationLink, setActivationLink] = useState<string | null>(null)
 
 	return (
@@ -167,4 +173,13 @@ export function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<v
 			)}
 		</PageScreen>
 	)
+}
+
+/**
+ * Renders the new user form, returning to the user list on success.
+ * @returns The new user screen element.
+ */
+export function NewUserRoute() {
+	const navigate = useNavigate()
+	return <NewUserScreen onCreated={() => navigate({ to: '/users' })} />
 }
