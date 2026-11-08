@@ -186,10 +186,12 @@ internal address unless you allow it here. Internal means loopback, the
 private network ranges, the shared and reserved ranges, link-local and
 multicast addresses, and their IPv6 counterparts. Public addresses are
 reached on any port, apart from the cloud host addresses listed below.
+A delivery also keeps its payload only for the time you set here.
 
 | Variable | Purpose |
 | --- | --- |
 | `ALPHONE_WEBHOOK_ALLOWED_HOSTS` | The internal addresses webhooks may still reach, comma separated. Empty by default, which refuses them all. An entry is a CIDR range such as `127.0.0.1/32`, or a host name with a port such as `n8n:5678`. |
+| `ALPHONE_WEBHOOK_PAYLOAD_AGE` | How long a delivery that was sent or failed for good keeps its payload, the event body it carried. Defaults to `720h`, 30 days. Then AlphOne clears the payload and keeps the rest of the delivery, such as its status and its last error. A delivery still waiting to be sent keeps its payload whatever its age. It must be a duration above zero, such as `168h`, and a value AlphOne refuses stops `serve` and the commands listed at the top of this page. |
 
 The two kinds of entry match at different moments:
 
