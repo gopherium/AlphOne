@@ -90,6 +90,20 @@ A row that was never marked stored names the id to clean up after a
 crash. Call `Delete` on that id, which answers `sdk.ErrFileNotFound`
 when no file was stored, then delete the row.
 
+This cleanup is safe only when the id is unique in your table, as its
+primary key or a unique column. Then `Add` fails for a second row with
+the same id, so the file under the id of a row never marked stored is
+always that row's own. If two rows could hold one id, `SaveAs` would
+answer `sdk.ErrFileExists` for the second, and the cleanup would delete
+the file of the first.
+
+The cleanup also needs an age. Take only the rows added longer ago than
+a save can take, so give each row the time it was added. A newer row may
+belong to a save that is still running. The cleanup would delete that
+row, the save would then store its file, and nothing would point at the
+file. Read that age from your plugin's [settings](/extending/settings/),
+never from a number written in your code.
+
 Every rule of `Save` holds for `SaveAs`: [the cap](#the-cap), the media
 type check and [the workspace](#every-call-serves-one-workspace) and
 plugin of the call. An id that already holds a file of the same
