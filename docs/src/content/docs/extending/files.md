@@ -4,10 +4,10 @@ description: Keep the files your plugin needs, such as the attachments of a mail
 ---
 
 A plugin that needs to keep files, such as the attachments of a mail,
-gets a file store from AlphOne. It saves a file, opens it again by its
-id and deletes it. The store keeps each file under the workspace and the
-plugin that saved it, so no other workspace and no other plugin ever
-reaches it.
+gets a file store from AlphOne. It saves a file under a new id or under
+one it chose, opens it again by its id and deletes it. The store keeps
+each file under the workspace and the plugin that saved it, so no other
+workspace and no other plugin ever reaches it.
 
 Where the files live is the operator's choice, in PostgreSQL or in an S3
 bucket, see [Files](/self-hosting/configuration/#files). Your plugin
@@ -65,6 +65,44 @@ finds the file again.
 AlphOne never guesses a media type from the bytes. A type that does not
 read as one, such as `image/png; =`, or that names no subtype, such as
 `inline`, is refused before anything is stored.
+
+## Choose the id yourself
+
+`Save` picks the id, so you learn it only once the file is stored. If
+your plugin stops between the save and the write of its row, nothing
+points at the file and nobody can find it to delete it. `SaveAs` takes
+an id you choose, so the row comes first and the file second:
+
+```go
+id := uuid.Must(uuid.NewV7())
+err := p.attachments.Add(ctx, messageID, id)
+if err != nil {
+	return err
+}
+file, err := p.files.SaveAs(ctx, id, "application/pdf", body)
+if err != nil {
+	return err
+}
+return p.attachments.MarkStored(ctx, file)
+```
+
+A row that was never marked stored names the id to clean up after a
+crash. Call `Delete` on that id, which answers `sdk.ErrFileNotFound`
+when no file was stored, then delete the row.
+
+Every rule of `Save` holds for `SaveAs`: [the cap](#the-cap), the media
+type check and [the workspace](#every-call-serves-one-workspace) and
+plugin of the call. An id that already holds a file of the same
+workspace and plugin answers `sdk.ErrFileExists`, and the file it holds
+stays as it was. So make a new id for every file, such as a version 7
+UUID, and never take one from the content, because two files with the
+same bytes would then share it.
+
+AlphOne looks the id up before it saves and asks the store to refuse a
+second file under it. Some S3 compatible stores, Garage v2.4.1 among
+them, ignore that request, so there two saves that run at the same
+moment under one id can still replace each other. A new id for every
+file never meets that case.
 
 ## The cap
 
