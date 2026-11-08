@@ -53,6 +53,11 @@ func (emptyQueue) OwnerDisabled(context.Context, uuid.UUID) (bool, error) {
 	return false, nil
 }
 
+// ClearSettledPayloads clears nothing.
+func (emptyQueue) ClearSettledPayloads(context.Context, time.Time, int) (int, error) {
+	return 0, nil
+}
+
 func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +68,7 @@ func TestPublishBroadcastsToTheLiveHub(t *testing.T) {
 	unaddressed := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Nil)
 	publisher := nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}, webhook.DefaultPayloadAge),
 		hub:        hub,
 	}
 
@@ -96,7 +101,7 @@ func TestAPluginEventStaysInsideTheCallersTenant(t *testing.T) {
 	far := hub.Subscribe(uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()))
 	publisher := pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}, webhook.DefaultPayloadAge),
 		hub:        hub,
 	}}
 
@@ -124,7 +129,7 @@ func TestAHeadlessPluginPublishLandsInTheDefaultTenant(t *testing.T) {
 	elsewhere := hub.Subscribe(uuid.Must(uuid.NewV7()), sdk.DefaultTenantID)
 	publisher := pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}, webhook.DefaultPayloadAge),
 		hub:        hub,
 	}}
 

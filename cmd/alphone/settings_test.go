@@ -30,6 +30,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_WEB_DIR":                          "/srv/alphone/web",
 		"ALPHONE_TRUSTED_PROXIES":                  "10.0.0.0/8,192.168.0.0/16",
 		"ALPHONE_WEBHOOK_ALLOWED_HOSTS":            "127.0.0.1/32,n8n:5678",
+		"ALPHONE_WEBHOOK_PAYLOAD_AGE":              "240h",
 		"ALPHONE_DEV_GRAPHIQL":                     "1",
 		"ALPHONE_TENANT_MACHINE_GRACE":             "72h",
 		"ALPHONE_TENANTS_HELD":                     "8",
@@ -723,6 +724,8 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 			"ALPHONE_WEBHOOK_ALLOWED_HOSTS", "127.0.0.1/32,n8n",
 			"must list CIDR ranges such as 127.0.0.1/32 or host names with a port such as n8n:5678",
 		},
+		"a payload age in words":   {"ALPHONE_WEBHOOK_PAYLOAD_AGE", "a month", "must be a duration like 30s"},
+		"no payload age at all":    {"ALPHONE_WEBHOOK_PAYLOAD_AGE", "0s", "must stand above zero"},
 		"a match bound in words":   {"ALPHONE_CONTACT_MATCH_MAX", "a hundred", "must be a whole number"},
 		"a match of no identifier": {"ALPHONE_CONTACT_MATCH_MAX", "0", "must stand above zero"},
 		"a match past a query row bound": {

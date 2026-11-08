@@ -83,7 +83,7 @@ func listenedPublisher(logged *strings.Builder) (pluginPublisher, chan event.Nam
 	listener := hub.Subscribe(uuid.Must(uuid.NewV7()), sdk.DefaultTenantID)
 	return pluginPublisher{publisher: nudgingPublisher{
 		dispatcher: webhook.NewDispatcher(emptyQueue{}, logger),
-		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}),
+		worker:     webhook.NewWorker(emptyQueue{}, logger, webhook.AddressGuard{}, webhook.DefaultPayloadAge),
 		hub:        hub,
 	}, logger: logger}, listener
 }
