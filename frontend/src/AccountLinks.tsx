@@ -10,16 +10,16 @@ import type { AccountLink } from '@alphone/frontend-sdk'
  */
 export function AccountLinks({ links }: { links: AccountLink[] }) {
 	const session = useSession()
-	const shown = links.filter(
-		(link) => session !== null && (link.capability === undefined || can(session, link.capability)),
-	)
+	const shown = links
+		.map((link, place) => ({ link, place }))
+		.filter(({ link }) => session !== null && (link.capability === undefined || can(session, link.capability)))
 	if (shown.length === 0) {
 		return null
 	}
 	return (
 		<Stack direction="column" gap="sm">
-			{shown.map((link) => (
-				<Link key={link.href} href={link.href} rel="noreferrer" openInNewTab={link.openInNewTab}>
+			{shown.map(({ link, place }) => (
+				<Link key={place} href={link.href} rel="noreferrer" openInNewTab={link.openInNewTab}>
 					{link.label}
 				</Link>
 			))}

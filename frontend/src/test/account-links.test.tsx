@@ -25,6 +25,7 @@ vi.mock('../plugins', async (importOriginal) => {
 					},
 					{ label: 'Email support', href: 'mailto:support@example.com', capability: MANAGE_USERS },
 					{ label: 'Status page', href: 'https://status.example.com/' },
+					{ label: 'Service history', href: 'https://status.example.com/', capability: MANAGE_USERS },
 				],
 			},
 		],
@@ -58,7 +59,19 @@ test('lists the account links in the order the plugin gives them', async () => {
 		'https://chat.example.com/support',
 		'mailto:support@example.com',
 		'https://status.example.com/',
+		'https://status.example.com/',
 	])
+})
+
+test('keeps two links to one address apart', async () => {
+	const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+	renderAt('/')
+
+	const footer = await sidebarFooter()
+	expect(within(footer).getByRole('link', { name: 'Status page' })).toBeInTheDocument()
+	expect(within(footer).getByRole('link', { name: 'Service history' })).toBeInTheDocument()
+	expect(logged.mock.calls.flat().join(' ')).not.toMatch(/same key/)
+	logged.mockRestore()
 })
 
 test('hides a plugin link from an account lacking its capability', async () => {
