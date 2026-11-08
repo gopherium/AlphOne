@@ -194,7 +194,7 @@ func registerWebhookPayloadSteps(sc *godog.ScenarioContext) {
 
 	sc.Given(`^(\d+) deliveries to that webhook have waited (\d+) days to be sent$`,
 		func(ctx context.Context, count, days int) error {
-			return worldFrom(ctx).queueWaiting(ctx, count, days)
+			return worldFrom(ctx).queueWaitingDeliveries(ctx, count, days)
 		})
 
 	sc.When(`^the delivery worker runs, keeping payloads for "([^"]*)"$`, func(ctx context.Context, raw string) error {
@@ -204,7 +204,9 @@ func registerWebhookPayloadSteps(sc *godog.ScenarioContext) {
 		}
 		w := worldFrom(ctx)
 		queue := postgres.NewWebhookStore(w.pool)
-		webhook.NewWorker(queue, slog.New(slog.DiscardHandler), w.graph.WebhookGuard, age).Sweep(ctx)
+		worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), w.graph.WebhookGuard, age)
+		worker.Sweep(ctx)
+		worker.ClearPayloads(ctx)
 		return nil
 	})
 
@@ -220,8 +222,8 @@ func registerWebhookPayloadSteps(sc *godog.ScenarioContext) {
 		})
 }
 
-// queueWaiting stores count task event deliveries to the user's webhook, each waiting since days ago.
-func (w *world) queueWaiting(ctx context.Context, count, days int) error {
+// queueWaitingDeliveries stores count task event deliveries to the user's webhook, each waiting since days ago.
+func (w *world) queueWaitingDeliveries(ctx context.Context, count, days int) error {
 	since := time.Now().UTC().AddDate(0, 0, -days)
 	for i := range count {
 		label := fmt.Sprintf("waited %d, %d of %d", days, i+1, count)
@@ -253,8 +255,8 @@ func (w *world) queueDelivery(ctx context.Context, label, status string, at time
 	return nil
 }
 
-// storedValue reads through query the one column the queue holds for the delivery under label.
-func (w *world) storedValue(ctx context.Context, label, query string) (webhook.Delivery, string, error) {
+// storedColumn reads through query the one column the queue holds for the delivery under label.
+func (w *world) storedColumn(ctx context.Context, label, query string) (webhook.Delivery, string, error) {
 	delivery, found := w.deliveries[label]
 	if !found {
 		return webhook.Delivery{}, "", fmt.Errorf("no delivery was queued as %q", label)
@@ -268,7 +270,7 @@ func (w *world) storedValue(ctx context.Context, label, query string) (webhook.D
 
 // stillWaiting reports whether the delivery under label is still waiting to be sent.
 func (w *world) stillWaiting(ctx context.Context, label string) error {
-	_, status, err := w.storedValue(ctx, label, storedStatusQuery)
+	_, status, err := w.storedColumn(ctx, label, storedStatusQuery)
 	if err != nil {
 		return err
 	}
@@ -280,7 +282,7 @@ func (w *world) stillWaiting(ctx context.Context, label string) error {
 
 // payloadHeld reports whether the delivery under label still holds the payload it was queued with, or none.
 func (w *world) payloadHeld(ctx context.Context, label string, kept bool) error {
-	delivery, payload, err := w.storedValue(ctx, label, storedPayloadQuery)
+	delivery, payload, err := w.storedColumn(ctx, label, storedPayloadQuery)
 	if err != nil {
 		return err
 	}
