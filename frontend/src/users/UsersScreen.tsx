@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import '@alphone/frontend-sdk/dataviews'
-import { useAdminSettings } from '@alphone/frontend-sdk'
-import { readyListDates, type View } from '@alphone/frontend-sdk/dataviews'
+import { useAdminSettings, useListView } from '@alphone/frontend-sdk'
+import { readyListDates } from '@alphone/frontend-sdk/dataviews'
 import { offeredSize } from '@gopherium/godmin'
-import { useListView } from '@gopherium/godmin/router'
 import { UsersPage, usersListDefaults } from '@gopherium/react-auth/wpds/users'
 import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -24,7 +23,7 @@ export function UsersScreen() {
 	const size = settings?.listPageSize
 	const labels = useMemo(() => roleLabels(), [])
 	const errorMessages = useMemo(() => accountErrorMessages(), [])
-	const list = useListView<View>(usersListDefaults({ perPage: size }))
+	const list = useListView(usersListDefaults({ perPage: size }))
 	const view = { ...list.view, perPage: offeredSize(list.view.perPage, sizes, size) }
 	return (
 		<UsersPage

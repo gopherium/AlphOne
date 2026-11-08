@@ -17,8 +17,11 @@ import {
 	NavigationScreen,
 	RenameBody,
 	RunConfirm,
+	listSearch,
+	openOnTap,
 	useBulkRun,
 	useListRun,
+	useListView,
 	useToaster,
 	useUnsavedText,
 	viewNarrows,
@@ -29,8 +32,11 @@ import type {
 	ConfirmBodyProps,
 	FormBodyProps,
 	FormKind,
+	ListDefaults,
 	ListRun,
 	ListRunState,
+	ListSearch,
+	ListView,
 	RenameBodyProps,
 	RunConfirmProps,
 	RunSettled,
@@ -60,6 +66,31 @@ test('hands plugins the list kit the admin runs, the very functions godmin ships
 
 test('hands plugins the empty states and the narrowing check, the very ones godmin ships', () => {
 	expectGodminOwn([ListEmpty, ListNoResults, viewNarrows], [godmin.ListEmpty, godmin.ListNoResults, godmin.viewNarrows])
+})
+
+test('hands plugins the list view helpers the admin keeps its lists in, the very ones godmin ships', () => {
+	expectGodminOwn(
+		[listSearch, openOnTap, useListView],
+		[godminRouter.listSearch, godminRouter.openOnTap, godminRouter.useListView],
+	)
+})
+
+test('hands plugins the list view types godmin writes them in, the view a DataViews view', () => {
+	const opening: ListDefaults = {
+		fields: ['status'],
+		sort: { field: 'created', direction: 'desc' },
+		layouts: { wide: 'table', phone: 'list' },
+		layoutSettings: { table: { fields: ['status'] } },
+	}
+	const kept: ListSearch = { filters: [{ field: 'status', operator: 'isAny', value: ['open'] }] }
+	const shown: Pick<ListView, 'phone' | 'view'> = { phone: false, view: { type: 'table', fields: [] } }
+
+	expect([opening.titleField, kept.filters?.[0].field, shown.phone, shown.view.type]).toEqual([
+		undefined,
+		'status',
+		false,
+		'table',
+	])
 })
 
 test('hands plugins the sidebar menu parts the admin draws, the very ones godmin ships', () => {

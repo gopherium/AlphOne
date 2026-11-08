@@ -481,10 +481,12 @@ function, so their labels read the catalogue the reader loaded.
 `useListView` takes what the list opens on. `fields` are the columns
 beside the title, `titleField` names each row, and `sort` is the first
 order. AlphOne lists open newest first. `perPage` comes from the admin
-settings, so the operator picks one page size for every list. Hand the
-five parts the hook answers straight to `DataViews`. Below 640px the
-hook lays the list out as a list instead of a table, and `phoneFields`
-picks what shows there beside the title.
+settings, so the operator picks one page size for every list. Hand
+`view`, `onChangeView`, `defaultLayouts`, `selection` and
+`onChangeSelection` straight to `DataViews`, as the example does.
+Below 640px the hook lays the list out as a list instead of a table,
+`phoneFields` picks what shows there beside the title, and `phone`
+says the hook is in that layout.
 
 `list` on `PageScreen` lets the list fill the page down to the bottom
 edge. `isLoading` keeps the search box and the columns on screen while
