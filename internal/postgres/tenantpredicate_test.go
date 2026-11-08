@@ -29,9 +29,10 @@ var authenticatingQueries = map[string]bool{
 
 // workerQueries names the queries a background worker runs across every tenant.
 var workerQueries = map[string]bool{
-	"ClaimWebhookDeliveries": true,
-	"SettleWebhookDelivery":  true,
-	"WebhookOwnerDisabled":   true,
+	"ClaimWebhookDeliveries":      true,
+	"SettleWebhookDelivery":       true,
+	"WebhookOwnerDisabled":        true,
+	"ClearSettledWebhookPayloads": true,
 }
 
 // operatorQueries names the queries an operator command runs across every tenant on purpose.
