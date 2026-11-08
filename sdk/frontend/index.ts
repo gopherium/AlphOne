@@ -6,6 +6,7 @@ import type { AnyRoute } from '@tanstack/react-router'
 import type { ComponentType } from 'react'
 
 import type { GraphKeys } from './graph'
+import type { Capability } from './session'
 
 export interface ContactPanel {
 	id: string
@@ -27,10 +28,23 @@ export interface TokenArea {
 	label: string
 }
 
+/** AccountLink is an address outside the admin that a plugin shows under the account panel. */
+export interface AccountLink {
+	/** label is the text the link shows. */
+	label: string
+	/** href is the address the link opens. */
+	href: string
+	/** capability is the capability the reader must hold to see the link. */
+	capability?: Capability
+	/** openInNewTab opens the address in a new tab. */
+	openInNewTab?: boolean
+}
+
 export interface FrontendPlugin {
 	id: string
 	routes: (parent: AnyRoute) => AnyRoute[]
 	nav: MenuItem[]
+	accountLinks?: AccountLink[]
 	contactPanels?: ContactPanel[]
 	channels?: ChannelName[]
 	tokenAreas?: TokenArea[]
