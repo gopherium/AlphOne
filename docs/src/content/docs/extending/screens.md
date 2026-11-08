@@ -1180,6 +1180,34 @@ loader, the sidebar shows no menu for a moment while the code arrives.
    for the page title at heading level 2, since the sidebar title is the
    only first level heading.
 
+## Links under the account panel
+
+A plugin adds links under the account panel, at the foot of the
+sidebar, through `accountLinks`. Use them for addresses outside the
+admin, such as a help page or a support chat. A screen of your own
+still goes in `nav`. Each link is an `AccountLink`: the `label` it
+shows, the address `href`, and an optional `capability` and
+`openInNewTab`.
+
+```ts
+accountLinks: [{
+	get label() {
+		return __('Help center', 'alphone-help')
+	},
+	href: 'https://help.example.com/',
+	capability: MANAGE_USERS,
+	openInNewTab: true,
+}],
+```
+
+The admin shows a link only to a signed-in reader, and only to one
+holding its `capability` when it names one. The links keep the order
+of the plugins and the order each plugin gives them. Every link sends
+no referrer. A link with `openInNewTab` opens in a new tab and shows
+an arrow, and its name tells a screen reader it opens in a new tab.
+Leave it out for a `mailto:` address, which opens the reader's mail
+program instead.
+
 ## What not to do
 
 Almost all of these fail the test suite rather than reaching a user. The
