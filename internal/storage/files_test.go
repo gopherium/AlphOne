@@ -426,7 +426,7 @@ func TestSaveAsThatLosesTheRaceForItsIDInThePostgresBucketAnswersErrFileExistsAn
 	owner := as(t, acme)
 	id := uuid.Must(uuid.NewV7())
 	rival := func() { owner.saveAs(store, id, "text/plain", laterText) }
-	body := &endingBody{rest: strings.NewReader(receiptText), atEnd: rival}
+	body := &bodyRunningAtEnd{rest: strings.NewReader(receiptText), atEnd: rival}
 
 	_, err := store.SaveAs(owner.ctx, id, "application/pdf", body)
 
@@ -459,7 +459,7 @@ func TestASaveAsThatASweepCutOffIsNeverAnIDInUse(t *testing.T) {
 		}
 		swept = tag.RowsAffected()
 	}
-	body := &endingBody{rest: strings.NewReader(receiptText), atEnd: sweep}
+	body := &bodyRunningAtEnd{rest: strings.NewReader(receiptText), atEnd: sweep}
 
 	_, err := store.SaveAs(owner.ctx, id, "text/plain", body)
 

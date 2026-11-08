@@ -75,7 +75,7 @@ func (s fileStore) store(ctx context.Context, id uuid.UUID, body io.Reader, opti
 	}
 	key := s.key(ctx, id)
 	if options.IfNotExist {
-		if err := vacant(ctx, bucket, key); err != nil {
+		if err := ensureKeyIsFree(ctx, bucket, key); err != nil {
 			return sdk.StoredFile{}, err
 		}
 	}
@@ -88,13 +88,13 @@ func (s fileStore) store(ctx context.Context, id uuid.UUID, body io.Reader, opti
 	}
 	size, sha, err := s.write(writer, cancel, body)
 	if err != nil {
-		return sdk.StoredFile{}, inUseOr(ctx, bucket, key, err)
+		return sdk.StoredFile{}, asFileExistsWhenTaken(ctx, bucket, key, err)
 	}
 	return sdk.StoredFile{ID: id, Size: size, ContentType: contentType, SHA256: sha, StoredAt: time.Now().UTC()}, nil
 }
 
-// vacant returns nil for a key that holds no file, ErrFileExists for one that does, and the failure of the look up.
-func vacant(ctx context.Context, bucket *blob.Bucket, key string) error {
+// ensureKeyIsFree returns nil for a key that holds no file, ErrFileExists for one that does, and a failed look up.
+func ensureKeyIsFree(ctx context.Context, bucket *blob.Bucket, key string) error {
 	exists, err := bucket.Exists(ctx, key)
 	switch {
 	case err != nil:
@@ -105,9 +105,12 @@ func vacant(ctx context.Context, bucket *blob.Bucket, key string) error {
 	return nil
 }
 
-// inUseOr returns ErrFileExists for a failed precondition on a key that holds a file, and err otherwise.
-func inUseOr(ctx context.Context, bucket *blob.Bucket, key string, err error) error {
-	if gcerrors.Code(err) == gcerrors.FailedPrecondition && errors.Is(vacant(ctx, bucket, key), sdk.ErrFileExists) {
+// asFileExistsWhenTaken returns ErrFileExists for a failed precondition on a key that holds a file, and err otherwise.
+func asFileExistsWhenTaken(ctx context.Context, bucket *blob.Bucket, key string, err error) error {
+	if gcerrors.Code(err) != gcerrors.FailedPrecondition {
+		return err
+	}
+	if errors.Is(ensureKeyIsFree(ctx, bucket, key), sdk.ErrFileExists) {
 		return sdk.ErrFileExists
 	}
 	return err

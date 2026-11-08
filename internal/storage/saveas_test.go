@@ -54,7 +54,7 @@ type preconditionBucket struct {
 func (b *preconditionBucket) NewTypedWriter(_ context.Context, _, _ string, opts *driver.WriterOptions) (
 	driver.Writer, error) {
 	b.exclusive = append(b.exclusive, opts.IfNotExist)
-	return closingWriter{err: b.closeErr}, nil
+	return writerClosingWith{err: b.closeErr}, nil
 }
 
 // Attributes answers the next of lookups.
@@ -84,24 +84,24 @@ func (*preconditionBucket) Close() error {
 	return nil
 }
 
-// closingWriter takes every write and answers err on Close.
-type closingWriter struct {
+// writerClosingWith takes every write and answers err on Close.
+type writerClosingWith struct {
 	// err is what Close answers.
 	err error
 }
 
 // Write takes all of p.
-func (closingWriter) Write(p []byte) (int, error) {
+func (writerClosingWith) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
 // Close answers err.
-func (w closingWriter) Close() error {
+func (w writerClosingWith) Close() error {
 	return w.err
 }
 
-// endingBody hands out its bytes and, once none are left, runs atEnd before it answers io.EOF.
-type endingBody struct {
+// bodyRunningAtEnd hands out its bytes and, once none are left, runs atEnd before it answers io.EOF.
+type bodyRunningAtEnd struct {
 	// rest holds the bytes not yet handed out.
 	rest io.Reader
 	// atEnd runs once, when the bytes run out.
@@ -111,7 +111,7 @@ type endingBody struct {
 }
 
 // Read hands out the next bytes, running atEnd the first time none are left.
-func (b *endingBody) Read(p []byte) (int, error) {
+func (b *bodyRunningAtEnd) Read(p []byte) (int, error) {
 	n, err := b.rest.Read(p)
 	if errors.Is(err, io.EOF) && !b.ended {
 		b.ended = true
@@ -291,7 +291,7 @@ func TestSaveAsThatLosesTheRaceForItsIDAnswersErrFileExists(t *testing.T) {
 	owner := as(t, acme)
 	id := uuid.Must(uuid.NewV7())
 	rival := func() { owner.saveAs(store, id, "text/plain", laterText) }
-	body := &endingBody{rest: strings.NewReader(receiptText), atEnd: rival}
+	body := &bodyRunningAtEnd{rest: strings.NewReader(receiptText), atEnd: rival}
 
 	_, err := store.SaveAs(owner.ctx, id, "application/pdf", body)
 
