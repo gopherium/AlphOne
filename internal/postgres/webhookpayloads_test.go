@@ -34,8 +34,8 @@ type subscriptionQueue struct {
 	sub webhook.Subscription
 }
 
-// queueIn stores a subscription of no account in the tenant ctx serves and returns its queue.
-func queueIn(t *testing.T, ctx context.Context, store *postgres.WebhookStore) subscriptionQueue {
+// newSubscriptionQueue stores a subscription of no account in the tenant ctx serves and returns its queue.
+func newSubscriptionQueue(t *testing.T, ctx context.Context, store *postgres.WebhookStore) subscriptionQueue {
 	t.Helper()
 	sub := mustSubscription(t, uuid.Must(uuid.NewV7()), "https://example.com/hook", event.TaskCreated)
 	if err := store.CreateSubscription(ctx, sub); err != nil {
@@ -44,16 +44,16 @@ func queueIn(t *testing.T, ctx context.Context, store *postgres.WebhookStore) su
 	return subscriptionQueue{ctx: ctx, store: store, sub: sub}
 }
 
-// heldSince stores a delivery of the subscription in status since at.
-func (q subscriptionQueue) heldSince(t *testing.T, status string, at time.Time) webhook.Delivery {
+// enqueueAt stores a delivery of the subscription in status since at and returns it.
+func (q subscriptionQueue) enqueueAt(t *testing.T, status string, at time.Time) webhook.Delivery {
 	t.Helper()
 	delivery := mustDelivery(t, q.sub)
 	delivery.Status, delivery.DeliverAfter, delivery.CreatedAt, delivery.Attempts = status, at, at.Add(-time.Minute), 1
-	return q.stored(t, delivery)
+	return q.enqueue(t, delivery)
 }
 
-// stored stores delivery and returns it.
-func (q subscriptionQueue) stored(t *testing.T, delivery webhook.Delivery) webhook.Delivery {
+// enqueue stores delivery and returns it.
+func (q subscriptionQueue) enqueue(t *testing.T, delivery webhook.Delivery) webhook.Delivery {
 	t.Helper()
 	if err := q.store.EnqueueDelivery(q.ctx, delivery); err != nil {
 		t.Fatalf("EnqueueDelivery() error = %v, want nil", err)
@@ -95,8 +95,8 @@ type clearCase struct {
 	kept     bool
 }
 
-// payload returns the payload the delivery holds after the clear.
-func (c clearCase) payload() string {
+// payloadAfterClear returns the payload the delivery holds after the clear.
+func (c clearCase) payloadAfterClear() string {
 	if c.kept {
 		return string(c.delivery.Payload)
 	}
@@ -121,7 +121,8 @@ func TestSettlingADeliveryThatIsNoLongerPendingChangesNothing(t *testing.T) {
 
 			pool := newTestPool(t)
 			store := postgres.NewWebhookStore(pool)
-			delivery := queueIn(t, t.Context(), store).heldSince(t, tc.held, time.Now().UTC().Add(-time.Hour))
+			queue := newSubscriptionQueue(t, t.Context(), store)
+			delivery := queue.enqueueAt(t, tc.held, time.Now().UTC().Add(-time.Hour))
 			before := storedDeliveryOf(t, pool, delivery.ID)
 
 			err := store.SettleDelivery(t.Context(), delivery.ID, tc.stale, time.Now().UTC().Add(time.Minute),
@@ -142,15 +143,16 @@ func TestWebhookStoreClearsOnlyThePayloadsSettledBeforeTheCutoff(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewWebhookStore(pool)
-	here, there := queueIn(t, t.Context(), store), queueIn(t, standingIn(t, seededTenant(t, pool)), store)
+	here := newSubscriptionQueue(t, t.Context(), store)
+	there := newSubscriptionQueue(t, standingIn(t, seededTenant(t, pool)), store)
 	cutoff := time.Now().UTC().Add(-time.Hour)
 	before, after := cutoff.Add(-time.Minute), cutoff.Add(time.Minute)
 	tests := map[string]clearCase{
-		"a delivered one":                     {delivery: here.heldSince(t, webhook.StatusDelivered, before)},
-		"a failed one":                        {delivery: here.heldSince(t, webhook.StatusFailed, before)},
-		"one of another tenant":               {delivery: there.heldSince(t, webhook.StatusDelivered, before)},
-		"one settled after the cutoff":        {delivery: here.heldSince(t, webhook.StatusDelivered, after), kept: true},
-		"a pending one due before the cutoff": {delivery: here.heldSince(t, webhook.StatusPending, before), kept: true},
+		"a delivered one":                     {delivery: here.enqueueAt(t, webhook.StatusDelivered, before)},
+		"a failed one":                        {delivery: here.enqueueAt(t, webhook.StatusFailed, before)},
+		"one of another tenant":               {delivery: there.enqueueAt(t, webhook.StatusDelivered, before)},
+		"one settled after the cutoff":        {delivery: here.enqueueAt(t, webhook.StatusDelivered, after), kept: true},
+		"a pending one due before the cutoff": {delivery: here.enqueueAt(t, webhook.StatusPending, before), kept: true},
 	}
 
 	count, err := store.ClearSettledPayloads(t.Context(), cutoff, 10)
@@ -159,8 +161,8 @@ func TestWebhookStoreClearsOnlyThePayloadsSettledBeforeTheCutoff(t *testing.T) {
 		t.Fatalf("ClearSettledPayloads() = %d, %v, want the 3 settled before the cutoff, nil", count, err)
 	}
 	for name, tc := range tests {
-		if got := storedDeliveryOf(t, pool, tc.delivery.ID).payload; got != tc.payload() {
-			t.Errorf("%s holds %q, want %q", name, got, tc.payload())
+		if got := storedDeliveryOf(t, pool, tc.delivery.ID).payload; got != tc.payloadAfterClear() {
+			t.Errorf("%s holds %q, want %q", name, got, tc.payloadAfterClear())
 		}
 	}
 }
@@ -170,12 +172,12 @@ func TestClearingAPayloadKeepsTheRestOfTheDelivery(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewWebhookStore(pool)
-	queue := queueIn(t, t.Context(), store)
+	queue := newSubscriptionQueue(t, t.Context(), store)
 	settled := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Microsecond)
 	delivery := mustDelivery(t, queue.sub)
 	delivery.Status, delivery.DeliverAfter, delivery.Attempts = webhook.StatusFailed, settled, 7
 	delivery.LastError, delivery.CreatedAt = "subscriber answered 500", settled.Add(-webhook.RetryWindow)
-	queue.stored(t, delivery)
+	queue.enqueue(t, delivery)
 
 	if _, err := store.ClearSettledPayloads(t.Context(), time.Now().UTC(), 10); err != nil {
 		t.Fatalf("ClearSettledPayloads() error = %v, want nil", err)
@@ -192,11 +194,11 @@ func TestWebhookStoreClearsTheOldestPayloadsUpToTheLimit(t *testing.T) {
 
 	pool := newTestPool(t)
 	store := postgres.NewWebhookStore(pool)
-	queue := queueIn(t, t.Context(), store)
+	queue := newSubscriptionQueue(t, t.Context(), store)
 	cutoff := time.Now().UTC().Add(-time.Hour)
-	oldest := queue.heldSince(t, webhook.StatusDelivered, cutoff.Add(-3*time.Minute))
-	older := queue.heldSince(t, webhook.StatusDelivered, cutoff.Add(-2*time.Minute))
-	newest := queue.heldSince(t, webhook.StatusDelivered, cutoff.Add(-time.Minute))
+	oldest := queue.enqueueAt(t, webhook.StatusDelivered, cutoff.Add(-3*time.Minute))
+	older := queue.enqueueAt(t, webhook.StatusDelivered, cutoff.Add(-2*time.Minute))
+	newest := queue.enqueueAt(t, webhook.StatusDelivered, cutoff.Add(-time.Minute))
 
 	count, err := store.ClearSettledPayloads(t.Context(), cutoff, 2)
 	if err != nil || count != 2 {
