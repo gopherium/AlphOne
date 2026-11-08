@@ -65,6 +65,29 @@ Name it after your plugin id, the way `archive` reads
 `.env.example` names a setting under your prefix that no Go string in
 your plugin folder spells.
 
+## Log a failure
+
+`deps.Logger` is a `*slog.Logger` that writes to the server log, the
+same log AlphOne's own background jobs write to. Keep it on the plugin
+in `Register`, such as `logger: deps.Logger`, and report through it a
+failure that no caller is waiting to hear about:
+
+```go
+// sweep deletes the rows past the keep window, logging a failure for the next round to retry.
+func (p *Plugin) sweep(ctx context.Context) {
+	if err := p.deleteBefore(ctx, time.Now().Add(-p.keep)); err != nil {
+		p.logger.ErrorContext(ctx, "archive: could not delete the archived rows", "error", err)
+	}
+}
+```
+
+Under `serve`, every line from info up reaches the server's standard
+error. Every other command shows only warnings and errors, so a
+command's own output stays clean. Keep personal details, such as an
+email address or a phone number, out of every line. In a test, hand
+`Register` a logger that writes to a buffer and read back what the
+plugin wrote.
+
 ## Offer a command
 
 A plugin offers commands by implementing `sdk.CommandProvider`, whose
