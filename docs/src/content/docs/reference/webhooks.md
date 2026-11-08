@@ -233,17 +233,29 @@ mutation ($id: UUID!) {
 }
 ```
 
-Revoking answers `true` and drops any deliveries still queued for the
-subscription. An account holding `manage_webhooks` revokes any subscription of
-its workspace. Any other account that tries to revoke one it did not create is
-refused with the code `NOT_FOUND` and the reason `webhook_not_found`, the same
-as one that never existed.
+Revoking answers `true` and removes every delivery of the subscription,
+queued or already sent. An account holding `manage_webhooks` revokes any
+subscription of its workspace. Any other account that tries to revoke one it
+did not create is refused with the code `NOT_FOUND` and the reason
+`webhook_not_found`, the same as one that never existed.
 
 ## Notes for self-hosters
 
 The signing secret is stored so AlphOne can read it, because signing a
 delivery requires the secret itself. That differs from API tokens and
 passwords, which are stored hashed. Treat database backups accordingly.
+
+### How long a payload is kept
+
+Every delivery keeps its payload, the JSON body shown under
+[the envelope](#the-envelope), in the database. Once a delivery was sent
+or failed for good, AlphOne keeps its payload for 30 days and then clears
+it. The delivery itself stays, with its event name, its status, its
+attempts and its last error. A delivery still waiting to be sent keeps its
+payload, however long it waits. The operator sets another time with
+`ALPHONE_WEBHOOK_PAYLOAD_AGE`, see
+[Configuration](/self-hosting/configuration/#webhooks). Revoking a
+subscription removes its deliveries at once, payloads included.
 
 ### Internal addresses
 

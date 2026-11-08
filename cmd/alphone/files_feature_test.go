@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,7 +38,10 @@ type filesScenario struct {
 	built      composed
 	composed   bool
 	file       sdk.StoredFile
+	chosen     uuid.UUID
 	saveErr    error
+	serverLog  strings.Builder
+	pluginLog  *slog.Logger
 }
 
 // initializeFiles returns the binding of the file steps, t holding their databases.
@@ -50,11 +54,18 @@ func initializeFiles(t *testing.T) func(*godog.ScenarioContext) {
 		sc.Given(`^AlphOne runs a plugin that keeps files$`, s.runAPluginThatKeepsFiles)
 		sc.When(`^the workspace "([^"]*)" saves the file "([^"]*)"$`, s.save)
 		sc.When(`^the workspace "([^"]*)" saves a file of (\d+) bytes$`, s.saveOfSize)
+		sc.Given(`^the workspace "([^"]*)" saved the file "([^"]*)" under an id it chose$`, s.saveUnderAChosenID)
+		sc.When(`^the workspace "([^"]*)" saves the file "([^"]*)" under an id it chose$`, s.saveUnderAChosenID)
+		sc.When(`^the workspace "([^"]*)" saves the file "([^"]*)" under the same id$`, s.saveUnderTheSameID)
+		sc.When(`^the plugin reports the failure "([^"]*)"$`, s.reportFailure)
 		sc.Then(`^the workspace "([^"]*)" cannot open that file$`, s.cannotOpen)
 		sc.Then(`^the workspace "([^"]*)" cannot delete that file$`, s.cannotDelete)
 		sc.Then(`^the workspace "([^"]*)" still opens that file as "([^"]*)"$`, s.opens)
+		sc.Then(`^the file is stored under the id the plugin chose$`, s.storedUnderTheChosenID)
 		sc.Then(`^the save is refused as too large$`, s.refusedAsTooLarge)
+		sc.Then(`^the save is refused as an id in use$`, s.refusedAsInUse)
 		sc.Then(`^no file is stored$`, s.storesNoFile)
+		sc.Then(`^the server log holds the error "([^"]*)"$`, s.logHoldsTheError)
 		sc.After(func(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
 			return ctx, s.stop(ctx)
 		})
@@ -90,7 +101,7 @@ func (s *filesScenario) capFiles(most int) {
 	s.env["ALPHONE_STORAGE_MAX_BYTES"] = strconv.Itoa(most)
 }
 
-// runAPluginThatKeepsFiles composes the host over the settings with one plugin taking a file store.
+// runAPluginThatKeepsFiles composes the host over the settings and a server log with one plugin taking a file store.
 func (s *filesScenario) runAPluginThatKeepsFiles(ctx context.Context) error {
 	settings, err := loadRunConfig(testkit.Getenv(s.env))
 	if err != nil {
@@ -102,8 +113,11 @@ func (s *filesScenario) runAPluginThatKeepsFiles(ctx context.Context) error {
 		databaseURL:     settings.databaseURL,
 		getenv:          testkit.Getenv(s.env),
 		roles:           role.NewRegistry(),
-		logger:          discardLogger(),
-	}, func(sdk.Deps) ([]sdk.Plugin, error) { return []sdk.Plugin{s.keeping}, nil })
+		logger:          slog.New(slog.NewTextHandler(&s.serverLog, nil)),
+	}, func(deps sdk.Deps) ([]sdk.Plugin, error) {
+		s.pluginLog = deps.Logger
+		return []sdk.Plugin{s.keeping}, nil
+	})
 	s.composed = true
 	if err != nil {
 		return err
@@ -126,6 +140,26 @@ func (s *filesScenario) save(ctx context.Context, name, text string) error {
 func (s *filesScenario) saveOfSize(ctx context.Context, name string, size int) {
 	body := strings.NewReader(strings.Repeat("x", size))
 	s.file, s.saveErr = s.keeping.received.Save(s.in(ctx, name), "text/plain", body)
+}
+
+// saveUnderAChosenID saves the text as a file of the workspace called name under a new id the plugin chose.
+func (s *filesScenario) saveUnderAChosenID(ctx context.Context, name, text string) error {
+	s.chosen = uuid.Must(uuid.NewV7())
+	s.file, s.saveErr = s.keeping.received.SaveAs(s.in(ctx, name), s.chosen, "text/plain", strings.NewReader(text))
+	return s.saveErr
+}
+
+// saveUnderTheSameID tries to save the text for the workspace called name under the id the plugin chose before.
+func (s *filesScenario) saveUnderTheSameID(ctx context.Context, name, text string) {
+	_, s.saveErr = s.keeping.received.SaveAs(s.in(ctx, name), s.chosen, "text/plain", strings.NewReader(text))
+}
+
+// storedUnderTheChosenID fails unless the store answered the id the plugin chose.
+func (s *filesScenario) storedUnderTheChosenID() error {
+	if s.file.ID != s.chosen {
+		return fmt.Errorf("SaveAs() answered the id %v, want the chosen %v", s.file.ID, s.chosen)
+	}
+	return nil
 }
 
 // cannotOpen fails unless the workspace called name finds no file under the saved id.
@@ -162,6 +196,31 @@ func (s *filesScenario) opens(ctx context.Context, name, text string) error {
 func (s *filesScenario) refusedAsTooLarge() error {
 	if !errors.Is(s.saveErr, sdk.ErrFileTooLarge) {
 		return fmt.Errorf("Save() error = %v, want %v", s.saveErr, sdk.ErrFileTooLarge)
+	}
+	return nil
+}
+
+// refusedAsInUse fails unless the last save answered that the id already holds a file.
+func (s *filesScenario) refusedAsInUse() error {
+	if !errors.Is(s.saveErr, sdk.ErrFileExists) {
+		return fmt.Errorf("SaveAs() error = %v, want %v", s.saveErr, sdk.ErrFileExists)
+	}
+	return nil
+}
+
+// reportFailure writes text as an error through the logger the plugin was handed.
+func (s *filesScenario) reportFailure(text string) error {
+	if s.pluginLog == nil {
+		return errors.New("the plugin received no logger, want the host's")
+	}
+	s.pluginLog.Error(text)
+	return nil
+}
+
+// logHoldsTheError fails unless the server log holds text as an error.
+func (s *filesScenario) logHoldsTheError(text string) error {
+	if want := "level=ERROR msg=" + strconv.Quote(text); !strings.Contains(s.serverLog.String(), want) {
+		return fmt.Errorf("the server log holds %q, want the line %s", s.serverLog.String(), want)
 	}
 	return nil
 }

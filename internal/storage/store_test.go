@@ -40,6 +40,9 @@ var errNoDetails = errors.New("the details cannot be read")
 // errHalfWrite is the failure of a write the store took only part of.
 var errHalfWrite = errors.New("the write broke part way")
 
+// errNoFile is the failure of a bucket that holds no file under a key.
+var errNoFile = errors.New("no file under the key")
+
 // acme is the workspace that saves the files the tests open.
 var acme = uuid.MustParse("01900000-0000-7000-8000-000000000001")
 
@@ -205,8 +208,16 @@ func (b *halfWriteBucket) NewTypedWriter(ctx context.Context, key, _ string, _ *
 	return &halfWriter{ctx: ctx, key: key, bucket: b}, nil
 }
 
-// ErrorCode reads every failure as unknown.
-func (*halfWriteBucket) ErrorCode(error) gcerrors.ErrorCode {
+// Attributes answers that the key holds no file.
+func (*halfWriteBucket) Attributes(context.Context, string) (*driver.Attributes, error) {
+	return nil, errNoFile
+}
+
+// ErrorCode reads errNoFile as not found and every other failure as unknown.
+func (*halfWriteBucket) ErrorCode(err error) gcerrors.ErrorCode {
+	if errors.Is(err, errNoFile) {
+		return gcerrors.NotFound
+	}
 	return gcerrors.Unknown
 }
 
@@ -555,10 +566,12 @@ func TestAClosedBucketFailsEveryCall(t *testing.T) {
 	}
 
 	_, saveErr := store.Save(owner.ctx, "text/plain", strings.NewReader(receiptText))
+	_, saveAsErr := store.SaveAs(owner.ctx, uuid.Must(uuid.NewV7()), "text/plain", strings.NewReader(receiptText))
 	_, openErr := store.Open(owner.ctx, file.ID)
 	deleteErr := store.Delete(owner.ctx, file.ID)
 
-	for name, err := range map[string]error{"Save()": saveErr, "Open()": openErr, "Delete()": deleteErr} {
+	for name, err := range map[string]error{"Save()": saveErr, "SaveAs()": saveAsErr, "Open()": openErr,
+		"Delete()": deleteErr} {
 		if errors.Is(err, sdk.ErrFileNotFound) || !strings.HasPrefix(fmt.Sprint(err), "storage: ") {
 			t.Errorf("%s on a closed bucket error = %v, want a storage error that is not a missing file", name, err)
 		}

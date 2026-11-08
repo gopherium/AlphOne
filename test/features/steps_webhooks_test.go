@@ -6,11 +6,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/cucumber/godog"
+	"github.com/google/uuid"
 
+	"github.com/gopherium/alphone/internal/event"
+	"github.com/gopherium/alphone/internal/postgres"
 	"github.com/gopherium/alphone/internal/webhook"
 )
 
@@ -71,6 +78,7 @@ func registerWebhookSteps(sc *godog.ScenarioContext, t *testing.T) {
 
 	registerWebhookCreateSteps(sc)
 	registerWebhookEventSteps(sc)
+	registerWebhookPayloadSteps(sc)
 
 	sc.Then(`^that token lists no webhook$`, func(ctx context.Context) error {
 		w := worldFrom(ctx)
@@ -147,6 +155,143 @@ func (w *world) listedInOrder(table *godog.Table) error {
 	}
 	if !slices.Equal(listed.Data.WebhookEvents, want) {
 		return fmt.Errorf("webhookEvents = %v, want exactly %v in that order", listed.Data.WebhookEvents, want)
+	}
+	return nil
+}
+
+// storedPayloadQuery reads the payload the queue holds for one delivery.
+const storedPayloadQuery = "SELECT payload FROM core.webhook_deliveries WHERE id = $1"
+
+// storedStatusQuery reads the status the queue holds for one delivery.
+const storedStatusQuery = "SELECT status FROM core.webhook_deliveries WHERE id = $1"
+
+// registerWebhookPayloadSteps binds the steps that queue deliveries, run the delivery worker and read their payloads.
+func registerWebhookPayloadSteps(sc *godog.ScenarioContext) {
+	sc.Given(`^the user holds a webhook to "([^"]*)"$`, func(ctx context.Context, address string) error {
+		w := worldFrom(ctx)
+		sub, err := webhook.NewSubscription(w.ownerID, address, []event.Name{event.TaskCreated})
+		if err != nil {
+			return err
+		}
+		w.ownedHooks = map[string]uuid.UUID{"user": sub.ID}
+		return w.graph.Webhooks.CreateSubscription(ctx, sub)
+	})
+
+	sc.Given(`^a delivery to that webhook (was sent|failed for good) (\d+) days ago$`,
+		func(ctx context.Context, outcome string, days int) error {
+			status := webhook.StatusDelivered
+			if outcome == "failed for good" {
+				status = webhook.StatusFailed
+			}
+			label := strings.TrimPrefix(outcome, "was ") + " " + strconv.Itoa(days)
+			return worldFrom(ctx).queueDelivery(ctx, label, status, time.Now().UTC().AddDate(0, 0, -days))
+		})
+
+	sc.Given(`^a delivery to that webhook has waited (\d+) days to be sent$`, func(ctx context.Context, days int) error {
+		label := "waited " + strconv.Itoa(days)
+		return worldFrom(ctx).queueDelivery(ctx, label, webhook.StatusPending, time.Now().UTC().AddDate(0, 0, -days))
+	})
+
+	sc.Given(`^(\d+) deliveries to that webhook have waited (\d+) days to be sent$`,
+		func(ctx context.Context, count, days int) error {
+			return worldFrom(ctx).queueWaitingDeliveries(ctx, count, days)
+		})
+
+	sc.When(`^the delivery worker runs, keeping payloads for "([^"]*)"$`, func(ctx context.Context, raw string) error {
+		age, err := time.ParseDuration(raw)
+		if err != nil {
+			return err
+		}
+		w := worldFrom(ctx)
+		queue := postgres.NewWebhookStore(w.pool)
+		worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), w.graph.WebhookGuard, age)
+		worker.Sweep(ctx)
+		worker.ClearPayloads(ctx)
+		return nil
+	})
+
+	sc.Then(`^the delivery (?:that )?(sent|failed for good|waited) (\d+) days(?: ago)? `+
+		`(holds no payload|still holds its payload)$`,
+		func(ctx context.Context, kind string, days int, held string) error {
+			return worldFrom(ctx).payloadHeld(ctx, kind+" "+strconv.Itoa(days), held == "still holds its payload")
+		})
+
+	sc.Then(`^the delivery that waited (\d+) days is still waiting to be sent$`,
+		func(ctx context.Context, days int) error {
+			return worldFrom(ctx).stillWaiting(ctx, "waited "+strconv.Itoa(days))
+		})
+}
+
+// queueWaitingDeliveries stores count task event deliveries to the user's webhook, each waiting since days ago.
+func (w *world) queueWaitingDeliveries(ctx context.Context, count, days int) error {
+	since := time.Now().UTC().AddDate(0, 0, -days)
+	for i := range count {
+		label := fmt.Sprintf("waited %d, %d of %d", days, i+1, count)
+		if err := w.queueDelivery(ctx, label, webhook.StatusPending, since); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// queueDelivery stores a task event delivery to the user's webhook under label, in status since at.
+func (w *world) queueDelivery(ctx context.Context, label, status string, at time.Time) error {
+	occurred, err := event.New(event.TaskCreated, map[string]any{"title": "Call Maria Perez"})
+	if err != nil {
+		return err
+	}
+	delivery, err := webhook.NewDelivery(webhook.Subscription{ID: w.ownedHooks["user"]}, occurred)
+	if err != nil {
+		return err
+	}
+	delivery.Status, delivery.DeliverAfter, delivery.CreatedAt, delivery.Attempts = status, at, at, 1
+	if err := postgres.NewWebhookStore(w.pool).EnqueueDelivery(ctx, delivery); err != nil {
+		return fmt.Errorf("queueing the delivery: %w", err)
+	}
+	if w.deliveries == nil {
+		w.deliveries = map[string]webhook.Delivery{}
+	}
+	w.deliveries[label] = delivery
+	return nil
+}
+
+// storedColumn reads through query the one column the queue holds for the delivery under label.
+func (w *world) storedColumn(ctx context.Context, label, query string) (webhook.Delivery, string, error) {
+	delivery, found := w.deliveries[label]
+	if !found {
+		return webhook.Delivery{}, "", fmt.Errorf("no delivery was queued as %q", label)
+	}
+	var value string
+	if err := w.pool.QueryRow(ctx, query, delivery.ID).Scan(&value); err != nil {
+		return webhook.Delivery{}, "", fmt.Errorf("reading the delivery %s: %w", label, err)
+	}
+	return delivery, value, nil
+}
+
+// stillWaiting reports whether the delivery under label is still waiting to be sent.
+func (w *world) stillWaiting(ctx context.Context, label string) error {
+	_, status, err := w.storedColumn(ctx, label, storedStatusQuery)
+	if err != nil {
+		return err
+	}
+	if status != webhook.StatusPending {
+		return fmt.Errorf("the delivery %s is %q, want %q", label, status, webhook.StatusPending)
+	}
+	return nil
+}
+
+// payloadHeld reports whether the delivery under label still holds the payload it was queued with, or none.
+func (w *world) payloadHeld(ctx context.Context, label string, kept bool) error {
+	delivery, payload, err := w.storedColumn(ctx, label, storedPayloadQuery)
+	if err != nil {
+		return err
+	}
+	want := ""
+	if kept {
+		want = string(delivery.Payload)
+	}
+	if payload != want {
+		return fmt.Errorf("the delivery %s holds %q, want %q", label, payload, want)
 	}
 	return nil
 }

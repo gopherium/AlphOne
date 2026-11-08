@@ -286,15 +286,16 @@ type runConfig struct {
 
 // composeSettings carries the settings compose hands the plugins and the stores it builds.
 type composeSettings struct {
-	machineGrace    time.Duration
-	tenants         tenantSettings
-	contactMatchMax int
-	publicURL       string
-	mail            mailSettings
-	webhookHosts    webhook.AllowList
-	paging          graphres.Paging
-	storage         storage.Settings
-	encryption      *encryption.Keys
+	machineGrace      time.Duration
+	tenants           tenantSettings
+	contactMatchMax   int
+	publicURL         string
+	mail              mailSettings
+	webhookHosts      webhook.AllowList
+	webhookPayloadAge time.Duration
+	paging            graphres.Paging
+	storage           storage.Settings
+	encryption        *encryption.Keys
 }
 
 // servingDefaults are the HTTP timeouts and shutdown graces the server runs under when the environment names none.
@@ -459,6 +460,16 @@ func loadMailAndPublicURL(env gonsole.Env) (mailSettings, string, error) {
 	return mail, publicURL, err
 }
 
+// loadWebhookSettings reads the internal addresses webhooks may reach and how long a settled delivery keeps a payload.
+func loadWebhookSettings(env gonsole.Env) (webhook.AllowList, time.Duration, error) {
+	hosts, err := gonsole.Parse(env, "WEBHOOK_ALLOWED_HOSTS", webhook.AllowList{}, webhook.ParseAllowList)
+	if err != nil {
+		return webhook.AllowList{}, 0, err
+	}
+	payloadAge, err := env.Duration("WEBHOOK_PAYLOAD_AGE", webhook.DefaultPayloadAge)
+	return hosts, payloadAge, err
+}
+
 // loadPublicURL reads the address people reach the application at, which a mail relay requires.
 func loadPublicURL(env gonsole.Env, mail mailSettings) (string, error) {
 	publicURL, err := gonsole.Parse(env, "PUBLIC_URL", "", parsePublicURL)
@@ -489,7 +500,7 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	if err != nil {
 		return composeSettings{}, err
 	}
-	webhookHosts, err := gonsole.Parse(env, "WEBHOOK_ALLOWED_HOSTS", webhook.AllowList{}, webhook.ParseAllowList)
+	webhookHosts, payloadAge, err := loadWebhookSettings(env)
 	if err != nil {
 		return composeSettings{}, err
 	}
@@ -504,8 +515,8 @@ func loadComposeSettings(env gonsole.Env) (composeSettings, error) {
 	keys, err := loadEncryptionKeys(env)
 	return composeSettings{
 		machineGrace: machineGrace, tenants: tenants, contactMatchMax: contactMatchMax,
-		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, paging: paging, storage: files,
-		encryption: keys,
+		publicURL: publicURL, mail: mail, webhookHosts: webhookHosts, webhookPayloadAge: payloadAge,
+		paging: paging, storage: files, encryption: keys,
 	}, err
 }
 

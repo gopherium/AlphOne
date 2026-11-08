@@ -136,6 +136,32 @@ func (q *Queries) ClaimWebhookDeliveries(ctx context.Context, arg ClaimWebhookDe
 	return items, nil
 }
 
+const clearSettledWebhookPayloads = `-- name: ClearSettledWebhookPayloads :execrows
+UPDATE core.webhook_deliveries
+SET payload = ''
+WHERE id IN (
+    SELECT d.id
+    FROM core.webhook_deliveries d
+    WHERE d.status <> 'pending' AND d.payload <> '' AND d.deliver_after < $1::timestamptz
+    ORDER BY d.deliver_after, d.id
+    LIMIT $2
+    FOR UPDATE SKIP LOCKED
+)
+`
+
+type ClearSettledWebhookPayloadsParams struct {
+	SettledBefore time.Time
+	RowLimit      int32
+}
+
+func (q *Queries) ClearSettledWebhookPayloads(ctx context.Context, arg ClearSettledWebhookPayloadsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearSettledWebhookPayloads, arg.SettledBefore, arg.RowLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countContacts = `-- name: CountContacts :one
 SELECT count(*)
 FROM core.contacts c
@@ -1517,7 +1543,7 @@ func (q *Queries) SettingsUnder(ctx context.Context, arg SettingsUnderParams) ([
 const settleWebhookDelivery = `-- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries
 SET status = $2, deliver_after = $3, last_error = $4
-WHERE id = $1
+WHERE id = $1 AND status = 'pending'
 `
 
 type SettleWebhookDeliveryParams struct {

@@ -37,6 +37,7 @@ import (
 	"github.com/gopherium/alphone/internal/role"
 	"github.com/gopherium/alphone/internal/server"
 	"github.com/gopherium/alphone/internal/testdb"
+	"github.com/gopherium/alphone/internal/webhook"
 	"github.com/gopherium/alphone/plugins/fields"
 	"github.com/gopherium/alphone/plugins/importer"
 	"github.com/gopherium/alphone/sdk"
@@ -87,6 +88,7 @@ type world struct {
 	memberID     uuid.UUID
 	targetID     uuid.UUID
 	ownedHooks   map[string]uuid.UUID
+	deliveries   map[string]webhook.Delivery
 	status       int
 	cookies      []*http.Cookie
 	relay        *smtpmock.Server

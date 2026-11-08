@@ -2,7 +2,9 @@ Feature: A webhook names an address AlphOne may reach
   A webhook carries workspace events to the address it names. An address
   written as an internal IP is refused when the webhook is created unless
   the operator allows it, and no name is looked up then. A host name is
-  stored as written and checked again each time a delivery connects.
+  stored as written and checked again each time a delivery connects. A
+  delivery that was sent or failed for good keeps its payload for a set
+  time, then the payload is cleared.
 
   Background:
     Given a running AlphOne holding a user with an API token
@@ -52,3 +54,22 @@ Feature: A webhook names an address AlphOne may reach
     Given the operator allows webhook deliveries to "100.64.0.0/10"
     When that token registers a webhook to "http://100.100.100.201/hook"
     Then the webhook is registered for "http://100.100.100.201/hook"
+
+  Scenario: A settled delivery loses its payload once it is older than the set time
+    Given the user holds a webhook to "https://example.com/hook"
+    And a delivery to that webhook was sent 31 days ago
+    And a delivery to that webhook failed for good 31 days ago
+    And a delivery to that webhook was sent 29 days ago
+    When the delivery worker runs, keeping payloads for "720h"
+    Then the delivery sent 31 days ago holds no payload
+    And the delivery that failed for good 31 days ago holds no payload
+    And the delivery sent 29 days ago still holds its payload
+
+  Scenario: A delivery still waiting to be sent keeps its payload
+    Given the operator allows webhook deliveries to "127.0.0.1/32"
+    And the user holds a webhook to "http://127.0.0.1:9/hook"
+    And 50 deliveries to that webhook have waited 32 days to be sent
+    And a delivery to that webhook has waited 31 days to be sent
+    When the delivery worker runs, keeping payloads for "720h"
+    Then the delivery that waited 31 days is still waiting to be sent
+    And the delivery that waited 31 days still holds its payload

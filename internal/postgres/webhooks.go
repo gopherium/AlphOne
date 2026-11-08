@@ -229,6 +229,18 @@ func (s *WebhookStore) SettleDelivery(
 	return nil
 }
 
+// ClearSettledPayloads empties up to limit payloads settled before settledBefore, oldest first, and returns the count.
+func (s *WebhookStore) ClearSettledPayloads(ctx context.Context, settledBefore time.Time, limit int) (int, error) {
+	cleared, err := s.queries.ClearSettledWebhookPayloads(ctx, db.ClearSettledWebhookPayloadsParams{
+		SettledBefore: settledBefore,
+		RowLimit:      int32(limit),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("postgres: clear settled webhook payloads: %w", err)
+	}
+	return int(cleared), nil
+}
+
 // subscriptionsFromRows maps stored rows onto domain subscriptions.
 func subscriptionsFromRows(rows []db.CoreWebhookSubscription) []webhook.Subscription {
 	subs := make([]webhook.Subscription, 0, len(rows))

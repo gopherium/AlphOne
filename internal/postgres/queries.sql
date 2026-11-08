@@ -296,7 +296,19 @@ SELECT COALESCE((
 -- name: SettleWebhookDelivery :exec
 UPDATE core.webhook_deliveries
 SET status = $2, deliver_after = $3, last_error = $4
-WHERE id = $1;
+WHERE id = $1 AND status = 'pending';
+
+-- name: ClearSettledWebhookPayloads :execrows
+UPDATE core.webhook_deliveries
+SET payload = ''
+WHERE id IN (
+    SELECT d.id
+    FROM core.webhook_deliveries d
+    WHERE d.status <> 'pending' AND d.payload <> '' AND d.deliver_after < @settled_before::timestamptz
+    ORDER BY d.deliver_after, d.id
+    LIMIT @row_limit
+    FOR UPDATE SKIP LOCKED
+);
 
 -- name: ListContactsByIDs :many
 SELECT id, name, created_at, tenant_id

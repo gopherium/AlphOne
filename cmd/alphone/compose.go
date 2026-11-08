@@ -73,7 +73,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		webhooks:     webhooks,
 		webhookGuard: guard,
 		tenants:      postgres.NewTenantStore(pool),
-		worker:       webhook.NewWorker(webhooks, cfg.logger, guard),
+		worker:       webhook.NewWorker(webhooks, cfg.logger, guard, cfg.webhookPayloadAge),
 		hub:          event.NewHub(),
 		roles:        cfg.roles,
 		files:        storage.NewFiles(cfg.storage, pool),
@@ -99,6 +99,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 		Events:          pluginPublisher{publisher: built.events, logger: cfg.logger},
 		Getenv:          cfg.getenv,
 		Env:             settingsEnv(cfg.getenv),
+		Logger:          cfg.logger,
 	})
 	if err := declareRoles(cfg.roles, built.registered); err != nil {
 		return built, fmt.Errorf("declare plugin roles: %w", err)
