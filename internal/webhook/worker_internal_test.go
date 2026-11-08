@@ -70,6 +70,13 @@ func (q *countingQueue) sweeps() int {
 	return q.claims
 }
 
+// sweptAndClearedAtLeast reports whether the queue was claimed from and cleared at least times each.
+func (q *countingQueue) sweptAndClearedAtLeast(times int) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.claims >= times && len(q.limits) >= times
+}
+
 func TestStoppingANeverStartedWorkerIsFine(t *testing.T) {
 	t.Parallel()
 
@@ -82,40 +89,40 @@ func TestWorkerClearsAtMostAsManyPayloadsAsOneSweepClaims(t *testing.T) {
 
 	queue := &countingQueue{}
 
-	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(t.Context())
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).ClearPayloads(t.Context())
 
 	if got := queue.clearLimits(); !slices.Equal(got, []int{sweepBatch}) {
 		t.Errorf("clear limits = %v, want one clear of at most %d payloads", got, sweepBatch)
 	}
 }
 
-func TestASweepClearsAgainUntilAClearComesBackShortOfAFullBatch(t *testing.T) {
+func TestClearingGoesOnUntilAClearComesBackShortOfAFullBatch(t *testing.T) {
 	t.Parallel()
 
 	queue := &countingQueue{answers: []int{sweepBatch, sweepBatch - 1, sweepBatch}}
 
-	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(t.Context())
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).ClearPayloads(t.Context())
 
 	if got := queue.clearLimits(); !slices.Equal(got, []int{sweepBatch, sweepBatch}) {
 		t.Errorf("clear limits = %v, want a full clear of %d and then a short one", got, sweepBatch)
 	}
 }
 
-func TestASweepStopsClearingOnceItsContextEnds(t *testing.T) {
+func TestClearingStopsOnceItsContextEnds(t *testing.T) {
 	t.Parallel()
 
 	queue := &countingQueue{answers: []int{sweepBatch, sweepBatch, sweepBatch}}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(ctx)
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).ClearPayloads(ctx)
 
 	if got := queue.clearLimits(); len(got) != 1 {
 		t.Errorf("clear limits = %v, want one clear once the context ended", got)
 	}
 }
 
-func TestWorkerSweepsOnEveryTick(t *testing.T) {
+func TestWorkerSweepsAndClearsOnEveryTick(t *testing.T) {
 	t.Parallel()
 
 	queue := &countingQueue{}
@@ -124,13 +131,16 @@ func TestWorkerSweepsOnEveryTick(t *testing.T) {
 
 	worker.Start()
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && queue.sweeps() < 3 {
+	for time.Now().Before(deadline) && !queue.sweptAndClearedAtLeast(3) {
 		time.Sleep(time.Millisecond)
 	}
 	worker.Stop()
 
 	if got := queue.sweeps(); got < 3 {
 		t.Errorf("swept %d times, want the ticker driving repeated sweeps", got)
+	}
+	if got := len(queue.clearLimits()); got < 3 {
+		t.Errorf("cleared %d times, want the ticker driving repeated clears", got)
 	}
 }
 

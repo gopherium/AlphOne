@@ -33,8 +33,6 @@ type settlement struct {
 type clearing struct {
 	SettledBefore time.Time
 	Limit         int
-	// Settled is how many deliveries the sweep had settled when it cleared.
-	Settled int
 }
 
 type fakeWorkerQueue struct {
@@ -49,11 +47,11 @@ type fakeWorkerQueue struct {
 	clearErr error
 }
 
-// ClearSettledPayloads records one clear and the settlements before it, emptying nothing and answering clearErr.
+// ClearSettledPayloads records one clear, emptying nothing and answering clearErr.
 func (q *fakeWorkerQueue) ClearSettledPayloads(_ context.Context, settledBefore time.Time, limit int) (int, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.cleared = append(q.cleared, clearing{SettledBefore: settledBefore, Limit: limit, Settled: len(q.settled)})
+	q.cleared = append(q.cleared, clearing{SettledBefore: settledBefore, Limit: limit})
 	return 0, q.clearErr
 }
 
@@ -119,6 +117,36 @@ func (q *fakeWorkerQueue) settlements() []settlement {
 	return append([]settlement(nil), q.settled...)
 }
 
+// heldClearQueue is a fake queue whose clears each wait for release, closing began once the first one starts.
+type heldClearQueue struct {
+	*fakeWorkerQueue
+	began   chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+// newHeldClearQueue returns a queue holding every clear until release closes.
+func newHeldClearQueue() *heldClearQueue {
+	return &heldClearQueue{fakeWorkerQueue: &fakeWorkerQueue{}, began: make(chan struct{}), release: make(chan struct{})}
+}
+
+// ClearSettledPayloads closes began on the first clear, then waits for release and empties nothing.
+func (q *heldClearQueue) ClearSettledPayloads(context.Context, time.Time, int) (int, error) {
+	q.once.Do(func() { close(q.began) })
+	<-q.release
+	return 0, nil
+}
+
+// waitForAClear fails the test unless a clear of queue begins within two seconds.
+func waitForAClear(t *testing.T, queue *heldClearQueue) {
+	t.Helper()
+	select {
+	case <-queue.began:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no clear began after Start")
+	}
+}
+
 // claimed builds a delivery ready to hand to the worker.
 func claimed(t *testing.T, url, secret string, attempts int) webhook.ClaimedDelivery {
 	t.Helper()
@@ -170,45 +198,35 @@ func TestWorkerClearsThePayloadsSettledPastTheirAge(t *testing.T) {
 	worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), loopback, age)
 	before := time.Now().UTC()
 
-	worker.Sweep(t.Context())
+	worker.ClearPayloads(t.Context())
 
 	after := time.Now().UTC()
 	cleared := queue.clearings()
 	if len(cleared) != 1 {
-		t.Fatalf("cleared %d times, want once in a sweep", len(cleared))
+		t.Fatalf("cleared %d times, want once when the first clear comes back short", len(cleared))
 	}
 	if cutoff := cleared[0].SettledBefore; cutoff.Before(before.Add(-age)) || cutoff.After(after.Add(-age)) {
-		t.Errorf("cleared the payloads settled before %v, want those settled %v before the sweep", cutoff, age)
+		t.Errorf("cleared the payloads settled before %v, want those settled %v before the clear", cutoff, age)
 	}
 }
 
-func TestWorkerStillDeliversWhenClearingPayloadsFails(t *testing.T) {
+func TestWorkerLogsAFailedClearAndClearsNoFurther(t *testing.T) {
 	t.Parallel()
 
-	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer subscriber.Close()
-	queue := &fakeWorkerQueue{
-		pending:  []webhook.ClaimedDelivery{claimed(t, subscriber.URL, "whsec_a", 1)},
-		clearErr: errors.New("queue unavailable"),
-	}
+	queue := &fakeWorkerQueue{clearErr: errors.New("queue unavailable")}
 	worker, logged := newWorker(queue)
 
-	worker.Sweep(t.Context())
+	worker.ClearPayloads(t.Context())
 
 	if !strings.Contains(logged.String(), "level=ERROR msg=\"clearing webhook payloads\"") {
 		t.Errorf("log = %q, want the failed clear recorded", logged.String())
-	}
-	if settled := queue.settlements(); len(settled) != 1 || settled[0].Status != webhook.StatusDelivered {
-		t.Errorf("settled %+v, want the due delivery still delivered", settled)
 	}
 	if got := len(queue.clearings()); got != 1 {
 		t.Errorf("cleared %d times, want no second clear after a failed one", got)
 	}
 }
 
-func TestWorkerClearsPayloadsOnlyAfterTheDueDeliveriesWent(t *testing.T) {
+func TestASweepAttemptsTheDueDeliveriesAndClearsNoPayload(t *testing.T) {
 	t.Parallel()
 
 	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -220,21 +238,11 @@ func TestWorkerClearsPayloadsOnlyAfterTheDueDeliveriesWent(t *testing.T) {
 
 	worker.Sweep(t.Context())
 
-	if cleared := queue.clearings(); len(cleared) != 1 || cleared[0].Settled != 1 {
-		t.Errorf("clears = %+v, want one clear after the due delivery settled", cleared)
+	if settled := queue.settlements(); len(settled) != 1 || settled[0].Status != webhook.StatusDelivered {
+		t.Errorf("settled %+v, want the due delivery delivered", settled)
 	}
-}
-
-func TestWorkerStillClearsPayloadsWhenClaimingFails(t *testing.T) {
-	t.Parallel()
-
-	queue := &fakeWorkerQueue{claimErr: errors.New("queue unavailable")}
-	worker, _ := newWorker(queue)
-
-	worker.Sweep(t.Context())
-
-	if got := len(queue.clearings()); got != 1 {
-		t.Errorf("cleared %d times, want once although no delivery could be claimed", got)
+	if cleared := queue.clearings(); len(cleared) != 0 {
+		t.Errorf("clears = %+v, want none in a sweep", cleared)
 	}
 }
 
@@ -445,6 +453,58 @@ func TestWorkerSweepsWhenPoked(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Error("a poke did not drain the queue")
+}
+
+func TestWorkerDeliversWhenPokedWhilePayloadsAreClearing(t *testing.T) {
+	t.Parallel()
+
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer subscriber.Close()
+	queue := newHeldClearQueue()
+	worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), loopback, webhook.DefaultPayloadAge)
+	worker.Start()
+	defer worker.Stop()
+	defer close(queue.release)
+	waitForAClear(t, queue)
+
+	queue.mu.Lock()
+	queue.pending = []webhook.ClaimedDelivery{claimed(t, subscriber.URL, "whsec_a", 1)}
+	queue.mu.Unlock()
+	worker.Poke()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(queue.settlements()) > 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Error("a poke while payloads were clearing did not drain the queue")
+}
+
+func TestStopWaitsForAClearStillRunning(t *testing.T) {
+	t.Parallel()
+
+	queue := newHeldClearQueue()
+	worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), loopback, webhook.DefaultPayloadAge)
+	worker.Start()
+	waitForAClear(t, queue)
+	stopped := make(chan struct{})
+
+	go func() {
+		worker.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		t.Error("Stop returned while a clear still ran")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(queue.release)
+	<-stopped
 }
 
 func TestWorkerChecksTheOwnerJustBeforeEachPost(t *testing.T) {

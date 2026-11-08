@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ import (
 
 // Delivery worker defaults.
 const (
-	// sweepInterval is how often the queue is checked for due deliveries.
+	// sweepInterval is how often the queue is checked for due deliveries and for payloads past their age.
 	sweepInterval = 30 * time.Second
 	// sweepBatch caps how many deliveries one sweep takes and how many payloads one clear empties.
 	sweepBatch = 50
@@ -48,8 +49,7 @@ type ClaimedDelivery struct {
 	Secret string
 }
 
-// Worker posts queued deliveries to their subscribers until each is
-// accepted or has spent its attempt budget.
+// Worker posts queued deliveries until each is accepted or has spent its attempt budget, and clears old payloads.
 type Worker struct {
 	queue      WorkerQueue
 	client     *http.Client
@@ -58,7 +58,7 @@ type Worker struct {
 	interval   time.Duration
 	payloadAge time.Duration
 	cancel     context.CancelFunc
-	done       chan struct{}
+	loops      sync.WaitGroup
 }
 
 // NewWorker returns a [Worker] draining queue, posting only where guard allows and keeping payloads for payloadAge.
@@ -73,25 +73,21 @@ func NewWorker(queue WorkerQueue, logger *slog.Logger, guard AddressGuard, paylo
 	}
 }
 
-// Start begins draining the queue in the background.
+// Start begins draining the queue and clearing old payloads in the background.
 func (w *Worker) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
-	w.done = make(chan struct{})
-	go func() {
-		defer close(w.done)
-		w.run(ctx)
-	}()
+	w.loops.Go(func() { w.run(ctx) })
+	w.loops.Go(func() { w.clearLoop(ctx) })
 }
 
-// Stop ends the delivery loop and waits for it to finish. Stopping a never
-// started worker is not an error.
+// Stop ends the delivery and clear loops and waits for both to finish, and does nothing on a never started worker.
 func (w *Worker) Stop() {
 	if w.cancel == nil {
 		return
 	}
 	w.cancel()
-	<-w.done
+	w.loops.Wait()
 }
 
 // Poke wakes the delivery loop for a freshly queued delivery without waiting
@@ -120,15 +116,9 @@ func (w *Worker) run(ctx context.Context) {
 	}
 }
 
-// Sweep attempts every delivery currently due, then clears the payloads settled past their age.
+// Sweep attempts every delivery currently due.
 func (w *Worker) Sweep(ctx context.Context) {
 	now := time.Now().UTC()
-	w.attemptDue(ctx, now)
-	w.clearPayloads(ctx, now.Add(-w.payloadAge))
-}
-
-// attemptDue attempts every delivery due at now.
-func (w *Worker) attemptDue(ctx context.Context, now time.Time) {
 	claimed, err := w.queue.ClaimDueDeliveries(ctx, now, now.Add(sweepLease), sweepBatch)
 	if err != nil {
 		w.logger.ErrorContext(ctx, "claiming webhook deliveries", "error", err)
@@ -139,8 +129,23 @@ func (w *Worker) attemptDue(ctx context.Context, now time.Time) {
 	}
 }
 
-// clearPayloads empties the payloads settled before settledBefore until a clear comes back short or ctx ends.
-func (w *Worker) clearPayloads(ctx context.Context, settledBefore time.Time) {
+// clearLoop clears old payloads once immediately, then on every tick until ctx ends.
+func (w *Worker) clearLoop(ctx context.Context) {
+	ticker := time.NewTicker(w.interval)
+	defer ticker.Stop()
+	for {
+		w.ClearPayloads(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// ClearPayloads empties payloads settled past their age in batches until a batch is short, a clear fails or ctx ends.
+func (w *Worker) ClearPayloads(ctx context.Context) {
+	settledBefore := time.Now().UTC().Add(-w.payloadAge)
 	for {
 		cleared, err := w.queue.ClearSettledPayloads(ctx, settledBefore, sweepBatch)
 		if err != nil {
