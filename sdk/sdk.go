@@ -11,6 +11,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,6 +73,8 @@ type Deps struct {
 	Events     Publisher
 	// Env reads the settings under the program prefix, each value trimmed.
 	Env Env
+	// Logger writes to the server log, the same log the host's own background jobs write to.
+	Logger *slog.Logger
 }
 
 // Publisher announces a plugin's own events to the host.
