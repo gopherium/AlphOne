@@ -132,7 +132,7 @@ func TestComposeHandsTheWorkerThePayloadAgeTheSettingNames(t *testing.T) {
 	older := deliverySettledAgo(t, built.webhooks, sub, 2*time.Hour)
 	newer := deliverySettledAgo(t, built.webhooks, sub, 30*time.Minute)
 
-	built.worker.Sweep(t.Context())
+	built.worker.ClearPayloads(t.Context())
 
 	payloads := map[uuid.UUID]string{}
 	for _, id := range []uuid.UUID{older.ID, newer.ID} {
