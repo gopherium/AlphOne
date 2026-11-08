@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,29 @@ type countingQueue struct {
 	mu        sync.Mutex
 	claims    int
 	settleErr error
+	limits    []int
+	// answers holds how many payloads each clear empties in turn, none once it runs out.
+	answers []int
+}
+
+// ClearSettledPayloads records the limit of one clear and answers the next of answers.
+func (q *countingQueue) ClearSettledPayloads(_ context.Context, _ time.Time, limit int) (int, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.limits = append(q.limits, limit)
+	if len(q.answers) == 0 {
+		return 0, nil
+	}
+	cleared := q.answers[0]
+	q.answers = q.answers[1:]
+	return cleared, nil
+}
+
+// clearLimits returns the limit of every clear so far.
+func (q *countingQueue) clearLimits() []int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return slices.Clone(q.limits)
 }
 
 // ClaimDueDeliveries counts the sweep and returns no deliveries.
@@ -49,14 +73,53 @@ func (q *countingQueue) sweeps() int {
 func TestStoppingANeverStartedWorkerIsFine(t *testing.T) {
 	t.Parallel()
 
-	NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{}).Stop()
+	NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{},
+		DefaultPayloadAge).Stop()
+}
+
+func TestWorkerClearsAtMostAsManyPayloadsAsOneSweepClaims(t *testing.T) {
+	t.Parallel()
+
+	queue := &countingQueue{}
+
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(t.Context())
+
+	if got := queue.clearLimits(); !slices.Equal(got, []int{sweepBatch}) {
+		t.Errorf("clear limits = %v, want one clear of at most %d payloads", got, sweepBatch)
+	}
+}
+
+func TestASweepClearsAgainUntilAClearComesBackShortOfAFullBatch(t *testing.T) {
+	t.Parallel()
+
+	queue := &countingQueue{answers: []int{sweepBatch, sweepBatch - 1, sweepBatch}}
+
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(t.Context())
+
+	if got := queue.clearLimits(); !slices.Equal(got, []int{sweepBatch, sweepBatch}) {
+		t.Errorf("clear limits = %v, want a full clear of %d and then a short one", got, sweepBatch)
+	}
+}
+
+func TestASweepStopsClearingOnceItsContextEnds(t *testing.T) {
+	t.Parallel()
+
+	queue := &countingQueue{answers: []int{sweepBatch, sweepBatch, sweepBatch}}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	NewWorker(queue, slog.New(slog.DiscardHandler), AddressGuard{}, DefaultPayloadAge).Sweep(ctx)
+
+	if got := queue.clearLimits(); len(got) != 1 {
+		t.Errorf("clear limits = %v, want one clear once the context ended", got)
+	}
 }
 
 func TestWorkerSweepsOnEveryTick(t *testing.T) {
 	t.Parallel()
 
 	queue := &countingQueue{}
-	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{})
+	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{}, DefaultPayloadAge)
 	worker.interval = time.Millisecond
 
 	worker.Start()
@@ -74,7 +137,8 @@ func TestWorkerSweepsOnEveryTick(t *testing.T) {
 func TestWorkerPostsOverItsOwnConnectionPool(t *testing.T) {
 	t.Parallel()
 
-	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{})
+	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&strings.Builder{}, nil)), AddressGuard{},
+		DefaultPayloadAge)
 
 	if worker.client.Transport == nil {
 		t.Fatal("worker transport = nil, so it posts over the pool every other caller shares")
@@ -88,7 +152,7 @@ func TestWorkerReportsAnUnusableSubscriberURL(t *testing.T) {
 	t.Parallel()
 
 	var logged strings.Builder
-	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{})
+	worker := NewWorker(&countingQueue{}, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{}, DefaultPayloadAge)
 
 	err := worker.post(t.Context(), ClaimedDelivery{URL: "://not a url"})
 
@@ -102,7 +166,7 @@ func TestWorkerLogsAFailureToSettle(t *testing.T) {
 
 	var logged strings.Builder
 	queue := &countingQueue{settleErr: errors.New("queue unavailable")}
-	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{})
+	worker := NewWorker(queue, slog.New(slog.NewTextHandler(&logged, nil)), AddressGuard{}, DefaultPayloadAge)
 
 	worker.settle(t.Context(), ClaimedDelivery{Delivery: Delivery{ID: uuid.Must(uuid.NewV7())}},
 		StatusDelivered, time.Now().UTC(), "")

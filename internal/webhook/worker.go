@@ -18,7 +18,7 @@ import (
 const (
 	// sweepInterval is how often the queue is checked for due deliveries.
 	sweepInterval = 30 * time.Second
-	// sweepBatch caps how many deliveries one sweep takes.
+	// sweepBatch caps how many deliveries one sweep takes and how many payloads one clear empties.
 	sweepBatch = 50
 	// sweepLease is how long a claimed delivery stays out before it is due
 	// again.
@@ -27,11 +27,15 @@ const (
 	requestTimeout = 10 * time.Second
 )
 
-// WorkerQueue hands out due deliveries, reports their owner's state and records their outcome.
+// DefaultPayloadAge is how long a settled delivery keeps its payload when the settings name no other age.
+const DefaultPayloadAge = 30 * 24 * time.Hour
+
+// WorkerQueue hands out due deliveries, reports their owner's state, records their outcome and clears old payloads.
 type WorkerQueue interface {
 	ClaimDueDeliveries(ctx context.Context, due, lease time.Time, limit int) ([]ClaimedDelivery, error)
 	SettleDelivery(ctx context.Context, id uuid.UUID, status string, deliverAfter time.Time, lastError string) error
 	OwnerDisabled(ctx context.Context, subscriptionID uuid.UUID) (bool, error)
+	ClearSettledPayloads(ctx context.Context, settledBefore time.Time, limit int) (int, error)
 }
 
 // ErrOwnerDisabled reports a delivery dropped because the account owning its subscription is disabled or gone.
@@ -47,23 +51,25 @@ type ClaimedDelivery struct {
 // Worker posts queued deliveries to their subscribers until each is
 // accepted or has spent its attempt budget.
 type Worker struct {
-	queue    WorkerQueue
-	client   *http.Client
-	logger   *slog.Logger
-	nudge    chan struct{}
-	interval time.Duration
-	cancel   context.CancelFunc
-	done     chan struct{}
+	queue      WorkerQueue
+	client     *http.Client
+	logger     *slog.Logger
+	nudge      chan struct{}
+	interval   time.Duration
+	payloadAge time.Duration
+	cancel     context.CancelFunc
+	done       chan struct{}
 }
 
-// NewWorker returns a [Worker] draining queue, posting only to the addresses guard allows.
-func NewWorker(queue WorkerQueue, logger *slog.Logger, guard AddressGuard) *Worker {
+// NewWorker returns a [Worker] draining queue, posting only where guard allows and keeping payloads for payloadAge.
+func NewWorker(queue WorkerQueue, logger *slog.Logger, guard AddressGuard, payloadAge time.Duration) *Worker {
 	return &Worker{
-		queue:    queue,
-		client:   guard.Client(requestTimeout),
-		logger:   logger,
-		nudge:    make(chan struct{}, 1),
-		interval: sweepInterval,
+		queue:      queue,
+		client:     guard.Client(requestTimeout),
+		logger:     logger,
+		nudge:      make(chan struct{}, 1),
+		interval:   sweepInterval,
+		payloadAge: payloadAge,
 	}
 }
 
@@ -114,9 +120,15 @@ func (w *Worker) run(ctx context.Context) {
 	}
 }
 
-// Sweep attempts every delivery currently due.
+// Sweep attempts every delivery currently due, then clears the payloads settled past their age.
 func (w *Worker) Sweep(ctx context.Context) {
 	now := time.Now().UTC()
+	w.attemptDue(ctx, now)
+	w.clearPayloads(ctx, now.Add(-w.payloadAge))
+}
+
+// attemptDue attempts every delivery due at now.
+func (w *Worker) attemptDue(ctx context.Context, now time.Time) {
 	claimed, err := w.queue.ClaimDueDeliveries(ctx, now, now.Add(sweepLease), sweepBatch)
 	if err != nil {
 		w.logger.ErrorContext(ctx, "claiming webhook deliveries", "error", err)
@@ -124,6 +136,20 @@ func (w *Worker) Sweep(ctx context.Context) {
 	}
 	for _, delivery := range claimed {
 		w.attempt(ctx, delivery)
+	}
+}
+
+// clearPayloads empties the payloads settled before settledBefore until a clear comes back short or ctx ends.
+func (w *Worker) clearPayloads(ctx context.Context, settledBefore time.Time) {
+	for {
+		cleared, err := w.queue.ClearSettledPayloads(ctx, settledBefore, sweepBatch)
+		if err != nil {
+			w.logger.ErrorContext(ctx, "clearing webhook payloads", "error", err)
+			return
+		}
+		if cleared < sweepBatch || ctx.Err() != nil {
+			return
+		}
 	}
 }
 

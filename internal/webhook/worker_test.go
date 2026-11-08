@@ -29,6 +29,14 @@ type settlement struct {
 	LastError    string
 }
 
+// clearing is one call that clears the payloads settled before a cutoff.
+type clearing struct {
+	SettledBefore time.Time
+	Limit         int
+	// Settled is how many deliveries the sweep had settled when it cleared.
+	Settled int
+}
+
 type fakeWorkerQueue struct {
 	mu       sync.Mutex
 	pending  []webhook.ClaimedDelivery
@@ -37,6 +45,23 @@ type fakeWorkerQueue struct {
 	claims   int
 	disabled map[uuid.UUID]bool
 	ownerErr error
+	cleared  []clearing
+	clearErr error
+}
+
+// ClearSettledPayloads records one clear and the settlements before it, emptying nothing and answering clearErr.
+func (q *fakeWorkerQueue) ClearSettledPayloads(_ context.Context, settledBefore time.Time, limit int) (int, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.cleared = append(q.cleared, clearing{SettledBefore: settledBefore, Limit: limit, Settled: len(q.settled)})
+	return 0, q.clearErr
+}
+
+// clearings returns a copy of the clears recorded so far.
+func (q *fakeWorkerQueue) clearings() []clearing {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return append([]clearing(nil), q.cleared...)
 }
 
 // OwnerDisabled reports whether the subscription's owner was disabled, or the configured lookup failure.
@@ -134,7 +159,83 @@ func newWorker(queue *fakeWorkerQueue) (*webhook.Worker, *strings.Builder) {
 func newGuardedWorker(queue *fakeWorkerQueue, guard webhook.AddressGuard) (*webhook.Worker, *strings.Builder) {
 	var logged strings.Builder
 	logger := slog.New(slog.NewTextHandler(&logged, nil))
-	return webhook.NewWorker(queue, logger, guard), &logged
+	return webhook.NewWorker(queue, logger, guard, webhook.DefaultPayloadAge), &logged
+}
+
+func TestWorkerClearsThePayloadsSettledPastTheirAge(t *testing.T) {
+	t.Parallel()
+
+	queue := &fakeWorkerQueue{}
+	age := 72 * time.Hour
+	worker := webhook.NewWorker(queue, slog.New(slog.DiscardHandler), loopback, age)
+	before := time.Now().UTC()
+
+	worker.Sweep(t.Context())
+
+	after := time.Now().UTC()
+	cleared := queue.clearings()
+	if len(cleared) != 1 {
+		t.Fatalf("cleared %d times, want once in a sweep", len(cleared))
+	}
+	if cutoff := cleared[0].SettledBefore; cutoff.Before(before.Add(-age)) || cutoff.After(after.Add(-age)) {
+		t.Errorf("cleared the payloads settled before %v, want those settled %v before the sweep", cutoff, age)
+	}
+}
+
+func TestWorkerStillDeliversWhenClearingPayloadsFails(t *testing.T) {
+	t.Parallel()
+
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer subscriber.Close()
+	queue := &fakeWorkerQueue{
+		pending:  []webhook.ClaimedDelivery{claimed(t, subscriber.URL, "whsec_a", 1)},
+		clearErr: errors.New("queue unavailable"),
+	}
+	worker, logged := newWorker(queue)
+
+	worker.Sweep(t.Context())
+
+	if !strings.Contains(logged.String(), "level=ERROR msg=\"clearing webhook payloads\"") {
+		t.Errorf("log = %q, want the failed clear recorded", logged.String())
+	}
+	if settled := queue.settlements(); len(settled) != 1 || settled[0].Status != webhook.StatusDelivered {
+		t.Errorf("settled %+v, want the due delivery still delivered", settled)
+	}
+	if got := len(queue.clearings()); got != 1 {
+		t.Errorf("cleared %d times, want no second clear after a failed one", got)
+	}
+}
+
+func TestWorkerClearsPayloadsOnlyAfterTheDueDeliveriesWent(t *testing.T) {
+	t.Parallel()
+
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer subscriber.Close()
+	queue := &fakeWorkerQueue{pending: []webhook.ClaimedDelivery{claimed(t, subscriber.URL, "whsec_a", 1)}}
+	worker, _ := newWorker(queue)
+
+	worker.Sweep(t.Context())
+
+	if cleared := queue.clearings(); len(cleared) != 1 || cleared[0].Settled != 1 {
+		t.Errorf("clears = %+v, want one clear after the due delivery settled", cleared)
+	}
+}
+
+func TestWorkerStillClearsPayloadsWhenClaimingFails(t *testing.T) {
+	t.Parallel()
+
+	queue := &fakeWorkerQueue{claimErr: errors.New("queue unavailable")}
+	worker, _ := newWorker(queue)
+
+	worker.Sweep(t.Context())
+
+	if got := len(queue.clearings()); got != 1 {
+		t.Errorf("cleared %d times, want once although no delivery could be claimed", got)
+	}
 }
 
 func TestWorkerSignsAndDeliversTheExactPayload(t *testing.T) {
