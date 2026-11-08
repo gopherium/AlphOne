@@ -17,6 +17,9 @@ var ErrFileNotFound = errors.New("sdk: file not found")
 // ErrFileTooLarge reports a file longer than the most bytes the host keeps for one file.
 var ErrFileTooLarge = errors.New("sdk: file too large")
 
+// ErrFileExists reports an id that already holds a file.
+var ErrFileExists = errors.New("sdk: file already exists")
+
 // StoredFile describes one file a plugin keeps.
 type StoredFile struct {
 	// ID names the file within the plugin and the workspace that saved it.
@@ -35,6 +38,8 @@ type StoredFile struct {
 type FileStore interface {
 	// Save stores body under a new id, answering ErrFileTooLarge for a body over the host's cap.
 	Save(ctx context.Context, contentType string, body io.Reader) (StoredFile, error)
+	// SaveAs stores body under id, answering ErrFileExists for an id in use and ErrFileTooLarge for a body past the cap.
+	SaveAs(ctx context.Context, id uuid.UUID, contentType string, body io.Reader) (StoredFile, error)
 	// Open returns the file under id, answering ErrFileNotFound when the workspace holds none.
 	Open(ctx context.Context, id uuid.UUID) (io.ReadSeekCloser, error)
 	// Delete removes the file under id, answering ErrFileNotFound when the workspace holds none.
