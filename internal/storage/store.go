@@ -53,7 +53,19 @@ func (s fileStore) key(ctx context.Context, id uuid.UUID) string {
 
 // Save streams body under a new id of the workspace ctx serves.
 func (s fileStore) Save(ctx context.Context, contentType string, body io.Reader) (sdk.StoredFile, error) {
-	contentType, err := checkedType(contentType)
+	return s.store(ctx, uuid.Must(uuid.NewV7()), body, blob.WriterOptions{ContentType: contentType})
+}
+
+// SaveAs streams body under id of the workspace ctx serves, answering ErrFileExists for an id that holds a file.
+func (s fileStore) SaveAs(ctx context.Context, id uuid.UUID, contentType string, body io.Reader) (
+	sdk.StoredFile, error) {
+	return s.store(ctx, id, body, blob.WriterOptions{ContentType: contentType, IfNotExist: true})
+}
+
+// store streams body under id of the workspace ctx serves, written with options.
+func (s fileStore) store(ctx context.Context, id uuid.UUID, body io.Reader, options blob.WriterOptions) (
+	sdk.StoredFile, error) {
+	contentType, err := checkedType(options.ContentType)
 	if err != nil {
 		return sdk.StoredFile{}, err
 	}
@@ -61,18 +73,44 @@ func (s fileStore) Save(ctx context.Context, contentType string, body io.Reader)
 	if err != nil {
 		return sdk.StoredFile{}, err
 	}
-	id := uuid.Must(uuid.NewV7())
+	key := s.key(ctx, id)
+	if options.IfNotExist {
+		if err := vacant(ctx, bucket, key); err != nil {
+			return sdk.StoredFile{}, err
+		}
+	}
 	writeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	writer, err := bucket.NewWriter(writeCtx, s.key(ctx, id), &blob.WriterOptions{ContentType: contentType})
+	options.ContentType = contentType
+	writer, err := bucket.NewWriter(writeCtx, key, &options)
 	if err != nil {
 		return sdk.StoredFile{}, fmt.Errorf("storage: open the writer: %w", err)
 	}
 	size, sha, err := s.write(writer, cancel, body)
 	if err != nil {
-		return sdk.StoredFile{}, err
+		return sdk.StoredFile{}, inUseOr(ctx, bucket, key, err)
 	}
 	return sdk.StoredFile{ID: id, Size: size, ContentType: contentType, SHA256: sha, StoredAt: time.Now().UTC()}, nil
+}
+
+// vacant returns nil for a key that holds no file, ErrFileExists for one that does, and the failure of the look up.
+func vacant(ctx context.Context, bucket *blob.Bucket, key string) error {
+	exists, err := bucket.Exists(ctx, key)
+	switch {
+	case err != nil:
+		return fmt.Errorf("storage: look up the id: %w", err)
+	case exists:
+		return sdk.ErrFileExists
+	}
+	return nil
+}
+
+// inUseOr returns ErrFileExists for a failed precondition on a key that holds a file, and err otherwise.
+func inUseOr(ctx context.Context, bucket *blob.Bucket, key string, err error) error {
+	if gcerrors.Code(err) == gcerrors.FailedPrecondition && errors.Is(vacant(ctx, bucket, key), sdk.ErrFileExists) {
+		return sdk.ErrFileExists
+	}
+	return err
 }
 
 // checkedType returns the content type a file is saved under in standard form, application/octet-stream when empty.

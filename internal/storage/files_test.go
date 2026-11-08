@@ -15,6 +15,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peterldowns/pgtestdb"
 	"gocloud.dev/blob"
@@ -33,6 +34,9 @@ const pendingRowsLike = "SELECT count(*) FROM storage.objects WHERE state = 'pen
 
 // smallRow is the most bytes one row of the postgres driver holds in the streaming test.
 const smallRow = 16
+
+// sweepUpload deletes the pending rows of the key its one argument names, as a sweep of the upload does.
+const sweepUpload = "DELETE FROM storage.objects WHERE key = $1 AND state = 'pending'"
 
 // pieceBody hands out its bytes a few at a time and counts once what the storage schema holds midway.
 type pieceBody struct {
@@ -240,12 +244,13 @@ func TestFilesThatCannotOpenTheirBucketFailEveryCall(t *testing.T) {
 	ctx := as(t, acme).ctx
 
 	_, saveErr := store.Save(ctx, "text/plain", strings.NewReader(receiptText))
+	_, saveAsErr := store.SaveAs(ctx, acme, "text/plain", strings.NewReader(receiptText))
 	_, openErr := store.Open(ctx, acme)
 	deleteErr := store.Delete(ctx, acme)
 	checkErr := files.Check(ctx)
 
-	for name, err := range map[string]error{"Save()": saveErr, "Open()": openErr, "Delete()": deleteErr,
-		"Check()": checkErr} {
+	for name, err := range map[string]error{"Save()": saveErr, "SaveAs()": saveAsErr, "Open()": openErr,
+		"Delete()": deleteErr, "Check()": checkErr} {
 		if errors.Is(err, sdk.ErrFileNotFound) || !mentions(err, "the postgres bucket") {
 			t.Errorf("%s error = %v, want the bucket that cannot open named", name, err)
 		}
@@ -384,5 +389,88 @@ func TestABodyOverTheCapLeavesNoRowInThePostgresBucket(t *testing.T) {
 	}
 	if rows := count(t, pool, objectRows); rows != 0 {
 		t.Errorf("the storage schema holds %d rows, live or pending, want nothing stored", rows)
+	}
+}
+
+func TestSaveAsOverAnIDInUseInThePostgresBucketAnswersErrFileExistsAndLeavesNoRow(t *testing.T) {
+	t.Parallel()
+
+	pool := poolOn(t, migratedDatabase(t))
+	files := storage.NewFiles(postgresSettings(), pool)
+	t.Cleanup(func() { _ = files.Close() })
+	store := files.Store("notes")
+	owner := as(t, acme)
+	id := uuid.Must(uuid.NewV7())
+	owner.saveAs(store, id, "text/plain", receiptText)
+
+	_, err := store.SaveAs(owner.ctx, id, "application/pdf", pieces(laterText, smallRow))
+
+	if !errors.Is(err, sdk.ErrFileExists) {
+		t.Errorf("SaveAs() over an id in use error = %v, want %v", err, sdk.ErrFileExists)
+	}
+	if body := owner.open(store, id); body != receiptText {
+		t.Errorf("the id in use opens %q after the second save, want the first bytes %q", body, receiptText)
+	}
+	if rows := count(t, pool, objectRows); rows != 1 {
+		t.Errorf("the storage schema holds %d rows, want only the live row of the first save", rows)
+	}
+}
+
+func TestSaveAsThatLosesTheRaceForItsIDInThePostgresBucketAnswersErrFileExistsAndLeavesNoRow(t *testing.T) {
+	t.Parallel()
+
+	pool := poolOn(t, migratedDatabase(t))
+	files := storage.NewFiles(postgresSettings(), pool)
+	t.Cleanup(func() { _ = files.Close() })
+	store := files.Store("notes")
+	owner := as(t, acme)
+	id := uuid.Must(uuid.NewV7())
+	rival := func() { owner.saveAs(store, id, "text/plain", laterText) }
+	body := &endingBody{rest: strings.NewReader(receiptText), atEnd: rival}
+
+	_, err := store.SaveAs(owner.ctx, id, "application/pdf", body)
+
+	if !errors.Is(err, sdk.ErrFileExists) {
+		t.Errorf("SaveAs() of an id another save took during the write error = %v, want %v", err, sdk.ErrFileExists)
+	}
+	if got := owner.open(store, id); got != laterText {
+		t.Errorf("the id opens %q after the race, want the bytes of the save that finished first %q", got, laterText)
+	}
+	if rows := count(t, pool, objectRows); rows != 1 {
+		t.Errorf("the storage schema holds %d rows, want only the live row of the save that finished first", rows)
+	}
+}
+
+func TestASaveAsThatASweepCutOffIsNeverAnIDInUse(t *testing.T) {
+	t.Parallel()
+
+	pool := poolOn(t, migratedDatabase(t))
+	files := storage.NewFiles(postgresSettings(), pool)
+	t.Cleanup(func() { _ = files.Close() })
+	store := files.Store("notes")
+	owner := as(t, acme)
+	id := uuid.Must(uuid.NewV7())
+	key := []byte("t/" + acme.String() + "/notes/" + id.String())
+	var swept int64
+	sweep := func() {
+		tag, err := pool.Exec(t.Context(), sweepUpload, key)
+		if err != nil {
+			t.Fatalf("sweeping the upload: %v", err)
+		}
+		swept = tag.RowsAffected()
+	}
+	body := &endingBody{rest: strings.NewReader(receiptText), atEnd: sweep}
+
+	_, err := store.SaveAs(owner.ctx, id, "text/plain", body)
+
+	if swept == 0 {
+		t.Fatal("the sweep found no pending row of the upload, want the upload started before its last row")
+	}
+	if errors.Is(err, sdk.ErrFileExists) || gcerrors.Code(err) != gcerrors.FailedPrecondition {
+		t.Errorf("SaveAs() of an upload a sweep deleted error = %v, want the driver's failed precondition and not %v",
+			err, sdk.ErrFileExists)
+	}
+	if file := owner.saveAs(store, id, "text/plain", receiptText); owner.open(store, file.ID) != receiptText {
+		t.Errorf("the id does not open the bytes of a later save, want the swept upload to leave it free")
 	}
 }

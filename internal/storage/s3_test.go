@@ -378,6 +378,44 @@ func TestAnS3BodyThatFailsToReadLeavesNothing(t *testing.T) {
 	})
 }
 
+func TestAnS3SaveAsOverAnIDInUseAnswersErrFileExistsAndKeepsTheFirstBytes(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func() io.Reader{
+		"a second body of one part":   func() io.Reader { return strings.NewReader(laterText) },
+		"a second body of many parts": func() io.Reader { return bytes.NewReader(manyParts()) },
+	}
+
+	for name, second := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			eachChecksum(t, func(t *testing.T, store s3Store, _ checksumCase) {
+				files := store.files(manyPartsBytes)
+				owner := store.owner()
+				id := uuid.Must(uuid.NewV7())
+				owner.saveAs(files, id, "text/plain", receiptText)
+
+				_, err := files.SaveAs(owner.ctx, id, "application/octet-stream", second())
+
+				if !errors.Is(err, sdk.ErrFileExists) {
+					t.Errorf("SaveAs() over an id in use error = %v, want %v", err, sdk.ErrFileExists)
+				}
+				if body := owner.open(files, id); body != receiptText {
+					t.Errorf("the id in use opens %d bytes after the second save, want the first bytes %q", len(body),
+						receiptText)
+				}
+				if stored := aws.ToString(store.head(id).ContentType); stored != "text/plain" {
+					t.Errorf("the bucket keeps the content type %q, want the first file's text/plain", stored)
+				}
+				if uploads := store.uploads(t.Context()); len(uploads) != 0 {
+					t.Errorf("the bucket holds %d unfinished uploads after the second save, want none", len(uploads))
+				}
+			})
+		})
+	}
+}
+
 func TestAFileOfManyPartsGoesUpInPartsAndReadsBackFromS3(t *testing.T) {
 	t.Parallel()
 
