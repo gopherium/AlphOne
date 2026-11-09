@@ -23,5 +23,6 @@ Feature: Plugins declare the events a webhook can carry
       | task.created              |
       | task.completed            |
       | contact.created           |
+      | email.message.received    |
       | import.completed          |
       | whatsapp.message.received |
