@@ -40,6 +40,19 @@ test('writes a bare calendar day on the day it names in every time zone', () => 
 	expect(formatDate('2026-09-30')).toBe('30/09/2026')
 })
 
+test('writes a bare calendar day with only the parts it is handed in every time zone', () => {
+	rememberFormatLocale('es-ES')
+	vi.stubEnv('TZ', 'America/New_York')
+
+	expect(formatDate('2026-10-01', { month: 'long', year: 'numeric' })).toBe('octubre de 2026')
+})
+
+test('writes nothing for an empty date', () => {
+	rememberFormatLocale('es-ES')
+
+	expect(formatDate('')).toBe('')
+})
+
 test('writes a time on a 24 hour clock with hours and minutes', () => {
 	rememberFormatLocale('es-ES')
 
