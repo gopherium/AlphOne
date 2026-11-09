@@ -25,7 +25,8 @@
     {
       "matching_content_path": "plugins/email/*.go",
       "rules": [
-        { "name": "Excess Number of Function Arguments", "weight": 0.0 }
+        { "name": "Excess Number of Function Arguments", "weight": 0.0 },
+        { "name": "Missing Arguments Abstractions", "weight": 0.0 }
       ]
     }
   ]
