@@ -6,6 +6,7 @@ import { Navigation, useCanvas, useFrameLocation } from '@gopherium/godmin/route
 import { AccountPanel } from '@gopherium/react-auth/wpds'
 import { Link, Outlet } from '@tanstack/react-router'
 
+import { AccountLinks } from './AccountLinks'
 import { LANDING } from './landing'
 import { coreNav } from './menu/coreNav'
 import { plugins } from './plugins'
@@ -27,7 +28,12 @@ export function Layout() {
 		<Frame.Root location={useFrameLocation()}>
 			<Frame.Sidebar
 				brand={<Text variant="heading-lg">{'AlphOne'}</Text>}
-				footer={<AccountPanel />}
+				footer={
+					<>
+						<AccountPanel />
+						<AccountLinks links={plugins.flatMap((plugin) => plugin.accountLinks ?? [])} />
+					</>
+				}
 				footerNote={version ? sprintf(__('v%(version)s', 'alphone'), { version }) : undefined}
 			>
 				<Navigation
