@@ -28,6 +28,12 @@ vi.mock('../plugins', async (importOriginal) => {
 					{ label: 'Service history', href: 'https://status.example.com/', capability: MANAGE_USERS },
 				],
 			},
+			{
+				id: 'second-probe',
+				routes: () => [],
+				nav: [],
+				accountLinks: [{ label: 'Help center', href: 'https://help.example.com/' }],
+			},
 		],
 	}
 })
@@ -51,7 +57,7 @@ test('shows a plugin link under the account panel to an account holding its capa
 	expect(logout.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
-test('lists the account links in the order the plugin gives them', async () => {
+test('lists the account links in plugin order, then in the order each plugin gives them', async () => {
 	renderAt('/')
 
 	const footer = await sidebarFooter()
@@ -60,6 +66,7 @@ test('lists the account links in the order the plugin gives them', async () => {
 		'mailto:support@example.com',
 		'https://status.example.com/',
 		'https://status.example.com/',
+		'https://help.example.com/',
 	])
 })
 
