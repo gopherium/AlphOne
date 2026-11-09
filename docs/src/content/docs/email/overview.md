@@ -87,6 +87,11 @@ thread. Its raw copy and its attachments are not kept as files, and
 each attachment keeps its name. A later mail that fits keeps its files
 again.
 
+Each mail is checked against the mail already stored and the files
+still being saved, so mails stored at the same moment can together keep
+files past the limit by up to their own size. The next mail sees the
+real total.
+
 ## Copies of one mail
 
 The same mail is stored once, whether it is fed twice or comes once
@@ -95,10 +100,15 @@ from the inbox and once from the Sent folder.
 - A second copy that names another known contact links that contact to
   the stored mail and adds the new addresses to it. It stores no second
   mail.
+- A copy that brings a provider thread id the stored mail lacks leads
+  later mail with that id to the stored mail's thread.
 - A copy from the Sent folder marks the mail as sent by the workspace.
   A mail that only writes the mailbox's own address in From stays a
   mail that arrived, because anyone can write that address there.
 - Two different mails that share a Message-ID are both kept.
+- A mail cut at the body cap, read by its headers alone, or holding a
+  part AlphOne cannot read counts as one mail only when its copies
+  match byte for byte.
 
 ## Threads
 
@@ -107,7 +117,9 @@ AlphOne puts each mail in a thread. It looks for one in this order:
 1. The thread id the mail's provider gives it, which `email:ingest`
    takes from `-provider-thread`. A mail with no reply headers and no
    Thread-Index counts only within `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW`
-   of the thread's first or last mail.
+   of the thread's first or last mail. Once the thread the id leads to
+   has taken no mail for that long, a later mail with the id moves the
+   id to the thread that mail joins.
 2. The reply headers, In-Reply-To and References.
 3. The Thread-Index header that some mail programs add.
 4. The subject, only for a reply or a forward such as `Re: Invoice`,
