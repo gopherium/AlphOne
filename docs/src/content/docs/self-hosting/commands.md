@@ -47,6 +47,8 @@ Available commands:
   account:list          list every account with its role
   account:records       list who applied which change, the newest first
   account:role          set one account's role
+ email                  plugin
+  email:ingest          feed one raw mail on standard input into the mailbox of a workspace
  token
   token:create          mint a token for one account and show its secret once
   token:list            list the tokens of one account or of every account
@@ -89,9 +91,9 @@ Not loaded:
 ## Previews and exit codes
 
 `seed`, `account:grant-role`, `account:role`, `account:disable`,
-`account:enable` and `token:revoke` only show what they would change
-until you add `-yes`. Without it they change nothing, and they add one
-line on the error stream:
+`account:enable`, `token:revoke` and `email:ingest` only show what they
+would change until you add `-yes`. Without it they change nothing, and
+they add one line on the error stream:
 
 ```text
 would set maria@example.com to admin
@@ -183,10 +185,10 @@ server.
 
 ### seed
 
-Stores the demo data: demo accounts, contacts, tasks and WhatsApp
-conversations. Never run it against a production database, because the
-demo logins share the public password `password1234`. Without `-yes` it
-only says what it would do:
+Stores the demo data: demo accounts, contacts, tasks, WhatsApp
+conversations and a sample mailbox with a few threads. Never run it
+against a production database, because the demo logins share the public
+password `password1234`. Without `-yes` it only says what it would do:
 
 ```text
 would store the demo data
@@ -346,9 +348,10 @@ with a line such as
 With the roles AlphOne ships, an admin reaches every account. A role a
 plugin declares can carry more than admin does. It reaches an admin's
 account, or gives the admin role, only when it also carries every
-capability admin carries, which are `manage_users` and
-`manage_webhooks`. A plugin role carrying `manage_users` alone can
-change members but not admins.
+capability admin carries, which are `manage_users`, `manage_webhooks`
+and `email.manage_mailbox`, the last one given by the email plugin. A
+plugin role carrying `manage_users` alone can change members but not
+admins.
 
 `account:enable` refuses an account holding no role, or a role that
 nothing declares any more, such as one a removed plugin declared. It
@@ -527,6 +530,77 @@ exits 2 before any database is reached, both with or without `-yes`.
 To find a token the account left in another workspace, run
 `token:list -all` and take the id from the line that starts with the
 account's address.
+
+## Email
+
+The email plugin offers one command. It stores mail as
+[Stored mail](/email/overview/) describes.
+
+### email:ingest
+
+Feeds one raw mail, read from its input, into the mailbox of a
+workspace, through the same steps that store any mail. Support can bring
+in one mail by hand with it, and a test can repeat one. It needs the id
+of the workspace and `-as`, and only says what it would answer until you
+add `-yes`:
+
+```sh
+alphone email:ingest 00000000-0000-7000-8000-000000000001 \
+  -as you@example.com < mail.eml
+alphone email:ingest 00000000-0000-7000-8000-000000000001 \
+  -as you@example.com -yes < mail.eml
+```
+
+```text
+would answer stored
+alphone: dry run, nothing changed, pass -yes to apply
+stored
+```
+
+The mail comes on the command's input, so on the
+[Install](/self-hosting/install/) setup add `-T` after `exec`.
+
+- The workspace is named by its id. An install with one workspace holds
+  only the default one, `00000000-0000-7000-8000-000000000001`. An id
+  that is no UUID exits 2. An id that names no workspace stores nothing.
+  It exits 1 when the line names `-mailbox`, and 2 otherwise, as for any
+  workspace with no mailbox.
+- `-as` names the acting account, whose role must carry
+  `email.manage_mailbox`, which admin carries. Every run applied with
+  `-yes` is recorded, and `account:records` lists it.
+- `-mailbox` gives the address of the workspace's mailbox, and `-alias`
+  its other addresses as a comma list, such as
+  `-alias sales@example.com`. With `-yes` they store the mailbox of a
+  workspace that holds none. A workspace that already holds one ignores
+  both. A workspace with no mailbox, on a line with no `-mailbox`, exits
+  2 with
+  `email:ingest: the workspace holds no mailbox, name its address with -mailbox`.
+- `-received` sets the time the mailbox received the mail, such as
+  `2026-11-02T09:00:00Z`. A thread lists its mail by this time. Unset,
+  it is the time the command runs, and a time it cannot read exits 2.
+- `-sent-copy` marks the mail as a copy read from the Sent folder. The
+  mail is then stored as sent by the workspace and linked to the
+  contacts it was sent to, Bcc included.
+- `-provider-thread` gives the provider's own thread id of the mail, so
+  two mails fed with the same id can share a thread.
+
+The command names the mail by a hash of the file, so the same file fed
+twice is one mail. It answers one word:
+
+| Answer | Meaning |
+| --- | --- |
+| `stored` | A new mail is stored. |
+| `stored_headers_only` | A new mail is stored with its headers only, because it was over a limit or too broken to read. |
+| `linked` | The mail was already stored, and this copy linked another contact to it. |
+| `duplicate` | The mail was already stored, and nothing changed. |
+| `no_known_contact` | The mail names no known contact, so nothing is stored. |
+| `headers_only_no_known_contact` | The mail was over a limit or too broken to read, and its headers name no known contact, so nothing is stored. |
+| `failed` | The mail is set aside, and this run stores nothing, see [When a mail cannot be stored](/email/overview/#when-a-mail-cannot-be-stored). |
+| `workspace_closed` | The workspace is deactivated and `ALPHONE_TENANT_MACHINE_GRACE` has passed, so nothing is stored. |
+
+Any other failure exits 1 and says why, and feeding the same file again
+tries it once more. A mail the command stores raises
+`email.message.received` the way any new mail does.
 
 ## Old names
 

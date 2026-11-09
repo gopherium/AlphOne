@@ -19,8 +19,8 @@ When a variable holds a value AlphOne refuses:
   the commands read.
 - A refused value under [Mail](#mail), [Workspaces](#workspaces),
   [Contacts](#contacts), [Webhooks](#webhooks), [Files](#files),
-  [Encryption](#encryption), [Fields plugin](#fields-plugin) or
-  [WhatsApp plugin](#whatsapp-plugin),
+  [Encryption](#encryption), [Email plugin](#email-plugin),
+  [Fields plugin](#fields-plugin) or [WhatsApp plugin](#whatsapp-plugin),
   in `ALPHONE_PUBLIC_URL`, `ALPHONE_GRAPH_PAGE_SIZE` or
   `ALPHONE_GRAPH_PAGE_CAP`, or in `ALPHONE_SHUTDOWN_STOP_GRACE`, also
   stops the account commands that take `-as`, before they change
@@ -351,6 +351,41 @@ Without the key no stored secret opens again.
 The order of the previous keys does not matter. Each encrypted value
 carries an id that the key itself gives, and AlphOne tries every key
 with that id.
+
+## Email plugin
+
+The email plugin stores the mail a workspace exchanges with its
+contacts, see [Stored mail](/email/overview/). All of these are
+optional. Each byte size and count must be a whole number above zero,
+written without a unit, and each time a duration above zero, such as
+`6h`. A value AlphOne refuses stops `serve` and the other commands
+listed at the top of this page, with an error such as
+`ALPHONE_EMAIL_SWEEP_BATCH: must stand above zero, got "0"`.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_EMAIL_MESSAGE_MAX_BYTES` | The most bytes of one raw mail AlphOne reads whole. Defaults to 36700160, which is 35 MiB, so a mail carrying one attachment of 25 MiB still fits. A larger mail is read for its headers only and keeps no raw copy. A mail read whole keeps its raw copy as one file, so a raw copy over `ALPHONE_STORAGE_MAX_BYTES` is not kept, while the text and the attachments of that mail are. |
+| `ALPHONE_EMAIL_MESSAGE_MAX_PARTS` | The most parts one mail holds. Defaults to 200. A mail with more is read for its headers only. |
+| `ALPHONE_EMAIL_MESSAGE_MAX_CONTAINERS` | The most multipart containers one mail holds, the top one included. Defaults to 16. A mail with more is read for its headers only. Each level of containers a mail leaves open doubles the time it takes to read, so 16 levels take milliseconds and 24 take seconds. Keep this value low. |
+| `ALPHONE_EMAIL_MESSAGE_MAX_FIELD_BYTES` | The most bytes of one `Content-Type` or `Content-Disposition` field. Defaults to 4096. A mail with a longer one is read for its headers only. |
+| `ALPHONE_EMAIL_HEADER_MAX_BYTES` | The most bytes of the header block at the top of one mail. Defaults to 262144, which is 256 KiB. A mail with a larger one is read for the header fields that fit, and keeps its headers only. |
+| `ALPHONE_EMAIL_BODY_MAX_BYTES` | The most bytes of text and HTML one mail keeps across all its parts. Defaults to 4194304, which is 4 MiB. A longer body is cut where a letter starts, and the raw copy keeps it whole when it fits. |
+| `ALPHONE_EMAIL_SUBJECT_MAX_BYTES` | The most bytes of a subject that a mail and its thread keep, cut where a letter starts. Defaults to 2048. The event carries the subject as it is kept. |
+| `ALPHONE_EMAIL_NAME_MAX_BYTES` | The most bytes of one display name, file name or content id a mail keeps, cut where a letter starts. Defaults to 512. |
+| `ALPHONE_EMAIL_RECIPIENTS_MAX` | The most addresses of one mail that are matched to contacts and kept with it. Defaults to 500. Matching stops at the cap, so a contact named past it is not linked. The raw copy keeps every address. |
+| `ALPHONE_EMAIL_MAILS_IN_MEMORY_MAX` | How many mails one AlphOne process reads and stores at once. Defaults to 1. A large mail can take a few hundred megabytes while it is read, so raise this only with memory to spare, and see [Processors and memory](#processors-and-memory) for the limit AlphOne tries to stay under. |
+| `ALPHONE_EMAIL_SNIPPET_LETTERS` | The most letters of the short preview each mail keeps. Defaults to 200. An encrypted mail keeps no preview. |
+| `ALPHONE_EMAIL_ATTACHMENT_MAX_BYTES` | The most bytes of one attachment or inline image kept as a file. Defaults to 26214400, which is 25 MiB. A larger one keeps its name with no file. A file over `ALPHONE_STORAGE_MAX_BYTES` keeps only its name too, whatever this value is. |
+| `ALPHONE_EMAIL_WORKSPACE_MAX_BYTES` | The most bytes of mail each workspace keeps, which is the limit of every workspace. Defaults to 5368709120, which is 5 GiB. It counts the files of each mail, the text, HTML, preview and people each mail keeps, and the files still waiting for removal. A mail that would pass the limit keeps its text, and its files keep only their names. `0` means no limit. It must be a whole number at or above zero. |
+| `ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES` | The most bytes of a mail's text that the `email.message.received` event carries, cut where a letter starts. Defaults to 16384, which is 16 KiB. Each webhook delivery keeps a copy of it until `ALPHONE_WEBHOOK_PAYLOAD_AGE` after the delivery was sent or failed for good, see [Webhooks](#webhooks). |
+| `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW` | How long after a thread's first or last mail a reply or a forward still joins it by its subject alone. Defaults to `336h`, 14 days. |
+| `ALPHONE_EMAIL_THREAD_REFERENCES_MAX` | The most reply ids of one mail kept and used to find its thread, the first one and the newest ones. Defaults to 64. |
+| `ALPHONE_EMAIL_RETRY_WINDOW` | How long a mail that keeps failing is tried again before it is set aside. Defaults to `6h`. AlphOne keeps only the reference and a fixed reason of a mail set aside, and answers `failed` for it from then on. A mail the database refuses for good is set aside at once. |
+| `ALPHONE_EMAIL_CLEANUP_TIMEOUT` | How long queueing the files of a failed mail for removal may take, and how long recording its failure may take. Defaults to `10s`. The files are queued even when the run that failed was cancelled. A run that ran out of time still records its failure, and a run its caller cancelled records none, so its mail is tried again as if it never failed. The sweep removes the files it could not queue once `ALPHONE_EMAIL_ORPHAN_AGE` has passed. |
+| `ALPHONE_EMAIL_SWEEP_INTERVAL` | How often AlphOne removes the files no stored mail holds, such as the files of a mail that failed to store. Defaults to `1h`. The first sweep runs one interval after `serve` starts. |
+| `ALPHONE_EMAIL_SWEEP_BATCH` | The most files of one workspace a sweep takes in one step. Defaults to 100. A sweep takes a batch of each workspace in turn, so one workspace cannot hold up the others, and goes on until no file is left or its time runs out. |
+| `ALPHONE_EMAIL_SWEEP_BUDGET` | How long one sweep may run. Defaults to `10m`. What is left waits for the next sweep. |
+| `ALPHONE_EMAIL_ORPHAN_AGE` | How long a file that a stopped run left behind waits before the sweep removes it. Defaults to `24h`. Keep it longer than storing one mail can take. |
 
 ## Fields plugin
 
