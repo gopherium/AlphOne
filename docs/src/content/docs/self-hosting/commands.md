@@ -584,8 +584,12 @@ The mail comes on the command's input, so on the
 - `-provider-thread` gives the provider's own thread id of the mail, so
   two mails fed with the same id can share a thread.
 
-The command names the mail by a hash of the file, so the same file fed
-twice is one mail. It answers one word:
+The command names the mail by a hash of the file and by `-sent-copy`.
+The same file fed twice the same way answers `duplicate`. Fed again with
+`-sent-copy`, it marks the stored mail as sent by the workspace and links
+its Bcc contacts. A mail with no Message-ID that also lacks a From or a
+Date is stored a second time instead, as a mail sent by the workspace.
+It answers one word:
 
 | Answer | Meaning |
 | --- | --- |
