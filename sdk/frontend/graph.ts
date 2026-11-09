@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { errorText } from '@gopherium/gottext'
+import { errorText, formatNumber } from '@gopherium/gottext'
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { cacheExchange } from '@urql/exchange-graphcache'
 import { relayPagination } from '@urql/exchange-graphcache/extras'
@@ -11,7 +11,6 @@ import type { CombinedError, Exchange, Operation } from 'urql'
 import { pipe, tap } from 'wonka'
 
 import { ValidationError, validationMessage } from './errors'
-import { formatNumber } from './format'
 import type { FrontendPlugin } from './index'
 
 /** The graph endpoint every operation is posted to. */

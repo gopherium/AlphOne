@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { rememberFormatLocale } from '@gopherium/gottext'
 import { UnauthorizedError } from '@gopherium/react-auth'
 import { gql } from 'urql'
 import { afterEach, expect, onTestFinished, test, vi } from 'vitest'
 import { pipe, subscribe } from 'wonka'
 
 import { ValidationError, validationMessage } from '../errors'
-import { rememberFormatLocale } from '../format'
 import { configureErrorText, createGraphClient, graphError, graphExtensions, reasonText, writeFailure } from '../graph'
 import { HttpResponse, graphql, http, server } from '../testing'
 

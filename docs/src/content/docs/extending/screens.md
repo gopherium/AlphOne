@@ -889,6 +889,12 @@ and writes it as it stands: 09:30 with the default locale, or 09:30 AM in
 `en-US`, whatever time zone the reader is in. A full moment such as
 `message.sentAt` is shown on the reader's clock.
 
+`formatDate` also takes the parts of the date to show, the options
+`Intl.DateTimeFormat` reads, such as
+`formatDate(invoice.issuedOn, { month: 'long', year: 'numeric' })` for a
+month heading. An empty string writes nothing, so
+`formatDate(invoice.paidOn ?? '')` stays blank for an invoice not paid yet.
+
 A date column in a DataViews list is the one exception. Render it with
 `listDate`, which writes the date and time the way WordPress lists do, in
 the reader's language, such as Oct 13, 2026 5:04 pm:

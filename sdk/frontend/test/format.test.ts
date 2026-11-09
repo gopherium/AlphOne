@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { formatNumber as gottextNumber, rememberLocale } from '@gopherium/gottext'
+import { rememberLocale } from '@gopherium/gottext'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { afterEach, expect, test, vi } from 'vitest'
 
@@ -38,6 +38,19 @@ test('writes a bare calendar day on the day it names in every time zone', () => 
 	vi.stubEnv('TZ', 'America/New_York')
 
 	expect(formatDate('2026-09-30')).toBe('30/09/2026')
+})
+
+test('writes a bare calendar day with only the parts it is handed in every time zone', () => {
+	rememberFormatLocale('es-ES')
+	vi.stubEnv('TZ', 'America/New_York')
+
+	expect(formatDate('2026-10-01', { month: 'long', year: 'numeric' })).toBe('octubre de 2026')
+})
+
+test('writes nothing for an empty date', () => {
+	rememberFormatLocale('es-ES')
+
+	expect(formatDate('')).toBe('')
 })
 
 test('writes a time on a 24 hour clock with hours and minutes', () => {
@@ -100,13 +113,6 @@ test('writes the conventions of the locale the server names', () => {
 	rememberFormatLocale('en-GB')
 
 	expect(formatNumber(1234.5)).toBe('1,234.5')
-})
-
-test('hands the format locale to the numbers gottext writes', () => {
-	rememberLocale('en-US')
-	rememberFormatLocale('es-ES')
-
-	expect(gottextNumber(1234.56)).toBe('1.234,56')
 })
 
 test('writes in the interface locale until the server names a format locale', () => {

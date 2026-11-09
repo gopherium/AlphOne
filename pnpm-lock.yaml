@@ -162,11 +162,11 @@ importers:
         specifier: 0.31.0
         version: 0.31.0(d63a83b70a0b4fc4716376749fb6e192)
       '@gopherium/gottext':
-        specifier: 0.8.0
-        version: 0.8.0(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
+        specifier: 0.8.1
+        version: 0.8.1(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
       '@gopherium/react-auth':
         specifier: 0.20.1
-        version: 0.20.1(354dbb487c5f84ddf2e88b74431523ba)
+        version: 0.20.1(d664ba7182efce560ba1a6597ca962d7)
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -376,11 +376,11 @@ importers:
         specifier: 0.31.0
         version: 0.31.0(d63a83b70a0b4fc4716376749fb6e192)
       '@gopherium/gottext':
-        specifier: 0.8.0
-        version: 0.8.0(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
+        specifier: 0.8.1
+        version: 0.8.1(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
       '@gopherium/react-auth':
         specifier: 0.20.1
-        version: 0.20.1(9a41ee9c2832db7e4d874c6a4bb77952)
+        version: 0.20.1(c5ae6b96cb1050e15f1c6e16df1a213c)
       '@tanstack/react-query':
         specifier: ^5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -1029,8 +1029,8 @@ packages:
       vitest:
         optional: true
 
-  '@gopherium/gottext@0.8.0':
-    resolution: {integrity: sha512-OdDi42FB6drA5Wfblj5XMKVntYtEo8m0R8zt9I72cwuKBEF4GkL3rtyI3TmT66UN6O8VwJm6cHD9zAuHRoJgWw==}
+  '@gopherium/gottext@0.8.1':
+    resolution: {integrity: sha512-kn0u7hdWx1I4M3ol8VDkjkR6CZ19DQSOAMhVhOpxPV84iKlZws4SjG05TYmM8EhDrV1Pj4jXzD5mnhPJHi7Dfg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@wordpress/i18n': '>=7.0.0 <8.0.0'
@@ -5353,7 +5353,7 @@ snapshots:
       stylelint: 17.16.0(supports-color@10.2.2)(typescript@6.0.3)
       vitest: 5.0.5(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(msw@3.0.3(@types/node@26.6.6)(graphql@17.0.2)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/gottext@0.8.0(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)':
+  '@gopherium/gottext@0.8.1(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)':
     dependencies:
       '@wordpress/i18n': 7.0.0
       gettext-parser: 9.1.1
@@ -5361,7 +5361,7 @@ snapshots:
       gettext-extractor: 4.0.6
       react: 19.3.1
 
-  '@gopherium/react-auth@0.20.1(354dbb487c5f84ddf2e88b74431523ba)':
+  '@gopherium/react-auth@0.20.1(c5ae6b96cb1050e15f1c6e16df1a213c)':
     dependencies:
       '@tanstack/react-query': 5.105.0(@types/react@19.3.0)(react@19.3.1)
       '@wordpress/i18n': 7.0.0
@@ -5370,8 +5370,8 @@ snapshots:
       zxcvbn: 4.4.1
     optionalDependencies:
       '@gopherium/godmin': 0.31.0(d63a83b70a0b4fc4716376749fb6e192)
-      '@gopherium/gottext': 0.8.0(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
-      '@testing-library/jest-dom': 6.9.1
+      '@gopherium/gottext': 0.8.1(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
+      '@testing-library/jest-dom': 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.5)
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@wordpress/components': 43.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.32)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/dataviews': 21.0.0(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.32)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -5382,7 +5382,7 @@ snapshots:
       msw: 3.0.3(@types/node@26.6.6)(graphql@17.0.2)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       vitest: 5.0.5(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(msw@3.0.3(@types/node@26.6.6)(graphql@17.0.2)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  '@gopherium/react-auth@0.20.1(9a41ee9c2832db7e4d874c6a4bb77952)':
+  '@gopherium/react-auth@0.20.1(d664ba7182efce560ba1a6597ca962d7)':
     dependencies:
       '@tanstack/react-query': 5.105.0(@types/react@19.3.0)(react@19.3.1)
       '@wordpress/i18n': 7.0.0
@@ -5391,8 +5391,8 @@ snapshots:
       zxcvbn: 4.4.1
     optionalDependencies:
       '@gopherium/godmin': 0.31.0(d63a83b70a0b4fc4716376749fb6e192)
-      '@gopherium/gottext': 0.8.0(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
-      '@testing-library/jest-dom': 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.5)
+      '@gopherium/gottext': 0.8.1(@wordpress/i18n@7.0.0)(gettext-extractor@4.0.6)(react@19.3.1)
+      '@testing-library/jest-dom': 6.9.1
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@wordpress/components': 43.0.0(@date-fns/tz@1.5.0)(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.32)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       '@wordpress/dataviews': 21.0.0(@emotion/is-prop-valid@1.4.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(lightningcss@1.33.0)(postcss@8.5.32)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(stylelint@17.16.0(supports-color@10.2.2)(typescript@6.0.3))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
