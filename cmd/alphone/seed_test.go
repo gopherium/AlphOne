@@ -58,10 +58,10 @@ func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	return count
 }
 
-// demoCounts returns the row counts of the seven tables the demo data fills.
-func demoCounts(t *testing.T, pool *pgxpool.Pool) [7]int {
+// demoCounts returns the row counts of the twelve tables the demo data fills.
+func demoCounts(t *testing.T, pool *pgxpool.Pool) [12]int {
 	t.Helper()
-	return [7]int{
+	return [12]int{
 		countRows(t, pool, "core.contacts"),
 		countRows(t, pool, "core.tasks"),
 		countRows(t, pool, "plugin_whatsapp.conversations"),
@@ -69,6 +69,11 @@ func demoCounts(t *testing.T, pool *pgxpool.Pool) [7]int {
 		countRows(t, pool, "plugin_whatsapp.media"),
 		countRows(t, pool, "plugin_importer.imports"),
 		countRows(t, pool, "plugin_importer.import_rows"),
+		countRows(t, pool, "plugin_email.mailboxes"),
+		countRows(t, pool, "plugin_email.threads"),
+		countRows(t, pool, "plugin_email.messages"),
+		countRows(t, pool, "plugin_email.attachments"),
+		countRows(t, pool, "plugin_email.message_contacts"),
 	}
 }
 
@@ -164,7 +169,7 @@ func TestSeedYesPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [7]int{71, 9, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 3, 5, 2, 6}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -398,7 +403,7 @@ func TestSeedYesMigratesEveryPluginSchema(t *testing.T) {
 		t.Fatalf("seed -yes = %d with stderr %q, want 0", got.Code, got.Stderr)
 	}
 	pool := testPool(t, databaseURL)
-	for _, table := range []string{"plugin_whatsapp.conversations", "plugin_importer.imports"} {
+	for _, table := range []string{"plugin_whatsapp.conversations", "plugin_importer.imports", "plugin_email.messages"} {
 		var exists bool
 		if err := pool.QueryRow(t.Context(),
 			"SELECT to_regclass($1) IS NOT NULL", table).Scan(&exists); err != nil {
@@ -665,7 +670,7 @@ func TestSeedYesIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [7]int{71, 9, 3, 8, 1, 1, 6}; got != want {
+	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 3, 5, 2, 6}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.Stdout, "admin@example.com already exists") {
