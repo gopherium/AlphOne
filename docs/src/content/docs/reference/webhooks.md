@@ -12,15 +12,16 @@ Nothing here is specific to any engine, see the
 
 ## Events
 
-A stock install publishes five events. The list is deliberately short,
+A stock install publishes six events. The list is deliberately short,
 because every name is a public promise. Three come from AlphOne itself,
-and two from the plugins it ships:
+and three from the plugins it ships:
 
 | Event | From | Published when |
 | ----- | ---- | -------------- |
 | `task.created` | core | A task is created, by a person or by an integration |
 | `task.completed` | core | A task moves into `done` |
 | `contact.created` | core | A contact is created, including one created by an inbound message from an unknown sender |
+| `email.message.received` | the `email` plugin | A new mail from a person is stored on a known contact |
 | `whatsapp.message.received` | the `whatsapp` plugin | An inbound WhatsApp message is stored |
 | `import.completed` | the `importer` plugin | An import finishes turning its rows into contacts |
 
@@ -35,6 +36,15 @@ query { webhookEvents }
 `task.completed` fires on the move into `done`, not on the state. Patching
 a task that is already done publishes nothing, so an automation cannot
 notify the same person twice.
+
+`email.message.received` fires only when a new mail is stored, never for a
+second copy of a stored mail. It does not fire for automated mail, a copy
+from the Sent folder, a mail from the mailbox's own address or an alias, or
+a mail stored with its headers only. AlphOne judges a mail automated by
+headers the sender writes, such as `Auto-Submitted` and `Precedence`, so a
+person who writes through a mailing list fires no event, and any sender can
+add `Precedence: bulk` to fire none.
+[Stored mail](/email/overview/#the-event) lists every case.
 
 ## The envelope
 
@@ -66,6 +76,13 @@ For anything more, refetch through the API with `data.id`.
 `due_on`, `due_time`, and `priority`. `due_time` is the time of day as
 `HH:MM`, such as `09:30`, and `null` when the task has no time.
 - `contact.created` carries `id` and `name`.
+- `email.message.received` carries `id`, `thread_id`, `contact_ids`,
+`subject`, and `text`. `contact_ids` lists every contact the mail is linked
+to, and `subject` is the subject as AlphOne keeps it. `text` is the mail's
+text cut at 16 KiB by default, and empty for an encrypted mail. It never
+carries HTML or attachments. No part of the API reads a stored mail, so
+`text` is all of the body a workflow receives, and each id in
+`contact_ids` reads through the `contact` query.
 - `whatsapp.message.received` carries `conversation_id`, `contact_id`,
 `contact_name`, `external_id`, and `text`.
 - `import.completed` carries `id`, `imported`, and `skipped`, so an automation
