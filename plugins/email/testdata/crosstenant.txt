@@ -1,0 +1,2 @@
+SELECT DISTINCT tenant_id FROM plugin_email.pending_files
+row_number() OVER (PARTITION BY tenant_id ORDER BY created_at, file_id) AS turn
