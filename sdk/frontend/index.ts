@@ -209,14 +209,16 @@ export {
 export type { CombinedError as GraphFailure } from 'urql'
 export { useGraphEvents, useGraphStream } from './stream'
 export { __, _n, _nx, _x, sprintf } from '@wordpress/i18n'
-export { displayLocale, globCatalogs, rememberLocale } from '@gopherium/gottext'
 export {
+	displayLocale,
 	formatDate,
 	formatList,
 	formatMoney,
 	formatNumber,
 	formatTime,
 	formatWeekday,
+	globCatalogs,
 	rememberFormatLocale,
-} from './format'
+	rememberLocale,
+} from '@gopherium/gottext'
 export type { Catalog } from '@gopherium/gottext'

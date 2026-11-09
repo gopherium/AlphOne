@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { rememberFormatLocale } from '@gopherium/gottext'
 import type { ReactNode } from 'react'
 
 import { useAdminSettings } from './adminSettings'
-import { rememberFormatLocale } from './format'
 
 /**
  * Renders the screens once the server named the locale dates and numbers are written in.
