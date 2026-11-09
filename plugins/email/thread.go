@@ -320,16 +320,17 @@ func findBySubject(
 	})
 }
 
-// claimMailKeys points every free key of a stored mail at its thread, taking its own Message-ID back from a mention.
+// claimMailKeys points the keys of a stored mail at its thread as claimThreadKeys does, taking back its own Message-ID.
 func claimMailKeys(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail threadMail, threadID, messageID uuid.UUID,
+	window time.Duration,
 ) error {
 	if own := mail.keys.own; own != nil {
 		if err := holdMessageIDKey(ctx, tx, tenant, mail.mailboxID, threadID, messageID, own.hash); err != nil {
 			return err
 		}
 	}
-	return claimThreadKeys(ctx, tx, tenant, mail.mailboxID, threadID, mail.keys.mentioned())
+	return claimThreadKeys(ctx, tx, tenant, messageID, mail.keys.mentioned(), window)
 }
 
 // withinWindow reports whether at falls within window of the first or the last mail of thread.

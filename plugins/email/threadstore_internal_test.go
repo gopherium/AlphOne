@@ -53,10 +53,19 @@ func storeLinkedMail(t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, con
 	return id
 }
 
-// claimKeys points each of keys at the thread as a placeholder.
+// storeMailAt stores a mail of the thread received the given time after mailReceived and returns its id.
+func storeMailAt(t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, after time.Duration) uuid.UUID {
+	t.Helper()
+	row := mailRow(box, thread)
+	row.dedupeKey, row.receivedAt = nil, mailReceived.Add(after)
+	return storeMail(t, tx, sdk.DefaultTenantID, row)
+}
+
+// claimKeys points each of keys at the thread as a placeholder through a mail it stores there.
 func claimKeys(t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, keys ...threadKey) {
 	t.Helper()
-	if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, box.id, thread, keys); err != nil {
+	mail := storeLinkedMail(t, tx, box, thread)
+	if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, keys, testWindow); err != nil {
 		t.Fatalf("claimThreadKeys() error = %v, want nil", err)
 	}
 }
@@ -180,6 +189,42 @@ func TestClaimThreadKeysLeavesAKeyWithTheThreadThatClaimedItFirst(t *testing.T) 
 	}
 }
 
+func TestClaimThreadKeysMovesAProviderKeyOnlyPastTheWindow(t *testing.T) {
+	t.Parallel()
+
+	for _, claim := range []struct {
+		name  string
+		kind  string
+		after time.Duration
+		moves bool
+	}{
+		{name: "a provider key past the window", kind: providerThreadKind, after: testWindow + time.Second, moves: true},
+		{name: "a provider key at the window", kind: providerThreadKind, after: testWindow},
+		{name: "a provider key from an older mail", kind: providerThreadKind, after: -testWindow - time.Second},
+		{name: "a reply id past the window", kind: internetMessageIDKind, after: testWindow + time.Second},
+		{name: "a Thread-Index past the window", kind: threadIndexKind, after: testWindow + time.Second},
+	} {
+		t.Run(claim.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx, box := newMailbox(t)
+			first := storeThread(t, tx, box, entryAt("Invoice", 0))
+			key := hashedKey(claim.kind, "file:conversation")
+			claimKeys(t, tx, box, first, key)
+			later := storeThread(t, tx, box, entryAt("Invoice", claim.after))
+			mail := storeMailAt(t, tx, box, later, claim.after)
+
+			if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, []threadKey{key}, testWindow); err != nil {
+				t.Fatalf("claimThreadKeys() error = %v, want nil", err)
+			}
+
+			if held := keyRow(t, tx, box, key); (held.thread == later) != claim.moves {
+				t.Errorf("%s moved to the later thread = %t, want %t", claim.name, held.thread == later, claim.moves)
+			}
+		})
+	}
+}
+
 func TestHoldMessageIDKeyStoresAFreeKey(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +336,8 @@ func TestReadKeyedThreadsLeavesOutTheKeysOfAnotherWorkspace(t *testing.T) {
 		t.Fatalf("insertThread() error = %v, want nil", err)
 	}
 	key := hashedKey(internetMessageIDKind, "request@example.com")
-	if err := claimThreadKeys(t.Context(), tx, second, foreign.id, thread, []threadKey{key}); err != nil {
+	mail := storeMail(t, tx, second, mailRow(foreign, thread))
+	if err := claimThreadKeys(t.Context(), tx, second, mail, []threadKey{key}, testWindow); err != nil {
 		t.Fatalf("claimThreadKeys() error = %v, want nil", err)
 	}
 
@@ -504,7 +550,7 @@ func TestThreadStatementsReportAnEndedTransaction(t *testing.T) {
 			return err
 		},
 		"email: claim thread keys: ": func() error {
-			return claimThreadKeys(ctx, tx, sdk.DefaultTenantID, id, id, []threadKey{key})
+			return claimThreadKeys(ctx, tx, sdk.DefaultTenantID, id, []threadKey{key}, testWindow)
 		},
 		"email: hold message id key: ": func() error {
 			return holdMessageIDKey(ctx, tx, sdk.DefaultTenantID, id, id, id, key.hash)

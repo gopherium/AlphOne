@@ -4,8 +4,10 @@ package email
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -261,26 +263,42 @@ func insertAttachments(ctx context.Context, tx pgx.Tx, tenant, messageID uuid.UU
 	return nil
 }
 
-// addParticipants appends to a mail each of added it does not name yet, keeping at most limit addresses.
+// participantsSize returns the bytes the JSON of participants takes in the stored bytes of a mail.
+func participantsSize(participants []participant) int64 {
+	encoded, _ := json.Marshal(participants)
+	return int64(len(encoded))
+}
+
+// mergedParticipants returns each of held and then of added once, in that order, keeping at most limit.
+func mergedParticipants(held, added []participant, limit int) []participant {
+	merged := make([]participant, 0, len(held)+len(added))
+	for _, entry := range slices.Concat(held, added) {
+		if !slices.Contains(merged, entry) {
+			merged = append(merged, entry)
+		}
+	}
+	return merged[:min(len(merged), limit)]
+}
+
+// addParticipants appends to a mail each of added it lacks, keeping at most limit, and returns the bytes it adds.
 func addParticipants(
 	ctx context.Context, tx pgx.Tx, tenant, messageID uuid.UUID, added []participant, limit int,
-) error {
-	_, err := tx.Exec(ctx, `UPDATE plugin_email.messages m SET participants = (
-			SELECT coalesce(jsonb_agg(kept.entry ORDER BY kept.place), '[]'::jsonb)
-			FROM (
-				SELECT listed.entry, min(listed.place) AS place
-				FROM jsonb_array_elements(m.participants || coalesce($3::jsonb, '[]'::jsonb))
-					WITH ORDINALITY AS listed (entry, place)
-				GROUP BY listed.entry
-				ORDER BY place
-				LIMIT $4
-			) kept)
-		WHERE m.tenant_id = $1 AND m.id = $2`,
-		tenant, messageID, added, limit)
+) (int64, error) {
+	var held []participant
+	err := tx.QueryRow(ctx, `SELECT participants FROM plugin_email.messages WHERE tenant_id = $1 AND id = $2`,
+		tenant, messageID).Scan(&held)
 	if err != nil {
-		return fmt.Errorf("email: add participants: %w", err)
+		return 0, fmt.Errorf("email: add participants: %w", err)
 	}
-	return nil
+	kept := mergedParticipants(held, added, limit)
+	grown := participantsSize(kept) - participantsSize(held)
+	_, err = tx.Exec(ctx, `UPDATE plugin_email.messages SET participants = $3, stored_bytes = stored_bytes + $4
+		WHERE tenant_id = $1 AND id = $2`,
+		tenant, messageID, kept, grown)
+	if err != nil {
+		return 0, fmt.Errorf("email: add participants: %w", err)
+	}
+	return grown, nil
 }
 
 // turnOutbound marks a mail of the workspace tenant as one the mailbox sent.

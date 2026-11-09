@@ -10,6 +10,7 @@ import (
 	"flag"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,6 +86,12 @@ func ingestLine(tenant uuid.UUID, raw []byte, apply bool, args ...string) comman
 func fileRef(raw []byte) string {
 	digest := sha256.Sum256(raw)
 	return "file:" + hex.EncodeToString(digest[:])
+}
+
+// sentFileRef returns the provider reference email:ingest gives the raw mail fed under -sent-copy.
+func sentFileRef(raw []byte) string {
+	digest := sha256.Sum256(raw)
+	return "file:sent:" + hex.EncodeToString(digest[:])
 }
 
 // ccSalesMail returns a mail of Maria Perez to the mailbox with its alias in Cc.
@@ -308,8 +315,67 @@ func TestFeedMailMarksACopyReadFromTheSentFolder(t *testing.T) {
 	}
 	var sentCopy bool
 	if err := it.pool.QueryRow(t.Context(), "SELECT sent_copy FROM plugin_email.provider_refs WHERE provider_ref = $1",
-		fileRef(raw)).Scan(&sentCopy); err != nil || !sentCopy {
+		sentFileRef(raw)).Scan(&sentCopy); err != nil || !sentCopy {
 		t.Errorf("the reference of the copy marks a Sent copy %v, %v, want true", sentCopy, err)
+	}
+}
+
+func TestFeedMailTurnsTheSameFileOutboundAndLinksItsBccWhenFedAgainAsASentCopy(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	raw := infoMail("Bcc: Ada Lovelace <ada@example.com>")
+	if answered, err := ingestLine(sdk.DefaultTenantID, raw, true).run(t, it.ingester); err != nil ||
+		answered != "stored\n" {
+		t.Fatalf("feedMail() with no -sent-copy = %q, %v, want stored", answered, err)
+	}
+
+	previewed, previewErr := ingestLine(sdk.DefaultTenantID, raw, false, "-sent-copy").run(t, it.ingester)
+	applied, applyErr := ingestLine(sdk.DefaultTenantID, raw, true, "-sent-copy").run(t, it.ingester)
+
+	if previewErr != nil || previewed != "would answer linked\n" {
+		t.Errorf("feedMail() of a preview under -sent-copy = %q, %v, want would answer linked", previewed, previewErr)
+	}
+	if applyErr != nil || applied != "linked\n" {
+		t.Errorf("feedMail() under -sent-copy = %q, %v, want linked", applied, applyErr)
+	}
+	id := it.mailTitled("Your quote")
+	if row := storedRow(t, it.pool, id); row.direction != outbound {
+		t.Errorf("the mail is %s after the Sent copy, want outbound", row.direction)
+	}
+	want := it.knownContacts("maria.perez@example.com", "ada@example.com")
+	if got := it.links(id); !slices.Equal(got, want) {
+		t.Errorf("the mail is linked to %v, want Maria Perez and Ada %v", got, want)
+	}
+	again, err := ingestLine(sdk.DefaultTenantID, raw, true, "-sent-copy").run(t, it.ingester)
+	if err != nil || again != "duplicate\n" {
+		t.Errorf("feedMail() of the same Sent copy again = %q, %v, want duplicate", again, err)
+	}
+	if mails := it.mails(); mails != 1 {
+		t.Errorf("the workspace holds %d mails, want 1", mails)
+	}
+}
+
+func TestFeedMailKeepsTheSizeAndTheHashOfTheWholeMailOverTheMessageCap(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t, func(s *settings) { s.parse.MaxBytes = 300 })
+	raw := quoteMail(nil, strings.Repeat(lampText+" ", 10))
+
+	answered, err := ingestLine(sdk.DefaultTenantID, raw, true).run(t, it.ingester)
+
+	if err != nil || answered != "stored_headers_only\n" {
+		t.Fatalf("feedMail() = %q, %v, want stored_headers_only", answered, err)
+	}
+	id := it.mailTitled("Your quote")
+	row := storedRow(t, it.pool, id)
+	if row.rawSize != int64(len(raw)) || !bytes.Equal(row.rawSHA256, sum(string(raw))) {
+		t.Errorf("the mail keeps %d raw bytes hashed %x, want the %d bytes and the hash of the whole mail",
+			row.rawSize, row.rawSHA256, len(raw))
+	}
+	held, err := readMessageIDByProviderRef(t.Context(), it.pool, sdk.DefaultTenantID, it.box.id, fileRef(raw))
+	if err != nil || held != id {
+		t.Errorf("the mail is stored under %v, %v, want it under file: and the SHA-256 of the whole mail", held, err)
 	}
 }
 

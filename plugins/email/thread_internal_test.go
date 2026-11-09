@@ -133,7 +133,7 @@ func (tt *threadTest) store(mail threadMail) (uuid.UUID, uuid.UUID) {
 	if _, err := linkContacts(ctx, tt.tx, sdk.DefaultTenantID, id, mail.namedContacts()); err != nil {
 		tt.t.Fatalf("linkContacts() error = %v, want nil", err)
 	}
-	if err := claimMailKeys(ctx, tt.tx, sdk.DefaultTenantID, mail, thread, id); err != nil {
+	if err := claimMailKeys(ctx, tt.tx, sdk.DefaultTenantID, mail, thread, id, testWindow); err != nil {
 		tt.t.Fatalf("claimMailKeys() error = %v, want nil", err)
 	}
 	entry := threadEntry{subject: mail.subject, subjectKey: subjectKeyOf(mail.message.Subject), at: mail.receivedAt}
@@ -647,7 +647,7 @@ func TestChooseThreadReportsAStatementThatFails(t *testing.T) {
 func TestClaimMailKeysReportsAStatementThatFails(t *testing.T) {
 	t.Parallel()
 
-	for _, fragment := range []string{"DO UPDATE", "DO NOTHING"} {
+	for _, fragment := range []string{"WHERE plugin_email.thread_keys.message_id IS NULL", "WITH mail AS"} {
 		t.Run(fragment, func(t *testing.T) {
 			t.Parallel()
 
@@ -657,7 +657,7 @@ func TestClaimMailKeysReportsAStatementThatFails(t *testing.T) {
 			thread, stored := tt.store(mail)
 
 			err := claimMailKeys(t.Context(), failingTx{Tx: tt.tx, fragment: fragment}, sdk.DefaultTenantID, mail,
-				thread, stored)
+				thread, stored, testWindow)
 
 			if pgCode(err) != undefinedFunction {
 				t.Errorf("claimMailKeys() while %q fails error = %v, want the failure answered", fragment, err)

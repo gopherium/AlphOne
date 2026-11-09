@@ -498,3 +498,81 @@ Feature: A mail joins the thread of its conversation
       Friday at ten works for me.
       """
     Then the thread of "Site visit" lists "Site visit, Re: Site visit" in time order
+
+  Scenario: A mail under a provider thread id joins the newest conversation that took it
+    Given this mail reached "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice for March
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <invoice-march@example.com>
+      Content-Type: text/plain
+
+      Here is the invoice for March.
+      """
+    And 30 days pass
+    And this mail reached "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice for April
+      Date: Wed, 02 Dec 2026 09:00:00 +0000
+      Message-ID: <invoice-april@example.com>
+      Content-Type: text/plain
+
+      Here is the invoice for April.
+      """
+    And 1 day passes
+    When this mail reaches "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: A question on the April invoice
+      Date: Thu, 03 Dec 2026 09:00:00 +0000
+      Message-ID: <invoice-question@example.com>
+      Content-Type: text/plain
+
+      Does the April invoice include the lamp?
+      """
+    Then the workspace "Acme" holds 2 threads
+    And the mails "Invoice for April" and "A question on the April invoice" share a thread
+    And the mails "Invoice for March" and "Invoice for April" do not share a thread
+
+  Scenario: A copy that brings a provider thread id leads later mail of that thread to the stored mail
+    Given this mail reached "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp quote
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-quote@example.com>
+      Content-Type: text/plain
+
+      Could you send me a quote for the lamp?
+      """
+    And this mail reached "Acme" in the provider thread "conversation-lamp":
+      """
+      Received: from mail.example.com by mx.example.com with ESMTP
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp quote
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-quote@example.com>
+      Content-Type: text/plain
+
+      Could you send me a quote for the lamp?
+      """
+    When this mail reaches "Acme" in the provider thread "conversation-lamp":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Delivery date
+      Date: Mon, 02 Nov 2026 10:00:00 +0000
+      Message-ID: <delivery-date@example.com>
+      Content-Type: text/plain
+
+      When can the lamp arrive?
+      """
+    Then the workspace "Acme" holds 2 mails
+    And the mails "Lamp quote" and "Delivery date" share a thread

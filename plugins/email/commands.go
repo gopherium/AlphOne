@@ -3,14 +3,11 @@
 package email
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -40,6 +37,9 @@ const (
 
 // filePrefix starts every provider reference and provider thread id of the mail email:ingest reads.
 const filePrefix = "file:"
+
+// sentFilePrefix starts the provider reference of a mail email:ingest reads as a copy from the Sent folder.
+const sentFilePrefix = filePrefix + "sent:"
 
 // errNoMailbox reports a workspace that holds no mailbox on a line that names none.
 var errNoMailbox = errors.New("email:ingest: the workspace holds no mailbox, name its address with -mailbox")
@@ -82,7 +82,7 @@ func (p *ingester) feedMail(ctx context.Context, call sdk.Call) error {
 	if err != nil {
 		return sdk.Misuse(fmt.Errorf("%s: the workspace %q is no uuid", ingestCommandName, call.Args[0]))
 	}
-	in, err := readCommandMail(call, p.now)
+	in, err := readCommandMail(call, p.now, p.parse.MaxBytes)
 	if err != nil {
 		return err
 	}
@@ -102,25 +102,32 @@ func (p *ingester) feedMail(ctx context.Context, call sdk.Call) error {
 	return err
 }
 
-// readCommandMail reads the raw mail on the standard input of call and the flags that describe it.
-func readCommandMail(call sdk.Call, now func() time.Time) (Incoming, error) {
+// readCommandMail reads the raw mail on the standard input of call within limit and the flags that describe it.
+func readCommandMail(call sdk.Call, now func() time.Time, limit int64) (Incoming, error) {
 	received, err := parseReceivedTime(call.Flags[receivedFlag], now)
 	if err != nil {
 		return Incoming{}, err
 	}
-	raw, err := io.ReadAll(call.Stdin)
+	raw, err := readRaw(call.Stdin, limit)
 	if err != nil {
-		return Incoming{}, fmt.Errorf("email: read the raw mail: %w", err)
+		return Incoming{}, err
 	}
-	digest := sha256.Sum256(raw)
+	sentCopy := call.Flags[sentCopyFlag] == "true"
 	in := Incoming{
-		Raw: bytes.NewReader(raw), ProviderRef: filePrefix + hex.EncodeToString(digest[:]), ReceivedAt: received,
-		SentCopy: call.Flags[sentCopyFlag] == "true",
+		ProviderRef: fileReference(raw.sha256, sentCopy), ReceivedAt: received, SentCopy: sentCopy, read: &raw,
 	}
 	if thread := call.Flags[providerThreadFlag]; thread != "" {
 		in.ProviderThreadID = filePrefix + thread
 	}
 	return in, nil
+}
+
+// fileReference returns the provider reference email:ingest gives the mail hashed digest, its own for a Sent copy.
+func fileReference(digest []byte, sentCopy bool) string {
+	if sentCopy {
+		return sentFilePrefix + hex.EncodeToString(digest)
+	}
+	return filePrefix + hex.EncodeToString(digest)
 }
 
 // parseReceivedTime returns the RFC 3339 time text names, the time now answers when text is empty.

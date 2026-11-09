@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -74,6 +73,8 @@ type Incoming struct {
 	SentCopy bool
 	// Backfill marks old mail a first import or a backfill brings in.
 	Backfill bool
+	// read is the raw mail its caller already read within the message cap, nil when Raw still holds it.
+	read *rawRead
 }
 
 // ingester stores raw mail on the known contacts it names.
@@ -283,17 +284,26 @@ func (p *ingester) takeSlot(ctx context.Context) (func(), error) {
 
 // readIncoming reads in within the parse limits, classifies it, matches its addresses and computes its dedupe key.
 func (p *ingester) readIncoming(ctx context.Context, box mailbox, in Incoming) (parsedMail, error) {
-	raw, err := readRaw(in.Raw, p.parse.MaxBytes)
+	raw, err := p.readRawOf(in)
 	if err != nil {
 		return parsedMail{}, err
 	}
 	m, unreadable := readMessage(raw.bytes, p.parse)
 	mail := parsedMail{
 		in: in, box: box, raw: raw, message: m, unreadable: unreadable, automation: message.Classify(m).Automation,
-		marks: message.Mark(m), participants: p.participantsOf(m, in.SentCopy), dedupeKey: dedupeKey(m, in.ProviderRef),
+		marks: message.Mark(m), participants: p.participantsOf(m, in.SentCopy),
 	}
+	mail.dedupeKey = dedupeKey(mail)
 	mail.contacts, err = p.matchContacts(ctx, mail.participants, box)
 	return mail, err
+}
+
+// readRawOf returns the raw mail the caller of in already read, else reads in.Raw within the message cap.
+func (p *ingester) readRawOf(in Incoming) (rawRead, error) {
+	if in.read != nil {
+		return *in.read, nil
+	}
+	return readRaw(in.Raw, p.parse.MaxBytes)
 }
 
 // readRaw reads r whole, keeping at most limit and one more byte in memory and counting and hashing every byte.
@@ -515,8 +525,7 @@ func bodyStateOf(mail parsedMail) string {
 
 // textSize returns the bytes of text row keeps: its body, its safe HTML, its snippet and its participants.
 func textSize(row messageRow) int64 {
-	participants, _ := json.Marshal(row.participants)
-	return int64(len(row.bodyText) + len(row.safeHTML) + len(row.snippet) + len(participants))
+	return int64(len(row.bodyText)+len(row.safeHTML)+len(row.snippet)) + participantsSize(row.participants)
 }
 
 // storedSize returns the bytes a mail of row and files adds to its workspace if the store keeps each file it is sent.
@@ -562,8 +571,13 @@ func (p *ingester) threadMailOf(mail parsedMail, subject string) threadMail {
 	return threadMail{
 		mailboxID: mail.box.id, message: mail.message, subject: subject, receivedAt: mail.in.ReceivedAt,
 		sentCopy: mail.in.SentCopy, automated: mail.automation != message.NotAutomated, contacts: mail.contacts,
-		keys: keysOf(mail.message, mail.in.ProviderThreadID, p.caps.threadReferencesMax),
+		keys: p.threadKeysOf(mail),
 	}
+}
+
+// threadKeysOf returns the thread keys of mail, its reply ids cut to the thread references cap.
+func (p *ingester) threadKeysOf(mail parsedMail) mailKeys {
+	return keysOf(mail.message, mail.in.ProviderThreadID, p.caps.threadReferencesMax)
 }
 
 // sortedContacts returns each contact of a mail once, in the order of their ids.
@@ -689,7 +703,7 @@ func (p *ingester) insertParts(
 	if err := insertAttachments(ctx, tx, tenant, id, files); err != nil {
 		return err
 	}
-	if err := claimMailKeys(ctx, tx, tenant, thread, row.threadID, id); err != nil {
+	if err := claimMailKeys(ctx, tx, tenant, thread, row.threadID, id, p.times.subjectThreadWindow); err != nil {
 		return err
 	}
 	entry := threadEntry{subject: row.subject, subjectKey: subjectKeyOf(mail.message.Subject), at: row.receivedAt}
@@ -712,7 +726,7 @@ func readKeyHolder(ctx context.Context, tx pgx.Tx, tenant, mailboxID uuid.UUID, 
 	return holder, nil
 }
 
-// linkCopy adds one more copy of the stored mail id inside tx and queues the files the copy kept for deletion.
+// linkCopy adds one more copy of the stored mail id inside tx, queues its kept files for deletion and counts its bytes.
 func (p *ingester) linkCopy(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail parsedMail, id uuid.UUID, kept []keptFile,
 ) (Outcome, error) {
@@ -726,10 +740,17 @@ func (p *ingester) linkCopy(
 	if err := deleteFailedMail(ctx, tx, tenant, mail.box.id, mail.in.ProviderRef); err != nil {
 		return "", err
 	}
+	grown, err := addParticipants(ctx, tx, tenant, id, mail.participants, p.caps.recipientsMax)
+	if err != nil {
+		return "", err
+	}
+	if err := addUsedBytes(ctx, tx, tenant, grown); err != nil {
+		return "", err
+	}
 	return copyOutcome(newLinks), nil
 }
 
-// addCopy adds the reference, the links and the addresses of a copy to the stored mail id in tx, counting new links.
+// addCopy adds the reference, the links and the thread keys of a copy to the stored mail id in tx, counting new links.
 func (p *ingester) addCopy(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail parsedMail, id uuid.UUID,
 ) (int64, error) {
@@ -740,7 +761,8 @@ func (p *ingester) addCopy(
 	if err != nil {
 		return 0, err
 	}
-	if err := addParticipants(ctx, tx, tenant, id, mail.participants, p.caps.recipientsMax); err != nil {
+	keys := p.threadKeysOf(mail).mentioned()
+	if err := claimThreadKeys(ctx, tx, tenant, id, keys, p.times.subjectThreadWindow); err != nil {
 		return 0, err
 	}
 	if mail.in.SentCopy {

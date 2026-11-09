@@ -83,17 +83,91 @@ func sum(text string) []byte {
 	return hash[:]
 }
 
+// dedupeKeyOf returns the dedupe key of m read whole under ref.
+func dedupeKeyOf(m *message.Message, ref string) []byte {
+	return dedupeKey(parsedMail{message: m, in: Incoming{ProviderRef: ref}})
+}
+
+// readForKey returns raw as ingest reads it within limits under ref, beside the hash of every byte of raw.
+func readForKey(raw []byte, limits message.Limits, ref string) parsedMail {
+	m, unreadable := readMessage(raw, limits)
+	return parsedMail{
+		in: Incoming{ProviderRef: ref}, message: m, unreadable: unreadable,
+		raw: rawRead{bytes: raw, size: int64(len(raw)), sha256: sum(string(raw))},
+	}
+}
+
+// brokenMailWith returns a mail from Maria Perez holding header, whose multipart body with text names no boundary.
+func brokenMailWith(header, text string) []byte {
+	return rawMail("From: maria.perez@example.com", "Subject: Broken mail", "Date: "+quoteDate, header,
+		"Content-Type: multipart/mixed", "", text)
+}
+
+func TestTwoMailsWithOneIDAndOtherTextPastTheBodyCapDiffer(t *testing.T) {
+	t.Parallel()
+
+	limits := testLimits
+	limits.MaxBodyBytes = 16
+	march := readForKey(quoteMail(nil, "Here is the invoice for March."), limits, "file:march")
+	april := readForKey(quoteMail(nil, "Here is the invoice for April."), limits, "file:april")
+
+	if a := dedupeKey(march); bytes.Equal(a, dedupeKey(april)) {
+		t.Errorf("two mails with one id and other text past the body cap share the key %x, want two keys", a)
+	}
+}
+
+func TestTwoMailsReadByTheirHeadersAloneWithOtherContentDiffer(t *testing.T) {
+	t.Parallel()
+
+	for name, header := range map[string]string{"one id": "Message-ID: <broken@example.com>", "no id": "X-Note: none"} {
+		march := readForKey(brokenMailWith(header, "Invoice for March."), testLimits, "file:march")
+		april := readForKey(brokenMailWith(header, "Invoice for April."), testLimits, "file:april")
+
+		if a := dedupeKey(march); bytes.Equal(a, dedupeKey(april)) {
+			t.Errorf("two mails with %s read by their headers alone share the key %x, want two keys", name, a)
+		}
+	}
+}
+
+func TestTwoMailsWithOneIDAndOtherContentInAPartItCannotReadDiffer(t *testing.T) {
+	t.Parallel()
+
+	march := readForKey(unreadablePartMail("Invoice for March."), testLimits, "file:march")
+	april := readForKey(unreadablePartMail("Invoice for April."), testLimits, "file:april")
+
+	if skipped := march.message.SkippedParts; skipped != 1 {
+		t.Fatalf("the mail skips %d parts, want 1", skipped)
+	}
+	if a := dedupeKey(march); bytes.Equal(a, dedupeKey(april)) {
+		t.Errorf("two mails with one id and other content in a part it cannot read share the key %x, want two keys", a)
+	}
+}
+
+func TestTwoCopiesOfACutMailWithTheSameBytesMatch(t *testing.T) {
+	t.Parallel()
+
+	limits := testLimits
+	limits.MaxBodyBytes = 16
+	raw := quoteMail(nil, "Here is the invoice for March.")
+
+	inbox, moved := dedupeKey(readForKey(raw, limits, "file:inbox")), dedupeKey(readForKey(raw, limits, "file:moved"))
+
+	if !bytes.Equal(inbox, moved) {
+		t.Errorf("two copies of a cut mail with the same bytes answer %x and %x, want one key", inbox, moved)
+	}
+}
+
 func TestDedupeKeyOfAMailWithAnIDHashesItsIDSenderDateAndContent(t *testing.T) {
 	t.Parallel()
 
 	m := parsed(t, quoteMail(nil, "Could you send me a quote for the new lamp?"))
 
-	got := dedupeKey(m, "file:inbox")
+	got := dedupeKeyOf(m, "file:inbox")
 
 	want := hashParts("id", []byte("quote@example.com"), []byte("maria.perez@example.com"), []byte(quoteSeconds),
 		[]byte("your quote"), sum("Could you send me a quote for the new lamp?"))
 	if !bytes.Equal(got, want) {
-		t.Errorf("dedupeKey() = %x, want the id form %x", got, want)
+		t.Errorf("dedupeKeyOf() = %x, want the id form %x", got, want)
 	}
 }
 
@@ -103,12 +177,12 @@ func TestDedupeKeyOfAMailWithAnIDAndNoDateHashesAnEmptyDate(t *testing.T) {
 	m := parsed(t, rawMail("From: maria.perez@example.com", "Subject: Your quote", "Message-ID: <quote@example.com>",
 		"Content-Type: text/plain", "", "Could you send me a quote?"))
 
-	got := dedupeKey(m, "file:inbox")
+	got := dedupeKeyOf(m, "file:inbox")
 
 	want := hashParts("id", []byte("quote@example.com"), []byte("maria.perez@example.com"), nil,
 		[]byte("your quote"), sum("Could you send me a quote?"))
 	if !bytes.Equal(got, want) {
-		t.Errorf("dedupeKey() = %x, want the id form with an empty date %x", got, want)
+		t.Errorf("dedupeKeyOf() = %x, want the id form with an empty date %x", got, want)
 	}
 }
 
@@ -118,12 +192,12 @@ func TestDedupeKeyOfAMailWithNoIDHashesItsSenderDateAndContent(t *testing.T) {
 	m := parsed(t, rawMail("From: maria.perez@example.com", "Subject: Your quote", "Date: "+quoteDate,
 		"Content-Type: text/plain", "", "Could you send me a quote?"))
 
-	got := dedupeKey(m, "file:inbox")
+	got := dedupeKeyOf(m, "file:inbox")
 
 	want := hashParts("noid", []byte("maria.perez@example.com"), []byte(quoteSeconds), []byte("your quote"),
 		sum("Could you send me a quote?"))
 	if !bytes.Equal(got, want) {
-		t.Errorf("dedupeKey() = %x, want the noid form %x", got, want)
+		t.Errorf("dedupeKeyOf() = %x, want the noid form %x", got, want)
 	}
 }
 
@@ -136,10 +210,10 @@ func TestDedupeKeyOfAMailWithNoIDAndNoDateHashesItsProviderRef(t *testing.T) {
 	} {
 		m := parsed(t, raw)
 
-		inbox, sent := dedupeKey(m, "file:inbox"), dedupeKey(m, "file:sent")
+		inbox, sent := dedupeKeyOf(m, "file:inbox"), dedupeKeyOf(m, "file:sent")
 
 		if want := hashParts("ref", []byte("file:inbox")); !bytes.Equal(inbox, want) {
-			t.Errorf("dedupeKey() of a mail with %s = %x, want the ref form %x", name, inbox, want)
+			t.Errorf("dedupeKeyOf() of a mail with %s = %x, want the ref form %x", name, inbox, want)
 		}
 		if bytes.Equal(inbox, sent) {
 			t.Errorf("two copies of a mail with %s under two references share the key %x, want two keys", name, inbox)
@@ -179,7 +253,7 @@ func TestTwoCopiesWithOtherReceivedLinesMatch(t *testing.T) {
 	sent := parsed(t, quoteMail([]string{"Received: from relay.example.com by mx3.example.com",
 		"Received: from mx4.example.com by relay.example.com"}, "Could you send it?"))
 
-	if a, b := dedupeKey(inbox, "file:inbox"), dedupeKey(sent, "file:sent"); !bytes.Equal(a, b) {
+	if a, b := dedupeKeyOf(inbox, "file:inbox"), dedupeKeyOf(sent, "file:sent"); !bytes.Equal(a, b) {
 		t.Errorf("two copies with other Received lines answer %x and %x, want one key", a, b)
 	}
 }
@@ -190,7 +264,7 @@ func TestACopyWithOtherLineEndsAndBlanksMatches(t *testing.T) {
 	crlf := parsed(t, quoteMail(nil, "Could you send\r\nthe quote?"))
 	lf := parsed(t, []byte(strings.ReplaceAll(string(quoteMail(nil, "Could  you send\r\n\r\nthe quote? ")), "\r\n", "\n")))
 
-	if a, b := dedupeKey(crlf, "file:inbox"), dedupeKey(lf, "file:sent"); !bytes.Equal(a, b) {
+	if a, b := dedupeKeyOf(crlf, "file:inbox"), dedupeKeyOf(lf, "file:sent"); !bytes.Equal(a, b) {
 		t.Errorf("a copy with other line ends and blanks answers %x beside %x, want one key", b, a)
 	}
 }
@@ -201,7 +275,7 @@ func TestTwoMailsWithOneIDAndOtherTextDiffer(t *testing.T) {
 	first := parsed(t, quoteMail(nil, "Here is the invoice for March."))
 	second := parsed(t, quoteMail(nil, "Here is the invoice for April."))
 
-	if a := dedupeKey(first, "file:march"); bytes.Equal(a, dedupeKey(second, "file:april")) {
+	if a := dedupeKeyOf(first, "file:march"); bytes.Equal(a, dedupeKeyOf(second, "file:april")) {
 		t.Errorf("two mails with one id and other text share the key %x, want two keys", a)
 	}
 }
@@ -211,7 +285,7 @@ func TestTwoMailsWithOneIDAndOtherAttachmentsDiffer(t *testing.T) {
 
 	march, april := parsed(t, invoiceMail("March invoice")), parsed(t, invoiceMail("April invoice"))
 
-	if a := dedupeKey(march, "file:march"); bytes.Equal(a, dedupeKey(april, "file:april")) {
+	if a := dedupeKeyOf(march, "file:march"); bytes.Equal(a, dedupeKeyOf(april, "file:april")) {
 		t.Errorf("two mails with one id and other attachments share the key %x, want two keys", a)
 	}
 }
@@ -221,7 +295,7 @@ func TestTwoCopiesWithTheirFilesInAnotherOrderMatch(t *testing.T) {
 
 	first, second := parsed(t, invoiceMail("March", "April")), parsed(t, invoiceMail("April", "March"))
 
-	if a, b := dedupeKey(first, "file:inbox"), dedupeKey(second, "file:sent"); !bytes.Equal(a, b) {
+	if a, b := dedupeKeyOf(first, "file:inbox"), dedupeKeyOf(second, "file:sent"); !bytes.Equal(a, b) {
 		t.Errorf("two copies with their files in another order answer %x and %x, want one key", a, b)
 	}
 }

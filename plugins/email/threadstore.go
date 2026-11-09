@@ -96,13 +96,21 @@ func insertThread(ctx context.Context, tx pgx.Tx, tenant, mailboxID uuid.UUID, e
 	return id, nil
 }
 
-// claimThreadKeys points each free key of the mailbox at a thread as a placeholder, leaving every held key where it is.
-func claimThreadKeys(ctx context.Context, tx pgx.Tx, tenant, mailboxID, threadID uuid.UUID, keys []threadKey) error {
+// claimThreadKeys points each free key, and a provider key quiet for a window, at the thread of the mail messageID.
+func claimThreadKeys(
+	ctx context.Context, tx pgx.Tx, tenant, messageID uuid.UUID, keys []threadKey, window time.Duration,
+) error {
 	kinds, hashes := keyColumns(keys)
-	_, err := tx.Exec(ctx, `INSERT INTO plugin_email.thread_keys (tenant_id, mailbox_id, kind, key, thread_id)
-		SELECT $1, $2, listed.kind, listed.key, $3 FROM unnest($4::text[], $5::bytea[]) AS listed (kind, key)
-		ON CONFLICT (tenant_id, mailbox_id, kind, key) DO NOTHING`,
-		tenant, mailboxID, threadID, kinds, hashes)
+	_, err := tx.Exec(ctx, `WITH mail AS (
+			SELECT mailbox_id, thread_id, received_at FROM plugin_email.messages WHERE tenant_id = $1 AND id = $2
+		)
+		INSERT INTO plugin_email.thread_keys AS held (tenant_id, mailbox_id, kind, key, thread_id)
+		SELECT $1, mail.mailbox_id, listed.kind, listed.key, mail.thread_id
+		FROM mail, unnest($3::text[], $4::bytea[]) AS listed (kind, key)
+		ON CONFLICT (tenant_id, mailbox_id, kind, key) DO UPDATE SET thread_id = EXCLUDED.thread_id
+		WHERE held.kind = $5 AND (SELECT t.last_message_at FROM plugin_email.threads t
+			WHERE t.tenant_id = $1 AND t.id = held.thread_id) < (SELECT received_at FROM mail) - $6::interval`,
+		tenant, messageID, kinds, hashes, providerThreadKind, window)
 	if err != nil {
 		return fmt.Errorf("email: claim thread keys: %w", err)
 	}

@@ -664,6 +664,76 @@ Feature: A mail is stored on the known contacts it names
     Then the command answers "stored"
     And the workspace "Acme" holds 2 mails
 
+  Scenario: Two broken mails with one Message-ID, one From and one Date keep both
+    Given this mail reached "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Broken mail
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <broken-mail@example.com>
+      Content-Type: multipart/mixed
+
+      The invoice for March, and the boundary is missing.
+      """
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Broken mail
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <broken-mail@example.com>
+      Content-Type: multipart/mixed
+
+      The invoice for April, and the boundary is missing.
+      """
+    Then the command answers "stored_headers_only"
+    And the workspace "Acme" holds 2 mails
+
+  Scenario: Two mails with one Message-ID, one From and one Date that differ in a part AlphOne cannot read keep both
+    Given this mail reached "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <unreadable-invoice@example.com>
+      MIME-Version: 1.0
+      Content-Type: multipart/mixed; boundary="files"
+
+      --files
+      Content-Type: text/plain
+
+      Your invoice is attached.
+      --files
+      Content-Type: application/x-foo bar
+
+      The invoice for March.
+      --files--
+      """
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <unreadable-invoice@example.com>
+      MIME-Version: 1.0
+      Content-Type: multipart/mixed; boundary="files"
+
+      --files
+      Content-Type: text/plain
+
+      Your invoice is attached.
+      --files
+      Content-Type: application/x-foo bar
+
+      The invoice for April.
+      --files--
+      """
+    Then the command answers "stored"
+    And the workspace "Acme" holds 2 mails
+
   Scenario: An auto reply is stored but never published
     Given a webhook of "Acme" listens for "email.message.received"
     When this mail reaches "Acme":

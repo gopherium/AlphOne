@@ -14,16 +14,17 @@ import (
 	"github.com/gopherium/alphone/plugins/email/message"
 )
 
-// dedupeKey returns the SHA-256 naming m in its mailbox, from its id, sender, date and content, or from providerRef.
-func dedupeKey(m *message.Message, providerRef string) []byte {
+// dedupeKey returns the SHA-256 naming mail in its mailbox, from its id, sender, date and content, or its reference.
+func dedupeKey(mail parsedMail) []byte {
+	m := mail.message
 	switch {
 	case m.MessageID != "":
 		return hashParts("id", slices.Concat(
-			[][]byte{[]byte(m.MessageID), []byte(m.From.Email), dateText(m.Date)}, contentParts(m))...)
+			[][]byte{[]byte(m.MessageID), []byte(m.From.Email), dateText(m.Date)}, contentParts(mail))...)
 	case m.From.Email != "" && !m.Date.IsZero():
-		return hashParts("noid", slices.Concat([][]byte{[]byte(m.From.Email), dateText(m.Date)}, contentParts(m))...)
+		return hashParts("noid", slices.Concat([][]byte{[]byte(m.From.Email), dateText(m.Date)}, contentParts(mail))...)
 	}
-	return hashParts("ref", []byte(providerRef))
+	return hashParts("ref", []byte(mail.in.ProviderRef))
 }
 
 // hashParts returns the SHA-256 of a leading word and parts, each one prefixed with its length.
@@ -44,8 +45,9 @@ func dateText(date time.Time) []byte {
 	return []byte(strconv.FormatInt(date.Unix(), 10))
 }
 
-// contentParts returns the normalized subject of m, the hash of its collapsed text and its sorted file hashes.
-func contentParts(m *message.Message) [][]byte {
+// contentParts returns the subject, text and file hashes of mail, and its raw hash when part of it went unread.
+func contentParts(mail parsedMail) [][]byte {
+	m := mail.message
 	text := sha256.Sum256([]byte(strings.Join(strings.Fields(m.Text), " ")))
 	var files [][]byte
 	for _, file := range slices.Concat(m.Attachments, m.InlineImages) {
@@ -53,7 +55,11 @@ func contentParts(m *message.Message) [][]byte {
 		files = append(files, hash[:])
 	}
 	slices.SortFunc(files, bytes.Compare)
-	return slices.Concat([][]byte{[]byte(normalizedSubject(m.Subject)), text[:]}, files)
+	parts := slices.Concat([][]byte{[]byte(normalizedSubject(m.Subject)), text[:]}, files)
+	if bodyStateOf(mail) != bodyWhole || m.SkippedParts > 0 {
+		parts = append(parts, mail.raw.sha256)
+	}
+	return parts
 }
 
 // normalizedSubject returns subject lowercased, without its leading reply tags and with its blanks collapsed.
