@@ -12,6 +12,6 @@
     "@types/node": "^26.6.6",
     "@types/smtp-server": "^3.5.13",
     "graphql": "^17.0.2",
-    "smtp-server": "^3.21.1"
+    "smtp-server": "^3.21.3"
   }
 }
