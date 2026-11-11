@@ -1,6 +1,7 @@
 Feature: A mail joins the thread of its conversation
   A mail joins a thread through the provider's thread id, its reply
-  headers, and then a reply subject inside a time window. A thread takes a
+  headers, and then a reply subject from a person. The provider's thread
+  id and the subject count only inside a time window. A thread takes a
   mail only when the two share a contact. A reply header counts for any
   contact the mail names, while a provider thread id or a subject counts
   only for the sender's own contact, so two customers who write the same
@@ -222,7 +223,7 @@ Feature: A mail joins the thread of its conversation
       """
     Then the workspace "Acme" holds 2 threads
 
-  Scenario: A repeated subject under one provider thread id with no reply ids starts a new thread
+  Scenario: A repeated subject under one provider thread id outside the window, with no reply ids, starts a new thread
     Given this mail reached "Acme" in the provider thread "conversation-invoices":
       """
       From: Maria Perez <maria.perez@example.com>
