@@ -101,10 +101,10 @@ from the inbox and once from the Sent folder.
   the stored mail and adds the new addresses to it. It stores no second
   mail.
 - A copy that brings a provider thread id the stored mail lacks adds
-  the stored mail's thread to that id, so mail with that id received
-  near it joins it. A thread that already took such a mail stays apart
-  until a later mail with that id, received near both threads, joins
-  them.
+  the stored mail's thread to that id, so a later mail with that id
+  received near it can join it, see [Threads](#threads). A thread that
+  already took such a mail stays apart until a later mail with that id,
+  received near both threads, joins them when they share a contact.
 - Reply ids and a Thread-Index that a copy brings, when no thread holds
   them yet, lead later mail to the stored mail's thread too.
 - A copy from the Sent folder marks the mail as sent by the workspace.
