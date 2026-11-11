@@ -660,7 +660,7 @@ func (p *ingester) insertMail(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail parsedMail, row messageRow, kept []keptFile,
 ) (committedMail, error) {
 	thread := p.threadMailOf(mail, row.subject)
-	threadID, err := chooseThread(ctx, tx, tenant, thread, p.times.subjectThreadWindow)
+	threadID, err := chooseThread(ctx, tx, tenant, thread, p.times.threadWindow)
 	if err != nil {
 		return committedMail{}, err
 	}

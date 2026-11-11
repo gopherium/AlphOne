@@ -17,7 +17,7 @@ import (
 	"github.com/gopherium/alphone/sdk"
 )
 
-// testWindow is the subject window the thread store tests search in.
+// testWindow is the thread window the thread and thread store tests search in.
 const testWindow = 14 * 24 * time.Hour
 
 // hashedKey returns the thread key of kind for the id text.

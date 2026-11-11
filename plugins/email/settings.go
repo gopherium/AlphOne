@@ -38,8 +38,8 @@ const (
 	defaultWorkspaceMaxBytes = 5 << 30
 	// defaultEventTextMaxBytes is the most text an event carries when ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES is unset, 16 KiB.
 	defaultEventTextMaxBytes = 16 << 10
-	// defaultSubjectThreadWindow is the subject and provider id window when ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW is unset.
-	defaultSubjectThreadWindow = 14 * 24 * time.Hour
+	// defaultThreadWindow is the subject and provider id window of a thread when ALPHONE_EMAIL_THREAD_WINDOW is unset.
+	defaultThreadWindow = 14 * 24 * time.Hour
 	// defaultThreadReferencesMax is the most reply ids kept when ALPHONE_EMAIL_THREAD_REFERENCES_MAX is unset.
 	defaultThreadReferencesMax = 64
 	// defaultRetryWindow is how long a mail may keep failing when ALPHONE_EMAIL_RETRY_WINDOW is unset.
@@ -64,7 +64,7 @@ type settings struct {
 	caps mailCaps
 	// files bound the bytes one attachment and one workspace keep as files.
 	files fileCaps
-	// times bound how near a subject or provider id joins a thread, how long a mail keeps failing and a clean up runs.
+	// times bound the thread window, how long a mail keeps failing and how long a clean up runs.
 	times timeLimits
 	// sweep paces the loop that deletes the files no stored mail holds.
 	sweep sweepSettings
@@ -96,10 +96,10 @@ type fileCaps struct {
 	workspaceMaxBytes int
 }
 
-// timeLimits bound how near a subject or provider id joins a thread, how long a mail keeps failing and a clean up runs.
+// timeLimits bound the thread window, how long a mail keeps failing and how long a clean up runs.
 type timeLimits struct {
-	// subjectThreadWindow is how near a thread a mail must be to join it by its subject or its provider thread id.
-	subjectThreadWindow time.Duration
+	// threadWindow is how near a thread a mail must be to join it by its subject or its provider thread id.
+	threadWindow time.Duration
 	// retryWindow is how long a mail that keeps failing is tried again before it is set aside.
 	retryWindow time.Duration
 	// cleanupTimeout bounds the queueing of a failed run's files for deletion and the record of its failure.
@@ -228,10 +228,10 @@ func readFileCaps(deps sdk.Deps) (fileCaps, error) {
 	return fileCaps{attachmentMaxBytes: attachmentMaxBytes, workspaceMaxBytes: workspaceMaxBytes}, nil
 }
 
-// readTimeLimits returns how long a subject joins a thread, a mail keeps failing and a clean up runs.
+// readTimeLimits returns the thread window, how long a mail keeps failing and how long a clean up runs.
 func readTimeLimits(deps sdk.Deps) (timeLimits, error) {
 	env := deps.Env.Within("EMAIL_")
-	subjectThreadWindow, err := env.Duration("SUBJECT_THREAD_WINDOW", defaultSubjectThreadWindow)
+	threadWindow, err := env.Duration("THREAD_WINDOW", defaultThreadWindow)
 	if err != nil {
 		return timeLimits{}, err
 	}
@@ -243,9 +243,7 @@ func readTimeLimits(deps sdk.Deps) (timeLimits, error) {
 	if err != nil {
 		return timeLimits{}, err
 	}
-	return timeLimits{
-		subjectThreadWindow: subjectThreadWindow, retryWindow: retryWindow, cleanupTimeout: cleanupTimeout,
-	}, nil
+	return timeLimits{threadWindow: threadWindow, retryWindow: retryWindow, cleanupTimeout: cleanupTimeout}, nil
 }
 
 // readSweepSettings returns the pace of the loop that deletes the files no stored mail holds.

@@ -39,7 +39,7 @@ var countKeys = []string{
 
 // durationKeys lists every setting the plugin reads as a duration.
 var durationKeys = []string{
-	"ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW",
+	"ALPHONE_EMAIL_THREAD_WINDOW",
 	"ALPHONE_EMAIL_RETRY_WINDOW",
 	"ALPHONE_EMAIL_CLEANUP_TIMEOUT",
 	"ALPHONE_EMAIL_SWEEP_INTERVAL",
@@ -65,7 +65,7 @@ var distinctValues = map[string]string{
 	"ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES":    "32",
 	"ALPHONE_EMAIL_THREAD_REFERENCES_MAX":   "12",
 	"ALPHONE_EMAIL_SWEEP_BATCH":             "3",
-	"ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW":   "48h",
+	"ALPHONE_EMAIL_THREAD_WINDOW":           "48h",
 	"ALPHONE_EMAIL_RETRY_WINDOW":            "30m",
 	"ALPHONE_EMAIL_CLEANUP_TIMEOUT":         "3s",
 	"ALPHONE_EMAIL_SWEEP_INTERVAL":          "2s",
@@ -96,7 +96,7 @@ func TestReadSettingsAnswersEveryDefaultWhenNothingIsSet(t *testing.T) {
 			snippetLetters: 200, threadReferencesMax: 64, eventTextMaxBytes: 16384,
 		},
 		files: fileCaps{attachmentMaxBytes: 26214400, workspaceMaxBytes: 5368709120},
-		times: timeLimits{subjectThreadWindow: 336 * time.Hour, retryWindow: 6 * time.Hour, cleanupTimeout: 10 * time.Second},
+		times: timeLimits{threadWindow: 336 * time.Hour, retryWindow: 6 * time.Hour, cleanupTimeout: 10 * time.Second},
 		sweep: sweepSettings{interval: time.Hour, batch: 100, budget: 10 * time.Minute, orphanAge: 24 * time.Hour},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -121,9 +121,7 @@ func TestReadSettingsHoldsTheValueOfEverySetting(t *testing.T) {
 			snippetLetters: 80, threadReferencesMax: 12, eventTextMaxBytes: 32,
 		},
 		files: fileCaps{attachmentMaxBytes: 8, workspaceMaxBytes: 1450},
-		times: timeLimits{
-			subjectThreadWindow: 48 * time.Hour, retryWindow: 30 * time.Minute, cleanupTimeout: 3 * time.Second,
-		},
+		times: timeLimits{threadWindow: 48 * time.Hour, retryWindow: 30 * time.Minute, cleanupTimeout: 3 * time.Second},
 		sweep: sweepSettings{interval: 2 * time.Second, batch: 3, budget: 90 * time.Second, orphanAge: 2 * time.Hour},
 	}
 	if !reflect.DeepEqual(got, want) {
