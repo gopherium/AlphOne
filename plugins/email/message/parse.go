@@ -262,7 +262,7 @@ func files(envelope *enmime.Envelope, html string) (attachments, inlineImages []
 	shown := shownContentIDs(html)
 	for _, part := range envelope.Root.DepthMatchAll(func(p *enmime.Part) bool { return listed[p] }) {
 		file := Attachment{
-			Name: cleanText(part.FileName), ContentType: part.ContentType, ContentID: contentID(part), Content: part.Content,
+			Name: fileName(part), ContentType: part.ContentType, ContentID: contentID(part), Content: part.Content,
 		}
 		if strings.HasPrefix(part.ContentType, "image/") && shown[file.ContentID] {
 			inlineImages = append(inlineImages, file)
@@ -271,6 +271,16 @@ func files(envelope *enmime.Envelope, html string) (attachments, inlineImages []
 		}
 	}
 	return attachments, inlineImages
+}
+
+// fileName answers the clean file name of part, read from its Content-Disposition when enmime read none.
+func fileName(part *enmime.Part) string {
+	name := part.FileName
+	if name == "" {
+		_, params, _, _ := mediatype.Parse(part.Header.Get("Content-Disposition"))
+		name = enmime.DecodeRFC2047(params["filename"])
+	}
+	return cleanText(name)
 }
 
 // shownContentIDs answers the content ids of the images Sanitize keeps in document through a cid link.

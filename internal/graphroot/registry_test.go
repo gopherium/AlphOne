@@ -68,7 +68,7 @@ func TestAllNamesEachPluginThatCannotReadTheDatabaseURL(t *testing.T) {
 	stopRegistered(t, plugins)
 
 	ids := idsOf(plugins)
-	for _, id := range []string{"fields", "importer", "whatsapp"} {
+	for _, id := range []string{"email", "fields", "importer", "whatsapp"} {
 		if err == nil || !strings.Contains(err.Error(), "plugin "+id+": ") {
 			t.Errorf("All() error = %v, want the %s plugin named", err, id)
 		}

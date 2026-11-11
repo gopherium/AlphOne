@@ -347,14 +347,47 @@ func TestParseCountsNoSkippedPartInAFixture(t *testing.T) {
 	}
 }
 
-func TestParsePinsAPartWithADispositionAndNoType(t *testing.T) {
+func TestParseReadsTheFileNameOfAPartWithADispositionAndNoType(t *testing.T) {
 	t.Parallel()
 
 	attachments := parseFixture(t, "disposition-without-type.eml").Attachments
 
-	want := message.Attachment{Content: []byte("Bring the colour samples on Friday.\r\n")}
+	want := message.Attachment{Name: "notes.txt", Content: []byte("Bring the colour samples on Friday.\r\n")}
 	if len(attachments) != 1 || !reflect.DeepEqual(attachments[0], want) {
 		t.Errorf("Parse(disposition-without-type.eml).Attachments = %+v, want only %+v", attachments, want)
+	}
+}
+
+func TestParseCleansTheFileNameOfAPartThatNamesNoType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		disposition string
+		want        string
+	}{
+		{"a quoted name", `attachment; filename="notes.txt"`, "notes.txt"},
+		{"an inline disposition", `inline; filename="wall.png"`, "wall.png"},
+		{"a name in an encoded word", `attachment; filename="=?utf-8?q?caf=C3=A9_notes.txt?="`, "caf\U000000e9 notes.txt"},
+		{"a name in the extended form", `attachment; filename*=utf-8''caf%C3%A9%20notes.txt`, "caf\U000000e9 notes.txt"},
+		{"a name holding an encoded NUL", `attachment; filename="=?utf-8?q?no=00tes.txt?="`, "notes.txt"},
+		{"a name holding a broken byte", `attachment; filename="=?utf-8?q?no=FFtes.txt?="`, "no" + replacement + "tes.txt"},
+		{"a disposition that names no file", "attachment", ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := message.Parse(strings.NewReader(typelessFileMessage(c.disposition)), testLimits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if got := fileNames(m.Attachments); !slices.Equal(got, []string{c.want}) {
+				t.Errorf("Parse().Attachments names = %q, want only %q", got, c.want)
+			}
+		})
 	}
 }
 
@@ -372,6 +405,12 @@ func inlineImagesOf(m *message.Message) []message.Attachment {
 func fileMessage(body, file string) string {
 	return "Content-Type: multipart/related; boundary=\"files\"\r\n\r\n--files\r\n" + body +
 		"\r\n--files\r\n" + file + "\r\n\r\nThe file content.\r\n--files--\r\n"
+}
+
+// typelessFileMessage answers a raw message holding a text part, then one file part whose only field is disposition.
+func typelessFileMessage(disposition string) string {
+	return "Content-Type: multipart/mixed; boundary=\"files\"\r\n\r\n--files\r\nContent-Type: text/plain\r\n\r\n" +
+		"The note.\r\n--files\r\nContent-Disposition: " + disposition + "\r\n\r\nThe file content.\r\n--files--\r\n"
 }
 
 // htmlPart answers the header and body of a part holding html.

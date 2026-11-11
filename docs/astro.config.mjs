@@ -52,6 +52,10 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Email',
+					items: [{ slug: 'email/overview' }],
+				},
+				{
 					label: 'WhatsApp',
 					items: [
 						{ slug: 'whatsapp/meta-setup' },

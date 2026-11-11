@@ -34,6 +34,7 @@ jobs:
       - run: make cover GOTESTFLAGS=-race
       - run: make test-uncovered GOTESTFLAGS=-race
       - run: go test -count=1 ./plugins/email/message/
+      - run: go test -count=1 -run MemoryBudget ./plugins/email/
       - run: go vet ./...
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

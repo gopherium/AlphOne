@@ -90,6 +90,7 @@ query { webhookEvents }
 ```
 
 A stock install answers `task.created`, `task.completed`,
-`contact.created`, `import.completed` and `whatsapp.message.received`.
+`contact.created`, `email.message.received`, `import.completed` and
+`whatsapp.message.received`.
 Once the archive plugin is built in, `archive.rows.purged` joins them,
 and `createWebhook` accepts it.

@@ -99,7 +99,7 @@ var fixtureCases = []struct {
 	}},
 	{"disposition-without-type.eml", fixtureSummary{
 		from: outsideSender, to: toOwnMailbox, subject: "Notes", date: october(29, 14, 0),
-		messageID: "disposition-without-type@example.com", text: true, attachments: []fileSummary{{"", ""}},
+		messageID: "disposition-without-type@example.com", text: true, attachments: []fileSummary{{"notes.txt", ""}},
 	}},
 	{"gmail-reply.eml", fixtureSummary{
 		from: outsideSender, to: toOwnMailbox, cc: []message.Address{ownAlias}, subject: "Re: Quote",
