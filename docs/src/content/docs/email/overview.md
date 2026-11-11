@@ -122,14 +122,14 @@ AlphOne puts each mail in a thread. It looks for one in this order:
 1. The thread id the mail's provider gives it, which `email:ingest`
    takes from `-provider-thread`. One id can lead to several threads. A
    mail joins one only when it was received between
-   `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW` before that thread's first mail
+   `ALPHONE_EMAIL_THREAD_WINDOW` before that thread's first mail
    and the same time after its last mail, and it joins the nearest. A
    mail that falls that close to two threads of its id joins them into
    one when they share a contact.
 2. The reply headers, In-Reply-To and References.
 3. The Thread-Index header that some mail programs add.
 4. The subject, only for a reply or a forward such as `Re: Invoice`,
-   only within `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW` of the thread's
+   only within `ALPHONE_EMAIL_THREAD_WINDOW` of the thread's
    first or last mail, 14 days by default, and never for automated
    mail. Upper and lower case do not matter.
 
