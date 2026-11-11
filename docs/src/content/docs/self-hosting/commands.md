@@ -596,7 +596,7 @@ It answers one word:
 | `stored` | A new mail is stored. |
 | `stored_headers_only` | A new mail is stored with its headers only, because it was over a limit or too broken to read. |
 | `linked` | The mail was already stored, and this copy linked another contact to it. |
-| `duplicate` | The mail was already stored, and nothing changed. |
+| `duplicate` | The mail was already stored, and this copy linked no other contact to it. The copy can still add addresses the stored mail lacks, mark the mail as sent by the workspace under `-sent-copy`, give the mail's thread the `-provider-thread` id it carries, and lead the reply ids and Thread-Index it carries to the mail's thread when no thread holds them yet. |
 | `no_known_contact` | The mail names no known contact, so nothing is stored. |
 | `headers_only_no_known_contact` | The mail was over a limit or too broken to read, and its headers name no known contact, so nothing is stored. |
 | `failed` | The mail is set aside, and this run stores nothing, see [When a mail cannot be stored](/email/overview/#when-a-mail-cannot-be-stored). |
