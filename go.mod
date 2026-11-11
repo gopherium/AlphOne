@@ -1,6 +1,6 @@
 module github.com/gopherium/alphone
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/99designs/gqlgen v0.17.95
