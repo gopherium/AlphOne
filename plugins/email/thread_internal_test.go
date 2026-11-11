@@ -133,7 +133,7 @@ func (tt *threadTest) store(mail threadMail) (uuid.UUID, uuid.UUID) {
 	if _, err := linkContacts(ctx, tt.tx, sdk.DefaultTenantID, id, mail.namedContacts()); err != nil {
 		tt.t.Fatalf("linkContacts() error = %v, want nil", err)
 	}
-	if err := claimMailKeys(ctx, tt.tx, sdk.DefaultTenantID, mail, thread, id, testWindow); err != nil {
+	if err := claimMailKeys(ctx, tt.tx, sdk.DefaultTenantID, mail, thread, id); err != nil {
 		tt.t.Fatalf("claimMailKeys() error = %v, want nil", err)
 	}
 	entry := threadEntry{subject: mail.subject, subjectKey: subjectKeyOf(mail.message.Subject), at: mail.receivedAt}
@@ -567,35 +567,6 @@ func TestTwoThreadsWithNoSharedContactDoNotMerge(t *testing.T) {
 	}
 }
 
-func TestAProviderHitOutsideTheWindowCountsOnlyWithReplyIDsOrAThreadIndex(t *testing.T) {
-	t.Parallel()
-
-	for _, late := range []struct {
-		name    string
-		headers []string
-		joins   bool
-	}{
-		{name: "no reply id"},
-		{name: "a reply id", headers: []string{"In-Reply-To: <unknown@example.com>"}, joins: true},
-		{name: "a Thread-Index", headers: []string{"Thread-Index: " + threadIndex(0x44)}, joins: true},
-	} {
-		t.Run(late.name, func(t *testing.T) {
-			t.Parallel()
-
-			tt := newThreadTest(t)
-			thread := tt.reach(threadedMail("From: maria.perez@example.com", "Subject: Invoice"),
-				arrival{providerThread: "file:conversation"})
-
-			got := tt.reach(threadedMail(append([]string{"From: maria.perez@example.com", "Subject: Invoice"},
-				late.headers...)...), arrival{providerThread: "file:conversation", after: 15 * 24 * time.Hour})
-
-			if (got == thread) != late.joins {
-				t.Errorf("a late mail with %s joined the provider thread = %t, want %t", late.name, got == thread, late.joins)
-			}
-		})
-	}
-}
-
 func TestClaimMailKeysWritesTheKeysOfAMailWithNoID(t *testing.T) {
 	t.Parallel()
 
@@ -619,10 +590,13 @@ func TestChooseThreadReportsAStatementThatFails(t *testing.T) {
 	t.Parallel()
 
 	for _, failing := range []struct {
-		fragment string
-		headers  []string
+		fragment       string
+		headers        []string
+		providerThread string
 	}{
 		{fragment: "FROM plugin_email.thread_keys k", headers: []string{"Subject: Shelf"}},
+		{fragment: "t.last_message_at + $6::interval", headers: []string{"Subject: Shelf"},
+			providerThread: "file:conversation"},
 		{fragment: "SELECT DISTINCT m.thread_id", headers: []string{"Subject: Shelf"}},
 		{fragment: "WITH pair AS", headers: []string{"Subject: Shelf",
 			"References: <desk@example.com> <lamp@example.com>"}},
@@ -635,7 +609,7 @@ func TestChooseThreadReportsAStatementThatFails(t *testing.T) {
 			tt := newThreadTest(t)
 			tt.stepsInOrder()
 			mail := tt.mail(threadedMail(append([]string{"From: maria.perez@example.com"}, failing.headers...)...),
-				arrival{after: time.Hour})
+				arrival{providerThread: failing.providerThread, after: time.Hour})
 
 			if err := tt.failOn(failing.fragment, mail); pgCode(err) != undefinedFunction {
 				t.Errorf("chooseThread() while %q fails error = %v, want the failure answered", failing.fragment, err)
@@ -657,7 +631,7 @@ func TestClaimMailKeysReportsAStatementThatFails(t *testing.T) {
 			thread, stored := tt.store(mail)
 
 			err := claimMailKeys(t.Context(), failingTx{Tx: tt.tx, fragment: fragment}, sdk.DefaultTenantID, mail,
-				thread, stored, testWindow)
+				thread, stored)
 
 			if pgCode(err) != undefinedFunction {
 				t.Errorf("claimMailKeys() while %q fails error = %v, want the failure answered", fragment, err)

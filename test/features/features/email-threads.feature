@@ -499,7 +499,7 @@ Feature: A mail joins the thread of its conversation
       """
     Then the thread of "Site visit" lists "Site visit, Re: Site visit" in time order
 
-  Scenario: A mail under a provider thread id joins the newest conversation that took it
+  Scenario: A mail under a provider thread id joins the conversation near its own time
     Given this mail reached "Acme" in the provider thread "conversation-invoices":
       """
       From: Maria Perez <maria.perez@example.com>
@@ -537,6 +537,46 @@ Feature: A mail joins the thread of its conversation
       """
     Then the workspace "Acme" holds 2 threads
     And the mails "Invoice for April" and "A question on the April invoice" share a thread
+    And the mails "Invoice for March" and "Invoice for April" do not share a thread
+
+  Scenario: An older mail fed after a newer conversation joins the conversation of its own time
+    Given this mail reached "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice for March
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <invoice-march@example.com>
+      Content-Type: text/plain
+
+      Here is the invoice for March.
+      """
+    And 30 days pass
+    And this mail reached "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Invoice for April
+      Date: Wed, 02 Dec 2026 09:00:00 +0000
+      Message-ID: <invoice-april@example.com>
+      Content-Type: text/plain
+
+      Here is the invoice for April.
+      """
+    And the next mail is received 1 day after the first mail
+    When this mail reaches "Acme" in the provider thread "conversation-invoices":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: A question on the March invoice
+      Date: Tue, 03 Nov 2026 09:00:00 +0000
+      Message-ID: <invoice-march-question@example.com>
+      Content-Type: text/plain
+
+      Does the March invoice include the lamp?
+      """
+    Then the workspace "Acme" holds 2 threads
+    And the mails "Invoice for March" and "A question on the March invoice" share a thread
     And the mails "Invoice for March" and "Invoice for April" do not share a thread
 
   Scenario: A copy that brings a provider thread id leads later mail of that thread to the stored mail

@@ -174,7 +174,7 @@ func TestWriteMailReportsEachStatementOfANewMailThatFails(t *testing.T) {
 
 	for _, fragment := range []string{
 		"FOR NO KEY UPDATE", "SELECT message_id FROM plugin_email.provider_refs", "AND dedupe_key = $3",
-		"JOIN plugin_email.threads t ON t.id = k.thread_id", "INSERT INTO plugin_email.messages",
+		"FROM plugin_email.thread_keys k", "INSERT INTO plugin_email.messages",
 		"INSERT INTO plugin_email.provider_refs", "INSERT INTO plugin_email.message_contacts",
 		"INSERT INTO plugin_email.attachments", "INSERT INTO plugin_email.thread_keys",
 		"SELECT message_id FROM plugin_email.thread_keys", "UPDATE plugin_email.threads SET",

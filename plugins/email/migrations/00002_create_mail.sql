@@ -74,8 +74,11 @@ CREATE TABLE plugin_email.thread_keys (
     thread_id uuid NOT NULL REFERENCES plugin_email.threads (id) ON DELETE CASCADE,
     message_id uuid REFERENCES plugin_email.messages (id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (tenant_id, mailbox_id, kind, key)
+    PRIMARY KEY (tenant_id, mailbox_id, kind, key, thread_id)
 );
+CREATE UNIQUE INDEX thread_keys_one_thread_idx
+    ON plugin_email.thread_keys (tenant_id, mailbox_id, kind, key)
+    WHERE kind <> 'provider_thread';
 CREATE INDEX thread_keys_thread_id_idx ON plugin_email.thread_keys (thread_id);
 CREATE INDEX thread_keys_message_id_idx ON plugin_email.thread_keys (message_id) WHERE message_id IS NOT NULL;
 

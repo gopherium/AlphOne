@@ -262,6 +262,7 @@ func (s *emailScenario) bindSetup(sc *godog.ScenarioContext) {
 	sc.Given(`^the workspace "([^"]*)" was deactivated a day ago$`, s.deactivate)
 	sc.Given(`^a webhook of "([^"]*)" listens for "([^"]*)"$`, s.listenFor)
 	sc.Step(`^(\d+) days? pass(?:es)?$`, s.letDaysPass)
+	sc.Step(`^the next mail is received (\d+) days? after the first mail$`, s.setReceivedDaysAfterTheFirstMail)
 }
 
 // bindFeeds binds the steps that feed raw mail through email:ingest.
@@ -439,6 +440,11 @@ func (s *emailScenario) listenFor(ctx context.Context, workspace, name string) e
 // letDaysPass moves the time the next mail is received at the given number of days on.
 func (s *emailScenario) letDaysPass(days int) {
 	s.received = s.received.Add(time.Duration(days) * 24 * time.Hour)
+}
+
+// setReceivedDaysAfterTheFirstMail sets the time the next mail is received at the given number of days after the first.
+func (s *emailScenario) setReceivedDaysAfterTheFirstMail(days int) {
+	s.received = firstReceived.Add(time.Duration(days) * 24 * time.Hour)
 }
 
 // answer runs the compiled command line over the scenario's settings, feeding stdin.

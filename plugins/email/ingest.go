@@ -703,7 +703,7 @@ func (p *ingester) insertParts(
 	if err := insertAttachments(ctx, tx, tenant, id, files); err != nil {
 		return err
 	}
-	if err := claimMailKeys(ctx, tx, tenant, thread, row.threadID, id, p.times.subjectThreadWindow); err != nil {
+	if err := claimMailKeys(ctx, tx, tenant, thread, row.threadID, id); err != nil {
 		return err
 	}
 	entry := threadEntry{subject: row.subject, subjectKey: subjectKeyOf(mail.message.Subject), at: row.receivedAt}
@@ -762,7 +762,7 @@ func (p *ingester) addCopy(
 		return 0, err
 	}
 	keys := p.threadKeysOf(mail).mentioned()
-	if err := claimThreadKeys(ctx, tx, tenant, id, keys, p.times.subjectThreadWindow); err != nil {
+	if err := claimThreadKeys(ctx, tx, tenant, id, keys); err != nil {
 		return 0, err
 	}
 	if mail.in.SentCopy {

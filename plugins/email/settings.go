@@ -38,7 +38,7 @@ const (
 	defaultWorkspaceMaxBytes = 5 << 30
 	// defaultEventTextMaxBytes is the most text an event carries when ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES is unset, 16 KiB.
 	defaultEventTextMaxBytes = 16 << 10
-	// defaultSubjectThreadWindow is how long a subject joins a thread when ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW is unset.
+	// defaultSubjectThreadWindow is the subject and provider id window when ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW is unset.
 	defaultSubjectThreadWindow = 14 * 24 * time.Hour
 	// defaultThreadReferencesMax is the most reply ids kept when ALPHONE_EMAIL_THREAD_REFERENCES_MAX is unset.
 	defaultThreadReferencesMax = 64
@@ -64,7 +64,7 @@ type settings struct {
 	caps mailCaps
 	// files bound the bytes one attachment and one workspace keep as files.
 	files fileCaps
-	// times bound how long a subject joins a thread, a mail keeps failing and a clean up runs.
+	// times bound how near a subject or provider id joins a thread, how long a mail keeps failing and a clean up runs.
 	times timeLimits
 	// sweep paces the loop that deletes the files no stored mail holds.
 	sweep sweepSettings
@@ -96,9 +96,9 @@ type fileCaps struct {
 	workspaceMaxBytes int
 }
 
-// timeLimits bound how long a subject joins a thread, a mail keeps failing and a clean up runs.
+// timeLimits bound how near a subject or provider id joins a thread, how long a mail keeps failing and a clean up runs.
 type timeLimits struct {
-	// subjectThreadWindow is how long after a thread's first or last mail a subject still joins it.
+	// subjectThreadWindow is how near a thread a mail must be to join it by its subject or its provider thread id.
 	subjectThreadWindow time.Duration
 	// retryWindow is how long a mail that keeps failing is tried again before it is set aside.
 	retryWindow time.Duration

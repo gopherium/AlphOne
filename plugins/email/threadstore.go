@@ -29,20 +29,10 @@ type threadKey struct {
 	hash [32]byte
 }
 
-// threadSpan is one thread beside the times of its first and last mail.
-type threadSpan struct {
-	// id names the thread.
-	id uuid.UUID
-	// firstMessageAt is when the first mail of the thread was received.
-	firstMessageAt time.Time
-	// lastMessageAt is when the last mail of the thread was received.
-	lastMessageAt time.Time
-}
-
 // keyedThread is the thread a key leads to, beside whether a stored mail holds the key.
 type keyedThread struct {
-	// thread is the thread the key points at.
-	thread threadSpan
+	// threadID names the thread the key points at.
+	threadID uuid.UUID
 	// mailHeld reports a key a stored mail holds, false for a placeholder some mail only mentions.
 	mailHeld bool
 }
@@ -71,6 +61,18 @@ type subjectSearch struct {
 	senders []uuid.UUID
 }
 
+// providerSearch is what the provider thread step looks for in one mailbox.
+type providerSearch struct {
+	// mailboxID names the mailbox searched.
+	mailboxID uuid.UUID
+	// key is the provider thread key a thread must hold.
+	key threadKey
+	// at is when the mailbox received the mail looking for a thread.
+	at time.Time
+	// window is how far before its first mail or after its last mail a thread still takes the mail.
+	window time.Duration
+}
+
 // keyColumns returns the kinds and the hashes of keys, in order, as two columns.
 func keyColumns(keys []threadKey) ([]string, [][]byte) {
 	kinds, hashes := make([]string, len(keys)), make([][]byte, len(keys))
@@ -96,21 +98,17 @@ func insertThread(ctx context.Context, tx pgx.Tx, tenant, mailboxID uuid.UUID, e
 	return id, nil
 }
 
-// claimThreadKeys points each free key, and a provider key quiet for a window, at the thread of the mail messageID.
-func claimThreadKeys(
-	ctx context.Context, tx pgx.Tx, tenant, messageID uuid.UUID, keys []threadKey, window time.Duration,
-) error {
+// claimThreadKeys points each free key at the thread of the stored mail messageID and adds it to a provider key.
+func claimThreadKeys(ctx context.Context, tx pgx.Tx, tenant, messageID uuid.UUID, keys []threadKey) error {
 	kinds, hashes := keyColumns(keys)
 	_, err := tx.Exec(ctx, `WITH mail AS (
-			SELECT mailbox_id, thread_id, received_at FROM plugin_email.messages WHERE tenant_id = $1 AND id = $2
+			SELECT mailbox_id, thread_id FROM plugin_email.messages WHERE tenant_id = $1 AND id = $2
 		)
-		INSERT INTO plugin_email.thread_keys AS held (tenant_id, mailbox_id, kind, key, thread_id)
+		INSERT INTO plugin_email.thread_keys (tenant_id, mailbox_id, kind, key, thread_id)
 		SELECT $1, mail.mailbox_id, listed.kind, listed.key, mail.thread_id
 		FROM mail, unnest($3::text[], $4::bytea[]) AS listed (kind, key)
-		ON CONFLICT (tenant_id, mailbox_id, kind, key) DO UPDATE SET thread_id = EXCLUDED.thread_id
-		WHERE held.kind = $5 AND (SELECT t.last_message_at FROM plugin_email.threads t
-			WHERE t.tenant_id = $1 AND t.id = held.thread_id) < (SELECT received_at FROM mail) - $6::interval`,
-		tenant, messageID, kinds, hashes, providerThreadKind, window)
+		ON CONFLICT DO NOTHING`,
+		tenant, messageID, kinds, hashes)
 	if err != nil {
 		return fmt.Errorf("email: claim thread keys: %w", err)
 	}
@@ -124,7 +122,7 @@ func holdMessageIDKey(
 	_, err := tx.Exec(ctx, `INSERT INTO plugin_email.thread_keys
 			(tenant_id, mailbox_id, kind, key, thread_id, message_id)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (tenant_id, mailbox_id, kind, key) DO UPDATE
+		ON CONFLICT (tenant_id, mailbox_id, kind, key) WHERE kind <> 'provider_thread' DO UPDATE
 		SET thread_id = EXCLUDED.thread_id, message_id = EXCLUDED.message_id
 		WHERE plugin_email.thread_keys.message_id IS NULL`,
 		tenant, mailboxID, internetMessageIDKind, hash[:], threadID, messageID)
@@ -139,10 +137,8 @@ func readKeyedThreads(
 	ctx context.Context, tx pgx.Tx, tenant, mailboxID uuid.UUID, keys []threadKey,
 ) (map[threadKey]keyedThread, error) {
 	kinds, hashes := keyColumns(keys)
-	rows, _ := tx.Query(ctx, `SELECT k.kind, k.key, k.message_id IS NOT NULL, t.id, t.first_message_at,
-			t.last_message_at
+	rows, _ := tx.Query(ctx, `SELECT k.kind, k.key, k.message_id IS NOT NULL, k.thread_id
 		FROM plugin_email.thread_keys k
-		JOIN plugin_email.threads t ON t.id = k.thread_id
 		WHERE k.tenant_id = $1 AND k.mailbox_id = $2 AND (k.kind, k.key) IN (
 			SELECT listed.kind, listed.key FROM unnest($3::text[], $4::bytea[]) AS listed (kind, key))`,
 		tenant, mailboxID, kinds, hashes)
@@ -150,10 +146,7 @@ func readKeyedThreads(
 	var key threadKey
 	var hash []byte
 	var thread keyedThread
-	_, err := pgx.ForEachRow(rows, []any{
-		&key.kind, &hash, &thread.mailHeld, &thread.thread.id, &thread.thread.firstMessageAt,
-		&thread.thread.lastMessageAt,
-	}, func() error {
+	_, err := pgx.ForEachRow(rows, []any{&key.kind, &hash, &thread.mailHeld, &thread.threadID}, func() error {
 		copy(key.hash[:], hash)
 		keyed[key] = thread
 		return nil
@@ -162,6 +155,22 @@ func readKeyedThreads(
 		return nil, fmt.Errorf("email: read keyed threads: %w", err)
 	}
 	return keyed, nil
+}
+
+// readProviderThreads returns the threads holding the search key whose span holds the search time, nearest first.
+func readProviderThreads(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, search providerSearch) ([]uuid.UUID, error) {
+	rows, _ := tx.Query(ctx, `SELECT t.id FROM plugin_email.thread_keys k
+		JOIN plugin_email.threads t ON t.id = k.thread_id
+		WHERE k.tenant_id = $1 AND k.mailbox_id = $2 AND k.kind = $3 AND k.key = $4
+			AND $5::timestamptz BETWEEN t.first_message_at - $6::interval AND t.last_message_at + $6::interval
+		ORDER BY GREATEST(t.first_message_at - $5::timestamptz, $5::timestamptz - t.last_message_at, interval '0'),
+			t.first_message_at, t.id`,
+		tenant, search.mailboxID, search.key.kind, search.key.hash[:], search.at, search.window)
+	threads, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return nil, fmt.Errorf("email: read provider threads: %w", err)
+	}
+	return threads, nil
 }
 
 // readThreadContacts returns the contacts linked to a mail of each thread, leaving out a thread that holds none.
@@ -211,7 +220,7 @@ func readSubjectThread(
 	return id, true, nil
 }
 
-// mergeThreads moves the mails and keys of the newer of two threads to the older one, removes it and returns the older.
+// mergeThreads moves the newer of two threads into the older, keeping one row of each key, and returns the older.
 func mergeThreads(ctx context.Context, tx pgx.Tx, tenant, first, second uuid.UUID) (uuid.UUID, error) {
 	var kept uuid.UUID
 	err := tx.QueryRow(ctx, `WITH pair AS (
@@ -227,7 +236,10 @@ func mergeThreads(ctx context.Context, tx pgx.Tx, tenant, first, second uuid.UUI
 			WHERE m.tenant_id = $1 AND m.thread_id = gone.id
 		), moved_keys AS (
 			UPDATE plugin_email.thread_keys k SET thread_id = kept.id FROM kept, gone
-			WHERE k.tenant_id = $1 AND k.thread_id = gone.id
+			WHERE k.tenant_id = $1 AND k.thread_id = gone.id AND NOT EXISTS (
+				SELECT FROM plugin_email.thread_keys h
+				WHERE h.tenant_id = $1 AND h.mailbox_id = k.mailbox_id AND h.kind = k.kind AND h.key = k.key
+					AND h.thread_id = kept.id)
 		), removed AS (
 			DELETE FROM plugin_email.threads t USING gone WHERE t.tenant_id = $1 AND t.id = gone.id
 		)

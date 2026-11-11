@@ -52,8 +52,10 @@ type threadMail struct {
 type threadSearch struct {
 	// mail is the mail looking for its thread.
 	mail threadMail
-	// keyed maps each key of the mail the mailbox holds to the thread it leads to.
+	// keyed maps each header key of the mail the mailbox holds to the thread it leads to.
 	keyed map[threadKey]keyedThread
+	// providerThreads are the threads the provider thread id of the mail leads to near its time, nearest first.
+	providerThreads []uuid.UUID
 	// contacts maps each thread a key leads to to the contacts its mail is linked to.
 	contacts map[uuid.UUID][]uuid.UUID
 }
@@ -143,12 +145,15 @@ func (keys mailKeys) mentioned() []threadKey {
 	return listed
 }
 
-// all returns every key of the mail.
-func (keys mailKeys) all() []threadKey {
-	if keys.own == nil {
-		return keys.mentioned()
+// headerKeys returns every key the headers of the mail give, all but the provider thread id.
+func (keys mailKeys) headerKeys() []threadKey {
+	listed := slices.Clone(keys.replies)
+	for _, key := range []*threadKey{keys.own, keys.index} {
+		if key != nil {
+			listed = append(listed, *key)
+		}
 	}
-	return append(keys.mentioned(), *keys.own)
+	return listed
 }
 
 // namedContacts returns every contact the mail names.
@@ -192,12 +197,13 @@ func chooseThread(
 func findThread(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail threadMail, window time.Duration,
 ) (uuid.UUID, bool, error) {
-	search, err := readThreadSearch(ctx, tx, tenant, mail)
+	search, err := readThreadSearch(ctx, tx, tenant, mail, window)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	if thread, found := search.findByProviderThread(window); found {
-		return thread, true, nil
+	if passing := search.findByProviderThread(); len(passing) > 0 {
+		thread, err := search.mergeSharingThreads(ctx, tx, tenant, passing)
+		return thread, err == nil, err
 	}
 	if passing := search.findByReplyIDs(); len(passing) > 0 {
 		thread, err := search.mergeSharingThreads(ctx, tx, tenant, passing)
@@ -209,21 +215,32 @@ func findThread(
 	return findBySubject(ctx, tx, tenant, mail, window)
 }
 
-// readThreadSearch reads the threads the keys of a mail lead to, and the contacts of those threads.
-func readThreadSearch(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail threadMail) (threadSearch, error) {
-	keyed, err := readKeyedThreads(ctx, tx, tenant, mail.mailboxID, mail.keys.all())
+// readThreadSearch reads the threads the keys of a mail lead to near its time, and the contacts of those threads.
+func readThreadSearch(
+	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail threadMail, window time.Duration,
+) (threadSearch, error) {
+	keyed, err := readKeyedThreads(ctx, tx, tenant, mail.mailboxID, mail.keys.headerKeys())
 	if err != nil {
 		return threadSearch{}, err
 	}
-	threads := make([]uuid.UUID, 0, len(keyed))
+	var providerThreads []uuid.UUID
+	if mail.keys.provider != nil {
+		providerThreads, err = readProviderThreads(ctx, tx, tenant, providerSearch{
+			mailboxID: mail.mailboxID, key: *mail.keys.provider, at: mail.receivedAt, window: window,
+		})
+		if err != nil {
+			return threadSearch{}, err
+		}
+	}
+	threads := slices.Clone(providerThreads)
 	for _, held := range keyed {
-		threads = append(threads, held.thread.id)
+		threads = append(threads, held.threadID)
 	}
 	contacts, err := readThreadContacts(ctx, tx, tenant, threads)
 	if err != nil {
 		return threadSearch{}, err
 	}
-	return threadSearch{mail: mail, keyed: keyed, contacts: contacts}, nil
+	return threadSearch{mail: mail, keyed: keyed, providerThreads: providerThreads, contacts: contacts}, nil
 }
 
 // lookup returns the thread key leads to, and false when key is nil or leads nowhere.
@@ -240,32 +257,21 @@ func (s threadSearch) holds(thread uuid.UUID, contacts []uuid.UUID) bool {
 	return sharesContact(s.contacts[thread], contacts)
 }
 
-// findByProviderThread returns the thread the provider thread id leads to when the hit counts and it holds a sender.
-func (s threadSearch) findByProviderThread(window time.Duration) (uuid.UUID, bool) {
-	held, found := s.lookup(s.mail.keys.provider)
-	if !found || !s.providerThreadTakesMail(held.thread, window) {
-		return uuid.Nil, false
-	}
-	return held.thread.id, true
-}
-
-// providerThreadTakesMail reports whether a provider thread id hit on thread counts and thread holds a sender.
-func (s threadSearch) providerThreadTakesMail(thread threadSpan, window time.Duration) bool {
-	return s.providerHitCounts(thread, window) && s.holds(thread.id, s.mail.senderContacts())
-}
-
-// providerHitCounts reports whether the mail carries reply ids or a Thread-Index, or falls within window of thread.
-func (s threadSearch) providerHitCounts(thread threadSpan, window time.Duration) bool {
-	return len(s.mail.keys.replies) > 0 || s.mail.keys.index != nil || withinWindow(thread, s.mail.receivedAt, window)
+// findByProviderThread returns the threads the provider thread id leads to near the mail that hold a sender.
+func (s threadSearch) findByProviderThread() []uuid.UUID {
+	senders := s.mail.senderContacts()
+	return slices.DeleteFunc(slices.Clone(s.providerThreads), func(thread uuid.UUID) bool {
+		return !s.holds(thread, senders)
+	})
 }
 
 // findByThreadIndex returns the thread the Thread-Index conversation leads to when it holds a sender.
 func (s threadSearch) findByThreadIndex() (uuid.UUID, bool) {
 	held, found := s.lookup(s.mail.keys.index)
-	if !found || !s.holds(held.thread.id, s.mail.senderContacts()) {
+	if !found || !s.holds(held.threadID, s.mail.senderContacts()) {
 		return uuid.Nil, false
 	}
-	return held.thread.id, true
+	return held.threadID, true
 }
 
 // replyThreads returns each once the threads the reply ids lead to nearest first, then the thread of an own id mention.
@@ -273,11 +279,11 @@ func (s threadSearch) replyThreads() []uuid.UUID {
 	var threads []uuid.UUID
 	for _, key := range s.mail.keys.replies {
 		if held, found := s.keyed[key]; found {
-			threads = append(threads, held.thread.id)
+			threads = append(threads, held.threadID)
 		}
 	}
 	if held, found := s.lookup(s.mail.keys.own); found && !held.mailHeld {
-		threads = append(threads, held.thread.id)
+		threads = append(threads, held.threadID)
 	}
 	return distinct(threads)
 }
@@ -323,25 +329,13 @@ func findBySubject(
 // claimMailKeys points the keys of a stored mail at its thread as claimThreadKeys does, taking back its own Message-ID.
 func claimMailKeys(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail threadMail, threadID, messageID uuid.UUID,
-	window time.Duration,
 ) error {
 	if own := mail.keys.own; own != nil {
 		if err := holdMessageIDKey(ctx, tx, tenant, mail.mailboxID, threadID, messageID, own.hash); err != nil {
 			return err
 		}
 	}
-	return claimThreadKeys(ctx, tx, tenant, messageID, mail.keys.mentioned(), window)
-}
-
-// withinWindow reports whether at falls within window of the first or the last mail of thread.
-func withinWindow(thread threadSpan, at time.Time, window time.Duration) bool {
-	return near(thread.firstMessageAt, at, window) || near(thread.lastMessageAt, at, window)
-}
-
-// near reports whether a and b lie at most window apart.
-func near(a, b time.Time, window time.Duration) bool {
-	gap := a.Sub(b)
-	return gap <= window && gap >= -window
+	return claimThreadKeys(ctx, tx, tenant, messageID, mail.keys.mentioned())
 }
 
 // sharesContact reports whether a and b hold a contact in common.

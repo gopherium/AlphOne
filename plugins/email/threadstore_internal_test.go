@@ -65,9 +65,22 @@ func storeMailAt(t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, after t
 func claimKeys(t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, keys ...threadKey) {
 	t.Helper()
 	mail := storeLinkedMail(t, tx, box, thread)
-	if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, keys, testWindow); err != nil {
+	if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, keys); err != nil {
 		t.Fatalf("claimThreadKeys() error = %v, want nil", err)
 	}
+}
+
+// keyThreads reads the threads the rows of the key of the mailbox box point at, in id order.
+func keyThreads(t *testing.T, tx pgx.Tx, box mailbox, key threadKey) []uuid.UUID {
+	t.Helper()
+	rows, _ := tx.Query(t.Context(), `SELECT thread_id FROM plugin_email.thread_keys
+		WHERE tenant_id = $1 AND mailbox_id = $2 AND kind = $3 AND key = $4 ORDER BY thread_id`,
+		sdk.DefaultTenantID, box.id, key.kind, key.hash[:])
+	threads, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		t.Fatalf("reading the threads of the key: %v", err)
+	}
+	return threads
 }
 
 // heldKey is where one row of plugin_email.thread_keys points.
@@ -90,6 +103,13 @@ func keyRow(t *testing.T, tx pgx.Tx, box mailbox, key threadKey) heldKey {
 		held.message = *message
 	}
 	return held
+}
+
+// threadSpan is one thread beside the times of its first and last mail.
+type threadSpan struct {
+	id             uuid.UUID
+	firstMessageAt time.Time
+	lastMessageAt  time.Time
 }
 
 // storedSpan reads the subject, the subject key and the times of one thread.
@@ -189,37 +209,98 @@ func TestClaimThreadKeysLeavesAKeyWithTheThreadThatClaimedItFirst(t *testing.T) 
 	}
 }
 
-func TestClaimThreadKeysMovesAProviderKeyOnlyPastTheWindow(t *testing.T) {
+func TestClaimThreadKeysAddsTheThreadOfTheMailToAProviderKeyAnotherThreadHolds(t *testing.T) {
 	t.Parallel()
 
-	for _, claim := range []struct {
-		name  string
-		kind  string
-		after time.Duration
-		moves bool
-	}{
-		{name: "a provider key past the window", kind: providerThreadKind, after: testWindow + time.Second, moves: true},
-		{name: "a provider key at the window", kind: providerThreadKind, after: testWindow},
-		{name: "a provider key from an older mail", kind: providerThreadKind, after: -testWindow - time.Second},
-		{name: "a reply id past the window", kind: internetMessageIDKind, after: testWindow + time.Second},
-		{name: "a Thread-Index past the window", kind: threadIndexKind, after: testWindow + time.Second},
+	for name, gap := range map[string]time.Duration{
+		"a minute later":           time.Minute,
+		"past the window":          testWindow + time.Second,
+		"before the window starts": -testWindow - time.Second,
 	} {
-		t.Run(claim.name, func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			tx, box := newMailbox(t)
 			first := storeThread(t, tx, box, entryAt("Invoice", 0))
-			key := hashedKey(claim.kind, "file:conversation")
-			claimKeys(t, tx, box, first, key)
-			later := storeThread(t, tx, box, entryAt("Invoice", claim.after))
-			mail := storeMailAt(t, tx, box, later, claim.after)
+			provider := hashedKey(providerThreadKind, "file:conversation")
+			headers := []threadKey{hashedKey(internetMessageIDKind, "request@example.com"),
+				hashedKey(threadIndexKind, "conversation guid")}
+			claimKeys(t, tx, box, first, append(headers, provider)...)
+			later := storeThread(t, tx, box, entryAt("Invoice", gap))
+			mail := storeMailAt(t, tx, box, later, gap)
 
-			if err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, []threadKey{key}, testWindow); err != nil {
+			err := claimThreadKeys(t.Context(), tx, sdk.DefaultTenantID, mail, append(headers, provider))
+
+			if err != nil {
 				t.Fatalf("claimThreadKeys() error = %v, want nil", err)
 			}
+			if got := keyThreads(t, tx, box, provider); !slices.Equal(got, []uuid.UUID{first, later}) {
+				t.Errorf("the provider key %s points at %v, want both threads %v and %v", name, got, first, later)
+			}
+			for _, key := range headers {
+				if got := keyThreads(t, tx, box, key); !slices.Equal(got, []uuid.UUID{first}) {
+					t.Errorf("the %s key %s points at %v, want the first thread %v alone", key.kind, name, got, first)
+				}
+			}
+		})
+	}
+}
 
-			if held := keyRow(t, tx, box, key); (held.thread == later) != claim.moves {
-				t.Errorf("%s moved to the later thread = %t, want %t", claim.name, held.thread == later, claim.moves)
+func TestClaimThreadKeysWritesAProviderKeyOnceForOneThread(t *testing.T) {
+	t.Parallel()
+
+	tx, box := newMailbox(t)
+	thread := storeThread(t, tx, box, entryAt("Invoice", 0))
+	key := hashedKey(providerThreadKind, "file:conversation")
+	claimKeys(t, tx, box, thread, key)
+
+	claimKeys(t, tx, box, thread, key, key)
+
+	if got := keyThreads(t, tx, box, key); !slices.Equal(got, []uuid.UUID{thread}) {
+		t.Errorf("the provider key claimed three times by one thread points at %v, want one row of %v", got, thread)
+	}
+}
+
+// insertKeyRow stores a row of the key of the mailbox box pointing at the thread.
+func insertKeyRow(t *testing.T, tx pgx.Tx, box mailbox, key threadKey, thread uuid.UUID) error {
+	t.Helper()
+	_, err := tx.Exec(t.Context(), `INSERT INTO plugin_email.thread_keys (tenant_id, mailbox_id, kind, key, thread_id)
+		VALUES ($1, $2, $3, $4, $5)`, sdk.DefaultTenantID, box.id, key.kind, key.hash[:], thread)
+	return err
+}
+
+func TestThreadKeysHoldOneThreadForEachHeaderKeyAndOneRowForEachThreadOfAProviderKey(t *testing.T) {
+	t.Parallel()
+
+	for _, second := range []struct {
+		name       string
+		kind       string
+		sameThread bool
+		code       string
+	}{
+		{name: "a Message-ID of another thread", kind: internetMessageIDKind, code: uniqueViolation},
+		{name: "a Thread-Index of another thread", kind: threadIndexKind, code: uniqueViolation},
+		{name: "a provider thread id of another thread", kind: providerThreadKind},
+		{name: "a provider thread id of the same thread", kind: providerThreadKind, sameThread: true, code: uniqueViolation},
+	} {
+		t.Run(second.name, func(t *testing.T) {
+			t.Parallel()
+
+			tx, box := newMailbox(t)
+			first := storeThread(t, tx, box, entryAt("Invoice", 0))
+			target := storeThread(t, tx, box, entryAt("Invoice", time.Hour))
+			if second.sameThread {
+				target = first
+			}
+			key := hashedKey(second.kind, "file:conversation")
+			if err := insertKeyRow(t, tx, box, key, first); err != nil {
+				t.Fatalf("storing the first row of the key: %v", err)
+			}
+
+			err := insertKeyRow(t, tx, box, key, target)
+
+			if pgCode(err) != second.code || (err == nil) != (second.code == "") {
+				t.Errorf("storing %s error = %v, want the code %q", second.name, err, second.code)
 			}
 		})
 	}
@@ -303,24 +384,10 @@ func TestReadKeyedThreadsAnswersTheThreadOfEachKeyTheMailboxHolds(t *testing.T) 
 	if err != nil {
 		t.Fatalf("readKeyedThreads() error = %v, want nil", err)
 	}
-	want := map[threadKey]keyedThread{
-		mentioned: {thread: threadSpan{id: first, firstMessageAt: mailReceived, lastMessageAt: mailReceived}},
-		held: {thread: threadSpan{id: second, firstMessageAt: mailReceived.Add(time.Hour),
-			lastMessageAt: mailReceived.Add(time.Hour)}, mailHeld: true},
-	}
-	if !reflect.DeepEqual(utcSpans(keyed), want) {
+	want := map[threadKey]keyedThread{mentioned: {threadID: first}, held: {threadID: second, mailHeld: true}}
+	if !reflect.DeepEqual(keyed, want) {
 		t.Errorf("readKeyedThreads() = %+v, want %+v", keyed, want)
 	}
-}
-
-// utcSpans returns keyed with every time of every span in UTC.
-func utcSpans(keyed map[threadKey]keyedThread) map[threadKey]keyedThread {
-	for key, thread := range keyed {
-		thread.thread.firstMessageAt = thread.thread.firstMessageAt.UTC()
-		thread.thread.lastMessageAt = thread.thread.lastMessageAt.UTC()
-		keyed[key] = thread
-	}
-	return keyed
 }
 
 func TestReadKeyedThreadsLeavesOutTheKeysOfAnotherWorkspace(t *testing.T) {
@@ -337,7 +404,7 @@ func TestReadKeyedThreadsLeavesOutTheKeysOfAnotherWorkspace(t *testing.T) {
 	}
 	key := hashedKey(internetMessageIDKind, "request@example.com")
 	mail := storeMail(t, tx, second, mailRow(foreign, thread))
-	if err := claimThreadKeys(t.Context(), tx, second, mail, []threadKey{key}, testWindow); err != nil {
+	if err := claimThreadKeys(t.Context(), tx, second, mail, []threadKey{key}); err != nil {
 		t.Fatalf("claimThreadKeys() error = %v, want nil", err)
 	}
 
@@ -346,6 +413,84 @@ func TestReadKeyedThreadsLeavesOutTheKeysOfAnotherWorkspace(t *testing.T) {
 
 		if err != nil || len(keyed) != 0 {
 			t.Errorf("readKeyedThreads() of another workspace's key = %+v, %v, want none", keyed, err)
+		}
+	}
+}
+
+func TestReadProviderThreadsAnswersTheThreadsWhoseSpanHoldsTheTimeNearestFirst(t *testing.T) {
+	t.Parallel()
+
+	tx, box := newMailbox(t)
+	key := hashedKey(providerThreadKind, "file:conversation")
+	threads := map[string]uuid.UUID{
+		"older": storeThread(t, tx, box, entryAt("Invoice", 0)),
+		"newer": storeThread(t, tx, box, entryAt("Invoice", 10*time.Hour)),
+	}
+	if err := updateThreadSpan(t.Context(), tx, sdk.DefaultTenantID, threads["older"],
+		entryAt("Invoice", 4*time.Hour)); err != nil {
+		t.Fatalf("updateThreadSpan() error = %v, want nil", err)
+	}
+	claimKeys(t, tx, box, threads["older"], key)
+	claimKeys(t, tx, box, threads["newer"], key)
+
+	for _, search := range []struct {
+		name   string
+		after  time.Duration
+		window time.Duration
+		want   []string
+	}{
+		{name: "the window before the first mail", after: -time.Hour, window: time.Hour, want: []string{"older"}},
+		{name: "a second before that", after: -time.Hour - time.Second, window: time.Hour},
+		{name: "between the first and the last mail", after: 2 * time.Hour, window: time.Hour, want: []string{"older"}},
+		{name: "the window after the last mail", after: 5 * time.Hour, window: time.Hour, want: []string{"older"}},
+		{name: "a second after that", after: 5*time.Hour + time.Second, window: time.Hour},
+		{name: "nearer the older thread", after: 6 * time.Hour, window: 4 * time.Hour, want: []string{"older", "newer"}},
+		{name: "nearer the newer thread", after: 8 * time.Hour, window: 4 * time.Hour, want: []string{"newer", "older"}},
+		{name: "as near to both", after: 7 * time.Hour, window: 4 * time.Hour, want: []string{"older", "newer"}},
+	} {
+		found, err := readProviderThreads(t.Context(), tx, sdk.DefaultTenantID, providerSearch{
+			mailboxID: box.id, key: key, at: mailReceived.Add(search.after), window: search.window,
+		})
+
+		want := make([]uuid.UUID, 0, len(search.want))
+		for _, name := range search.want {
+			want = append(want, threads[name])
+		}
+		if err != nil || !slices.Equal(found, want) {
+			t.Errorf("readProviderThreads() %s = %v, %v, want %v, the threads %q", search.name, found, err, want,
+				search.want)
+		}
+	}
+}
+
+func TestReadProviderThreadsLeavesOutAnotherKeyAndAnotherWorkspace(t *testing.T) {
+	t.Parallel()
+
+	pool := newMigratedPool(t)
+	second := storeWorkspace(t, pool)
+	foreign := storeMailbox(t, pool, second)
+	box := storeMailbox(t, pool, sdk.DefaultTenantID)
+	tx := beginTx(t, pool)
+	key := hashedKey(providerThreadKind, "file:conversation")
+	own := storeThread(t, tx, box, entryAt("Invoice", 0))
+	claimKeys(t, tx, box, own, hashedKey(providerThreadKind, "file:other"),
+		hashedKey(internetMessageIDKind, "file:conversation"))
+	thread, err := insertThread(t.Context(), tx, second, foreign.id, entryAt("Invoice", 0))
+	if err != nil {
+		t.Fatalf("insertThread() error = %v, want nil", err)
+	}
+	mail := storeMail(t, tx, second, mailRow(foreign, thread))
+	if err := claimThreadKeys(t.Context(), tx, second, mail, []threadKey{key}); err != nil {
+		t.Fatalf("claimThreadKeys() error = %v, want nil", err)
+	}
+
+	for _, mailboxID := range []uuid.UUID{box.id, foreign.id} {
+		found, err := readProviderThreads(t.Context(), tx, sdk.DefaultTenantID, providerSearch{
+			mailboxID: mailboxID, key: key, at: mailReceived, window: testWindow,
+		})
+
+		if err != nil || len(found) != 0 {
+			t.Errorf("readProviderThreads() of another key or another workspace's key = %v, %v, want none", found, err)
 		}
 	}
 }
@@ -480,6 +625,28 @@ func TestMergeThreadsMovesMessagesAndKeysAndRemovesTheEmptyThread(t *testing.T) 
 	}
 }
 
+func TestMergeThreadsKeepsOneRowOfAProviderKeyBothThreadsHold(t *testing.T) {
+	t.Parallel()
+
+	tx, box := newMailbox(t)
+	older := storeThread(t, tx, box, entryAt("Invoice", 0))
+	newer := storeThread(t, tx, box, entryAt("Invoice", time.Minute))
+	shared, moved := hashedKey(providerThreadKind, "file:conversation"), hashedKey(providerThreadKind, "file:newer")
+	claimKeys(t, tx, box, older, shared)
+	claimKeys(t, tx, box, newer, shared, moved)
+
+	thread, err := mergeThreads(t.Context(), tx, sdk.DefaultTenantID, newer, older)
+
+	if err != nil || thread != older {
+		t.Fatalf("mergeThreads() = %v, %v, want the older thread %v kept", thread, err, older)
+	}
+	for name, key := range map[string]threadKey{"both threads": shared, "the newer thread alone": moved} {
+		if got := keyThreads(t, tx, box, key); !slices.Equal(got, []uuid.UUID{older}) {
+			t.Errorf("the provider key %s held points at %v, want one row of the kept thread %v", name, got, older)
+		}
+	}
+}
+
 func TestMergeThreadsKeepsTheEarliestSubjectAndTheLatestTime(t *testing.T) {
 	t.Parallel()
 
@@ -550,13 +717,17 @@ func TestThreadStatementsReportAnEndedTransaction(t *testing.T) {
 			return err
 		},
 		"email: claim thread keys: ": func() error {
-			return claimThreadKeys(ctx, tx, sdk.DefaultTenantID, id, []threadKey{key}, testWindow)
+			return claimThreadKeys(ctx, tx, sdk.DefaultTenantID, id, []threadKey{key})
 		},
 		"email: hold message id key: ": func() error {
 			return holdMessageIDKey(ctx, tx, sdk.DefaultTenantID, id, id, id, key.hash)
 		},
 		"email: read keyed threads: ": func() error {
 			_, err := readKeyedThreads(ctx, tx, sdk.DefaultTenantID, id, []threadKey{key})
+			return err
+		},
+		"email: read provider threads: ": func() error {
+			_, err := readProviderThreads(ctx, tx, sdk.DefaultTenantID, providerSearch{key: key})
 			return err
 		},
 		"email: read thread contacts: ": func() error {
