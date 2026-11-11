@@ -14,7 +14,7 @@
 		"@gopherium/godmin": "0.31.0",
 		"@gopherium/gottext": "0.8.1",
 		"@gopherium/react-auth": "0.20.1",
-		"@tanstack/react-query": "^5.105.0",
+		"@tanstack/react-query": "^5.105.3",
 		"@urql/exchange-graphcache": "9.0.2",
 		"@urql/exchange-retry": "2.0.0",
 		"@wordpress/a11y": "5.0.0",
@@ -38,7 +38,7 @@
 		"@types/node": "^26.6.6",
 		"@types/react": "^19.3.0",
 		"jsdom": "^30.1.3",
-		"msw": "^3.0.3",
-		"vitest": "^5.0.5"
+		"msw": "^3.0.4",
+		"vitest": "^5.1.0"
 	}
 }
