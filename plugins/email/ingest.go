@@ -97,7 +97,7 @@ type ingester struct {
 	parse message.Limits
 	// caps bound how much of each mail is kept and published.
 	caps mailCaps
-	// times bound how long a subject joins a thread, a mail keeps failing and the record of a failure runs.
+	// times bound the thread window, how long a mail keeps failing and how long a clean up runs.
 	times timeLimits
 	// slots holds one token for each mail in memory, its capacity the most mails a process holds at once.
 	slots chan struct{}

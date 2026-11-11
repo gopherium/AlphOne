@@ -157,7 +157,7 @@ func readKeyedThreads(
 	return keyed, nil
 }
 
-// readProviderThreads returns the threads holding the search key whose span holds the search time, nearest first.
+// readProviderThreads returns the threads with the key whose span widened by the window holds the time, nearest first.
 func readProviderThreads(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, search providerSearch) ([]uuid.UUID, error) {
 	rows, _ := tx.Query(ctx, `SELECT t.id FROM plugin_email.thread_keys k
 		JOIN plugin_email.threads t ON t.id = k.thread_id
