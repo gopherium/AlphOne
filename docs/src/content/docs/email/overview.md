@@ -100,8 +100,13 @@ from the inbox and once from the Sent folder.
 - A second copy that names another known contact links that contact to
   the stored mail and adds the new addresses to it. It stores no second
   mail.
-- A copy that brings a provider thread id the stored mail lacks leads
-  later mail with that id to the stored mail's thread.
+- A copy that brings a provider thread id the stored mail lacks adds
+  the stored mail's thread to that id, so mail with that id received
+  near it joins it. A thread that already took such a mail stays apart
+  until a later mail with that id, received near both threads, joins
+  them.
+- Reply ids and a Thread-Index that a copy brings, when no thread holds
+  them yet, lead later mail to the stored mail's thread too.
 - A copy from the Sent folder marks the mail as sent by the workspace.
   A mail that only writes the mailbox's own address in From stays a
   mail that arrived, because anyone can write that address there.
@@ -115,11 +120,12 @@ from the inbox and once from the Sent folder.
 AlphOne puts each mail in a thread. It looks for one in this order:
 
 1. The thread id the mail's provider gives it, which `email:ingest`
-   takes from `-provider-thread`. A mail with no reply headers and no
-   Thread-Index counts only within `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW`
-   of the thread's first or last mail. Once the thread the id leads to
-   has taken no mail for that long, a later mail with the id moves the
-   id to the thread that mail joins.
+   takes from `-provider-thread`. One id can lead to several threads. A
+   mail joins one only when it was received between
+   `ALPHONE_EMAIL_SUBJECT_THREAD_WINDOW` before that thread's first mail
+   and the same time after its last mail, and it joins the nearest. A
+   mail that falls that close to two threads of its id joins them into
+   one when they share a contact.
 2. The reply headers, In-Reply-To and References.
 3. The Thread-Index header that some mail programs add.
 4. The subject, only for a reply or a forward such as `Re: Invoice`,
@@ -140,6 +146,11 @@ nothing.
 
 A reply stored before its parent still joins it. A parent that arrives
 late and connects two threads of the same contact joins them into one.
+Mail that only a provider thread id ties together ends in the same
+threads whatever order it arrives in, when every copy of every mail
+carries the id and one contact is the sender's own on each copy. Mail
+from more than one sender can group in another way when it arrives in
+another order.
 
 A thread lists its mail by the time the mailbox received each one,
 never by the Date header alone, which the sender writes. `email:ingest`
