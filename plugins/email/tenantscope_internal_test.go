@@ -161,6 +161,46 @@ func TestIngestServesTheWorkspaceItIsHandedWhateverItsContextNames(t *testing.T)
 	}
 }
 
+func TestTheReadsKeepToTheirWorkspace(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	acme, box := it.addWorkspace()
+	it.ingestIn(sdk.DefaultTenantID, it.box, lampMail(), "file:quote")
+	it.ingestIn(acme, box, lampMail(), "file:quote")
+	it.ingestIn(acme, box, invoiceMail("Invoice for March"), "file:invoice")
+	ctx, home, maria := t.Context(), sdk.DefaultTenantID, it.contacts["maria.perez@example.com"]
+	held, err := readInbox(ctx, it.pool, home, readPage, 0)
+	if err != nil || len(held.items) != 1 || held.total != 1 {
+		t.Fatalf("readInbox() of the default workspace = %+v, %v, want its one thread", held, err)
+	}
+	thread, mail := held.items[0].id, held.items[0].latest.id
+
+	inbox, err := readInbox(ctx, it.pool, acme, readPage, 0)
+	if err != nil || len(inbox.items) != 2 || inbox.total != 2 || slices.Contains(threadIDs(inbox.items), thread) {
+		t.Errorf("readInbox() of Acme = %v of %d, %v, want its own 2 threads", threadIDs(inbox.items), inbox.total, err)
+	}
+	if _, found, err := readThread(ctx, it.pool, acme, thread); found || err != nil {
+		t.Errorf("readThread() of the default thread in Acme = %t, %v, want none found", found, err)
+	}
+	if mails, err := readThreadMails(ctx, it.pool, acme, thread, readPage, 0); len(mails) != 0 || err != nil {
+		t.Errorf("readThreadMails() of the default thread in Acme = %v, %v, want none", mailIDs(mails), err)
+	}
+	if _, found, err := readThreadMail(ctx, it.pool, acme, thread, mail); found || err != nil {
+		t.Errorf("readThreadMail() of the default mail in Acme = %t, %v, want none found", found, err)
+	}
+	if page, err := readContactMails(ctx, it.pool, acme, maria, readPage, 0); len(page.items) != 0 ||
+		page.total != 0 || err != nil {
+		t.Errorf("readContactMails() of the default contact in Acme = %v of %d, %v, want none",
+			mailIDs(page.items), page.total, err)
+	}
+	if page, err := readContactMails(ctx, it.pool, home, maria, readPage, 0); err != nil ||
+		!slices.Equal(mailIDs(page.items), []uuid.UUID{mail}) || page.total != 1 {
+		t.Errorf("readContactMails() of the default contact = %v of %d, %v, want %v of 1",
+			mailIDs(page.items), page.total, err, mail)
+	}
+}
+
 func TestTheSweepDeletesTheFilesOfAFailedIngestInTheWorkspaceItServed(t *testing.T) {
 	t.Parallel()
 
