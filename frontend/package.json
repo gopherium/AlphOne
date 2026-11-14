@@ -19,6 +19,7 @@
 	},
 	"dependencies": {
 		"@alphone/frontend-sdk": "workspace:*",
+		"@alphone/plugin-email": "workspace:*",
 		"@alphone/plugin-fields": "workspace:*",
 		"@alphone/plugin-importer": "workspace:*",
 		"@alphone/plugin-whatsapp": "workspace:*",
@@ -54,6 +55,7 @@
 	},
 	"pluginwire": {
 		"dependencies": [
+			"@alphone/plugin-email",
 			"@alphone/plugin-fields",
 			"@alphone/plugin-importer",
 			"@alphone/plugin-whatsapp"
