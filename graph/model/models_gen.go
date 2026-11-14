@@ -94,6 +94,89 @@ type CreateWebhookPayload struct {
 	Secret  string   `json:"secret"`
 }
 
+type EmailAddress struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type EmailAttachment struct {
+	ID           uuid.UUID `json:"id"`
+	Position     int       `json:"position"`
+	Filename     string    `json:"filename"`
+	ContentType  string    `json:"contentType"`
+	Size         float64   `json:"size"`
+	Inline       bool      `json:"inline"`
+	ContentID    string    `json:"contentId"`
+	State        string    `json:"state"`
+	DownloadPath *string   `json:"downloadPath,omitempty"`
+}
+
+type EmailBody struct {
+	Text string `json:"text"`
+	HTML string `json:"html"`
+}
+
+type EmailMailbox struct {
+	ID      uuid.UUID `json:"id"`
+	Address string    `json:"address"`
+	Aliases []string  `json:"aliases"`
+}
+
+type EmailMessage struct {
+	ID           uuid.UUID           `json:"id"`
+	ThreadID     uuid.UUID           `json:"threadId"`
+	Direction    string              `json:"direction"`
+	Subject      string              `json:"subject"`
+	From         *EmailAddress       `json:"from,omitempty"`
+	SentAt       *time.Time          `json:"sentAt,omitempty"`
+	ReceivedAt   time.Time           `json:"receivedAt"`
+	Snippet      string              `json:"snippet"`
+	BodyState    string              `json:"bodyState"`
+	SkippedParts int                 `json:"skippedParts"`
+	Automation   string              `json:"automation"`
+	Encrypted    bool                `json:"encrypted"`
+	Signed       bool                `json:"signed"`
+	Winmail      bool                `json:"winmail"`
+	InviteMethod string              `json:"inviteMethod"`
+	RawState     string              `json:"rawState"`
+	RawSize      float64             `json:"rawSize"`
+	OriginalPath *string             `json:"originalPath,omitempty"`
+	Participants []*EmailParticipant `json:"participants"`
+	Body         *EmailBody          `json:"body"`
+	Attachments  []*EmailAttachment  `json:"attachments"`
+	ContactIds   []uuid.UUID         `json:"contactIds"`
+}
+
+type EmailMessagePage struct {
+	Items []*EmailMessage `json:"items"`
+	Total int             `json:"total"`
+	Limit int             `json:"limit"`
+}
+
+type EmailParticipant struct {
+	Role  string `json:"role"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type EmailThread struct {
+	ID             uuid.UUID       `json:"id"`
+	Subject        string          `json:"subject"`
+	FirstMessageAt time.Time       `json:"firstMessageAt"`
+	LastMessageAt  time.Time       `json:"lastMessageAt"`
+	MessageCount   int             `json:"messageCount"`
+	HasAttachments bool            `json:"hasAttachments"`
+	Latest         *EmailMessage   `json:"latest"`
+	Messages       []*EmailMessage `json:"messages"`
+	Message        *EmailMessage   `json:"message,omitempty"`
+}
+
+type EmailThreadPage struct {
+	Items []*EmailThread `json:"items"`
+	Total int            `json:"total"`
+	Limit int            `json:"limit"`
+}
+
 type FieldDefinition struct {
 	ID         uuid.UUID        `json:"id"`
 	Name       string           `json:"name"`

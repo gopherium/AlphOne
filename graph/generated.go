@@ -33,6 +33,8 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Contact() ContactResolver
+	EmailMessage() EmailMessageResolver
+	EmailThread() EmailThreadResolver
 	ImportJob() ImportJobResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
@@ -109,6 +111,89 @@ type ComplexityRoot struct {
 	CreateWebhookPayload struct {
 		Secret  func(childComplexity int) int
 		Webhook func(childComplexity int) int
+	}
+
+	EmailAddress struct {
+		Email func(childComplexity int) int
+		Name  func(childComplexity int) int
+	}
+
+	EmailAttachment struct {
+		ContentID    func(childComplexity int) int
+		ContentType  func(childComplexity int) int
+		DownloadPath func(childComplexity int) int
+		Filename     func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Inline       func(childComplexity int) int
+		Position     func(childComplexity int) int
+		Size         func(childComplexity int) int
+		State        func(childComplexity int) int
+	}
+
+	EmailBody struct {
+		HTML func(childComplexity int) int
+		Text func(childComplexity int) int
+	}
+
+	EmailMailbox struct {
+		Address func(childComplexity int) int
+		Aliases func(childComplexity int) int
+		ID      func(childComplexity int) int
+	}
+
+	EmailMessage struct {
+		Attachments  func(childComplexity int) int
+		Automation   func(childComplexity int) int
+		Body         func(childComplexity int) int
+		BodyState    func(childComplexity int) int
+		ContactIds   func(childComplexity int) int
+		Direction    func(childComplexity int) int
+		Encrypted    func(childComplexity int) int
+		From         func(childComplexity int) int
+		ID           func(childComplexity int) int
+		InviteMethod func(childComplexity int) int
+		OriginalPath func(childComplexity int) int
+		Participants func(childComplexity int) int
+		RawSize      func(childComplexity int) int
+		RawState     func(childComplexity int) int
+		ReceivedAt   func(childComplexity int) int
+		SentAt       func(childComplexity int) int
+		Signed       func(childComplexity int) int
+		SkippedParts func(childComplexity int) int
+		Snippet      func(childComplexity int) int
+		Subject      func(childComplexity int) int
+		ThreadID     func(childComplexity int) int
+		Winmail      func(childComplexity int) int
+	}
+
+	EmailMessagePage struct {
+		Items func(childComplexity int) int
+		Limit func(childComplexity int) int
+		Total func(childComplexity int) int
+	}
+
+	EmailParticipant struct {
+		Email func(childComplexity int) int
+		Name  func(childComplexity int) int
+		Role  func(childComplexity int) int
+	}
+
+	EmailThread struct {
+		FirstMessageAt func(childComplexity int) int
+		HasAttachments func(childComplexity int) int
+		ID             func(childComplexity int) int
+		LastMessageAt  func(childComplexity int) int
+		Latest         func(childComplexity int) int
+		Message        func(childComplexity int, id uuid.UUID) int
+		MessageCount   func(childComplexity int) int
+		Messages       func(childComplexity int, limit *int, offset *int) int
+		Subject        func(childComplexity int) int
+	}
+
+	EmailThreadPage struct {
+		Items func(childComplexity int) int
+		Limit func(childComplexity int) int
+		Total func(childComplexity int) int
 	}
 
 	FieldDefinition struct {
@@ -250,6 +335,10 @@ type ComplexityRoot struct {
 		Contact               func(childComplexity int, id uuid.UUID) int
 		ContactPage           func(childComplexity int, q *string, channels []string, orderBy model.ContactOrderBy, order model.SortOrder, limit *int, offset *int) int
 		Contacts              func(childComplexity int, q *string, first *int, after *string) int
+		EmailContactMessages  func(childComplexity int, contactID uuid.UUID, limit *int, offset *int) int
+		EmailMailbox          func(childComplexity int) int
+		EmailThread           func(childComplexity int, id uuid.UUID) int
+		EmailThreads          func(childComplexity int, limit *int, offset *int) int
 		Fields                func(childComplexity int, includeArchived *bool) int
 		ImportFields          func(childComplexity int) int
 		ImportJob             func(childComplexity int, id uuid.UUID) int
@@ -383,6 +472,16 @@ type ContactResolver interface {
 	Field(ctx context.Context, obj *model.Contact, name string) (any, error)
 	WhatsAppConversations(ctx context.Context, obj *model.Contact) ([]*model.WhatsAppConversation, error)
 }
+type EmailMessageResolver interface {
+	Participants(ctx context.Context, obj *model.EmailMessage) ([]*model.EmailParticipant, error)
+	Body(ctx context.Context, obj *model.EmailMessage) (*model.EmailBody, error)
+	Attachments(ctx context.Context, obj *model.EmailMessage) ([]*model.EmailAttachment, error)
+	ContactIds(ctx context.Context, obj *model.EmailMessage) ([]uuid.UUID, error)
+}
+type EmailThreadResolver interface {
+	Messages(ctx context.Context, obj *model.EmailThread, limit *int, offset *int) ([]*model.EmailMessage, error)
+	Message(ctx context.Context, obj *model.EmailThread, id uuid.UUID) (*model.EmailMessage, error)
+}
 type ImportJobResolver interface {
 	Rows(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportRow, error)
 	Contacts(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportContact, error)
@@ -437,6 +536,10 @@ type QueryResolver interface {
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
 	WebhookEvents(ctx context.Context) ([]string, error)
+	EmailMailbox(ctx context.Context) (*model.EmailMailbox, error)
+	EmailThreads(ctx context.Context, limit *int, offset *int) (*model.EmailThreadPage, error)
+	EmailThread(ctx context.Context, id uuid.UUID) (*model.EmailThread, error)
+	EmailContactMessages(ctx context.Context, contactID uuid.UUID, limit *int, offset *int) (*model.EmailMessagePage, error)
 	Fields(ctx context.Context, includeArchived *bool) ([]*model.FieldDefinition, error)
 	ReservedFieldNames(ctx context.Context) ([]string, error)
 	Imports(ctx context.Context) ([]*model.ImportJob, error)
@@ -713,6 +816,361 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreateWebhookPayload.Webhook(childComplexity), true
+
+	case "EmailAddress.email":
+		if e.ComplexityRoot.EmailAddress.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAddress.Email(childComplexity), true
+	case "EmailAddress.name":
+		if e.ComplexityRoot.EmailAddress.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAddress.Name(childComplexity), true
+
+	case "EmailAttachment.contentId":
+		if e.ComplexityRoot.EmailAttachment.ContentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.ContentID(childComplexity), true
+	case "EmailAttachment.contentType":
+		if e.ComplexityRoot.EmailAttachment.ContentType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.ContentType(childComplexity), true
+	case "EmailAttachment.downloadPath":
+		if e.ComplexityRoot.EmailAttachment.DownloadPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.DownloadPath(childComplexity), true
+	case "EmailAttachment.filename":
+		if e.ComplexityRoot.EmailAttachment.Filename == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.Filename(childComplexity), true
+	case "EmailAttachment.id":
+		if e.ComplexityRoot.EmailAttachment.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.ID(childComplexity), true
+	case "EmailAttachment.inline":
+		if e.ComplexityRoot.EmailAttachment.Inline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.Inline(childComplexity), true
+	case "EmailAttachment.position":
+		if e.ComplexityRoot.EmailAttachment.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.Position(childComplexity), true
+	case "EmailAttachment.size":
+		if e.ComplexityRoot.EmailAttachment.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.Size(childComplexity), true
+	case "EmailAttachment.state":
+		if e.ComplexityRoot.EmailAttachment.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailAttachment.State(childComplexity), true
+
+	case "EmailBody.html":
+		if e.ComplexityRoot.EmailBody.HTML == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailBody.HTML(childComplexity), true
+	case "EmailBody.text":
+		if e.ComplexityRoot.EmailBody.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailBody.Text(childComplexity), true
+
+	case "EmailMailbox.address":
+		if e.ComplexityRoot.EmailMailbox.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMailbox.Address(childComplexity), true
+	case "EmailMailbox.aliases":
+		if e.ComplexityRoot.EmailMailbox.Aliases == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMailbox.Aliases(childComplexity), true
+	case "EmailMailbox.id":
+		if e.ComplexityRoot.EmailMailbox.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMailbox.ID(childComplexity), true
+
+	case "EmailMessage.attachments":
+		if e.ComplexityRoot.EmailMessage.Attachments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Attachments(childComplexity), true
+	case "EmailMessage.automation":
+		if e.ComplexityRoot.EmailMessage.Automation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Automation(childComplexity), true
+	case "EmailMessage.body":
+		if e.ComplexityRoot.EmailMessage.Body == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Body(childComplexity), true
+	case "EmailMessage.bodyState":
+		if e.ComplexityRoot.EmailMessage.BodyState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.BodyState(childComplexity), true
+	case "EmailMessage.contactIds":
+		if e.ComplexityRoot.EmailMessage.ContactIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.ContactIds(childComplexity), true
+	case "EmailMessage.direction":
+		if e.ComplexityRoot.EmailMessage.Direction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Direction(childComplexity), true
+	case "EmailMessage.encrypted":
+		if e.ComplexityRoot.EmailMessage.Encrypted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Encrypted(childComplexity), true
+	case "EmailMessage.from":
+		if e.ComplexityRoot.EmailMessage.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.From(childComplexity), true
+	case "EmailMessage.id":
+		if e.ComplexityRoot.EmailMessage.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.ID(childComplexity), true
+	case "EmailMessage.inviteMethod":
+		if e.ComplexityRoot.EmailMessage.InviteMethod == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.InviteMethod(childComplexity), true
+	case "EmailMessage.originalPath":
+		if e.ComplexityRoot.EmailMessage.OriginalPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.OriginalPath(childComplexity), true
+	case "EmailMessage.participants":
+		if e.ComplexityRoot.EmailMessage.Participants == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Participants(childComplexity), true
+	case "EmailMessage.rawSize":
+		if e.ComplexityRoot.EmailMessage.RawSize == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.RawSize(childComplexity), true
+	case "EmailMessage.rawState":
+		if e.ComplexityRoot.EmailMessage.RawState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.RawState(childComplexity), true
+	case "EmailMessage.receivedAt":
+		if e.ComplexityRoot.EmailMessage.ReceivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.ReceivedAt(childComplexity), true
+	case "EmailMessage.sentAt":
+		if e.ComplexityRoot.EmailMessage.SentAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.SentAt(childComplexity), true
+	case "EmailMessage.signed":
+		if e.ComplexityRoot.EmailMessage.Signed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Signed(childComplexity), true
+	case "EmailMessage.skippedParts":
+		if e.ComplexityRoot.EmailMessage.SkippedParts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.SkippedParts(childComplexity), true
+	case "EmailMessage.snippet":
+		if e.ComplexityRoot.EmailMessage.Snippet == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Snippet(childComplexity), true
+	case "EmailMessage.subject":
+		if e.ComplexityRoot.EmailMessage.Subject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Subject(childComplexity), true
+	case "EmailMessage.threadId":
+		if e.ComplexityRoot.EmailMessage.ThreadID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.ThreadID(childComplexity), true
+	case "EmailMessage.winmail":
+		if e.ComplexityRoot.EmailMessage.Winmail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.Winmail(childComplexity), true
+
+	case "EmailMessagePage.items":
+		if e.ComplexityRoot.EmailMessagePage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessagePage.Items(childComplexity), true
+	case "EmailMessagePage.limit":
+		if e.ComplexityRoot.EmailMessagePage.Limit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessagePage.Limit(childComplexity), true
+	case "EmailMessagePage.total":
+		if e.ComplexityRoot.EmailMessagePage.Total == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessagePage.Total(childComplexity), true
+
+	case "EmailParticipant.email":
+		if e.ComplexityRoot.EmailParticipant.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailParticipant.Email(childComplexity), true
+	case "EmailParticipant.name":
+		if e.ComplexityRoot.EmailParticipant.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailParticipant.Name(childComplexity), true
+	case "EmailParticipant.role":
+		if e.ComplexityRoot.EmailParticipant.Role == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailParticipant.Role(childComplexity), true
+
+	case "EmailThread.firstMessageAt":
+		if e.ComplexityRoot.EmailThread.FirstMessageAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.FirstMessageAt(childComplexity), true
+	case "EmailThread.hasAttachments":
+		if e.ComplexityRoot.EmailThread.HasAttachments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.HasAttachments(childComplexity), true
+	case "EmailThread.id":
+		if e.ComplexityRoot.EmailThread.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.ID(childComplexity), true
+	case "EmailThread.lastMessageAt":
+		if e.ComplexityRoot.EmailThread.LastMessageAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.LastMessageAt(childComplexity), true
+	case "EmailThread.latest":
+		if e.ComplexityRoot.EmailThread.Latest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.Latest(childComplexity), true
+	case "EmailThread.message":
+		if e.ComplexityRoot.EmailThread.Message == nil {
+			break
+		}
+
+		args, err := ec.field_EmailThread_message_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.EmailThread.Message(childComplexity, args["id"].(uuid.UUID)), true
+	case "EmailThread.messageCount":
+		if e.ComplexityRoot.EmailThread.MessageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.MessageCount(childComplexity), true
+	case "EmailThread.messages":
+		if e.ComplexityRoot.EmailThread.Messages == nil {
+			break
+		}
+
+		args, err := ec.field_EmailThread_messages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.EmailThread.Messages(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "EmailThread.subject":
+		if e.ComplexityRoot.EmailThread.Subject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThread.Subject(childComplexity), true
+
+	case "EmailThreadPage.items":
+		if e.ComplexityRoot.EmailThreadPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThreadPage.Items(childComplexity), true
+	case "EmailThreadPage.limit":
+		if e.ComplexityRoot.EmailThreadPage.Limit == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThreadPage.Limit(childComplexity), true
+	case "EmailThreadPage.total":
+		if e.ComplexityRoot.EmailThreadPage.Total == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailThreadPage.Total(childComplexity), true
 
 	case "FieldDefinition.archivedAt":
 		if e.ComplexityRoot.FieldDefinition.ArchivedAt == nil {
@@ -1462,6 +1920,45 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Contacts(childComplexity, args["q"].(*string), args["first"].(*int), args["after"].(*string)), true
+	case "Query.emailContactMessages":
+		if e.ComplexityRoot.Query.EmailContactMessages == nil {
+			break
+		}
+
+		args, err := ec.field_Query_emailContactMessages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EmailContactMessages(childComplexity, args["contactId"].(uuid.UUID), args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.emailMailbox":
+		if e.ComplexityRoot.Query.EmailMailbox == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.EmailMailbox(childComplexity), true
+	case "Query.emailThread":
+		if e.ComplexityRoot.Query.EmailThread == nil {
+			break
+		}
+
+		args, err := ec.field_Query_emailThread_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EmailThread(childComplexity, args["id"].(uuid.UUID)), true
+	case "Query.emailThreads":
+		if e.ComplexityRoot.Query.EmailThreads == nil {
+			break
+		}
+
+		args, err := ec.field_Query_emailThreads_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EmailThreads(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 	case "Query.fields":
 		if e.ComplexityRoot.Query.Fields == nil {
 			break
@@ -2136,6 +2633,102 @@ var sources = []*ast.Source{
 	{Name: "schema/tasks.graphqls", Input: sourceData("schema/tasks.graphqls"), BuiltIn: false},
 	{Name: "schema/tokens.graphqls", Input: sourceData("schema/tokens.graphqls"), BuiltIn: false},
 	{Name: "schema/webhooks.graphqls", Input: sourceData("schema/webhooks.graphqls"), BuiltIn: false},
+	{Name: "../plugins/email/graph/schema.graphqls", Input: `extend type Query {
+  emailMailbox: EmailMailbox @scope(area: "email", write: false)
+  emailThreads(limit: Int, offset: Int): EmailThreadPage!
+    @scope(area: "email", write: false)
+    @listSize(slicingArguments: ["limit"])
+  emailThread(id: UUID!): EmailThread @scope(area: "email", write: false)
+  emailContactMessages(contactId: UUID!, limit: Int, offset: Int): EmailMessagePage!
+    @scope(area: "email", write: false)
+    @listSize(slicingArguments: ["limit"])
+}
+
+type EmailMailbox {
+  id: UUID!
+  address: String!
+  aliases: [String!]!
+}
+
+type EmailThreadPage {
+  items: [EmailThread!]!
+  total: Int!
+  limit: Int!
+}
+
+type EmailThread {
+  id: UUID!
+  subject: String!
+  firstMessageAt: DateTime!
+  lastMessageAt: DateTime!
+  messageCount: Int!
+  hasAttachments: Boolean!
+  latest: EmailMessage!
+  messages(limit: Int, offset: Int): [EmailMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+  message(id: UUID!): EmailMessage @goField(forceResolver: true)
+}
+
+type EmailMessagePage {
+  items: [EmailMessage!]!
+  total: Int!
+  limit: Int!
+}
+
+type EmailMessage {
+  id: UUID!
+  threadId: UUID!
+  direction: String!
+  subject: String!
+  from: EmailAddress
+  sentAt: DateTime
+  receivedAt: DateTime!
+  snippet: String!
+  bodyState: String!
+  skippedParts: Int!
+  automation: String!
+  encrypted: Boolean!
+  signed: Boolean!
+  winmail: Boolean!
+  inviteMethod: String!
+  rawState: String!
+  rawSize: Float!
+  originalPath: String
+  participants: [EmailParticipant!]! @goField(forceResolver: true)
+  body: EmailBody! @goField(forceResolver: true)
+  attachments: [EmailAttachment!]! @goField(forceResolver: true)
+  contactIds: [UUID!]! @goField(forceResolver: true)
+}
+
+type EmailAddress {
+  name: String!
+  email: String!
+}
+
+type EmailParticipant {
+  role: String!
+  name: String!
+  email: String!
+}
+
+type EmailBody {
+  text: String!
+  html: String!
+}
+
+type EmailAttachment {
+  id: UUID!
+  position: Int!
+  filename: String!
+  contentType: String!
+  size: Float!
+  inline: Boolean!
+  contentId: String!
+  state: String!
+  downloadPath: String
+}
+`, BuiltIn: false},
 	{Name: "../plugins/fields/graph/schema.graphqls", Input: `extend type Contact {
   field(name: String!): JSON @goField(forceResolver: true)
 }
@@ -2466,6 +3059,172 @@ func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context
 		return ec.fieldContext_CreateWebhookPayload_secret(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CreateWebhookPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailAddress(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_EmailAddress_name(ctx, field)
+	case "email":
+		return ec.fieldContext_EmailAddress_email(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailAddress", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailAttachment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_EmailAttachment_id(ctx, field)
+	case "position":
+		return ec.fieldContext_EmailAttachment_position(ctx, field)
+	case "filename":
+		return ec.fieldContext_EmailAttachment_filename(ctx, field)
+	case "contentType":
+		return ec.fieldContext_EmailAttachment_contentType(ctx, field)
+	case "size":
+		return ec.fieldContext_EmailAttachment_size(ctx, field)
+	case "inline":
+		return ec.fieldContext_EmailAttachment_inline(ctx, field)
+	case "contentId":
+		return ec.fieldContext_EmailAttachment_contentId(ctx, field)
+	case "state":
+		return ec.fieldContext_EmailAttachment_state(ctx, field)
+	case "downloadPath":
+		return ec.fieldContext_EmailAttachment_downloadPath(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailAttachment", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailBody(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "text":
+		return ec.fieldContext_EmailBody_text(ctx, field)
+	case "html":
+		return ec.fieldContext_EmailBody_html(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailBody", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailMailbox(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_EmailMailbox_id(ctx, field)
+	case "address":
+		return ec.fieldContext_EmailMailbox_address(ctx, field)
+	case "aliases":
+		return ec.fieldContext_EmailMailbox_aliases(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailMailbox", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_EmailMessage_id(ctx, field)
+	case "threadId":
+		return ec.fieldContext_EmailMessage_threadId(ctx, field)
+	case "direction":
+		return ec.fieldContext_EmailMessage_direction(ctx, field)
+	case "subject":
+		return ec.fieldContext_EmailMessage_subject(ctx, field)
+	case "from":
+		return ec.fieldContext_EmailMessage_from(ctx, field)
+	case "sentAt":
+		return ec.fieldContext_EmailMessage_sentAt(ctx, field)
+	case "receivedAt":
+		return ec.fieldContext_EmailMessage_receivedAt(ctx, field)
+	case "snippet":
+		return ec.fieldContext_EmailMessage_snippet(ctx, field)
+	case "bodyState":
+		return ec.fieldContext_EmailMessage_bodyState(ctx, field)
+	case "skippedParts":
+		return ec.fieldContext_EmailMessage_skippedParts(ctx, field)
+	case "automation":
+		return ec.fieldContext_EmailMessage_automation(ctx, field)
+	case "encrypted":
+		return ec.fieldContext_EmailMessage_encrypted(ctx, field)
+	case "signed":
+		return ec.fieldContext_EmailMessage_signed(ctx, field)
+	case "winmail":
+		return ec.fieldContext_EmailMessage_winmail(ctx, field)
+	case "inviteMethod":
+		return ec.fieldContext_EmailMessage_inviteMethod(ctx, field)
+	case "rawState":
+		return ec.fieldContext_EmailMessage_rawState(ctx, field)
+	case "rawSize":
+		return ec.fieldContext_EmailMessage_rawSize(ctx, field)
+	case "originalPath":
+		return ec.fieldContext_EmailMessage_originalPath(ctx, field)
+	case "participants":
+		return ec.fieldContext_EmailMessage_participants(ctx, field)
+	case "body":
+		return ec.fieldContext_EmailMessage_body(ctx, field)
+	case "attachments":
+		return ec.fieldContext_EmailMessage_attachments(ctx, field)
+	case "contactIds":
+		return ec.fieldContext_EmailMessage_contactIds(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailMessage", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailMessagePage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_EmailMessagePage_items(ctx, field)
+	case "total":
+		return ec.fieldContext_EmailMessagePage_total(ctx, field)
+	case "limit":
+		return ec.fieldContext_EmailMessagePage_limit(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailMessagePage", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailParticipant(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "role":
+		return ec.fieldContext_EmailParticipant_role(ctx, field)
+	case "name":
+		return ec.fieldContext_EmailParticipant_name(ctx, field)
+	case "email":
+		return ec.fieldContext_EmailParticipant_email(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailParticipant", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailThread(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_EmailThread_id(ctx, field)
+	case "subject":
+		return ec.fieldContext_EmailThread_subject(ctx, field)
+	case "firstMessageAt":
+		return ec.fieldContext_EmailThread_firstMessageAt(ctx, field)
+	case "lastMessageAt":
+		return ec.fieldContext_EmailThread_lastMessageAt(ctx, field)
+	case "messageCount":
+		return ec.fieldContext_EmailThread_messageCount(ctx, field)
+	case "hasAttachments":
+		return ec.fieldContext_EmailThread_hasAttachments(ctx, field)
+	case "latest":
+		return ec.fieldContext_EmailThread_latest(ctx, field)
+	case "messages":
+		return ec.fieldContext_EmailThread_messages(ctx, field)
+	case "message":
+		return ec.fieldContext_EmailThread_message(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailThread", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailThreadPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_EmailThreadPage_items(ctx, field)
+	case "total":
+		return ec.fieldContext_EmailThreadPage_total(ctx, field)
+	case "limit":
+		return ec.fieldContext_EmailThreadPage_limit(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailThreadPage", field.Name)
 }
 
 func (ec *executionContext) childFields_FieldDefinition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3011,6 +3770,42 @@ func (ec *executionContext) field_Contact_tasks_args(ctx context.Context, rawArg
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_EmailThread_message_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_EmailThread_messages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -3811,6 +4606,72 @@ func (ec *executionContext) field_Query_contacts_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_emailContactMessages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "contactId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["contactId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_emailThread_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_emailThreads_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -4991,6 +5852,1399 @@ func (ec *executionContext) _CreateWebhookPayload_secret(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_CreateWebhookPayload_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreateWebhookPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAddress_name(ctx context.Context, field graphql.CollectedField, obj *model.EmailAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAddress_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAddress_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAddress_email(ctx context.Context, field graphql.CollectedField, obj *model.EmailAddress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAddress_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAddress_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAddress", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_id(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_position(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_filename(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_filename(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Filename, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_filename(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_contentType(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_contentType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_contentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_size(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_inline(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_inline(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Inline, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_inline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_contentId(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_contentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_contentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_state(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailAttachment_downloadPath(ctx context.Context, field graphql.CollectedField, obj *model.EmailAttachment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailAttachment_downloadPath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DownloadPath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailAttachment_downloadPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailAttachment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailBody_text(ctx context.Context, field graphql.CollectedField, obj *model.EmailBody) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailBody_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailBody_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailBody", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailBody_html(ctx context.Context, field graphql.CollectedField, obj *model.EmailBody) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailBody_html(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HTML, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailBody_html(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailBody", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMailbox_id(ctx context.Context, field graphql.CollectedField, obj *model.EmailMailbox) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMailbox_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMailbox_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMailbox", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMailbox_address(ctx context.Context, field graphql.CollectedField, obj *model.EmailMailbox) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMailbox_address(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMailbox_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMailbox", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMailbox_aliases(ctx context.Context, field graphql.CollectedField, obj *model.EmailMailbox) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMailbox_aliases(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Aliases, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMailbox_aliases(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMailbox", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_threadId(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_threadId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThreadID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_threadId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_direction(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_direction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Direction, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_direction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_subject(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_subject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subject, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_subject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_from(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailAddress) graphql.Marshaler {
+			return ec.marshalOEmailAddress2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAddress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailAddress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailMessage_sentAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_sentAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SentAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODateTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_sentAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_receivedAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_receivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReceivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_receivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_snippet(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_snippet(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Snippet, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_snippet(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_bodyState(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_bodyState(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BodyState, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_bodyState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_skippedParts(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_skippedParts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SkippedParts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_skippedParts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_automation(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_automation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Automation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_automation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_encrypted(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_encrypted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Encrypted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_encrypted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_signed(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_signed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Signed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_signed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_winmail(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_winmail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Winmail, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_winmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_inviteMethod(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_inviteMethod(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InviteMethod, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_inviteMethod(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_rawState(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_rawState(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RawState, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_rawState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_rawSize(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_rawSize(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RawSize, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_rawSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_originalPath(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_originalPath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginalPath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_originalPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessage_participants(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_participants(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.EmailMessage().Participants(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailParticipant) graphql.Marshaler {
+			return ec.marshalNEmailParticipant2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailParticipantᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_participants(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailMessage",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailParticipant(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailMessage_body(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_body(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.EmailMessage().Body(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailBody) graphql.Marshaler {
+			return ec.marshalNEmailBody2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailBody(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_body(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailMessage",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailBody(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailMessage_attachments(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_attachments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.EmailMessage().Attachments(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailAttachment) graphql.Marshaler {
+			return ec.marshalNEmailAttachment2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAttachmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_attachments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailMessage",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailAttachment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailMessage_contactIds(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_contactIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.EmailMessage().ContactIds(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2ᚕgithubᚗcomᚋgoogleᚋuuidᚐUUIDᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_contactIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, true, true, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessagePage_items(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessagePage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessagePage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailMessage) graphql.Marshaler {
+			return ec.marshalNEmailMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessagePage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailMessagePage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailMessagePage_total(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessagePage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessagePage_total(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessagePage_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessagePage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailMessagePage_limit(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessagePage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessagePage_limit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Limit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessagePage_limit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessagePage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailParticipant_role(ctx context.Context, field graphql.CollectedField, obj *model.EmailParticipant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailParticipant_role(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Role, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailParticipant_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailParticipant", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailParticipant_name(ctx context.Context, field graphql.CollectedField, obj *model.EmailParticipant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailParticipant_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailParticipant_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailParticipant", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailParticipant_email(ctx context.Context, field graphql.CollectedField, obj *model.EmailParticipant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailParticipant_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailParticipant_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailParticipant", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_id(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v uuid.UUID) graphql.Marshaler {
+			return ec.marshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type UUID does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_subject(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_subject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subject, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_subject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_firstMessageAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_firstMessageAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstMessageAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_firstMessageAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_lastMessageAt(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_lastMessageAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastMessageAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNDateTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_lastMessageAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type DateTime does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_messageCount(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_messageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_messageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_hasAttachments(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_hasAttachments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HasAttachments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_hasAttachments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThread", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThread_latest(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_latest(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Latest, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailMessage) graphql.Marshaler {
+			return ec.marshalNEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_latest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailThread",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailThread_messages(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_messages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.EmailThread().Messages(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailMessage) graphql.Marshaler {
+			return ec.marshalNEmailMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_messages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailThread",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_EmailThread_messages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailThread_message(ctx context.Context, field graphql.CollectedField, obj *model.EmailThread) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThread_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.EmailThread().Message(ctx, obj, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailMessage) graphql.Marshaler {
+			return ec.marshalOEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThread_message(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailThread",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_EmailThread_message_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailThreadPage_items(ctx context.Context, field graphql.CollectedField, obj *model.EmailThreadPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThreadPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailThread) graphql.Marshaler {
+			return ec.marshalNEmailThread2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThreadᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThreadPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailThreadPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailThread(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EmailThreadPage_total(ctx context.Context, field graphql.CollectedField, obj *model.EmailThreadPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThreadPage_total(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThreadPage_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThreadPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _EmailThreadPage_limit(ctx context.Context, field graphql.CollectedField, obj *model.EmailThreadPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailThreadPage_limit(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Limit, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailThreadPage_limit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailThreadPage", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _FieldDefinition_id(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
@@ -8277,6 +10531,170 @@ func (ec *executionContext) _Query_webhookEvents(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_Query_webhookEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Query_emailMailbox(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailMailbox(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().EmailMailbox(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailMailbox) graphql.Marshaler {
+			return ec.marshalOEmailMailbox2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMailbox(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailMailbox(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMailbox(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_emailThreads(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailThreads(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EmailThreads(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailThreadPage) graphql.Marshaler {
+			return ec.marshalNEmailThreadPage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThreadPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailThreads(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailThreadPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_emailThreads_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_emailThread(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailThread(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EmailThread(ctx, fc.Args["id"].(uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailThread) graphql.Marshaler {
+			return ec.marshalOEmailThread2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThread(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailThread(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailThread(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_emailThread_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_emailContactMessages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailContactMessages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EmailContactMessages(ctx, fc.Args["contactId"].(uuid.UUID), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailMessagePage) graphql.Marshaler {
+			return ec.marshalNEmailMessagePage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessagePage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailContactMessages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessagePage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_emailContactMessages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Query_fields(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -12217,6 +14635,781 @@ func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.S
 	return out
 }
 
+var emailAddressImplementors = []string{"EmailAddress"}
+
+func (ec *executionContext) _EmailAddress(ctx context.Context, sel ast.SelectionSet, obj *model.EmailAddress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailAddressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailAddress")
+		case "name":
+			out.Values[i] = ec._EmailAddress_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._EmailAddress_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailAttachmentImplementors = []string{"EmailAttachment"}
+
+func (ec *executionContext) _EmailAttachment(ctx context.Context, sel ast.SelectionSet, obj *model.EmailAttachment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailAttachmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailAttachment")
+		case "id":
+			out.Values[i] = ec._EmailAttachment_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._EmailAttachment_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "filename":
+			out.Values[i] = ec._EmailAttachment_filename(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentType":
+			out.Values[i] = ec._EmailAttachment_contentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._EmailAttachment_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inline":
+			out.Values[i] = ec._EmailAttachment_inline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentId":
+			out.Values[i] = ec._EmailAttachment_contentId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._EmailAttachment_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "downloadPath":
+			out.Values[i] = ec._EmailAttachment_downloadPath(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailBodyImplementors = []string{"EmailBody"}
+
+func (ec *executionContext) _EmailBody(ctx context.Context, sel ast.SelectionSet, obj *model.EmailBody) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailBodyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailBody")
+		case "text":
+			out.Values[i] = ec._EmailBody_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "html":
+			out.Values[i] = ec._EmailBody_html(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailMailboxImplementors = []string{"EmailMailbox"}
+
+func (ec *executionContext) _EmailMailbox(ctx context.Context, sel ast.SelectionSet, obj *model.EmailMailbox) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailMailboxImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailMailbox")
+		case "id":
+			out.Values[i] = ec._EmailMailbox_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "address":
+			out.Values[i] = ec._EmailMailbox_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "aliases":
+			out.Values[i] = ec._EmailMailbox_aliases(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailMessageImplementors = []string{"EmailMessage"}
+
+func (ec *executionContext) _EmailMessage(ctx context.Context, sel ast.SelectionSet, obj *model.EmailMessage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailMessageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailMessage")
+		case "id":
+			out.Values[i] = ec._EmailMessage_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "threadId":
+			out.Values[i] = ec._EmailMessage_threadId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "direction":
+			out.Values[i] = ec._EmailMessage_direction(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "subject":
+			out.Values[i] = ec._EmailMessage_subject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "from":
+			out.Values[i] = ec._EmailMessage_from(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "sentAt":
+			out.Values[i] = ec._EmailMessage_sentAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "receivedAt":
+			out.Values[i] = ec._EmailMessage_receivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "snippet":
+			out.Values[i] = ec._EmailMessage_snippet(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "bodyState":
+			out.Values[i] = ec._EmailMessage_bodyState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "skippedParts":
+			out.Values[i] = ec._EmailMessage_skippedParts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "automation":
+			out.Values[i] = ec._EmailMessage_automation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "encrypted":
+			out.Values[i] = ec._EmailMessage_encrypted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "signed":
+			out.Values[i] = ec._EmailMessage_signed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "winmail":
+			out.Values[i] = ec._EmailMessage_winmail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "inviteMethod":
+			out.Values[i] = ec._EmailMessage_inviteMethod(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "rawState":
+			out.Values[i] = ec._EmailMessage_rawState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "rawSize":
+			out.Values[i] = ec._EmailMessage_rawSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "originalPath":
+			out.Values[i] = ec._EmailMessage_originalPath(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "participants":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailMessage_participants(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "body":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailMessage_body(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "attachments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailMessage_attachments(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "contactIds":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailMessage_contactIds(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailMessagePageImplementors = []string{"EmailMessagePage"}
+
+func (ec *executionContext) _EmailMessagePage(ctx context.Context, sel ast.SelectionSet, obj *model.EmailMessagePage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailMessagePageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailMessagePage")
+		case "items":
+			out.Values[i] = ec._EmailMessagePage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._EmailMessagePage_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "limit":
+			out.Values[i] = ec._EmailMessagePage_limit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailParticipantImplementors = []string{"EmailParticipant"}
+
+func (ec *executionContext) _EmailParticipant(ctx context.Context, sel ast.SelectionSet, obj *model.EmailParticipant) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailParticipantImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailParticipant")
+		case "role":
+			out.Values[i] = ec._EmailParticipant_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._EmailParticipant_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._EmailParticipant_email(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailThreadImplementors = []string{"EmailThread"}
+
+func (ec *executionContext) _EmailThread(ctx context.Context, sel ast.SelectionSet, obj *model.EmailThread) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailThreadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailThread")
+		case "id":
+			out.Values[i] = ec._EmailThread_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "subject":
+			out.Values[i] = ec._EmailThread_subject(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "firstMessageAt":
+			out.Values[i] = ec._EmailThread_firstMessageAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastMessageAt":
+			out.Values[i] = ec._EmailThread_lastMessageAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "messageCount":
+			out.Values[i] = ec._EmailThread_messageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "hasAttachments":
+			out.Values[i] = ec._EmailThread_hasAttachments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "latest":
+			out.Values[i] = ec._EmailThread_latest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "messages":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailThread_messages(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "message":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._EmailThread_message(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var emailThreadPageImplementors = []string{"EmailThreadPage"}
+
+func (ec *executionContext) _EmailThreadPage(ctx context.Context, sel ast.SelectionSet, obj *model.EmailThreadPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailThreadPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailThreadPage")
+		case "items":
+			out.Values[i] = ec._EmailThreadPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._EmailThreadPage_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "limit":
+			out.Values[i] = ec._EmailThreadPage_limit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var fieldDefinitionImplementors = []string{"FieldDefinition"}
 
 func (ec *executionContext) _FieldDefinition(ctx context.Context, sel ast.SelectionSet, obj *model.FieldDefinition) graphql.Marshaler {
@@ -13648,6 +16841,94 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_webhookEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailMailbox":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailMailbox(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailThreads":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailThreads(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailThread":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailThread(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "emailContactMessages":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_emailContactMessages(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -15346,6 +18627,140 @@ func (ec *executionContext) marshalNDateTime2ᚖtimeᚐTime(ctx context.Context,
 	return res
 }
 
+func (ec *executionContext) marshalNEmailAttachment2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAttachmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailAttachment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailAttachment2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAttachment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailAttachment2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAttachment(ctx context.Context, sel ast.SelectionSet, v *model.EmailAttachment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailAttachment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailBody2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailBody(ctx context.Context, sel ast.SelectionSet, v *model.EmailBody) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailBody(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailMessage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx context.Context, sel ast.SelectionSet, v *model.EmailMessage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailMessagePage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessagePage(ctx context.Context, sel ast.SelectionSet, v *model.EmailMessagePage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailMessagePage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailParticipant2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailParticipantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailParticipant) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailParticipant2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailParticipant(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailParticipant2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailParticipant(ctx context.Context, sel ast.SelectionSet, v *model.EmailParticipant) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailParticipant(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailThread2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThreadᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailThread) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEmailThread2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThread(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEmailThread2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThread(ctx context.Context, sel ast.SelectionSet, v *model.EmailThread) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailThread(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailThreadPage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThreadPage(ctx context.Context, sel ast.SelectionSet, v *model.EmailThreadPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EmailThreadPage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNFieldDefinition2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FieldDefinition) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -15411,6 +18826,22 @@ func (ec *executionContext) marshalNFieldSubField2ᚖgithubᚗcomᚋgopheriumᚋ
 func (ec *executionContext) unmarshalNFieldSubFieldInput2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInput(ctx context.Context, v any) (*model.FieldSubFieldInput, error) {
 	res, err := ec.unmarshalInputFieldSubFieldInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) marshalNIdentity2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐIdentity(ctx context.Context, sel ast.SelectionSet, v *model.Identity) graphql.Marshaler {
@@ -16224,6 +19655,34 @@ func (ec *executionContext) marshalODateTime2ᚖtimeᚐTime(ctx context.Context,
 	_ = ctx
 	res := scalar.MarshalDateTime(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOEmailAddress2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailAddress(ctx context.Context, sel ast.SelectionSet, v *model.EmailAddress) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EmailAddress(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEmailMailbox2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMailbox(ctx context.Context, sel ast.SelectionSet, v *model.EmailMailbox) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EmailMailbox(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx context.Context, sel ast.SelectionSet, v *model.EmailMessage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EmailMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOEmailThread2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailThread(ctx context.Context, sel ast.SelectionSet, v *model.EmailThread) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._EmailThread(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFieldSubFieldInput2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldSubFieldInputᚄ(ctx context.Context, v any) ([]*model.FieldSubFieldInput, error) {
