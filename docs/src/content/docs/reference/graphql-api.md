@@ -58,6 +58,11 @@ through `contact { tasks { ... } }` without holding `tasks:read`. Grant
 the narrowest set of entry points an integration needs, and read a
 scope as the doorway it opens rather than a fence around one table.
 
+Mail has a doorway of its own, the `email` area. No contact field leads
+to mail, so `contacts:read` reads no mail. A token holding only
+`email:read` reads mail and nothing else, and a mail names its contacts
+by id only. See [Reading mail through the API](/email/overview/#reading-mail-through-the-api).
+
 **A session cookie**, for browsers. Call `login` and the reply sets it.
 Send the address and the password as variables, because a query before sign
 in holds at most 1024 bytes and a long password written into it is refused:
@@ -637,6 +642,8 @@ The stock plugins add their own:
 | `upstream_failed` | | the messaging platform did not accept |
 | `number_removed` | | the number the conversation came in on is no longer connected |
 | `channel_number_taken` | | another workspace holds the number, and the answer never names that workspace |
+| `bodies_per_request_exceeded` | `max` | one request asks for the body of more mails than [`ALPHONE_EMAIL_BODIES_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
+| `lists_per_request_exceeded` | `max` | one request asks for more `participants` and `attachments` lists than [`ALPHONE_EMAIL_LISTS_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
 | `import_not_found` | | the id names no import |
 | `file_too_large` | `maxBytes` | the upload is past the cap |
 | `file_unreadable` | | the file is not a CSV or spreadsheet AlphOne reads |
@@ -768,6 +775,7 @@ cannot drift. Point a client at the endpoint, or read
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
+| Email | `emailMailbox`, `emailThreads`, `emailThread`, `emailContactMessages` | |
 | Admin settings | `adminSettings` | |
 | Legal links | `legalLinks` | |
 | Version | `version` | |
