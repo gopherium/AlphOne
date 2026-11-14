@@ -12,7 +12,7 @@ operation that replaced it.
 
 ## Staying outside the graph
 
-Three routes are not going anywhere, because none of them is something a
+Five routes are not going anywhere, because none of them is something a
 GraphQL client asks for.
 
 **Meta's webhook pair.** `GET` and `POST /api/plugins/whatsapp/webhook`. Meta
@@ -24,12 +24,22 @@ signature rather than by session.
 file bytes. A graph field can name a download path, but the bytes themselves
 need a plain HTTP response.
 
+**The email downloads.** `GET /api/plugins/email/attachments/{id}` answers one
+attachment of a stored mail. `GET /api/plugins/email/messages/{id}/original`
+answers the whole original mail as `message/rfc822`, saved as
+`original-<id>.eml`. The graph names both paths, in `downloadPath` and
+`originalPath`. Every file comes with `Content-Security-Policy: sandbox`,
+`X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`, so
+it never runs as a page and no cache keeps it. The saved name is always safe.
+
 **The MCP endpoint.** `POST /api/mcp` speaks the Model Context Protocol
 (MCP), so an AI agent can read AlphOne with its own client. It takes the same
 API tokens, and its tools run graph operations underneath. See
 [AI agents](/guides/agents/).
 
-The first two are documented in the [WhatsApp API](/whatsapp/api/).
+The webhook pair and the media download are documented in the
+[WhatsApp API](/whatsapp/api/). The email downloads are documented in
+[Stored mail](/email/overview/#downloading-files).
 
 ## Limits on what remains
 
@@ -39,12 +49,18 @@ user may have 5 such requests open at once, and any one of them is closed after
 
 Paths a plugin declares public, such as the webhook pair, skip both.
 
-A plugin may also hold its routes to one scope area, and WhatsApp does. Its
-media download needs `whatsapp:read`, so a token scoped elsewhere is refused
-with `403`:
+A plugin may also hold its routes to one scope area, and WhatsApp and email
+do. The media download needs `whatsapp:read`, so a token scoped elsewhere is
+rejected with `403`:
 
 ```json
 { "error": "scope required: whatsapp:read" }
+```
+
+The email downloads need `email:read`, and a token without it gets:
+
+```json
+{ "error": "scope required: email:read" }
 ```
 
 The check runs before the plugin sees the request, so an under-scoped token
