@@ -233,6 +233,46 @@ func TestKeepFilesSavesATypeTheStoreWouldRefuseAsAnOctetStream(t *testing.T) {
 	}
 }
 
+func TestKeepFilesSavesAFileUnderItsMediaTypeWithoutItsParameters(t *testing.T) {
+	t.Parallel()
+
+	files, _, store := newMailFiles(t, fileCap)
+
+	kept := keepRun(t, files, fileStored,
+		mailFile{contentType: `application/pdf; name="quote.pdf"`, content: []byte("quote")},
+		mailFile{contentType: "image/png; name=photo.png", content: []byte("photo over the cap"), tooLarge: true})
+
+	if kept[0].contentType != "application/pdf" || store.saves[0].contentType != "application/pdf" {
+		t.Errorf("the stored file = %+v, sent as %q, want both application/pdf", kept[0], store.saves[0].contentType)
+	}
+	if kept[1].contentType != "image/png" {
+		t.Errorf("the file over its cap = %+v, want it kept as image/png", kept[1])
+	}
+}
+
+func TestStorableTypeKeepsTheMediaTypeAloneUpToItsLongestLength(t *testing.T) {
+	t.Parallel()
+
+	longestType := "application/" + strings.Repeat("x", mediaTypeMaxBytes-len("application/"))
+	for name, c := range map[string]struct {
+		contentType string
+		want        string
+	}{
+		"a type with parameters":                {`application/pdf; name="quote.pdf"`, "application/pdf"},
+		"a type in upper case":                  {"Image/PNG; Name=Photo.png", "image/png"},
+		"a type of the longest length":          {longestType, longestType},
+		"a type of the longest with parameters": {longestType + `; name="quote.pdf"`, longestType},
+		"a type one byte over the longest":      {longestType + "x", octetStream},
+		"a type with no subtype":                {"inline", octetStream},
+		"a type that does not parse":            {"not a type", octetStream},
+		"no type":                               {"", octetStream},
+	} {
+		if got := storableType(c.contentType); got != c.want {
+			t.Errorf("storableType() of %s = %q, want %q", name, got, c.want)
+		}
+	}
+}
+
 func TestKeepFilesQueuesEveryFileAsWritingBeforeItsBytes(t *testing.T) {
 	t.Parallel()
 
