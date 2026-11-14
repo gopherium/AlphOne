@@ -8,6 +8,7 @@ import (
 	"errors"
 	graph "github.com/gopherium/alphone/graph"
 	graphres "github.com/gopherium/alphone/internal/graphres"
+	email "github.com/gopherium/alphone/plugins/email"
 	fields "github.com/gopherium/alphone/plugins/fields"
 	importer "github.com/gopherium/alphone/plugins/importer"
 	whatsapp "github.com/gopherium/alphone/plugins/whatsapp"
@@ -21,6 +22,13 @@ type CoreGraphResolvers interface {
 	QueryResolvers() graphres.QueryResolvers
 	SubscriptionResolvers() graphres.SubscriptionResolvers
 	TaskResolvers() graphres.TaskResolvers
+}
+
+// EmailGraphResolvers lists the resolver sets the email plugin contributes to the graph.
+type EmailGraphResolvers interface {
+	EmailMessageResolvers() email.EmailMessageResolvers
+	EmailThreadResolvers() email.EmailThreadResolvers
+	QueryResolvers() email.QueryResolvers
 }
 
 // FieldsGraphResolvers lists the resolver sets the fields plugin contributes to the graph.
@@ -85,6 +93,9 @@ type composedMutationResolver struct {
 // coreQueryResolvers names the core Query resolver set for embedding.
 type coreQueryResolvers = graphres.QueryResolvers
 
+// emailQueryResolvers names the email Query resolver set for embedding.
+type emailQueryResolvers = email.QueryResolvers
+
 // fieldsQueryResolvers names the fields Query resolver set for embedding.
 type fieldsQueryResolvers = fields.QueryResolvers
 
@@ -97,6 +108,7 @@ type whatsappQueryResolvers = whatsapp.QueryResolvers
 // composedQueryResolver merges every contributed Query resolver set.
 type composedQueryResolver struct {
 	coreQueryResolvers
+	emailQueryResolvers
 	fieldsQueryResolvers
 	importerQueryResolvers
 	whatsappQueryResolvers
@@ -117,6 +129,7 @@ type composedSubscriptionResolver struct {
 // graphRoot composes the core and plugin resolver sets into the resolver root.
 type graphRoot struct {
 	core     CoreGraphResolvers
+	email    EmailGraphResolvers
 	fields   FieldsGraphResolvers
 	importer ImporterGraphResolvers
 	whatsapp WhatsappGraphResolvers
@@ -125,19 +138,24 @@ type graphRoot struct {
 // NewGraphRoot composes the core resolver sets with every graphql plugin's.
 func NewGraphRoot(
 	core CoreGraphResolvers,
+	emailPlugin EmailGraphResolvers,
 	fieldsPlugin FieldsGraphResolvers,
 	importerPlugin ImporterGraphResolvers,
 	whatsappPlugin WhatsappGraphResolvers,
 ) graph.ResolverRoot {
-	return graphRoot{core: core, fields: fieldsPlugin, importer: importerPlugin, whatsapp: whatsappPlugin}
+	return graphRoot{core: core, email: emailPlugin, fields: fieldsPlugin, importer: importerPlugin, whatsapp: whatsappPlugin}
 }
 
 // FromPlugins finds each graphql plugin among the registered plugins and composes the resolver root.
 func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverRoot, error) {
+	var emailPlugin EmailGraphResolvers
 	var fieldsPlugin FieldsGraphResolvers
 	var importerPlugin ImporterGraphResolvers
 	var whatsappPlugin WhatsappGraphResolvers
 	for _, plugin := range plugins {
+		if candidate, ok := plugin.(EmailGraphResolvers); ok {
+			emailPlugin = candidate
+		}
 		if candidate, ok := plugin.(FieldsGraphResolvers); ok {
 			fieldsPlugin = candidate
 		}
@@ -148,6 +166,9 @@ func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverR
 			whatsappPlugin = candidate
 		}
 	}
+	if emailPlugin == nil {
+		return nil, errors.New("graphroot: no registered plugin provides the email resolver sets")
+	}
 	if fieldsPlugin == nil {
 		return nil, errors.New("graphroot: no registered plugin provides the fields resolver sets")
 	}
@@ -157,7 +178,7 @@ func FromPlugins(core CoreGraphResolvers, plugins []sdk.Plugin) (graph.ResolverR
 	if whatsappPlugin == nil {
 		return nil, errors.New("graphroot: no registered plugin provides the whatsapp resolver sets")
 	}
-	return NewGraphRoot(core, fieldsPlugin, importerPlugin, whatsappPlugin), nil
+	return NewGraphRoot(core, emailPlugin, fieldsPlugin, importerPlugin, whatsappPlugin), nil
 }
 
 // Contact returns the Contact resolver set.
@@ -167,6 +188,16 @@ func (g graphRoot) Contact() graph.ContactResolver {
 		g.fields.ContactResolvers(),
 		g.whatsapp.ContactResolvers(),
 	}
+}
+
+// EmailMessage returns the EmailMessage resolver set.
+func (g graphRoot) EmailMessage() graph.EmailMessageResolver {
+	return g.email.EmailMessageResolvers()
+}
+
+// EmailThread returns the EmailThread resolver set.
+func (g graphRoot) EmailThread() graph.EmailThreadResolver {
+	return g.email.EmailThreadResolvers()
 }
 
 // ImportJob returns the ImportJob resolver set.
@@ -188,6 +219,7 @@ func (g graphRoot) Mutation() graph.MutationResolver {
 func (g graphRoot) Query() graph.QueryResolver {
 	return composedQueryResolver{
 		g.core.QueryResolvers(),
+		g.email.QueryResolvers(),
 		g.fields.QueryResolvers(),
 		g.importer.QueryResolvers(),
 		g.whatsapp.QueryResolvers(),
