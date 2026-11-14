@@ -236,18 +236,27 @@ type storedMail struct {
 // initializeEmail returns the binding of the email steps, t holding their databases.
 func initializeEmail(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) {
-		s := &emailScenario{t: t, env: map[string]string{}, workspaces: map[string]uuid.UUID{}, received: firstReceived}
-		s.bindSetup(sc)
-		s.bindFeeds(sc)
-		s.bindAnswers(sc)
-		s.bindMails(sc)
-		s.bindFiles(sc)
-		s.bindThreads(sc)
-		s.bindEvents(sc)
-		sc.After(func(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
-			return ctx, s.stop()
-		})
+		bindEmailSteps(sc, newEmailScenario(t))
 	}
+}
+
+// newEmailScenario returns the state of one email scenario, t holding its databases.
+func newEmailScenario(t *testing.T) *emailScenario {
+	return &emailScenario{t: t, env: map[string]string{}, workspaces: map[string]uuid.UUID{}, received: firstReceived}
+}
+
+// bindEmailSteps binds every email step to s and stops what s started once each scenario ends.
+func bindEmailSteps(sc *godog.ScenarioContext, s *emailScenario) {
+	s.bindSetup(sc)
+	s.bindFeeds(sc)
+	s.bindAnswers(sc)
+	s.bindMails(sc)
+	s.bindFiles(sc)
+	s.bindThreads(sc)
+	s.bindEvents(sc)
+	sc.After(func(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
+		return ctx, s.stop()
+	})
 }
 
 // bindSetup binds the steps that prepare a database, its accounts, its workspaces and their settings.
@@ -1017,6 +1026,11 @@ func (s *emailScenario) countsStoredText(ctx context.Context, name string) error
 func (s *emailScenario) serveWithSweep(seconds int) error {
 	s.sweep = time.Duration(seconds) * time.Second
 	s.env[sweepIntervalSetting] = s.sweep.String()
+	return s.serveAlphOne()
+}
+
+// serveAlphOne starts AlphOne serving over the scenario's settings at a free address it keeps in ALPHONE_ADDR.
+func (s *emailScenario) serveAlphOne() error {
 	address := testkit.FreeAddr(s.t)
 	s.env["ALPHONE_ADDR"] = address
 	serving, cancel := context.WithCancel(s.t.Context())
