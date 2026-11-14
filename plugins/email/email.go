@@ -6,6 +6,7 @@ package email
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -15,14 +16,23 @@ import (
 // adminRole is the role the plugin gives the capability to manage the mailbox.
 const adminRole = "admin"
 
+// pluginID names the plugin, its route namespace and the scope area its fields and routes are held to.
+const pluginID = "email"
+
 // Plugin is the email channel, storing raw mail on the known contacts it names.
 type Plugin struct {
 	// pool reaches the mail of every workspace.
 	pool *pgxpool.Pool
+	// pages bounds the pages each list of the graph answers.
+	pages sdk.PageBounds
 	// ingester stores and threads each raw mail.
 	ingester *ingester
 	// sweeper deletes the files no stored mail holds.
 	sweeper *sweeper
+	// loaders read the people, bodies, files and contacts of the mail one graph request asks for.
+	loaders mailLoaders
+	// downloads serves the kept files of mail.
+	downloads *downloads
 }
 
 // Register builds the email [Plugin] from the host-provided deps.
@@ -37,14 +47,33 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 	}
 	return &Plugin{
 		pool:     pool,
+		pages:    deps.Pages,
 		ingester: newIngester(pool, deps, held),
 		sweeper:  &sweeper{pool: pool, logger: deps.Logger, pace: held.sweep},
+		loaders: mailLoaders{
+			db: pool, bodiesPerRequest: held.graph.bodiesPerRequest, listsPerRequest: held.graph.listsPerRequest,
+		},
+		downloads: &downloads{db: pool},
 	}, nil
 }
 
 // ID reports the plugin identifier.
 func (p *Plugin) ID() string {
-	return "email"
+	return pluginID
+}
+
+var _ sdk.RouteProvider = (*Plugin)(nil)
+
+// Routes returns the downloads of an attachment and of the original of a mail, served relative to the namespace.
+func (p *Plugin) Routes() http.Handler {
+	return p.downloads.routes()
+}
+
+var _ sdk.AreaProvider = (*Plugin)(nil)
+
+// Area names the scope area the downloads are held to.
+func (p *Plugin) Area() string {
+	return pluginID
 }
 
 // Start launches the sweep of the files no stored mail holds.
@@ -99,10 +128,11 @@ func (p *Plugin) UseTenantGate(gate sdk.TenantGate) {
 
 var _ sdk.FileStoreConsumer = (*Plugin)(nil)
 
-// UseFileStore receives the host's file store, which keeps the files of mail and deletes the ones no mail holds.
+// UseFileStore receives the host's file store, which keeps, serves and deletes the files of mail.
 func (p *Plugin) UseFileStore(store sdk.FileStore) {
 	p.ingester.files.store = store
 	p.sweeper.store = store
+	p.downloads.store = store
 }
 
 var _ sdk.SettingStoreConsumer = (*Plugin)(nil)
