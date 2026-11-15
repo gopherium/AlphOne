@@ -3,10 +3,12 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -141,6 +143,35 @@ func TestGraphQLRejectsOneUploadMappedToTwoVariablesUnderTwoNames(t *testing.T) 
 		guarded.serve(fromBrowser(oneUploadUnderTwoVariablesForm(t), crmOrigin, "same-origin", guarded.cookie)))
 
 	rejectedRepeat(t, answered, "Mutation.importUpload")
+}
+
+// spelledContactID is a contact ID whose hex digits include letters.
+const spelledContactID = "0198c0de-0000-7000-8000-00000000abcd"
+
+// twoSpellingsRequest returns a JSON graph post asking one contact under two names by two spellings of its ID.
+func twoSpellingsRequest(t *testing.T) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{
+		"query": `{ once: contact(id: "` + spelledContactID + `") { name } ` +
+			`twice: contact(id: "` + strings.ToUpper(spelledContactID) + `") { name } }`,
+	})
+	if err != nil {
+		t.Fatalf("encoding the request: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, crmOrigin+"/api/graphql", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	return request
+}
+
+func TestGraphQLRejectsOneContactAskedUnderTwoSpellingsOfItsID(t *testing.T) {
+	t.Parallel()
+
+	guarded := newGuardedServer(t)
+
+	answered := decodeBody[graphResponse](t,
+		guarded.serve(fromBrowser(twoSpellingsRequest(t), crmOrigin, "same-origin", guarded.cookie)))
+
+	rejectedRepeat(t, answered, "Query.contact")
 }
 
 func TestGraphQLRejectsAFieldAskedUnderTwoNamesBeforeSignIn(t *testing.T) {
