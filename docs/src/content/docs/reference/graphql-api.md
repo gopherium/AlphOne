@@ -762,8 +762,11 @@ runs. The error has the code `VALIDATION` and the reason `repeated_field`, and
 Ask for the field once. Two names are fine when the arguments differ, such as
 `first: contact(id: ...)` and `second: contact(id: ...)` with two ids. A
 variable counts as the value it holds, so `$id` and the same id written out are
-one argument. A field left out with `@skip` or `@include` does not count, and
-the same name written twice is one field, since GraphQL merges it.
+one argument. A single value for a list counts as a list of that one value, and
+`null` counts as leaving out an argument that has no default. Two uploads count
+as one value when their name, type and bytes all match. A field left out with
+`@skip` or `@include` does not count, and the same name written twice is one
+field, since GraphQL merges it.
 
 ## Subscriptions
 
