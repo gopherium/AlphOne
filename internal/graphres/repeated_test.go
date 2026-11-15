@@ -3,9 +3,11 @@
 package graphres_test
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,6 +25,17 @@ import (
 // shelfSchema is a small schema whose fields reach every shape the rule tells apart.
 const shelfSchema = `
 scalar Upload
+scalar UUID
+
+directive @goField(omittable: Boolean) on INPUT_FIELD_DEFINITION
+
+input Placement {
+	holder: UUID
+	level: Int
+	note: String
+	until: String @goField(omittable: true)
+	within: Placement
+}
 
 type Query {
 	shelf: Shelf
@@ -32,6 +45,10 @@ type Query {
 	grid(rows: [[Int!]!]): [Item!]!
 	matrix(rows: [[Int]]): [Item!]!
 	search: [Result!]!
+	holder(id: UUID!): Item
+	holders(ids: [UUID!]): [Item!]!
+	placed(at: Placement): [Item!]!
+	placements(at: [Placement!]): [Item!]!
 }
 
 type Mutation {
@@ -73,8 +90,30 @@ func ruleAnswer(t *testing.T, schema *ast.Schema, asked askedDocument) *gqlerror
 	if err != nil {
 		t.Fatalf("parsing %s: %v", asked.document, err)
 	}
+	rule := &graphres.RepeatedFields{}
+	if err := rule.Validate(graphres.ExecutableSchemaOver(nil, schema)); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
 	rc := &graphql.OperationContext{Doc: query, Operation: query.Operations[0], Variables: asked.variables}
-	return graphres.RepeatedFields{}.MutateOperationContext(t.Context(), rc)
+	return rule.MutateOperationContext(t.Context(), rc)
+}
+
+// heldID is a UUID whose hex digits include letters.
+const heldID = "0198c0de-0000-7000-8000-00000000abcd"
+
+// otherHeldID is a UUID other than heldID.
+const otherHeldID = "0198c0de-0000-7000-8000-00000000abce"
+
+// holderTwice returns the document asking holder under two names by the IDs once and twice.
+func holderTwice(once, twice string) askedDocument {
+	return askedDocument{
+		document: `{ once: holder(id: "` + once + `") { name } twice: holder(id: "` + twice + `") { name } }`,
+	}
+}
+
+// placedTwice returns the document asking placed under two names by the input literals once and twice.
+func placedTwice(once, twice string) askedDocument {
+	return askedDocument{document: `{ once: placed(at: ` + once + `) { name } twice: placed(at: ` + twice + `) { name } }`}
 }
 
 // uploadedBytes are the bytes of the one file the upload tests send under two variables.
@@ -164,7 +203,12 @@ func composedSchema(t *testing.T) *ast.Schema {
 // repeatedName returns the field the rule names in its rejection of the document over the shelf schema.
 func repeatedName(t *testing.T, asked askedDocument) any {
 	t.Helper()
-	rejected := ruleAnswer(t, gqlparser.MustLoadSchema(&ast.Source{Input: shelfSchema}), asked)
+	return namedField(t, ruleAnswer(t, gqlparser.MustLoadSchema(&ast.Source{Input: shelfSchema}), asked))
+}
+
+// namedField returns the field a rejection names, nil when there is no rejection.
+func namedField(t *testing.T, rejected *gqlerror.Error) any {
+	t.Helper()
 	if rejected == nil {
 		return nil
 	}
@@ -246,6 +290,110 @@ func TestTheRuleRejectsAFieldAskedWithTheSameArgumentsUnderTwoNames(t *testing.T
 	}
 }
 
+func TestTheRuleRejectsAUUIDOrAnInputObjectOfOneValueUnderTwoNames(t *testing.T) {
+	t.Parallel()
+
+	for name, test := range map[string]struct {
+		asked askedDocument
+		field string
+	}{
+		"one UUID in lower and upper case":  {holderTwice(heldID, strings.ToUpper(heldID)), "Query.holder"},
+		"one UUID with and without hyphens": {holderTwice(heldID, strings.ReplaceAll(heldID, "-", "")), "Query.holder"},
+		"one UUID bare and in braces":       {holderTwice(heldID, "{"+heldID+"}"), "Query.holder"},
+		"one UUID bare and as a URN":        {holderTwice(heldID, "urn:uuid:"+heldID), "Query.holder"},
+		"a UUID variable and a literal of another spelling": {askedDocument{
+			document: `query($id: UUID!) {
+				byVariable: holder(id: $id) { name } byLiteral: holder(id: "` + strings.ToUpper(heldID) + `") { name }
+			}`,
+			variables: map[string]any{"id": heldID},
+		}, "Query.holder"},
+		"two spellings of one UUID in a list": {askedDocument{document: `{
+			once: holders(ids: ["` + heldID + `"]) { name } twice: holders(ids: ["` + strings.ToUpper(heldID) + `"]) { name }
+		}`}, "Query.holders"},
+		"two spellings of one UUID in an input member": {
+			placedTwice(`{holder: "`+heldID+`"}`, `{holder: "`+strings.ToUpper(heldID)+`"}`), "Query.placed",
+		},
+		"two spellings of one UUID in an input inside a list of inputs": {askedDocument{document: `{
+			once: placements(at: [{holder: "` + heldID + `"}]) { name }
+			twice: placements(at: [{holder: "` + strings.ReplaceAll(heldID, "-", "") + `"}]) { name }
+		}`}, "Query.placements"},
+		"an input member set to null and left out": {
+			placedTwice(`{holder: "`+heldID+`", note: null}`, `{holder: "`+heldID+`"}`), "Query.placed",
+		},
+		"an input member set to null in a variable and left out": {askedDocument{
+			document: `query($at: Placement) {
+				byVariable: placed(at: $at) { name } byLiteral: placed(at: {holder: "` + heldID + `"}) { name }
+			}`,
+			variables: map[string]any{"at": map[string]any{"holder": heldID, "note": nil}},
+		}, "Query.placed"},
+		"a nested input member set to null and left out": {
+			placedTwice(`{within: {note: null}}`, `{within: {}}`), "Query.placed",
+		},
+		"one string that names no UUID written twice": {holderTwice("not-a-uuid", "not-a-uuid"), "Query.holder"},
+	} {
+		if got := repeatedName(t, test.asked); got != test.field {
+			t.Errorf("%s: the rule named %v, want %s rejected", name, got, test.field)
+		}
+	}
+}
+
+// rankAndLiteralDocument asks the shelf item under two names by the rank of a variable and the literal rank 2.
+const rankAndLiteralDocument = `query($rank: Int) {
+	shelf { byVariable: item(rank: $rank) { name } byLiteral: item(rank: 2) { name } }
+}`
+
+// tagsAndLiteralDocument asks the tagged items under two names by the tags of a variable and the literal tag "2".
+const tagsAndLiteralDocument = `query($tags: [String!]) {
+	byVariable: tagged(tags: $tags) { name } byLiteral: tagged(tags: ["2"]) { name }
+}`
+
+// twoRanksDocument asks the shelf item under two names by the ranks of two variables.
+const twoRanksDocument = `query($once: Int, $twice: Int) {
+	shelf { once: item(rank: $once) { name } twice: item(rank: $twice) { name } }
+}`
+
+func TestTheRuleRejectsAnIntOrAStringOfOneValueInTwoSpellingsUnderTwoNames(t *testing.T) {
+	t.Parallel()
+
+	for name, test := range map[string]struct {
+		asked askedDocument
+		field string
+	}{
+		"an Int variable holding a number string and the literal of that number": {askedDocument{
+			document: rankAndLiteralDocument, variables: map[string]any{"rank": "2"},
+		}, "Shelf.item"},
+		"one number with a leading zero and with a plus sign": {askedDocument{
+			document: twoRanksDocument, variables: map[string]any{"once": "02", "twice": "+2"},
+		}, "Shelf.item"},
+		"one number as a JSON number and as a string": {askedDocument{
+			document: twoRanksDocument, variables: map[string]any{"once": json.Number("2"), "twice": "2"},
+		}, "Shelf.item"},
+		"number strings in a nested list variable and the written list of their numbers": {askedDocument{
+			document: `query($rows: [[Int!]!]) {
+				byVariable: grid(rows: $rows) { name } byLiteral: grid(rows: [[1, 2]]) { name }
+			}`,
+			variables: map[string]any{"rows": []any{[]any{"1", "02"}}},
+		}, "Query.grid"},
+		"an Int input member as a string and as a number": {askedDocument{
+			document: `query($at: Placement) {
+				byVariable: placed(at: $at) { name } byLiteral: placed(at: {level: 2}) { name }
+			}`,
+			variables: map[string]any{"at": map[string]any{"level": "2"}},
+		}, "Query.placed"},
+		"a whole float variable that decodes to no Int and the literal of its number": {askedDocument{
+			document: rankAndLiteralDocument, variables: map[string]any{"rank": 2.0},
+		}, "Shelf.item"},
+		"a JSON number for a String and the string of its digits": {askedDocument{
+			document:  tagsAndLiteralDocument,
+			variables: map[string]any{"tags": []any{json.Number("2")}},
+		}, "Query.tagged"},
+	} {
+		if got := repeatedName(t, test.asked); got != test.field {
+			t.Errorf("%s: the rule named %v, want %s rejected", name, got, test.field)
+		}
+	}
+}
+
 func TestTheRuleAnswersAFieldAskedOnceOrApart(t *testing.T) {
 	t.Parallel()
 
@@ -296,6 +444,20 @@ func TestTheRuleAnswersAFieldAskedOnceOrApart(t *testing.T) {
 				"file":    uploadFrom(&unseekableFile{strings.NewReader(uploadedBytes)}),
 				"another": uploadFrom(&unseekableFile{strings.NewReader(uploadedBytes)}),
 			},
+		},
+		"two different UUIDs":                          holderTwice(heldID, otherHeldID),
+		"two different strings that name no UUID":      holderTwice("not-a-uuid", "NOT-A-UUID"),
+		"an omittable member set to null and left out": placedTwice(`{until: null}`, `{}`),
+		"an omittable member set to null in a variable and left out": {
+			document:  `query($at: Placement) { byVariable: placed(at: $at) { name } byLiteral: placed(at: {}) { name } }`,
+			variables: map[string]any{"at": map[string]any{"until": nil}},
+		},
+		"input members of different values": placedTwice(`{note: "top"}`, `{note: "low"}`),
+		"two Int strings of different numbers": {
+			document: twoRanksDocument, variables: map[string]any{"once": "2", "twice": "3"},
+		},
+		"a JSON number with a decimal point for a String and the string without it": {
+			document: tagsAndLiteralDocument, variables: map[string]any{"tags": []any{json.Number("2.0")}},
 		},
 	} {
 		if got := repeatedName(t, asked); got != nil {
@@ -365,7 +527,7 @@ func TestTheRepeatedFieldRuleRejectsAtTheEndpoint(t *testing.T) {
 func TestTheRuleNamesItselfAndTakesAnySchema(t *testing.T) {
 	t.Parallel()
 
-	rule := graphres.RepeatedFields{}
+	rule := &graphres.RepeatedFields{}
 
 	if got := rule.ExtensionName(); got != "RepeatedFields" {
 		t.Errorf("ExtensionName() = %q, want RepeatedFields", got)
@@ -387,5 +549,144 @@ func TestTheShippedDocumentsThatNameAFieldTwiceOrIntrospectPassTheRule(t *testin
 		if rejected := ruleAnswer(t, schema, askedDocument{document: document}); rejected != nil {
 			t.Errorf("%s answered %v, want it passed", name, rejected)
 		}
+	}
+}
+
+func TestTheRuleComparesTheComposedArgumentsByTheValueTheyResolveTo(t *testing.T) {
+	t.Parallel()
+
+	schema := composedSchema(t)
+
+	for name, test := range map[string]struct {
+		asked askedDocument
+		field any
+	}{
+		"a task created with a null priority and with none": {askedDocument{document: `mutation {
+			once: createTask(input: {title: "Call back", dueOn: "2026-11-16"}) { replay }
+			twice: createTask(input: {title: "Call back", dueOn: "2026-11-16", priority: null}) { replay }
+		}`}, "Mutation.createTask"},
+		"a task updated with a null due time and with none": {askedDocument{document: `mutation {
+			once: updateTask(id: "` + heldID + `", input: {title: "Call back"}) { id }
+			twice: updateTask(id: "` + heldID + `", input: {title: "Call back", dueTime: null}) { id }
+		}`}, nil},
+		"one contact by two spellings of its ID": {askedDocument{document: `{
+			once: contact(id: "` + heldID + `") { name } twice: contact(id: "{` + strings.ToUpper(heldID) + `}") { name }
+		}`}, "Query.contact"},
+		"a task created with a priority string through a variable and with the literal of its number": {askedDocument{
+			document: `mutation($priority: Int) {
+				once: createTask(input: {title: "Call back", dueOn: "2026-11-16", priority: $priority}) { replay }
+				twice: createTask(input: {title: "Call back", dueOn: "2026-11-16", priority: 2}) { replay }
+			}`,
+			variables: map[string]any{"priority": "2"},
+		}, "Mutation.createTask"},
+	} {
+		if got := namedField(t, ruleAnswer(t, schema, test.asked)); got != test.field {
+			t.Errorf("%s: the rule named %v, want %v", name, got, test.field)
+		}
+	}
+}
+
+// comparedScalars lists the scalars the rule compares by the value they resolve to.
+var comparedScalars = map[string]bool{
+	"String": true, "Int": true, "Boolean": true, "Date": true, "LocalTime": true,
+	"UUID": true, "JSON": true, "Upload": true,
+}
+
+// inputWalk gathers the inputs of a schema the rule does not compare by their value, each input object once.
+type inputWalk struct {
+	schema *ast.Schema
+	seen   map[string]bool
+	found  []string
+}
+
+// uncompared returns every argument and input member of schema the rule does not compare by its value, sorted.
+func uncompared(schema *ast.Schema) []string {
+	walk := &inputWalk{schema: schema, seen: map[string]bool{}}
+	for _, definition := range schema.Types {
+		for _, field := range definition.Fields {
+			for _, argument := range field.Arguments {
+				walk.check(definition.Name+"."+field.Name+"("+argument.Name+")", argument.Type)
+			}
+		}
+	}
+	slices.Sort(walk.found)
+	return walk.found
+}
+
+// check gathers the input at path when its type, or a member of the input object it names, is not compared by value.
+func (w *inputWalk) check(path string, typ *ast.Type) {
+	definition := w.schema.Types[typ.Name()]
+	switch {
+	case definition.Kind == ast.Enum:
+	case definition.Kind == ast.InputObject:
+		w.members(definition)
+	case !comparedScalars[definition.Name]:
+		w.found = append(w.found, path+" takes "+definition.Name)
+	}
+}
+
+// members gathers the members of an input object not compared by value or holding a default value.
+func (w *inputWalk) members(definition *ast.Definition) {
+	if w.seen[definition.Name] {
+		return
+	}
+	w.seen[definition.Name] = true
+	for _, member := range definition.Fields {
+		path := definition.Name + "." + member.Name
+		if member.DefaultValue != nil {
+			w.found = append(w.found, path+" has a default value")
+		}
+		w.check(path, member.Type)
+	}
+}
+
+func TestTheRuleComparesEveryArgumentOfTheComposedSchemaByItsValue(t *testing.T) {
+	t.Parallel()
+
+	if found := uncompared(composedSchema(t)); len(found) != 0 {
+		t.Errorf("the rule does not compare these inputs by their value: %v", found)
+	}
+}
+
+// uncomparedSchema is a small schema whose inputs the rule does not compare by their value.
+const uncomparedSchema = `
+scalar DateTime
+
+input Window {
+	from: DateTime
+	weight: Float = 1.5
+	within: Window
+	order: Order
+}
+
+enum Order {
+	ASC
+	DESC
+}
+
+type Query {
+	item(id: ID!): Item
+	ranked(score: Float): [Item!]!
+	windowed(window: [Window!]): [Item!]!
+}
+
+type Item {
+	name: String
+}
+`
+
+func TestTheInputCheckFindsEveryInputTheRuleDoesNotCompareByValue(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		"Query.item(id) takes ID",
+		"Query.ranked(score) takes Float",
+		"Window.from takes DateTime",
+		"Window.weight has a default value",
+		"Window.weight takes Float",
+	}
+
+	if got := uncompared(gqlparser.MustLoadSchema(&ast.Source{Input: uncomparedSchema})); !slices.Equal(got, want) {
+		t.Errorf("uncompared() = %v, want %v", got, want)
 	}
 }
