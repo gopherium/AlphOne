@@ -176,7 +176,7 @@ func newEmailGraph(t *testing.T, w wiredPlugin) (http.Handler, graphql.Executabl
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
-	srv.Use(graphres.RepeatedFields{})
+	srv.Use(&graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema()), role.NewRegistry()))
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv, schema
