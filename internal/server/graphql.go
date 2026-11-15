@@ -110,6 +110,7 @@ func graphServer(
 	srv.AddTransport(transport.MultipartForm{MaxUploadSize: bounds.UploadMaxBytes})
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.Use(graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.AnonymousGate)
 	srv.AroundOperations(graphres.ScopeGate(scopes, roles))
 	srv.SetErrorPresenter(graphres.PresentError)
