@@ -585,6 +585,7 @@ The reasons the core answers with:
 | `webhook_events_required` | | a webhook needs at least one event |
 | `webhook_not_found` | | the id names no webhook |
 | `first_out_of_range` | `min`, `max` | the page size is outside the range |
+| `repeated_field` | `field` | the query asks the same field with the same arguments under two names, see [one name for each field](#one-name-for-each-field) |
 | `locale_unknown` | `supported` | the locale is not one AlphOne serves |
 | `cursor_malformed` | | the cursor is not one a field issued |
 | `value_malformed` | | a scalar did not parse |
@@ -724,6 +725,45 @@ priced the same way, such as `whatsAppConversations` and the `rows` and
 
 Ask for fewer rows or fewer fields. Over a budget, AlphOne answers HTTP 429
 with a `Retry-After` header.
+
+### One name for each field
+
+A query asks for each field under one name. An alias or a fragment can give a
+field a second name in the same selection, and a query that asks the same
+field with the same arguments under two names is rejected before anything
+runs. The error has the code `VALIDATION` and the reason `repeated_field`, and
+`meta.field` names the field as `Type.field`:
+
+```graphql
+{
+  contact(id: "0198c000-0000-7000-8000-000000000001") {
+    name
+    fullName: name
+  }
+}
+```
+
+```json
+{
+  "errors": [
+    {
+      "message": "graph: the field Contact.name is asked under the names name and fullName",
+      "extensions": {
+        "code": "VALIDATION",
+        "reason": "repeated_field",
+        "meta": { "field": "Contact.name" }
+      }
+    }
+  ],
+  "data": null
+}
+```
+
+Ask for the field once. Two names are fine when the arguments differ, such as
+`first: contact(id: ...)` and `second: contact(id: ...)` with two ids. A
+variable counts as the value it holds, so `$id` and the same id written out are
+one argument. A field left out with `@skip` or `@include` does not count, and
+the same name written twice is one field, since GraphQL merges it.
 
 ## Subscriptions
 
