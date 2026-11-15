@@ -763,10 +763,14 @@ Ask for the field once. Two names are fine when the arguments differ, such as
 `first: contact(id: ...)` and `second: contact(id: ...)` with two ids. A
 variable counts as the value it holds, so `$id` and the same id written out are
 one argument. A single value for a list counts as a list of that one value, and
-`null` counts as leaving out an argument that has no default. Two uploads count
-as one value when their name, type and bytes all match. A field left out with
-`@skip` or `@include` does not count, and the same name written twice is one
-field, since GraphQL merges it.
+`null` counts as leaving out an argument that has no default. A UUID counts as
+the id it names in any spelling the API accepts, such as upper case or without
+hyphens. A number sent as a string counts as that number, and a number sent for
+a string counts as its digits. Inside an input object, a member set to `null`
+counts as leaving it out, except `dueTime` of `UpdateTaskInput`, where `null`
+clears the time. Two uploads count as one value when their name, type and bytes
+all match. A field left out with `@skip` or `@include` does not count, and the
+same name written twice is one field, since GraphQL merges it.
 
 ## Subscriptions
 
