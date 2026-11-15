@@ -88,6 +88,11 @@ const mailPeopleQuery = `query People($thread: UUID!, $id: UUID!) {
 // newestBodiesQuery reads the text of the newest mail of every thread of the inbox in one request.
 const newestBodiesQuery = `query { emailThreads { items { latest { body { text } } } } }`
 
+// mailTextTwiceQuery reads the text of one mail of a thread under two names in one request.
+const mailTextTwiceQuery = `query Twice($thread: UUID!, $id: UUID!) {
+	emailThread(id: $thread) { message(id: $id) { body { first: text second: text } } }
+}`
+
 // newestPeopleQuery reads the people of the newest mail of every thread of the inbox in one request.
 const newestPeopleQuery = `query { emailThreads { items { latest { participants { email } } } } }`
 
@@ -237,6 +242,8 @@ func (r *readScenario) bindReads(sc *godog.ScenarioContext) {
 	sc.When(`^the member "([^"]*)" reads the people of the newest mail of every inbox thread in one request$`,
 		r.readNewestPeople)
 	sc.When(`^the member "([^"]*)" reads the people of the mail "([^"]*)"$`, r.readMailPeople)
+	sc.When(`^the member "([^"]*)" reads the text of the mail "([^"]*)" under two names in one request$`,
+		r.readMailTextTwice)
 	sc.When(`^the member "([^"]*)" reads the mail of the contact "([^"]*)"$`, r.readContactMail)
 }
 
@@ -596,6 +603,11 @@ func (r *readScenario) readMail(ctx context.Context, email, subject string) erro
 // readMailPeople reads the people the mail titled subject names, as email.
 func (r *readScenario) readMailPeople(ctx context.Context, email, subject string) error {
 	return r.readMailThrough(ctx, email, subject, mailPeopleQuery)
+}
+
+// readMailTextTwice reads the text of the mail titled subject under two names in one request, as email.
+func (r *readScenario) readMailTextTwice(ctx context.Context, email, subject string) error {
+	return r.readMailThrough(ctx, email, subject, mailTextTwiceQuery)
 }
 
 // readMailThrough reads the mail titled subject as email through query.
