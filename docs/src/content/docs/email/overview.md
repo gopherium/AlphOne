@@ -372,8 +372,10 @@ same session or token. A token needs `email:read`.
 
 ```sh
 curl -OJ -H 'Authorization: Bearer a1_...' \
-  https://your-domain/api/plugins/email/attachments/<id>
+  'https://your-domain/api/plugins/email/attachments/<id>'
 ```
+
+Replace `<id>` with the id of the attachment.
 
 - An attachment downloads from `/api/plugins/email/attachments/{id}`.
 - The original downloads from
