@@ -176,6 +176,7 @@ func newEmailGraph(t *testing.T, w wiredPlugin) (http.Handler, graphql.Executabl
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.Use(graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema()), role.NewRegistry()))
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv, schema
@@ -695,6 +696,74 @@ func TestOneRequestReadsNoMorePeopleAndFileListsThanTheBound(t *testing.T) {
 	}
 	if len(one.Items) != 1 || len(one.Items[0].Latest.Participants) == 0 {
 		t.Errorf("one people list in one request = %+v, want its people", one.Items)
+	}
+}
+
+// repeatedTextQuery reads the text of one mail of a thread under two names.
+const repeatedTextQuery = `query Twice($thread: UUID!, $id: UUID!) {
+	emailThread(id: $thread) { message(id: $id) { body { first: text second: text } } }
+}`
+
+// repeatedTextFragmentsQuery reads the text of one mail of a thread under two names through two fragments.
+const repeatedTextFragmentsQuery = `query Twice($thread: UUID!, $id: UUID!) {
+	emailThread(id: $thread) { message(id: $id) { body { ...FirstText ...SecondText } } }
+}
+fragment FirstText on EmailBody { first: text }
+fragment SecondText on EmailBody { second: text }`
+
+// repeatedNameQuery reads the name of each person one mail of a thread names under two names.
+const repeatedNameQuery = `query Twice($thread: UUID!, $id: UUID!) {
+	emailThread(id: $thread) { message(id: $id) { participants { first: name second: name } } }
+}`
+
+// twoBodiesQuery reads the text of two mails of a thread, each under its own name.
+const twoBodiesQuery = `query Both($thread: UUID!, $newest: UUID!, $oldest: UUID!) {
+	emailThread(id: $thread) {
+		newest: message(id: $newest) { body { text } }
+		oldest: message(id: $oldest) { body { text } }
+	}
+}`
+
+func TestAFieldAskedUnderTwoNamesIsRejectedWhileTwoMailsAnswerTheirBodies(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", plainMail(mariaPerez, "Lamp quote", "lamp-quote@example.com", "", "Hello."))
+	w.receivedAt(t, "09:05", plainMail(mariaPerez, "Re: Lamp quote", "lamp-quote-reply@example.com",
+		"lamp-quote@example.com", "Any news?"))
+	r := newReader(t, w, emailRead)
+	thread := soleThread(t, r)
+	var listed *servedThread
+	r.read(t, threadQuery, map[string]any{"id": thread.ID}, "emailThread", &listed)
+	newest, oldest := listed.Messages[0].ID, listed.Messages[1].ID
+
+	for name, test := range map[string]struct {
+		query string
+		field string
+	}{
+		"the text under two names":                {repeatedTextQuery, "EmailBody.text"},
+		"the text through two fragments":          {repeatedTextFragmentsQuery, "EmailBody.text"},
+		"the name of each person under two names": {repeatedNameQuery, "EmailParticipant.name"},
+	} {
+		answer := r.ask(t, test.query, map[string]any{"thread": thread.ID, "id": newest})
+
+		if !slices.Equal(answer.reasons(), []any{"repeated_field"}) {
+			t.Errorf("%s answered %+v, want it rejected as repeated_field", name, answer.Errors)
+			continue
+		}
+		if meta, _ := answer.Errors[0].Extensions["meta"].(map[string]any); meta["field"] != test.field {
+			t.Errorf("%s was rejected naming %v, want %s", name, answer.Errors[0].Extensions["meta"], test.field)
+		}
+	}
+	var both struct {
+		Newest servedMail `json:"newest"`
+		Oldest servedMail `json:"oldest"`
+	}
+	r.read(t, twoBodiesQuery, map[string]any{"thread": thread.ID, "newest": newest, "oldest": oldest},
+		"emailThread", &both)
+	if both.Newest.Body == nil || strings.TrimSpace(both.Newest.Body.Text) != "Any news?" ||
+		both.Oldest.Body == nil || strings.TrimSpace(both.Oldest.Body.Text) != "Hello." {
+		t.Errorf("two mails under their own names = %+v, want the reply and the quote read", both)
 	}
 }
 
