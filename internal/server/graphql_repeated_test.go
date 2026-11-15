@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -85,6 +86,61 @@ func TestGraphQLRejectsAFieldAskedUnderTwoNamesBeforeAnyResolverRuns(t *testing.
 	if !strings.Contains(once.Body.String(), "Maria Perez") || store.gets.Load() != 1 {
 		t.Errorf("one read answered %s after %d reads, want Maria Perez read once", once.Body.String(), store.gets.Load())
 	}
+}
+
+// twoUploadsOperations stages two attached files as two imports under two names.
+const twoUploadsOperations = `{"query":"mutation ($file: Upload!, $another: Upload!) { ` +
+	`once: importUpload(file: $file) { id } twice: importUpload(file: $another) { id } }",` +
+	`"variables":{"file":null,"another":null}}`
+
+// twoUploadsForm returns a multipart post of two files alike in name, size and type but not in bytes.
+func twoUploadsForm(t *testing.T) *http.Request {
+	t.Helper()
+	return graphForm(t, crmOrigin+"/api/graphql",
+		formPart{name: "operations", value: twoUploadsOperations},
+		formPart{name: "map", value: `{"0":["variables.file"],"1":["variables.another"]}`},
+		formPart{name: "0", filename: "contacts.csv", value: "\x00\x01\x02"},
+		formPart{name: "1", filename: "contacts.csv", value: "\x00\x01\x03"},
+	)
+}
+
+func TestGraphQLRunsTwoUploadsAlikeInNameSizeAndTypeUnderTwoNames(t *testing.T) {
+	t.Parallel()
+
+	guarded := newGuardedServer(t)
+
+	answered := decodeBody[graphResponse](t,
+		guarded.serve(fromBrowser(twoUploadsForm(t), crmOrigin, "same-origin", guarded.cookie)))
+
+	if len(answered.Errors) != 2 {
+		t.Fatalf("errors = %+v, want the importer to read each upload once", answered.Errors)
+	}
+	for _, rejected := range answered.Errors {
+		if reason := rejected.Extensions["reason"]; reason != "file_unreadable" {
+			t.Errorf("reason = %v, want file_unreadable from the importer reading the upload", reason)
+		}
+	}
+}
+
+// oneUploadUnderTwoVariablesForm returns a multipart post whose map points one file at two variables.
+func oneUploadUnderTwoVariablesForm(t *testing.T) *http.Request {
+	t.Helper()
+	return graphForm(t, crmOrigin+"/api/graphql",
+		formPart{name: "operations", value: twoUploadsOperations},
+		formPart{name: "map", value: `{"0":["variables.file","variables.another"]}`},
+		formPart{name: "0", filename: "contacts.csv", value: "\x00\x01\x02"},
+	)
+}
+
+func TestGraphQLRejectsOneUploadMappedToTwoVariablesUnderTwoNames(t *testing.T) {
+	t.Parallel()
+
+	guarded := newGuardedServer(t)
+
+	answered := decodeBody[graphResponse](t,
+		guarded.serve(fromBrowser(oneUploadUnderTwoVariablesForm(t), crmOrigin, "same-origin", guarded.cookie)))
+
+	rejectedRepeat(t, answered, "Mutation.importUpload")
 }
 
 func TestGraphQLRejectsAFieldAskedUnderTwoNamesBeforeSignIn(t *testing.T) {
