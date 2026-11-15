@@ -4,14 +4,36 @@
 package features_test
 
 import (
+	"context"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cucumber/godog"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/gopherium/alphone/internal/testdb"
 )
 
 // wipTag marks the scenarios no stage has implemented yet.
 const wipTag = "@wip"
+
+// endedScenarioFeature is a feature of one scenario that reads the database of its world.
+const endedScenarioFeature = `Feature: A scenario ends with its world
+
+  Scenario: The scenario reads its database
+    When the scenario reads its database
+`
+
+// sessionsOnDatabase counts the sessions the server holds on one database.
+const sessionsOnDatabase = "SELECT count(*) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()"
+
+// sessionSettleBudget bounds how long a check waits for the sessions of a closed pool to leave the server.
+const sessionSettleBudget = 5 * time.Second
+
+// sessionSettlePause spaces two counts of a check waiting on the server.
+const sessionSettlePause = 50 * time.Millisecond
 
 // runFeature runs one feature file as its own suite, refusing undefined steps.
 func runFeature(t *testing.T, path string, initialize func(*godog.ScenarioContext)) {
@@ -24,7 +46,10 @@ func runFeature(t *testing.T, path string, initialize func(*godog.ScenarioContex
 		tags = ""
 	}
 	suite := godog.TestSuite{
-		ScenarioInitializer: initialize,
+		ScenarioInitializer: func(sc *godog.ScenarioContext) {
+			initialize(sc)
+			sc.After(endWorld)
+		},
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{path},
@@ -35,6 +60,50 @@ func runFeature(t *testing.T, path string, initialize func(*godog.ScenarioContex
 	}
 	if suite.Run() != 0 {
 		t.Error("the feature did not pass")
+	}
+}
+
+// sessionsOn answers the sessions the test server holds on database, waiting a short while for them to leave.
+func sessionsOn(t *testing.T, database string) int {
+	t.Helper()
+	conn, err := pgx.Connect(t.Context(), testdb.Setting(t, "ALPHONE_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatalf("connecting to the test server: %v", err)
+	}
+	defer func() { _ = conn.Close(context.Background()) }()
+	deadline := time.Now().Add(sessionSettleBudget)
+	for {
+		var held int
+		if err := conn.QueryRow(t.Context(), sessionsOnDatabase, database).Scan(&held); err != nil {
+			t.Fatalf("counting the sessions on %s: %v", database, err)
+		}
+		if held == 0 || time.Now().After(deadline) {
+			return held
+		}
+		time.Sleep(sessionSettlePause)
+	}
+}
+
+func TestAnEndedScenarioHoldsNoSessionOnTheDatabaseOfItsWorld(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ended-scenario.feature")
+	if err := os.WriteFile(path, []byte(endedScenarioFeature), 0o600); err != nil {
+		t.Fatalf("writing the feature: %v", err)
+	}
+	var database string
+	runFeature(t, path, func(sc *godog.ScenarioContext) {
+		sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
+			return context.WithValue(ctx, worldKey{}, newImportWorld(t)), nil
+		})
+		sc.When(`^the scenario reads its database$`, func(ctx context.Context) error {
+			w := worldFrom(ctx)
+			database = w.pool.Config().ConnConfig.Database
+			_, err := w.pool.Exec(ctx, "SELECT 1")
+			return err
+		})
+	})
+
+	if held := sessionsOn(t, database); held != 0 {
+		t.Errorf("the database %s holds %d sessions after its scenario ended, want none", database, held)
 	}
 }
 

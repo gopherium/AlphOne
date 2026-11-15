@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/cucumber/godog"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -97,6 +99,35 @@ type world struct {
 	answeredIDs  []string
 	entryField   string
 	reader       *feedReader
+	down         *teardown
+}
+
+// teardown holds what one world releases, once, when its scenario ends or else when its test does.
+type teardown struct {
+	once  sync.Once
+	steps []func()
+}
+
+// add queues step to run at the teardown, after every step queued later.
+func (d *teardown) add(step func()) {
+	d.steps = append(d.steps, step)
+}
+
+// run runs every queued step once, the latest first.
+func (d *teardown) run() {
+	d.once.Do(func() {
+		for i := len(d.steps) - 1; i >= 0; i-- {
+			d.steps[i]()
+		}
+	})
+}
+
+// endWorld releases what the world of the scenario holds as soon as the scenario ends.
+func endWorld(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
+	if w, held := ctx.Value(worldKey{}).(*world); held {
+		w.down.run()
+	}
+	return ctx, nil
 }
 
 // newWorld boots an isolated database and a real server for one scenario.
@@ -115,11 +146,7 @@ func newImportWorld(t *testing.T) *world {
 func bootWorld(t *testing.T, liveImports bool) *world {
 	t.Helper()
 	databaseURL := testdb.New(t, testdb.Migrator())
-	pool, err := pgxpool.New(context.Background(), sparingly(databaseURL))
-	if err != nil {
-		t.Fatalf("connecting the scenario pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
+	pool, down := scenarioPool(t, databaseURL)
 
 	users := authkitpg.NewUserStore(pool)
 	contacts := postgres.NewContactStore(pool)
@@ -134,18 +161,8 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 	})
 
 	resolver := contact.NewResolver(contacts)
-	fieldsPlugin := livePlugin(t, databaseURL)
-	registered := append(inertPlugins(t), fieldsPlugin)
-	if liveImports {
-		importerPlugin := liveImporter(t, databaseURL, scenarioDirectory{resolver: resolver})
-		importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
-		registered = append(registered, importerPlugin)
-	}
-	relay := mailRelay(t)
-	mailer, err := mail.New(relaySender(t, relay), "")
-	if err != nil {
-		t.Fatalf("building the scenario mailer: %v", err)
-	}
+	fieldsPlugin, registered := scenarioPlugins(t, down, databaseURL, resolver, liveImports)
+	relay, mailer := scenarioMailer(t, down)
 	inviteConfig := authkit.InvitesConfig{Store: users, Roles: roles}
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	graph := &graphres.Resolver{
@@ -187,7 +204,7 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		Logger:       quiet,
 		Roles:        roles,
 	}))
-	t.Cleanup(srv.Close)
+	down.add(srv.Close)
 
 	return &world{
 		t:        t,
@@ -203,7 +220,47 @@ func bootWorld(t *testing.T, liveImports bool) *world {
 		tokenID:  minted.Token.ID,
 		relay:    relay,
 		members:  map[string]string{},
+		down:     down,
 	}
+}
+
+// scenarioPool opens the scenario pool over databaseURL with the teardown that closes it.
+func scenarioPool(t *testing.T, databaseURL string) (*pgxpool.Pool, *teardown) {
+	t.Helper()
+	down := &teardown{}
+	t.Cleanup(down.run)
+	pool, err := pgxpool.New(context.Background(), sparingly(databaseURL))
+	if err != nil {
+		t.Fatalf("connecting the scenario pool: %v", err)
+	}
+	down.add(pool.Close)
+	return pool, down
+}
+
+// scenarioPlugins registers the fields plugin, the inert plugins and the importer when liveImports, stopped at down.
+func scenarioPlugins(
+	t *testing.T, down *teardown, databaseURL string, resolver *contact.Resolver, liveImports bool,
+) (*fields.Plugin, []sdk.Plugin) {
+	t.Helper()
+	fieldsPlugin := livePlugin(t, down, databaseURL)
+	registered := append(inertPlugins(t, down), fieldsPlugin)
+	if !liveImports {
+		return fieldsPlugin, registered
+	}
+	importerPlugin := liveImporter(t, down, databaseURL, scenarioDirectory{resolver: resolver})
+	importerPlugin.UseFieldProviders([]sdk.FieldProvider{fieldsPlugin})
+	return fieldsPlugin, append(registered, importerPlugin)
+}
+
+// scenarioMailer starts the scenario relay, stopped at down, and returns it with the mailer delivering to it.
+func scenarioMailer(t *testing.T, down *teardown) (*smtpmock.Server, *mail.Mailer) {
+	t.Helper()
+	relay := mailRelay(t, down)
+	mailer, err := mail.New(relaySender(t, relay), "")
+	if err != nil {
+		t.Fatalf("building the scenario mailer: %v", err)
+	}
+	return relay, mailer
 }
 
 // seededOwner seeds the scenario owner and returns its id and the full token stored for it.
@@ -231,14 +288,14 @@ func seededOwner(t *testing.T, users *authkitpg.UserStore, tokens *postgres.Toke
 // scenarioPublicURL is the address the mailed links of a scenario lead back to.
 const scenarioPublicURL = "https://crm.example.com"
 
-// mailRelay starts a mock relay that survives the reset go-mail sends after delivering.
-func mailRelay(t *testing.T) *smtpmock.Server {
+// mailRelay starts a mock relay that survives the reset go-mail sends after delivering, stopped at down.
+func mailRelay(t *testing.T, down *teardown) *smtpmock.Server {
 	t.Helper()
 	server := smtpmock.New(smtpmock.ConfigurationAttr{MultipleMessageReceiving: true})
 	if err := server.Start(); err != nil {
 		t.Fatalf("starting the scenario relay: %v", err)
 	}
-	t.Cleanup(func() { _ = server.Stop() })
+	down.add(func() { _ = server.Stop() })
 	return server
 }
 
@@ -267,14 +324,14 @@ func sparingly(databaseURL string) string {
 	return databaseURL + separator + "pool_max_conns=2"
 }
 
-// livePlugin registers the fields plugin against the scenario's own database.
-func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
+// livePlugin registers the fields plugin against the scenario's own database, stopped at down.
+func livePlugin(t *testing.T, down *teardown, databaseURL string) *fields.Plugin {
 	t.Helper()
 	plugin, err := fields.Register(sdk.Deps{DatabaseURL: sparingly(databaseURL)})
 	if err != nil {
 		t.Fatalf("registering fields: %v", err)
 	}
-	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	down.add(func() { _ = plugin.Stop(context.Background()) })
 	if err := plugin.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrating fields: %v", err)
 	}
@@ -284,8 +341,10 @@ func livePlugin(t *testing.T, databaseURL string) *fields.Plugin {
 	return plugin
 }
 
-// liveImporter registers the importer plugin against the scenario's own database.
-func liveImporter(t *testing.T, databaseURL string, directory sdk.ContactDirectory) *importer.Plugin {
+// liveImporter registers the importer plugin against the scenario's own database, stopped at down.
+func liveImporter(
+	t *testing.T, down *teardown, databaseURL string, directory sdk.ContactDirectory,
+) *importer.Plugin {
 	t.Helper()
 	plugin, err := importer.Register(sdk.Deps{
 		DatabaseURL: sparingly(databaseURL), Contacts: directory,
@@ -293,7 +352,7 @@ func liveImporter(t *testing.T, databaseURL string, directory sdk.ContactDirecto
 	if err != nil {
 		t.Fatalf("registering importer: %v", err)
 	}
-	t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+	down.add(func() { _ = plugin.Stop(context.Background()) })
 	if err := plugin.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrating importer: %v", err)
 	}
@@ -387,15 +446,15 @@ func worldFrom(ctx context.Context) *world {
 	return ctx.Value(worldKey{}).(*world)
 }
 
-// inertPlugins registers every graph contributing plugin against a lazy pool.
-func inertPlugins(t *testing.T) []sdk.Plugin {
+// inertPlugins registers every graph contributing plugin against a lazy pool, each stopped at down.
+func inertPlugins(t *testing.T, down *teardown) []sdk.Plugin {
 	t.Helper()
 	registered, err := graphroot.All(sdk.Deps{DatabaseURL: "postgres://plugin:plugin@localhost:1/plugin"})
 	if err != nil {
 		t.Fatalf("registering the inert plugins: %v", err)
 	}
 	for _, plugin := range registered {
-		t.Cleanup(func() { _ = plugin.Stop(context.Background()) })
+		down.add(func() { _ = plugin.Stop(context.Background()) })
 		if provider, ok := plugin.(sdk.EventProvider); ok {
 			if err := event.Declare(plugin.ID(), provider.Events()...); err != nil {
 				t.Fatalf("declaring the events of %s: %v", plugin.ID(), err)
