@@ -360,8 +360,8 @@ func TestAnIdentityWriteShowsInALaterReadOfTheSameDocument(t *testing.T) {
 		h.client.MustPost(fmt.Sprintf(`mutation {
 			before: renameContact(id: %[1]q, name: %[2]q) { identities { identifier } }
 			written: %[3]s
-			after: renameContact(id: %[1]q, name: %[2]q) { identities { identifier } }
-		}`, tt.read.ID, tt.read.Name, tt.write), &answer)
+			after: renameContact(id: %[1]q, name: %[4]q) { identities { identifier } }
+		}`, tt.read.ID, tt.read.Name, tt.write, tt.read.Name+" renamed"), &answer)
 
 		if len(answer.Before.Identities) != tt.before || len(answer.After.Identities) != tt.after {
 			t.Errorf("%s reads %d identities before and %d after, want %d then %d", name,

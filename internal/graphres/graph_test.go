@@ -76,6 +76,7 @@ func newGraphHandler(t *testing.T, resolver *graphres.Resolver) *handler.Server 
 	srv := handler.New(graphres.ExecutableSchema(composedRoot(t, resolver)))
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.Use(graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.AnonymousGate)
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv

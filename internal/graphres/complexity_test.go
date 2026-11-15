@@ -86,7 +86,11 @@ func TestRealScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 			}
 		}`,
 	}
+	schema := composedSchema(t)
 	for name, doc := range screens {
+		if rejected := ruleAnswer(t, schema, askedDocument{document: doc}); rejected != nil {
+			t.Errorf("%s answered %v, want it passed by the repeated field rule", name, rejected)
+		}
 		cost := operationCost(t, doc)
 		t.Logf("%s costs %d of the %d cap", name, cost, graphres.ComplexityLimit)
 		if cost*3 > graphres.ComplexityLimit {
@@ -270,7 +274,11 @@ func TestWhatsAppScreenDocumentsFitUnderTheCapWithHeadroom(t *testing.T) {
 			}
 		}`,
 	}
+	schema := composedSchema(t)
 	for name, doc := range screens {
+		if rejected := ruleAnswer(t, schema, askedDocument{document: doc}); rejected != nil {
+			t.Errorf("%s answered %v, want it passed by the repeated field rule", name, rejected)
+		}
 		cost := operationCost(t, doc)
 		t.Logf("%s costs %d of the %d cap", name, cost, graphres.ComplexityLimit)
 		if cost*3 > graphres.ComplexityLimit {
