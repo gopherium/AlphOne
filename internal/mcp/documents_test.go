@@ -98,6 +98,28 @@ func TestEveryToolDocumentFitsUnderTheComplexityCap(t *testing.T) {
 	}
 }
 
+func TestEveryToolDocumentPassesTheRepeatedFieldRule(t *testing.T) {
+	t.Parallel()
+
+	schema := composedSchema(t)
+
+	for name, tool := range toolDocuments() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			query, err := gqlparser.LoadQueryWithRules(schema.Schema(), tool.document, rules.NewDefaultRules())
+			if err != nil {
+				t.Fatalf("parsing the %s document: %v", name, err)
+			}
+			rc := &graphql.OperationContext{Doc: query, Operation: query.Operations[0], Variables: tool.variables}
+
+			if rejected := (graphres.RepeatedFields{}).MutateOperationContext(t.Context(), rc); rejected != nil {
+				t.Errorf("the %s document answered %v, want it passed by the repeated field rule", name, rejected)
+			}
+		})
+	}
+}
+
 // selectedPaths returns the dotted path of every field the selection set picks, nested fields included.
 func selectedPaths(set ast.SelectionSet, prefix string) []string {
 	var paths []string
