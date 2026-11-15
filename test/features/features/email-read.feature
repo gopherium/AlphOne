@@ -7,7 +7,8 @@ Feature: Members read stored mail and download its files through the API
   to that contact. An attachment and the original mail download under a
   safe name and never run as a page. A thread or a file of another
   workspace is never found, and one request reads only a few mail bodies
-  and a bounded number of people and file lists.
+  and a bounded number of people and file lists. A request that asks for
+  one field under two names is rejected.
 
   Background:
     Given the database is migrated
@@ -369,6 +370,24 @@ Feature: Members read stored mail and download its files through the API
     Then the read is rejected with the reason "lists_per_request_exceeded"
     When the member "member@example.com" reads the people of the mail "Lamp quote"
     Then the mail names "Maria Perez" at "maria.perez@example.com" as its sender
+
+  Scenario: A request that reads the text of one mail under two names is rejected
+    Given this mail reached "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp quote
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-quote@example.com>
+      Content-Type: text/plain
+
+      Could you send me a quote for the new lamp?
+      """
+    And the member "member@example.com" holds a token scoped to "email:read"
+    When the member "member@example.com" reads the text of the mail "Lamp quote" under two names in one request
+    Then the read is rejected with the reason "repeated_field"
+    When the member "member@example.com" reads the mail "Lamp quote"
+    Then the mail reads the text "Could you send me a quote for the new lamp?"
 
   Scenario: A mail with two known contacts in Cc shows on both contacts
     Given the workspace "Acme" knows "Ada Lovelace" at "ada@example.com"
