@@ -102,6 +102,10 @@ func TestEveryToolDocumentPassesTheRepeatedFieldRule(t *testing.T) {
 	t.Parallel()
 
 	schema := composedSchema(t)
+	rule := &graphres.RepeatedFields{}
+	if err := rule.Validate(schema); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
 
 	for name, tool := range toolDocuments() {
 		t.Run(name, func(t *testing.T) {
@@ -113,7 +117,7 @@ func TestEveryToolDocumentPassesTheRepeatedFieldRule(t *testing.T) {
 			}
 			rc := &graphql.OperationContext{Doc: query, Operation: query.Operations[0], Variables: tool.variables}
 
-			if rejected := (graphres.RepeatedFields{}).MutateOperationContext(t.Context(), rc); rejected != nil {
+			if rejected := rule.MutateOperationContext(t.Context(), rc); rejected != nil {
 				t.Errorf("the %s document answered %v, want it passed by the repeated field rule", name, rejected)
 			}
 		})
