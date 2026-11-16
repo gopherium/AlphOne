@@ -11,6 +11,9 @@ import (
 	"github.com/gopherium/alphone/plugins/email/message"
 )
 
+// fuzzBodyCap is the body cap each fuzz input is parsed under a second time.
+const fuzzBodyCap = 32
+
 // fuzzSeeds lists raw messages that reach the paths a fixture does not.
 var fuzzSeeds = []string{
 	"Subject: =?utf-8?q?Qu=00ote?=\r\n\r\nText.\r\n",
@@ -20,6 +23,7 @@ var fuzzSeeds = []string{
 	onePart("multipart/mixed; boundary=\"p\"", "--p\r\nContent-Type: application/x-foo bar\r\n\r\nLost.\r\n--p--"),
 	"Content-Type: multipart/mixed\r\n\r\nThe boundary is missing.\r\n",
 	"Content-Type: text/html; charset=utf-8\r\n\r\n<p>Te\xffxt\x00.</p>\r\n",
+	"Content-Type: text/html\r\n\r\n<p>" + strings.Repeat("\xff ", 20) + "</p>\r\n",
 	onePart("multipart/report; report-type=delivery-status; boundary=\"r\"",
 		"--r\r\nContent-Type: message/delivery-status\r\n\r\nReporting-MTA: dns; mail.example.com\r\n\r\n"+
 			"Final-Recipient: rfc822; no\xffbody@example.com\r\nAction: failed\r\nStatus: 5.1\xff.1\r\n--r--"),
@@ -54,6 +58,11 @@ func FuzzParseAnswersCleanStrings(f *testing.F) {
 		if m, err := message.ParseBytes(raw, testLimits); err == nil {
 			checkCleanStrings(t, m)
 		}
+		limits := testLimits
+		limits.MaxBodyBytes = fuzzBodyCap
+		if m, err := message.ParseBytes(raw, limits); err == nil {
+			checkBodyCap(t, m)
+		}
 		m, err := message.ReadHeaders(raw, testLimits)
 		if err != nil {
 			t.Fatalf("ReadHeaders() error = %v, want nil", err)
@@ -71,7 +80,7 @@ func checkCleanStrings(t *testing.T, m *message.Message) {
 	}
 	texts := map[string]string{
 		"Subject": m.Subject, "Text": m.Text, "HTML": m.HTML, "MessageID": m.MessageID, "Snippet": snippet,
-		"InviteMethod": message.Mark(m).InviteMethod, "Sanitize": message.Sanitize(m.HTML, nil),
+		"InviteMethod": message.Mark(m).InviteMethod, "SafeHTML": m.SafeHTML,
 	}
 	for name, text := range texts {
 		checkCleanText(t, name, text)
@@ -93,6 +102,15 @@ func checkCleanStrings(t *testing.T, m *message.Message) {
 			checkCleanText(t, "failed email", failed.Email)
 			checkCleanText(t, "failed status", failed.Status)
 		}
+	}
+}
+
+// checkBodyCap fails t when the text or the safe HTML of m is over fuzzBodyCap.
+func checkBodyCap(t *testing.T, m *message.Message) {
+	t.Helper()
+	if len(m.Text) > fuzzBodyCap || len(m.SafeHTML) > fuzzBodyCap {
+		t.Fatalf("Parse() kept %d bytes of text and %d of safe HTML, want each at most %d",
+			len(m.Text), len(m.SafeHTML), fuzzBodyCap)
 	}
 }
 

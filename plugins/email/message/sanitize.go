@@ -3,9 +3,10 @@
 package message
 
 import (
-	"net/url"
+	"errors"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -20,22 +21,63 @@ var allowedStyles = []string{
 // withoutEscapedStyles is the base policy keeping only the style attributes that hold no backslash.
 var withoutEscapedStyles = basePolicy().AllowAttrs("style").Matching(regexp.MustCompile(`^[^\\]*$`)).Globally()
 
+// safePolicy is the policy of the last pass of Sanitize.
+var safePolicy = basePolicy().
+	RequireNoReferrerOnFullyQualifiedLinks(true).
+	AddTargetBlankToFullyQualifiedLinks(true).
+	AllowStyles(allowedStyles...).Globally()
+
 // AllowedStyles answers the style properties Sanitize keeps in a style attribute.
 func AllowedStyles() []string {
 	return slices.Clone(allowedStyles)
 }
 
-// Sanitize answers html made safe to show, handing each image source to rewrite when rewrite is not nil.
-func Sanitize(html string, rewrite func(*url.URL)) string {
-	policy := basePolicy().
-		RequireNoReferrerOnFullyQualifiedLinks(true).
-		AddTargetBlankToFullyQualifiedLinks(true).
-		RewriteSrc(rewrite).
-		AllowStyles(allowedStyles...).Globally()
-	return policy.Sanitize(withoutEscapedStyles.Sanitize(html))
+// Sanitize answers html made safe to show when that fits in limit bytes, and whether it fits.
+func Sanitize(html string, limit int) (string, bool) {
+	first := withoutEscapedStyles.Sanitize(html)
+	if strings.TrimSpace(first) == "" {
+		if len(first) > limit {
+			return "", false
+		}
+		return first, true
+	}
+	out := &cappedBuilder{limit: limit}
+	if err := safePolicy.SanitizeReaderToWriter(strings.NewReader(first), out); err != nil {
+		return "", false
+	}
+	return out.String(), true
 }
 
 // basePolicy answers the policy both passes of Sanitize start from.
 func basePolicy() *bluemonday.Policy {
 	return bluemonday.UGCPolicy().AllowRelativeURLs(false).AllowURLSchemes("cid").RequireNoFollowOnLinks(false)
+}
+
+// errOverCap reports a write that would take a cappedBuilder past its limit.
+var errOverCap = errors.New("message: the safe HTML is over the body cap")
+
+// cappedBuilder builds a string of at most limit bytes, failing each write that would pass it.
+type cappedBuilder struct {
+	// out holds the bytes written.
+	out strings.Builder
+	// limit is the most bytes out may hold.
+	limit int
+}
+
+// Write adds p, failing when it would take the builder past its limit.
+func (b *cappedBuilder) Write(p []byte) (int, error) {
+	return b.WriteString(string(p))
+}
+
+// WriteString adds s, failing when it would take the builder past its limit.
+func (b *cappedBuilder) WriteString(s string) (int, error) {
+	if b.out.Len()+len(s) > b.limit {
+		return 0, errOverCap
+	}
+	return b.out.WriteString(s)
+}
+
+// String answers the bytes written.
+func (b *cappedBuilder) String() string {
+	return b.out.String()
 }

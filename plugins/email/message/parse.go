@@ -17,6 +17,7 @@ import (
 
 	"github.com/jhillyerd/enmime/v2"
 	"github.com/jhillyerd/enmime/v2/mediatype"
+	"golang.org/x/net/html"
 )
 
 // ErrLimitsUnset reports a limit of zero or below.
@@ -43,7 +44,7 @@ type Limits struct {
 	MaxFieldBytes int
 	// MaxHeaderBytes is the size of the largest top header block Parse reads, the blank line after it left out.
 	MaxHeaderBytes int
-	// MaxBodyBytes is the most text and HTML Parse keeps across all body parts, cutting what is over it.
+	// MaxBodyBytes is the most text and HTML Parse reads across all body parts, and the most Text or SafeHTML holds.
 	MaxBodyBytes int
 }
 
@@ -64,7 +65,8 @@ func ParseBytes(raw []byte, limits Limits) (*Message, error) {
 	if err := checkRaw(raw, limits); err != nil {
 		return nil, err
 	}
-	parser := enmime.NewParser(enmime.MaxMIMEParts(limits.MaxParts), enmime.SkipMalformedParts(true))
+	parser := enmime.NewParser(enmime.MaxMIMEParts(limits.MaxParts), enmime.SkipMalformedParts(true),
+		enmime.DisableTextConversion(true))
 	root, err := parser.ReadParts(bytes.NewReader(raw))
 	var tooMany *enmime.TooManyPartsError
 	if errors.As(err, &tooMany) {
@@ -78,9 +80,36 @@ func ParseBytes(raw []byte, limits Limits) (*Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrMalformed, err)
 	}
-	m := fromEnvelope(envelope, raw)
-	m.BodyCut = bodyCut
-	return m, nil
+	kept := bodyOf(envelope, limits)
+	kept.cut = kept.cut || bodyCut
+	return fromEnvelope(envelope, raw, kept), nil
+}
+
+// body is the text, the HTML and the safe HTML a message keeps, and whether a cap cut any of them.
+type body struct {
+	// text is the plain text, laid out from the HTML when the message has no text part.
+	text string
+	// html is the HTML as sent, unsafe to show.
+	html string
+	// safeHTML is html made safe to show, empty when that is over the body cap.
+	safeHTML string
+	// cut reports that a body was over the body cap.
+	cut bool
+}
+
+// bodyOf answers the body of envelope within the body cap of limits.
+func bodyOf(envelope *enmime.Envelope, limits Limits) body {
+	limit := limits.MaxBodyBytes
+	b := body{text: cleanText(envelope.Text), html: cleanText(envelope.HTML)}
+	textCut := false
+	if envelope.Text == "" && envelope.HTML != "" {
+		b.text, textCut = TextFromHTML(b.html, limit)
+	} else if len(b.text) > limit {
+		b.text, textCut = cutOnLetter(b.text, limit), true
+	}
+	safeHTML, kept := Sanitize(b.html, limit)
+	b.safeHTML, b.cut = safeHTML, textCut || !kept
+	return b
 }
 
 // set reports whether every limit is above zero.
@@ -128,14 +157,17 @@ func cutBodies(root *enmime.Part, limit int) bool {
 }
 
 // cutOnLetter answers the start of text up to limit bytes, stepping back to where a letter starts when one is near.
-func cutOnLetter(text []byte, limit int) []byte {
-	for end := limit; end > max(0, limit-utf8.UTFMax); end-- {
-		if utf8.RuneStart(text[end]) {
+func cutOnLetter[T ~string | ~[]byte](text T, limit int) T {
+	for end := limit; end >= max(0, limit-utf8.UTFMax+1); end-- {
+		if end == 0 || utf8.RuneStart(text[end]) {
 			return text[:end]
 		}
 	}
 	return text[:limit]
 }
+
+// sourced lists the elements whose src attribute shownContentIDs reads.
+var sourced = []string{"audio", "embed", "iframe", "img", "script", "source", "track", "video"}
 
 // mediaFieldNames lists the fields enmime reads parameters from.
 var mediaFieldNames = []string{"Content-Type", "Content-Disposition"}
@@ -204,8 +236,8 @@ func (ignoredProblems) AddError(string, string, ...any) {}
 // AddWarning drops a header warning.
 func (ignoredProblems) AddWarning(string, string, ...any) {}
 
-// fromEnvelope answers the message enmime parsed from raw.
-func fromEnvelope(envelope *enmime.Envelope, raw []byte) *Message {
+// fromEnvelope answers the message enmime parsed from raw, holding kept as its body.
+func fromEnvelope(envelope *enmime.Envelope, raw []byte, kept body) *Message {
 	header := envelope.Root.Header
 	m := &Message{
 		From:         first(ParseAddresses(header.Get("From"))),
@@ -217,8 +249,10 @@ func fromEnvelope(envelope *enmime.Envelope, raw []byte) *Message {
 		MessageID:    first(ParseIDs(header.Get("Message-Id"))),
 		InReplyTo:    ParseIDs(strings.Join(header.Values("In-Reply-To"), " ")),
 		References:   ParseIDs(strings.Join(header.Values("References"), " ")),
-		Text:         cleanText(envelope.Text),
-		HTML:         cleanText(envelope.HTML),
+		Text:         kept.text,
+		HTML:         kept.html,
+		SafeHTML:     kept.safeHTML,
+		BodyCut:      kept.cut,
 		SkippedParts: skippedParts(envelope.Root),
 		Raw:          raw,
 		root:         envelope.Root,
@@ -227,7 +261,7 @@ func fromEnvelope(envelope *enmime.Envelope, raw []byte) *Message {
 	if index, err := DecodeThreadIndex(header.Get("Thread-Index")); err == nil {
 		m.ThreadIndex = &index
 	}
-	m.Attachments, m.InlineImages = files(envelope, m.HTML)
+	m.Attachments, m.InlineImages = files(envelope, kept.safeHTML)
 	return m
 }
 
@@ -253,13 +287,13 @@ func first[T any](list []T) T {
 	return list[0]
 }
 
-// files answers the attachments and the inline images of envelope in message order, given its clean HTML body.
-func files(envelope *enmime.Envelope, html string) (attachments, inlineImages []Attachment) {
+// files answers the attachments and the inline images of envelope in message order, given the safe HTML it keeps.
+func files(envelope *enmime.Envelope, safeHTML string) (attachments, inlineImages []Attachment) {
 	listed := make(map[*enmime.Part]bool)
 	for _, part := range slices.Concat(envelope.Attachments, envelope.Inlines, envelope.OtherParts) {
 		listed[part] = !isBody(part)
 	}
-	shown := shownContentIDs(html)
+	shown := shownContentIDs(safeHTML)
 	for _, part := range envelope.Root.DepthMatchAll(func(p *enmime.Part) bool { return listed[p] }) {
 		file := Attachment{
 			Name: fileName(part), ContentType: part.ContentType, ContentID: contentID(part), Content: part.Content,
@@ -283,15 +317,34 @@ func fileName(part *enmime.Part) string {
 	return cleanText(name)
 }
 
-// shownContentIDs answers the content ids of the images Sanitize keeps in document through a cid link.
-func shownContentIDs(document string) map[string]bool {
+// shownContentIDs answers the content ids of the images safeHTML shows through a cid link.
+func shownContentIDs(safeHTML string) map[string]bool {
 	shown := make(map[string]bool)
-	Sanitize(document, func(source *url.URL) {
-		if source.Scheme == "cid" && source.Opaque != "" {
-			shown[unescaped(source.Opaque)] = true
+	tokens := html.NewTokenizer(strings.NewReader(safeHTML))
+	for kind := tokens.Next(); kind != html.ErrorToken; kind = tokens.Next() {
+		if id, found := cidSource(tokens, kind); found {
+			shown[id] = true
 		}
-	})
+	}
 	return shown
+}
+
+// cidSource answers the content id the source of the tag tokens holds names through a cid link, if it names one.
+func cidSource(tokens *html.Tokenizer, kind html.TokenType) (string, bool) {
+	if !opensTag(kind) || !slices.Contains(sourced, tagName(tokens)) {
+		return "", false
+	}
+	source, err := url.Parse(attribute(tokens, "src"))
+	cid := err == nil && source.Scheme == "cid" && source.Opaque != ""
+	if !cid {
+		return "", false
+	}
+	return unescaped(source.Opaque), true
+}
+
+// opensTag reports whether kind is a start tag, self-closing or not.
+func opensTag(kind html.TokenType) bool {
+	return kind == html.StartTagToken || kind == html.SelfClosingTagToken
 }
 
 // contentID answers the Content-ID of part without its brackets, percent-decoded.
