@@ -18,7 +18,6 @@ import (
 	"github.com/99designs/gqlgen/complexity"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	gqlparser "github.com/vektah/gqlparser/v2"
@@ -175,7 +174,7 @@ func newEmailGraph(t *testing.T, w wiredPlugin) (http.Handler, graphql.Executabl
 	schema := graphres.ExecutableSchema(root)
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
-	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.Use(&graphres.CostLimit{})
 	srv.Use(&graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema()), role.NewRegistry()))
 	srv.SetErrorPresenter(graphres.PresentError)

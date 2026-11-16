@@ -45,6 +45,12 @@
         { "name": "Excess Number of Function Arguments", "weight": 0.0 },
         { "name": "Missing Arguments Abstractions", "weight": 0.0 }
       ]
+    },
+    {
+      "matching_content_path": "internal/graphres/complexity.go",
+      "rules": [
+        { "name": "Excess Number of Function Arguments", "weight": 0.0 }
+      ]
     }
   ]
 }

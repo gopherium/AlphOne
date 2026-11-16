@@ -13,7 +13,6 @@ import (
 
 	gqlclient "github.com/99designs/gqlgen/client"
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,7 +74,7 @@ func newGraphHandler(t *testing.T, resolver *graphres.Resolver) *handler.Server 
 	t.Helper()
 	srv := handler.New(graphres.ExecutableSchema(composedRoot(t, resolver)))
 	srv.AddTransport(transport.POST{})
-	srv.Use(extension.FixedComplexityLimit(graphres.ComplexityLimit))
+	srv.Use(&graphres.CostLimit{})
 	srv.Use(&graphres.RepeatedFields{})
 	srv.AroundOperations(graphres.AnonymousGate)
 	srv.SetErrorPresenter(graphres.PresentError)
