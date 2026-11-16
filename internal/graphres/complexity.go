@@ -8,7 +8,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/99designs/gqlgen/complexity"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 	gqlparser "github.com/vektah/gqlparser/v2"
@@ -29,7 +28,7 @@ const oneFieldRow = `{ contactPage(limit: 1) { items { id } } }`
 func LargestPricedPage() int {
 	schema := ExecutableSchema(nil)
 	query := gqlparser.MustLoadQueryWithRules(schema.Schema(), oneFieldRow, rules.NewDefaultRules())
-	return ComplexityLimit / complexity.Calculate(context.Background(), schema, query.Operations[0], nil)
+	return ComplexityLimit / OperationCost(context.Background(), schema, query.Operations[0], nil)
 }
 
 // pageCost resolves a page size argument into a row multiplier, a missing or empty one priced as the unsized page.
@@ -143,6 +142,14 @@ func pageOf(slicing []string, args map[string]any, unsized int) int {
 		return unsized
 	}
 	return page
+}
+
+// saturatedSum adds two costs, answering the largest price instead of overflowing.
+func saturatedSum(a, b int) int {
+	if a > math.MaxInt-b {
+		return math.MaxInt
+	}
+	return a + b
 }
 
 // saturatedProduct multiplies a page by its row cost, answering the largest price instead of overflowing.
