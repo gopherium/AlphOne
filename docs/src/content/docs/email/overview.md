@@ -61,7 +61,12 @@ AlphOne keeps what it can of a mail and never drops one that names a
 known contact.
 
 - A body over `ALPHONE_EMAIL_BODY_MAX_BYTES` is cut on the row, where a
-  letter starts. The raw copy keeps the whole mail when it fits.
+  letter starts. A mail with only HTML gets its text from that HTML, and
+  the text stops at the same size. The raw copy keeps the whole mail when
+  it fits.
+- Making the HTML safe can make it longer. When the safe HTML grows past
+  `ALPHONE_EMAIL_BODY_MAX_BYTES`, AlphOne drops it and keeps the text and
+  the raw copy. The mail counts as cut.
 - A mail over `ALPHONE_EMAIL_MESSAGE_MAX_BYTES`, or too broken to read,
   is read by its headers alone. When they name a known contact, the mail
   keeps a row with its headers only. A broken mail also keeps its raw
@@ -354,7 +359,7 @@ section speaks of.
 
 | Field | Values |
 | --- | --- |
-| `bodyState` | `whole` when the text and the HTML are kept whole. `cut` when they were cut at the body cap. `headers_only` when AlphOne read only the headers. |
+| `bodyState` | `whole` when the text and the HTML are kept whole. `cut` when the text or the HTML was cut at the body cap, where a letter starts. It is also `cut` when the HTML grew past the body cap as it was made safe. That HTML is dropped, and the text and the original stay. `headers_only` when AlphOne read only the headers. |
 | `skippedParts` | How many parts AlphOne could not read and left out. The original holds them when it is kept. |
 | `rawState` | `stored` when the original is kept as a file. `too_large` when it was over a size cap. `over_limit` when the workspace was full. `none` when the mail has no original to keep. |
 | `state` of an attachment | `stored`, `too_large` or `over_limit`, with the same meaning as for the original. |
@@ -407,7 +412,9 @@ SHA-256.
 
 `html` in `body` is safe HTML. AlphOne removes scripts from it before it
 stores the mail. It keeps remote images, such as
-`<img src="https://example.com/logo.png">`.
+`<img src="https://example.com/logo.png">`. `html` is empty when the safe
+HTML grew past the body cap. Then each image the mail carries is listed
+as an attachment, not as an inline image.
 
 A client that shows the HTML as it is loads those images. The sender can
 then learn that the mail was opened, and from where. So block remote
