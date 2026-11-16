@@ -316,6 +316,7 @@ func (s *emailScenario) bindMails(sc *godog.ScenarioContext) {
 	sc.Then(`^the mail "([^"]*)" is stored cut with the text "([^"]*)"$`, s.wantBodyCut)
 	sc.Then(`^the mail "([^"]*)" is stored whole$`, s.wantBodyWhole)
 	sc.Then(`^the mail "([^"]*)" keeps its headers only$`, s.keepsHeadersOnly)
+	sc.Then(`^the mail "([^"]*)" keeps no HTML$`, s.keepsNoHTML)
 	sc.Then(`^the mail "([^"]*)" names the address "([^"]*)"$`, s.namesAddress)
 	sc.Then(`^the mail "([^"]*)" names no address "([^"]*)"$`, s.namesNoAddress)
 	sc.Then(`^the mail "([^"]*)" holds no invite method$`, s.holdsNoInviteMethod)
@@ -857,6 +858,16 @@ func (s *emailScenario) keepsHeadersOnly(ctx context.Context, subject string) er
 		if held.bodyState != "headers_only" || held.text != "" || held.html != "" {
 			return fmt.Errorf("keeps its body as %s with the text %q and the HTML %q, want its headers only",
 				held.bodyState, held.text, held.html)
+		}
+		return nil
+	})
+}
+
+// keepsNoHTML fails unless the mail titled subject keeps no safe HTML.
+func (s *emailScenario) keepsNoHTML(ctx context.Context, subject string) error {
+	return s.checkMail(ctx, subject, func(held storedMail) error {
+		if held.html != "" {
+			return fmt.Errorf("keeps the HTML %q, want none", held.html)
 		}
 		return nil
 	})

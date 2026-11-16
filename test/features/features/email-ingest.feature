@@ -334,6 +334,74 @@ Feature: A mail is stored on the known contacts it names
     Then the mail "Quote for the new lamp" is stored cut with the text "Could you send m"
     And the mail "Quote for the new lamp" keeps its raw copy
 
+  Scenario: An HTML-only mail longer than the body cap is stored cut with the start of its text
+    Given the setting "ALPHONE_EMAIL_BODY_MAX_BYTES" holds "48"
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Quote for the new lamp
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-quote-request@example.com>
+      Content-Type: text/html
+
+      <p>Could you send me a <b>quote</b> for the new lamp?</p>
+      """
+    Then the mail "Quote for the new lamp" is stored cut with the text "Could you send me a quote for the new"
+    And the mail "Quote for the new lamp" keeps its raw copy
+
+  Scenario: An HTML-only mail whose safe HTML grows past the body cap keeps its text and drops the HTML
+    Given the setting "ALPHONE_EMAIL_BODY_MAX_BYTES" holds "64"
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp parts
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-parts@example.com>
+      Content-Type: text/html
+
+      <p>Lamps & shades & bulbs & cords & plugs & pins</p>
+      """
+    Then the mail "Lamp parts" is stored cut with the text "Lamps & shades & bulbs & cords & plugs & pins"
+    And the mail "Lamp parts" keeps no HTML
+    And the mail "Lamp parts" keeps its raw copy
+
+  Scenario: The text of an HTML-only mail whose letters grow as they are read stops at the body cap
+    Given the setting "ALPHONE_EMAIL_BODY_MAX_BYTES" holds "64"
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Accented letters
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <accented-letters@example.com>
+      Content-Type: text/html
+      Content-Transfer-Encoding: quoted-printable
+
+      <meta charset=3D"iso-8859-1"><p>=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=
+      =E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=
+      =E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9=E9</p>
+      """
+    Then the mail "Accented letters" is stored cut with the text "éééééééééééééééééééééééééééééééé"
+    And the mail "Accented letters" keeps no HTML
+    And the mail "Accented letters" keeps its raw copy
+
+  Scenario: An HTML-only mail with an SVG image keeps the text after the image
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp sketch
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-sketch@example.com>
+      Content-Type: text/html
+
+      <svg><title/><circle r="4"/></svg><p>Here is the lamp I would like.</p>
+      """
+    Then the mail "Lamp sketch" keeps the text "Here is the lamp I would like."
+    And the mail "Lamp sketch" is stored whole
+
   Scenario: A mail over the message cap that names a known contact keeps a row with its headers only
     Given the setting "ALPHONE_EMAIL_MESSAGE_MAX_BYTES" holds "300"
     When this mail reaches "Acme":
