@@ -498,7 +498,7 @@ func (p *ingester) rowOf(mail parsedMail) messageRow {
 		internetMessageID: m.MessageID, inReplyToIDs: capIDs(m.InReplyTo, p.caps.threadReferencesMax),
 		referenceIDs: capIDs(m.References, p.caps.threadReferencesMax), direction: inbound,
 		subject: cutOnLetter(m.Subject, p.caps.subjectMaxBytes), participants: mail.participants, sentAt: m.Date,
-		receivedAt: mail.in.ReceivedAt, bodyText: m.Text, safeHTML: message.Sanitize(m.HTML, nil),
+		receivedAt: mail.in.ReceivedAt, bodyText: m.Text, safeHTML: m.SafeHTML,
 		bodyState: bodyStateOf(mail), skippedParts: m.SkippedParts, automation: mail.automation,
 		encrypted: mail.marks.Encrypted, signed: mail.marks.Signed, winmail: mail.marks.Winmail,
 		inviteMethod: mail.marks.InviteMethod, rawSize: mail.raw.size, rawSHA256: mail.raw.sha256,
@@ -512,7 +512,7 @@ func (p *ingester) rowOf(mail parsedMail) messageRow {
 	return row
 }
 
-// bodyStateOf returns whether the text of mail is kept whole, cut at the body cap, or missing behind its headers.
+// bodyStateOf returns whether the body of mail is kept whole, cut at the body cap, or missing behind its headers.
 func bodyStateOf(mail parsedMail) string {
 	switch {
 	case mail.unreadable != nil:

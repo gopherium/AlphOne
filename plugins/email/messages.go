@@ -27,7 +27,7 @@ const (
 const (
 	// bodyWhole marks a mail whose text and HTML are kept whole.
 	bodyWhole = "whole"
-	// bodyCut marks a mail whose text and HTML were cut at the body cap.
+	// bodyCut marks a mail whose text or HTML was cut at the body cap, or whose safe HTML was over it and dropped.
 	bodyCut = "cut"
 	// bodyHeadersOnly marks a mail too large or too broken to read past its headers.
 	bodyHeadersOnly = "headers_only"
