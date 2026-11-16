@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -303,16 +304,27 @@ func TestParseCutsTheBodies(t *testing.T) {
 		{"a text body at the cap", plainPart(a + "bbbbbb"), a + "bbbbbb", "", false},
 		{"a text body over the cap", plainPart(a + b), a + "bbbbbb", "", true},
 		{"an HTML body with no text", htmlPart("<p>" + a + b + "</p>"), a + "bbb", "<p>" + a + "bbb", true},
-		{"two text parts sharing one cap", mixedBodies(plainPart(a), plainPart(b)), a + "\n--\nbbbbbb", "", true},
+		{"two text parts sharing one cap", mixedBodies(plainPart(a), plainPart(b)), a + "\n--\nbb", "", true},
 		{
 			"a text and an HTML part sharing one cap", mixedBodies(plainPart(a), htmlPart("<p>bbbbbbbbbb</p>")),
 			a, "<p>bbb", true,
 		},
 		{
 			"a part after the cap ran out", mixedBodies(plainPart(a+"bbbbbb"), plainPart(b)),
-			a + "bbbbbb\n--\n", "", true,
+			a + "bbbbbb", "", true,
 		},
-		{"two parts at the cap", mixedBodies(plainPart(a), plainPart("bbbbbb")), a + "\n--\nbbbbbb", "", false},
+		{
+			"broken bytes that grow past the cap", onePart("text/plain; charset=utf-8", strings.Repeat("\xffa", 8)),
+			strings.Repeat(replacement+"a", 4), "", true,
+		},
+		{
+			"two parts at the cap, the line between them past it", mixedBodies(plainPart(a), plainPart("bbbbbb")),
+			a + "\n--\nbb", "", true,
+		},
+		{
+			"two parts and the line between them at the cap", mixedBodies(plainPart(a), plainPart("bb")),
+			a + "\n--\nbb", "", false,
+		},
 		{
 			"a cut inside a letter", onePart("text/plain; charset=utf-8", "a"+strings.Repeat("é", 9)),
 			"a" + strings.Repeat("é", 7), "", true,
@@ -345,6 +357,121 @@ func TestParseCutsTheBodies(t *testing.T) {
 				t.Errorf("Parse().Raw = %q, want the bytes as read", m.Raw)
 			}
 		})
+	}
+}
+
+func TestParseKeepsASafeHTMLAtTheBodyCap(t *testing.T) {
+	t.Parallel()
+
+	html := "<p>Lamps & shades</p>"
+	safe := sanitized(t, html)
+	cases := []struct {
+		name  string
+		limit int
+		want  string
+		cut   bool
+	}{
+		{"a cap the safe HTML fills", len(safe), safe, false},
+		{"a cap one byte short of the safe HTML", len(safe) - 1, "", true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			limits := testLimits
+			limits.MaxBodyBytes = c.limit
+
+			m, err := message.Parse(strings.NewReader(htmlPart(html)), limits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if m.SafeHTML != c.want || m.BodyCut != c.cut {
+				t.Errorf("Parse() under a cap of %d safe HTML = %q, cut %t, want %q and cut %t",
+					c.limit, m.SafeHTML, m.BodyCut, c.want, c.cut)
+			}
+			if m.Text != "Lamps & shades" || m.HTML != html {
+				t.Errorf("Parse() text = %q, HTML = %q, want %q and %q", m.Text, m.HTML, "Lamps & shades", html)
+			}
+		})
+	}
+}
+
+func TestParseKeepsABlankSafeHTMLAtTheBodyCap(t *testing.T) {
+	t.Parallel()
+
+	raw := "Content-Type: text/html\r\n\r\n<meta charset=\"iso-8859-1\">" + strings.Repeat("\xa0", 37)
+	blank := strings.Repeat(" ", 37)
+	cases := []struct {
+		name  string
+		limit int
+		want  string
+		cut   bool
+	}{
+		{"a cap the blank safe HTML fills", len(blank), blank, false},
+		{"a cap one byte short of the blank safe HTML", len(blank) - 1, "", true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			limits := testLimits
+			limits.MaxBodyBytes = c.limit
+
+			m, err := message.Parse(strings.NewReader(raw), limits)
+
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if m.SafeHTML != c.want || m.BodyCut != c.cut {
+				t.Errorf("Parse() under a cap of %d safe HTML = %q, cut %t, want %q and cut %t",
+					c.limit, m.SafeHTML, m.BodyCut, c.want, c.cut)
+			}
+		})
+	}
+}
+
+func TestParseDropsASafeHTMLOverTheBodyCap(t *testing.T) {
+	t.Parallel()
+
+	html := `<p>A & B & C & D & E & F</p><img src="cid:img1@example.com">`
+	limits := testLimits
+	limits.MaxBodyBytes = len(html) + 8
+
+	m, err := message.Parse(strings.NewReader(fileMessage(htmlPart(html), imageFile)), limits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if m.SafeHTML != "" || !m.BodyCut {
+		t.Errorf("Parse() safe HTML = %q, cut %t, want none and cut", m.SafeHTML, m.BodyCut)
+	}
+	if m.Text != "A & B & C & D & E & F" || m.HTML != html {
+		t.Errorf("Parse() text = %q, HTML = %q, want the text and the HTML as read", m.Text, m.HTML)
+	}
+	if got := fileNames(m.Attachments); !slices.Equal(got, []string{"wall.png"}) || len(m.InlineImages) != 0 {
+		t.Errorf("Parse() attachments = %q, inline images = %+v, want wall.png as an attachment alone",
+			got, m.InlineImages)
+	}
+}
+
+func TestParseKeepsAMetaCharsetHTMLBodyWithinTheCap(t *testing.T) {
+	t.Parallel()
+
+	raw := "Content-Type: text/html\r\n\r\n<meta charset=\"iso-8859-1\"><p>" + strings.Repeat("\xe9", 100)
+	limits := testLimits
+	limits.MaxBodyBytes = 64
+
+	m, err := message.Parse(strings.NewReader(raw), limits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if want := strings.Repeat("é", 32); m.Text != want || m.SafeHTML != "" || !m.BodyCut {
+		t.Errorf("Parse() text = %q, safe HTML = %q, cut %t, want %q, no safe HTML and cut",
+			m.Text, m.SafeHTML, m.BodyCut, want)
 	}
 }
 

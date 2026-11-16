@@ -449,8 +449,50 @@ func TestParseFillsTextFromHTMLOnlyMail(t *testing.T) {
 
 	m := parseFixture(t, "html-only.eml")
 
-	if want := "Please call me about the *quote*.\n\nMaria Perez\n184467235"; m.Text != want {
+	if want := "Please call me about the quote.\n\nMaria Perez\n184467235"; m.Text != want {
 		t.Errorf("Parse(html-only.eml).Text = %q, want %q", m.Text, want)
+	}
+}
+
+func TestParseKeepsTheTextPartBesideAnHTMLPart(t *testing.T) {
+	t.Parallel()
+
+	raw := mixedBodies(plainPart("Plain words."), htmlPart("<p>Other <b>words</b>.</p>"))
+
+	m, err := message.Parse(strings.NewReader(raw), testLimits)
+
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if m.Text != "Plain words." {
+		t.Errorf("Parse().Text = %q, want the text part %q", m.Text, "Plain words.")
+	}
+}
+
+func TestParseKeepsTheSafeHTMLSanitizeAnswers(t *testing.T) {
+	t.Parallel()
+
+	raws := map[string][]byte{}
+	for _, name := range fixtureNames(t) {
+		raws[name] = readFixture(t, name)
+	}
+	for _, c := range inlineCases {
+		raws[c.name] = []byte(fileMessage(c.body, c.file))
+	}
+
+	for name, raw := range raws {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := message.ParseBytes(raw, testLimits)
+
+			if err != nil {
+				t.Fatalf("ParseBytes(%s) error = %v, want nil", name, err)
+			}
+			if want := sanitized(t, m.HTML); m.SafeHTML != want || m.BodyCut {
+				t.Errorf("ParseBytes(%s) safe HTML = %q, cut %t, want %q and not cut", name, m.SafeHTML, m.BodyCut, want)
+			}
+		})
 	}
 }
 

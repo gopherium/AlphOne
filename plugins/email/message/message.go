@@ -32,15 +32,17 @@ type Message struct {
 	References []string
 	// ThreadIndex is the decoded Thread-Index field, nil when it is missing or unreadable.
 	ThreadIndex *ThreadIndex
-	// Text is the plain text body in UTF-8, converted from the HTML body when the message has no text body.
+	// Text is the plain text body in UTF-8 within the body cap, laid out from the HTML body when there is no text body.
 	Text string
 	// HTML is the HTML body in UTF-8 as sent, unsafe to show.
 	HTML string
-	// BodyCut reports that the bodies were over the body cap, so Text and HTML hold only their start.
+	// SafeHTML is the HTML body made safe to show by Sanitize, empty when that is over the body cap.
+	SafeHTML string
+	// BodyCut reports that a body was over the body cap, so Text and HTML hold only their start or SafeHTML is empty.
 	BodyCut bool
 	// Attachments lists the parts that are neither a body nor an inline image, in message order.
 	Attachments []Attachment
-	// InlineImages lists the images the sanitized HTML body shows through a cid link, in message order.
+	// InlineImages lists the images SafeHTML shows through a cid link, in message order.
 	InlineImages []Attachment
 	// SkippedParts counts the parts too broken to read, which the message answers nothing of.
 	SkippedParts int

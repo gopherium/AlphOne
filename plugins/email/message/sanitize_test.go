@@ -3,7 +3,6 @@
 package message_test
 
 import (
-	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -106,38 +105,28 @@ func TestSanitize(t *testing.T) {
 			`<p>Hi</p>`,
 		},
 		{"empty", ``, ``},
+		{"blanks with a carriage return", "\r\n", "\r\n"},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := message.Sanitize(c.html, nil); got != c.want {
-				t.Errorf("Sanitize(%q) = %q, want %q", c.html, got, c.want)
+			if got, kept := message.Sanitize(c.html, wideLimit); got != c.want || !kept {
+				t.Errorf("Sanitize(%q) = %q, %t, want %q, true", c.html, got, kept, c.want)
 			}
 		})
 	}
 }
 
-func TestSanitizeHandsEachImageSourceToTheRewrite(t *testing.T) {
-	t.Parallel()
-
-	var seen []string
-	rewrite := func(source *url.URL) {
-		seen = append(seen, source.String())
-		if source.Scheme == "cid" {
-			*source = url.URL{Path: "/files/" + source.Opaque}
-		}
+// sanitized answers html made safe to show within wideLimit, failing t when Sanitize drops it.
+func sanitized(t *testing.T, html string) string {
+	t.Helper()
+	safe, kept := message.Sanitize(html, wideLimit)
+	if !kept {
+		t.Fatalf("Sanitize(%q) dropped the HTML under a limit of %d", html, wideLimit)
 	}
-
-	got := message.Sanitize(`<img src="cid:img1@example.com"><img src="https://example.com/logo.png">`, rewrite)
-
-	if want := `<img src="/files/img1@example.com"><img src="https://example.com/logo.png">`; got != want {
-		t.Errorf("Sanitize() = %q, want %q", got, want)
-	}
-	if want := []string{"cid:img1@example.com", "https://example.com/logo.png"}; !slices.Equal(seen, want) {
-		t.Errorf("rewrite saw %q, want %q", seen, want)
-	}
+	return safe
 }
 
 func TestStyleSamplesCoverEveryAllowedStyle(t *testing.T) {
@@ -173,10 +162,10 @@ func TestSanitizeChecksEachAllowedStyle(t *testing.T) {
 			valid := `<span style="` + s.property + `: ` + s.valid + `">Text</span>`
 			invalid := `<span style="` + s.property + `: ` + s.invalid + `">Text</span>`
 
-			if got := message.Sanitize(valid, nil); got != valid {
+			if got := sanitized(t, valid); got != valid {
 				t.Errorf("Sanitize(%q) = %q, want it unchanged", valid, got)
 			}
-			if got := message.Sanitize(invalid, nil); got != `<span>Text</span>` {
+			if got := sanitized(t, invalid); got != `<span>Text</span>` {
 				t.Errorf("Sanitize(%q) = %q, want the style dropped", invalid, got)
 			}
 		})
@@ -192,7 +181,8 @@ func TestEveryAllowedStyleFinishesOnAHostileValue(t *testing.T) {
 			defer timer.Stop()
 
 			go func() {
-				done <- message.Sanitize(hostile, nil)
+				safe, _ := message.Sanitize(hostile, wideLimit)
+				done <- safe
 			}()
 
 			select {
@@ -224,7 +214,8 @@ func TestSanitizeFinishesOnALongRunOfEscapes(t *testing.T) {
 			defer timer.Stop()
 
 			go func() {
-				done <- message.Sanitize(hostile, nil)
+				safe, _ := message.Sanitize(hostile, wideLimit)
+				done <- safe
 			}()
 
 			select {
@@ -245,7 +236,7 @@ func TestFontIsNeverAllowed(t *testing.T) {
 	if slices.Contains(message.AllowedStyles(), "font") {
 		t.Errorf("AllowedStyles() = %q, want no font", message.AllowedStyles())
 	}
-	if got := message.Sanitize(`<span style="font: bold 12px arial">Text</span>`, nil); got != `<span>Text</span>` {
+	if got := sanitized(t, `<span style="font: bold 12px arial">Text</span>`); got != `<span>Text</span>` {
 		t.Errorf("Sanitize() of a valid font style = %q, want the style dropped", got)
 	}
 }

@@ -28,7 +28,7 @@ func ReadHeaders(raw []byte, limits Limits) (*Message, error) {
 			header.Del(name)
 		}
 	}
-	m := fromEnvelope(bodylessEnvelope(header), raw)
+	m := fromEnvelope(bodylessEnvelope(header), raw, body{})
 	m.root = mediaPart(header)
 	return m, nil
 }

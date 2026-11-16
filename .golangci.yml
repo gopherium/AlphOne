@@ -54,6 +54,7 @@ linters:
             - $gostd
             - github.com/jhillyerd/enmime/v2
             - github.com/microcosm-cc/bluemonday
+            - golang.org/x/net/html
             - github.com/gopherium/alphone/plugins/email/message
         plugins-never-import-internal:
           list-mode: lax

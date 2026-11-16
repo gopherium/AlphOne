@@ -21,7 +21,7 @@ const (
 	defaultMessageMaxFieldBytes = 4096
 	// defaultHeaderMaxBytes is the largest top header block read when ALPHONE_EMAIL_HEADER_MAX_BYTES is unset, 256 KiB.
 	defaultHeaderMaxBytes = 256 << 10
-	// defaultBodyMaxBytes is the most text and HTML kept when ALPHONE_EMAIL_BODY_MAX_BYTES is unset, 4 MiB.
+	// defaultBodyMaxBytes is the body cap when ALPHONE_EMAIL_BODY_MAX_BYTES is unset, 4 MiB.
 	defaultBodyMaxBytes = 4 << 20
 	// defaultSubjectMaxBytes is the most of a subject kept when ALPHONE_EMAIL_SUBJECT_MAX_BYTES is unset.
 	defaultSubjectMaxBytes = 2048

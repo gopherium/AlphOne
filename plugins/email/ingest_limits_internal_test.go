@@ -3,6 +3,7 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -120,6 +121,34 @@ func TestIngestCountsNoFileOverItsCapAgainstTheWorkspaceLimit(t *testing.T) {
 	if used := usageOf(t, it.pool, sdk.DefaultTenantID); row.storedBytes != limit || used != limit {
 		t.Errorf("the mail added %d bytes and the workspace uses %d, want the limit of %d it fills", row.storedBytes,
 			used, limit)
+	}
+}
+
+func TestIngestKeepsTheTextAndTheRawCopyOfAMailWhoseSafeHTMLIsOverTheBodyCap(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t, func(s *settings) { s.parse.MaxBodyBytes = 64 })
+	raw := rawMail("From: Maria Perez <maria.perez@example.com>", "To: info@example.com", "Subject: Lamp parts",
+		"Date: "+quoteDate, "Message-ID: <lamp-parts@example.com>", "Content-Type: text/html", "",
+		"<p>Lamps & shades & bulbs & cords & plugs & pins</p>")
+
+	outcome := it.ingest(it.incoming(raw, "file:parts"))
+
+	if outcome != outcomeStored {
+		t.Fatalf("ingest() = %q, want %q", outcome, outcomeStored)
+	}
+	row := storedRow(t, it.pool, it.mailTitled("Lamp parts"))
+	if want := "Lamps & shades & bulbs & cords & plugs & pins"; row.safeHTML != "" || row.bodyText != want ||
+		row.bodyState != bodyCut {
+		t.Errorf("the mail keeps the HTML %q and the text %q as %s, want no HTML and %q cut",
+			row.safeHTML, row.bodyText, row.bodyState, want)
+	}
+	if kept := storedBytes(t, it.store, sdk.DefaultTenantID, row.rawFileID); row.rawState != fileStored ||
+		!bytes.Equal(kept, raw) {
+		t.Errorf("the raw copy is %s holding %q, want stored with the mail as fed", row.rawState, kept)
+	}
+	if want := int64(len(raw)) + textBytes(t, row); row.storedBytes != want {
+		t.Errorf("the mail added %d bytes, want the raw copy and the text alone, %d", row.storedBytes, want)
 	}
 }
 
