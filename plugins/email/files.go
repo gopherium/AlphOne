@@ -26,8 +26,11 @@ import (
 // rawMailType is the media type a raw mail is kept under.
 const rawMailType = "message/rfc822"
 
-// octetStream is the media type of a file whose own type the file store would refuse.
+// octetStream is the media type of a file whose own type does not read or runs over mediaTypeMaxBytes.
 const octetStream = "application/octet-stream"
+
+// mediaTypeMaxBytes is the longest media type a file keeps, the RFC 6838 type and subtype of 127 bytes each.
+const mediaTypeMaxBytes = 255
 
 // errFileStore reports a file the file store could not save.
 var errFileStore = errors.New("email: the file store failed")
@@ -163,13 +166,16 @@ func prepareFiles(files []mailFile, state string) ([]keptFile, error) {
 	return kept, nil
 }
 
-// storableType returns contentType when it reads as a type and a subtype, application/octet-stream otherwise.
+// storableType returns the media type of contentType without its parameters, or application/octet-stream.
 func storableType(contentType string) string {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil || !strings.Contains(mediaType, "/") {
 		return octetStream
 	}
-	return contentType
+	if len(mediaType) > mediaTypeMaxBytes {
+		return octetStream
+	}
+	return mediaType
 }
 
 // saveFiles saves each file of kept that holds a queue row, marking one the store refuses as too large.

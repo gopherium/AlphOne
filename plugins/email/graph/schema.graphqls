@@ -1,0 +1,95 @@
+extend type Query {
+  emailMailbox: EmailMailbox @scope(area: "email", write: false)
+  emailThreads(limit: Int, offset: Int): EmailThreadPage!
+    @scope(area: "email", write: false)
+    @listSize(slicingArguments: ["limit"])
+  emailThread(id: UUID!): EmailThread @scope(area: "email", write: false)
+  emailContactMessages(contactId: UUID!, limit: Int, offset: Int): EmailMessagePage!
+    @scope(area: "email", write: false)
+    @listSize(slicingArguments: ["limit"])
+}
+
+type EmailMailbox {
+  id: UUID!
+  address: String!
+  aliases: [String!]!
+}
+
+type EmailThreadPage {
+  items: [EmailThread!]!
+  total: Int!
+  limit: Int!
+}
+
+type EmailThread {
+  id: UUID!
+  subject: String!
+  firstMessageAt: DateTime!
+  lastMessageAt: DateTime!
+  messageCount: Int!
+  hasAttachments: Boolean!
+  latest: EmailMessage!
+  messages(limit: Int, offset: Int): [EmailMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+  message(id: UUID!): EmailMessage @goField(forceResolver: true)
+}
+
+type EmailMessagePage {
+  items: [EmailMessage!]!
+  total: Int!
+  limit: Int!
+}
+
+type EmailMessage {
+  id: UUID!
+  threadId: UUID!
+  direction: String!
+  subject: String!
+  from: EmailAddress
+  sentAt: DateTime
+  receivedAt: DateTime!
+  snippet: String!
+  bodyState: String!
+  skippedParts: Int!
+  automation: String!
+  encrypted: Boolean!
+  signed: Boolean!
+  winmail: Boolean!
+  inviteMethod: String!
+  rawState: String!
+  rawSize: Float!
+  originalPath: String
+  participants: [EmailParticipant!]! @goField(forceResolver: true)
+  body: EmailBody! @goField(forceResolver: true)
+  attachments: [EmailAttachment!]! @goField(forceResolver: true)
+  contactIds: [UUID!]! @goField(forceResolver: true)
+}
+
+type EmailAddress {
+  name: String!
+  email: String!
+}
+
+type EmailParticipant {
+  role: String!
+  name: String!
+  email: String!
+}
+
+type EmailBody {
+  text: String!
+  html: String!
+}
+
+type EmailAttachment {
+  id: UUID!
+  position: Int!
+  filename: String!
+  contentType: String!
+  size: Float!
+  inline: Boolean!
+  contentId: String!
+  state: String!
+  downloadPath: String
+}

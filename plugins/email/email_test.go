@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
@@ -298,11 +300,11 @@ func TestThePluginTakesEachOptionalPartItUses(t *testing.T) {
 	}{
 		{"Migrator", implements[sdk.Migrator](p), true},
 		{"Seeder", implements[sdk.Seeder](p), true},
-		{"RouteProvider", implements[sdk.RouteProvider](p), false},
+		{"RouteProvider", implements[sdk.RouteProvider](p), true},
 		{"PublicPathProvider", implements[sdk.PublicPathProvider](p), false},
 		{"CommandProvider", implements[sdk.CommandProvider](p), true},
 		{"EventProvider", implements[sdk.EventProvider](p), true},
-		{"AreaProvider", implements[sdk.AreaProvider](p), false},
+		{"AreaProvider", implements[sdk.AreaProvider](p), true},
 		{"RoleProvider", implements[sdk.RoleProvider](p), true},
 		{"TopRoleProvider", implements[sdk.TopRoleProvider](p), false},
 		{"FieldSource", implements[sdk.FieldSource](p), false},
@@ -321,6 +323,34 @@ func TestThePluginTakesEachOptionalPartItUses(t *testing.T) {
 	for _, part := range parts {
 		if part.takes != part.uses {
 			t.Errorf("the plugin implements sdk.%s is %v, want %v", part.name, part.takes, part.uses)
+		}
+	}
+}
+
+func TestAreaIsEmail(t *testing.T) {
+	t.Parallel()
+
+	if got := newPlugin(t).Area(); got != "email" {
+		t.Errorf("Area() = %q, want %q", got, "email")
+	}
+}
+
+func TestRoutesMountOnlyTheAttachmentAndOriginalPaths(t *testing.T) {
+	t.Parallel()
+
+	routes := newPlugin(t).Routes()
+
+	for path, want := range map[string]int{
+		"/attachments/not-a-uuid":          http.StatusBadRequest,
+		"/messages/not-a-uuid/original":    http.StatusBadRequest,
+		"/messages/not-a-uuid":             http.StatusNotFound,
+		"/threads/not-a-uuid/attachments/": http.StatusNotFound,
+	} {
+		recorder := httptest.NewRecorder()
+		routes.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+
+		if recorder.Code != want {
+			t.Errorf("GET %s status = %d, want %d", path, recorder.Code, want)
 		}
 	}
 }

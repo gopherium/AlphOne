@@ -1,6 +1,6 @@
 ---
 title: Stored mail
-description: What the email plugin keeps of a mail, how it threads it, how long it keeps it, and what its event carries.
+description: What the email plugin keeps of a mail, how it threads it, how long it keeps it, what its event carries, and how to read it back.
 ---
 
 The email plugin keeps the mail a workspace exchanges with its contacts.
@@ -13,6 +13,10 @@ AlphOne does not connect to a mailbox. Mail reaches it in two ways:
   workspace, see [Commands](/self-hosting/commands/#emailingest).
 - `alphone seed -yes` adds a sample mailbox with a few threads to the
   demo data.
+
+Every member of the workspace can read the stored mail back through the
+API and download its files, see
+[Reading mail through the API](#reading-mail-through-the-api).
 
 Each workspace holds one mailbox, which is an address and any aliases
 that also reach it, such as `info@example.com` and `sales@example.com`.
@@ -70,9 +74,12 @@ known contact.
   `ALPHONE_STORAGE_MAX_BYTES` keeps its name with no file.
 - A raw copy over `ALPHONE_STORAGE_MAX_BYTES` is not kept, and the text
   and the attachments of that mail still are.
+- An attachment keeps its media type without the parameters its mail
+  gives it. So `contentType` answers `application/pdf` for a file sent as
+  `application/pdf; name="quote.pdf"`.
 - An attachment with no media type is kept as `application/octet-stream`,
   under the file name its mail gives it. So is an attachment whose type
-  the file store refuses, such as a type that names no subtype.
+  does not read, names no subtype or is longer than 255 bytes.
 
 ## The workspace limit
 
@@ -221,3 +228,220 @@ delivery was sent or failed for good, AlphOne clears that copy after
 waiting to be sent keeps it however long it waits. Revoking the webhook
 removes those copies at once, see
 [How long a payload is kept](/reference/webhooks/#how-long-a-payload-is-kept).
+
+## Reading mail through the API
+
+Every member of a workspace can read all of its stored mail through the
+[GraphQL API](/reference/graphql-api/). A session works, and so does an
+API token that holds the `email` area. This token reads mail and nothing
+else:
+
+```sh
+alphone token:create -email you@example.com -name "mail reader" \
+  -scope email:read
+```
+
+Four fields read the mail:
+
+| Field | What it answers |
+| --- | --- |
+| `emailMailbox` | The workspace's mailbox, with its address and its aliases. It answers `null` when the workspace holds no mailbox yet. |
+| `emailThreads` | One page of the inbox. The thread with the newest mail comes first. |
+| `emailThread` | One thread by its id, with its mail. |
+| `emailContactMessages` | One page of the mail linked to one contact, the newest first. |
+
+A page holds `items`, `total` and `limit`, the way
+[pages with a total](/reference/graphql-api/#pages-with-a-total) do.
+`limit` follows the same range as `first`. `offset` skips that many rows.
+
+This query reads the first page of the inbox:
+
+```graphql
+query Inbox {
+  emailThreads(limit: 20) {
+    total
+    limit
+    items {
+      id
+      subject
+      lastMessageAt
+      messageCount
+      hasAttachments
+      latest { from { name email } snippet }
+    }
+  }
+}
+```
+
+Each thread shows its newest mail in `latest` and how many mails it holds
+in `messageCount`. `hasAttachments` is true when one of its mails carries
+an attachment. Inline images do not count.
+
+### One thread and one mail
+
+`messages` lists the mail of a thread, the newest first. It takes `limit`
+and `offset` too.
+
+```graphql
+query Thread($id: UUID!) {
+  emailThread(id: $id) {
+    subject
+    messages(limit: 10) {
+      id
+      direction
+      from { name email }
+      receivedAt
+      snippet
+    }
+  }
+}
+```
+
+`direction` is `inbound` for a mail that arrived and `outbound` for a
+copy from the Sent folder. `from` is `null` for a mail that names no
+sender.
+
+To read the text of one mail, ask for it inside its thread:
+
+```graphql
+query Mail($thread: UUID!, $mail: UUID!) {
+  emailThread(id: $thread) {
+    message(id: $mail) {
+      subject
+      bodyState
+      body { text html }
+      attachments { filename contentType size state contentId downloadPath }
+      originalPath
+    }
+  }
+}
+```
+
+`emailThread` answers `null` for an unknown id and for a thread of
+another workspace. `message` answers `null` for a mail of another thread.
+
+A thread id can stop working. When a late mail joins two threads into
+one, see [Threads](#threads), the thread that goes away answers `null`
+from then on. Each mail keeps its own id. Read the inbox again to find
+the thread that now holds it.
+
+### The mail of one contact
+
+`emailContactMessages` lists only the mail linked to that contact. A
+thread can also hold mail that does not name the contact, and this list
+leaves that mail out. Each item carries `threadId`, so you can open the
+whole thread with `emailThread`. A contact of another workspace answers
+an empty page.
+
+```graphql
+query ContactMail($contact: UUID!) {
+  emailContactMessages(contactId: $contact, limit: 20) {
+    total
+    items { id threadId subject receivedAt snippet }
+  }
+}
+```
+
+`contactIds` on a mail names its contacts by id only. Reading the
+contacts themselves needs the `contacts` area.
+
+### What was kept of a mail
+
+Some fields say what AlphOne kept of a mail.
+[When a mail is too large or too broken](#when-a-mail-is-too-large-or-too-broken)
+explains when each case happens. The original is the raw copy that
+section speaks of.
+
+| Field | Values |
+| --- | --- |
+| `bodyState` | `whole` when the text and the HTML are kept whole. `cut` when they were cut at the body cap. `headers_only` when AlphOne read only the headers. |
+| `skippedParts` | How many parts AlphOne could not read and left out. The original holds them when it is kept. |
+| `rawState` | `stored` when the original is kept as a file. `too_large` when it was over a size cap. `over_limit` when the workspace was full. `none` when the mail has no original to keep. |
+| `state` of an attachment | `stored`, `too_large` or `over_limit`, with the same meaning as for the original. |
+| `snippet` | A short preview. It is empty for an encrypted mail and for a mail read by its headers alone. |
+
+A later version may add a state. To know whether a file downloads, read
+`downloadPath` and `originalPath`. Each one is `null` when the file is
+not kept.
+
+### Downloading files
+
+`downloadPath` names where an attachment downloads, and `originalPath`
+names where the original mail downloads. Send a `GET` there with the
+same session or token. A token needs `email:read`.
+
+```sh
+curl -OJ -H 'Authorization: Bearer a1_...' \
+  'https://your-domain/api/plugins/email/attachments/<id>'
+```
+
+Replace `<id>` with the id of the attachment.
+
+- An attachment downloads from `/api/plugins/email/attachments/{id}`.
+- The original downloads from
+  `/api/plugins/email/messages/{id}/original` as `message/rfc822`. It
+  saves as `original-<id>.eml`, so its name never shows the subject.
+
+A file never runs as a page in the browser:
+
+- Every file comes with `Content-Security-Policy: sandbox` and
+  `X-Content-Type-Options: nosniff`. So an HTML or SVG attachment cannot
+  run a script.
+- Every file comes with `Cache-Control: private, no-store`, so no cache
+  keeps a copy.
+- JPEG, PNG and WebP images, audio, and MP4 and 3GPP video show in the
+  browser. Every other file downloads.
+- The saved name is safe. AlphOne keeps only the part after the last `/`
+  or `\`, drops control and invisible characters, and trims dots and
+  spaces at both ends. A name with nothing left saves as `attachment`.
+  `filename` in the API still answers the name the mail gave, so show it
+  as plain text.
+
+A download answers `404` when the file was not kept, when the id is
+unknown, or when the file belongs to another workspace. An id that is not a UUID
+answers `400`. A token without the `email` area answers `403`. Range
+requests and conditional requests work, and the `ETag` is the file's
+SHA-256.
+
+### Remote images in the HTML
+
+`html` in `body` is safe HTML. AlphOne removes scripts from it before it
+stores the mail. It keeps remote images, such as
+`<img src="https://example.com/logo.png">`.
+
+A client that shows the HTML as it is loads those images. The sender can
+then learn that the mail was opened, and from where. So block remote
+images until the reader asks for them.
+
+An image the mail carries itself points at `cid:` and an id. Find the
+attachment whose `contentId` holds that id, and load the image from its
+`downloadPath`. Percent-decode the id first, so `cid:lamp%2Bphoto@example.com`
+matches the `contentId` `lamp+photo@example.com`.
+
+### How many bodies one request reads
+
+One request reads the `body` of at most
+`ALPHONE_EMAIL_BODIES_PER_REQUEST` mails, 2 by default. A body can be
+large, so this keeps one request from filling the server's memory.
+
+A request that asks for more is rejected with the reason
+`bodies_per_request_exceeded`, and `meta.max` names the bound. Ask for
+one body at a time, through
+`emailThread(id) { message(id) { body { text html } } }`. A list needs
+no body, because each mail carries its `snippet`.
+
+### How many people and file lists one request reads
+
+One request reads at most `ALPHONE_EMAIL_LISTS_PER_REQUEST` lists, 50 by
+default. Each `participants` and each `attachments` it asks for counts
+one, so one mail asked for both counts two. `contactIds` does not count,
+and `body` keeps its own bound above. One list can name hundreds of
+people or files, so this keeps one request from filling the server's
+memory.
+
+A request that asks for more is rejected with the reason
+`lists_per_request_exceeded`, and `meta.max` names the bound. A page of
+25 mails with their people and their files asks for 50 lists, so it
+fits. A page of 50, the default size, fits with one of the two. A list
+of threads needs neither, because each mail carries its `from` and each
+thread its `hasAttachments`.

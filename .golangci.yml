@@ -108,6 +108,11 @@ linters:
         linters:
           - cyclop
           - gocognit
+      - path: ^(plugins|enterprise)/
+        linters:
+          - revive
+        text: '^exported: type name will be used as \w+\.\w+Resolvers by other packages, and that stutters'
+        source: '^type \w+Resolvers struct'
 
 formatters:
   enable:

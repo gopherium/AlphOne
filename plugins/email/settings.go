@@ -3,6 +3,7 @@
 package email
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/gopherium/alphone/plugins/email/message"
@@ -54,6 +55,10 @@ const (
 	defaultSweepBudget = 10 * time.Minute
 	// defaultOrphanAge is how long a file of a stopped run waits for the sweep when ALPHONE_EMAIL_ORPHAN_AGE is unset.
 	defaultOrphanAge = 24 * time.Hour
+	// defaultBodiesPerRequest is the most bodies one graph request reads when ALPHONE_EMAIL_BODIES_PER_REQUEST is unset.
+	defaultBodiesPerRequest = 2
+	// defaultListsPerRequest is the most lists one graph request reads when ALPHONE_EMAIL_LISTS_PER_REQUEST is unset.
+	defaultListsPerRequest = 50
 )
 
 // settings holds every limit and interval the email plugin reads from the environment.
@@ -68,6 +73,8 @@ type settings struct {
 	times timeLimits
 	// sweep paces the loop that deletes the files no stored mail holds.
 	sweep sweepSettings
+	// graph bounds what one graph request reads of the stored mail.
+	graph graphCaps
 }
 
 // mailCaps bound how many mails a process holds and how much of each one it keeps and publishes.
@@ -118,29 +125,26 @@ type sweepSettings struct {
 	orphanAge time.Duration
 }
 
+// graphCaps bound what one graph request reads of the stored mail.
+type graphCaps struct {
+	// bodiesPerRequest is the most mail bodies one graph request reads.
+	bodiesPerRequest int
+	// listsPerRequest is the most people and file lists one graph request reads.
+	listsPerRequest int
+}
+
 // readSettings returns every email setting from the environment, an error naming the first setting that does not read.
 func readSettings(deps sdk.Deps) (settings, error) {
-	parse, err := readParseLimits(deps)
-	if err != nil {
+	parse, parseErr := readParseLimits(deps)
+	caps, capsErr := readMailCaps(deps)
+	files, filesErr := readFileCaps(deps)
+	times, timesErr := readTimeLimits(deps)
+	sweep, sweepErr := readSweepSettings(deps)
+	graph, graphErr := readGraphCaps(deps)
+	if err := cmp.Or(parseErr, capsErr, filesErr, timesErr, sweepErr, graphErr); err != nil {
 		return settings{}, err
 	}
-	caps, err := readMailCaps(deps)
-	if err != nil {
-		return settings{}, err
-	}
-	files, err := readFileCaps(deps)
-	if err != nil {
-		return settings{}, err
-	}
-	times, err := readTimeLimits(deps)
-	if err != nil {
-		return settings{}, err
-	}
-	sweep, err := readSweepSettings(deps)
-	if err != nil {
-		return settings{}, err
-	}
-	return settings{parse: parse, caps: caps, files: files, times: times, sweep: sweep}, nil
+	return settings{parse: parse, caps: caps, files: files, times: times, sweep: sweep, graph: graph}, nil
 }
 
 // readParseLimits returns the limits Parse and ReadHeaders read one raw mail within.
@@ -266,4 +270,18 @@ func readSweepSettings(deps sdk.Deps) (sweepSettings, error) {
 		return sweepSettings{}, err
 	}
 	return sweepSettings{interval: interval, batch: batch, budget: budget, orphanAge: orphanAge}, nil
+}
+
+// readGraphCaps returns what one graph request reads of the stored mail.
+func readGraphCaps(deps sdk.Deps) (graphCaps, error) {
+	env := deps.Env.Within("EMAIL_")
+	bodiesPerRequest, err := env.Count("BODIES_PER_REQUEST", defaultBodiesPerRequest)
+	if err != nil {
+		return graphCaps{}, err
+	}
+	listsPerRequest, err := env.Count("LISTS_PER_REQUEST", defaultListsPerRequest)
+	if err != nil {
+		return graphCaps{}, err
+	}
+	return graphCaps{bodiesPerRequest: bodiesPerRequest, listsPerRequest: listsPerRequest}, nil
 }

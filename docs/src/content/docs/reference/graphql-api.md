@@ -58,6 +58,11 @@ through `contact { tasks { ... } }` without holding `tasks:read`. Grant
 the narrowest set of entry points an integration needs, and read a
 scope as the doorway it opens rather than a fence around one table.
 
+Mail has a doorway of its own, the `email` area. No contact field leads
+to mail, so `contacts:read` reads no mail. A token holding only
+`email:read` reads mail and nothing else, and a mail names its contacts
+by id only. See [Reading mail through the API](/email/overview/#reading-mail-through-the-api).
+
 **A session cookie**, for browsers. Call `login` and the reply sets it.
 Send the address and the password as variables, because a query before sign
 in holds at most 1024 bytes and a long password written into it is refused:
@@ -580,6 +585,7 @@ The reasons the core answers with:
 | `webhook_events_required` | | a webhook needs at least one event |
 | `webhook_not_found` | | the id names no webhook |
 | `first_out_of_range` | `min`, `max` | the page size is outside the range |
+| `repeated_field` | `field` | the query asks the same field with the same arguments under two names, see [one name for each field](#one-name-for-each-field) |
 | `locale_unknown` | `supported` | the locale is not one AlphOne serves |
 | `cursor_malformed` | | the cursor is not one a field issued |
 | `value_malformed` | | a scalar did not parse |
@@ -637,6 +643,8 @@ The stock plugins add their own:
 | `upstream_failed` | | the messaging platform did not accept |
 | `number_removed` | | the number the conversation came in on is no longer connected |
 | `channel_number_taken` | | another workspace holds the number, and the answer never names that workspace |
+| `bodies_per_request_exceeded` | `max` | one request asks for the body of more mails than [`ALPHONE_EMAIL_BODIES_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
+| `lists_per_request_exceeded` | `max` | one request asks for more `participants` and `attachments` lists than [`ALPHONE_EMAIL_LISTS_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
 | `import_not_found` | | the id names no import |
 | `file_too_large` | `maxBytes` | the upload is past the cap |
 | `file_unreadable` | | the file is not a CSV or spreadsheet AlphOne reads |
@@ -718,6 +726,52 @@ priced the same way, such as `whatsAppConversations` and the `rows` and
 Ask for fewer rows or fewer fields. Over a budget, AlphOne answers HTTP 429
 with a `Retry-After` header.
 
+### One name for each field
+
+A query asks for each field under one name. An alias or a fragment can give a
+field a second name in the same selection, and a query that asks the same
+field with the same arguments under two names is rejected before anything
+runs. The error has the code `VALIDATION` and the reason `repeated_field`, and
+`meta.field` names the field as `Type.field`:
+
+```graphql
+{
+  contact(id: "0198c000-0000-7000-8000-000000000001") {
+    name
+    fullName: name
+  }
+}
+```
+
+```json
+{
+  "errors": [
+    {
+      "message": "graph: the field Contact.name is asked under the names name and fullName",
+      "extensions": {
+        "code": "VALIDATION",
+        "reason": "repeated_field",
+        "meta": { "field": "Contact.name" }
+      }
+    }
+  ],
+  "data": null
+}
+```
+
+Ask for the field once. Two names are fine when the arguments differ, such as
+`first: contact(id: ...)` and `second: contact(id: ...)` with two ids. A
+variable counts as the value it holds, so `$id` and the same id written out are
+one argument. A single value for a list counts as a list of that one value, and
+`null` counts as leaving out an argument that has no default. A UUID counts as
+the id it names in any spelling the API accepts, such as upper case or without
+hyphens. A number sent as a string counts as that number, and a number sent for
+a string counts as its digits. Inside an input object, a member set to `null`
+counts as leaving it out, except `dueTime` of `UpdateTaskInput`, where `null`
+clears the time. Two uploads count as one value when their name, type and bytes
+all match. A field left out with `@skip` or `@include` does not count, and the
+same name written twice is one field, since GraphQL merges it.
+
 ## Subscriptions
 
 Subscriptions arrive over Server-Sent Events on the same endpoint. Send
@@ -768,6 +822,7 @@ cannot drift. Point a client at the endpoint, or read
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
+| Email | `emailMailbox`, `emailThreads`, `emailThread`, `emailContactMessages` | |
 | Admin settings | `adminSettings` | |
 | Legal links | `legalLinks` | |
 | Version | `version` | |

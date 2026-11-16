@@ -23,6 +23,23 @@
       ]
     },
     {
+      "matching_content_path": "graph/generated.go",
+      "rules": [
+        { "name": "Complex Method", "weight": 0.0 },
+        { "name": "Complex Conditional", "weight": 0.0 },
+        { "name": "Overall Code Complexity", "weight": 0.0 },
+        { "name": "Excess Number of Function Arguments", "weight": 0.0 },
+        { "name": "Code Duplication", "weight": 0.0 },
+        { "name": "Lines of Code in a Single File", "weight": 0.0 },
+        { "name": "Bumpy Road Ahead", "weight": 0.0 },
+        { "name": "Deep, Nested Complexity", "weight": 0.0 },
+        { "name": "Large Method", "weight": 0.0 },
+        { "name": "Low Cohesion", "weight": 0.0 },
+        { "name": "Number of Functions in a Single Module", "weight": 0.0 },
+        { "name": "Lines of Declarations in a Single File", "weight": 0.0 }
+      ]
+    },
+    {
       "matching_content_path": "plugins/email/*.go",
       "rules": [
         { "name": "Excess Number of Function Arguments", "weight": 0.0 },

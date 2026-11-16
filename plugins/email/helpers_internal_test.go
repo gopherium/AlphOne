@@ -197,6 +197,52 @@ func storeMail(t *testing.T, tx pgx.Tx, tenant uuid.UUID, row messageRow) uuid.U
 	return id
 }
 
+// mailIn stores a mail of the thread received the given time after mailReceived, changed by each of change.
+func mailIn(
+	t *testing.T, tx pgx.Tx, box mailbox, thread uuid.UUID, after time.Duration, change ...func(*messageRow),
+) uuid.UUID {
+	t.Helper()
+	row := mailRow(box, thread)
+	row.dedupeKey, row.receivedAt = nil, mailReceived.Add(after)
+	for _, apply := range change {
+		apply(&row)
+	}
+	id := storeMail(t, tx, sdk.DefaultTenantID, row)
+	entry := entryAt(row.subject, row.receivedAt.Sub(mailReceived))
+	if err := updateThreadSpan(t.Context(), tx, sdk.DefaultTenantID, thread, entry); err != nil {
+		t.Fatalf("updateThreadSpan() error = %v, want nil", err)
+	}
+	return id
+}
+
+// linkMail links the mail id to each of contacts.
+func linkMail(t *testing.T, tx pgx.Tx, id uuid.UUID, contacts ...uuid.UUID) {
+	t.Helper()
+	if _, err := linkContacts(t.Context(), tx, sdk.DefaultTenantID, id, contacts); err != nil {
+		t.Fatalf("linkContacts() error = %v, want nil", err)
+	}
+}
+
+// fileAt returns a kept file at position named filename, an inline image when inline holds.
+func fileAt(position int, filename string, inline bool) attachmentRow {
+	file := attachmentRow{
+		position: position, filename: filename, contentType: "application/pdf", size: 3000,
+		sha256: bytes.Repeat([]byte{3}, 32), inline: inline, fileID: uuid.Must(uuid.NewV7()), state: fileStored,
+	}
+	if inline {
+		file.contentType, file.contentID = "image/png", "lamp-photo@example.com"
+	}
+	return file
+}
+
+// storeFiles stores each of files as a file of the mail id.
+func storeFiles(t *testing.T, tx pgx.Tx, id uuid.UUID, files ...attachmentRow) {
+	t.Helper()
+	if err := insertAttachments(t.Context(), tx, sdk.DefaultTenantID, id, files); err != nil {
+		t.Fatalf("insertAttachments() error = %v, want nil", err)
+	}
+}
+
 // storedRow reads back the columns insertMessage wrote for the mail id names.
 func storedRow(t *testing.T, db rowReader, id uuid.UUID) messageRow {
 	t.Helper()

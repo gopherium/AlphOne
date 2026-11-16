@@ -35,6 +35,8 @@ var countKeys = []string{
 	"ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES",
 	"ALPHONE_EMAIL_THREAD_REFERENCES_MAX",
 	"ALPHONE_EMAIL_SWEEP_BATCH",
+	"ALPHONE_EMAIL_BODIES_PER_REQUEST",
+	"ALPHONE_EMAIL_LISTS_PER_REQUEST",
 }
 
 // durationKeys lists every setting the plugin reads as a duration.
@@ -65,6 +67,8 @@ var distinctValues = map[string]string{
 	"ALPHONE_EMAIL_EVENT_TEXT_MAX_BYTES":    "32",
 	"ALPHONE_EMAIL_THREAD_REFERENCES_MAX":   "12",
 	"ALPHONE_EMAIL_SWEEP_BATCH":             "3",
+	"ALPHONE_EMAIL_BODIES_PER_REQUEST":      "5",
+	"ALPHONE_EMAIL_LISTS_PER_REQUEST":       "7",
 	"ALPHONE_EMAIL_THREAD_WINDOW":           "48h",
 	"ALPHONE_EMAIL_RETRY_WINDOW":            "30m",
 	"ALPHONE_EMAIL_CLEANUP_TIMEOUT":         "3s",
@@ -98,6 +102,7 @@ func TestReadSettingsAnswersEveryDefaultWhenNothingIsSet(t *testing.T) {
 		files: fileCaps{attachmentMaxBytes: 26214400, workspaceMaxBytes: 5368709120},
 		times: timeLimits{threadWindow: 336 * time.Hour, retryWindow: 6 * time.Hour, cleanupTimeout: 10 * time.Second},
 		sweep: sweepSettings{interval: time.Hour, batch: 100, budget: 10 * time.Minute, orphanAge: 24 * time.Hour},
+		graph: graphCaps{bodiesPerRequest: 2, listsPerRequest: 50},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("readSettings() = %+v, want the defaults %+v", got, want)
@@ -123,6 +128,7 @@ func TestReadSettingsHoldsTheValueOfEverySetting(t *testing.T) {
 		files: fileCaps{attachmentMaxBytes: 8, workspaceMaxBytes: 1450},
 		times: timeLimits{threadWindow: 48 * time.Hour, retryWindow: 30 * time.Minute, cleanupTimeout: 3 * time.Second},
 		sweep: sweepSettings{interval: 2 * time.Second, batch: 3, budget: 90 * time.Second, orphanAge: 2 * time.Hour},
+		graph: graphCaps{bodiesPerRequest: 5, listsPerRequest: 7},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("readSettings() = %+v, want %+v read from each setting", got, want)
@@ -142,6 +148,28 @@ func TestReadSettingsNamesTheKeyOfAValueThatDoesNotRead(t *testing.T) {
 				t.Errorf("readSettings() over %s=plenty error = %v, want the value refused by its key", key, err)
 			}
 		})
+	}
+}
+
+func TestReadSettingsNamesTheFirstGroupWhoseValueDoesNotRead(t *testing.T) {
+	t.Parallel()
+
+	groupKeys := []string{
+		"ALPHONE_EMAIL_MESSAGE_MAX_BYTES", "ALPHONE_EMAIL_MAILS_IN_MEMORY_MAX", "ALPHONE_EMAIL_ATTACHMENT_MAX_BYTES",
+		"ALPHONE_EMAIL_THREAD_WINDOW", "ALPHONE_EMAIL_SWEEP_INTERVAL", "ALPHONE_EMAIL_BODIES_PER_REQUEST",
+		"ALPHONE_EMAIL_LISTS_PER_REQUEST",
+	}
+	for i, first := range groupKeys {
+		unread := map[string]string{}
+		for _, key := range groupKeys[i:] {
+			unread[key] = "plenty"
+		}
+
+		_, err := readSettings(sdk.Deps{Env: settingsEnv(unread)})
+
+		if err == nil || !strings.HasPrefix(err.Error(), first+": must ") {
+			t.Errorf("readSettings() over %v error = %v, want %s named first", groupKeys[i:], err, first)
+		}
 	}
 }
 

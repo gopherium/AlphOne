@@ -1,0 +1,15 @@
+{
+	"name": "@alphone/plugin-email",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./index.ts"
+	},
+	"dependencies": {
+		"@alphone/frontend-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"vitest": "^5.1.0"
+	}
+}

@@ -44,7 +44,7 @@ func (w *world) connect(ctx context.Context, secret string) error {
 		return nil
 	}
 	w.session = session
-	w.t.Cleanup(func() { _ = session.Close() })
+	w.down.add(func() { _ = session.Close() })
 	return nil
 }
 

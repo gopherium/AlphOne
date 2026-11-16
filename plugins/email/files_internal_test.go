@@ -233,6 +233,23 @@ func TestKeepFilesSavesATypeTheStoreWouldRefuseAsAnOctetStream(t *testing.T) {
 	}
 }
 
+func TestKeepFilesSavesAFileUnderItsMediaTypeWithoutItsParameters(t *testing.T) {
+	t.Parallel()
+
+	files, _, store := newMailFiles(t, fileCap)
+
+	kept := keepRun(t, files, fileStored,
+		mailFile{contentType: `application/pdf; name="quote.pdf"`, content: []byte("quote")},
+		mailFile{contentType: "image/png; name=photo.png", content: []byte("photo over the cap"), tooLarge: true})
+
+	if kept[0].contentType != "application/pdf" || store.saves[0].contentType != "application/pdf" {
+		t.Errorf("the stored file = %+v, sent as %q, want both application/pdf", kept[0], store.saves[0].contentType)
+	}
+	if kept[1].contentType != "image/png" {
+		t.Errorf("the file over its cap = %+v, want it kept as image/png", kept[1])
+	}
+}
+
 func TestKeepFilesQueuesEveryFileAsWritingBeforeItsBytes(t *testing.T) {
 	t.Parallel()
 
