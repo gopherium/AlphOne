@@ -5,9 +5,9 @@ import * as godminRouter from '@gopherium/godmin/router'
 import { expect, test } from 'vitest'
 
 import {
-	ConfirmBody,
+	ConfirmDialog,
 	DrilldownItem,
-	FormBody,
+	FormDialog,
 	ListEmpty,
 	ListNoResults,
 	markLatest,
@@ -15,11 +15,12 @@ import {
 	NavigationItem,
 	NavigationList,
 	NavigationScreen,
-	RenameBody,
-	RunConfirm,
+	RenameDialog,
+	UnsavedChangesDialog,
 	listSearch,
 	openOnTap,
 	useBulkRun,
+	useDialogRun,
 	useListRun,
 	useListView,
 	useToaster,
@@ -29,18 +30,19 @@ import {
 import type {
 	BulkRun,
 	BulkWords,
-	ConfirmBodyProps,
-	FormBodyProps,
-	FormKind,
+	ConfirmDialogProps,
+	DialogAnswer,
+	DialogRun,
+	FormDialogProps,
 	ListDefaults,
 	ListRun,
 	ListRunState,
 	ListSearch,
 	ListView,
-	RenameBodyProps,
-	RunConfirmProps,
+	RenameDialogProps,
 	RunSettled,
 	ToasterHandle,
+	UnsavedChangesDialogProps,
 	UnsavedText,
 } from '../index'
 
@@ -61,7 +63,10 @@ function expectGodminOwn(handed: unknown[], shipped: unknown[]) {
 }
 
 test('hands plugins the list kit the admin runs, the very functions godmin ships', () => {
-	expectGodminOwn([RunConfirm, useBulkRun, useListRun], [godmin.RunConfirm, godmin.useBulkRun, godmin.useListRun])
+	expectGodminOwn(
+		[useBulkRun, useDialogRun, useListRun],
+		[godmin.useBulkRun, godmin.useDialogRun, godmin.useListRun],
+	)
 })
 
 test('hands plugins the empty states and the narrowing check, the very ones godmin ships', () => {
@@ -106,8 +111,15 @@ test('hands plugins the sidebar menu parts the admin draws, the very ones godmin
 	)
 })
 
-test('hands plugins the dialog bodies the admin asks in, the very ones godmin ships', () => {
-	expectGodminOwn([ConfirmBody, FormBody, RenameBody], [godmin.ConfirmBody, godmin.FormBody, godmin.RenameBody])
+test('hands plugins the question the admin asks before leaving unsaved work, the very one godmin ships', () => {
+	expectGodminOwn([UnsavedChangesDialog], [godminRouter.UnsavedChangesDialog])
+})
+
+test('hands plugins the dialogs the admin asks in, the very ones godmin ships', () => {
+	expectGodminOwn(
+		[ConfirmDialog, FormDialog, RenameDialog],
+		[godmin.ConfirmDialog, godmin.FormDialog, godmin.RenameDialog],
+	)
 })
 
 test('hands plugins the toaster the admin reports a failed write in, the very one godmin ships', () => {
@@ -125,17 +137,19 @@ test('hands plugins the store that keeps what a failed write left unsaved, the v
 })
 
 test('hands plugins the types the list kit is written in', () => {
-	const props: Pick<RunConfirmProps<{ id: string }>, 'confirmLabel' | 'cancelLabel'> = {
+	const props: Pick<ConfirmDialogProps, 'confirmLabel' | 'cancelLabel'> = {
 		confirmLabel: 'Revoke',
 		cancelLabel: 'Cancel',
 	}
 	const run: BulkRun<{ id: string }> | undefined = undefined
+	const write: DialogRun<{ id: string }> | undefined = undefined
 	const list: ListRun | undefined = undefined
 	const state: ListRunState | undefined = undefined
 	const settled: RunSettled = () => undefined
 
-	expect([props.confirmLabel, run, list, state, settled(true), WORDS.done(2, undefined)]).toEqual([
+	expect([props.confirmLabel, run, write, list, state, settled(true), WORDS.done(2, undefined)]).toEqual([
 		'Revoke',
+		undefined,
 		undefined,
 		undefined,
 		undefined,
@@ -144,16 +158,23 @@ test('hands plugins the types the list kit is written in', () => {
 	])
 })
 
-test('hands plugins the types the dialog bodies are written in', () => {
-	const kind: FormKind = 'copy'
-	const confirm: Pick<ConfirmBodyProps, 'confirmLabel'> = { confirmLabel: 'Delete' }
-	const form: Pick<FormBodyProps, 'submitLabel' | 'kind'> = { submitLabel: 'Duplicate', kind }
-	const rename: Pick<RenameBodyProps, 'submitLabel'> = { submitLabel: 'Save' }
+test('hands plugins the types the dialogs are written in', () => {
+	const held: DialogAnswer = { close: false }
+	const form: Pick<FormDialogProps, 'submitLabel' | 'description'> = {
+		submitLabel: 'Duplicate',
+		description: 'A copy keeps every field.',
+	}
+	const rename: Pick<RenameDialogProps, 'submitLabel'> = { submitLabel: 'Save' }
+	const leaving: Pick<UnsavedChangesDialogProps, 'discardLabel' | 'keepLabel'> = {
+		discardLabel: 'Discard',
+		keepLabel: 'Keep editing',
+	}
 
-	expect([confirm.confirmLabel, form.submitLabel, form.kind, rename.submitLabel]).toEqual([
-		'Delete',
+	expect([held, form.submitLabel, form.description, rename.submitLabel, leaving.discardLabel]).toEqual([
+		{ close: false },
 		'Duplicate',
-		'copy',
+		'A copy keeps every field.',
 		'Save',
+		'Discard',
 	])
 })

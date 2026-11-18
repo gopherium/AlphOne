@@ -11,6 +11,8 @@ export interface AdminSettings {
 	toastMilliseconds: number
 	/** toastActionMilliseconds is how long a toast with a button stays. */
 	toastActionMilliseconds: number
+	/** dialogWriteTimeoutMilliseconds is how long a busy dialog waits on its write. */
+	dialogWriteTimeoutMilliseconds: number
 	/** listPageSizes are the page sizes a list offers. */
 	listPageSizes: number[]
 	/** listPageSize is the page size a list opens on. */
@@ -35,6 +37,7 @@ const adminSettingsQuery: TypedDocumentNode<{ adminSettings: AdminSettings }, Re
 		adminSettings {
 			toastMilliseconds
 			toastActionMilliseconds
+			dialogWriteTimeoutMilliseconds
 			listPageSizes
 			listPageSize
 			contactPageCap
