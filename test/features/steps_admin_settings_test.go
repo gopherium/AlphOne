@@ -15,19 +15,20 @@ import (
 )
 
 // adminSettingsQuery reads the settings the admin screens read once.
-const adminSettingsQuery = `{"query":"{ adminSettings {` +
-	` toastMilliseconds toastActionMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`
+const adminSettingsQuery = `{"query":"{ adminSettings { toastMilliseconds toastActionMilliseconds` +
+	` dialogWriteTimeoutMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }"}`
 
 // adminSettingsAnswer is the envelope every admin settings step reads.
 type adminSettingsAnswer struct {
 	Data struct {
 		AdminSettings *struct {
-			ToastMilliseconds       int    `json:"toastMilliseconds"`
-			ToastActionMilliseconds int    `json:"toastActionMilliseconds"`
-			ListPageSizes           []int  `json:"listPageSizes"`
-			ListPageSize            int    `json:"listPageSize"`
-			ContactPageCap          int    `json:"contactPageCap"`
-			FormatLocale            string `json:"formatLocale"`
+			ToastMilliseconds              int    `json:"toastMilliseconds"`
+			ToastActionMilliseconds        int    `json:"toastActionMilliseconds"`
+			DialogWriteTimeoutMilliseconds int    `json:"dialogWriteTimeoutMilliseconds"`
+			ListPageSizes                  []int  `json:"listPageSizes"`
+			ListPageSize                   int    `json:"listPageSize"`
+			ContactPageCap                 int    `json:"contactPageCap"`
+			FormatLocale                   string `json:"formatLocale"`
 		} `json:"adminSettings"`
 	} `json:"data"`
 	Errors []struct {
@@ -110,6 +111,17 @@ func bindAdminSettingsSteps(sc *godog.ScenarioContext) {
 		}
 		if got := answer.Data.AdminSettings.ToastActionMilliseconds; got != want {
 			return fmt.Errorf("toastActionMilliseconds = %d, want %d", got, want)
+		}
+		return nil
+	})
+
+	sc.Then(`^a busy dialog waits (\d+) milliseconds on its write$`, func(ctx context.Context, want int) error {
+		answer, err := worldFrom(ctx).adminSettings()
+		if err != nil {
+			return err
+		}
+		if got := answer.Data.AdminSettings.DialogWriteTimeoutMilliseconds; got != want {
+			return fmt.Errorf("dialogWriteTimeoutMilliseconds = %d, want %d", got, want)
 		}
 		return nil
 	})
