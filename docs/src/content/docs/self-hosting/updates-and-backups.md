@@ -103,7 +103,7 @@ server, because a watcher on `:latest` applies it on its own.
   nothing declares any more, and so does its dry run. Give the account a
   declared role with `account:role` first, see
   [Changing an account](/self-hosting/commands/#changing-an-account).
-- Only accounts that may manage users open Users and New user. A member
+- Only accounts that may manage users open Users and Add User. A member
   who opens them lands on the home screen and finds their API tokens in
   the menu where Users was.
 - The GraphQL API refuses an account write in WordPress's two ways. A
@@ -187,6 +187,11 @@ server, because a watcher on `:latest` applies it on its own.
   it and still answered `200`, so those messages do not come back. An
   automation that reads a WhatsApp identity as a phone number needs to
   allow for a user ID, see [Contacts](/guides/contacts/).
+- `ALPHONE_DIALOG_WRITE_TIMEOUT` is new and defaults to 60s. A dialog
+  that waits on a save now stops waiting after that long and counts the
+  save as failed, where earlier releases waited for good. A value
+  AlphOne rejects stops `serve`, see
+  [Lists, toasts and formats](/self-hosting/configuration/#lists-toasts-and-formats).
 - What's Up Docker before 9.1.0 rebuilds the container from the old
   container's settings. Those name no command, because older images had
   none, so the new version only lists the commands, exits 0 and
