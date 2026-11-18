@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
-import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
-import { busyClasses, compactClasses, renderAt, renderRoutedAt } from './render'
+import { createAppRouter } from '../router'
+import { busyClasses, compactClasses, renderAt, renderLimitedAt, renderRoutedAt, signalsOf } from './render'
 
 const anaID = '0198c000-0000-7000-8000-000000000001'
 const brunoID = '0198c000-0000-7000-8000-000000000002'
 const identityID1 = '0198c000-0000-7000-8000-000000000011'
 const identityID2 = '0198c000-0000-7000-8000-000000000012'
+const identityID3 = '0198c000-0000-7000-8000-000000000013'
 
 type IdentityRow = { id: string; channel: string; identifier: string; display_name: string }
 
@@ -61,14 +63,21 @@ function expectFieldIn(child: Element | undefined, label: string) {
 }
 
 /**
- * Answers the browser's confirm box for one test.
- * @param answer - What the reader answers.
- * @returns The spy that records each question.
+ * Waits for the question the page asks before it leaves an unsaved name.
+ * @returns The question.
  */
-function answerConfirm(answer: boolean) {
-	const confirm = vi.spyOn(window, 'confirm').mockReturnValue(answer)
-	onTestFinished(() => confirm.mockRestore())
-	return confirm
+function discardQuestion() {
+	return screen.findByRole('alertdialog', { name: 'Discard changes?' })
+}
+
+/**
+ * Presses the trash of one identity and waits for the question it opens.
+ * @param identifier - The identifier the trash is named after.
+ * @returns The question.
+ */
+async function askToRemove(identifier: string) {
+	await userEvent.click(screen.getByRole('button', { name: `Remove ${identifier}` }))
+	return screen.findByRole('alertdialog', { name: `Remove ${identifier}?` })
 }
 
 /**
@@ -153,7 +162,7 @@ afterEach(() => {
 	resetLocaleData(undefined, 'alphone-whatsapp')
 })
 
-beforeEach(() => {
+beforeEach(async () => {
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
@@ -166,6 +175,14 @@ beforeEach(() => {
 			}),
 		),
 	)
+	await import('../contacts/ContactScreen')
+	await import('../contacts/ContactsScreen')
+})
+
+test('loads the contact page in a chunk of its own, off the first paint', () => {
+	const { component } = createAppRouter().routesById['/contacts/$contactId'].options
+
+	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
 })
 
 test('creates a contact, confirms it and opens its detail', async () => {
@@ -663,12 +680,41 @@ test('drops the session when the identity removal is unauthorized', async () => 
 	const client = renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+	await userEvent.click(within(await askToRemove('184467235')).getByRole('button', { name: 'Remove' }))
 
 	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
 })
 
-test('removes an identity', async () => {
+test('asks before it removes an identity, in a red question that says it cannot be undone', async () => {
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	const question = await askToRemove('184467235')
+
+	expect(question).toHaveAccessibleDescription('This action cannot be undone.')
+	expect(within(question).getByRole('button', { name: 'Remove' }).className).toMatch(/irreversible/)
+	expect(within(question).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+})
+
+test('keeps the identity and sends nothing when the reader cancels its removal', async () => {
+	let removals = 0
+	server.use(
+		graphql.mutation('DeleteContactIdentity', () => {
+			removals += 1
+			return HttpResponse.json({ data: { deleteContactIdentity: true } })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+
+	await userEvent.click(within(await askToRemove('184467235')).getByRole('button', { name: 'Cancel' }))
+
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(removals).toBe(0)
+})
+
+test('removes an identity once the reader confirms', async () => {
 	let identities = [
 		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
 		{ id: identityID2, channel: 'email', identifier: 'maria@example.com', display_name: '' },
@@ -691,64 +737,135 @@ test('removes an identity', async () => {
 
 	expect(screen.getByText('Email: maria@example.com')).toBeInTheDocument()
 
-	await userEvent.click(screen.getByRole('button', { name: 'Remove maria@example.com' }))
+	await userEvent.click(within(await askToRemove('maria@example.com')).getByRole('button', { name: 'Remove' }))
 
 	await waitFor(() =>
 		expect(screen.queryByText('Email: maria@example.com')).not.toBeInTheDocument(),
 	)
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(deleted).toBe(identityID2)
 	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
 	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
 })
 
-test('spins only the remove button pressed', async () => {
-	server.use(graphql.mutation('DeleteContactIdentity', () => new Promise(() => {})))
+/**
+ * Serves Ana García with the given identities, each removal taking its identity away.
+ * @param identities - The identities the contact starts with.
+ */
+function serveRemovals(identities: IdentityRow[]) {
+	let held = identities
+	server.use(
+		graphql.query('ContactDetail', ({ variables }) =>
+			HttpResponse.json({ data: { contact: detailFor(String(variables.id), 'Ana García', held) } }),
+		),
+		graphql.mutation('DeleteContactIdentity', ({ variables }) => {
+			held = held.filter((identity) => identity.id !== String(variables.identityId))
+			return HttpResponse.json({ data: { deleteContactIdentity: true } })
+		}),
+	)
+}
+
+test.each([
+	{ removed: 'maria@example.com', focused: 'Remove support@example.com', place: 'the next identity' },
+	{ removed: 'support@example.com', focused: 'Remove maria@example.com', place: 'the one before when the last goes' },
+])('puts the focus on the trash of $place once a removal works', async ({ removed, focused }) => {
+	serveRemovals([
+		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: '' },
+		{ id: identityID2, channel: 'email', identifier: 'maria@example.com', display_name: '' },
+		{ id: identityID3, channel: 'email', identifier: 'support@example.com', display_name: '' },
+	])
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+	await userEvent.click(within(await askToRemove(removed)).getByRole('button', { name: 'Remove' }))
 
-	await waitFor(() =>
-		expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true'),
-	)
-	expect(screen.getByRole('button', { name: 'Remove 184467236' })).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.getByRole('button', { name: focused })).toHaveFocus())
 })
 
-test('keeps a remove button spinning while its own removal waits and another one finishes', async () => {
-	server.use(
-		graphql.mutation('DeleteContactIdentity', ({ variables }) =>
-			variables.identityId === identityID1
-				? new Promise(() => {})
-				: HttpResponse.json({ data: { deleteContactIdentity: true } }),
-		),
-	)
+test('puts the focus on the first field of Add identity once the only identity goes', async () => {
+	serveRemovals([{ id: identityID1, channel: 'email', identifier: 'maria@example.com', display_name: '' }])
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
 
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467236' }))
+	await userEvent.click(within(await askToRemove('maria@example.com')).getByRole('button', { name: 'Remove' }))
 
-	expect(await screen.findByText('Identity removed.')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
+	await screen.findByText('No identities yet.')
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.getByLabelText('Channel')).toHaveFocus())
+})
+
+test('holds the question with a spinner on Remove until the removal ends', async () => {
+	let answer = () => {}
+	const answered = new Promise<void>((resolve) => {
+		answer = resolve
+	})
+	server.use(
+		graphql.mutation('DeleteContactIdentity', async () => {
+			await answered
+			return HttpResponse.json({ data: { deleteContactIdentity: true } })
+		}),
+	)
+	renderAt(`/contacts/${anaID}`)
+	await screen.findByRole('heading', { name: 'Ana García' })
+	const question = await askToRemove('184467235')
+	const remove = within(question).getByRole('button', { name: 'Remove' })
+
+	await userEvent.click(remove)
+	await waitFor(() => expect(remove).toHaveAttribute('aria-disabled', 'true'))
+	expect([...remove.classList]).toEqual(expect.arrayContaining(busyClasses()))
+	await userEvent.keyboard('{Escape}')
+	expect(screen.getByRole('alertdialog', { name: 'Remove 184467235?' })).toBe(question)
+	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
+	answer()
+
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
 })
 
 test.each([
-	{ answered: { message: 'internal error' }, toast: 'Could not remove the identity.' },
+	{ answered: { message: 'internal error' }, words: 'Could not remove the identity.' },
 	{
 		answered: { message: 'identity not found', extensions: { code: 'NOT_FOUND', reason: 'identity_not_found' } },
-		toast: 'Could not remove the identity. That address is no longer on this contact.',
+		words: 'Could not remove the identity. That address is no longer on this contact.',
 	},
-])('says in a toast that an identity could not be removed: $toast', async ({ answered, toast }) => {
+])('says inside the question that an identity could not be removed: $words', async ({ answered, words }) => {
 	configureAppErrorText()
 	server.use(graphql.mutation('DeleteContactIdentity', () => HttpResponse.json({ data: null, errors: [answered] })))
 	renderAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
+	const question = await askToRemove('184467235')
+	const remove = within(question).getByRole('button', { name: 'Remove' })
 
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
+	await userEvent.click(remove)
 
-	expect(await screen.findByText(toast, { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await within(question).findByText(words)).toBeInTheDocument()
+	expect(screen.getByRole('alertdialog', { name: 'Remove 184467235?' })).toBe(question)
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(remove).not.toHaveAttribute('aria-disabled', 'true'))
+})
+
+/** shortLimit is the time limit in milliseconds a busy dialog waits on its write in a test that runs past it. */
+const shortLimit = 50
+
+test('stops a removal past the time limit and says inside the question that the server gave no answer', async () => {
+	server.use(graphql.mutation('DeleteContactIdentity', () => new Promise(() => {})))
+	const signals = signalsOf('DeleteContactIdentity')
+	renderLimitedAt(`/contacts/${anaID}`, shortLimit)
+	await screen.findByRole('heading', { name: 'Ana García' })
+	const question = await askToRemove('184467235')
+	const remove = within(question).getByRole('button', { name: 'Remove' })
+
+	await userEvent.click(remove)
+
+	expect(await within(question).findByText('Could not get a valid response from the server.')).toBeInTheDocument()
+	expect(signals).toHaveLength(1)
+	expect(signals[0]?.aborted).toBe(true)
+	await waitFor(() => expect(remove).not.toHaveAttribute('aria-disabled', 'true'))
+	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
+	expect(screen.queryByText('Could not remove the identity.')).not.toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 })
 
 test('shows each identity remove as an icon named after its identifier', async () => {
@@ -901,44 +1018,58 @@ test('follows the name field in the title and falls back on Contact while it is 
 	expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
 })
 
-test('stays on the contact when the reader refuses to leave an unsaved name', async () => {
-	const confirm = answerConfirm(false)
+test('stays on the contact with the typed name when the reader keeps editing', async () => {
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(contactsCrumb())
+	const question = await discardQuestion()
+	expect(question).toHaveAccessibleDescription('The name is not saved.')
+	expect(within(question).getByRole('button', { name: 'Discard' }).className).toMatch(/irreversible/)
+	await userEvent.click(within(question).getByRole('button', { name: 'Keep editing' }))
 
-	await waitFor(() => expect(confirm).toHaveBeenCalledWith('Leave this page? The name is not saved.'))
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
 	expect(screen.getByLabelText('Name')).toHaveValue('Ana García Ltd')
 })
 
-test('leaves the contact when the reader accepts to lose an unsaved name', async () => {
-	const confirm = answerConfirm(true)
+test('stays on the contact with the typed name when the reader presses Escape on the question', async () => {
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(contactsCrumb())
+	await discardQuestion()
+	await userEvent.keyboard('{Escape}')
+
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
+	expect(screen.getByLabelText('Name')).toHaveValue('Ana García Ltd')
+})
+
+test('leaves the contact when the reader discards an unsaved name', async () => {
+	serveEmptyList()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(contactsCrumb())
+	await userEvent.click(within(await discardQuestion()).getByRole('button', { name: 'Discard' }))
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).toHaveBeenCalledOnce()
 })
 
 test('asks before the sidebar leaves an unsaved name', async () => {
-	const confirm = answerConfirm(false)
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(within(screen.getByRole('region', { name: 'Navigation' })).getByRole('link', { name: 'Tasks' }))
 
-	await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
+	expect(await discardQuestion()).toBeInTheDocument()
 	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
 })
 
 test('never asks before leaving a clean contact', async () => {
-	const confirm = answerConfirm(false)
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
@@ -946,11 +1077,10 @@ test('never asks before leaving a clean contact', async () => {
 	await userEvent.click(contactsCrumb())
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).not.toHaveBeenCalled()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
 test('never asks before leaving a saved name', async () => {
-	const confirm = answerConfirm(false)
 	serveEmptyList()
 	serveRenames()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
@@ -961,11 +1091,10 @@ test('never asks before leaving a saved name', async () => {
 	await userEvent.click(contactsCrumb())
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).not.toHaveBeenCalled()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
-test('drops an unsaved name when the page moves on to another contact', async () => {
-	answerConfirm(true)
+test('drops an unsaved name when the reader discards it to move on to another contact', async () => {
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
@@ -978,7 +1107,8 @@ test('drops an unsaved name when the page moves on to another contact', async ()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
-	await act(() => router.navigate({ to: '/contacts/$contactId', params: { contactId: brunoID } }))
+	void router.navigate({ to: '/contacts/$contactId', params: { contactId: brunoID } })
+	await userEvent.click(within(await discardQuestion()).getByRole('button', { name: 'Discard' }))
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
 	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
