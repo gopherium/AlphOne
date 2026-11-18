@@ -52,13 +52,7 @@ msgstr ""
 msgid "Add sub field"
 msgstr ""
 
-msgid "Archive"
-msgstr ""
-
 msgid "Archive %(label)s"
-msgstr ""
-
-msgid "Archive this field?"
 msgstr ""
 
 msgid "Blank entry"
@@ -80,6 +74,9 @@ msgid "Could not order the fields."
 msgstr ""
 
 msgid "Could not remove the entry."
+msgstr ""
+
+msgid "Could not restore the field."
 msgstr ""
 
 msgid "Could not save the entry."
@@ -106,6 +103,9 @@ msgstr ""
 msgid "Field archived."
 msgstr ""
 
+msgid "Field restored."
+msgstr ""
+
 msgid "Fields"
 msgstr ""
 
@@ -113,9 +113,6 @@ msgid "Fields saved."
 msgstr ""
 
 msgid "Fill in at least one part of the entry."
-msgstr ""
-
-msgid "Keep"
 msgstr ""
 
 msgid "Kind"
@@ -214,10 +211,16 @@ msgstr ""
 msgid "The fields could not be loaded."
 msgstr ""
 
+msgid "This action cannot be undone."
+msgstr ""
+
 msgid "This list is full. It holds %(max)s entries at most."
 msgstr ""
 
 msgid "Two sub fields of this repeater hold the same name."
+msgstr ""
+
+msgid "Undo"
 msgstr ""
 
 msgctxt "admin section"

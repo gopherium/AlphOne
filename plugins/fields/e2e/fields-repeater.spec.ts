@@ -65,12 +65,15 @@ test('defines a repeater and keeps a contact history one entry at a time', async
 	const entries = history.getByRole('listitem')
 	await expect(entries.first()).toHaveAccessibleName('18/09/2026, Follow-up call.')
 
+	const firstCall = '01/09/2026, First call about the yearly plan.'
 	const removed = operationAnswer(page, 'DeleteContactFieldEntry')
 	await history.getByRole('button', { name: 'Remove entry: 10/09/2026, Sent the offer.' }).click()
-	await history.getByRole('button', { name: 'Remove', exact: true }).click()
+	const asked = page.getByRole('alertdialog', { name: 'Remove this entry?' })
+	await asked.getByRole('button', { name: 'Remove', exact: true }).click()
 	await removed
+	await expect(asked).toBeHidden()
+	await expect(history.getByRole('button', { name: `Edit entry: ${firstCall}` })).toBeFocused()
 
-	const firstCall = '01/09/2026, First call about the yearly plan.'
 	await history.getByRole('button', { name: `Edit entry: ${firstCall}` }).click()
 	const editor = history.getByRole('form', { name: `Edit entry: ${firstCall}` })
 	const edited = editor.getByRole('textbox', { name: 'Comment', exact: true })

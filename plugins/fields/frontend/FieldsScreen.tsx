@@ -29,11 +29,10 @@ import {
 	useToaster,
 	writeFailure,
 } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import type { GraphFailure, ToastAction } from '@alphone/frontend-sdk'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 
-import { ConfirmActions } from './ConfirmActions'
 import { reasonOf } from './entryOutcome'
 import { whenFocusStayed } from './focus'
 import type { FieldCatalogueQuery, FieldKind } from './gql/graphql'
@@ -45,6 +44,7 @@ import {
 	fieldCatalogueQuery,
 } from './operations'
 import { useFieldOrder } from './useFieldOrder'
+import { useRestore } from './useRestore'
 
 /** FieldRow is one catalogue entry as the screen renders it. */
 interface FieldRow {
@@ -81,42 +81,30 @@ interface FocusMark {
 	control: number
 }
 
-/** TrashFocus names the row and the button in it focus moves to: its trash, or Keep in the question it asks. */
+/** TrashFocus names the row whose trash takes focus. */
 interface TrashFocus {
 	id: string
-	on: 'trash' | 'keep'
 }
 
-/** ArchiveQuestion is a row asking before it archives, its archive under way, the read after it and where focus sat. */
-interface ArchiveQuestion {
+/** ArchivePending is the field an archive is under way for, whether the read after it runs and where focus sat. */
+interface ArchivePending {
 	id: string
-	locked: boolean
 	reading: boolean
 	from: Element | null
 }
 
-/** ArchiveRow is how one row's trash shows: asking, locked while an archive is under way, and the focus to take. */
-interface ArchiveRow {
-	asking: boolean
-	locked: boolean
-	focus: TrashFocus | undefined
-}
-
-/** ArchiveHandlers are the actions the trash and the question of a row run. */
-interface ArchiveHandlers {
-	ask: (id: string) => void
-	keep: (id: string) => void
-	confirm: (id: string) => void
-}
-
-/** Archiving is what the rows read and call to archive their fields. */
+/** Archiving is what the rows read and call to archive their fields: the lock, the trash to focus and the archive. */
 interface Archiving {
-	rowOf: (id: string) => ArchiveRow
-	on: ArchiveHandlers
+	locked: boolean
+	focus: TrashFocus | null
+	archive: (field: FieldRow, at: number) => void
 }
 
 /** TRASH is the place of the trash among the buttons of a row's controls. */
 const TRASH = 2
+
+/** TOASTS matches the region godmin's toasts show in. */
+const TOASTS = '.godmin-toasts'
 
 /** RACED are the reasons a define answers when another field took its name first. */
 const RACED = new Set(['field_name_taken', 'field_kind_locked'])
@@ -202,8 +190,8 @@ function FieldList({
 	readFailure: GraphFailure | undefined
 }) {
 	const order = useFieldOrder(fields, onChanged)
-	const archiving = useArchive(order.rows, onChanged, readFailure)
 	const region = useRef<HTMLDivElement>(null)
+	const archiving = useArchive(order.rows, onChanged, readFailure, region)
 	const body = useRef<HTMLTableSectionElement>(null)
 	const onLeave = useFocusKept(region, body, order.rows)
 	const empty = order.rows.length === 0
@@ -253,59 +241,112 @@ function useNewFailure(failure: GraphFailure | undefined) {
 }
 
 /**
- * Holds the question the trash asks before an archive, one row at a time, and the archive its Archive button runs.
- * @param rows - The rows in the order shown.
- * @param onChanged - The reload run after every answer an archive gets.
- * @param readFailure - The latest read's failure, which frees a question waiting for that read.
- * @returns How each row's trash shows and the actions.
+ * Reports whether focus sits where no reader put it: on the page or in the toast region.
+ * @returns Whether focus is loose.
  */
-function useArchive(rows: readonly FieldRow[], onChanged: () => void, readFailure: GraphFailure | undefined) {
+function focusLoose() {
+	const now = document.activeElement as Element
+	return now === document.body || now.closest(TOASTS) !== null
+}
+
+/**
+ * Keeps the ids of the fields whose archive worked while their rows still show.
+ * @param rows - The rows in the order shown.
+ * @returns The ids, held in a ref.
+ */
+function useArchivedShown(rows: readonly FieldRow[]) {
+	const shown = useRef(new Set<string>())
+	useLayoutEffect(() => {
+		for (const id of shown.current) {
+			if (!rows.some((row) => row.id === id)) {
+				shown.current.delete(id)
+			}
+		}
+	})
+	return shown
+}
+
+/**
+ * Holds the field a restore brought back until its row shows, then gives its trash the focus when focus is loose.
+ * @param rows - The rows in the order shown.
+ * @param onFocus - Sets the trash to focus.
+ * @returns The setter of the field to wait for.
+ */
+function useRestoredFocus(rows: readonly FieldRow[], onFocus: (focus: TrashFocus) => void) {
+	const [waiting, setWaiting] = useState<string | null>(null)
+	if (waiting !== null && rows.some((row) => row.id === waiting)) {
+		setWaiting(null)
+		if (focusLoose()) {
+			onFocus({ id: waiting })
+		}
+	}
+	return setWaiting
+}
+
+/**
+ * Holds the archive a trash runs at once, one at a time, and the Undo its toast offers.
+ * @param rows - The rows in the order shown.
+ * @param onChanged - The reload run after every answer an archive or a restore gets.
+ * @param readFailure - The latest read's failure, which frees the trashes waiting for that read.
+ * @param region - The region the list renders in, which takes a loose focus after a failed restore.
+ * @returns The lock on every trash, the trash to focus and the archive.
+ */
+function useArchive(
+	rows: readonly FieldRow[],
+	onChanged: () => void,
+	readFailure: GraphFailure | undefined,
+	region: RefObject<HTMLDivElement | null>,
+): Archiving {
 	const toaster = useToaster()
-	const [, archive] = useGraphMutation(archiveFieldMutation)
-	const [question, setQuestion] = useState<ArchiveQuestion | null>(null)
+	const [, archiveField] = useGraphMutation(archiveFieldMutation)
+	const archivedShown = useArchivedShown(rows)
+	const restore = useRestore(rows, onChanged, archivedShown)
+	const [pending, setPending] = useState<ArchivePending | null>(null)
 	const [focus, setFocus] = useState<TrashFocus | null>(null)
+	const awaitRestored = useRestoredFocus(rows, setFocus)
 	const readFailed = useNewFailure(readFailure)
-	if (question !== null && !rows.some((row) => row.id === question.id)) {
-		setQuestion(null)
+	if (pending !== null && !rows.some((row) => row.id === pending.id)) {
+		setPending(null)
 	}
 	if (focus !== null && !rows.some((row) => row.id === focus.id)) {
 		setFocus(null)
 	}
-	if (readFailed && question?.reading) {
-		setQuestion(null)
-		whenFocusStayed(question.from, () => setFocus({ id: question.id, on: 'trash' }))
+	if (readFailed && pending?.reading) {
+		setPending(null)
+		whenFocusStayed(pending.from, () => setFocus({ id: pending.id }))
 	}
-	const on: ArchiveHandlers = {
-		ask: (id) => {
-			setQuestion({ id, locked: false, reading: false, from: null })
-			setFocus({ id, on: 'keep' })
-		},
-		keep: (id) => {
-			setQuestion(null)
-			setFocus({ id, on: 'trash' })
-		},
-		confirm: (id) => {
-			const from = document.activeElement
-			setQuestion({ id, locked: true, reading: false, from })
-			void archive({ id }).then((result) => {
-				if (result.error) {
-					setQuestion(null)
-					toaster.show(writeFailure(__('Could not archive the field.', 'alphone-fields'), result.error))
-					whenFocusStayed(from, () => setFocus({ id, on: 'trash' }))
-				} else {
-					setQuestion({ id, locked: true, reading: true, from })
-					toaster.show(__('Field archived.', 'alphone-fields'))
-				}
-				onChanged()
-			})
-		},
+	const restored = (id: string, back: boolean) => {
+		if (back) {
+			awaitRestored(id)
+		} else if (focusLoose()) {
+			;(region.current as HTMLDivElement).focus()
+		}
 	}
-	const rowOf = (id: string): ArchiveRow => ({
-		asking: question?.id === id,
-		locked: question?.locked === true,
-		focus: focus?.id === id ? focus : undefined,
+	const undo = (field: FieldRow, at: number): ToastAction => ({
+		label: __('Undo', 'alphone-fields'),
+		onAct: () => {
+			setPending((now) => (now?.id === field.id ? null : now))
+			archivedShown.current.delete(field.id)
+			void restore(field, at).then((back) => restored(field.id, back))
+		},
 	})
-	return { rowOf, on }
+	const archive = (field: FieldRow, at: number) => {
+		const from = document.activeElement
+		setPending({ id: field.id, reading: false, from })
+		void archiveField({ id: field.id }).then((result) => {
+			if (result.error) {
+				setPending(null)
+				toaster.show(writeFailure(__('Could not archive the field.', 'alphone-fields'), result.error))
+				whenFocusStayed(from, () => setFocus({ id: field.id }))
+			} else {
+				archivedShown.current.add(field.id)
+				setPending({ id: field.id, reading: true, from })
+				toaster.show(__('Field archived.', 'alphone-fields'), undo(field, at))
+			}
+			onChanged()
+		})
+	}
+	return { locked: pending !== null, focus, archive }
 }
 
 /**
@@ -336,15 +377,16 @@ function FieldTable({
 					<th scope="col" className="godmin-table__actions" />
 				</tr>
 			</thead>
-			<tbody ref={body}>
+			<tbody ref={body} onKeyDown={ignoreHeldEnter}>
 				{rows.map((field, at) => (
 					<FieldTableRow
 						key={field.id}
 						field={field}
 						at={at}
 						count={rows.length}
-						row={archiving.rowOf(field.id)}
-						on={archiving.on}
+						locked={archiving.locked}
+						focus={archiving.focus?.id === field.id ? archiving.focus : undefined}
+						onArchive={() => archiving.archive(field, at)}
 						onMove={(offset) => onMove(at, offset)}
 						onLeave={onLeave}
 					/>
@@ -415,16 +457,23 @@ function useLeaveReported(row: RefObject<HTMLTableRowElement | null>, onLeave: (
 }
 
 /**
- * Returns the place among a row's controls of the one holding focus, a focus in its question counting as its trash.
+ * Returns the place among a row's buttons of the one holding focus.
  * @param row - The row element.
  * @returns The place, or -1 when focus sits elsewhere.
  */
 function focusedControl(row: HTMLTableRowElement) {
-	const focused = document.activeElement as HTMLElement
-	if (row.querySelector('[role="group"]')?.contains(focused)) {
-		return TRASH
+	return [...row.querySelectorAll('button')].indexOf(document.activeElement as HTMLButtonElement)
+}
+
+/**
+ * Keeps a held Enter on a trash from pressing it again.
+ * @param event - The key press inside the table body.
+ */
+function ignoreHeldEnter(event: KeyboardEvent<HTMLTableSectionElement>) {
+	const target = event.target as HTMLElement
+	if (event.repeat && event.key === 'Enter' && target === trashOf(target.closest('tr') as HTMLTableRowElement)) {
+		event.preventDefault()
 	}
-	return [...row.querySelectorAll('button')].indexOf(focused as HTMLButtonElement)
 }
 
 /**
@@ -437,37 +486,37 @@ function trashOf(row: HTMLTableRowElement) {
 }
 
 /**
- * Renders one live field beside the arrows that move it and the trash that asks to archive it, or the question.
- * @param props - The field, its place, the list's length, how its trash shows and what its buttons and its going call.
+ * Renders one live field beside the arrows that move it and the trash that archives it.
+ * @param props - The field, its place, the list's length, the trash lock and focus, and what the buttons call.
  * @returns The table row.
  */
 function FieldTableRow({
 	field,
 	at,
 	count,
-	row,
-	on,
+	locked,
+	focus,
+	onArchive,
 	onMove,
 	onLeave,
 }: {
 	field: FieldRow
 	at: number
 	count: number
-	row: ArchiveRow
-	on: ArchiveHandlers
+	locked: boolean
+	focus: TrashFocus | undefined
+	onArchive: () => void
 	onMove: (offset: number) => void
 	onLeave: (mark: FocusMark) => void
 }) {
 	const element = useRef<HTMLTableRowElement>(null)
-	const keepRef = useRef<HTMLButtonElement>(null)
 	useLeaveReported(element, onLeave)
 
 	useEffect(() => {
-		if (row.focus) {
-			const target = row.focus.on === 'keep' ? keepRef.current : trashOf(element.current as HTMLTableRowElement)
-			;(target as HTMLButtonElement).focus()
+		if (focus) {
+			trashOf(element.current as HTMLTableRowElement).focus()
 		}
-	}, [row.focus])
+	}, [focus])
 
 	return (
 		<tr ref={element}>
@@ -479,33 +528,18 @@ function FieldTableRow({
 				<code>{field.name}</code>
 			</td>
 			<td className="godmin-table__actions">
-				{row.asking ? (
-					<ConfirmActions
-						labels={{
-							question: __('Archive this field?', 'alphone-fields'),
-							confirm: __('Archive', 'alphone-fields'),
-						}}
-						locked={row.locked}
-						pending={row.locked}
-						keepRef={keepRef}
-						onConfirm={() => on.confirm(field.id)}
-						onKeep={() => on.keep(field.id)}
-						layout="stacked"
-					/>
-				) : (
-					<RowControls
-						at={at}
-						count={count}
-						removable={!row.locked}
-						labels={{
-							moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
-							moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
-							remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
-						}}
-						onMove={onMove}
-						onRemove={() => on.ask(field.id)}
-					/>
-				)}
+				<RowControls
+					at={at}
+					count={count}
+					removable={!locked}
+					labels={{
+						moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
+						moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
+						remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
+					}}
+					onMove={onMove}
+					onRemove={onArchive}
+				/>
 			</td>
 		</tr>
 	)
