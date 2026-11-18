@@ -317,6 +317,7 @@ func (s *emailScenario) bindMails(sc *godog.ScenarioContext) {
 	sc.Then(`^the mail "([^"]*)" is stored whole$`, s.wantBodyWhole)
 	sc.Then(`^the mail "([^"]*)" keeps its headers only$`, s.keepsHeadersOnly)
 	sc.Then(`^the mail "([^"]*)" keeps no HTML$`, s.keepsNoHTML)
+	sc.Then(`^the mail "([^"]*)" keeps the safe HTML:$`, s.keepsHTML)
 	sc.Then(`^the mail "([^"]*)" names the address "([^"]*)"$`, s.namesAddress)
 	sc.Then(`^the mail "([^"]*)" names no address "([^"]*)"$`, s.namesNoAddress)
 	sc.Then(`^the mail "([^"]*)" holds no invite method$`, s.holdsNoInviteMethod)
@@ -868,6 +869,16 @@ func (s *emailScenario) keepsNoHTML(ctx context.Context, subject string) error {
 	return s.checkMail(ctx, subject, func(held storedMail) error {
 		if held.html != "" {
 			return fmt.Errorf("keeps the HTML %q, want none", held.html)
+		}
+		return nil
+	})
+}
+
+// keepsHTML fails unless the mail titled subject keeps html as its safe HTML, blanks around it aside.
+func (s *emailScenario) keepsHTML(ctx context.Context, subject string, html *godog.DocString) error {
+	return s.checkMail(ctx, subject, func(held storedMail) error {
+		if strings.TrimSpace(held.html) != html.Content {
+			return fmt.Errorf("keeps the HTML %q, want %q", held.html, html.Content)
 		}
 		return nil
 	})
