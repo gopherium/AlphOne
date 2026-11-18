@@ -101,6 +101,7 @@ func (m MutationResolvers) deliverInvite(
 		return &model.InvitePayload{Delivered: false, ActivationLink: &link}, nil
 	}
 	if err := m.root.Mailer.SendInvite(ctx, to, name, link); err != nil {
+		m.logFailure(ctx, "invitation mail not delivered", err, "to", to)
 		return nil, fmt.Errorf("sending the invitation: %w", err)
 	}
 	return deliveredPayload(), nil
@@ -153,12 +154,12 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 	}
 	held, err := m.root.Accounts.UserByEmail(ctx, normalizedEmail(email))
 	if err != nil {
-		m.logReset(ctx, "reading the account behind a reset request", err)
+		m.logFailure(ctx, "reading the account behind a reset request", err)
 		return true, nil
 	}
 	cooled, err := m.spendResetCooldown(held.Email)
 	if err != nil {
-		m.logReset(ctx, "budgeting the reset mail for an address", err)
+		m.logFailure(ctx, "budgeting the reset mail for an address", err)
 		return true, nil
 	}
 	if !cooled {
@@ -166,12 +167,12 @@ func (m MutationResolvers) RequestPasswordReset(ctx context.Context, email strin
 	}
 	token, err := m.root.Invites.RequestReset(ctx, email)
 	if err != nil {
-		m.logReset(ctx, "issuing a reset token", err)
+		m.logFailure(ctx, "issuing a reset token", err)
 		return true, nil
 	}
 	link := mail.ResetLink(m.root.PublicURL, token.Token)
 	if err := m.root.Mailer.SendReset(ctx, held.Email, held.Name, link); err != nil {
-		m.logReset(ctx, "sending the reset link", err)
+		m.logFailure(ctx, "sending the reset link", err)
 	}
 	return true, nil
 }
@@ -190,12 +191,12 @@ func (m MutationResolvers) spendResetCooldown(address string) (bool, error) {
 	return true, m.root.ResetCooldown.RecordFailure(address)
 }
 
-// logReset records what the neutral reset answer hides.
-func (m MutationResolvers) logReset(ctx context.Context, what string, err error) {
+// logFailure records what the neutral reset answer hides and an invitation mail the relay did not take.
+func (m MutationResolvers) logFailure(ctx context.Context, what string, err error, attrs ...any) {
 	if m.root.Logger == nil {
 		return
 	}
-	m.root.Logger.ErrorContext(ctx, what, "error", err)
+	m.root.Logger.ErrorContext(ctx, what, append([]any{"error", err}, attrs...)...)
 }
 
 // ResetPassword spends the reset link, replacing the password and ending every session.
