@@ -94,13 +94,15 @@ async function execute<TData, TVariables>(
  * Posts one account write to the graph endpoint, failing a refused request with the reason its answer names.
  * @param document - The typed operation document.
  * @param variables - The operation variables.
+ * @param signal - Aborts the in-flight request.
  * @returns The parsed data and errors envelope.
  */
 async function executeWrite<TData, TVariables>(
 	document: TypedDocumentNode<TData, TVariables>,
 	variables: TVariables,
+	signal?: AbortSignal,
 ): Promise<GraphResult<TData>> {
-	const response = await post(document, variables)
+	const response = await post(document, variables, signal)
 	if (!response.ok) {
 		throw await refusedRequest(response)
 	}
@@ -348,10 +350,11 @@ async function invite(input: NewInvite): Promise<Invitation> {
 /**
  * Sends a new invitation to a pending account through the resendInvite mutation.
  * @param email - The address of the invited account.
+ * @param signal - Aborts the in-flight request.
  * @returns The delivery report, carrying the link when nothing mailed it.
  */
-async function resendInvite(email: string): Promise<Invitation> {
-	const result = await executeWrite(resendInviteMutation, { email })
+async function resendInvite(email: string, signal?: AbortSignal): Promise<Invitation> {
+	const result = await executeWrite(resendInviteMutation, { email }, signal)
 	refuseAccountWrite(result)
 	if (!result.data) {
 		throw new Error(firstMessage(result, 'resending the invitation failed'))
@@ -434,9 +437,10 @@ async function setUserDisabled(id: string, disabled: boolean): Promise<void> {
  * Sets the role an account holds through the setUserRole mutation.
  * @param id - The identifier of the account to update.
  * @param role - The role the account is to hold.
+ * @param signal - Aborts the in-flight request.
  */
-async function setUserRole(id: string, role: string): Promise<void> {
-	const result = await executeWrite(setUserRoleMutation, { id, role })
+async function setUserRole(id: string, role: string, signal?: AbortSignal): Promise<void> {
+	const result = await executeWrite(setUserRoleMutation, { id, role }, signal)
 	refuseAccountWrite(result)
 	if (result.errors?.length) {
 		throw new Error(firstMessage(result, 'changing the role failed'))

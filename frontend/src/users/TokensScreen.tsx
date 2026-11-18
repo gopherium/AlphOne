@@ -21,9 +21,10 @@ import { DataViews, filterSortAndPaginate } from '@alphone/frontend-sdk/dataview
 import { useCanAccess } from '@gopherium/godmin/router'
 import { usersMenuItem } from '@gopherium/react-auth/wpds'
 import { Link } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { RevokeDialog } from './TokenModals'
 import { UserTabs } from './UserTabs'
 import { useTokenActions } from './tokenActions'
 import { tokenFields } from './tokenFields'
@@ -88,7 +89,9 @@ export function TokensScreen() {
 		() => graph.client.query(apiTokensQuery, {}, { requestPolicy: 'network-only' }).toPromise(),
 		[graph],
 	)
-	const actions = useTokenActions(useBulkRun<ApiToken>(run, reload))
+	const bulk = useBulkRun<ApiToken>(run, reload)
+	const [revoking, setRevoking] = useState<ApiToken[]>()
+	const actions = useTokenActions(setRevoking)
 	const tokens = result.data?.apiTokens ?? noTokens
 	const fields = useMemo(() => tokenFields(tokens), [tokens])
 	const shown = filterSortAndPaginate(tokens, list.view, fields)
@@ -128,6 +131,7 @@ export function TokensScreen() {
 					empty={<TokensEmpty narrowed={tokens.length > 0} />}
 				/>
 			)}
+			{revoking ? <RevokeDialog tokens={revoking} bulk={bulk} onClose={() => setRevoking(undefined)} /> : null}
 		</PageScreen>
 	)
 }

@@ -23,7 +23,7 @@ const countPrinted = /%(\(\w+\))?[sd]/
 const pluralMessages = [
 	'%s token could not be revoked.',
 	'%s token revoked.',
-	'Revoke %s token? This cannot be undone.',
+	'Revoke %s token?',
 ]
 
 /** threeFormExport is a platform export carrying the Spanish rule and its three forms filled. */
