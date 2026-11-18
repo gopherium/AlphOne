@@ -86,7 +86,7 @@ async function actionsOf(email: string) {
  */
 async function openResend() {
 	await userEvent.click((await rowFor('maria@example.com')).getByRole('button', { name: 'Actions' }))
-	await userEvent.click(await screen.findByRole('menuitem', { name: 'Resend invitation…' }))
+	await userEvent.click(await screen.findByRole('menuitem', { name: 'Resend invitation' }))
 	return within(await screen.findByRole('dialog', { name: 'Resend invitation' }))
 }
 
@@ -116,9 +116,9 @@ test('reads a disabled account as disabled, even one that never activated', asyn
 test('offers a resend only on the accounts still awaiting activation', async () => {
 	renderAt('/users')
 
-	expect(await actionsOf('maria@example.com')).toContain('Resend invitation…')
-	expect(await actionsOf('ada@example.com')).not.toContain('Resend invitation…')
-	expect(await actionsOf('ana@example.com')).not.toContain('Resend invitation…')
+	expect(await actionsOf('maria@example.com')).toContain('Resend invitation')
+	expect(await actionsOf('ada@example.com')).not.toContain('Resend invitation')
+	expect(await actionsOf('ana@example.com')).not.toContain('Resend invitation')
 })
 
 test('offers nothing on an invited account beyond the reader’s reach', async () => {
@@ -150,29 +150,30 @@ test('offers nothing on an invited account beyond the reader’s reach', async (
 	expect(row.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
 })
 
-test('lists the actions that open a modal first, with an ellipsis, and the one that acts at once last', async () => {
+test('lists the actions that open a dialog first, with no ellipsis, and the one that acts at once last', async () => {
 	renderAt('/users')
 
-	expect(await actionsOf('maria@example.com')).toEqual(['Change role…', 'Resend invitation…', 'Disable'])
+	expect(await actionsOf('maria@example.com')).toEqual(['Change role', 'Resend invitation', 'Disable'])
 })
 
 test('lists the primary one click action first, as a WordPress row menu does', async () => {
 	renderAt('/users')
 
-	expect(await actionsOf('ana@example.com')).toEqual(['Enable', 'Change role…'])
+	expect(await actionsOf('ana@example.com')).toEqual(['Enable', 'Change role'])
 })
 
-test('opens the resend at the default medium width under its title, with Cancel as an accent text button', async () => {
+test('opens the resend under its title with a close icon, and Cancel as a neutral outline button', async () => {
 	renderAt('/users')
 	const modal = await openResend()
 
-	expect(screen.getByRole('dialog', { name: 'Resend invitation' })).toHaveClass('has-size-medium')
 	expect(modal.getByRole('heading', { name: 'Resend invitation' })).toBeInTheDocument()
 	expect(modal.getByRole('button', { name: 'Close' })).toBeInTheDocument()
 	expect(
 		modal.getByText('Send a new invitation to "Maria Perez" (maria@example.com)? The link sent before stops working.'),
 	).toBeInTheDocument()
-	expect([...modal.getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
+	expect([...modal.getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('outline', undefined, 'neutral'),
+	)
 	expect(modal.getByRole('button', { name: 'Resend invitation' })).toBeInTheDocument()
 })
 
@@ -308,7 +309,7 @@ test('keeps the resend busy with Cancel greyed until the write ends, then toasts
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-test('says why a resend failed in a toast in the words the reason names, the confirm closed', async () => {
+test('says inside the resend why it failed in the words the reason names, the dialog open and no toast', async () => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('ResendInvite', () =>
@@ -328,13 +329,13 @@ test('says why a resend failed in a toast in the words the reason names, the con
 
 	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
 
-	expect(await screen.findByText('Invalid user ID.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await modal.findByText('Invalid user ID.')).toBeInTheDocument()
+	expect(screen.getByRole('dialog', { name: 'Resend invitation' })).toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText(/no account holds/)).not.toBeInTheDocument()
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-test('says plainly in a toast that a resend failed when the server names no reason', async () => {
+test('says plainly inside the resend that it failed when the server names no reason, the dialog open', async () => {
 	server.use(
 		graphql.mutation('ResendInvite', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'the relay refused', extensions: { code: 'INTERNAL' } }] }),
@@ -345,7 +346,8 @@ test('says plainly in a toast that a resend failed when the server names no reas
 
 	await userEvent.click(modal.getByRole('button', { name: 'Resend invitation' }))
 
-	expect(await screen.findByText('The invitation could not be sent.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await modal.findByText('The invitation could not be sent.')).toBeInTheDocument()
+	expect(screen.getByRole('dialog', { name: 'Resend invitation' })).toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText('the relay refused')).not.toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { key, rememberFormatLocale } from '@alphone/frontend-sdk'
+import { GraphProvider, Toaster, createGraphClient, key, rememberFormatLocale, useBulkRun } from '@alphone/frontend-sdk'
+import type { ListRun } from '@alphone/frontend-sdk'
 import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
-import { setViewport } from '@gopherium/godmin/testing'
+import { renderAdmin, setViewport } from '@gopherium/godmin/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -13,6 +14,8 @@ import { beforeAll, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
+import { RevokeDialog } from '../users/TokenModals'
+import type { ApiToken } from '../users/tokenFields'
 import { gate } from './gate'
 import { buttonClasses, renderAt } from './render'
 
@@ -130,6 +133,20 @@ async function select(...names: string[]) {
 	for (const name of names) {
 		await userEvent.click((await rowOf(name)).getByRole('checkbox', { name }))
 	}
+}
+
+/**
+ * Returns the bulk action button of the given label, in the bar DataViews draws over the ticked rows.
+ * @param name - The label of the action.
+ * @returns The button.
+ */
+async function bulkAction(name: string): Promise<HTMLElement> {
+	const bar = await waitFor(() => {
+		const found = document.querySelector<HTMLElement>('.dataviews-bulk-actions__actions')
+		expect(found).not.toBeNull()
+		return found as HTMLElement
+	})
+	return within(bar).findByRole('button', { name })
 }
 
 beforeAll(async () => {
@@ -335,7 +352,7 @@ test('offers as scopes only the ones the tokens hold, from A to Z', async () => 
 test('counts the tokens, because the list offers a bulk revoke', async () => {
 	renderAt('/users/tokens')
 
-	expect(await screen.findByText('3 Items')).toBeInTheDocument()
+	expect(await screen.findByText('3 items')).toBeInTheDocument()
 })
 
 test('lays the tokens out as a list on a phone', async () => {
@@ -436,33 +453,39 @@ test('returns to the users tab from the tokens tab', async () => {
 	expect(shown.getByRole('link', { name: 'API tokens' })).not.toHaveAttribute('aria-current')
 })
 
-test('keeps Revoke… in the row actions menu, never as a button in the row', async () => {
+test('keeps Revoke in the row actions menu with no trailing ellipsis, never as a button in the row', async () => {
 	renderAt('/users/tokens')
 
 	const row = await rowOf('n8n production')
 	expect(row.queryByRole('button', { name: /Revoke/ })).not.toBeInTheDocument()
 	await userEvent.click(row.getByRole('button', { name: 'Actions' }))
-	expect(await screen.findByRole('menuitem', { name: 'Revoke…' })).toBeInTheDocument()
+	expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
+	expect(screen.queryByRole('menuitem', { name: 'Revoke…' })).not.toBeInTheDocument()
 })
 
 test('offers a member the revoke of the tokens the member holds', async () => {
 	renderAt('/users/tokens', memberSession)
 
 	await userEvent.click((await rowOf('n8n production')).getByRole('button', { name: 'Actions' }))
-	expect(await screen.findByRole('menuitem', { name: 'Revoke…' })).toBeInTheDocument()
+	expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
 })
 
-test('asks before it revokes in a medium modal with no title or close button, as a WordPress delete does', async () => {
+test('asks before it revokes in a red confirm the question titles, with no close button', async () => {
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
+	await act('n8n production', 'Revoke')
 
-	const dialog = await screen.findByRole('dialog')
-	expect(dialog).toHaveClass('has-size-medium')
-	expect(within(dialog).queryByRole('heading')).not.toBeInTheDocument()
+	const dialog = await screen.findByRole('alertdialog', {
+		name: 'Revoke "n8n production"?',
+		description: 'This action cannot be undone.',
+	})
+	expect(within(dialog).getByRole('heading', { name: 'Revoke "n8n production"?' })).toBeInTheDocument()
+	expect(within(dialog).getByText('This action cannot be undone.')).toBeInTheDocument()
 	expect(within(dialog).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
-	expect(within(dialog).getByText('Revoke "n8n production"? This cannot be undone.')).toBeInTheDocument()
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
+	expect(within(dialog).getByRole('button', { name: 'Revoke' }).className).toMatch(/irreversible/)
+	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('minimal', undefined, 'neutral'),
+	)
 })
 
 /**
@@ -479,9 +502,9 @@ test('puts the focus on Cancel when the revoke opens, as a WordPress delete does
 	layOut()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
+	await act('n8n production', 'Revoke')
 
-	const dialog = within(await screen.findByRole('dialog'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveFocus())
 })
 
@@ -489,8 +512,8 @@ test('greys Cancel out while the revoke runs', async () => {
 	server.use(graphql.mutation('ApiTokenRevoke', () => new Promise(() => {})))
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
-	const dialog = within(await screen.findByRole('dialog'))
+	await act('n8n production', 'Revoke')
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
@@ -500,22 +523,22 @@ test('shows a long token name whole in the question', async () => {
 	holding([tokenOf('a1', 'Nightly export of every contact to the accounting system')])
 	renderAt('/users/tokens')
 
-	await act('Nightly export', 'Revoke…')
+	await act('Nightly export', 'Revoke')
 
-	const dialog = within(await screen.findByRole('dialog'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	expect(
-		dialog.getByText('Revoke "Nightly export of every contact to the accounting system"? This cannot be undone.'),
+		dialog.getByRole('heading', { name: 'Revoke "Nightly export of every contact to the accounting system"?' }),
 	).toBeInTheDocument()
 })
 
-test('closes the revoke modal without revoking when the reader cancels', async () => {
+test('closes the revoke confirm without revoking when the reader cancels', async () => {
 	const asked = revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
+	await act('n8n production', 'Revoke')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(asked).toEqual([])
 })
 
@@ -523,13 +546,13 @@ test('revokes a token once confirmed, drops it from the list and names it in a t
 	const asked = revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
-	const dialog = within(await screen.findByRole('dialog'))
+	await act('n8n production', 'Revoke')
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('"n8n production" revoked.')).toBeInTheDocument()
 	expect(asked).toEqual([production.id])
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	await waitFor(async () => expect(await shownNames()).toEqual(['Zapier sync', 'Monthly report']))
 })
 
@@ -540,9 +563,10 @@ test('asks and confirms a revoke in Spanish', async () => {
 	revokes()
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revocar…')
-	const dialog = within(await screen.findByRole('dialog'))
-	expect(dialog.getByText('¿Revocar «n8n production»? Esto no se puede deshacer.')).toBeInTheDocument()
+	await act('n8n production', 'Revocar')
+	const dialog = within(await screen.findByRole('alertdialog'))
+	expect(dialog.getByRole('heading', { name: '¿Revocar «n8n production»?' })).toBeInTheDocument()
+	expect(dialog.getByText('Esta acción no se puede deshacer.')).toBeInTheDocument()
 	await userEvent.click(dialog.getByRole('button', { name: 'Revocar' }))
 
 	expect(await screen.findByText('«n8n production» revocado.')).toBeInTheDocument()
@@ -557,14 +581,14 @@ test('shows why a token could not be revoked in a toast, never above the list', 
 	)
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
-	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
+	await act('n8n production', 'Revoke')
+	await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('The token could not be revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 	expect(screen.queryByText('"n8n production" revoked.')).not.toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 })
 
 test('keeps a revoke from a row busy with Cancel greyed until it ends, then closes', async () => {
@@ -577,14 +601,96 @@ test('keeps a revoke from a row busy with Cancel greyed until it ends, then clos
 	)
 	renderAt('/users/tokens')
 
-	await act('n8n production', 'Revoke…')
-	const dialog = within(await screen.findByRole('dialog'))
+	await act('n8n production', 'Revoke')
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
-	expect(screen.getByRole('dialog')).toBeInTheDocument()
+	expect(screen.getByRole('alertdialog')).toBeInTheDocument()
 	answer.release()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+})
+
+test('closes nothing on Escape while the revoke runs, then closes the confirm once the run ends', async () => {
+	const answer = gate()
+	server.use(
+		graphql.mutation('ApiTokenRevoke', async () => {
+			await answer.held
+			return HttpResponse.json({ data: { apiTokenRevoke: true } })
+		}),
+	)
+	renderAt('/users/tokens')
+
+	await act('n8n production', 'Revoke')
+	const dialog = within(await screen.findByRole('alertdialog'))
+	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
+	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true'))
+	await userEvent.keyboard('{Escape}')
+
+	expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+	expect(screen.queryByText('"n8n production" revoked.')).not.toBeInTheDocument()
+	answer.release()
+	expect(await screen.findByText('"n8n production" revoked.')).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+})
+
+/** quietList is a list run that marks nothing, for a revoke confirm drawn without its list. */
+const quietList: ListRun = { onStart: () => () => {}, onRefresh: () => () => {} }
+
+/**
+ * Reloads nothing, for a revoke confirm drawn without its list.
+ * @returns Nothing.
+ */
+async function reloadNothing(): Promise<undefined> {
+	return undefined
+}
+
+/**
+ * Renders the revoke confirm over the given tokens without its list, its run toasting how it went.
+ * @param props - The tokens to revoke.
+ * @returns The confirm.
+ */
+function RevokeAlone({ tokens }: { tokens: ApiToken[] }) {
+	const bulk = useBulkRun<ApiToken>(quietList, reloadNothing)
+	return <RevokeDialog tokens={tokens} bulk={bulk} onClose={() => {}} />
+}
+
+/**
+ * Records the signal of every revoke request sent, the requests still reaching the test server.
+ * @returns The signals, in the order the revokes went.
+ */
+function revokeSignals(): (AbortSignal | null | undefined)[] {
+	const signals: (AbortSignal | null | undefined)[] = []
+	const send = globalThis.fetch
+	const spied = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+		if (String(init?.body).includes('ApiTokenRevoke')) {
+			signals.push(init?.signal)
+		}
+		return send(input, init)
+	})
+	onTestFinished(() => spied.mockRestore())
+	return signals
+}
+
+test('stops a revoke past the time limit and closes the confirm with the toast of a revoke that failed', async () => {
+	server.use(graphql.mutation('ApiTokenRevoke', () => new Promise(() => {})))
+	const signals = revokeSignals()
+	renderAdmin(
+		<GraphProvider graph={createGraphClient({ onSessionExpired: () => {} })}>
+			<Toaster>
+				<RevokeAlone tokens={[production]} />
+			</Toaster>
+		</GraphProvider>,
+		{ writeTimeout: 50 },
+	)
+
+	await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }))
+
+	expect(await screen.findByText('The token could not be revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	expect(screen.queryByText('Could not get a valid response from the server.')).not.toBeInTheDocument()
+	expect(signals).toHaveLength(1)
+	expect(signals[0]?.aborted).toBe(true)
 })
 
 test('closes a bulk revoke with one toast while the list reloads, then drops the old rows', async () => {
@@ -599,12 +705,12 @@ test('closes a bulk revoke with one toast while the list reloads, then drops the
 		}),
 	)
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
-	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(await bulkAction('Revoke'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('2 tokens revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(screen.getByRole('row', { name: /n8n production/ })).toBeInTheDocument()
 	expect(screen.getByRole('row', { name: /Zapier sync/ })).toBeInTheDocument()
 	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
@@ -627,8 +733,8 @@ test('marks the list reloading as the first revoke ends, with Cancel still greye
 	renderAt('/users/tokens')
 	await select('n8n production', 'Zapier sync')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
-	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(await bulkAction('Revoke'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	await waitFor(() => expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'true'))
@@ -636,7 +742,7 @@ test('marks the list reloading as the first revoke ends, with Cancel still greye
 	expect(screen.queryByText('2 tokens revoked.')).not.toBeInTheDocument()
 	last.release()
 	expect(await screen.findByText('2 tokens revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 })
 
 test('keeps the focus on the list region through a keyboard revoke, then on the checkbox of the next row', async () => {
@@ -654,14 +760,14 @@ test('keeps the focus on the list region through a keyboard revoke, then on the 
 
 	menu.focus()
 	await userEvent.keyboard('{Enter}')
-	await screen.findByRole('menuitem', { name: 'Revoke…' })
+	await screen.findByRole('menuitem', { name: 'Revoke' })
 	await userEvent.keyboard('{Enter}')
-	const dialog = within(await screen.findByRole('dialog'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await waitFor(() => expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveFocus())
 	await userEvent.keyboard('{Tab}{Enter}')
 
 	expect(await screen.findByText('"Monthly report" revoked.')).toBeInTheDocument()
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(screen.getByRole('region', { name: 'API tokens' })).toHaveFocus()
 	reload.release()
 	await waitFor(() => expect(screen.getByRole('checkbox', { name: 'n8n production' })).toHaveFocus())
@@ -674,13 +780,14 @@ test('leaves the focus on the list region when the bulk bar goes with the revoke
 	renderAt('/users/tokens')
 	await select('n8n production', 'Zapier sync')
 
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
-	const dialog = within(await screen.findByRole('dialog'))
+	await userEvent.click(await bulkAction('Revoke'))
+	const dialog = within(await screen.findByRole('alertdialog'))
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	await waitFor(async () => expect(await shownNames()).toEqual(['Monthly report']))
 	await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true'))
-	expect(screen.queryByRole('button', { name: 'Revoke…' })).not.toBeInTheDocument()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+	expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument()
 	expect(screen.getByRole('region', { name: 'API tokens' })).toHaveFocus()
 })
 
@@ -690,9 +797,9 @@ test('revokes every selected token after one question with one toast, counted in
 	renderAt('/users/tokens')
 
 	await select('n8n production', 'Zapier sync')
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
-	const dialog = within(await screen.findByRole('dialog'))
-	expect(dialog.getByText('Revoke २ tokens? This cannot be undone.')).toBeInTheDocument()
+	await userEvent.click(await bulkAction('Revoke'))
+	const dialog = within(await screen.findByRole('alertdialog'))
+	expect(dialog.getByRole('heading', { name: 'Revoke २ tokens?' })).toBeInTheDocument()
 	await userEvent.click(dialog.getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('२ tokens revoked.')).toBeInTheDocument()
@@ -712,8 +819,8 @@ test('counts only the tokens a bulk revoke could not reach, in one toast in the 
 	renderAt('/users/tokens')
 
 	await select('n8n production', 'Zapier sync')
-	await userEvent.click(await screen.findByRole('button', { name: 'Revoke…' }))
-	await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke' }))
+	await userEvent.click(await bulkAction('Revoke'))
+	await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Revoke' }))
 
 	expect(await screen.findByText('१ token could not be revoked.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('१ token revoked.')).not.toBeInTheDocument()

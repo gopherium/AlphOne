@@ -13,7 +13,7 @@ import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
 import { gate } from './gate'
-import { buttonClasses, compactClasses, renderAt, renderRoutedAt } from './render'
+import { busyClasses, buttonClasses, compactClasses, renderAt, renderRoutedAt } from './render'
 
 /** account is one user as the users query answers it. */
 interface account {
@@ -516,6 +516,7 @@ test('keeps the page the address names while the page size is on its way', async
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
 						toastActionMilliseconds: 10000,
+						dialogWriteTimeoutMilliseconds: 60000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,
@@ -545,7 +546,7 @@ test('shows every account on one page when the page size could not be read', asy
 test('counts the accounts, because the list offers bulk actions', async () => {
 	renderAt('/users')
 
-	expect(await screen.findByText('3 Items')).toBeInTheDocument()
+	expect(await screen.findByText('3 items')).toBeInTheDocument()
 })
 
 test('offers no row action on the signed-in account', async () => {
@@ -609,7 +610,7 @@ test('offers no role change, resend, disable or enable on an account beyond the 
 	])
 	renderAt('/users')
 
-	expect(await menuOf(await rowOf('Maria Perez'))).toEqual(['Change role…', 'Disable'])
+	expect(await menuOf(await rowOf('Maria Perez'))).toEqual(['Change role', 'Disable'])
 	for (const name of ['Higher Role Account', 'Disabled Higher Role Account', 'Invited Higher Role Account']) {
 		const row = await rowOf(name)
 		expect(row.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument()
@@ -631,7 +632,7 @@ test('offers Enable only on a disabled account whose role the reader may give', 
 	for (const name of ['No Role Account', 'Lost Role Account']) {
 		const row = await rowOf(name)
 		expect(row.queryByRole('button', { name: 'Enable' })).not.toBeInTheDocument()
-		expect(await menuOf(row)).toEqual(['Change role…'])
+		expect(await menuOf(row)).toEqual(['Change role'])
 	}
 })
 
@@ -875,7 +876,7 @@ async function select(...names: string[]) {
 async function bulkBar() {
 	return within(
 		await waitFor(() => {
-			const bar = document.querySelector<HTMLElement>('.dataviews-bulk-actions-footer__action-buttons')
+			const bar = document.querySelector<HTMLElement>('.dataviews-bulk-actions__actions')
 			expect(bar).not.toBeNull()
 			return bar as HTMLElement
 		}),
@@ -979,6 +980,12 @@ async function roleDialog() {
 	return within(await screen.findByRole('dialog', { name: 'Change role' }))
 }
 
+/** Presses Cancel in the open Change role dialog and waits for it to leave. */
+async function closeRoleDialog() {
+	await userEvent.click((await roleDialog()).getByRole('button', { name: 'Cancel' }))
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+}
+
 /** Picks Administrator in the open Change role dialog and sends it. */
 async function changeToAdministrator() {
 	await userEvent.click((await roleDialog()).getByRole('combobox', { name: 'Role' }))
@@ -1000,7 +1007,7 @@ test('changes the role of every selected account from the bulk bar with one toas
 	renderAt('/users')
 
 	await select('Ada Lovelace', 'Maria Perez')
-	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Change role…' }))
+	await userEvent.click(await (await bulkBar()).findByRole('button', { name: 'Change role' }))
 	expect((await roleDialog()).getByText('Choose the role of 2 users.')).toBeInTheDocument()
 	await changeToAdministrator()
 
@@ -1013,7 +1020,7 @@ test('changes the role of another account in a dialog and names the account in a
 	const asked = writesRole()
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
 	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
@@ -1022,21 +1029,31 @@ test('changes the role of another account in a dialog and names the account in a
 	await waitFor(async () => expect((await rowOf('Ada Lovelace')).getByText('Administrator')).toBeInTheDocument())
 })
 
-test('closes Change role as it is sent, then toasts and keeps the old rows busy until they reload', async () => {
-	writesRole()
+test('keeps Change role open with a spinner while it writes, then closes and toasts before the reload', async () => {
 	renderAt('/users')
 	await rowOf('Ada Lovelace')
+	const write = gate()
 	const reload = gate()
 	server.use(
+		graphql.mutation('SetUserRole', async ({ variables }) => {
+			await write.held
+			held = held.map((user) => (user.id === String(variables.id) ? { ...user, role: String(variables.role) } : user))
+			return HttpResponse.json({ data: { setUserRole: true } })
+		}),
 		graphql.query('Users', async () => {
 			await reload.held
 			return HttpResponse.json({ data: { users: held } })
 		}),
 	)
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
+	const send = (await roleDialog()).getByRole('button', { name: 'Change role' })
+	await waitFor(() => expect(send).toHaveAttribute('aria-disabled', 'true'))
+	expect([...send.classList]).toEqual(expect.arrayContaining(busyClasses()))
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+	write.release()
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 	expect(await screen.findByText('Role changed for "Ada Lovelace".')).toBeInTheDocument()
 	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'))
@@ -1050,7 +1067,7 @@ test('gives the focus back to the actions of the row once a role change reloaded
 	writesRole()
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
 	await screen.findByText('Role changed for "Ada Lovelace".')
@@ -1059,7 +1076,7 @@ test('gives the focus back to the actions of the row once a role change reloaded
 	await waitFor(() => expect(row.getByRole('button', { name: 'Actions' })).toHaveFocus())
 })
 
-test('says in a toast that a role change failed, marks no reload, and opens again on the role it picked', async () => {
+test('says inside Change role that the change failed, marks no reload, and opens again on the role held', async () => {
 	renderAt('/users')
 	await rowOf('Ada Lovelace')
 	const reload = gate()
@@ -1076,22 +1093,25 @@ test('says in a toast that a role change failed, marks no reload, and opens agai
 		}),
 	)
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
-	expect(await screen.findByText('The role could not be changed.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	const dialog = await roleDialog()
+	expect(await dialog.findByText('The role could not be changed.')).toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	await waitFor(() => expect(reads).toBe(1))
-	expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy', 'true')
+	expect(screen.getByRole('table', { hidden: true })).not.toHaveAttribute('aria-busy', 'true')
 	reload.release()
 	expect(await screen.findByText('reloaded@example.com')).toBeInTheDocument()
-	await act('Ada Lovelace', 'Change role…')
-	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
+	await closeRoleDialog()
+	await act('Ada Lovelace', 'Change role')
+	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Member')
 })
 
 test('offers only the roles the reader may grant, the one with the fewest capabilities first', async () => {
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await userEvent.click(await screen.findByRole('combobox', { name: 'Role' }))
 
 	const offered = (await screen.findAllByRole('option')).map((option) => option.textContent)
@@ -1102,7 +1122,7 @@ test('closes the role modal without writing when the reader cancels', async () =
 	const asked = writesRole()
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -1123,7 +1143,7 @@ test.each([
 		code: 'UNAUTHORIZED',
 		words: 'This workspace has been deactivated. Contact your operator.',
 	},
-])('says in a toast why a role change was refused for $reason, the dialog closed', async ({ reason, code, words }) => {
+])('says inside Change role why the change was rejected for $reason', async ({ reason, code, words }) => {
 	configureAppErrorText()
 	server.use(
 		graphql.mutation('SetUserRole', () =>
@@ -1132,16 +1152,17 @@ test.each([
 	)
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
-	expect(await screen.findByText(words, { selector: '.godmin-toast' })).toBeInTheDocument()
-	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+	expect(await (await roleDialog()).findByText(words)).toBeInTheDocument()
+	expect(screen.getByRole('dialog', { name: 'Change role' })).toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText('role write refused')).not.toBeInTheDocument()
 	expect(screen.queryByText(/Role changed for/)).not.toBeInTheDocument()
 })
 
-test('reads the accounts again after a refused role change, then opens again on the role the reader sent', async () => {
+test('reads the accounts again after a rejected role change, then opens again on the role now held', async () => {
 	configureAppErrorText()
 	holding([signedIn, accountOf('fd', 'Maria Perez')])
 	server.use(
@@ -1155,20 +1176,19 @@ test('reads the accounts again after a refused role change, then opens again on 
 	)
 	renderAt('/users')
 
-	await act('Maria Perez', 'Change role…')
+	await act('Maria Perez', 'Change role')
 	await userEvent.click((await roleDialog()).getByRole('button', { name: 'Change role' }))
 
 	expect(
-		await screen.findByText('The role of that account just changed. Reload the page and try again.', {
-			selector: '.godmin-toast',
-		}),
+		await (await roleDialog()).findByText('The role of that account just changed. Reload the page and try again.'),
 	).toBeInTheDocument()
+	await closeRoleDialog()
 	await waitFor(async () => expect((await rowOf('Maria Perez')).getByText('Administrator')).toBeInTheDocument())
-	await act('Maria Perez', 'Change role…')
-	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Member')
+	await act('Maria Perez', 'Change role')
+	expect((await roleDialog()).getByRole('combobox', { name: 'Role' })).toHaveTextContent('Administrator')
 })
 
-test('says plainly in a toast that a role could not be changed when the server names no reason', async () => {
+test('says plainly inside Change role that a role could not be changed when the server names no reason', async () => {
 	server.use(
 		graphql.mutation('SetUserRole', () =>
 			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
@@ -1176,10 +1196,11 @@ test('says plainly in a toast that a role could not be changed when the server n
 	)
 	renderAt('/users')
 
-	await act('Ada Lovelace', 'Change role…')
+	await act('Ada Lovelace', 'Change role')
 	await changeToAdministrator()
 
-	expect(await screen.findByText('The role could not be changed.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await (await roleDialog()).findByText('The role could not be changed.')).toBeInTheDocument()
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
@@ -1195,8 +1216,8 @@ test('navigates to the users screen from the main menu', async () => {
  * Fills the new user form and submits it.
  */
 async function submitNewUser() {
-	await userEvent.type(await screen.findByLabelText('Email'), 'ada@example.com')
-	await userEvent.type(screen.getByLabelText('Name'), 'Ada Lovelace')
+	await userEvent.type(await screen.findByLabelText('Email (Required)'), 'ada@example.com')
+	await userEvent.type(screen.getByLabelText('Name (Required)'), 'Ada Lovelace')
 	expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 }
@@ -1298,7 +1319,7 @@ test('says in a toast what the server said when it names no reason', async () =>
 		await screen.findByText('Could not send the invitation. that name is too long', { selector: '.godmin-toast' }),
 	).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	expect(screen.getByLabelText('Name')).toBeValid()
+	expect(screen.getByLabelText('Name (Required)')).toBeValid()
 })
 
 test('says in a toast that the invitation could not be sent when the failure is about no field', async () => {
@@ -1314,8 +1335,8 @@ test('says in a toast that the invitation could not be sent when the failure is 
 	expect(await screen.findByText('Could not send the invitation.', { selector: '.godmin-toast' })).toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	expect(screen.getByLabelText('Email')).toHaveValue('ada@example.com')
-	expect(screen.getByLabelText('Name')).toHaveValue('Ada Lovelace')
+	expect(screen.getByLabelText('Email (Required)')).toHaveValue('ada@example.com')
+	expect(screen.getByLabelText('Name (Required)')).toHaveValue('Ada Lovelace')
 	await waitFor(() =>
 		expect(screen.getByRole('button', { name: 'Send invitation' })).not.toHaveAttribute('aria-disabled', 'true'),
 	)

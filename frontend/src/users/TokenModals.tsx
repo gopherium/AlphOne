@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
-	RunConfirm,
+	ConfirmDialog,
 	__,
 	_n,
+	dialogWrite,
 	formatNumber,
 	graphError,
 	sprintf,
@@ -11,27 +12,20 @@ import {
 	validationMessage,
 } from '@alphone/frontend-sdk'
 import type { BulkFailure, BulkRun, BulkWords } from '@alphone/frontend-sdk'
-import type { RenderModalProps } from '@alphone/frontend-sdk/dataviews'
 
 import type { ApiToken } from './tokenFields'
 import { apiTokenRevokeMutation } from './tokenOperations'
 
 /**
- * Returns the question the revoke modal asks.
+ * Returns the question the revoke confirm asks, its title.
  * @param tokens - The tokens the reader picked.
  * @returns The question, naming the token when only one was picked.
  */
 function revokeQuestion(tokens: ApiToken[]): string {
 	if (tokens.length === 1) {
-		return sprintf(__('Revoke "%(name)s"? This cannot be undone.', 'alphone'), { name: tokens[0].name })
+		return sprintf(__('Revoke "%(name)s"?', 'alphone'), { name: tokens[0].name })
 	}
-	const many = _n(
-		'Revoke %s token? This cannot be undone.',
-		'Revoke %s tokens? This cannot be undone.',
-		tokens.length,
-		'alphone',
-	)
-	return sprintf(many, formatNumber(tokens.length))
+	return sprintf(_n('Revoke %s token?', 'Revoke %s tokens?', tokens.length, 'alphone'), formatNumber(tokens.length))
 }
 
 /**
@@ -68,29 +62,39 @@ const revokeWords: BulkWords<ApiToken> = {
 	failed: unrevokedMessage,
 }
 
+/** RevokeProps are what the revoke question reads. */
+interface RevokeProps {
+	/** tokens are the tokens the reader picked. */
+	tokens: ApiToken[]
+	/** bulk revokes them, one call each, and toasts how it went. */
+	bulk: BulkRun<ApiToken>
+	/** onClose takes the question away once its card has left. */
+	onClose: () => void
+}
+
 /**
- * Renders the modal asking before the picked tokens are revoked, then revokes them one call each.
- * @param props - The tokens, the handler closing the modal, and the run the list reports through.
- * @returns The confirmation.
+ * Renders the red confirm asking before the picked tokens are revoked, then revokes them one call each.
+ * @param props - The tokens, the run the list reports through, and the handler taking the confirm away.
+ * @returns The confirm.
  */
-export function RevokeModal({ items, closeModal, bulk }: RenderModalProps<ApiToken> & { bulk: BulkRun<ApiToken> }) {
+export function RevokeDialog({ tokens, bulk, onClose }: RevokeProps) {
 	const graph = useGraph()
 
 	return (
-		<RunConfirm
-			items={items}
-			closeModal={closeModal}
+		<ConfirmDialog
+			intent="irreversible"
+			title={revokeQuestion(tokens)}
+			description={__('This action cannot be undone.', 'alphone')}
 			confirmLabel={__('Revoke', 'alphone')}
 			cancelLabel={__('Cancel', 'alphone')}
-			run={(tokens) =>
+			onConfirm={(signal) =>
 				bulk(
 					tokens,
-					(token) => graph.client.mutation(apiTokenRevokeMutation, { id: token.id }).toPromise(),
+					(token) => dialogWrite(graph.client, apiTokenRevokeMutation, { id: token.id }, signal),
 					revokeWords,
 				)
 			}
-		>
-			{revokeQuestion(items)}
-		</RunConfirm>
+			onClose={onClose}
+		/>
 	)
 }

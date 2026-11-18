@@ -46,8 +46,8 @@ function invitationRefused(message: string, extensions: Record<string, unknown>)
  * Fills the address and the name of the invited account.
  */
 async function fillAccount() {
-	await userEvent.type(await screen.findByLabelText('Email'), 'maria@example.com')
-	await userEvent.type(screen.getByLabelText('Name'), 'Maria Perez')
+	await userEvent.type(await screen.findByLabelText('Email (Required)'), 'maria@example.com')
+	await userEvent.type(screen.getByLabelText('Name (Required)'), 'Maria Perez')
 }
 
 beforeAll(async () => {
@@ -134,7 +134,7 @@ test.each([
 			reason: 'capability_missing',
 			meta: { scope: 'users:write', capability: 'manage_users' },
 		},
-		sentence: 'Sorry, you are not allowed to edit users.',
+		sentence: 'Sorry, you are not allowed to create users.',
 	},
 	{
 		refused: 'a deactivated workspace',
@@ -154,8 +154,8 @@ test.each([
 	).toBeInTheDocument()
 	expect(screen.queryByText(answer.message)).not.toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	expect(screen.getByLabelText('Email')).toBeValid()
-	expect(screen.getByLabelText('Name')).toBeValid()
+	expect(screen.getByLabelText('Email (Required)')).toBeValid()
+	expect(screen.getByLabelText('Name (Required)')).toBeValid()
 })
 
 test('says in a Spanish toast that the reader may not give a role nobody declares', async () => {
@@ -164,8 +164,8 @@ test('says in a Spanish toast that the reader may not give a role nobody declare
 	onTestFinished(() => resetLocale())
 	invitationRefused('unknown role', { code: 'VALIDATION', reason: 'role_unknown', meta: { field: 'role' } })
 	renderAt('/users/new')
-	await userEvent.type(await screen.findByLabelText('Correo electrónico'), 'maria@example.com')
-	await userEvent.type(screen.getByLabelText('Nombre'), 'Maria Perez')
+	await userEvent.type(await screen.findByLabelText('Correo electrónico (Obligatorio)'), 'maria@example.com')
+	await userEvent.type(screen.getByLabelText('Nombre (Obligatorio)'), 'Maria Perez')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Enviar invitación' }))
 
@@ -235,7 +235,7 @@ test.each([
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
 
 	await screen.findByText(answer.words)
-	const field = screen.getByLabelText(answer.box)
+	const field = screen.getByLabelText(`${answer.box} (Required)`)
 	expect(field).toHaveAccessibleDescription(answer.words)
 	expect(field).toHaveFocus()
 	expect(document.querySelector('.godmin-toast')).toBeNull()
@@ -251,8 +251,8 @@ test('says under the Name box of a Spanish page what the reason is about, in the
 	onTestFinished(() => resetLocale())
 	invitationRefused('name too long', { code: 'VALIDATION', reason: 'name_too_long' })
 	renderAt('/users/new')
-	await userEvent.type(await screen.findByLabelText('Correo electrónico'), 'maria@example.com')
-	const name = screen.getByLabelText('Nombre')
+	await userEvent.type(await screen.findByLabelText('Correo electrónico (Obligatorio)'), 'maria@example.com')
+	const name = screen.getByLabelText('Nombre (Obligatorio)')
 	await userEvent.type(name, 'Maria Perez')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Enviar invitación' }))
@@ -264,8 +264,8 @@ test('says under the Name box of a Spanish page what the reason is about, in the
 test('puts the message under the box it is about when both boxes hold one value', async () => {
 	invitationRefused('name too long', { code: 'VALIDATION', reason: 'name_too_long' })
 	renderAt('/users/new')
-	const email = await screen.findByLabelText('Email')
-	const name = screen.getByLabelText('Name')
+	const email = await screen.findByLabelText('Email (Required)')
+	const name = screen.getByLabelText('Name (Required)')
 	await userEvent.type(email, 'maria@example.com')
 	await userEvent.type(name, 'maria@example.com')
 
@@ -290,8 +290,8 @@ test('keeps the message under a name that went out without the space the box sti
 		}),
 	)
 	renderAt('/users/new')
-	await userEvent.type(await screen.findByLabelText('Email'), 'maria@example.com')
-	const name = screen.getByLabelText('Name')
+	await userEvent.type(await screen.findByLabelText('Email (Required)'), 'maria@example.com')
+	const name = screen.getByLabelText('Name (Required)')
 	await userEvent.type(name, 'Maria Perez ')
 
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
@@ -316,7 +316,7 @@ test('says in a toast what the server said about a box changed while the invitat
 	await fillAccount()
 
 	await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
-	const name = screen.getByLabelText('Name')
+	const name = screen.getByLabelText('Name (Required)')
 	await userEvent.type(name, 'x')
 	answer.release()
 
