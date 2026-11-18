@@ -46,6 +46,7 @@ function serveToastTimes(toastMilliseconds: number, toastActionMilliseconds: num
 						__typename: 'AdminSettings',
 						toastMilliseconds,
 						toastActionMilliseconds,
+						dialogWriteTimeoutMilliseconds: 60000,
 						listPageSizes: [10, 20],
 						listPageSize: 20,
 						contactPageCap: 200,
