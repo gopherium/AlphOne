@@ -12,7 +12,7 @@ import {
 import type { RouterHistory } from '@tanstack/react-router'
 
 import { CapabilityGate } from './CapabilityGate'
-import { ContactRoute, NewContactRoute } from './contactRoutes'
+import { NewContactRoute } from './contactRoutes'
 import { contactPanels, preloadContactPanels } from './contacts/panels'
 import { LanguageScreen } from './i18n/LanguageScreen'
 import { LANDING } from './landing'
@@ -72,7 +72,7 @@ const contactRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/contacts/$contactId',
 	loader: () => preloadContactPanels(contactPanels),
-	component: ContactRoute,
+	component: lazyRouteComponent(() => import('./contacts/ContactScreen'), 'ContactRoute'),
 })
 
 const adminRoute = createRoute({

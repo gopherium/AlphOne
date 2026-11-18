@@ -10,12 +10,14 @@ import {
 	http,
 	server,
 } from '@alphone/frontend-sdk/testing'
+import { renderAdmin } from '@gopherium/godmin/testing'
 import { configureAuthTransport, createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
 import type { User } from '@gopherium/react-auth'
 import { seedSession } from '@gopherium/react-auth/testing'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { act, render } from '@testing-library/react'
+import { onTestFinished, vi } from 'vitest'
 
 import { AppToaster } from '../AppToaster'
 import { graphAuthTransport } from '../auth/graphTransport'
@@ -110,17 +112,13 @@ export function renderAt(
 }
 
 /**
- * Renders the app at one route with a seeded session and returns the query client and the router behind it.
+ * Builds the app at one route with a seeded session, below the app toaster.
  * @param path - The route the memory history starts on.
  * @param user - The signed-in account, or null for an anonymous caller.
  * @param version - The version the graph answers, or null to make it fail.
- * @returns The query client and the router.
+ * @returns The tree to render, the query client and the router.
  */
-export function renderRoutedAt(
-	path: string,
-	user: (User & { role?: string }) | null = adminSession,
-	version: string | null = '0.1.0',
-) {
+function appAt(path: string, user: (User & { role?: string }) | null, version: string | null) {
 	const client = createAuthQueryClient({
 		queries: { retry: false, staleTime: Infinity },
 	})
@@ -139,14 +137,58 @@ export function renderRoutedAt(
 	const router = createAppRouter(
 		createMemoryHistory({ initialEntries: [path] }),
 	)
-	render(
+	const tree = (
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
 				<AppToaster>
 					<RouterProvider router={router} />
 				</AppToaster>
 			</GraphProvider>
-		</QueryClientProvider>,
+		</QueryClientProvider>
 	)
+	return { tree, client, router }
+}
+
+/**
+ * Renders the app at one route with a seeded session and returns the query client and the router behind it.
+ * @param path - The route the memory history starts on.
+ * @param user - The signed-in account, or null for an anonymous caller.
+ * @param version - The version the graph answers, or null to make it fail.
+ * @returns The query client and the router.
+ */
+export function renderRoutedAt(
+	path: string,
+	user: (User & { role?: string }) | null = adminSession,
+	version: string | null = '0.1.0',
+) {
+	const { tree, client, router } = appAt(path, user, version)
+	render(tree)
 	return { client, router }
+}
+
+/**
+ * Renders the app at one route as renderAt does, under a design system root whose busy dialogs wait the given time.
+ * @param path - The route the memory history starts on.
+ * @param writeTimeout - How long in milliseconds a busy dialog waits on its write.
+ */
+export function renderLimitedAt(path: string, writeTimeout: number) {
+	renderAdmin(appAt(path, adminSession, '0.1.0').tree, { writeTimeout })
+}
+
+/**
+ * Records the signal of every request that sends the named operation, the requests still reaching the test server.
+ * @param operation - The name of the operation.
+ * @returns The signals, in the order the requests went.
+ */
+export function signalsOf(operation: string): (AbortSignal | null | undefined)[] {
+	const signals: (AbortSignal | null | undefined)[] = []
+	const send = globalThis.fetch
+	const spied = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+		if (String(init?.body).includes(operation)) {
+			signals.push(init?.signal)
+		}
+		return send(input, init)
+	})
+	onTestFinished(() => spied.mockRestore())
+	return signals
 }

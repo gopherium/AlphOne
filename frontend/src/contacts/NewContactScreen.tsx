@@ -12,7 +12,7 @@ import {
 } from '@alphone/frontend-sdk'
 import { useRef, useState } from 'react'
 
-import { ContactBreadcrumbs } from './ContactScreen'
+import { ContactBreadcrumbs } from './ContactBreadcrumbs'
 import { createContactMutation } from './operations'
 
 /** CreatedContact is the contact the creation form hands back. */
