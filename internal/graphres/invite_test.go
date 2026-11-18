@@ -860,6 +860,61 @@ func TestRequestPasswordResetLogsTheDeliveryItHides(t *testing.T) {
 	}
 }
 
+// loggedMailFailure is the entry an undelivered invitation mail writes to the log.
+type loggedMailFailure struct {
+	Message string `json:"msg"`
+	Error   string `json:"error"`
+	To      string `json:"to"`
+}
+
+func TestInviteLogsTheMailItCouldNotDeliver(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		pending bool
+		query   string
+	}{
+		"inviting":  {pending: false, query: inviteMutation},
+		"resending": {pending: true, query: resendMutation},
+	}
+	for testName, held := range tests {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			mailer := &recordingMailer{}
+			resolver := newInviteResolver(testkit.NewStore(), mailer)
+			if held.pending {
+				inviteThrough(t, resolver)
+			}
+			mailer.err = errors.New("the relay rejected the message")
+			recorded := &bytes.Buffer{}
+			resolver.Logger = slog.New(slog.NewJSONHandler(recorded, nil))
+			client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
+
+			response, err := client.RawPost(held.query)
+			if err != nil {
+				t.Fatalf("RawPost() error = %v, want nil", err)
+			}
+
+			if got := firstErrorCode(t, response.Errors); got != "INTERNAL" {
+				t.Errorf("code = %q, want the INTERNAL answer the client already gets", got)
+			}
+			var logged loggedMailFailure
+			if err := json.Unmarshal(recorded.Bytes(), &logged); err != nil {
+				t.Fatalf("decode the log %q: %v", recorded.String(), err)
+			}
+			want := loggedMailFailure{
+				Message: "invitation mail not delivered",
+				Error:   "the relay rejected the message",
+				To:      "maria@example.com",
+			}
+			if logged != want {
+				t.Errorf("logged %+v, want %+v", logged, want)
+			}
+		})
+	}
+}
+
 func TestResetPasswordSurfacesTheTokenFailuresBehindIt(t *testing.T) {
 	t.Parallel()
 

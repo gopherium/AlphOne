@@ -247,7 +247,7 @@ type Resolver struct {
 	// resetCooldownMu serializes the reset cooldown spend.
 	resetCooldownMu sync.Mutex
 
-	// Logger records what a neutral answer hides. Nil discards it.
+	// Logger records what a neutral reset answer hides and every invitation mail not delivered. Nil discards it.
 	Logger *slog.Logger
 	// BatchWait bounds the loader batching window. Zero means one millisecond.
 	BatchWait time.Duration
