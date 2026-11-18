@@ -85,6 +85,19 @@ func TestParseKeepsAnHTMLMailInsideASmallMultipleOfItsSize(t *testing.T) {
 			"one long text of escaped marks and letters a meta charset widens",
 			"Content-Type: text/html\r\n\r\n<meta charset=\"windows-874\"><p>" + filled("\"&\xa1"),
 		},
+		{
+			"a short styled line ahead of a long text of quote marks",
+			"Content-Type: text/html\r\n\r\n<span style=\"color: red\">Lamp</span>" + filled(`"`),
+		},
+		{
+			"a short styled line ahead of a long text of quote marks and ampersands",
+			"Content-Type: text/html\r\n\r\n<span style=\"color: red\">Lamp</span>" + filled(`"&`),
+		},
+		{
+			"a long text of quote marks and ampersands that names a style",
+			"Content-Type: text/html\r\n\r\n" + withWordStyle(filled(`"&`)),
+		},
+		{"short styled table cells up to the body cap", repeatedUpToTheBodyCap(`<td style="padding-top: 4px">Lamp</td>`)},
 	}
 
 	for _, c := range cases {
@@ -175,6 +188,17 @@ func TestReadHeadersCostsTheSameForAnyLengthOfCutField(t *testing.T) {
 // filled answers line repeated up to mailBytes.
 func filled(line string) string {
 	return strings.Repeat(line, mailBytes/len(line))
+}
+
+// repeatedUpToTheBodyCap answers an HTML mail of element repeated up to the body cap, then filler.
+func repeatedUpToTheBodyCap(element string) string {
+	html := strings.Repeat(element, serverBodyCap/len(element))
+	return "Content-Type: text/html\r\n\r\n" + html + "\r\n" + filled("Lamp ")[:mailBytes-len(html)]
+}
+
+// withWordStyle answers body with the word style written over it 1 MiB in.
+func withWordStyle(body string) string {
+	return body[:1<<20] + " style " + body[1<<20+len(" style "):]
 }
 
 // allocatedBy answers the bytes run allocates.
