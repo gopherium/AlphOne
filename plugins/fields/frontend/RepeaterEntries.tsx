@@ -3,6 +3,7 @@
 import {
 	Button,
 	Card,
+	ConfirmDialog,
 	LoadMore,
 	LogList,
 	SectionTitle,
@@ -26,7 +27,7 @@ import { EntryRow } from './EntryRow'
 import { focusFirstControl } from './focus'
 import { addContactFieldEntryMutation } from './operations'
 import { useEntryActions } from './useEntryActions'
-import type { GoneHandler } from './useEntryActions'
+import type { GoneHandler, Removal } from './useEntryActions'
 
 /**
  * Returns how many entries a first page draws: none until the page size arrives, every one when it cannot be read.
@@ -100,8 +101,28 @@ export function RepeaterEntries({
 					)}
 					<LoadMore query={more}>{__('Load more entries', 'alphone-fields')}</LoadMore>
 				</Stack>
+				{actions.removal ? <RemoveEntryDialog removal={actions.removal} /> : null}
 			</Card.Content>
 		</Card.Root>
+	)
+}
+
+/**
+ * Renders the red confirm that asks before an entry is removed.
+ * @param props - The removal it asks about.
+ * @returns The confirm.
+ */
+function RemoveEntryDialog({ removal }: { removal: Removal }) {
+	return (
+		<ConfirmDialog
+			intent="irreversible"
+			title={__('Remove this entry?', 'alphone-fields')}
+			description={__('This action cannot be undone.', 'alphone-fields')}
+			confirmLabel={__('Remove', 'alphone-fields')}
+			cancelLabel={__('Cancel', 'alphone-fields')}
+			onConfirm={removal.confirm}
+			onClose={removal.close}
+		/>
 	)
 }
 

@@ -12,13 +12,32 @@ export function focusFirstControl(form: HTMLFormElement): void {
 }
 
 /**
- * Runs a focus move only when focus is still where the action started, or fell to the page.
- * @param from - The element focus was on when the action started.
+ * Runs a focus move only when focus is still where the action started, inside the confirm that held it, or on the page.
+ * @param from - The element focus was on when the action started, or the confirm that held it.
  * @param move - The move to run.
  */
 export function whenFocusStayed(from: Element | null, move: () => void): void {
 	const now = document.activeElement
-	if (now === from || now === document.body) {
+	if (now === from || now === document.body || insideConfirm(from, now)) {
 		move()
 	}
+}
+
+/**
+ * Reports whether an element sits inside the confirm an action started from.
+ * @param from - Where the action started.
+ * @param now - The element holding focus.
+ * @returns Whether the action started from a confirm that holds the element.
+ */
+function insideConfirm(from: Element | null, now: Element | null) {
+	return from?.getAttribute('role') === 'alertdialog' && from.contains(now)
+}
+
+/**
+ * Returns where an action pressed in a confirm starts from: the confirm that holds the focus, else the focused element.
+ * @returns The element.
+ */
+export function focusedConfirm(): Element | null {
+	const now = document.activeElement
+	return now?.closest('[role="alertdialog"]') ?? now
 }

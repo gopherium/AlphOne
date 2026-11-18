@@ -32,7 +32,7 @@ function orderAnswer(page: Page) {
 	)
 }
 
-test('moves a field up, archives another after asking, and shows the new order on a contact', async ({
+test('moves a field up, archives another, brings it back with Undo, and shows the new order on a contact', async ({
 	page,
 	request,
 }) => {
@@ -59,17 +59,20 @@ test('moves a field up, archives another after asking, and shows the new order o
 	await expect(rows).toContainText([second, first, third])
 	expect(await (await ordered).json()).toMatchObject({ data: { orderFields: true } })
 
-	const trash = page.getByRole('button', { name: `Archive ${third}`, exact: true })
-	const question = page.getByRole('group', { name: 'Archive this field?' })
-	await trash.click()
-	await expect(question).toBeVisible()
-	await expect(page.getByRole('button', { name: 'Keep', exact: true })).toBeFocused()
-	await page.getByRole('button', { name: 'Keep', exact: true }).click()
-	await expect(question).toHaveCount(0)
-	await expect(trash).toBeFocused()
+	const middle = page.getByRole('button', { name: `Archive ${first}`, exact: true })
+	await middle.click()
+	await expect(rows).toHaveCount(2)
+	await expect(rows).toContainText([second, third])
+	const archived = page.locator('.godmin-toast').filter({ hasText: 'Field archived.' })
+	await archived.getByRole('button', { name: 'Undo', exact: true }).click()
+	await expect(page.locator('.godmin-toast').filter({ hasText: 'Field restored.' })).toBeVisible()
+	await expect(rows).toHaveCount(3)
 	await expect(rows).toContainText([second, first, third])
+	await expect(middle).toBeFocused()
+	await expect(page.locator('.godmin-toast').filter({ hasText: 'Could not order the fields.' })).toHaveCount(0)
+
+	const trash = page.getByRole('button', { name: `Archive ${third}`, exact: true })
 	await trash.click()
-	await page.getByRole('button', { name: 'Archive', exact: true }).click()
 	await expect(rows).toHaveCount(2)
 	await expect(rows).toContainText([second, first])
 	await expect(rows.filter({ hasText: third })).toHaveCount(0)
