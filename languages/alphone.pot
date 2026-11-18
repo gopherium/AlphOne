@@ -65,6 +65,9 @@ msgstr ""
 msgid "Add Token"
 msgstr ""
 
+msgid "Add User"
+msgstr ""
+
 msgid "Add a task above, or open a contact and create one from their page."
 msgstr ""
 
@@ -197,6 +200,9 @@ msgstr ""
 msgid "Could not update the task."
 msgstr ""
 
+msgid "Create a brand new user and add them to this site."
+msgstr ""
+
 msgid "Create contact"
 msgstr ""
 
@@ -210,6 +216,12 @@ msgid "Created"
 msgstr ""
 
 msgid "Created %(date)s"
+msgstr ""
+
+msgid "Discard"
+msgstr ""
+
+msgid "Discard changes?"
 msgstr ""
 
 msgid "Dismiss this notice"
@@ -251,6 +263,9 @@ msgstr ""
 msgid "Invitation sent."
 msgstr ""
 
+msgid "Keep editing"
+msgstr ""
+
 msgid "Label"
 msgstr ""
 
@@ -258,9 +273,6 @@ msgid "Language"
 msgstr ""
 
 msgid "Last used"
-msgstr ""
-
-msgid "Leave this page? The name is not saved."
 msgstr ""
 
 msgid "Link a contact"
@@ -317,9 +329,6 @@ msgstr ""
 msgid "New token"
 msgstr ""
 
-msgid "New user"
-msgstr ""
-
 msgid "Next day"
 msgstr ""
 
@@ -359,6 +368,12 @@ msgstr ""
 msgid "Overdue tasks could not be loaded."
 msgstr ""
 
+msgid "Please enter an email address."
+msgstr ""
+
+msgid "Please provide a name."
+msgstr ""
+
 msgid "Postpone"
 msgstr ""
 
@@ -377,7 +392,13 @@ msgstr ""
 msgid "Reading the languages"
 msgstr ""
 
+msgid "Remove"
+msgstr ""
+
 msgid "Remove %(identifier)s"
+msgstr ""
+
+msgid "Remove %(identifier)s?"
 msgstr ""
 
 msgid "Remove %(name)s"
@@ -386,25 +407,19 @@ msgstr ""
 msgid "Rename"
 msgstr ""
 
-msgid "Rename…"
-msgstr ""
-
 msgid "Reopen"
 msgstr ""
 
 msgid "Revoke"
 msgstr ""
 
-msgid "Revoke \"%(name)s\"? This cannot be undone."
+msgid "Revoke \"%(name)s\"?"
 msgstr ""
 
-msgid "Revoke %s token? This cannot be undone."
-msgid_plural "Revoke %s tokens? This cannot be undone."
+msgid "Revoke %s token?"
+msgid_plural "Revoke %s tokens?"
 msgstr[0] ""
 msgstr[1] ""
-
-msgid "Revoke…"
-msgstr ""
 
 msgid "Save"
 msgstr ""
@@ -523,6 +538,9 @@ msgstr ""
 msgid "The name could not be updated."
 msgstr ""
 
+msgid "The name is not saved."
+msgstr ""
+
 msgid "The role of that account just changed. Reload the page and try again."
 msgstr ""
 
@@ -530,6 +548,9 @@ msgid "The task could not be loaded."
 msgstr ""
 
 msgid "The token could not be revoked."
+msgstr ""
+
+msgid "This action cannot be undone."
 msgstr ""
 
 msgid "This link is no longer valid. Ask for a new one."
