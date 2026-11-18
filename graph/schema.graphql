@@ -4,6 +4,7 @@ directive @scope(area: String!, write: Boolean!, admin: Boolean = false, capabil
 type AdminSettings {
 	toastMilliseconds: Int!
 	toastActionMilliseconds: Int!
+	dialogWriteTimeoutMilliseconds: Int!
 	listPageSizes: [Int!]!
 	listPageSize: Int!
 	contactPageCap: Int!

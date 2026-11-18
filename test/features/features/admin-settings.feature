@@ -1,9 +1,9 @@
 Feature: The admin screens read their settings
   One query answers the settings the admin screens read once: how long
-  a confirmation toast stays with no button and with one, the page sizes
-  a list offers and the one it opens on, the most contacts one contact
-  page holds, and the locale dates, times, numbers and money are written
-  in.
+  a confirmation toast stays with no button and with one, how long a
+  busy dialog waits on its write, the page sizes a list offers and the
+  one it opens on, the most contacts one contact page holds, and the
+  locale dates, times, numbers and money are written in.
 
   Background:
     Given a running AlphOne holding a user with an API token
@@ -12,6 +12,7 @@ Feature: The admin screens read their settings
     When the caller reads the admin settings
     Then a toast with no button stays 6000 milliseconds
     And a toast with a button stays 10000 milliseconds
+    And a busy dialog waits 60000 milliseconds on its write
     And a list offers the page sizes 10, 20, 50 and 100
     And a list opens on 20 rows
     And a contact page holds at most 200 contacts

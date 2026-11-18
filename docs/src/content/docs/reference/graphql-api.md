@@ -393,8 +393,8 @@ start.
 ```graphql
 query {
   adminSettings {
-    toastMilliseconds toastActionMilliseconds listPageSizes listPageSize
-    contactPageCap formatLocale
+    toastMilliseconds toastActionMilliseconds dialogWriteTimeoutMilliseconds
+    listPageSizes listPageSize contactPageCap formatLocale
   }
 }
 ```
@@ -403,6 +403,7 @@ query {
 | ----- | ------------- | -------- |
 | `toastMilliseconds` | How long a confirmation toast with no button stays, 6000 by default | `ALPHONE_TOAST_DURATION` |
 | `toastActionMilliseconds` | How long a confirmation toast with a button stays, 10000 by default | `ALPHONE_TOAST_ACTION_DURATION` |
+| `dialogWriteTimeoutMilliseconds` | How long a dialog waits on a save before it counts the save as failed, 60000 by default | `ALPHONE_DIALOG_WRITE_TIMEOUT` |
 | `listPageSizes` | The page sizes a list offers, 10, 20, 50 and 100 by default | `ALPHONE_LIST_PAGE_SIZES` |
 | `listPageSize` | The page size a list opens on and a repeater's first page, 20 by default | `ALPHONE_LIST_PAGE_SIZE` |
 | `contactPageCap` | The most contacts one `contactPage` answers, 200 by default | `ALPHONE_GRAPH_PAGE_CAP` |
