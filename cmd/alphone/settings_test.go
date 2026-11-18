@@ -68,6 +68,7 @@ func coreSettings() map[string]string {
 		"ALPHONE_STREAM_LIFETIME":                  "3m",
 		"ALPHONE_TOAST_DURATION":                   "9s",
 		"ALPHONE_TOAST_ACTION_DURATION":            "14s",
+		"ALPHONE_DIALOG_WRITE_TIMEOUT":             "45s",
 		"ALPHONE_LIST_PAGE_SIZES":                  "5,15,30",
 		"ALPHONE_LIST_PAGE_SIZE":                   "15",
 		"ALPHONE_FORMAT_LOCALE":                    "de-DE",
@@ -713,6 +714,10 @@ func TestSettingRefusalsNameTheSettingAndTheReason(t *testing.T) {
 		},
 		"an action toast in words": {
 			"ALPHONE_TOAST_ACTION_DURATION", "a while",
+			"must be a duration such as 6s or 1500ms, in whole milliseconds from 1ms to 2147483647ms",
+		},
+		"a dialog write time in words": {
+			"ALPHONE_DIALOG_WRITE_TIMEOUT", "a minute",
 			"must be a duration such as 6s or 1500ms, in whole milliseconds from 1ms to 2147483647ms",
 		},
 		"list pages in words":      {"ALPHONE_LIST_PAGE_SIZES", "10,twenty", "must list positive whole numbers"},

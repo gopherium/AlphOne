@@ -34,6 +34,9 @@ func TestTheScreenSettingsFallBackToTheirDefaults(t *testing.T) {
 		t.Errorf("toast action time = %v, want the default %v", screens.ToastActionDuration,
 			graphres.DefaultToastActionDuration)
 	}
+	if screens.DialogWriteTimeout != 60*time.Second {
+		t.Errorf("dialog write time = %v, want the default 60s", screens.DialogWriteTimeout)
+	}
 	if !slices.Equal(screens.PageSizes, graphres.DefaultListPageSizes()) {
 		t.Errorf("page sizes = %v, want the defaults %v", screens.PageSizes, graphres.DefaultListPageSizes())
 	}
@@ -46,6 +49,7 @@ func TestTheScreenSettingsAreReadFromTheEnvironment(t *testing.T) {
 		"ALPHONE_DATABASE_URL":          "postgres://localhost/x",
 		"ALPHONE_TOAST_DURATION":        "9s",
 		"ALPHONE_TOAST_ACTION_DURATION": "14s",
+		"ALPHONE_DIALOG_WRITE_TIMEOUT":  "45s",
 		"ALPHONE_LIST_PAGE_SIZES":       "5, 15,30",
 		"ALPHONE_LIST_PAGE_SIZE":        "15",
 	}))
@@ -59,6 +63,9 @@ func TestTheScreenSettingsAreReadFromTheEnvironment(t *testing.T) {
 	}
 	if screens.ToastActionDuration != 14*time.Second {
 		t.Errorf("toast action time = %v, want 14s", screens.ToastActionDuration)
+	}
+	if screens.DialogWriteTimeout != 45*time.Second {
+		t.Errorf("dialog write time = %v, want 45s", screens.DialogWriteTimeout)
 	}
 	if !slices.Equal(screens.PageSizes, []int{5, 15, 30}) {
 		t.Errorf("page sizes = %v, want [5 15 30]", screens.PageSizes)
@@ -74,24 +81,31 @@ func TestTheScreenSettingsRefuseAnUnreadableValue(t *testing.T) {
 		size   string
 		toast  string
 		action string
+		dialog string
 	}{
-		"no toast at all":                      {named: "ALPHONE_TOAST_DURATION", toast: "0s"},
-		"a toast in words":                     {named: "ALPHONE_TOAST_DURATION", toast: "a while"},
-		"a toast under a millisecond":          {named: "ALPHONE_TOAST_DURATION", toast: "500us"},
-		"a toast in part milliseconds":         {named: "ALPHONE_TOAST_DURATION", toast: "1500us"},
-		"a toast past the timer range":         {named: "ALPHONE_TOAST_DURATION", toast: "2147483648ms"},
-		"a toast without a unit":               {named: "ALPHONE_TOAST_DURATION", toast: "6000"},
-		"no action toast at all":               {named: "ALPHONE_TOAST_ACTION_DURATION", action: "0s"},
-		"an action toast in words":             {named: "ALPHONE_TOAST_ACTION_DURATION", action: "a while"},
-		"an action toast past the timer range": {named: "ALPHONE_TOAST_ACTION_DURATION", action: "2147483648ms"},
-		"an empty page size":                   {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,,20", size: "10"},
-		"a page size in words":                 {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,twenty", size: "10"},
-		"a page of no rows":                    {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "0,10", size: "10"},
-		"a page size twice":                    {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,20,20", size: "10"},
-		"page sizes out of order":              {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "20,10,50", size: "10"},
-		"a page past the graph cap":            {named: "ALPHONE_GRAPH_PAGE_CAP", sizes: "10,300", size: "10"},
-		"an opening page in words":             {named: "ALPHONE_LIST_PAGE_SIZE", size: "twenty"},
-		"an opening page not held":             {named: "ALPHONE_LIST_PAGE_SIZE", size: "25"},
+		"no toast at all":                          {named: "ALPHONE_TOAST_DURATION", toast: "0s"},
+		"a toast in words":                         {named: "ALPHONE_TOAST_DURATION", toast: "a while"},
+		"a toast under a millisecond":              {named: "ALPHONE_TOAST_DURATION", toast: "500us"},
+		"a toast in part milliseconds":             {named: "ALPHONE_TOAST_DURATION", toast: "1500us"},
+		"a toast past the timer range":             {named: "ALPHONE_TOAST_DURATION", toast: "2147483648ms"},
+		"a toast without a unit":                   {named: "ALPHONE_TOAST_DURATION", toast: "6000"},
+		"no action toast at all":                   {named: "ALPHONE_TOAST_ACTION_DURATION", action: "0s"},
+		"an action toast in words":                 {named: "ALPHONE_TOAST_ACTION_DURATION", action: "a while"},
+		"an action toast past the timer range":     {named: "ALPHONE_TOAST_ACTION_DURATION", action: "2147483648ms"},
+		"no dialog write time at all":              {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "0s"},
+		"a negative dialog write time":             {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "-60s"},
+		"a dialog write time in words":             {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "a minute"},
+		"a dialog write time in part milliseconds": {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "1500us"},
+		"a dialog write time past the timer range": {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "2147483648ms"},
+		"a dialog write time without a unit":       {named: "ALPHONE_DIALOG_WRITE_TIMEOUT", dialog: "60000"},
+		"an empty page size":                       {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,,20", size: "10"},
+		"a page size in words":                     {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,twenty", size: "10"},
+		"a page of no rows":                        {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "0,10", size: "10"},
+		"a page size twice":                        {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "10,20,20", size: "10"},
+		"page sizes out of order":                  {named: "ALPHONE_LIST_PAGE_SIZES", sizes: "20,10,50", size: "10"},
+		"a page past the graph cap":                {named: "ALPHONE_GRAPH_PAGE_CAP", sizes: "10,300", size: "10"},
+		"an opening page in words":                 {named: "ALPHONE_LIST_PAGE_SIZE", size: "twenty"},
+		"an opening page not held":                 {named: "ALPHONE_LIST_PAGE_SIZE", size: "25"},
 	}
 	for testName, tt := range tests {
 		t.Run(testName, func(t *testing.T) {
@@ -101,6 +115,7 @@ func TestTheScreenSettingsRefuseAnUnreadableValue(t *testing.T) {
 				"ALPHONE_DATABASE_URL":          "postgres://localhost/x",
 				"ALPHONE_TOAST_DURATION":        tt.toast,
 				"ALPHONE_TOAST_ACTION_DURATION": tt.action,
+				"ALPHONE_DIALOG_WRITE_TIMEOUT":  tt.dialog,
 				"ALPHONE_LIST_PAGE_SIZES":       tt.sizes,
 				"ALPHONE_LIST_PAGE_SIZE":        tt.size,
 			}))
@@ -202,6 +217,42 @@ func TestAnUnreadableToastDurationIsRefusedWithItsBounds(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("loadRunConfig() error = %v, want %q", err, want)
 		}
+	}
+}
+
+func TestTheDialogWriteTimeHoldsFromOneMillisecondToTheLargestTimer(t *testing.T) {
+	t.Parallel()
+
+	for raw, want := range map[string]time.Duration{
+		"1ms":          time.Millisecond,
+		"2147483647ms": math.MaxInt32 * time.Millisecond,
+	} {
+		held, err := loadRunConfig(testkit.Getenv(map[string]string{
+			"ALPHONE_DATABASE_URL":         "postgres://localhost/x",
+			"ALPHONE_DIALOG_WRITE_TIMEOUT": raw,
+		}))
+
+		if err != nil {
+			t.Fatalf("a dialog write time of %s: loadRunConfig() error = %v, want nil", raw, err)
+		}
+		if held.screens.DialogWriteTimeout != want {
+			t.Errorf("a dialog write time of %s holds %v, want %v", raw, held.screens.DialogWriteTimeout, want)
+		}
+	}
+}
+
+func TestAnUnreadableDialogWriteTimeIsRejectedWithItsBounds(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadRunConfig(testkit.Getenv(map[string]string{
+		"ALPHONE_DATABASE_URL":         "postgres://localhost/x",
+		"ALPHONE_DIALOG_WRITE_TIMEOUT": "500us",
+	}))
+
+	want := `ALPHONE_DIALOG_WRITE_TIMEOUT: must be a duration such as 6s or 1500ms, ` +
+		`in whole milliseconds from 1ms to 2147483647ms, got "500us"`
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("loadRunConfig() error = %v, want %q", err, want)
 	}
 }
 
