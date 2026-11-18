@@ -402,6 +402,24 @@ Feature: A mail is stored on the known contacts it names
     Then the mail "Lamp sketch" keeps the text "Here is the lamp I would like."
     And the mail "Lamp sketch" is stored whole
 
+  Scenario: An HTML-only mail keeps only the allowed declarations of its style attributes
+    When this mail reaches "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Lamp colours
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <lamp-colours@example.com>
+      Content-Type: text/html
+
+      <p style="color: red; position: fixed">The lamp comes in red.</p><a style="position: fixed">Price list</a>
+      """
+    Then the mail "Lamp colours" keeps the safe HTML:
+      """
+      <p style="color: red">The lamp comes in red.</p>Price list
+      """
+    And the mail "Lamp colours" is stored whole
+
   Scenario: A mail over the message cap that names a known contact keeps a row with its headers only
     Given the setting "ALPHONE_EMAIL_MESSAGE_MAX_BYTES" holds "300"
     When this mail reaches "Acme":
