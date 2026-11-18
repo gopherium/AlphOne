@@ -110,10 +110,10 @@ export {
 } from '@wordpress/icons'
 export { ThemeProvider } from '@wordpress/theme'
 export {
-	ConfirmBody,
+	ConfirmDialog,
 	ErrorNotice,
 	FileButton,
-	FormBody,
+	FormDialog,
 	InitialsAvatar,
 	keyFromLabel,
 	ListEmpty,
@@ -134,14 +134,14 @@ export {
 	PageTitle,
 	pageWindow,
 	paginationOf,
-	RenameBody,
+	RenameDialog,
 	RepeatRows,
 	RowControls,
 	runEach,
-	RunConfirm,
 	SectionTitle,
 	Toaster,
 	useBulkRun,
+	useDialogRun,
 	useListRun,
 	useServerPaging,
 	useToaster,
@@ -153,17 +153,17 @@ export type {
 	BulkOutcome,
 	BulkRun,
 	BulkWords,
-	ConfirmBodyProps,
-	FormBodyProps,
-	FormKind,
+	ConfirmDialogProps,
+	DialogAnswer,
+	DialogRun,
+	FormDialogProps,
 	ListRun,
 	ListRunState,
 	PagedView,
 	PageWindow,
 	PaginationInfo,
-	RenameBodyProps,
+	RenameDialogProps,
 	RowLabels,
-	RunConfirmProps,
 	RunSettled,
 	ServedPage,
 	ServedSize,
@@ -172,8 +172,8 @@ export type {
 	ToasterHandle,
 	UnsavedText,
 } from '@gopherium/godmin'
-export { DrilldownItem, NavigationItem, NavigationList } from '@gopherium/godmin/router'
-export type { MenuItem } from '@gopherium/godmin/router'
+export { DrilldownItem, NavigationItem, NavigationList, UnsavedChangesDialog } from '@gopherium/godmin/router'
+export type { MenuItem, UnsavedChangesDialogProps } from '@gopherium/godmin/router'
 export { channelName, configureChannelNames } from './channels'
 export { ValidationError, validationMessage } from './errors'
 export { useLastAnswer } from './lastAnswer'
@@ -192,6 +192,7 @@ export {
 } from './graph'
 export type { ErrorCopy, StoredReason } from './graph'
 export type { GraphClient, GraphKeys } from './graph'
+export { dialogWrite } from './dialogWrite'
 export { GraphProvider, useGraph } from './GraphProvider'
 export { useConnection } from './useConnection'
 export type { ConnectionPage, ConnectionResult } from './useConnection'
