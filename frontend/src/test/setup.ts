@@ -18,6 +18,7 @@ const adminSettings = {
 	__typename: 'AdminSettings',
 	toastMilliseconds: 6000,
 	toastActionMilliseconds: 10000,
+	dialogWriteTimeoutMilliseconds: 60000,
 	listPageSizes: [10, 20, 50, 100],
 	listPageSize: 20,
 	contactPageCap: 200,
