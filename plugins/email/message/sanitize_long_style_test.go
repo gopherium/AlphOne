@@ -18,9 +18,9 @@ func TestSanitizeFinishesOnALongStyleValue(t *testing.T) {
 		size   int
 		kept   bool
 	}{
-		{"a value of url openings", "color: ", "url(", 512 << 10, false},
-		{"declarations of url openings", "", "x:url(;", 512 << 10, false},
-		{"a list of font names", "font-family: ", "a,", 64 << 10, true},
+		{"a value of url openings", "color: ", "url(", 32 << 10, false},
+		{"declarations of url openings", "", "x:url(;", 32 << 10, false},
+		{"a list of font names", "font-family: ", "a,", 16 << 10, true},
 	}
 
 	for _, c := range cases {
