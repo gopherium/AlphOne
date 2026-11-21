@@ -97,7 +97,7 @@ interface ArchivePending {
 interface Archiving {
 	locked: boolean
 	focus: TrashFocus | null
-	archive: (field: FieldRow, at: number) => void
+	archive: (field: FieldRow) => void
 }
 
 /** TRASH is the place of the trash among the buttons of a row's controls. */
@@ -300,7 +300,8 @@ function useArchive(
 	const toaster = useToaster()
 	const [, archiveField] = useGraphMutation(archiveFieldMutation)
 	const archivedShown = useArchivedShown(rows)
-	const restore = useRestore(rows, onChanged, archivedShown)
+	const gone = useRef(new Set<string>())
+	const restore = useRestore(rows, onChanged, archivedShown, gone)
 	const [pending, setPending] = useState<ArchivePending | null>(null)
 	const [focus, setFocus] = useState<TrashFocus | null>(null)
 	const awaitRestored = useRestoredFocus(rows, setFocus)
@@ -322,15 +323,15 @@ function useArchive(
 			;(region.current as HTMLDivElement).focus()
 		}
 	}
-	const undo = (field: FieldRow, at: number): ToastAction => ({
+	const undo = (field: FieldRow): ToastAction => ({
 		label: __('Undo', 'alphone-fields'),
 		onAct: () => {
 			setPending((now) => (now?.id === field.id ? null : now))
 			archivedShown.current.delete(field.id)
-			void restore(field, at).then((back) => restored(field.id, back))
+			void restore(field).then((back) => restored(field.id, back))
 		},
 	})
-	const archive = (field: FieldRow, at: number) => {
+	const archive = (field: FieldRow) => {
 		const from = document.activeElement
 		setPending({ id: field.id, reading: false, from })
 		void archiveField({ id: field.id }).then((result) => {
@@ -340,8 +341,9 @@ function useArchive(
 				whenFocusStayed(from, () => setFocus({ id: field.id }))
 			} else {
 				archivedShown.current.add(field.id)
+				gone.current.add(field.id)
 				setPending({ id: field.id, reading: true, from })
-				toaster.show(__('Field archived.', 'alphone-fields'), undo(field, at))
+				toaster.show(__('Field archived.', 'alphone-fields'), undo(field))
 			}
 			onChanged()
 		})
@@ -386,7 +388,7 @@ function FieldTable({
 						count={rows.length}
 						locked={archiving.locked}
 						focus={archiving.focus?.id === field.id ? archiving.focus : undefined}
-						onArchive={() => archiving.archive(field, at)}
+						onArchive={() => archiving.archive(field)}
 						onMove={(offset) => onMove(at, offset)}
 						onLeave={onLeave}
 					/>
@@ -471,9 +473,18 @@ function focusedControl(row: HTMLTableRowElement) {
  */
 function ignoreHeldEnter(event: KeyboardEvent<HTMLTableSectionElement>) {
 	const target = event.target as HTMLElement
-	if (event.repeat && event.key === 'Enter' && target === trashOf(target.closest('tr') as HTMLTableRowElement)) {
+	if (heldEnter(event) && target === trashOf(target.closest('tr') as HTMLTableRowElement)) {
 		event.preventDefault()
 	}
+}
+
+/**
+ * Reports whether a key press is an Enter held down.
+ * @param event - The key press.
+ * @returns Whether it repeats Enter.
+ */
+function heldEnter(event: KeyboardEvent<HTMLTableSectionElement>) {
+	return event.repeat && event.key === 'Enter'
 }
 
 /**

@@ -17,25 +17,34 @@ export interface Restorable {
 }
 
 /**
- * Returns the restore that defines an archived field again and puts it back at its place among the live rows shown.
+ * Returns the restore that defines an archived field again and puts it back between the neighbours it had.
  * @param rows - The rows in the order shown.
  * @param onChanged - The reload run after every answer a restore gets, except a define lost on the way.
  * @param archived - The ids of the rows still shown whose archive worked, which the order leaves out.
- * @returns The restore, given the field and the place it held, answering whether the field came back.
+ * @param gone - The ids of every field the reader archived, kept in their places in the order the list remembers.
+ * @returns The restore, given the field, answering whether the field came back, one restore at a time.
  */
 export function useRestore(
 	rows: readonly { id: string }[],
 	onChanged: () => void,
 	archived: RefObject<ReadonlySet<string>>,
+	gone: RefObject<ReadonlySet<string>>,
 ) {
 	const toaster = useToaster()
 	const [, define] = useGraphMutation(defineFieldMutation)
 	const [, order] = useGraphMutation(orderFieldsMutation)
 	const shown = useRef<readonly string[]>([])
+	const remembered = useRef<readonly string[]>([])
+	const back = useRef(new Set<string>())
+	const queue = useRef(Promise.resolve())
 	useLayoutEffect(() => {
 		shown.current = rows.map((row) => row.id)
+		remembered.current = keptInPlace(remembered.current, shown.current, gone.current)
+		for (const id of shown.current) {
+			back.current.delete(id)
+		}
 	})
-	return async (field: Restorable, at: number) => {
+	const restoreOne = async (field: Restorable) => {
 		const defined = await define(definitionOf(field))
 		if (defined.error) {
 			toaster.show(writeFailure(__('Could not restore the field.', 'alphone-fields'), defined.error))
@@ -45,16 +54,24 @@ export function useRestore(
 			return false
 		}
 		toaster.show(__('Field restored.', 'alphone-fields'))
-		const id = (defined.data as DefineFieldMutation).defineField.id
-		const live = shown.current.filter((shownId) => !archived.current.has(shownId))
-		const ordered = await order({ ids: placed(live, id, at) })
+		back.current.add((defined.data as DefineFieldMutation).defineField.id)
+		const live = new Set([...shown.current.filter((id) => !archived.current.has(id)), ...back.current])
+		const ordered = await order({ ids: remembered.current.filter((id) => live.has(id)) })
 		if (ordered.error) {
 			toaster.show(writeFailure(__('Could not order the fields.', 'alphone-fields'), ordered.error))
 		}
 		onChanged()
 		return true
 	}
+	return (field: Restorable) => {
+		const restoring = queue.current.then(() => restoreOne(field))
+		queue.current = restoring.then(settled)
+		return restoring
+	}
 }
+
+/** Takes the answer of a restore that finished, so the next one may start. */
+function settled() {}
 
 /**
  * Returns the define that brings a field back as it was, its sub fields without what the read added.
@@ -71,14 +88,22 @@ function definitionOf(field: Restorable) {
 }
 
 /**
- * Returns the ids shown with one id placed at the given place, last when fewer rows are shown now.
- * @param ids - The ids in the order shown.
- * @param id - The id to place.
- * @param at - The place it held.
- * @returns The ids in their new order.
+ * Returns the ids shown with every archived id the list remembered put back right after the id it followed.
+ * @param remembered - The order the list remembered, archived ids in their places.
+ * @param shown - The ids in the order shown now.
+ * @param gone - The ids the reader archived.
+ * @returns The order to remember now.
  */
-function placed(ids: readonly string[], id: string, at: number) {
-	const next = ids.filter((shown) => shown !== id)
-	next.splice(at, 0, id)
+function keptInPlace(remembered: readonly string[], shown: readonly string[], gone: ReadonlySet<string>) {
+	const next = [...shown]
+	let after: string | undefined
+	for (const id of remembered) {
+		if (gone.has(id) && !next.includes(id)) {
+			next.splice(after === undefined ? 0 : next.indexOf(after) + 1, 0, id)
+		}
+		if (next.includes(id)) {
+			after = id
+		}
+	}
 	return next
 }
