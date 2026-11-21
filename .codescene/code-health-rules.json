@@ -13,6 +13,18 @@
       ]
     },
     {
+      "matching_content_path": "**/*.test.ts",
+      "rules": [
+        { "name": "String Heavy Function Arguments", "weight": 0.0 }
+      ]
+    },
+    {
+      "matching_content_path": "**/*.test.tsx",
+      "rules": [
+        { "name": "String Heavy Function Arguments", "weight": 0.0 }
+      ]
+    },
+    {
       "matching_content_path": "**/*_gen.go",
       "rules": [
         { "name": "Complex Method", "weight": 0.0 },
