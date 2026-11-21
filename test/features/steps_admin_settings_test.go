@@ -48,6 +48,20 @@ func (w *world) adminSettings() (adminSettingsAnswer, error) {
 	return answer, nil
 }
 
+// settingStep returns the step checking one whole number setting the last read answered.
+func settingStep(name string, read func(adminSettingsAnswer) int) func(context.Context, int) error {
+	return func(ctx context.Context, want int) error {
+		answer, err := worldFrom(ctx).adminSettings()
+		if err != nil {
+			return err
+		}
+		if got := read(answer); got != want {
+			return fmt.Errorf("%s = %d, want %d", name, got, want)
+		}
+		return nil
+	}
+}
+
 // spokenSizes reads a list of sizes written as "10, 20, 50 and 100".
 func spokenSizes(spoken string) ([]int, error) {
 	parts := strings.FieldsFunc(strings.ReplaceAll(spoken, " and ", ","), func(r rune) bool {
@@ -93,38 +107,14 @@ func bindAdminSettingsSteps(sc *godog.ScenarioContext) {
 		return err
 	})
 
-	sc.Then(`^a toast with no button stays (\d+) milliseconds$`, func(ctx context.Context, want int) error {
-		answer, err := worldFrom(ctx).adminSettings()
-		if err != nil {
-			return err
-		}
-		if got := answer.Data.AdminSettings.ToastMilliseconds; got != want {
-			return fmt.Errorf("toastMilliseconds = %d, want %d", got, want)
-		}
-		return nil
-	})
+	sc.Then(`^a toast with no button stays (\d+) milliseconds$`, settingStep("toastMilliseconds",
+		func(answer adminSettingsAnswer) int { return answer.Data.AdminSettings.ToastMilliseconds }))
 
-	sc.Then(`^a toast with a button stays (\d+) milliseconds$`, func(ctx context.Context, want int) error {
-		answer, err := worldFrom(ctx).adminSettings()
-		if err != nil {
-			return err
-		}
-		if got := answer.Data.AdminSettings.ToastActionMilliseconds; got != want {
-			return fmt.Errorf("toastActionMilliseconds = %d, want %d", got, want)
-		}
-		return nil
-	})
+	sc.Then(`^a toast with a button stays (\d+) milliseconds$`, settingStep("toastActionMilliseconds",
+		func(answer adminSettingsAnswer) int { return answer.Data.AdminSettings.ToastActionMilliseconds }))
 
-	sc.Then(`^a busy dialog waits (\d+) milliseconds on its write$`, func(ctx context.Context, want int) error {
-		answer, err := worldFrom(ctx).adminSettings()
-		if err != nil {
-			return err
-		}
-		if got := answer.Data.AdminSettings.DialogWriteTimeoutMilliseconds; got != want {
-			return fmt.Errorf("dialogWriteTimeoutMilliseconds = %d, want %d", got, want)
-		}
-		return nil
-	})
+	sc.Then(`^a busy dialog waits (\d+) milliseconds on its write$`, settingStep("dialogWriteTimeoutMilliseconds",
+		func(answer adminSettingsAnswer) int { return answer.Data.AdminSettings.DialogWriteTimeoutMilliseconds }))
 
 	sc.Then(`^a list offers the page sizes ([0-9, and]+)$`, func(ctx context.Context, spoken string) error {
 		answer, err := worldFrom(ctx).adminSettings()
@@ -141,27 +131,11 @@ func bindAdminSettingsSteps(sc *godog.ScenarioContext) {
 		return nil
 	})
 
-	sc.Then(`^a list opens on (\d+) rows$`, func(ctx context.Context, want int) error {
-		answer, err := worldFrom(ctx).adminSettings()
-		if err != nil {
-			return err
-		}
-		if got := answer.Data.AdminSettings.ListPageSize; got != want {
-			return fmt.Errorf("listPageSize = %d, want %d", got, want)
-		}
-		return nil
-	})
+	sc.Then(`^a list opens on (\d+) rows$`, settingStep("listPageSize",
+		func(answer adminSettingsAnswer) int { return answer.Data.AdminSettings.ListPageSize }))
 
-	sc.Then(`^a contact page holds at most (\d+) contacts$`, func(ctx context.Context, want int) error {
-		answer, err := worldFrom(ctx).adminSettings()
-		if err != nil {
-			return err
-		}
-		if got := answer.Data.AdminSettings.ContactPageCap; got != want {
-			return fmt.Errorf("contactPageCap = %d, want %d", got, want)
-		}
-		return nil
-	})
+	sc.Then(`^a contact page holds at most (\d+) contacts$`, settingStep("contactPageCap",
+		func(answer adminSettingsAnswer) int { return answer.Data.AdminSettings.ContactPageCap }))
 
 	sc.Then(`^dates, times, numbers and money are written in (\S+)$`, func(ctx context.Context, want string) error {
 		answer, err := worldFrom(ctx).adminSettings()
