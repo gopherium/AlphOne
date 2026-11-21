@@ -93,7 +93,11 @@ test('answers a rejected write with its error, for the dialog to put into words'
 	expect(answer.error?.graphQLErrors[0].message).toBe('name rejected')
 })
 
-test('stops the request and rejects with the reason of the signal once it fires', async () => {
+test.each([
+	{ browser: 'a browser with AbortSignal.any', prepare: () => {} },
+	{ browser: 'a browser without AbortSignal.any', prepare: withoutSignalAny },
+])('stops the request and rejects with the reason of the signal once it fires, in $browser', async ({ prepare }) => {
+	prepare()
 	const arrived = holdRenames()
 	const signals = recordSignals()
 	const timing = new AbortController()
@@ -156,19 +160,4 @@ test('leaves nothing listening on the signal once the answer came', async () => 
 	expect(removed.mock.calls.map(([type, listener]) => [type, listener])).toEqual(
 		added.mock.calls.map(([type, listener]) => [type, listener]),
 	)
-})
-
-test('stops the write in a browser without AbortSignal.any', async () => {
-	withoutSignalAny()
-	const arrived = holdRenames()
-	const signals = recordSignals()
-	const timing = new AbortController()
-	const reason = new DOMException('The write ran out of time.', 'TimeoutError')
-
-	const answer = dialogWrite(newClient(), renameMutation, sent, timing.signal)
-	await arrived
-	timing.abort(reason)
-
-	await expect(answer).rejects.toBe(reason)
-	await vi.waitFor(() => expect(signals[0].aborted).toBe(true))
 })
