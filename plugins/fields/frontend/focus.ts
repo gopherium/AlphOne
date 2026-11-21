@@ -18,7 +18,7 @@ export function focusFirstControl(form: HTMLFormElement): void {
  */
 export function whenFocusStayed(from: Element | null, move: () => void): void {
 	const now = document.activeElement
-	if (now === from || now === document.body || insideConfirm(from, now)) {
+	if ([from, document.body].includes(now) || insideConfirm(from, now)) {
 		move()
 	}
 }
