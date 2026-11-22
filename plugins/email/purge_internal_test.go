@@ -4,6 +4,7 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"reflect"
 	"slices"
@@ -151,6 +152,48 @@ func guardRows(t *testing.T, db querier, tenant uuid.UUID) []guardRow {
 		t.Fatalf("reading the keys of deleted mail: %v", err)
 	}
 	return held
+}
+
+// rowCountingTx is a transaction that counts each row its reads of many rows answer.
+type rowCountingTx struct {
+	pgx.Tx
+	read *int
+}
+
+// Query reads the rows of sql, counting each one it answers.
+func (c rowCountingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := c.Tx.Query(ctx, sql, args...)
+	return countedRows{Rows: rows, read: c.read}, err
+}
+
+// countedRows is a read of many rows that counts each row it moves to.
+type countedRows struct {
+	pgx.Rows
+	read *int
+}
+
+// Next moves to the next row and counts it.
+func (c countedRows) Next() bool {
+	next := c.Rows.Next()
+	if next {
+		*c.read++
+	}
+	return next
+}
+
+// rowsReadDeleting returns how many rows the reads of a delete of the mail id of thread answer, the delete rolled back.
+func (it *ingestTest) rowsReadDeleting(thread, id uuid.UUID) int {
+	it.t.Helper()
+	read, tx := 0, beginTx(it.t, it.pool)
+	_, err := deleteLockedThreadMail(it.t.Context(), rowCountingTx{Tx: tx, read: &read}, sdk.DefaultTenantID, it.box.id,
+		threadDelete{thread: thread, message: &id, at: ingestNow, window: testSyncWindow})
+	if err != nil {
+		it.t.Fatalf("deleteLockedThreadMail() error = %v, want nil", err)
+	}
+	if err := tx.Rollback(it.t.Context()); err != nil {
+		it.t.Fatalf("rolling the delete back: %v", err)
+	}
+	return read
 }
 
 // wantRejected fails the test unless err is the graph error of code and reason.
@@ -387,6 +430,29 @@ func TestDeleteThreadMailDeletesOneMailAndKeepsItsThread(t *testing.T) {
 	}
 }
 
+func TestADeleteOfOneMailReadsAsManyRowsInALongThreadAsInAShortOne(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	thread, mails := it.threadOfThree("file:reply")
+	short := it.rowsReadDeleting(thread, mails[1])
+	it.ingestAt(quoteReplyMail("quote-third-reply@example.com", "Friday suits me."), "file:third-reply", 3*time.Hour)
+	it.ingestAt(quoteReplyMail("quote-fourth-reply@example.com", "The morning suits me."), "file:fourth-reply",
+		4*time.Hour)
+	for _, id := range []string{"quote-third-reply@example.com", "quote-fourth-reply@example.com"} {
+		if joined := it.threadOf(it.mailByMessageID(id)); joined != thread {
+			t.Fatalf("the reply %s sits in the thread %v, want the quote's %v", id, joined, thread)
+		}
+	}
+
+	long := it.rowsReadDeleting(thread, mails[1])
+
+	if long != short {
+		t.Errorf("a delete of one mail read %d rows in a thread of five and %d in a thread of three, want as many",
+			long, short)
+	}
+}
+
 func TestDeleteThreadMailDeletesTheSeededMailAtOnce(t *testing.T) {
 	t.Parallel()
 
@@ -500,25 +566,6 @@ func TestDeleteThreadMailAnswersNotFoundForAThreadOrAMailTheWorkspaceDoesNotHold
 	if left := it.mails(); left != 2 {
 		t.Errorf("the workspace holds %d mails, want both kept", left)
 	}
-}
-
-func TestPickMailToDeleteAnswersTheMailNamedOrEveryMail(t *testing.T) {
-	t.Parallel()
-
-	thread := []mailToDelete{{id: uuid.Must(uuid.NewV7())}, {id: uuid.Must(uuid.NewV7())}}
-	unknown := uuid.Must(uuid.NewV7())
-
-	every, everyErr := pickMailToDelete(thread, nil)
-	one, oneErr := pickMailToDelete(thread, &thread[1].id)
-	_, unknownErr := pickMailToDelete(thread, &unknown)
-
-	if everyErr != nil || !reflect.DeepEqual(every, thread) {
-		t.Errorf("pickMailToDelete() of no mail = %+v, %v, want every mail", every, everyErr)
-	}
-	if oneErr != nil || !reflect.DeepEqual(one, thread[1:]) {
-		t.Errorf("pickMailToDelete() of the second mail = %+v, %v, want it alone", one, oneErr)
-	}
-	wantRejected(t, unknownErr, "NOT_FOUND", "message_not_found")
 }
 
 func TestCheckSyncWindowRejectsASyncedMailFromTheStartOfTheWindowOn(t *testing.T) {
@@ -886,6 +933,23 @@ func TestEachStepOfADeleteOfThreadMailAnswersTheFailureOfItsStatement(t *testing
 					name, err)
 			}
 		})
+	}
+}
+
+func TestADeleteOfOneMailAnswersTheFailureOfItsRead(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	it.ingest(it.incoming(lampMail(), "file:quote"))
+	id := it.mailTitled("Your quote")
+	tx := beginTx(t, it.pool)
+
+	_, err := deleteLockedThreadMail(t.Context(), failingTx{Tx: tx, fragment: "AND o.id <> $3"}, sdk.DefaultTenantID,
+		it.box.id, threadDelete{thread: it.threadOf(id), message: &id, at: ingestNow, window: testSyncWindow})
+
+	if code := pgCode(err); code != undefinedFunction {
+		t.Errorf("deleteLockedThreadMail() of one mail with its read failing error = %v, want the failure of the read",
+			err)
 	}
 }
 

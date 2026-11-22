@@ -285,22 +285,62 @@ func deleteLockedThreadMail(
 	if err := lockMailbox(ctx, tx, tenant, mailboxID); err != nil {
 		return threadDeletion{}, err
 	}
-	thread, err := readMailToDelete(ctx, tx, tenant, request.thread)
+	chosen, err := chooseMailToDelete(ctx, tx, tenant, request)
 	if err != nil {
 		return threadDeletion{}, err
 	}
-	chosen, err := pickMailToDelete(thread, request.message)
-	if err != nil {
+	if err := checkSyncWindow(chosen.mails, request.at, request.window); err != nil {
 		return threadDeletion{}, err
 	}
-	if err := checkSyncWindow(chosen, request.at, request.window); err != nil {
-		return threadDeletion{}, err
-	}
-	ids := mapEach(chosen, func(mail mailToDelete) uuid.UUID { return mail.id })
+	ids := mapEach(chosen.mails, func(mail mailToDelete) uuid.UUID { return mail.id })
 	if _, err := deleteMessages(ctx, tx, tenant, ids, request.at); err != nil {
 		return threadDeletion{}, err
 	}
-	return threadDeletion{messages: ids, threadDeleted: len(chosen) == len(thread)}, nil
+	return threadDeletion{messages: ids, threadDeleted: chosen.emptiesThread}, nil
+}
+
+// chosenMail is the mail of one thread a delete takes, beside whether taking it empties the thread.
+type chosenMail struct {
+	// mails is each mail the delete takes, oldest first.
+	mails []mailToDelete
+	// emptiesThread reports a thread that holds no other mail.
+	emptiesThread bool
+}
+
+// chooseMailToDelete returns the one mail request names, or every mail of its thread when it names none.
+func chooseMailToDelete(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, request threadDelete) (chosenMail, error) {
+	if request.message != nil {
+		return readNamedMail(ctx, tx, tenant, request.thread, *request.message)
+	}
+	mails, err := readMailToDelete(ctx, tx, tenant, request.thread)
+	return chosenMail{mails: mails, emptiesThread: true}, err
+}
+
+// readNamedMail returns the mail id names in one thread of the workspace tenant, and whether the thread holds no other.
+func readNamedMail(ctx context.Context, tx pgx.Tx, tenant, thread, id uuid.UUID) (chosenMail, error) {
+	var receivedAt *time.Time
+	var synced, alone bool
+	err := tx.QueryRow(ctx, `SELECT m.received_at, EXISTS (SELECT FROM plugin_email.provider_refs r
+				WHERE r.tenant_id = $1 AND r.message_id = m.id
+					AND NOT starts_with(r.provider_ref, $4) AND NOT starts_with(r.provider_ref, $5)),
+			NOT EXISTS (SELECT FROM plugin_email.messages o
+				WHERE o.tenant_id = $1 AND o.thread_id = t.id AND o.id <> $3)
+		FROM plugin_email.threads t
+		LEFT JOIN plugin_email.messages m ON m.tenant_id = $1 AND m.thread_id = t.id AND m.id = $3
+		WHERE t.tenant_id = $1 AND t.id = $2`,
+		tenant, thread, id, filePrefix, seedPrefix,
+	).Scan(&receivedAt, &synced, &alone)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return chosenMail{}, threadNotFound
+	}
+	if err != nil {
+		return chosenMail{}, fmt.Errorf("email: read the mail to delete: %w", err)
+	}
+	if receivedAt == nil {
+		return chosenMail{}, messageNotFound
+	}
+	named := mailToDelete{id: id, receivedAt: *receivedAt, synced: synced}
+	return chosenMail{mails: []mailToDelete{named}, emptiesThread: alone}, nil
 }
 
 // readMailToDelete returns every mail of one thread of the workspace tenant oldest first, thread_not_found for none.
@@ -324,18 +364,6 @@ func readMailToDelete(ctx context.Context, tx pgx.Tx, tenant, thread uuid.UUID) 
 		return nil, threadNotFound
 	}
 	return mails, nil
-}
-
-// pickMailToDelete returns the mail of thread message names, every mail of thread for nil, message_not_found for none.
-func pickMailToDelete(thread []mailToDelete, message *uuid.UUID) ([]mailToDelete, error) {
-	if message == nil {
-		return thread, nil
-	}
-	at := slices.IndexFunc(thread, func(mail mailToDelete) bool { return mail.id == *message })
-	if at < 0 {
-		return nil, messageNotFound
-	}
-	return thread[at : at+1], nil
 }
 
 // checkSyncWindow rejects the delete of mails when one a sync brought in was received at or after at less window.
