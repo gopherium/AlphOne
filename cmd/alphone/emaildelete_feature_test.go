@@ -39,12 +39,14 @@ const filesWaitingForTheSweep = `SELECT count(*) FROM plugin_email.pending_files
 
 // mailCostQuery reads one mail of a thread with its original and its files.
 const mailCostQuery = `query Cost($thread: UUID!, $id: UUID!) {
-	emailThread(id: $thread) { message(id: $id) { id subject rawState rawSize attachments { id filename size state } } }
+	emailThread(id: $thread) {
+		message(id: $id) { id subject rawState rawSize storedBytes attachments { id filename size state } }
+	}
 }`
 
 // threadCostQuery reads the original and the files of each mail of one thread.
 const threadCostQuery = `query ThreadCost($id: UUID!) {
-	emailThread(id: $id) { id messages { id rawState rawSize attachments { size state } } }
+	emailThread(id: $id) { id messages { id rawState rawSize storedBytes attachments { size state } } }
 }`
 
 // keptMailQuery reads what is kept of one mail of a thread, its text, its original and its files.
@@ -108,6 +110,10 @@ type deleteScenario struct {
 	*readScenario
 	sharedMail string
 	freed      float64
+	taken      float64
+	before     *servedUsage
+	held       map[string]float64
+	filesTaken map[string]float64
 	sizes      map[string]float64
 	rawSizes   map[string]float64
 	usages     []servedUsage
@@ -120,7 +126,8 @@ func initializeEmailDelete(t *testing.T) func(*godog.ScenarioContext) {
 		bindEmailSteps(sc, s)
 		r := newReadScenario(s)
 		bindReadSteps(sc, r)
-		d := &deleteScenario{readScenario: r, sizes: map[string]float64{}, rawSizes: map[string]float64{}}
+		d := &deleteScenario{readScenario: r, held: map[string]float64{}, filesTaken: map[string]float64{},
+			sizes: map[string]float64{}, rawSizes: map[string]float64{}}
 		d.bindDeleteSetup(sc)
 		d.bindDeletes(sc)
 		d.bindDeleteAnswers(sc)
@@ -282,14 +289,48 @@ func keptBytes(mail servedMail) float64 {
 	return kept
 }
 
-// credit adds bytes to what the deletes of the scenario free, when the last delete answered no error.
-func (d *deleteScenario) credit(bytes float64) {
-	if len(d.reply.Errors) == 0 {
-		d.freed += bytes
+// credit reports whether the last delete answered no error, adding freed and taken to what the deletes free and take.
+func (d *deleteScenario) credit(freed, taken float64) bool {
+	if len(d.reply.Errors) > 0 {
+		return false
+	}
+	d.freed += freed
+	d.taken += taken
+	return true
+}
+
+// firstRead keeps the bytes mail stores the first time a delete step reads it.
+func (d *deleteScenario) firstRead(mail servedMail) {
+	if _, read := d.held[mail.ID]; !read {
+		d.held[mail.ID] = mail.StoredBytes
 	}
 }
 
-// costOf answers the thread and the mail titled subject as email reads them, with its original and its files.
+// creditFiles credits freed to a files delete of the mail id and to what the files deletes took off that mail.
+func (d *deleteScenario) creditFiles(id string, freed float64) {
+	if d.credit(freed, freed) {
+		d.filesTaken[id] += freed
+	}
+}
+
+// creditMail credits a whole delete of mail with the bytes it held at first read less what its files deletes took.
+func (d *deleteScenario) creditMail(mail servedMail) {
+	d.credit(keptBytes(mail), d.held[mail.ID]-d.filesTaken[mail.ID])
+}
+
+// sendDelete sends the delete query with variables as email, first reading the usage the deletes are counted from.
+func (d *deleteScenario) sendDelete(ctx context.Context, email, query string, variables map[string]any) error {
+	if d.before == nil {
+		var before servedUsage
+		if err := d.learn(ctx, email, usageQuery, nil, "emailUsage", &before); err != nil {
+			return fmt.Errorf("reading the usage before the first delete: %w", err)
+		}
+		d.before = &before
+	}
+	return d.read(ctx, email, query, variables)
+}
+
+// costOf answers the thread and the mail titled subject as email reads them, keeping the bytes it held at first read.
 func (d *deleteScenario) costOf(ctx context.Context, email, subject string) (string, servedMail, error) {
 	thread, id, err := d.findMail(ctx, email, subject)
 	if err != nil {
@@ -303,6 +344,7 @@ func (d *deleteScenario) costOf(ctx context.Context, email, subject string) (str
 	if found == nil || found.Message == nil {
 		return "", servedMail{}, fmt.Errorf("the thread of %q answered no mail %s", subject, id)
 	}
+	d.firstRead(*found.Message)
 	return thread, *found.Message, nil
 }
 
@@ -323,10 +365,10 @@ func (d *deleteScenario) deleteMail(ctx context.Context, email, subject string) 
 	if err != nil {
 		return err
 	}
-	if err := d.read(ctx, email, deleteMailQuery, map[string]any{"thread": thread, "id": mail.ID}); err != nil {
+	if err := d.sendDelete(ctx, email, deleteMailQuery, map[string]any{"thread": thread, "id": mail.ID}); err != nil {
 		return err
 	}
-	d.credit(keptBytes(mail))
+	d.creditMail(mail)
 	return nil
 }
 
@@ -348,21 +390,27 @@ func (d *deleteScenario) deleteThread(ctx context.Context, email, subject string
 	if found == nil {
 		return fmt.Errorf("the inbox answered no thread %s for %q", id, subject)
 	}
-	if err := d.read(ctx, email, deleteMailQuery, map[string]any{"thread": id}); err != nil {
+	for _, mail := range found.Messages {
+		d.firstRead(mail)
+	}
+	if err := d.sendDelete(ctx, email, deleteMailQuery, map[string]any{"thread": id}); err != nil {
 		return err
 	}
 	for _, mail := range found.Messages {
-		d.credit(keptBytes(mail))
+		d.creditMail(mail)
 	}
 	return nil
 }
 
-// deleteFiles sends the files delete the variables name as email, adding freed to what the deletes free.
-func (d *deleteScenario) deleteFiles(ctx context.Context, email string, variables map[string]any, freed float64) error {
-	if err := d.read(ctx, email, deleteFilesQuery, variables); err != nil {
+// deleteFiles sends the files delete of the mail id the variables name as email, crediting freed to that mail.
+func (d *deleteScenario) deleteFiles(
+	ctx context.Context, email, id string, variables map[string]any, freed float64,
+) error {
+	variables["id"] = id
+	if err := d.sendDelete(ctx, email, deleteFilesQuery, variables); err != nil {
 		return err
 	}
-	d.credit(freed)
+	d.creditFiles(id, freed)
 	return nil
 }
 
@@ -386,7 +434,7 @@ func (d *deleteScenario) deleteFile(ctx context.Context, email, filename, subjec
 	if err != nil {
 		return err
 	}
-	return d.deleteFiles(ctx, email, map[string]any{"id": mail.ID, "file": file.ID, "original": false}, keptSize(file))
+	return d.deleteFiles(ctx, email, mail.ID, map[string]any{"file": file.ID, "original": false}, keptSize(file))
 }
 
 // deletedFile deletes the file called filename of the mail titled subject as email, failing on any error it answers.
@@ -410,7 +458,7 @@ func (d *deleteScenario) deleteOriginal(ctx context.Context, email, subject stri
 	if err != nil {
 		return err
 	}
-	return d.deleteFiles(ctx, email, map[string]any{"id": mail.ID, "original": true}, keptOriginal(mail))
+	return d.deleteFiles(ctx, email, mail.ID, map[string]any{"original": true}, keptOriginal(mail))
 }
 
 // deletedOriginal deletes the original of the mail titled subject as email and fails unless it answered no error.
@@ -425,8 +473,8 @@ func (d *deleteScenario) deleteFileAndOriginal(ctx context.Context, email, filen
 		return err
 	}
 	d.rawSizes[subject] = mail.RawSize
-	variables := map[string]any{"id": mail.ID, "file": file.ID, "original": true}
-	return d.deleteFiles(ctx, email, variables, keptSize(file)+keptOriginal(mail))
+	variables := map[string]any{"file": file.ID, "original": true}
+	return d.deleteFiles(ctx, email, mail.ID, variables, keptSize(file)+keptOriginal(mail))
 }
 
 // deleteNoFile sends a files delete of the mail titled subject that names neither an attachment nor its original.
@@ -435,7 +483,7 @@ func (d *deleteScenario) deleteNoFile(ctx context.Context, email, subject string
 	if err != nil {
 		return err
 	}
-	return d.deleteFiles(ctx, email, map[string]any{"id": mail.ID, "original": false}, 0)
+	return d.deleteFiles(ctx, email, mail.ID, map[string]any{"original": false}, 0)
 }
 
 // deleteTwoFiles deletes the files called first and second of the mail titled subject in one request as email.
@@ -453,21 +501,21 @@ func (d *deleteScenario) deleteTwoFiles(ctx context.Context, email, first, secon
 		return fmt.Errorf("the mail %q %w", subject, err)
 	}
 	variables := map[string]any{"id": mail.ID, "first": one.ID, "second": other.ID}
-	if err := d.read(ctx, email, deleteTwoFilesQuery, variables); err != nil {
+	if err := d.sendDelete(ctx, email, deleteTwoFilesQuery, variables); err != nil {
 		return err
 	}
-	d.credit(keptSize(one) + keptSize(other))
+	d.creditFiles(mail.ID, keptSize(one)+keptSize(other))
 	return nil
 }
 
 // deleteSharedMail deletes the shared mail as email, naming the thread and the mail another account read.
 func (d *deleteScenario) deleteSharedMail(ctx context.Context, email string) error {
-	return d.read(ctx, email, deleteMailQuery, map[string]any{"thread": d.sharedThread, "id": d.sharedMail})
+	return d.sendDelete(ctx, email, deleteMailQuery, map[string]any{"thread": d.sharedThread, "id": d.sharedMail})
 }
 
 // deleteSharedOriginal deletes the original of the shared mail as email.
 func (d *deleteScenario) deleteSharedOriginal(ctx context.Context, email string) error {
-	return d.read(ctx, email, deleteFilesQuery, map[string]any{"id": d.sharedMail, "original": true})
+	return d.sendDelete(ctx, email, deleteFilesQuery, map[string]any{"id": d.sharedMail, "original": true})
 }
 
 // answersDeletion fails unless the last delete deleted count mails and deleted or kept the thread as outcome says.
@@ -673,7 +721,19 @@ func (d *deleteScenario) lastUsage() (servedUsage, error) {
 	return d.usages[len(d.usages)-1], nil
 }
 
-// usageCountsEveryMail fails unless the last usage counts the bytes of each mail it lists and frees as freeing says.
+// keptAfterDeletes answers what usage keeps past freeing: its count before the deletes less their take, or its mails.
+func (d *deleteScenario) keptAfterDeletes(usage servedUsage) float64 {
+	if d.before != nil {
+		return d.before.UsedBytes - d.taken
+	}
+	stored := 0.0
+	for _, mail := range usage.LargestMessages {
+		stored += mail.StoredBytes
+	}
+	return stored
+}
+
+// usageCountsEveryMail fails unless the last usage counts what the deletes left beside its freeing, as freeing says.
 func (d *deleteScenario) usageCountsEveryMail(freeing string) error {
 	usage, err := d.lastUsage()
 	if err != nil {
@@ -683,13 +743,9 @@ func (d *deleteScenario) usageCountsEveryMail(freeing string) error {
 	if freeing == freesNothing {
 		want = 0
 	}
-	stored := 0.0
-	for _, mail := range usage.LargestMessages {
-		stored += mail.StoredBytes
-	}
-	if usage.FreeingBytes != want || usage.UsedBytes != stored+want {
-		return fmt.Errorf("the usage counts %v bytes with %v freeing, want %v for its mail and %v freeing",
-			usage.UsedBytes, usage.FreeingBytes, stored+want, want)
+	if used := d.keptAfterDeletes(usage) + want; usage.FreeingBytes != want || usage.UsedBytes != used {
+		return fmt.Errorf("the usage counts %v bytes with %v freeing, want %v with %v freeing",
+			usage.UsedBytes, usage.FreeingBytes, used, want)
 	}
 	return nil
 }
