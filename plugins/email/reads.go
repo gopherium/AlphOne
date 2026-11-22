@@ -53,6 +53,8 @@ type mailView struct {
 	rawState string
 	// rawSize is the size of the raw mail.
 	rawSize int64
+	// storedBytes counts what the mail adds to its workspace, its text and every file it keeps.
+	storedBytes int64
 }
 
 // threadView is one thread as the inbox lists it, beside its newest mail.
@@ -93,7 +95,7 @@ type mailPage struct {
 const mailColumns = `m.id, m.thread_id, m.direction, m.subject,
 	jsonb_path_query_first(m.participants, '$[*] ? (@.role == "from")'), m.sent_at, m.received_at, m.snippet,
 	m.body_state, m.skipped_parts, m.automation, m.encrypted, m.signed, m.winmail, m.invite_method, m.raw_state,
-	m.raw_size`
+	m.raw_size, m.stored_bytes`
 
 // threadSelect reads each thread t beside its count of mail, whether it holds files and its newest mail.
 const threadSelect = `SELECT t.id, t.subject, t.first_message_at, t.last_message_at,
@@ -113,7 +115,7 @@ func mailFields(mail *mailView) []any {
 	return []any{
 		&mail.id, &mail.threadID, &mail.direction, &mail.subject, &mail.from, &mail.sentAt, &mail.receivedAt,
 		&mail.snippet, &mail.bodyState, &mail.skippedParts, &mail.automation, &mail.encrypted, &mail.signed,
-		&mail.winmail, &mail.inviteMethod, &mail.rawState, &mail.rawSize,
+		&mail.winmail, &mail.inviteMethod, &mail.rawState, &mail.rawSize, &mail.storedBytes,
 	}
 }
 
@@ -205,6 +207,14 @@ func readThreadMail(ctx context.Context, db querier, tenant, thread, id uuid.UUI
 		WHERE m.tenant_id = $1 AND m.thread_id = $2 AND m.id = $3`,
 		tenant, thread, id)
 	return oneOrNone(rows, scanMail, "a mail of a thread")
+}
+
+// readMail returns the mail id names in the workspace tenant, and whether the workspace holds it.
+func readMail(ctx context.Context, db querier, tenant, id uuid.UUID) (mailView, bool, error) {
+	rows, _ := db.Query(ctx, `SELECT `+mailColumns+` FROM plugin_email.messages m
+		WHERE m.tenant_id = $1 AND m.id = $2`,
+		tenant, id)
+	return oneOrNone(rows, scanMail, "a mail")
 }
 
 // readContactMails returns a page of the mail linked to one contact of the workspace tenant, newest first.
