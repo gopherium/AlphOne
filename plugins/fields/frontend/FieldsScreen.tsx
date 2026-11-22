@@ -320,7 +320,7 @@ function useArchive(
 		if (back) {
 			awaitRestored(id)
 		} else if (focusLoose()) {
-			;(region.current as HTMLDivElement).focus()
+			region.current?.focus()
 		}
 	}
 	const undo = (field: FieldRow): ToastAction => ({

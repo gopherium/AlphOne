@@ -2002,6 +2002,21 @@ test('a restore that fails leaves a focus the reader moved', async () => {
 	expect(label).toHaveFocus()
 })
 
+test('a restore that fails after the reader left Fields says so and throws nothing', async () => {
+	serveRevivingStore([birthDate, shoeSize])
+	const defining = hold('DefineField', refusal('CONFLICT', 'field_name_taken'))
+
+	const { rehost } = renderScreen()
+	await archiveGone('Shoe size')
+	await undoArchive()
+	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
+	rehost(<p>Contacts</p>)
+	defining.release()
+
+	expect(await screen.findByText(/^Could not restore the field\./, TOAST)).toBeInTheDocument()
+	await settle()
+})
+
 test('a held Enter presses a trash once while a held Enter on an arrow keeps pressing it', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 
