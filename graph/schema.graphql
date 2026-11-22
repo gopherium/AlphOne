@@ -95,6 +95,10 @@ type EmailBody {
 	text: String!
 	html: String!
 }
+type EmailDeletion {
+	deletedMessages: Int!
+	threadDeleted: Boolean!
+}
 type EmailMailbox {
 	id: UUID!
 	address: String!
@@ -118,6 +122,7 @@ type EmailMessage {
 	inviteMethod: String!
 	rawState: String!
 	rawSize: Float!
+	storedBytes: Float!
 	originalPath: String
 	participants: [EmailParticipant!]! @goField(forceResolver: true)
 	body: EmailBody! @goField(forceResolver: true)
@@ -149,6 +154,12 @@ type EmailThreadPage {
 	items: [EmailThread!]!
 	total: Int!
 	limit: Int!
+}
+type EmailUsage {
+	usedBytes: Float!
+	freeingBytes: Float!
+	limitBytes: Float
+	largestMessages(limit: Int): [EmailMessage!]! @goField(forceResolver: true) @listSize(slicingArguments: ["limit"])
 }
 type FieldDefinition {
 	id: UUID!
@@ -270,6 +281,8 @@ type Mutation {
 	apiTokenRevoke(id: UUID!): Boolean! @scope(area: "tokens", write: true)
 	createWebhook(url: String!, events: [String!]!): CreateWebhookPayload! @scope(area: "webhooks", write: true, capability: "manage_webhooks")
 	deleteWebhook(id: UUID!): Boolean! @scope(area: "webhooks", write: true)
+	emailDeleteMessages(threadId: UUID!, messageId: UUID): EmailDeletion! @scope(area: "email", write: true, capability: "email.delete_messages")
+	emailDeleteFiles(messageId: UUID!, attachmentId: UUID, original: Boolean! = false): EmailMessage! @scope(area: "email", write: true, capability: "email.delete_files")
 	defineField(name: String!, label: String!, kind: FieldKind!, subFields: [FieldSubFieldInput!]): FieldDefinition! @scope(area: "fields", write: true)
 	archiveField(id: UUID!): Boolean! @scope(area: "fields", write: true)
 	orderFields(ids: [UUID!]!): Boolean! @scope(area: "fields", write: true)
@@ -309,6 +322,7 @@ type Query {
 	emailThreads(limit: Int, offset: Int): EmailThreadPage! @scope(area: "email", write: false) @listSize(slicingArguments: ["limit"])
 	emailThread(id: UUID!): EmailThread @scope(area: "email", write: false)
 	emailContactMessages(contactId: UUID!, limit: Int, offset: Int): EmailMessagePage! @scope(area: "email", write: false) @listSize(slicingArguments: ["limit"])
+	emailUsage: EmailUsage! @scope(area: "email", write: false)
 	fields(includeArchived: Boolean): [FieldDefinition!]! @scope(area: "fields", write: false)
 	reservedFieldNames: [String!]! @scope(area: "fields", write: false)
 	imports: [ImportJob!]! @scope(area: "imports", write: false)
