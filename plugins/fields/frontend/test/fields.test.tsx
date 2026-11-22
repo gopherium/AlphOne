@@ -2119,6 +2119,31 @@ test('Undos pressed together restore one field at a time and order every live fi
 	expect(store.defined).toHaveBeenCalledTimes(2)
 })
 
+test('an Undo waiting behind another keeps its field out of the order the earlier restore sends', async () => {
+	let open = () => {}
+	const store = serveRevivingStore(
+		[birthDate, shoeSize, nickname],
+		new Promise<void>((resolve) => {
+			open = resolve
+		}),
+	)
+	const { graph } = fakeGraphClient([plugin])
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await userEvent.click((await undoButtons(1))[0])
+	await archiveField('Nickname')
+	await userEvent.click((await undoButtons(1))[0])
+	await waitFor(() => expect(store.defined).toHaveBeenCalledOnce())
+	open()
+
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenNthCalledWith(1, { ids: [birthDate.id, shoeSize.id] })
+	await settle()
+	expect(screen.queryByText(/^Could not order the fields\./)).not.toBeInTheDocument()
+})
+
 test.each([
 	['rejected', 2, () => HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))],
 	['lost on the way', 1, () => HttpResponse.error()],

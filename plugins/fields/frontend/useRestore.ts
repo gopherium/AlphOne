@@ -20,14 +20,14 @@ export interface Restorable {
  * Returns the restore that defines an archived field again and puts it back between the neighbours it had.
  * @param rows - The rows in the order shown.
  * @param onChanged - The reload run after every answer a restore gets, except a define lost on the way.
- * @param archived - The ids of the rows still shown whose archive worked, which the order leaves out.
+ * @param archived - The shown ids whose archive worked, left out of every order until their define succeeds.
  * @param gone - The ids of every field the reader archived, kept in their places in the order the list remembers.
  * @returns The restore, given the field, answering whether the field came back, one restore at a time.
  */
 export function useRestore(
 	rows: readonly { id: string }[],
 	onChanged: () => void,
-	archived: RefObject<ReadonlySet<string>>,
+	archived: RefObject<Set<string>>,
 	gone: RefObject<ReadonlySet<string>>,
 ) {
 	const toaster = useToaster()
@@ -54,6 +54,7 @@ export function useRestore(
 			return false
 		}
 		toaster.show(__('Field restored.', 'alphone-fields'))
+		archived.current.delete(field.id)
 		back.current.add((defined.data as DefineFieldMutation).defineField.id)
 		const live = new Set([...shown.current.filter((id) => !archived.current.has(id)), ...back.current])
 		const ordered = await order({ ids: remembered.current.filter((id) => live.has(id)) })

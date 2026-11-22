@@ -327,7 +327,6 @@ function useArchive(
 		label: __('Undo', 'alphone-fields'),
 		onAct: () => {
 			setPending((now) => (now?.id === field.id ? null : now))
-			archivedShown.current.delete(field.id)
 			void restore(field).then((back) => restored(field.id, back))
 		},
 	})
