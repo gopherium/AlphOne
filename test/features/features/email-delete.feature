@@ -673,7 +673,38 @@ Feature: Staff delete stored mail and free the space a workspace uses
     Then the usage counts the bytes of every stored mail and frees nothing
     And the usage answers a limit of 1000000 bytes
 
-  Scenario: The usage counts deleted files as freeing until the sweep runs
+  Scenario: The usage counts a deleted file as freeing while no sweep has run
+    Given this mail reached "Acme":
+      """
+      From: Maria Perez <maria.perez@example.com>
+      To: info@example.com
+      Subject: Quote attached
+      Date: Mon, 02 Nov 2026 09:00:00 +0000
+      Message-ID: <quote-attached@example.com>
+      MIME-Version: 1.0
+      Content-Type: multipart/mixed; boundary="files"
+
+      --files
+      Content-Type: text/plain
+
+      The quote is attached.
+
+      --files
+      Content-Type: application/pdf; name="quote.pdf"
+      Content-Disposition: attachment; filename="quote.pdf"
+      Content-Transfer-Encoding: base64
+
+      JVBERi0xLjQKJcOkw7zDtsOfCg==
+
+      --files--
+      """
+    And the administrator "admin@example.com" holds a token scoped to "email:read email:write"
+    And the member "member@example.com" holds a token scoped to "email:read"
+    When the administrator "admin@example.com" deletes the file "quote.pdf" of the mail "Quote attached"
+    And the member "member@example.com" reads the usage
+    Then the usage counts the bytes of every stored mail and frees each deleted file once
+
+  Scenario: The usage frees a deleted file once the sweep has run
     Given this mail reached "Acme":
       """
       From: Maria Perez <maria.perez@example.com>
@@ -702,9 +733,7 @@ Feature: Staff delete stored mail and free the space a workspace uses
     And the member "member@example.com" holds a token scoped to "email:read"
     When AlphOne serves with an email sweep every 10 seconds
     And the administrator "admin@example.com" deletes the file "quote.pdf" of the mail "Quote attached"
-    And the member "member@example.com" reads the usage
-    Then the usage counts the bytes of every stored mail and frees each deleted file once
-    And the file queue of "Acme" is empty after one sweep
+    Then the file queue of "Acme" is empty after one sweep
     When the member "member@example.com" reads the usage
     Then the usage counts the bytes of every stored mail and frees nothing
 
