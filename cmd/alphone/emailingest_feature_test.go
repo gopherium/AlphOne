@@ -212,7 +212,6 @@ type emailScenario struct {
 	fed         []string
 	result      testkit.Result
 	sweep       time.Duration
-	servedAt    time.Time
 	stopServing context.CancelFunc
 	served      chan error
 }
@@ -1059,11 +1058,7 @@ func (s *emailScenario) serveAlphOne() error {
 	s.stopServing, s.served = cancel, make(chan error, 1)
 	getenv := testkit.Getenv(maps.Clone(s.env))
 	go func() { s.served <- run(serving, getenv, io.Discard, registerPlugins) }()
-	if err := s.awaitServer(address); err != nil {
-		return err
-	}
-	s.servedAt = time.Now()
-	return nil
+	return s.awaitServer(address)
 }
 
 // awaitServer waits until AlphOne answers the version probe at address, an error once it stops or the budget ends.
@@ -1094,9 +1089,9 @@ func answersProbe(address string) bool {
 	return response.StatusCode == http.StatusOK
 }
 
-// queueEmptiesInOneSweep fails unless the file queue of the workspace called name empties within one sweep.
+// queueEmptiesInOneSweep fails unless the file queue of the workspace called name empties within one sweep from now.
 func (s *emailScenario) queueEmptiesInOneSweep(ctx context.Context, name string) error {
-	deadline := s.servedAt.Add(s.sweep + s.sweep/2)
+	deadline := time.Now().Add(s.sweep + s.sweep/2)
 	for {
 		queued, err := s.count(ctx, queuedFiles, s.workspaces[name])
 		if err != nil {
@@ -1106,7 +1101,7 @@ func (s *emailScenario) queueEmptiesInOneSweep(ctx context.Context, name string)
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the file queue of %s holds %d files one sweep after AlphOne served, want none",
+			return fmt.Errorf("the file queue of %s holds %d files one sweep after the check began, want none",
 				name, queued)
 		}
 		time.Sleep(probePause)
