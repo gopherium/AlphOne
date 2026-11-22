@@ -28,6 +28,8 @@ type CoreGraphResolvers interface {
 type EmailGraphResolvers interface {
 	EmailMessageResolvers() email.EmailMessageResolvers
 	EmailThreadResolvers() email.EmailThreadResolvers
+	EmailUsageResolvers() email.EmailUsageResolvers
+	MutationResolvers() email.MutationResolvers
 	QueryResolvers() email.QueryResolvers
 }
 
@@ -73,6 +75,9 @@ type composedContactResolver struct {
 // coreMutationResolvers names the core Mutation resolver set for embedding.
 type coreMutationResolvers = graphres.MutationResolvers
 
+// emailMutationResolvers names the email Mutation resolver set for embedding.
+type emailMutationResolvers = email.MutationResolvers
+
 // fieldsMutationResolvers names the fields Mutation resolver set for embedding.
 type fieldsMutationResolvers = fields.MutationResolvers
 
@@ -85,6 +90,7 @@ type whatsappMutationResolvers = whatsapp.MutationResolvers
 // composedMutationResolver merges every contributed Mutation resolver set.
 type composedMutationResolver struct {
 	coreMutationResolvers
+	emailMutationResolvers
 	fieldsMutationResolvers
 	importerMutationResolvers
 	whatsappMutationResolvers
@@ -200,6 +206,11 @@ func (g graphRoot) EmailThread() graph.EmailThreadResolver {
 	return g.email.EmailThreadResolvers()
 }
 
+// EmailUsage returns the EmailUsage resolver set.
+func (g graphRoot) EmailUsage() graph.EmailUsageResolver {
+	return g.email.EmailUsageResolvers()
+}
+
 // ImportJob returns the ImportJob resolver set.
 func (g graphRoot) ImportJob() graph.ImportJobResolver {
 	return g.importer.ImportJobResolvers()
@@ -209,6 +220,7 @@ func (g graphRoot) ImportJob() graph.ImportJobResolver {
 func (g graphRoot) Mutation() graph.MutationResolver {
 	return composedMutationResolver{
 		g.core.MutationResolvers(),
+		g.email.MutationResolvers(),
 		g.fields.MutationResolvers(),
 		g.importer.MutationResolvers(),
 		g.whatsapp.MutationResolvers(),
