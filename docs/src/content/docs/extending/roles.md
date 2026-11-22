@@ -7,8 +7,9 @@ Every account holds one role. A role carries capabilities, and a
 capability is one thing the role can do, such as `manage_users`.
 AlphOne ships two roles. Admin carries `manage_users` and
 `manage_webhooks`, and member carries none. The email plugin AlphOne
-ships gives admin `email.manage_mailbox` too. Your plugin can add roles
-of its own, and give the roles AlphOne ships more capabilities.
+ships gives admin three more, `email.manage_mailbox`,
+`email.delete_messages` and `email.delete_files`. Your plugin can add
+roles of its own, and give the roles AlphOne ships more capabilities.
 
 This page uses one plugin, `archive`, that deletes archived rows, and
 later a second one, `workspaces`, that runs the whole install.

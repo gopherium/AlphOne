@@ -261,7 +261,9 @@ password, only on `call.Stdin`.
 The roles AlphOne ships carry two capabilities, `manage_users` and
 `manage_webhooks`, both held by admin. A plugin can give admin more, as
 the email plugin does with `email.manage_mailbox`, which its
-`email:ingest` command names. Name a capability no role carries in
+`email:ingest` command names, and with `email.delete_messages` and
+`email.delete_files`, which its graph deletes name. Name a capability
+no role carries in
 `Capability`, and every account is refused. AlphOne sets `Authorize`
 and `Record` for every plugin, so yours writes neither.
 [Writing commands](https://docs.gopherium.org/command-line/writing-commands/#an-acting-account)
