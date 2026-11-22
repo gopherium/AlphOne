@@ -469,3 +469,13 @@ ignores them, and `alphone check` names a refused value.
   mandatory](/self-hosting/install/) in production. On top of the
   cookie, writes a browser sends from another origin are refused, see
   [Cross-origin writes](#cross-origin-writes).
+- **A plugin route that panics** answers HTTP 500 with AlphOne's
+  internal error, which no cache keeps and which never names the
+  plugin: `{ "error": "internal error", "code": "internal" }`. If the
+  route had already begun its answer, the connection is cut instead, so
+  a half download never looks complete. Either way the log gets one
+  error, `plugin route panicked`, with the plugin, the method, the path,
+  whether the caller got the internal error, the panic and its stack.
+  A route that stops on purpose with `http.ErrAbortHandler` is cut
+  with no log line. The plugin keeps serving its other requests. A
+  panic in a goroutine the route starts still stops the server.
