@@ -14,12 +14,13 @@ import (
 )
 
 type AdminSettings struct {
-	ToastMilliseconds       int    `json:"toastMilliseconds"`
-	ToastActionMilliseconds int    `json:"toastActionMilliseconds"`
-	ListPageSizes           []int  `json:"listPageSizes"`
-	ListPageSize            int    `json:"listPageSize"`
-	ContactPageCap          int    `json:"contactPageCap"`
-	FormatLocale            string `json:"formatLocale"`
+	ToastMilliseconds              int    `json:"toastMilliseconds"`
+	ToastActionMilliseconds        int    `json:"toastActionMilliseconds"`
+	DialogWriteTimeoutMilliseconds int    `json:"dialogWriteTimeoutMilliseconds"`
+	ListPageSizes                  []int  `json:"listPageSizes"`
+	ListPageSize                   int    `json:"listPageSize"`
+	ContactPageCap                 int    `json:"contactPageCap"`
+	FormatLocale                   string `json:"formatLocale"`
 }
 
 type APIToken struct {

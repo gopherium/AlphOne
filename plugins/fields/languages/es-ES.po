@@ -70,16 +70,8 @@ msgid "Add sub field"
 msgstr "Añadir subcampo"
 
 #, fuzzy
-msgid "Archive"
-msgstr "Archivar"
-
-#, fuzzy
 msgid "Archive %(label)s"
 msgstr "Archivar %(label)s"
-
-#, fuzzy
-msgid "Archive this field?"
-msgstr "¿Archivar este campo?"
 
 #, fuzzy
 msgid "Blank entry"
@@ -124,10 +116,6 @@ msgstr "Campos guardados."
 #, fuzzy
 msgid "Fill in at least one part of the entry."
 msgstr "Rellena al menos una parte de la entrada."
-
-#, fuzzy
-msgid "Keep"
-msgstr "Conservar"
 
 #, fuzzy
 msgid "Kind"
@@ -292,6 +280,22 @@ msgstr "Esta lista está llena. Guarda como mucho %(max)s entradas."
 #, fuzzy
 msgid "Two sub fields of this repeater hold the same name."
 msgstr "Dos subcampos de este repetidor tienen el mismo nombre."
+
+#, fuzzy
+msgid "This action cannot be undone."
+msgstr "Esta acción no se puede deshacer."
+
+#, fuzzy
+msgid "Could not restore the field."
+msgstr "No se ha podido restaurar el campo."
+
+#, fuzzy
+msgid "Field restored."
+msgstr "Campo restaurado."
+
+#, fuzzy
+msgid "Undo"
+msgstr "Deshacer"
 
 #, fuzzy
 msgctxt "admin section"

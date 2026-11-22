@@ -12,6 +12,6 @@ test('hands plugins the file button and the upload icon an upload control draws'
 	expect(upload).toBe(wordpressUpload)
 })
 
-test('samples a button in the tone a dialog body draws its Cancel in', () => {
+test('samples a button in the tone a confirm draws its Cancel in', () => {
 	expect(buttonClasses('minimal', undefined, 'neutral')).not.toEqual(buttonClasses('minimal'))
 })

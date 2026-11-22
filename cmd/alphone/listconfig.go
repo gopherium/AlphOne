@@ -38,13 +38,17 @@ func loadPaging(env gonsole.Env) (graphres.Paging, error) {
 	return graphres.Paging{Size: size, Cap: ceiling}, nil
 }
 
-// loadScreens reads both toast times, the pages a list offers, none past ceiling, and the format locale.
+// loadScreens reads the toast and dialog write times, the pages a list offers, none past ceiling, and the locale.
 func loadScreens(env gonsole.Env, ceiling int) (graphres.Screens, error) {
-	toast, err := gonsole.Parse(env, "TOAST_DURATION", graphres.DefaultToastDuration, parseToastDuration)
+	toast, err := gonsole.Parse(env, "TOAST_DURATION", graphres.DefaultToastDuration, parseTimerDuration)
 	if err != nil {
 		return graphres.Screens{}, err
 	}
-	action, err := gonsole.Parse(env, "TOAST_ACTION_DURATION", graphres.DefaultToastActionDuration, parseToastDuration)
+	action, err := gonsole.Parse(env, "TOAST_ACTION_DURATION", graphres.DefaultToastActionDuration, parseTimerDuration)
+	if err != nil {
+		return graphres.Screens{}, err
+	}
+	dialog, err := gonsole.Parse(env, "DIALOG_WRITE_TIMEOUT", graphres.DefaultDialogWriteTimeout, parseTimerDuration)
 	if err != nil {
 		return graphres.Screens{}, err
 	}
@@ -65,7 +69,8 @@ func loadScreens(env gonsole.Env, ceiling int) (graphres.Screens, error) {
 		return graphres.Screens{}, err
 	}
 	return graphres.Screens{
-		ToastDuration: toast, ToastActionDuration: action, PageSizes: sizes, PageSize: size, FormatLocale: locale,
+		ToastDuration: toast, ToastActionDuration: action, DialogWriteTimeout: dialog,
+		PageSizes: sizes, PageSize: size, FormatLocale: locale,
 	}, nil
 }
 
@@ -79,15 +84,15 @@ func parseFormatLocale(value string) (string, error) {
 	return tag.String(), nil
 }
 
-// longestToast is the longest toast a browser timer and a graph Int both hold.
-const longestToast = math.MaxInt32 * time.Millisecond
+// longestTimer is the longest time a browser timer and a graph Int both hold.
+const longestTimer = math.MaxInt32 * time.Millisecond
 
-// parseToastDuration reads how long a toast stays in whole milliseconds.
-func parseToastDuration(value string) (time.Duration, error) {
+// parseTimerDuration reads a time a screen counts down in whole milliseconds a browser timer holds.
+func parseTimerDuration(value string) (time.Duration, error) {
 	held, err := time.ParseDuration(value)
-	if err != nil || held < time.Millisecond || held > longestToast || held%time.Millisecond != 0 {
+	if err != nil || held < time.Millisecond || held > longestTimer || held%time.Millisecond != 0 {
 		return 0, fmt.Errorf("must be a duration such as 6s or 1500ms, "+
-			"in whole milliseconds from 1ms to %dms, got %q", longestToast.Milliseconds(), value)
+			"in whole milliseconds from 1ms to %dms, got %q", longestTimer.Milliseconds(), value)
 	}
 	return held, nil
 }

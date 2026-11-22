@@ -1,74 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { HttpResponse, graphql, server, textClasses } from '@alphone/frontend-sdk/testing'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { resetLocaleData, setLocaleData } from '@wordpress/i18n'
-import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test } from 'vitest'
 
 import { sessionQueryKey } from '@gopherium/react-auth'
 import { configureAppErrorText } from '../i18n/errors'
+import { createAppRouter } from '../router'
+import {
+	anaID,
+	brunoID,
+	detailFor,
+	expectFieldIn,
+	formRowChildren,
+	identityID1,
+	identityID2,
+	serveAnaGarcia,
+} from './contactScreen'
 import { busyClasses, compactClasses, renderAt, renderRoutedAt } from './render'
 
-const anaID = '0198c000-0000-7000-8000-000000000001'
-const brunoID = '0198c000-0000-7000-8000-000000000002'
-const identityID1 = '0198c000-0000-7000-8000-000000000011'
-const identityID2 = '0198c000-0000-7000-8000-000000000012'
-
-type IdentityRow = { id: string; channel: string; identifier: string; display_name: string }
-
-function detailFor(id: string, name: string, identities: IdentityRow[]) {
-	return {
-		__typename: 'Contact',
-		id,
-		name,
-		createdAt: '2026-07-06T10:00:00Z',
-		identities: identities.map((identity) => ({
-			__typename: 'ContactIdentity',
-			id: identity.id,
-			channel: identity.channel,
-			identifier: identity.identifier,
-			displayName: identity.display_name,
-		})),
-		tasks: {
-			__typename: 'TaskConnection',
-			edges: [],
-			pageInfo: { __typename: 'PageInfo', hasNextPage: false, endCursor: null },
-		},
-	}
-}
-
 /**
- * Returns the direct children of the form row that holds the named button.
- * @param button - The name of the row's submit button.
- * @returns The row's children, in order.
+ * Waits for the question the page asks before it leaves an unsaved name.
+ * @returns The question.
  */
-function formRowChildren(button: string) {
-	const row = screen.getByRole('button', { name: button }).parentElement
-	expect(row).toHaveClass('godmin-form__row')
-	expect(row?.parentElement).toHaveClass('godmin-form')
-	return [...(row as HTMLElement).children]
-}
-
-/**
- * Expects one row child to hold both the labelled control and its label.
- * @param child - The direct child of the form row.
- * @param label - The text of the control's label.
- */
-function expectFieldIn(child: Element | undefined, label: string) {
-	expect(child).toContainElement(screen.getByLabelText(label))
-	expect(child).toContainElement(screen.getByText(label))
-}
-
-/**
- * Answers the browser's confirm box for one test.
- * @param answer - What the reader answers.
- * @returns The spy that records each question.
- */
-function answerConfirm(answer: boolean) {
-	const confirm = vi.spyOn(window, 'confirm').mockReturnValue(answer)
-	onTestFinished(() => confirm.mockRestore())
-	return confirm
+function discardQuestion() {
+	return screen.findByRole('alertdialog', { name: 'Discard changes?' })
 }
 
 /**
@@ -112,29 +70,10 @@ function contactsCrumb() {
 	return within(screen.getByRole('navigation', { name: 'Breadcrumbs' })).getByRole('link', { name: 'Contacts' })
 }
 
-/** The answer of a value another contact already holds. */
-const heldByBruno = {
-	data: null,
-	errors: [{
-		message: 'contact: identity already exists',
-		extensions: { code: 'CONFLICT', ownerContactId: brunoID, ownerName: 'Bruno' },
-	}],
-}
-
 /** The answer of a rename the server refuses. */
 const refusedRename = {
 	data: null,
 	errors: [{ message: 'invalid contact details', extensions: { code: 'VALIDATION' } }],
-}
-
-/**
- * Opens the contact and presses Add identity with an email in Value.
- */
-async function addEmailIdentity() {
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
 }
 
 /**
@@ -153,19 +92,12 @@ afterEach(() => {
 	resetLocaleData(undefined, 'alphone-whatsapp')
 })
 
-beforeEach(() => {
-	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({
-				data: {
-					contact: detailFor(String(variables.id), 'Ana García', [
-						{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
-						{ id: identityID2, channel: 'whatsapp', identifier: '184467236', display_name: '' },
-					]),
-				},
-			}),
-		),
-	)
+beforeEach(serveAnaGarcia)
+
+test('loads the contact page in a chunk of its own, off the first paint', () => {
+	const { component } = createAppRouter().routesById['/contacts/$contactId'].options
+
+	expect(typeof (component as { preload?: unknown }).preload).toBe('function')
 })
 
 test('creates a contact, confirms it and opens its detail', async () => {
@@ -381,406 +313,6 @@ test('sets the section headings a size above the field labels', async () => {
 	expect([...tasks.classList]).toEqual(expect.arrayContaining(large))
 })
 
-test('adds an email identity to the contact', async () => {
-	const identities = [
-		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
-	]
-	let posted: Record<string, unknown> | null = null
-	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({
-				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
-			}),
-		),
-		graphql.mutation('AddContactIdentity', ({ variables }) => {
-			posted = variables.identity as Record<string, unknown>
-			const created = {
-				id: identityID2,
-				channel: 'email',
-				identifier: 'maria@example.com',
-				display_name: 'Work',
-			}
-			identities.push(created)
-			return HttpResponse.json({
-				data: {
-					addContactIdentity: {
-						__typename: 'ContactIdentity',
-						id: created.id,
-						channel: created.channel,
-						identifier: created.identifier,
-						displayName: created.display_name,
-					},
-				},
-			})
-		}),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.type(screen.getByLabelText('Value'), ' Maria@Example.COM ')
-	await userEvent.type(screen.getByLabelText('Label'), 'Work')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	expect(await screen.findByText('Email: maria@example.com (Work)')).toBeInTheDocument()
-	expect(posted).toEqual({
-		channel: 'email',
-		identifier: ' Maria@Example.COM ',
-		displayName: 'Work',
-	})
-	expect(screen.getByLabelText('Value')).toHaveValue('')
-	expect(screen.getByText('Identity added.')).toBeInTheDocument()
-})
-
-test('adds a phone identity through the channel select', async () => {
-	const identities: IdentityRow[] = []
-	let posted: Record<string, unknown> | null = null
-	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({
-				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
-			}),
-		),
-		graphql.mutation('AddContactIdentity', ({ variables }) => {
-			posted = variables.identity as Record<string, unknown>
-			const created = { id: identityID2, channel: 'phone', identifier: '+184467235', display_name: '' }
-			identities.push(created)
-			return HttpResponse.json({
-				data: {
-					addContactIdentity: {
-						__typename: 'ContactIdentity',
-						id: created.id,
-						channel: created.channel,
-						identifier: created.identifier,
-						displayName: created.display_name,
-					},
-				},
-			})
-		}),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByLabelText('Channel'))
-	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
-	await userEvent.type(screen.getByLabelText('Value'), '+184 467 235')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	expect(await screen.findByText('Phone: +184467235')).toBeInTheDocument()
-	expect(posted).toMatchObject({ channel: 'phone', identifier: '+184 467 235' })
-})
-
-test('marks the channel the reader chose as the selected option', async () => {
-	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({ data: { contact: detailFor(String(variables.id), 'Ana García', []) } }),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByLabelText('Channel'))
-
-	expect(await screen.findByRole('option', { name: 'Email' })).toHaveAttribute(
-		'aria-selected',
-		'true',
-	)
-})
-
-test('names the owner when the identity belongs to someone else', async () => {
-	server.use(graphql.mutation('AddContactIdentity', () => HttpResponse.json(heldByBruno)))
-
-	await addEmailIdentity()
-
-	const value = screen.getByLabelText('Value')
-	await screen.findByText('Already on contact Bruno.')
-	expect(value).toHaveAccessibleDescription('Already on contact Bruno.')
-	expect(value).toHaveFocus()
-	expect(document.querySelector('.godmin-toast')).toBeNull()
-})
-
-test('takes the message about an identity away when the reader picks another channel', async () => {
-	let adds = 0
-	server.use(
-		graphql.mutation('AddContactIdentity', () => {
-			adds += 1
-			return HttpResponse.json(heldByBruno)
-		}),
-	)
-	await addEmailIdentity()
-	await screen.findByText('Already on contact Bruno.')
-
-	await userEvent.click(screen.getByRole('combobox', { name: 'Channel' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
-
-	await waitFor(() => expect(screen.queryByText('Already on contact Bruno.')).not.toBeInTheDocument())
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-	await waitFor(() => expect(adds).toBe(2))
-})
-
-test('puts the answer about a value in a toast when the reader picked another channel before it came', async () => {
-	let answer = () => {}
-	const answered = new Promise<void>((resolve) => {
-		answer = resolve
-	})
-	server.use(
-		graphql.mutation('AddContactIdentity', async () => {
-			await answered
-			return HttpResponse.json(heldByBruno)
-		}),
-	)
-	await addEmailIdentity()
-
-	await userEvent.click(screen.getByRole('combobox', { name: 'Channel' }))
-	await userEvent.click(await screen.findByRole('option', { name: 'Phone' }))
-	answer()
-
-	const toast = await screen.findByText('Could not add the identity. Already on contact Bruno.', {
-		selector: '.godmin-toast',
-	})
-	expect(toast).toBeInTheDocument()
-	expect(screen.getByLabelText('Value')).toBeValid()
-})
-
-test.each([
-	['identity_channel_required', 'contact: empty channel'],
-	['channel_not_writable', 'contact: channel not writable'],
-])('says in a toast that the identity could not be added for the channel reason %s', async (reason, words) => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: words, extensions: { code: 'VALIDATION', reason } }],
-			}),
-		),
-	)
-
-	await addEmailIdentity()
-
-	const toast = await screen.findByText(`Could not add the identity. ${words}`, { selector: '.godmin-toast' })
-	expect(toast).toBeInTheDocument()
-	expect(screen.getByLabelText('Value')).toBeValid()
-})
-
-test('shows the backend message when the identity is invalid', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'contact: empty identifier', extensions: { code: 'VALIDATION' } }],
-			}),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.type(screen.getByLabelText('Value'), 'abc')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	await screen.findByText('contact: empty identifier')
-	expect(screen.getByLabelText('Value')).toHaveAccessibleDescription('contact: empty identifier')
-
-	await userEvent.type(screen.getByLabelText('Value'), 'd')
-
-	await waitFor(() => expect(screen.queryByText('contact: empty identifier')).not.toBeInTheDocument())
-})
-
-test('falls back to the backend message when the conflict names no owner', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{
-					message: 'contact: identity already exists',
-					extensions: { code: 'CONFLICT', ownerContactId: brunoID },
-				}],
-			}),
-		),
-	)
-
-	await addEmailIdentity()
-
-	await screen.findByText('contact: identity already exists')
-	expect(screen.getByLabelText('Value')).toHaveAccessibleDescription('contact: identity already exists')
-})
-
-test('says in a toast that the identity could not be added when the failure is about no field', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] }),
-		),
-	)
-
-	await addEmailIdentity()
-
-	expect(await screen.findByText('Could not add the identity.', { selector: '.godmin-toast' })).toBeInTheDocument()
-	expect(screen.queryByText('Identity added.')).not.toBeInTheDocument()
-	expect(screen.getByLabelText('Value')).toHaveValue('maria@example.com')
-	await waitFor(() =>
-		expect(screen.getByRole('button', { name: 'Add identity' })).not.toHaveAttribute('aria-disabled', 'true'),
-	)
-})
-
-test('lays the channel, value, label and Add identity on one form row', async () => {
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	const add = screen.getByRole('button', { name: 'Add identity' })
-	const cells = formRowChildren('Add identity')
-	expect(cells).toHaveLength(4)
-	expectFieldIn(cells[0], 'Channel')
-	expectFieldIn(cells[1], 'Value')
-	expectFieldIn(cells[2], 'Label')
-	expect(cells[3]).toBe(add)
-})
-
-test('drops the session when the identity add is unauthorized', async () => {
-	server.use(
-		graphql.mutation('AddContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
-			}),
-		),
-	)
-	const client = renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.type(screen.getByLabelText('Value'), 'maria@example.com')
-	await userEvent.click(screen.getByRole('button', { name: 'Add identity' }))
-
-	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
-})
-
-test('drops the session when the identity removal is unauthorized', async () => {
-	server.use(
-		graphql.mutation('DeleteContactIdentity', () =>
-			HttpResponse.json({
-				data: null,
-				errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }],
-			}),
-		),
-	)
-	const client = renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
-
-	await waitFor(() => expect(client.getQueryData(sessionQueryKey)).toBeNull())
-})
-
-test('removes an identity', async () => {
-	let identities = [
-		{ id: identityID1, channel: 'whatsapp', identifier: '184467235', display_name: 'Ana G' },
-		{ id: identityID2, channel: 'email', identifier: 'maria@example.com', display_name: '' },
-	]
-	let deleted = ''
-	server.use(
-		graphql.query('ContactDetail', ({ variables }) =>
-			HttpResponse.json({
-				data: { contact: detailFor(String(variables.id), 'Ana García', identities) },
-			}),
-		),
-		graphql.mutation('DeleteContactIdentity', ({ variables }) => {
-			deleted = String(variables.identityId)
-			identities = identities.filter((identity) => identity.id !== deleted)
-			return HttpResponse.json({ data: { deleteContactIdentity: true } })
-		}),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	expect(screen.getByText('Email: maria@example.com')).toBeInTheDocument()
-
-	await userEvent.click(screen.getByRole('button', { name: 'Remove maria@example.com' }))
-
-	await waitFor(() =>
-		expect(screen.queryByText('Email: maria@example.com')).not.toBeInTheDocument(),
-	)
-	expect(deleted).toBe(identityID2)
-	expect(screen.getByText('WhatsApp: 184467235 (Ana G)')).toBeInTheDocument()
-	expect(screen.getByText('Identity removed.')).toBeInTheDocument()
-})
-
-test('spins only the remove button pressed', async () => {
-	server.use(graphql.mutation('DeleteContactIdentity', () => new Promise(() => {})))
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
-
-	await waitFor(() =>
-		expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true'),
-	)
-	expect(screen.getByRole('button', { name: 'Remove 184467236' })).not.toHaveAttribute('aria-disabled', 'true')
-})
-
-test('keeps a remove button spinning while its own removal waits and another one finishes', async () => {
-	server.use(
-		graphql.mutation('DeleteContactIdentity', ({ variables }) =>
-			variables.identityId === identityID1
-				? new Promise(() => {})
-				: HttpResponse.json({ data: { deleteContactIdentity: true } }),
-		),
-	)
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467236' }))
-
-	expect(await screen.findByText('Identity removed.')).toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove 184467235' })).toHaveAttribute('aria-disabled', 'true')
-})
-
-test.each([
-	{ answered: { message: 'internal error' }, toast: 'Could not remove the identity.' },
-	{
-		answered: { message: 'identity not found', extensions: { code: 'NOT_FOUND', reason: 'identity_not_found' } },
-		toast: 'Could not remove the identity. That address is no longer on this contact.',
-	},
-])('says in a toast that an identity could not be removed: $toast', async ({ answered, toast }) => {
-	configureAppErrorText()
-	server.use(graphql.mutation('DeleteContactIdentity', () => HttpResponse.json({ data: null, errors: [answered] })))
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	await userEvent.click(screen.getByRole('button', { name: 'Remove 184467235' }))
-
-	expect(await screen.findByText(toast, { selector: '.godmin-toast' })).toBeInTheDocument()
-	expect(screen.queryByText('Identity removed.')).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Remove 184467235' })).not.toHaveAttribute('aria-disabled', 'true')
-})
-
-test('shows each identity remove as an icon named after its identifier', async () => {
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	const remove = screen.getByRole('button', { name: 'Remove 184467235' })
-	expect(remove.textContent).toBe('')
-	expect(remove.querySelector('svg')).not.toBeNull()
-})
-
-test('lists each identity in the bordered log list with its trash at the row end', async () => {
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	const list = screen.getByRole('list', { name: 'Identities' })
-	expect(list).toHaveClass('godmin-log-list')
-	expect(within(list).getAllByRole('listitem')).toHaveLength(2)
-	for (const [text, identifier] of [
-		['WhatsApp: 184467235 (Ana G)', '184467235'],
-		['WhatsApp: 184467236', '184467236'],
-	]) {
-		const item = within(list).getByRole('listitem', { name: text })
-		const line = within(item).getByText(text)
-		const remove = within(item).getByRole('button', { name: `Remove ${identifier}` })
-		expect(line.closest('.godmin-log-list__label')).not.toBeNull()
-		expect(remove.closest('.godmin-log-list__actions')).not.toBeNull()
-		expect(line).not.toContainElement(remove)
-		expect(line.closest('.godmin-log-list__header')).toContainElement(remove)
-	}
-})
-
 test('renames a contact', async () => {
 	let currentName = 'Ana García'
 	server.use(
@@ -901,44 +433,58 @@ test('follows the name field in the title and falls back on Contact while it is 
 	expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeInTheDocument()
 })
 
-test('stays on the contact when the reader refuses to leave an unsaved name', async () => {
-	const confirm = answerConfirm(false)
+test('stays on the contact with the typed name when the reader keeps editing', async () => {
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(contactsCrumb())
+	const question = await discardQuestion()
+	expect(question).toHaveAccessibleDescription('The name is not saved.')
+	expect(within(question).getByRole('button', { name: 'Discard' }).className).toMatch(/irreversible/)
+	await userEvent.click(within(question).getByRole('button', { name: 'Keep editing' }))
 
-	await waitFor(() => expect(confirm).toHaveBeenCalledWith('Leave this page? The name is not saved.'))
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
 	expect(screen.getByLabelText('Name')).toHaveValue('Ana García Ltd')
 })
 
-test('leaves the contact when the reader accepts to lose an unsaved name', async () => {
-	const confirm = answerConfirm(true)
+test('stays on the contact with the typed name when the reader presses Escape on the question', async () => {
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(contactsCrumb())
+	await discardQuestion()
+	await userEvent.keyboard('{Escape}')
+
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
+	expect(screen.getByLabelText('Name')).toHaveValue('Ana García Ltd')
+})
+
+test('leaves the contact when the reader discards an unsaved name', async () => {
+	serveEmptyList()
+	const { router } = renderRoutedAt(`/contacts/${anaID}`)
+	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
+
+	await userEvent.click(contactsCrumb())
+	await userEvent.click(within(await discardQuestion()).getByRole('button', { name: 'Discard' }))
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).toHaveBeenCalledOnce()
 })
 
 test('asks before the sidebar leaves an unsaved name', async () => {
-	const confirm = answerConfirm(false)
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
 	await userEvent.click(within(screen.getByRole('region', { name: 'Navigation' })).getByRole('link', { name: 'Tasks' }))
 
-	await waitFor(() => expect(confirm).toHaveBeenCalledOnce())
+	expect(await discardQuestion()).toBeInTheDocument()
 	expect(router.state.location.pathname).toBe(`/contacts/${anaID}`)
 })
 
 test('never asks before leaving a clean contact', async () => {
-	const confirm = answerConfirm(false)
 	serveEmptyList()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await screen.findByRole('heading', { name: 'Ana García' })
@@ -946,11 +492,10 @@ test('never asks before leaving a clean contact', async () => {
 	await userEvent.click(contactsCrumb())
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).not.toHaveBeenCalled()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
 test('never asks before leaving a saved name', async () => {
-	const confirm = answerConfirm(false)
 	serveEmptyList()
 	serveRenames()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
@@ -961,11 +506,10 @@ test('never asks before leaving a saved name', async () => {
 	await userEvent.click(contactsCrumb())
 
 	await waitFor(() => expect(router.state.location.pathname).toBe('/contacts'))
-	expect(confirm).not.toHaveBeenCalled()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
-test('drops an unsaved name when the page moves on to another contact', async () => {
-	answerConfirm(true)
+test('drops an unsaved name when the reader discards it to move on to another contact', async () => {
 	server.use(
 		graphql.query('ContactDetail', ({ variables }) =>
 			HttpResponse.json({
@@ -978,7 +522,8 @@ test('drops an unsaved name when the page moves on to another contact', async ()
 	const { router } = renderRoutedAt(`/contacts/${anaID}`)
 	await userEvent.type(await screen.findByLabelText('Name'), ' Ltd')
 
-	await act(() => router.navigate({ to: '/contacts/$contactId', params: { contactId: brunoID } }))
+	void router.navigate({ to: '/contacts/$contactId', params: { contactId: brunoID } })
+	await userEvent.click(within(await discardQuestion()).getByRole('button', { name: 'Discard' }))
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'Maria Perez' })).toBeInTheDocument()
 	expect(screen.getByLabelText('Name')).toHaveValue('Maria Perez')
@@ -1029,16 +574,6 @@ test('follows a newer name from the server once the reader undid an edit', async
 	renameElsewhere()
 
 	await expectNewerNameAfterReread()
-})
-
-test('fills the column with the add identity form', async () => {
-	renderAt(`/contacts/${anaID}`)
-	await screen.findByRole('heading', { name: 'Ana García' })
-
-	expect(screen.getByRole('button', { name: 'Add identity' }).closest('form')).toHaveClass(
-		'godmin-form',
-		'godmin-form--inline',
-	)
 })
 
 test('reports invalid contact details on rename', async () => {

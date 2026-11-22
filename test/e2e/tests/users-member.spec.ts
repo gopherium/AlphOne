@@ -84,7 +84,7 @@ test('a manager is offered the row actions on an account the graph puts within i
 
 	await page.goto(`/users?search=${encodeURIComponent(email)}`)
 	await page.getByRole('row').filter({ hasText: email }).getByRole('button', { name: 'Actions' }).click()
-	await expect(page.getByRole('menuitem')).toHaveText(['Change role…', 'Disable'])
+	await expect(page.getByRole('menuitem')).toHaveText(['Change role', 'Disable'])
 	await page.keyboard.press('Escape')
 
 	await page.goto(`/users?search=${encodeURIComponent(credentials.email)}`)

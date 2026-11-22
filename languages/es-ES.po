@@ -205,10 +205,6 @@ msgid "Last used"
 msgstr "Último uso"
 
 #, fuzzy
-msgid "Leave this page? The name is not saved."
-msgstr "¿Salir de esta página? El nombre no se ha guardado."
-
-#, fuzzy
 msgid "Link a contact"
 msgstr "Vincular un contacto"
 
@@ -263,9 +259,6 @@ msgstr "Tarea nueva"
 #, fuzzy
 msgid "New token"
 msgstr "Token nuevo"
-
-msgid "New user"
-msgstr "Usuario nuevo"
 
 #, fuzzy
 msgid "Next day"
@@ -689,23 +682,15 @@ msgid "Rename"
 msgstr "Renombrar"
 
 #, fuzzy
-msgid "Rename…"
-msgstr "Renombrar…"
+msgid "Revoke \"%(name)s\"?"
+msgstr "¿Revocar «%(name)s»?"
 
 #, fuzzy
-msgid "Revoke \"%(name)s\"? This cannot be undone."
-msgstr "¿Revocar «%(name)s»? Esto no se puede deshacer."
-
-#, fuzzy
-msgid "Revoke %s token? This cannot be undone."
-msgid_plural "Revoke %s tokens? This cannot be undone."
-msgstr[0] "¿Revocar %s token? Esto no se puede deshacer."
-msgstr[1] "¿Revocar %s de tokens? Esto no se puede deshacer."
-msgstr[2] "¿Revocar %s tokens? Esto no se puede deshacer."
-
-#, fuzzy
-msgid "Revoke…"
-msgstr "Revocar…"
+msgid "Revoke %s token?"
+msgid_plural "Revoke %s tokens?"
+msgstr[0] "¿Revocar %s token?"
+msgstr[1] "¿Revocar %s de tokens?"
+msgstr[2] "¿Revocar %s tokens?"
 
 #, fuzzy
 msgid "Search contacts…"
@@ -774,6 +759,50 @@ msgstr "AlphOne no envía webhooks a una dirección interna que el operador no h
 #, fuzzy
 msgid "This request came from a page on another site, so it was refused. Open the admin on this site and try again."
 msgstr "Esta petición vino de una página de otro sitio, así que se rechazó. Abre la administración en este sitio e inténtalo de nuevo."
+
+#, fuzzy
+msgid "This action cannot be undone."
+msgstr "Esta acción no se puede deshacer."
+
+#, fuzzy
+msgid "Discard changes?"
+msgstr "¿Descartar los cambios?"
+
+#, fuzzy
+msgid "The name is not saved."
+msgstr "El nombre no se ha guardado."
+
+#, fuzzy
+msgid "Discard"
+msgstr "Descartar"
+
+#, fuzzy
+msgid "Keep editing"
+msgstr "Seguir editando"
+
+#, fuzzy
+msgid "Remove %(identifier)s?"
+msgstr "¿Quitar %(identifier)s?"
+
+#, fuzzy
+msgid "Remove"
+msgstr "Quitar"
+
+#, fuzzy
+msgid "Add User"
+msgstr "Añadir usuario"
+
+#, fuzzy
+msgid "Create a brand new user and add them to this site."
+msgstr "Crea un nuevo usuario y añádelo a este sitio."
+
+#, fuzzy
+msgid "Please enter an email address."
+msgstr "Por favor, introduce una dirección de correo electrónico."
+
+#, fuzzy
+msgid "Please provide a name."
+msgstr "Por favor, facilita un nombre."
 
 #, fuzzy
 msgctxt "admin section"

@@ -2,22 +2,23 @@
 
 import {
 	Button,
+	ConfirmDialog,
 	ErrorNotice,
 	IconButton,
 	InputControl,
 	LoadingScreen,
 	LogItem,
 	LogList,
-	PageBreadcrumb,
-	PageBreadcrumbs,
 	PageScreen,
 	SectionTitle,
 	SelectControl,
 	Text,
+	UnsavedChangesDialog,
 	ValidatedInputControl,
 	ValidationError,
 	__,
 	channelName,
+	dialogWrite,
 	formatDate,
 	graphError,
 	sprintf,
@@ -30,13 +31,14 @@ import {
 	useToaster,
 	writeFailure,
 } from '@alphone/frontend-sdk'
-import type { ConnectionResult, GraphFailure } from '@alphone/frontend-sdk'
-import { Link, useBlocker } from '@tanstack/react-router'
+import type { ConnectionResult, DialogAnswer, GraphFailure } from '@alphone/frontend-sdk'
+import { getRouteApi } from '@tanstack/react-router'
 import { useId, useRef, useState } from 'react'
 import type { ComponentProps, ReactNode, RefObject } from 'react'
 
 import { ContactTasks } from '../tasks/ContactTasks'
 import type { ListedTask } from '../tasks/TaskList'
+import { ContactBreadcrumbs } from './ContactBreadcrumbs'
 import { ContactPanels } from './ContactPanels'
 import { channelItemOf, channelItems } from './channel'
 import {
@@ -66,18 +68,15 @@ export interface ContactDetail {
 	}[]
 }
 
+const contactRouteApi = getRouteApi('/contacts/$contactId')
+
 /**
- * Renders the links that lead from a contact page back to the contacts.
- * @returns The breadcrumbs.
+ * Renders the contact detail screen for the route's contact id.
+ * @returns The contact route element.
  */
-export function ContactBreadcrumbs() {
-	return (
-		<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
-			<PageBreadcrumb render={<Link to="/contacts" activeOptions={{ exact: true }} />}>
-				{__('Contacts', 'alphone')}
-			</PageBreadcrumb>
-		</PageBreadcrumbs>
-	)
+export function ContactRoute() {
+	const { contactId } = contactRouteApi.useParams()
+	return <ContactScreen contactId={contactId} />
 }
 
 /**
@@ -132,6 +131,7 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 	const settled = useContactRefresh()
 	const toaster = useToaster()
 	const identitiesHeading = useId()
+	const addIdentityForm = useId()
 	const nameForm = useId()
 	const form = useRef<HTMLFormElement>(null)
 	const [draft, setDraft] = useState<string | null>(null)
@@ -140,10 +140,6 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 	const refusedName = useRefusedField(form, name)
 	const changed = draft !== null && draft !== contact.name
 	const blank = name.trim() === ''
-	useBlocker({
-		shouldBlockFn: () => !window.confirm(__('Leave this page? The name is not saved.', 'alphone')),
-		disabled: !changed,
-	})
 	const submitRename = async () => {
 		const result = await runRename({ id: contact.id, name })
 		if (result.data) {
@@ -183,8 +179,8 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 						onSubmit={() => void submitRename()}
 					/>
 					<SectionTitle id={identitiesHeading}>{__('Identities', 'alphone')}</SectionTitle>
-					<IdentityList contact={contact} labelledBy={identitiesHeading} />
-					<AddIdentityForm contact={contact} />
+					<IdentityList contact={contact} labelledBy={identitiesHeading} addFormId={addIdentityForm} />
+					<AddIdentityForm contact={contact} id={addIdentityForm} />
 					<Text className="alphone-contacts__created">
 						{sprintf(__('Created %(date)s', 'alphone'), { date: formatDate(contact.createdAt) })}
 					</Text>
@@ -194,6 +190,13 @@ function ContactRecord({ contact, tasks }: { contact: ContactDetail; tasks: Conn
 		>
 			<ContactTasks contactId={contact.id} tasks={tasks} />
 			<ContactPanels contactId={contact.id} panels={contactPanels} />
+			<UnsavedChangesDialog
+				when={changed}
+				title={__('Discard changes?', 'alphone')}
+				description={__('The name is not saved.', 'alphone')}
+				discardLabel={__('Discard', 'alphone')}
+				keepLabel={__('Keep editing', 'alphone')}
+			/>
 		</PageScreen>
 	)
 }
@@ -233,59 +236,153 @@ function identityText(identity: ContactDetail['identities'][number]): string {
 }
 
 /**
- * Renders the contact's identities as a log list, each with its trash at the row end, or a placeholder when none exist.
- * @param props - The contact and the id of the heading that names the list.
+ * Returns the id of one identity's trash within the list the heading names.
+ * @param labelledBy - The id of the heading that names the list.
+ * @param identityId - The identity the trash removes.
+ * @returns The trash's id.
+ */
+function trashId(labelledBy: string, identityId: string) {
+	return `${labelledBy}-remove-${identityId}`
+}
+
+/**
+ * Returns the id the focus moves to once an identity goes: the next trash, else the one before, else the add form.
+ * @param identities - The identities shown when the removal worked.
+ * @param removedId - The identity that went.
+ * @param labelledBy - The id of the heading that names the list.
+ * @param addFormId - The id of the form that adds an identity.
+ * @returns The id of the element the focus moves to.
+ */
+function focusAfterRemoval(
+	identities: ContactDetail['identities'],
+	removedId: string,
+	labelledBy: string,
+	addFormId: string,
+) {
+	const at = identities.findIndex((identity) => identity.id === removedId)
+	const neighbour = identities[at + 1] ?? identities[at - 1]
+	return neighbour === undefined ? addFormId : trashId(labelledBy, neighbour.id)
+}
+
+/**
+ * Moves the focus to the element with the id, or to the first control of a form with it.
+ * @param id - The id of the element or form.
+ */
+function focusElement(id: string) {
+	const element = document.getElementById(id)
+	const target = element instanceof HTMLFormElement ? element.querySelector<HTMLElement>('button, input') : element
+	target?.focus()
+}
+
+/**
+ * Renders the contact's identities as a log list, each with its trash at the row end, or a placeholder when none exist,
+ * and the question a trash asks before its identity goes.
+ * @param props - The contact, the id of the heading that names the list and the id of the form that adds one.
  * @returns The identity list.
  */
-function IdentityList({ contact, labelledBy }: { contact: ContactDetail; labelledBy: string }) {
+function IdentityList({
+	contact,
+	labelledBy,
+	addFormId,
+}: {
+	contact: ContactDetail
+	labelledBy: string
+	addFormId: string
+}) {
+	const [asking, setAsking] = useState<ContactDetail['identities'][number]>()
+
+	return (
+		<>
+			{contact.identities.length === 0 ? (
+				<Text role="status">{__('No identities yet.', 'alphone')}</Text>
+			) : (
+				<LogList aria-labelledby={labelledBy}>
+					{contact.identities.map((identity) => (
+						<LogItem
+							key={identity.id}
+							aria-label={identityText(identity)}
+							label={<Text>{identityText(identity)}</Text>}
+							actions={
+								<IconButton
+									id={trashId(labelledBy, identity.id)}
+									icon={trash}
+									variant="minimal"
+									tone="neutral"
+									size="compact"
+									label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
+									onClick={() => setAsking(identity)}
+								/>
+							}
+						/>
+					))}
+				</LogList>
+			)}
+			{asking ? (
+				<RemoveIdentityDialog
+					contactId={contact.id}
+					identity={asking}
+					onRemoved={() => focusElement(focusAfterRemoval(contact.identities, asking.id, labelledBy, addFormId))}
+					onClose={() => setAsking(undefined)}
+				/>
+			) : null}
+		</>
+	)
+}
+
+/**
+ * Renders the red question that asks before one identity leaves the contact, held open while the removal runs.
+ * @param props - The contact's id, the identity to remove, what runs once it went and what takes the question away.
+ * @returns The question.
+ */
+function RemoveIdentityDialog({
+	contactId,
+	identity,
+	onRemoved,
+	onClose,
+}: {
+	contactId: string
+	identity: ContactDetail['identities'][number]
+	onRemoved: () => void
+	onClose: () => void
+}) {
+	const graph = useGraph()
 	const settled = useContactRefresh()
 	const toaster = useToaster()
-	const [removing, setRemoving] = useState<readonly string[]>([])
-	const [, runRemove] = useGraphMutation(deleteContactIdentityMutation)
-	const removeIdentity = async (identityId: string) => {
-		setRemoving((pending) => [...pending, identityId])
-		const result = await runRemove({ contactId: contact.id, identityId })
-		setRemoving((pending) => pending.filter((id) => id !== identityId))
-		if (result.data) {
-			toaster.show(__('Identity removed.', 'alphone'))
-			settled()
-		} else {
-			toaster.show(writeFailure(__('Could not remove the identity.', 'alphone'), result.error))
+	const remove = async (signal: AbortSignal): Promise<DialogAnswer | undefined> => {
+		const result = await dialogWrite(
+			graph.client,
+			deleteContactIdentityMutation,
+			{ contactId, identityId: identity.id },
+			signal,
+		)
+		if (!result.data) {
+			return { error: writeFailure(__('Could not remove the identity.', 'alphone'), result.error) }
 		}
+		onRemoved()
+		toaster.show(__('Identity removed.', 'alphone'))
+		settled()
+		return undefined
 	}
 
-	if (contact.identities.length === 0) {
-		return <Text role="status">{__('No identities yet.', 'alphone')}</Text>
-	}
 	return (
-		<LogList aria-labelledby={labelledBy}>
-			{contact.identities.map((identity) => (
-				<LogItem
-					key={identity.id}
-					aria-label={identityText(identity)}
-					label={<Text>{identityText(identity)}</Text>}
-					actions={
-						<IconButton
-							icon={trash}
-							variant="minimal"
-							tone="neutral"
-							size="compact"
-							label={sprintf(__('Remove %(identifier)s', 'alphone'), { identifier: identity.identifier })}
-							loading={removing.includes(identity.id)}
-							onClick={() => void removeIdentity(identity.id)}
-						/>
-					}
-				/>
-			))}
-		</LogList>
+		<ConfirmDialog
+			intent="irreversible"
+			title={sprintf(__('Remove %(identifier)s?', 'alphone'), { identifier: identity.identifier })}
+			description={__('This action cannot be undone.', 'alphone')}
+			confirmLabel={__('Remove', 'alphone')}
+			cancelLabel={__('Cancel', 'alphone')}
+			onConfirm={remove}
+			onClose={onClose}
+		/>
 	)
 }
 
 /**
  * Renders the form that attaches a new identity to the contact.
+ * @param props - The contact and the form's id.
  * @returns The add identity form.
  */
-function AddIdentityForm({ contact }: { contact: ContactDetail }) {
+function AddIdentityForm({ contact, id }: { contact: ContactDetail; id: string }) {
 	const settled = useContactRefresh()
 	const toaster = useToaster()
 	const [channel, setChannel] = useState('email')
@@ -317,6 +414,7 @@ function AddIdentityForm({ contact }: { contact: ContactDetail }) {
 
 	return (
 		<form
+			id={id}
 			ref={form}
 			className="godmin-form godmin-form--inline"
 			onSubmit={(event) => {

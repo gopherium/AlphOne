@@ -63,7 +63,7 @@ test('the users list marks an invited account and resends its invitation', async
 	await expect(row.getByText('Invited', { exact: true })).toBeVisible()
 
 	await row.getByRole('button', { name: 'Actions' }).click()
-	await page.getByRole('menuitem', { name: 'Resend invitation…' }).click()
+	await page.getByRole('menuitem', { name: 'Resend invitation', exact: true }).click()
 	const modal = page.getByRole('dialog', { name: 'Resend invitation' })
 	await modal.getByRole('button', { name: 'Resend invitation' }).click()
 

@@ -45,16 +45,15 @@ browser's Back button brings you back to the same place.
 ## Renaming
 
 Open the actions menu at the end of a contact's row and choose
-**Rename…**. Type the new name and press **Save**. You can also open the
+**Rename**. Type the new name and press **Save**. You can also open the
 contact, edit the name field there and press **Save** in the page header.
 The new name applies everywhere immediately, including past conversations
 in the WhatsApp inbox, because conversations reference the contact rather
 than copying its name.
 
-The rename dialog closes the moment you press **Save**, and **Save** is
-off only while the name is blank. When the rename fails, a message at the
-bottom of the screen says why, and the dialog opens on what you typed the
-next time you open it for that contact.
+The rename dialog stays open while it saves. **Save** stays on, and a
+blank name is rejected before anything is sent. When the rename fails, the
+dialog says why and keeps what you typed, so you can try again.
 
 Renaming is how you clean up number-named contacts: search for the
 number, then rename the contact to the person's real name.
@@ -86,7 +85,8 @@ Identities are created automatically by channels and cannot be edited.
 
 Each line shows the channel and then the handle, such as
 `Email: maria@example.com`. To remove an identity, click the trash icon
-at the end of its line.
+at the end of its line, then **Remove** in the question that opens. A
+removal cannot be undone, so **Cancel** keeps the identity.
 
 ## The contact page
 
@@ -95,7 +95,9 @@ custom fields, which is where the work happens. The narrow one holds the
 name, the identities and the date the contact was created. On a narrow
 screen that column moves under the custom fields.
 
-If you leave the page before you save a new name, the page asks you first.
+If you leave the page before you save a new name, the page asks you first,
+with **Keep editing** and **Discard**. A reload or a closed tab shows the
+browser's own question instead.
 It asks only about the name, not about a custom field or a form you have
 not saved.
 

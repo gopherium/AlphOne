@@ -18,7 +18,6 @@ import type { RefObject } from 'react'
 import { entryText } from './cellText'
 import type { EntryText, SubFieldRow } from './cellText'
 import { EntryCells } from './cells'
-import { ConfirmActions } from './ConfirmActions'
 import { entryName, entryParts, isBlank } from './entries'
 import type { StoredEntry } from './entries'
 import { focusFirstControl } from './focus'
@@ -43,13 +42,10 @@ export function EntryRow({
 	const parts = entryParts(subFields, entry.cells)
 	const name = entryName(parts)
 	const editRef = useRef<HTMLButtonElement>(null)
-	const removeRef = useRef<HTMLButtonElement>(null)
-	const keepRef = useRef<HTMLButtonElement>(null)
 
 	useEffect(() => {
 		if (row.focus) {
-			const target = { first: editRef, remove: removeRef, keep: keepRef }[row.focus.on]
-			;(target.current as HTMLButtonElement).focus()
+			;(editRef.current as HTMLButtonElement).focus()
 		}
 	}, [row.focus])
 
@@ -73,28 +69,13 @@ export function EntryRow({
 			aria-label={name}
 			label={parts.day ? <LogTime dateTime={parts.day.at}>{parts.day.text}</LogTime> : undefined}
 			actions={
-				row.mode === 'confirm' ? (
-					<ConfirmActions
-						labels={{
-							question: __('Remove this entry?', 'alphone-fields'),
-							confirm: __('Remove', 'alphone-fields'),
-						}}
-						locked={row.locked}
-						pending={row.pending}
-						keepRef={keepRef}
-						onConfirm={() => void on.confirm(entry.id)}
-						onKeep={() => on.keep(entry.id)}
-					/>
-				) : (
-					<RowActions
-						name={name}
-						locked={row.locked}
-						editRef={editRef}
-						removeRef={removeRef}
-						onEdit={() => on.edit(entry.id)}
-						onRemove={() => on.remove(entry.id)}
-					/>
-				)
+				<RowActions
+					name={name}
+					locked={row.locked}
+					editRef={editRef}
+					onEdit={() => on.edit(entry.id)}
+					onRemove={() => on.remove(entry.id)}
+				/>
 			}
 			body={parts.body}
 		>
@@ -109,21 +90,19 @@ export function EntryRow({
 
 /**
  * Renders a row's Edit entry and Remove entry buttons, each named after the entry.
- * @param props - The entry's name, whether the row is locked, the two buttons' refs and their actions.
+ * @param props - The entry's name, whether the row is locked, the Edit entry ref and the two actions.
  * @returns The buttons.
  */
 function RowActions({
 	name,
 	locked,
 	editRef,
-	removeRef,
 	onEdit,
 	onRemove,
 }: {
 	name: string
 	locked: boolean
 	editRef: RefObject<HTMLButtonElement | null>
-	removeRef: RefObject<HTMLButtonElement | null>
 	onEdit: () => void
 	onRemove: () => void
 }) {
@@ -140,7 +119,6 @@ function RowActions({
 				onClick={onEdit}
 			/>
 			<IconButton
-				ref={removeRef}
 				icon={trash}
 				variant="minimal"
 				tone="neutral"

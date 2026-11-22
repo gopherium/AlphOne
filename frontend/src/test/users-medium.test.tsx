@@ -77,20 +77,22 @@ beforeEach(() => {
 	)
 })
 
-test('draws each bulk action with an icon, the only part of it a medium screen shows', async () => {
+test('puts every bulk action in one Actions menu at 782px and below, as DataViews draws a medium screen', async () => {
 	matchingOnly('782px')
 	renderAt('/users')
 
 	await userEvent.click((await rowOf('Ada Lovelace')).getByRole('checkbox'))
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('checkbox'))
 
-	const footer = await waitFor(() => {
-		const found = document.querySelector<HTMLElement>('.dataviews-bulk-actions-footer__action-buttons')
+	const actions = await waitFor(() => {
+		const found = document.querySelector<HTMLElement>('.dataviews-bulk-actions__actions')
 		expect(found).not.toBeNull()
 		return found as HTMLElement
 	})
-	const bar = within(footer)
-	expect((await bar.findByRole('button', { name: 'Disable' })).querySelector('svg')).not.toBeNull()
-	expect(bar.getByRole('button', { name: 'Enable' }).querySelector('svg')).not.toBeNull()
-	expect(bar.getByRole('button', { name: 'Change role…' }).querySelector('svg')).not.toBeNull()
+	const bar = within(actions)
+	const menu = await bar.findByRole('button', { name: 'Actions' })
+	expect(bar.getAllByRole('button')).toEqual([menu])
+	await userEvent.click(menu)
+	const offered = (await screen.findAllByRole('menuitem')).map((item) => item.textContent)
+	expect(offered).toEqual(['Change role', 'Enable', 'Disable'])
 })

@@ -99,8 +99,9 @@ the next. Each date in the form starts on today's date.
 - Press the pencil beside an entry's date to change the entry in place, then
   **Save entry** or **Cancel**. **Save entry** stays off while every part is
   blank.
-- Press the trash icon, and the row asks **Remove this entry?** Press
-  **Remove** to confirm or **Keep** to leave it.
+- Press the trash icon, and a question asks **Remove this entry?** Press
+  **Remove** to confirm, or **Cancel** to keep the entry. A removal cannot
+  be undone.
 
 Each add, save and removal is stored at once. **Save fields** never saves a
 repeater, and a contact whose fields are all repeaters has no **Save fields**
@@ -156,7 +157,7 @@ Each row ends with three icons. The up arrow moves the field one place up, and
 the down arrow moves it one place down. For a field labelled `Birth date` they
 are named **Move Birth date up** and **Move Birth date down**. The up arrow is
 off on the first row, and the down arrow is off on the last. The trash icon
-asks before it archives the field, as the next section explains.
+archives the field, as the next section explains.
 
 The list changes as soon as you press an arrow, and the new order is saved for
 everyone in your workspace. If the save fails, the fields go back to where
@@ -172,20 +173,21 @@ moves as a whole. Its sub fields keep the order you gave them when you made it.
 ## Archive a field you no longer need
 
 Press the trash icon at the end of the field's row. For a field labelled
-`Birth date` it is named **Archive Birth date**. Nothing is archived yet. The
-row asks **Archive this field?** Press **Archive** to confirm, or **Keep** to
-leave the field as it is. The question starts on **Keep**, so pressing Enter
-by mistake keeps the field.
+`Birth date` it is named **Archive Birth date**. The field is archived at
+once, and it disappears from the contact screen and from the API. A toast says
+**Field archived.** with an **Undo** button. If the archive fails, the toast
+says so instead and the field stays, so you can try again.
 
-Once you confirm, the field disappears from the contact screen and from the
-API. If the archive fails, a toast says so and the trash icon comes back, so
-you can try again.
+Press **Undo** while the toast shows to bring the field back. It returns to
+the place it held in the list, with every value it held, and a toast says
+**Field restored.** If someone else changed the list meanwhile, the field
+comes back at the end instead and a toast says the order was not saved.
 
 Archiving does not delete anything, even though the icon is a trash can. The
 values stay in the database, and the archived field keeps its name. So a new
-field with the same label gets a numbered name and starts empty. Only the API
-can bring the old field back with its values, and it comes back at the end of
-the list, like a new field. See
+field with the same label gets a numbered name and starts empty. Once the
+toast is gone, only the API can bring the old field back with its values, and
+it comes back at the end of the list, like a new field. See
 [Using your fields from the API](#using-your-fields-from-the-api).
 
 ## Using your fields from the API

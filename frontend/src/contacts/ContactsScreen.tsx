@@ -11,6 +11,7 @@ import {
 	paginationOf,
 	people,
 	useAdminSettings,
+	useDialogRun,
 	useGraph,
 	useGraphQuery,
 	useListRun,
@@ -21,9 +22,10 @@ import type { AdminSettings, PagedView, PageWindow } from '@alphone/frontend-sdk
 import { DataViews } from '@alphone/frontend-sdk/dataviews'
 import type { View } from '@alphone/frontend-sdk/dataviews'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ContactPageQueryVariables } from '../gql/graphql'
+import { RenameContactDialog } from './ContactModals'
 import { useContactActions } from './contactActions'
 import { contactFields } from './contactFields'
 import type { ContactRow } from './contactFields'
@@ -144,7 +146,9 @@ export function ContactsScreen() {
 	const sizing = settings === undefined && !failed
 	const { result, variables, loading, reload } = useContactPage(list.view, settings, sizing)
 	const { run, refreshing, region } = useListRun('contacts', list.onChangeSelection)
-	const actions = useContactActions(run, reload)
+	const write = useDialogRun<ContactRow>(run, reload)
+	const [renaming, setRenaming] = useState<ContactRow>()
+	const actions = useContactActions(setRenaming)
 	const navigate = useNavigate()
 	const onChangeSelection = openOnTap(list, (contactId) => {
 		void navigate({ to: '/contacts/$contactId', params: { contactId } })
@@ -188,6 +192,9 @@ export function ContactsScreen() {
 					empty={<ContactsEmpty narrowed={narrowedBy(variables)} />}
 				/>
 			)}
+			{renaming ? (
+				<RenameContactDialog contact={renaming} write={write} onClose={() => setRenaming(undefined)} />
+			) : null}
 		</PageScreen>
 	)
 }

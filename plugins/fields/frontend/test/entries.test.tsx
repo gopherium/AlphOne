@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { Card, configureErrorText } from '@alphone/frontend-sdk'
+import type { DialogAnswer } from '@alphone/frontend-sdk'
 import {
 	HttpResponse,
 	adminSession,
@@ -14,7 +15,7 @@ import {
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentType } from 'react'
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 
 import {
 	ID1,
@@ -35,6 +36,7 @@ import {
 	offerSentName,
 	otherContactID,
 	refusal,
+	renderHosted,
 	renderPanel,
 	serveCatalogue,
 	serveChangingValues,
@@ -42,6 +44,9 @@ import {
 	speakTemplates,
 	visits,
 } from './harness'
+import { entriesOf } from '../entries'
+import { useEntryActions } from '../useEntryActions'
+import type { Removal } from '../useEntryActions'
 
 /** added is the body a successful add answers. */
 const added = { data: { addContactFieldEntry: { id: ID3, comment: 'x' } } }
@@ -109,12 +114,34 @@ async function itemNames(label = 'History') {
 }
 
 /**
+ * Asks to remove the named entry.
+ * @param name - The entry's name.
+ * @returns The confirm that asks, once it shows.
+ */
+async function askRemoval(name: string) {
+	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${name}` }))
+	return within(await screen.findByRole('alertdialog', { name: 'Remove this entry?' }))
+}
+
+/**
  * Asks to remove the named entry and confirms it.
  * @param name - The entry's name.
  */
 async function removeEntry(name: string) {
-	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${name}` }))
-	await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+	await userEvent.click((await askRemoval(name)).getByRole('button', { name: 'Remove' }))
+}
+
+/** Waits until no confirm shows. */
+async function confirmGone() {
+	await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+}
+
+/** Gives every element a layout box until the test ends. */
+function layOut() {
+	const laidOut = vi
+		.spyOn(HTMLElement.prototype, 'getClientRects')
+		.mockReturnValue([new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList)
+	onTestFinished(() => laidOut.mockRestore())
 }
 
 /**
@@ -615,7 +642,8 @@ test('an add returns focus to the first cell', async () => {
 	expect(screen.getByText('Entry added.')).toBeInTheDocument()
 })
 
-test('an add answered while a removal is confirmed leaves focus on Keep', async () => {
+test('an add answered while a removal is asked leaves focus on Cancel', async () => {
+	layOut()
 	serveCatalogue([history])
 	serveValues({ history: [firstCall] })
 	const adding = hold('AddContactFieldEntry', added)
@@ -625,11 +653,32 @@ test('an add answered while a removal is confirmed leaves focus on Keep', async 
 	await userEvent.type(comment, 'x')
 	await userEvent.click(addButton())
 	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
-	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
+	const cancel = (await askRemoval(firstCallName)).getByRole('button', { name: 'Cancel' })
+	await waitFor(() => expect(cancel).toHaveFocus())
 	adding.release()
 
 	await waitFor(() => expect(comment).toHaveValue(''))
-	expect(screen.getByRole('button', { name: 'Keep' })).toHaveFocus()
+	expect(cancel).toHaveFocus()
+})
+
+test('an add pressed without focus and answered while a removal is asked leaves focus on Cancel', async () => {
+	layOut()
+	serveCatalogue([history])
+	serveValues({ history: [firstCall] })
+	const adding = hold('AddContactFieldEntry', added)
+
+	renderPanel()
+	const comment = (await addForm()).getByLabelText('Comment')
+	await userEvent.type(comment, 'x')
+	act(() => comment.blur())
+	act(() => addButton().click())
+	await waitFor(() => expect(adding.called).toHaveBeenCalledOnce())
+	const cancel = (await askRemoval(firstCallName)).getByRole('button', { name: 'Cancel' })
+	await waitFor(() => expect(cancel).toHaveFocus())
+	adding.release()
+
+	await waitFor(() => expect(comment).toHaveValue(''))
+	expect(cancel).toHaveFocus()
 })
 
 test('a refused add shows the reason in a toast and keeps the draft with Add on', async () => {
@@ -756,7 +805,8 @@ test('Enter in an untouched add form sends nothing', async () => {
 	expect(adding).not.toHaveBeenCalled()
 })
 
-test('Remove asks first and puts focus on Keep', async () => {
+test('Remove asks first in a red confirm and puts focus on Cancel', async () => {
+	layOut()
 	serveCatalogue([history])
 	serveValues({ history: [offerSent, firstCall] })
 	const removing = capture('DeleteContactFieldEntry', removed)
@@ -764,30 +814,47 @@ test('Remove asks first and puts focus on Keep', async () => {
 	renderPanel()
 	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
 
-	const item = within(screen.getByRole('listitem', { name: firstCallName }))
-	const group = item.getByRole('group', { name: 'Remove this entry?' })
-	expect(group.style.flexDirection).toBe('row')
-	expect(group.style.flexWrap).toBe('wrap')
-	expect(item.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
-	expect(item.getByRole('button', { name: 'Keep' })).toHaveFocus()
+	const confirm = within(
+		await screen.findByRole('alertdialog', {
+			name: 'Remove this entry?',
+			description: 'This action cannot be undone.',
+		}),
+	)
+	expect(confirm.getByRole('button', { name: 'Remove' }).className).toMatch(/irreversible/)
+	const cancel = confirm.getByRole('button', { name: 'Cancel' })
+	expect([...cancel.classList]).toEqual(buttonClasses('minimal', undefined, 'neutral'))
+	await waitFor(() => expect(cancel).toHaveFocus())
 	expect(removing).not.toHaveBeenCalled()
 })
 
-test('Keep leaves the entry and puts focus back on Remove entry', async () => {
+test('Cancel keeps the entry, sends nothing and puts focus back on Remove entry', async () => {
+	layOut()
 	serveCatalogue([history])
 	serveValues({ history: [firstCall] })
 	const removing = capture('DeleteContactFieldEntry', removed)
 
 	renderPanel()
-	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
-	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+	const confirm = await askRemoval(firstCallName)
+	await userEvent.click(confirm.getByRole('button', { name: 'Cancel' }))
 
-	expect(screen.queryByRole('group', { name: 'Remove this entry?' })).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveFocus()
+	await confirmGone()
+	expect(screen.getByRole('listitem', { name: firstCallName })).toBeInTheDocument()
+	await waitFor(() => expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveFocus())
 	expect(removing).not.toHaveBeenCalled()
 })
 
-test('confirming a removal sends the entry id and reads the list again', async () => {
+test('Remove closes an editor open on another row', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+
+	renderPanel()
+	await editEntry(offerSentName)
+	await askRemoval(firstCallName)
+
+	expect(screen.queryByRole('form', { name: /^Edit entry/, hidden: true })).not.toBeInTheDocument()
+})
+
+test('confirming a removal sends the entry id, reads the list again and closes once it ends', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [firstCall] })
 	const removing = capture('DeleteContactFieldEntry', removed)
@@ -799,10 +866,11 @@ test('confirming a removal sends the entry id and reads the list again', async (
 		expect(removing).toHaveBeenCalledWith({ contactId: contactID, field: 'history', entryId: ID1 }),
 	)
 	await waitFor(() => expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues']))
-	expect(await screen.findByText('Entry removed.')).toBeInTheDocument()
+	expect(await screen.findByText('Entry removed.', TOAST)).toBeInTheDocument()
+	await confirmGone()
 })
 
-test('a removal in flight disables its own row and every other row', async () => {
+test('a removal in flight holds its confirm busy past Escape and locks every row', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent, firstCall] })
 	const removing = hold('DeleteContactFieldEntry', removed)
@@ -810,15 +878,18 @@ test('a removal in flight disables its own row and every other row', async () =>
 	renderPanel()
 	await removeEntry(firstCallName)
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
+	await userEvent.keyboard('{Escape}')
 
-	expect(screen.getByRole('button', { name: 'Remove' })).toHaveAttribute('aria-disabled', 'true')
-	expect(screen.getByRole('button', { name: 'Remove' }).className).toMatch(/is-loading/)
-	expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
-	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}` })).toHaveAttribute(
+	const confirm = within(screen.getByRole('alertdialog', { name: 'Remove this entry?' }))
+	expect(confirm.getByRole('button', { name: 'Remove' })).toHaveAttribute('aria-disabled', 'true')
+	expect(confirm.getByRole('button', { name: 'Remove' }).className).toMatch(/is-loading/)
+	expect(confirm.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: `Remove entry: ${offerSentName}`, hidden: true })).toHaveAttribute(
 		'aria-disabled',
 		'true',
 	)
 	removing.release()
+	await confirmGone()
 })
 
 test('a removed entry stays disabled until the graph stops answering it', async () => {
@@ -829,8 +900,9 @@ test('a removed entry stays disabled until the graph stops answering it', async 
 	const { graph } = renderPanel()
 	await removeEntry(firstCallName)
 	await waitFor(() => expect(graph.refetch).toHaveBeenCalled())
+	await confirmGone()
 
-	const settling = await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` })
+	const settling = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(settling).toHaveAttribute('aria-disabled', 'true')
 	change({ history: [offerSent] })
 	act(() => graph.refetch(['ContactFieldValues']))
@@ -847,6 +919,39 @@ test('a removal moves focus to the next entry', async () => {
 
 	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
 	expect(screen.getByText('Entry removed.')).toBeInTheDocument()
+})
+
+test('a removal moves focus to the next entry though the reader tabbed to Cancel while it ran', async () => {
+	layOut()
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+	const removing = hold('DeleteContactFieldEntry', removed)
+
+	renderPanel()
+	const confirm = await askRemoval(offerSentName)
+	await userEvent.click(confirm.getByRole('button', { name: 'Remove' }))
+	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
+	await userEvent.tab({ shift: true })
+	expect(confirm.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+	removing.release()
+
+	await confirmGone()
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
+})
+
+test('a removal moves focus to the next entry though a click on Remove left the focus on the page', async () => {
+	serveCatalogue([history])
+	serveValues({ history: [offerSent, firstCall] })
+	capture('DeleteContactFieldEntry', removed)
+
+	renderPanel()
+	const confirm = await askRemoval(offerSentName)
+	act(() => (document.activeElement as HTMLElement).blur())
+	expect(document.activeElement).toBe(document.body)
+	act(() => confirm.getByRole('button', { name: 'Remove' }).click())
+
+	await confirmGone()
+	await waitFor(() => expect(firstButton(screen.getByRole('listitem', { name: firstCallName }))).toHaveFocus())
 })
 
 test('removing the oldest entry moves focus to the one above it', async () => {
@@ -873,19 +978,20 @@ test('a removal passes over an entry that is still leaving', async () => {
 	await waitFor(async () => expect((await addForm()).getByLabelText('Date')).toHaveFocus())
 })
 
-test('a removal answered while typing in the add form leaves focus there', async () => {
+test('a removal answered after the focus left its confirm leaves the focus where it went', async () => {
 	serveCatalogue([history])
 	serveValues({ history: [offerSent, firstCall] })
 	const removing = hold('DeleteContactFieldEntry', removed)
 
 	renderPanel()
+	const comment = (await addForm()).getByLabelText('Comment')
 	await removeEntry(firstCallName)
 	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
-	const comment = (await addForm()).getByLabelText('Comment')
-	await userEvent.type(comment, 'x')
+	act(() => comment.focus())
 	removing.release()
 
-	await waitFor(() => expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toBeInTheDocument())
+	await confirmGone()
+	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toBeInTheDocument()
 	expect(comment).toHaveFocus()
 })
 
@@ -903,7 +1009,7 @@ test('removing the last entry moves focus to the add form', async () => {
 	await waitFor(async () => expect((await addForm()).getByLabelText('Date')).toHaveFocus())
 })
 
-test('a removal answered as not found says so and reads the list again', async () => {
+test('a removal answered as not found says so in a toast, closes its confirm and reads the list again', async () => {
 	speakTemplates()
 	serveCatalogue([history])
 	serveValues({ history: [firstCall] })
@@ -913,6 +1019,7 @@ test('a removal answered as not found says so and reads the list again', async (
 	await removeEntry(firstCallName)
 
 	expect(await screen.findByText('Could not remove the entry. That entry no longer exists.', TOAST)).toBeInTheDocument()
+	await confirmGone()
 	expect(graph.refetch).toHaveBeenCalledWith(['ContactFieldValues'])
 	expect(screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })).toHaveAttribute(
 		'aria-disabled',
@@ -920,23 +1027,101 @@ test('a removal answered as not found says so and reads the list again', async (
 	)
 })
 
-test('a refused removal keeps the entry usable', async () => {
+test('a rejected removal says why inside its confirm with no toast and keeps the entry usable', async () => {
+	layOut()
 	serveCatalogue([history])
 	serveValues({ history: [firstCall] })
 	capture('DeleteContactFieldEntry', { errors: [{ message: 'boom' }] })
 
 	renderPanel()
-	await removeEntry(firstCallName)
+	const confirm = await askRemoval(firstCallName)
+	await userEvent.click(confirm.getByRole('button', { name: 'Remove' }))
 
-	expect(await screen.findByText('Could not remove the entry.', TOAST)).toBeInTheDocument()
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(await confirm.findByText('Could not remove the entry.')).toBeInTheDocument()
+	await waitFor(() => expect(confirm.getByRole('button', { name: 'Remove' }).className).not.toMatch(/is-loading/))
+	expect(screen.queryByText('Could not remove the entry.', TOAST)).not.toBeInTheDocument()
+	expect(screen.queryByText('Entry removed.')).not.toBeInTheDocument()
+	await userEvent.click(confirm.getByRole('button', { name: 'Cancel' }))
+	await confirmGone()
 	const kept = screen.getByRole('button', { name: `Remove entry: ${firstCallName}` })
 	expect(kept).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(kept).toHaveFocus())
+})
+
+/** EntryActions are what the entry actions of one repeater answer. */
+type EntryActions = ReturnType<typeof useEntryActions>
+
+/** storedFirstCall is the history the probe holds: the first call alone. */
+const storedFirstCall = entriesOf([firstCall])
+
+/** onGone is the report of a repeater gone the probe hands its actions. */
+const onGone = vi.fn()
+
+/**
+ * Renders nothing and hands on the entry actions of the history repeater holding the first call.
+ * @param props - What gets the actions of each render.
+ * @returns Nothing.
+ */
+function ActionsProbe({ onRender }: { onRender: (actions: EntryActions) => void }) {
+	onRender(useEntryActions({ contactId: contactID, field: history, entries: storedFirstCall, firstPage: 10, onGone }))
+	return null
+}
+
+/**
+ * Renders the entry actions of the history repeater inside the plugin's providers.
+ * @returns What reads the actions the last render answered.
+ */
+function hostEntryActions() {
+	let held: EntryActions | undefined
+	renderHosted(
+		<ActionsProbe
+			onRender={(actions) => {
+				held = actions
+			}}
+		/>,
+	)
+	return () => held as EntryActions
+}
+
+/**
+ * Records the signal of every request the graph client sends, the requests still reaching the test server.
+ * @returns The signals, in the order the requests went.
+ */
+function recordSignals() {
+	const signals: AbortSignal[] = []
+	const send = globalThis.fetch
+	const spied = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+		signals.push(init?.signal as AbortSignal)
+		return send(input, init)
+	})
+	onTestFinished(() => spied.mockRestore())
+	return signals
+}
+
+test('a removal past its time limit stops its request, rejects with the reason and frees every row', async () => {
+	const removing = hold('DeleteContactFieldEntry', removed)
+	const signals = recordSignals()
+	const actions = hostEntryActions()
+	act(() => actions().on.remove(ID1))
+	const timing = new AbortController()
+	const reason = new DOMException('The write ran out of time.', 'TimeoutError')
+
+	let confirming: Promise<DialogAnswer | undefined> = Promise.resolve(undefined)
+	act(() => {
+		confirming = (actions().removal as Removal).confirm(timing.signal)
+	})
+	await waitFor(() => expect(removing.called).toHaveBeenCalledOnce())
+	act(() => timing.abort(reason))
+
+	expect(signals).toHaveLength(1)
+	expect(signals[0].aborted).toBe(true)
+	removing.release()
+	await act(() => expect(confirming).rejects.toBe(reason))
+	expect(actions().rowOf(ID1)).toMatchObject({ pending: false, locked: false })
 	expect(screen.queryByText('Entry removed.')).not.toBeInTheDocument()
 })
 
-test('a removal from a repeater archived elsewhere reads the catalogue again', async () => {
+test('a removal from a repeater archived elsewhere reads the catalogue again and takes its confirm away', async () => {
 	speakTemplates()
 	serveCatalogue([history, jobTitle])
 	serveValues({ history: [firstCall], jobTitle: null })
@@ -947,7 +1132,8 @@ test('a removal from a repeater archived elsewhere reads the catalogue again', a
 	serveCatalogue([jobTitle])
 	await removeEntry(firstCallName)
 
-	await waitFor(() => expect(screen.queryByRole('group', { name: 'History' })).not.toBeInTheDocument())
+	await waitFor(() => expect(screen.queryByRole('group', { name: 'History', hidden: true })).not.toBeInTheDocument())
+	await confirmGone()
 	expect(graph.refetch).toHaveBeenCalledWith(['Fields'])
 	expect(await screen.findByText('That field is not one this contact holds.', TOAST)).toBeInTheDocument()
 	expect(screen.getByRole('heading', { name: 'Fields' })).toHaveFocus()
@@ -1084,17 +1270,6 @@ test('only one editor opens at a time', async () => {
 	const editors = screen.getAllByRole('form', { name: /^Edit entry/ })
 	expect(editors).toHaveLength(1)
 	expect(within(editors[0]).getByLabelText('Date')).toHaveValue('2026-09-01')
-})
-
-test('Edit closes a removal waiting to be confirmed on another row', async () => {
-	serveCatalogue([history])
-	serveValues({ history: [offerSent, firstCall] })
-
-	renderPanel()
-	await userEvent.click(await screen.findByRole('button', { name: `Remove entry: ${firstCallName}` }))
-	await editEntry(offerSentName)
-
-	expect(screen.queryByRole('group', { name: 'Remove this entry?' })).not.toBeInTheDocument()
 })
 
 test('Cancel sends nothing and puts focus back on Edit entry', async () => {

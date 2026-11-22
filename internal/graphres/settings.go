@@ -18,6 +18,7 @@ const (
 	DefaultPageCap             = sdk.DefaultPageCap
 	DefaultToastDuration       = 6 * time.Second
 	DefaultToastActionDuration = 10 * time.Second
+	DefaultDialogWriteTimeout  = 60 * time.Second
 	DefaultListPageSize        = 20
 	DefaultFormatLocale        = "es-ES"
 )
@@ -33,6 +34,8 @@ type Screens struct {
 	ToastDuration time.Duration
 	// ToastActionDuration is how long a toast with a button stays. Zero serves [DefaultToastActionDuration].
 	ToastActionDuration time.Duration
+	// DialogWriteTimeout is how long a busy dialog waits on its write. Zero serves [DefaultDialogWriteTimeout].
+	DialogWriteTimeout time.Duration
 	// PageSizes lists the page sizes a list offers. Empty serves [DefaultListPageSizes].
 	PageSizes []int
 	// PageSize is the page size a list opens on. Zero serves [DefaultListPageSize].
@@ -53,12 +56,13 @@ func (s Screens) pageSizes() []int {
 func (q QueryResolvers) AdminSettings(context.Context) (*model.AdminSettings, error) {
 	screens := q.root.Screens
 	return &model.AdminSettings{
-		ToastMilliseconds:       int(cmp.Or(screens.ToastDuration, DefaultToastDuration).Milliseconds()),
-		ToastActionMilliseconds: int(cmp.Or(screens.ToastActionDuration, DefaultToastActionDuration).Milliseconds()),
-		ListPageSizes:           screens.pageSizes(),
-		ListPageSize:            cmp.Or(screens.PageSize, DefaultListPageSize),
-		ContactPageCap:          q.root.Paging.ceiling(),
-		FormatLocale:            cmp.Or(screens.FormatLocale, DefaultFormatLocale),
+		ToastMilliseconds:              int(cmp.Or(screens.ToastDuration, DefaultToastDuration).Milliseconds()),
+		ToastActionMilliseconds:        int(cmp.Or(screens.ToastActionDuration, DefaultToastActionDuration).Milliseconds()),
+		DialogWriteTimeoutMilliseconds: int(cmp.Or(screens.DialogWriteTimeout, DefaultDialogWriteTimeout).Milliseconds()),
+		ListPageSizes:                  screens.pageSizes(),
+		ListPageSize:                   cmp.Or(screens.PageSize, DefaultListPageSize),
+		ContactPageCap:                 q.root.Paging.ceiling(),
+		FormatLocale:                   cmp.Or(screens.FormatLocale, DefaultFormatLocale),
 	}, nil
 }
 

@@ -37,7 +37,7 @@ test('sends a member home from the Users screen without asking for the accounts'
 	expect(asked.count).toBe(0)
 })
 
-test('sends a member home from the New user screen', async () => {
+test('sends a member home from the Add User screen', async () => {
 	renderAt('/users/new', memberSession)
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'Tasks' })).toBeInTheDocument()

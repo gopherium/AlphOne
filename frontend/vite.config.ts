@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { godminDedupe, godminSingleCopy, godminStylesheetFirst } from '@gopherium/godmin/vite'
 import react from '@vitejs/plugin-react'
-import dsTokenFallbacks from '@wordpress/theme/vite-plugins/vite-ds-token-fallbacks'
+import dsTokenFallbacks from '@wordpress/theme-build-tools/vite-plugins/vite-ds-token-fallbacks'
 import { defineConfig, normalizePath } from 'vite'
 
 /** Resolves a repository path to an absolute path. */
@@ -40,6 +40,7 @@ export default defineConfig({
 					'@gopherium/gottext',
 					'@gopherium/godmin',
 					'@gopherium/react-auth',
+					'@wordpress/ui',
 				],
 			},
 		},

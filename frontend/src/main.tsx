@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { FormatLocaleGate, GraphProvider, Text, __, createGraphClient } from '@alphone/frontend-sdk'
-import { AdminRoot } from '@gopherium/godmin'
 import {
 	AuthGate,
 	configureAuthTransport,
@@ -16,6 +15,7 @@ import { createRoot } from 'react-dom/client'
 import '@gopherium/godmin/base.css'
 import '@gopherium/react-auth/wpds/style.css'
 import './index.css'
+import { AdminHost } from './AdminHost'
 import { AppToaster, PublicToaster } from './AppToaster'
 import { graphAuthTransport } from './auth/graphTransport'
 import { LoginSlot, legalLinks, publicAuthScreen } from './auth/PublicAuth'
@@ -46,7 +46,7 @@ createRoot(document.getElementById('root')!).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
 			<GraphProvider graph={graph}>
-				<AdminRoot>
+				<AdminHost>
 					{publicScreen === null ? (
 						<AppToaster>
 							<AuthGate
@@ -62,7 +62,7 @@ createRoot(document.getElementById('root')!).render(
 					) : (
 						<PublicToaster>{publicScreen}</PublicToaster>
 					)}
-				</AdminRoot>
+				</AdminHost>
 			</GraphProvider>
 		</QueryClientProvider>
 	</StrictMode>,

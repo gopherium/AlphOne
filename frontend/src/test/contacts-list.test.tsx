@@ -14,7 +14,7 @@ import { configureAppErrorText } from '../i18n/errors'
 import { startAppLocale } from '../i18n/start'
 import { createAppRouter } from '../router'
 import { gate } from './gate'
-import { badgeClasses, buttonClasses, renderAt } from './render'
+import { badgeClasses, busyClasses, buttonClasses, renderAt, renderLimitedAt, signalsOf } from './render'
 
 /** identity is one way a contact is reached, as the contact page answers it. */
 interface identity {
@@ -162,6 +162,7 @@ function paging(sizes: number[], size: number, cap = 200) {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
 						toastActionMilliseconds: 10000,
+						dialogWriteTimeoutMilliseconds: 60000,
 						listPageSizes: sizes,
 						listPageSize: size,
 						contactPageCap: cap,
@@ -560,6 +561,7 @@ test('waits for the page size before it asks for contacts', async () => {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
 						toastActionMilliseconds: 10000,
+						dialogWriteTimeoutMilliseconds: 60000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,
@@ -587,6 +589,7 @@ test('holds the empty state back from the first render until the first answer', 
 						__typename: 'AdminSettings',
 						toastMilliseconds: 6000,
 						toastActionMilliseconds: 10000,
+						dialogWriteTimeoutMilliseconds: 60000,
 						listPageSizes: [2, 4],
 						listPageSize: 2,
 						contactPageCap: 200,
@@ -668,7 +671,7 @@ test('counts no contacts and ticks none, because no bulk action exists yet', asy
 	renderAt('/contacts')
 
 	await rowOf('Ana Lopez')
-	expect(screen.queryByText('3 Items')).not.toBeInTheDocument()
+	expect(screen.queryByText('3 items')).not.toBeInTheDocument()
 	expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
 })
 
@@ -765,13 +768,13 @@ test('opens the contact a tap lands on in the list a phone shows', async () => {
 	expect(await screen.findByRole('heading', { level: 2, name: 'Ada Lovelace' }, settled)).toBeInTheDocument()
 })
 
-test('offers Add task before Rename… in the row menu, the one click primary action first', async () => {
+test('offers Add task before Rename in the row menu, the one click primary action first', async () => {
 	renderAt('/contacts')
 
 	await userEvent.click((await rowOf('Ana Lopez')).getByRole('button', { name: 'Actions' }))
 
 	const offered = (await screen.findAllByRole('menuitem')).map((item) => item.textContent)
-	expect(offered).toEqual(['Add task', 'Rename…'])
+	expect(offered).toEqual(['Add task', 'Rename'])
 })
 
 test('offers Add task as the button a contact row shows, never the rename', async () => {
@@ -811,7 +814,7 @@ function writesName(opened: Promise<void> = Promise.resolve()) {
  * @param title - The title of the rename dialog.
  * @returns The dialog queries.
  */
-async function openRename(contact = 'Ana Lopez', action = 'Rename…', title = 'Rename') {
+async function openRename(contact = 'Ana Lopez', action = 'Rename', title = 'Rename') {
 	await act(contact, action)
 	return within(await screen.findByRole('dialog', { name: title }))
 }
@@ -828,7 +831,7 @@ async function renameTo(dialog: ReturnType<typeof within>, name: string) {
 	await userEvent.click(dialog.getByRole('button', { name: 'Save' }))
 }
 
-test('renames a contact in a modal and confirms it with a toast', async () => {
+test('renames a contact in a dialog and confirms it with a toast', async () => {
 	const names = writesName()
 	renderAt('/contacts?sort=name&order=asc')
 
@@ -874,24 +877,6 @@ test('reloads the page on show after a rename, so the reader stays on it', async
 	await waitFor(() => expect(asked).toHaveLength(before + 1))
 	expect(asked.at(-1)).toMatchObject({ limit: 2, offset: 2 })
 	await waitFor(async () => expect(await shownNames()).toEqual(['Zoe Perez']))
-})
-
-test('reloads the page the reader moved to while a rename was on its way', async () => {
-	const written = gate()
-	writesName(written.held)
-	paging([2, 4], 2)
-	renderAt('/contacts')
-	await renameTo(await openRename('Ada Lovelace'), 'Ada Lovelace King')
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-	await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
-	await waitFor(async () => expect(await shownNames()).toEqual(['Maria Perez']))
-	const before = asked.length
-
-	written.release()
-
-	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
-	await waitFor(() => expect(asked).toHaveLength(before + 1))
-	expect(asked.at(-1)).toMatchObject({ limit: 2, offset: 2 })
 })
 
 test('reloads the search on show after a rename, so the reader keeps it', async () => {
@@ -947,7 +932,13 @@ async function openRenameOnNameOrder() {
 }
 
 test('keeps the focus on the contact a rename moved, not on the row now in its place', async () => {
-	await renameTo(await openRenameOnNameOrder(), 'Zoe Lovelace')
+	const dialog = await openRenameOnNameOrder()
+	const reload = gate()
+	holdingPages(reload.held)
+
+	await renameTo(dialog, 'Zoe Lovelace')
+	await waitFor(() => expect(screen.getByRole('region', { name: 'Contacts' })).toHaveFocus())
+	reload.release()
 
 	await waitFor(async () => expect(await shownNames()).toEqual(['Ana Lopez', 'Maria Perez', 'Zoe Lovelace']))
 	await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false'))
@@ -968,37 +959,16 @@ test('finds the contact a rename moved when the window narrows in the reload and
 	await waitFor(() => expect(moved).toHaveFocus())
 })
 
-test('keeps what the reader typed in an open rename while an earlier rename lands and reloads the list', async () => {
-	const written = gate()
-	writesName(written.held)
+test('opens the rename with a close icon and Cancel as a neutral outline button', async () => {
 	renderAt('/contacts')
-	await renameTo(await openRename(), 'Zoe Lopez')
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-	const field = (await openRename('Maria Perez')).getByRole('textbox', { name: 'Name' })
-	await userEvent.clear(field)
-	await userEvent.type(field, 'Maria Perez Ltd')
-	const reload = gate()
-	holdingPages(reload.held)
 
-	written.release()
-	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
-	reload.release()
-	await waitFor(() =>
-		expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'false'),
+	await act('Ana Lopez', 'Rename')
+
+	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
+	expect(dialog.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+	expect([...dialog.getByRole('button', { name: 'Cancel' }).classList]).toEqual(
+		buttonClasses('outline', undefined, 'neutral'),
 	)
-
-	expect(field).toBeInTheDocument()
-	expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Maria Perez Ltd')
-})
-
-test('opens the rename at the default medium width with Cancel as an accent text button', async () => {
-	renderAt('/contacts')
-
-	await act('Ana Lopez', 'Rename…')
-
-	const dialog = await screen.findByRole('dialog', { name: 'Rename' })
-	expect(dialog).toHaveClass('has-size-medium')
-	expect([...within(dialog).getByRole('button', { name: 'Cancel' }).classList]).toEqual(buttonClasses('minimal'))
 })
 
 test('puts the cursor in the name when the rename opens, as the WordPress rename does', async () => {
@@ -1008,7 +978,7 @@ test('puts the cursor in the name when the rename opens, as the WordPress rename
 	onTestFinished(() => laidOut.mockRestore())
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename…')
+	await act('Ana Lopez', 'Rename')
 
 	const dialog = within(await screen.findByRole('dialog', { name: 'Rename' }))
 	await waitFor(() => expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveFocus())
@@ -1029,26 +999,32 @@ test('sends the Spanish rename with Guardar under the Renombrar heading', async 
 	onTestFinished(() => resetLocale())
 	renderAt('/contacts')
 
-	const dialog = await openRename('Ana Lopez', 'Renombrar…', 'Renombrar')
+	const dialog = await openRename('Ana Lopez', 'Renombrar', 'Renombrar')
 
 	expect(dialog.getByRole('textbox', { name: 'Nombre' })).toHaveValue('Ana Lopez')
 	expect(dialog.getByRole('button', { name: 'Guardar' })).toHaveAttribute('type', 'submit')
 	expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
 })
 
-test('keeps Save off only while the name is blank, as WordPress keeps its rename', async () => {
+test('keeps Save on for a blank name or spaces only and sends nothing, as WordPress keeps its rename', async () => {
+	const names = writesName()
 	renderAt('/contacts')
 	const dialog = await openRename()
 	const save = dialog.getByRole('button', { name: 'Save' })
 	const field = dialog.getByRole('textbox', { name: 'Name' })
 
-	expect(save).not.toHaveAttribute('aria-disabled', 'true')
 	await userEvent.clear(field)
-	await userEvent.type(field, '   ')
-
-	expect(save).toHaveAttribute('aria-disabled', 'true')
-	await userEvent.type(field, 'Zoe Lopez')
 	expect(save).not.toHaveAttribute('aria-disabled', 'true')
+	await userEvent.click(save)
+	expect(field).toBeInvalid()
+	await userEvent.type(field, '   ')
+	expect(save).not.toHaveAttribute('aria-disabled', 'true')
+	await userEvent.click(save)
+
+	expect(field).toBeInvalid()
+	expect([...save.classList]).not.toEqual(expect.arrayContaining(busyClasses()))
+	expect(screen.getByRole('dialog', { name: 'Rename' })).toBeInTheDocument()
+	expect(names).toEqual([])
 })
 
 test('sends a name left as it was, as the WordPress rename does', async () => {
@@ -1061,33 +1037,30 @@ test('sends a name left as it was, as the WordPress rename does', async () => {
 	await waitFor(() => expect(names).toEqual(['Ana Lopez']))
 })
 
-test('closes the dialog the moment Save is pressed, before the write answers, as WordPress does', async () => {
+test('holds the rename open, Save busy and the name read only, until the write answers', async () => {
 	const answer = gate()
-	const names: string[] = []
-	server.use(
-		graphql.mutation('RenameContact', async ({ variables }) => {
-			await answer.held
-			names.push(String(variables.name))
-			return HttpResponse.json({
-				data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: String(variables.name) } },
-			})
-		}),
-	)
+	const names = writesName(answer.held)
 	renderAt('/contacts')
+	const dialog = await openRename()
+	const save = dialog.getByRole('button', { name: 'Save' })
 
-	await renameTo(await openRename(), 'Zoe Lopez')
+	await renameTo(dialog, 'Zoe Lopez')
 
-	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect([...save.classList]).toEqual(expect.arrayContaining(busyClasses()))
+	expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveAttribute('readonly')
+	expect(screen.getByRole('dialog', { name: 'Rename' })).toBeInTheDocument()
 	expect(names).toEqual([])
 	answer.release()
 	expect(await screen.findByText('Name updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(names).toEqual(['Zoe Lopez'])
 })
 
-test('closes the rename modal without writing when the reader cancels', async () => {
+test('closes the rename dialog without writing when the reader cancels', async () => {
 	const names = writesName()
 	renderAt('/contacts')
 
-	await act('Ana Lopez', 'Rename…')
+	await act('Ana Lopez', 'Rename')
 	await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
 
 	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -1095,111 +1068,93 @@ test('closes the rename modal without writing when the reader cancels', async ()
 })
 
 /**
- * Renames Ana Lopez to Ana Lopez Ltd through the row modal, answering with the given failure.
+ * Renames Ana Lopez to Ana Lopez Ltd through the row dialog, answering with the given failure.
  * @param error - The error the rename mutation answers with.
+ * @returns The rename dialog queries.
  */
 async function failRename(error: Record<string, unknown>) {
 	server.use(graphql.mutation('RenameContact', () => HttpResponse.json({ data: null, errors: [error] })))
 	renderAt('/contacts')
-	await renameTo(await openRename(), 'Ana Lopez Ltd')
+	const dialog = await openRename()
+	await renameTo(dialog, 'Ana Lopez Ltd')
+	return dialog
 }
 
-test('shows the reason a refused rename gave in a toast, the dialog already closed', async () => {
+test('shows the reason a rejected rename gave inside the dialog, which stays open with the typed name', async () => {
 	configureAppErrorText()
 
-	await failRename({
+	const dialog = await failRename({
 		message: 'contact: empty name',
 		extensions: { code: 'VALIDATION', reason: 'contact_name_required' },
 	})
 
-	expect(await screen.findByText('A contact needs a name.', { selector: '.godmin-toast' })).toBeInTheDocument()
-	expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	expect(await dialog.findByText('A contact needs a name.')).toBeInTheDocument()
+	expect(screen.getByRole('dialog', { name: 'Rename' })).toBeInTheDocument()
+	expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez Ltd')
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 	expect(screen.queryByText('Name updated.')).not.toBeInTheDocument()
 })
 
-test('marks no reload when a rename fails, and asks for no rows', async () => {
-	await failRename({ message: 'internal error' })
+test('marks no reload when a rename fails, and reads the rows again once', async () => {
+	const dialog = await failRename({ message: 'internal error' })
 
-	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
-	expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false')
-	expect(asked).toHaveLength(1)
+	await dialog.findByText('The name could not be updated.')
+	expect(document.querySelector('.godmin-toast')).toBeNull()
+	expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'false')
+	await waitFor(() => expect(asked).toHaveLength(2))
+	expect(screen.getByRole('table', { hidden: true })).toHaveAttribute('aria-busy', 'false')
 })
 
-test('says plainly in a toast that a contact could not be renamed when the server names no reason', async () => {
-	await failRename({ message: 'internal error' })
+test('says plainly inside the dialog that a contact could not be renamed when the server names no reason', async () => {
+	const dialog = await failRename({ message: 'internal error' })
 
-	expect(await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	expect(await dialog.findByText('The name could not be updated.')).toBeInTheDocument()
 	expect(screen.queryByText('internal error')).not.toBeInTheDocument()
 })
 
-test('offers the name a refused rename left unsaved when the dialog opens again', async () => {
-	await failRename({ message: 'internal error' })
-	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
-
-	const again = await openRename()
-
-	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez Ltd')
-})
-
-test('offers the name a refused rename left unsaved only on the contact it was typed for', async () => {
-	await failRename({ message: 'internal error' })
-	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
-
-	const other = await openRename('Maria Perez')
-
-	expect(other.getByRole('textbox', { name: 'Name' })).toHaveValue('Maria Perez')
-})
-
-test('opens on the stored name again once a later rename lands', async () => {
-	let refuse = true
+test('keeps the typed name in the dialog after a rejected rename, and a second Save sends it', async () => {
+	let reject = true
+	const names: string[] = []
 	server.use(
-		graphql.mutation('RenameContact', ({ variables }) =>
-			refuse
+		graphql.mutation('RenameContact', ({ variables }) => {
+			names.push(String(variables.name))
+			return reject
 				? HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
 				: HttpResponse.json({
 						data: { renameContact: { __typename: 'Contact', id: String(variables.id), name: String(variables.name) } },
-					}),
-		),
-	)
-	renderAt('/contacts')
-	await renameTo(await openRename(), 'Ana Lopez Ltd')
-	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
-	refuse = false
-	await renameTo(await openRename(), 'Ana Lopez')
-	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
-
-	const again = await openRename()
-
-	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez')
-})
-
-test('opens on the saved name when an earlier rename fails after a later one was sent', async () => {
-	const first = gate()
-	let writes = 0
-	server.use(
-		graphql.mutation('RenameContact', async ({ variables }) => {
-			writes += 1
-			if (writes === 1) {
-				await first.held
-				return HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
-			}
-			const name = String(variables.name)
-			held = held.map((row) => (row.id === variables.id ? { ...row, name } : row))
-			return HttpResponse.json({ data: { renameContact: { __typename: 'Contact', id: String(variables.id), name } } })
+					})
 		}),
 	)
 	renderAt('/contacts')
-	await renameTo(await openRename(), 'Ana Failed')
-	await waitFor(() => expect(writes).toBe(1))
-	await renameTo(await openRename(), 'Ana Saved')
+	const dialog = await openRename()
+	await renameTo(dialog, 'Ana Lopez Ltd')
+	await dialog.findByText('The name could not be updated.')
+	reject = false
 
-	first.release()
+	expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Lopez Ltd')
+	await userEvent.click(dialog.getByRole('button', { name: 'Save' }))
 
-	await screen.findByText('The name could not be updated.', { selector: '.godmin-toast' })
-	await screen.findByText('Name updated.', { selector: '.godmin-toast' })
-	const again = await openRename('Ana Saved')
-	expect(again.getByRole('textbox', { name: 'Name' })).toHaveValue('Ana Saved')
+	expect(await screen.findByText('Name updated.', { selector: '.godmin-toast' })).toBeInTheDocument()
+	await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+	expect(names).toEqual(['Ana Lopez Ltd', 'Ana Lopez Ltd'])
+})
+
+/** shortLimit is the time limit in milliseconds a busy dialog waits on its write in a test that runs past it. */
+const shortLimit = 50
+
+test('stops a rename past the time limit and says the name was not updated, the typed name kept', async () => {
+	server.use(graphql.mutation('RenameContact', () => new Promise(() => {})))
+	const signals = signalsOf('RenameContact')
+	renderLimitedAt('/contacts', shortLimit)
+	const dialog = await openRename()
+
+	await renameTo(dialog, 'Zoe Lopez')
+
+	expect(await dialog.findByText('The name could not be updated.')).toBeInTheDocument()
+	expect(signals).toHaveLength(1)
+	expect(signals[0]?.aborted).toBe(true)
+	expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('Zoe Lopez')
+	expect(document.querySelector('.godmin-toast')).toBeNull()
 })
 
 test('opens a new task for the contact from its row', async () => {

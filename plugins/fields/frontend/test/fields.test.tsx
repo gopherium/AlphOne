@@ -9,7 +9,7 @@ import {
 	textClasses,
 } from '@alphone/frontend-sdk/testing'
 import { createRootRoute } from '@tanstack/react-router'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
@@ -490,39 +490,18 @@ test('the catalogue is read again after a refused define', async () => {
 	await waitFor(() => expect(reads).toBe(2))
 })
 
-test.each(['field_name_taken', 'field_kind_locked'])(
-	'a name refused with %s is numbered on the next press',
-	async (reason) => {
-		serveFieldCatalogue([])
-		const defined = vi.fn()
-		server.use(
-			graphql.mutation('DefineField', async ({ variables }) => {
-				defined(variables)
-				return HttpResponse.json(refusal('CONFLICT', reason))
-			}),
-		)
-
-		renderScreen()
-		await submitField()
-		await screen.findByText(`Could not add the field. ${REFUSED_WORDS}`, TOAST)
-		await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
-
-		await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
-		expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate2'])
-	},
-)
-
-test('a define refused for a reason that is no race sends the same name again', async () => {
+/**
+ * Adds a field, presses Add field again once the first define is rejected, and returns the names both defines sent.
+ * @param answer - Returns the body a define answers, given how many defines came before it.
+ * @returns The two names, in the order sent.
+ */
+async function namesSentOnTwoPresses(answer: (before: number) => Record<string, unknown>) {
 	serveFieldCatalogue([])
 	const defined = vi.fn()
 	server.use(
 		graphql.mutation('DefineField', async ({ variables }) => {
 			defined(variables)
-			return HttpResponse.json(
-				defined.mock.calls.length === 1
-					? refusal('VALIDATION', 'field_name_malformed')
-					: { data: { defineField: birthDate } },
-			)
+			return HttpResponse.json(answer(defined.mock.calls.length - 1))
 		}),
 	)
 
@@ -532,7 +511,22 @@ test('a define refused for a reason that is no race sends the same name again', 
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(2))
-	expect(defined.mock.calls.map((call) => call[0].name)).toEqual(['birthDate', 'birthDate'])
+	return defined.mock.calls.map((call) => call[0].name)
+}
+
+test.each(['field_name_taken', 'field_kind_locked'])(
+	'a name refused with %s is numbered on the next press',
+	async (reason) => {
+		expect(await namesSentOnTwoPresses(() => refusal('CONFLICT', reason))).toEqual(['birthDate', 'birthDate2'])
+	},
+)
+
+test('a define refused for a reason that is no race sends the same name again', async () => {
+	const names = await namesSentOnTwoPresses((before) =>
+		before === 0 ? refusal('VALIDATION', 'field_name_malformed') : { data: { defineField: birthDate } },
+	)
+
+	expect(names).toEqual(['birthDate', 'birthDate'])
 })
 
 test('a label refused by the server is not sent again until the reader edits it', async () => {
@@ -648,12 +642,25 @@ const notFound = {
 }
 
 /**
- * Presses the trash of the named field, then Archive in the question it asks.
+ * Presses the trash of the named field.
  * @param label - The label of the field.
  */
 async function archiveField(label: string) {
 	await userEvent.click(await screen.findByRole('button', { name: `Archive ${label}` }))
-	await userEvent.click(screen.getByRole('button', { name: 'Archive' }))
+}
+
+/**
+ * Returns the toast that says the given message.
+ * @param message - The message of the toast.
+ * @returns The toast, once it shows.
+ */
+async function toastOf(message: string) {
+	return (await screen.findByText(message)).closest('.godmin-toast') as HTMLElement
+}
+
+/** Presses Undo in the toast that says a field was archived. */
+async function undoArchive() {
+	await userEvent.click(within(await toastOf('Field archived.')).getByRole('button', { name: 'Undo' }))
 }
 
 /**
@@ -841,34 +848,32 @@ test('defining a repeater sends sub fields named from their labels', async () =>
 	expect(defined).toHaveBeenCalledTimes(1)
 })
 
-test('two sub fields sharing a label are sent under distinct names', async () => {
+/**
+ * Adds a repeater with Text sub fields under the given labels and returns the sub field names its define sent.
+ * @param labels - The labels of the sub fields, in order.
+ * @returns The sub field names, in order.
+ */
+async function subFieldNamesSent(labels: string[]) {
 	serveFieldCatalogue([])
 	const defined = captureDefine(history)
 
 	renderScreen()
 	await startRepeater()
-	await addSubField('Note', 'Text')
-	await addSubField('Note', 'Text')
+	for (const label of labels) {
+		await addSubField(label, 'Text')
+	}
 	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
 	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
-	expect(defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)).toEqual([
-		'note',
-		'note2',
-	])
+	return defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)
+}
+
+test('two sub fields sharing a label are sent under distinct names', async () => {
+	expect(await subFieldNamesSent(['Note', 'Note'])).toEqual(['note', 'note2'])
 })
 
 test('a sub field labelled ID is sent under a name other than the one entries keep their id under', async () => {
-	serveFieldCatalogue([])
-	const defined = captureDefine(history)
-
-	renderScreen()
-	await startRepeater()
-	await addSubField('ID', 'Text')
-	await userEvent.click(screen.getByRole('button', { name: 'Add field' }))
-
-	await waitFor(() => expect(defined).toHaveBeenCalledTimes(1))
-	expect(defined.mock.calls[0][0].subFields.map((column: { name: string }) => column.name)).toEqual(['id2'])
+	expect(await subFieldNamesSent(['ID'])).toEqual(['id2'])
 })
 
 test('a sub field is numbered in the format locale', async () => {
@@ -1133,7 +1138,7 @@ async function settle() {
 	await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
 }
 
-test('each field row carries arrows that move it and a trash icon that asks to archive it', async () => {
+test('each field row carries arrows that move it and a trash icon that archives it', async () => {
 	serveFieldCatalogue([birthDate])
 
 	renderScreen()
@@ -1146,68 +1151,23 @@ test('each field row carries arrows that move it and a trash icon that asks to a
 	expect(screen.queryByText('Archive')).not.toBeInTheDocument()
 })
 
-test('the trash asks first and puts focus on Keep', async () => {
+test('the trash archives at once, asking nothing, and says so with an Undo', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	const archived = capture('ArchiveField', { data: { archiveField: true } })
 
 	renderScreen()
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
+	await archiveField('Birth date')
 
-	const row = within(rowOf('Birth date'))
-	expect(row.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
-	expect(row.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
-	expect(row.getByRole('button', { name: 'Keep' })).toHaveFocus()
-	expect(row.queryByRole('button', { name: 'Archive Birth date' })).not.toBeInTheDocument()
-	expect(row.queryByRole('button', { name: 'Move Birth date down' })).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
-	const group = row.getByRole('group', { name: 'Archive this field?' })
-	const [question, buttons] = [...group.children] as HTMLElement[]
-	expect(group.style.flexDirection).toBe('column')
-	expect(question).toHaveTextContent(/^Archive this field\?$/)
-	expect(buttons.style.flexDirection).toBe('row')
-	expect(buttons.style.flexWrap).toBe('nowrap')
-	expect(buttons).toContainElement(row.getByRole('button', { name: 'Archive' }))
-	expect(buttons).toContainElement(row.getByRole('button', { name: 'Keep' }))
-	await settle()
-	expect(archived).not.toHaveBeenCalled()
-})
-
-test('a trash pressed while another row asks moves the question to its row and puts focus on its Keep', async () => {
-	serveFieldCatalogue([birthDate, shoeSize])
-	const archived = capture('ArchiveField', { data: { archiveField: true } })
-
-	renderScreen()
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
-	await userEvent.click(screen.getByRole('button', { name: 'Archive Shoe size' }))
-
-	expect(screen.getAllByRole('group', { name: 'Archive this field?' })).toHaveLength(1)
-	const shoe = within(rowOf('Shoe size'))
-	expect(shoe.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
-	expect(shoe.getByRole('button', { name: 'Keep' })).toHaveFocus()
-	expect(within(rowOf('Birth date')).getByRole('button', { name: 'Archive Birth date' })).toBeInTheDocument()
-	await settle()
-	expect(archived).not.toHaveBeenCalled()
-})
-
-test('Keep leaves the field and puts focus back on its trash', async () => {
-	serveFieldCatalogue([birthDate, shoeSize])
-	const archived = capture('ArchiveField', { data: { archiveField: true } })
-
-	renderScreen()
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
-	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
-
-	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
+	await waitFor(() => expect(archived).toHaveBeenCalledWith({ id: birthDate.id }))
+	expect(within(await toastOf('Field archived.')).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Archive Birth date' })).toHaveFocus()
-	expect(screen.getByRole('button', { name: 'Move Birth date down' })).toBeInTheDocument()
-	await settle()
-	expect(archived).not.toHaveBeenCalled()
 })
 
 test.each([
 	['lost on the way', () => HttpResponse.error()],
-	['refused', () => HttpResponse.json(notFound)],
-])('an archive %s closes the question and puts focus back on the trash', async (_, answer) => {
+	['rejected', () => HttpResponse.json(notFound)],
+])('an archive %s frees every trash and keeps focus on the one pressed', async (_, answer) => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	server.use(graphql.mutation('ArchiveField', answer))
 
@@ -1215,23 +1175,56 @@ test.each([
 	await archiveField('Birth date')
 
 	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
-	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
 	const trash = screen.getByRole('button', { name: 'Archive Birth date' })
 	await waitFor(() => expect(trash).toHaveFocus())
 	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
+	expect(screen.queryByText('Field archived.')).not.toBeInTheDocument()
 })
 
-test('a failed archive leaves focus where the reader moved it', async () => {
+/**
+ * Presses the trash of Birth date in the given way while its archive is held, to fail once released.
+ * @param press - Presses the trash.
+ * @returns The trash and the release of the archive.
+ */
+async function failingArchive(press: (trash: HTMLElement) => unknown) {
 	serveFieldCatalogue([birthDate, shoeSize])
 	const archiving = hold('ArchiveField', notFound)
 
 	renderScreen()
-	await archiveField('Birth date')
+	const trash = await screen.findByRole('button', { name: 'Archive Birth date' })
+	await press(trash)
 	await waitFor(() => expect(archiving.called).toHaveBeenCalledOnce())
+	return { trash, release: archiving.release }
+}
+
+/**
+ * Presses a trash the way a browser that leaves focus on the page does.
+ * @param trash - The trash.
+ */
+function pressLeavingFocus(trash: HTMLElement) {
+	act(() => trash.click())
+}
+
+test('a failed archive pressed in a browser that leaves focus on the page puts focus on the trash', async () => {
+	const { trash, release } = await failingArchive(pressLeavingFocus)
+	release()
+
+	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
+	await waitFor(() => expect(trash).toHaveFocus())
+})
+
+test.each([
+	[
+		'a failed archive pressed in a browser that leaves focus on the page keeps a focus the reader moved',
+		pressLeavingFocus,
+	],
+	['a failed archive leaves focus where the reader moved it', (trash: HTMLElement) => userEvent.click(trash)],
+])('%s', async (_, press) => {
+	const { release } = await failingArchive(press)
 	const label = screen.getByLabelText('Label')
 	await userEvent.click(label)
-	archiving.release()
+	release()
 
 	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
 	await settle()
@@ -1542,7 +1535,7 @@ test('focus outside the list stays put and scrolls nothing as the rows change', 
 	expect(screen.getByText('Field added.')).toBeInTheDocument()
 })
 
-test('a second press on Archive before the archive is answered sends nothing more', async () => {
+test('a second press on the trash before the archive is answered sends nothing more', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	const archived = vi.fn()
 	let answer = () => {}
@@ -1562,14 +1555,12 @@ test('a second press on Archive before the archive is answered sends nothing mor
 	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
-	const confirm = screen.getByRole('button', { name: 'Archive' })
-	await userEvent.click(confirm)
-	await userEvent.click(confirm)
+	const trash = await screen.findByRole('button', { name: 'Archive Birth date' })
+	await userEvent.click(trash)
+	await userEvent.click(trash)
 	await waitFor(() => expect(archived).toHaveBeenCalledTimes(1))
-	expect(confirm).toHaveAttribute('aria-disabled', 'true')
-	expect(confirm.className).toMatch(/is-loading/)
-	expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
+	expect(trash).toHaveAttribute('aria-disabled', 'true')
+	expect(trash).toHaveFocus()
 	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveAttribute('aria-disabled', 'true')
 	await settle()
 	answer()
@@ -1580,7 +1571,7 @@ test('a second press on Archive before the archive is answered sends nothing mor
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('the archive question stays open and locked until the read drops the row', async () => {
+test('every trash stays locked until the read drops the archived row', async () => {
 	let served = [birthDate, shoeSize, nickname]
 	let gated = false
 	let releaseRead = () => {}
@@ -1608,12 +1599,12 @@ test('the archive question stays open and locked until the read drops the row', 
 	await settle()
 
 	const row = within(rowOf('Shoe size'))
-	expect(row.getByRole('group', { name: 'Archive this field?' })).toBeInTheDocument()
-	expect(row.getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
-	expect(row.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-disabled', 'true')
+	expect(row.getByRole('button', { name: 'Archive Shoe size' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
 	releaseRead()
-	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveFocus())
+	const next = screen.getByRole('button', { name: 'Archive Nickname' })
+	await waitFor(() => expect(next).toHaveFocus())
+	expect(next).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 /**
@@ -1649,12 +1640,11 @@ test('a read that fails after an archive frees the rows beside a notice', async 
 	await archiveField('Shoe size')
 
 	expect(await screen.findByRole('alert')).toHaveTextContent('The fields could not be loaded.')
-	expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
 	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveFocus())
 })
 
-test('a read that failed before an archive leaves its question locked until the next read answers', async () => {
+test('a read that failed before an archive leaves every trash locked until the next read answers', async () => {
 	serveFieldCatalogue([birthDate, shoeSize, nickname])
 	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json(refusal('NOT_FOUND', 'field_not_found'))))
 	renderScreen()
@@ -1668,14 +1658,14 @@ test('a read that failed before an archive leaves its question locked until the 
 	await archiveField('Shoe size')
 	await settle()
 
-	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
-	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	const trash = screen.getByRole('button', { name: 'Archive Shoe size' })
+	expect(trash).toHaveAttribute('aria-disabled', 'true')
 	release()
-	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
+	await waitFor(() => expect(trash).not.toHaveAttribute('aria-disabled', 'true'))
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
-test('a read failing while an archive is on its way leaves its question locked until the answer', async () => {
+test('a read failing while an archive is on its way leaves every trash locked until the answer', async () => {
 	serveFieldCatalogue([birthDate, shoeSize, nickname])
 	const archive = hold('ArchiveField', { data: { archiveField: true } })
 	const { graph } = fakeGraphClient([plugin])
@@ -1687,12 +1677,13 @@ test('a read failing while an archive is on its way leaves its question locked u
 	act(() => graph.refetch(['FieldCatalogue']))
 
 	await screen.findByRole('alert')
-	const question = within(rowOf('Shoe size')).getByRole('group', { name: 'Archive this field?' })
-	expect(within(question).getByRole('button', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
 	archive.release()
-	await waitFor(() => expect(screen.queryByRole('group', { name: 'Archive this field?' })).not.toBeInTheDocument())
-	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('a read that fails after an archive leaves a focus the reader moved elsewhere', async () => {
@@ -1730,7 +1721,7 @@ test('a read that works after one that failed takes the notice away and shows wh
 	expect(screen.queryByText('Shoe size')).not.toBeInTheDocument()
 })
 
-test('an archive lost on the way can be confirmed again', async () => {
+test('an archive lost on the way can be pressed again', async () => {
 	serveFieldCatalogue([birthDate])
 	const archived = vi.fn()
 	server.use(
@@ -1803,13 +1794,14 @@ test('a field brought back after the reader archived it shows again', async () =
 	await waitFor(async () => expect(await shownLabels()).toEqual(['Shoe size', 'Birth date', 'Hat size']))
 })
 
-test('a field that leaves and comes back after Keep leaves focus where the reader is', async () => {
+test('a field that leaves and comes back after a failed archive leaves focus where the reader is', async () => {
 	const store = serveFieldStore([birthDate, shoeSize])
+	server.use(graphql.mutation('ArchiveField', () => HttpResponse.json(notFound)))
 	const { graph } = fakeGraphClient([plugin])
 
 	renderScreen(graph)
-	await userEvent.click(await screen.findByRole('button', { name: 'Archive Birth date' }))
-	await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+	await archiveField('Birth date')
+	await screen.findByText('Could not archive the field.', TOAST)
 	store.serve([shoeSize])
 	act(() => graph.refetch(['FieldCatalogue']))
 	await waitFor(() => expect(screen.queryByText('Birth date')).not.toBeInTheDocument())
@@ -1828,4 +1820,376 @@ test('a list holding fields is one tab stop so a keyboard can scroll it', async 
 	await screen.findByRole('button', { name: 'Archive Birth date' })
 
 	expect(screen.getByRole('region', { name: 'Fields' })).toHaveAttribute('tabindex', '0')
+})
+
+/** StoredField is a catalogue row as a test server keeps it. */
+interface StoredField {
+	id: string
+	name: string
+}
+
+/**
+ * Serves the catalogue from a store that archives fields, revives one last when its name is defined, and orders.
+ * @param live - The live fields in their stored order.
+ * @param defining - Settles once the defines may answer.
+ * @returns The recorders of the defines and the orders.
+ */
+function serveRevivingStore<Field extends StoredField>(live: Field[], defining: Promise<void> = Promise.resolve()) {
+	let served = live
+	let archived: Field[] = []
+	const defined = vi.fn()
+	const ordered = vi.fn()
+	server.use(
+		graphql.query('FieldCatalogue', () =>
+			HttpResponse.json({ data: { fields: served, every: [...served, ...archived], reservedFieldNames: RESERVED } }),
+		),
+		graphql.mutation('ArchiveField', ({ variables }) => {
+			archived = [...archived, ...served.filter((field) => field.id === variables.id)]
+			served = served.filter((field) => field.id !== variables.id)
+			return HttpResponse.json({ data: { archiveField: true } })
+		}),
+		graphql.mutation('DefineField', async ({ variables }) => {
+			defined(variables)
+			await defining
+			const revived = archived.find((field) => field.name === variables.name) as Field
+			archived = archived.filter((field) => field !== revived)
+			served = [...served, revived]
+			return HttpResponse.json({ data: { defineField: revived } })
+		}),
+		graphql.mutation('OrderFields', ({ variables }) => {
+			ordered(variables)
+			const live = served.map((field) => field.id)
+			if (variables.ids.length !== live.length || !live.every((id) => variables.ids.includes(id))) {
+				return HttpResponse.json(refusal('CONFLICT', 'field_order_incomplete'))
+			}
+			served = [...served].sort((one, other) => variables.ids.indexOf(one.id) - variables.ids.indexOf(other.id))
+			return HttpResponse.json(accepted)
+		}),
+	)
+	return { defined, ordered }
+}
+
+test('Undo brings an archived field back in its place and says so', async () => {
+	const store = serveRevivingStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+
+	expect(await screen.findByText('Field restored.', TOAST)).toBeInTheDocument()
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Birth date', 'Shoe size', 'Nickname']))
+	expect(store.defined).toHaveBeenCalledWith({ name: 'shoeSize', label: 'Shoe size', kind: 'NUMBER', subFields: [] })
+	expect(store.ordered).toHaveBeenCalledWith({ ids: [birthDate.id, shoeSize.id, nickname.id] })
+})
+
+test('Undo sends a repeater back with its sub fields as the catalogue showed them', async () => {
+	const store = serveRevivingStore([birthDate, history])
+
+	renderScreen()
+	await archiveField('History')
+	await undoArchive()
+
+	await waitFor(() => expect(store.defined).toHaveBeenCalledOnce())
+	expect(store.defined).toHaveBeenCalledWith({
+		name: 'history',
+		label: 'History',
+		kind: 'REPEATER',
+		subFields: [
+			{ name: 'date', label: 'Date', kind: 'DATE' },
+			{ name: 'comment', label: 'Comment', kind: 'LONGTEXT' },
+		],
+	})
+})
+
+test('Undo pressed before the read drops the row frees every trash', async () => {
+	serveRevivingStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient([plugin])
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await toastOf('Field archived.')
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
+	await undoArchive()
+
+	await waitFor(() =>
+		expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true'),
+	)
+	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
+})
+
+test('Undo of an earlier archive while a later one waits for its read orders only the live fields', async () => {
+	const store = serveRevivingStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient([plugin])
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+	await archiveField('Nickname')
+	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(2))
+	const [earlier] = screen.getAllByText('Field archived.')
+	await userEvent.click(within(earlier.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
+	await screen.findByText('Field restored.', TOAST)
+
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledOnce())
+	expect(store.ordered).toHaveBeenCalledWith({ ids: [birthDate.id, shoeSize.id] })
+	await settle()
+	expect(screen.queryByText(/^Could not order the fields\./)).not.toBeInTheDocument()
+})
+
+test('Undo puts focus on the trash of the field it brings back once its row shows', async () => {
+	serveRevivingStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+
+	await screen.findByText('Field restored.', TOAST)
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveFocus())
+})
+
+test('Undo leaves a focus the reader moved before the field came back', async () => {
+	serveRevivingStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient([plugin])
+	const read = vi.mocked(graph.refetch).getMockImplementation() as typeof graph.refetch
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+	await undoArchive()
+	await screen.findByText('Field restored.', TOAST)
+	const label = screen.getByLabelText('Label')
+	await userEvent.click(label)
+	act(() => read(['FieldCatalogue']))
+
+	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toBeInTheDocument())
+	await settle()
+	expect(label).toHaveFocus()
+})
+
+test('a restore that fails puts focus on the field list', async () => {
+	serveRevivingStore([birthDate, shoeSize])
+	server.use(graphql.mutation('DefineField', () => HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))))
+
+	renderScreen()
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+
+	await screen.findByText(/^Could not restore the field\./, TOAST)
+	await waitFor(() => expect(screen.getByRole('region', { name: 'Fields' })).toHaveFocus())
+})
+
+test('a restore that fails leaves a focus the reader moved', async () => {
+	serveRevivingStore([birthDate, shoeSize])
+	const defining = hold('DefineField', refusal('CONFLICT', 'field_name_taken'))
+
+	renderScreen()
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
+	const label = screen.getByLabelText('Label')
+	await userEvent.click(label)
+	defining.release()
+
+	await screen.findByText(/^Could not restore the field\./, TOAST)
+	await settle()
+	expect(label).toHaveFocus()
+})
+
+test('a restore that fails after the reader left Fields says so and throws nothing', async () => {
+	serveRevivingStore([birthDate, shoeSize])
+	const defining = hold('DefineField', refusal('CONFLICT', 'field_name_taken'))
+
+	const { rehost } = renderScreen()
+	await archiveGone('Shoe size')
+	await undoArchive()
+	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
+	rehost(<p>Contacts</p>)
+	defining.release()
+
+	expect(await screen.findByText(/^Could not restore the field\./, TOAST)).toBeInTheDocument()
+	await settle()
+})
+
+test('a held Enter presses a trash once while a held Enter on an arrow keeps pressing it', async () => {
+	serveFieldCatalogue([birthDate, shoeSize])
+
+	renderScreen()
+	const trash = await screen.findByRole('button', { name: 'Archive Shoe size' })
+	const held = createEvent.keyDown(trash, { key: 'Enter', repeat: true })
+	fireEvent(trash, held)
+	const first = createEvent.keyDown(trash, { key: 'Enter' })
+	fireEvent(trash, first)
+	const arrow = screen.getByRole('button', { name: 'Move Birth date down' })
+	const moving = createEvent.keyDown(arrow, { key: 'Enter', repeat: true })
+	fireEvent(arrow, moving)
+
+	expect(held.defaultPrevented).toBe(true)
+	expect(first.defaultPrevented).toBe(false)
+	expect(moving.defaultPrevented).toBe(false)
+})
+
+test('Undo of an earlier archive leaves the trashes of a later one locked', async () => {
+	serveRevivingStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient([plugin])
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+	await archiveField('Nickname')
+	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(2))
+	const [earlier] = screen.getAllByText('Field archived.')
+	await userEvent.click(within(earlier.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
+	await screen.findByText('Field restored.', TOAST)
+
+	expect(screen.getByRole('button', { name: 'Archive Birth date' })).toHaveAttribute('aria-disabled', 'true')
+})
+
+/**
+ * Archives the named field and waits for its row to leave the list.
+ * @param label - The label of the field.
+ */
+async function archiveGone(label: string) {
+	await archiveField(label)
+	await waitFor(() => expect(screen.queryByText(label)).not.toBeInTheDocument())
+}
+
+/**
+ * Returns the Undo buttons of the archive toasts, oldest first.
+ * @param count - The number of archive toasts to wait for.
+ * @returns The buttons.
+ */
+async function undoButtons(count: number) {
+	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(count))
+	return screen
+		.getAllByText('Field archived.')
+		.map((message) => within(message.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
+}
+
+/**
+ * Waits for the list to show the given labels in order, with no toast saying the order failed.
+ * @param labels - The labels, top row first.
+ */
+async function expectShownInOrder(labels: string[]) {
+	await waitFor(async () => expect(await shownLabels()).toEqual(labels))
+	expect(screen.queryByText(/^Could not order the fields\./)).not.toBeInTheDocument()
+}
+
+test('Undos pressed in the order of the archives bring each field back between its neighbours', async () => {
+	const store = serveRevivingStore([birthDate, shoeSize, nickname, faxNumber])
+
+	renderScreen()
+	await archiveGone('Shoe size')
+	await archiveGone('Nickname')
+	const [first, second] = await undoButtons(2)
+	await userEvent.click(first)
+	await expectShownInOrder(['Birth date', 'Shoe size', 'Fax number'])
+	await userEvent.click(second)
+
+	await expectShownInOrder(['Birth date', 'Shoe size', 'Nickname', 'Fax number'])
+	expect(store.ordered).toHaveBeenLastCalledWith({ ids: [birthDate.id, shoeSize.id, nickname.id, faxNumber.id] })
+})
+
+test('Undo returns a field above its old followers when the field above it was archived later', async () => {
+	serveRevivingStore([birthDate, shoeSize, nickname, faxNumber])
+
+	renderScreen()
+	await archiveGone('Shoe size')
+	await archiveGone('Birth date')
+	const [first, second] = await undoButtons(2)
+	await userEvent.click(first)
+	await expectShownInOrder(['Shoe size', 'Nickname', 'Fax number'])
+	await userEvent.click(second)
+
+	await expectShownInOrder(['Birth date', 'Shoe size', 'Nickname', 'Fax number'])
+})
+
+test('Undos pressed together restore one field at a time and order every live field each time', async () => {
+	let open = () => {}
+	const store = serveRevivingStore(
+		[birthDate, shoeSize, nickname, faxNumber],
+		new Promise<void>((resolve) => {
+			open = resolve
+		}),
+	)
+
+	renderScreen()
+	await archiveGone('Shoe size')
+	await archiveGone('Nickname')
+	const [first, second] = await undoButtons(2)
+	await userEvent.click(first)
+	await userEvent.click(second)
+	await settle()
+	expect(store.defined).toHaveBeenCalledOnce()
+	open()
+
+	await expectShownInOrder(['Birth date', 'Shoe size', 'Nickname', 'Fax number'])
+	expect(store.defined).toHaveBeenCalledTimes(2)
+})
+
+test('an Undo waiting behind another keeps its field out of the order the earlier restore sends', async () => {
+	let open = () => {}
+	const store = serveRevivingStore(
+		[birthDate, shoeSize, nickname],
+		new Promise<void>((resolve) => {
+			open = resolve
+		}),
+	)
+	const { graph } = fakeGraphClient([plugin])
+	vi.mocked(graph.refetch).mockImplementation(() => {})
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await userEvent.click((await undoButtons(1))[0])
+	await archiveField('Nickname')
+	await userEvent.click((await undoButtons(1))[0])
+	await waitFor(() => expect(store.defined).toHaveBeenCalledOnce())
+	open()
+
+	await waitFor(() => expect(store.ordered).toHaveBeenCalledTimes(2))
+	expect(store.ordered).toHaveBeenNthCalledWith(1, { ids: [birthDate.id, shoeSize.id] })
+	await settle()
+	expect(screen.queryByText(/^Could not order the fields\./)).not.toBeInTheDocument()
+})
+
+test.each([
+	['rejected', 2, () => HttpResponse.json(refusal('CONFLICT', 'field_name_taken'))],
+	['lost on the way', 1, () => HttpResponse.error()],
+])('a restore %s says so and reads the catalogue %d times in all', async (_, reads, answer) => {
+	serveRevivingStore([birthDate, shoeSize])
+	server.use(graphql.mutation('DefineField', answer))
+	const { graph } = fakeGraphClient([plugin])
+
+	renderScreen(graph)
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+
+	expect(await screen.findByText(/^Could not restore the field\./, TOAST)).toBeInTheDocument()
+	await settle()
+	expect(graph.refetch).toHaveBeenCalledTimes(reads)
+	expect(screen.queryByText('Field restored.')).not.toBeInTheDocument()
+	expect(await shownLabels()).toEqual(['Birth date'])
+})
+
+test('a rejected order after a restore says so and shows the field last', async () => {
+	speakTemplates()
+	serveRevivingStore([birthDate, shoeSize, nickname])
+	server.use(graphql.mutation('OrderFields', () => HttpResponse.json(refusal('CONFLICT', 'field_order_incomplete'))))
+
+	renderScreen()
+	await archiveField('Shoe size')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await undoArchive()
+
+	expect(await screen.findByText('Field restored.', TOAST)).toBeInTheDocument()
+	expect(await screen.findByText(ORDER_REFUSED, TOAST)).toBeInTheDocument()
+	await waitFor(async () => expect(await shownLabels()).toEqual(['Birth date', 'Nickname', 'Shoe size']))
 })

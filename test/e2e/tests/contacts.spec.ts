@@ -26,7 +26,11 @@ test('creates a contact, adds and removes an identity, searches, and renames it'
 	await expect(page.getByText(`Email: ${email} (Work)`)).toBeVisible()
 
 	await page.getByRole('button', { name: `Remove ${email}` }).click()
+	const question = page.getByRole('alertdialog', { name: `Remove ${email}?` })
+	await question.getByRole('button', { name: 'Remove', exact: true }).click()
+	await expect(question).toBeHidden()
 	await expect(page.getByText('No identities yet.')).toBeVisible()
+	await expect(page.getByRole('combobox', { name: 'Channel' })).toBeFocused()
 
 	const menu = page.getByRole('region', { name: 'Navigation' })
 	await menu.getByRole('link', { name: 'Contacts' }).click()
@@ -134,7 +138,7 @@ test('renames a contact from its row in a dialog that hands the Name field the f
 	await page.getByRole('searchbox', { name: 'Search contacts…' }).fill(String(stamp))
 	const row = page.getByRole('row').filter({ hasText: name })
 	await row.getByRole('button', { name: 'Actions' }).click()
-	await page.getByRole('menuitem', { name: 'Rename…', exact: true }).click()
+	await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
 
 	const dialog = page.getByRole('dialog', { name: 'Rename' })
 	const field = dialog.getByRole('textbox', { name: 'Name' })

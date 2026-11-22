@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, useGraph, useGraphMutation, useToaster } from '@alphone/frontend-sdk'
-import type { GraphFailure } from '@alphone/frontend-sdk'
+import { __, dialogWrite, useGraph, useGraphMutation, useToaster } from '@alphone/frontend-sdk'
+import type { DialogAnswer, GraphFailure } from '@alphone/frontend-sdk'
 import { useState } from 'react'
 
 import type { EntryText } from './cellText'
 import { neighbour, typedEntry } from './entries'
 import type { RepeaterRow, StoredEntry } from './entries'
 import { entryFailure, entryMessage, outcomeOf, refetchAfter } from './entryOutcome'
-import { whenFocusStayed } from './focus'
+import { focusedConfirm, whenFocusStayed } from './focus'
 import { deleteContactFieldEntryMutation, updateContactFieldEntryMutation } from './operations'
 
-/** RowFocus names the button of one row focus moves to. */
+/** RowFocus names the row whose first button focus moves to. */
 export interface RowFocus {
 	id: string
-	on: 'first' | 'remove' | 'keep'
 }
 
 /** RowMode is how one row shows. */
-type RowMode = 'show' | 'edit' | 'confirm'
+type RowMode = 'show' | 'edit'
 
 /** RowState is how one row shows and what it answers to. */
 export interface RowState {
@@ -34,18 +33,21 @@ export interface EntryHandlers {
 	cancel: (id: string) => void
 	save: (id: string, draft: EntryText) => Promise<void>
 	remove: (id: string) => void
-	keep: (id: string) => void
-	confirm: (id: string) => Promise<void>
+}
+
+/** Removal is the confirm asking before one entry is removed: its write and its close. */
+export interface Removal {
+	confirm: (signal: AbortSignal) => Promise<DialogAnswer | undefined>
+	close: () => void
 }
 
 /** GoneHandler reports a repeater the catalogue no longer holds, and where focus was when the call began. */
 export type GoneHandler = (message: string, from: Element | null) => void
 
-/** SettleSteps are what a settled call does once it succeeds and once it is plainly refused. */
+/** SettleSteps are what a settled call says it failed with and does once it succeeds. */
 interface SettleSteps {
 	failed: string
 	done: () => void
-	refused: () => void
 }
 
 /**
@@ -70,7 +72,7 @@ function useDrawnEntries(entries: readonly StoredEntry[], firstPage: number, kep
 /**
  * Holds the state the rows of one repeater share, and the actions that change it.
  * @param props - The contact, the repeater, every entry, the size of a first page and the report of a repeater gone.
- * @returns The add focus count, the add hook, the actions, each row's state, the rows and Load more.
+ * @returns The add focus count, the add hook, the actions, each row's state, the rows, Load more and the removal asked.
  */
 export function useEntryActions({
 	contactId,
@@ -85,14 +87,14 @@ export function useEntryActions({
 	firstPage: number
 	onGone: GoneHandler
 }) {
-	const [open, setOpen] = useState<{ id: string; as: 'edit' | 'confirm' } | null>(null)
+	const [editing, setEditing] = useState('')
+	const [asking, setAsking] = useState('')
 	const [pendingID, setPendingID] = useState('')
 	const [settling, setSettling] = useState<readonly string[]>([])
 	const [rowFocus, setRowFocus] = useState<RowFocus | null>(null)
 	const [addFocus, setAddFocus] = useState(0)
-	const { listed, loadMore } = useDrawnEntries(entries, firstPage, [open?.id, rowFocus?.id])
+	const { listed, loadMore } = useDrawnEntries(entries, firstPage, [editing, asking, rowFocus?.id])
 	const [, runUpdate] = useGraphMutation(updateContactFieldEntryMutation)
-	const [, runDelete] = useGraphMutation(deleteContactFieldEntryMutation)
 	const graph = useGraph()
 	const toaster = useToaster()
 
@@ -104,37 +106,43 @@ export function useEntryActions({
 
 	const leave = (id: string, from: Element | null) => {
 		const next = neighbour(listed, id, settling)
-		setOpen(null)
+		setEditing('')
 		setSettling((held) => [...held, id])
-		whenFocusStayed(from, () => (next === '' ? focusAdd() : setRowFocus({ id: next, on: 'first' })))
+		whenFocusStayed(from, () => (next === '' ? focusAdd() : setRowFocus({ id: next })))
 	}
 
-	const settle = (id: string, from: Element | null, error: GraphFailure | undefined, steps: SettleSteps) => {
+	const settle = (
+		id: string,
+		from: Element | null,
+		error: GraphFailure | undefined,
+		steps: SettleSteps,
+	): string | undefined => {
 		refetchAfter(graph, error)
 		const outcome = outcomeOf(error)
 		if (outcome === 'done') {
 			steps.done()
-			return
+			return undefined
 		}
 		if (outcome === 'field-gone') {
 			onGone(entryMessage(error as GraphFailure, steps.failed), from)
-			return
+			return undefined
 		}
-		toaster.show(entryFailure(steps.failed, error as GraphFailure))
+		const words = entryFailure(steps.failed, error as GraphFailure)
 		if (outcome === 'entry-gone') {
+			toaster.show(words)
 			leave(id, from)
-			return
+			return undefined
 		}
-		steps.refused()
+		return words
 	}
 
 	const on: EntryHandlers = {
 		edit: (id) => {
-			setOpen({ id, as: 'edit' })
+			setEditing(id)
 		},
 		cancel: (id) => {
-			setOpen(null)
-			setRowFocus({ id, on: 'first' })
+			setEditing('')
+			setRowFocus({ id })
 		},
 		save: async (id, draft) => {
 			const from = document.activeElement
@@ -146,49 +154,50 @@ export function useEntryActions({
 				entry: typedEntry(field.subFields, draft),
 			})
 			setPendingID('')
-			settle(id, from, result.error, {
+			const rejected = settle(id, from, result.error, {
 				failed: __('Could not save the entry.', 'alphone-fields'),
 				done: () => {
-					setOpen(null)
+					setEditing('')
 					toaster.show(__('Entry saved.', 'alphone-fields'))
-					whenFocusStayed(from, () => setRowFocus({ id, on: 'first' }))
+					whenFocusStayed(from, () => setRowFocus({ id }))
 				},
-				refused: () => {},
 			})
+			if (rejected !== undefined) {
+				toaster.show(rejected)
+			}
 		},
 		remove: (id) => {
-			setOpen({ id, as: 'confirm' })
-			setRowFocus({ id, on: 'keep' })
+			setEditing('')
+			setAsking(id)
 		},
-		keep: (id) => {
-			setOpen(null)
-			setRowFocus({ id, on: 'remove' })
-		},
-		confirm: async (id) => {
-			const from = document.activeElement
+	}
+
+	const removal: Removal = {
+		confirm: async (signal) => {
+			const id = asking
+			const from = focusedConfirm()
 			setPendingID(id)
-			const result = await runDelete({ contactId, field: field.name, entryId: id })
-			setPendingID('')
-			settle(id, from, result.error, {
+			const variables = { contactId, field: field.name, entryId: id }
+			const writing = dialogWrite(graph.client, deleteContactFieldEntryMutation, variables, signal)
+			const result = await writing.finally(() => setPendingID(''))
+			const rejected = settle(id, from, result.error, {
 				failed: __('Could not remove the entry.', 'alphone-fields'),
 				done: () => {
 					toaster.show(__('Entry removed.', 'alphone-fields'))
 					leave(id, from)
 				},
-				refused: () => {
-					setOpen(null)
-					whenFocusStayed(from, () => setRowFocus({ id, on: 'remove' }))
-				},
 			})
+			return rejected === undefined ? undefined : { error: rejected }
 		},
+		close: () => setAsking(''),
 	}
 
 	const rowOf = (id: string): RowState => ({
-		mode: open?.id === id ? open.as : 'show',
+		mode: editing === id ? 'edit' : 'show',
 		pending: pendingID === id,
 		locked: pendingID !== '' || settling.includes(id),
 		focus: rowFocus?.id === id ? rowFocus : undefined,
 	})
 
-	return { addFocus, added, on, rowOf, listed, loadMore }
+	return { addFocus, added, on, rowOf, listed, loadMore, removal: asking === '' ? undefined : removal }
 }

@@ -48,6 +48,7 @@ test('hands a signed-in screen the settings the graph serves', async () => {
 						__typename: 'AdminSettings',
 						toastMilliseconds: 8000,
 						toastActionMilliseconds: 12000,
+						dialogWriteTimeoutMilliseconds: 45000,
 						listPageSizes: [5, 25],
 						listPageSize: 25,
 						contactPageCap: 150,
@@ -63,6 +64,7 @@ test('hands a signed-in screen the settings the graph serves', async () => {
 		settings: {
 			toastMilliseconds: 8000,
 			toastActionMilliseconds: 12000,
+			dialogWriteTimeoutMilliseconds: 45000,
 			listPageSizes: [5, 25],
 			listPageSize: 25,
 			contactPageCap: 150,

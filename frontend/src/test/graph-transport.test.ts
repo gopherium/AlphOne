@@ -15,7 +15,7 @@ import {
 	ValidationError,
 } from '@gopherium/react-auth/admin'
 import { print } from 'graphql'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 
 import { graphAuthTransport } from '../auth/graphTransport'
 import { loginMutation, meQuery } from '../auth/operations'
@@ -84,12 +84,55 @@ async function refusalOf(write: Promise<unknown>): Promise<unknown> {
 	return write.then(() => undefined, (error: unknown) => error)
 }
 
+/**
+ * Serves the graph so every post arrives and never gets an answer, ending the promise once the first one arrived.
+ */
+function graphHangs(): Promise<void> {
+	let arrive = () => {}
+	const arrived = new Promise<void>((resolve) => {
+		arrive = resolve
+	})
+	server.use(
+		http.post('/api/graphql', async () => {
+			arrive()
+			await new Promise(() => {})
+		}),
+	)
+	return arrived
+}
+
+/**
+ * Records the signal of every request the transport sends, the requests still reaching the test server.
+ */
+function recordSignals(): (AbortSignal | null | undefined)[] {
+	const signals: (AbortSignal | null | undefined)[] = []
+	const send = globalThis.fetch
+	const spied = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+		signals.push(init?.signal)
+		return send(input, init)
+	})
+	onTestFinished(() => spied.mockRestore())
+	return signals
+}
+
 /** accountWrites pairs each account write with the operation it posts. */
 const accountWrites = [
 	{ operation: setUserRoleOperation, write: () => graphAuthTransport.setUserRole(maria.id, editorRole) },
 	{ operation: setUserDisabledOperation, write: () => graphAuthTransport.setUserDisabled(maria.id, true) },
 	{ operation: resendInviteOperation, write: () => graphAuthTransport.resendInvite(maria.email) },
 	{ operation: inviteOperation, write: () => graphAuthTransport.invite({ email: maria.email, name: maria.name }) },
+]
+
+/** dialogWrites pairs each account write a dialog waits on with the operation it posts, the signal passed last. */
+const dialogWrites = [
+	{
+		operation: setUserRoleOperation,
+		write: (signal: AbortSignal) => graphAuthTransport.setUserRole(maria.id, editorRole, signal),
+	},
+	{
+		operation: resendInviteOperation,
+		write: (signal: AbortSignal) => graphAuthTransport.resendInvite(maria.email, signal),
+	},
 ]
 
 test('fetchSession returns the identity behind me', async () => {
@@ -278,6 +321,37 @@ test('resendInvite answers delivered, and the link when nothing mailed it', asyn
 		activation_link: activationLink,
 	})
 })
+
+test.each(dialogWrites)(
+	'$operation stops its request and rejects with the reason of the signal once it fires',
+	async ({ write }) => {
+		const arrived = graphHangs()
+		const signals = recordSignals()
+		const timing = new AbortController()
+		const reason = new DOMException('The write ran out of time.', 'TimeoutError')
+
+		const answer = write(timing.signal)
+		await arrived
+		timing.abort(reason)
+
+		await expect(answer).rejects.toBe(reason)
+		expect(signals).toHaveLength(1)
+		expect(signals[0]?.aborted).toBe(true)
+	},
+)
+
+test.each(dialogWrites)(
+	'$operation sends nothing and rejects at once when the signal fired before it',
+	async ({ operation, write }) => {
+		const received = graphResponds(operation, { data: null })
+		const timing = new AbortController()
+		timing.abort('out of time')
+
+		await expect(write(timing.signal)).rejects.toBe('out of time')
+		await new Promise((resolve) => setTimeout(resolve, 30))
+		expect(received).toHaveLength(0)
+	},
+)
 
 test('setUserRole and resendInvite throw the graph failure without a mapped code', async () => {
 	graphResponds(setUserRoleOperation, graphError(internalCode, upstreamFailure))

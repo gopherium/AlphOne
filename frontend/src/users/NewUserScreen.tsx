@@ -22,13 +22,37 @@ import {
 	usersQueryKey,
 } from '@gopherium/react-auth/admin'
 import type { NewInvite } from '@gopherium/react-auth/admin'
-import { RoleSelect, errorMessageOf } from '@gopherium/react-auth/wpds/users'
+import { RoleSelect, addUserErrorMessageOf } from '@gopherium/react-auth/wpds/users'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ComponentProps } from 'react'
 
 import { accountErrorMessages } from './errorMessages'
 import { roleLabels, startingRole } from './roles'
+
+/** FieldProps are the props of the WPDS field a required field draws. */
+type FieldProps = ComponentProps<typeof ValidatedInputControl>
+
+/** RequiredFieldProps are what a field the form needs filled takes beside the props of the WPDS field. */
+type RequiredFieldProps = Omit<FieldProps, 'value' | 'required' | 'customValidity'> & {
+	/** value is what the field holds. */
+	value: string
+	/** rejected is what the server said about the value the field holds, if anything. */
+	rejected: FieldProps['customValidity']
+	/** empty is the words the field shows under it while it holds nothing but spaces. */
+	empty: string
+}
+
+/**
+ * Renders a field the form needs filled, its words under it once the reader leaves it or sends the form.
+ * @param props - The value, what the server said about it, the words for an empty field and the field's own props.
+ * @returns The field.
+ */
+function RequiredField({ rejected, empty, ...field }: RequiredFieldProps) {
+	const blank = field.value.trim() === '' ? { type: 'invalid' as const, message: empty } : undefined
+	return <ValidatedInputControl {...field} required customValidity={rejected ?? blank} />
+}
 
 /**
  * Returns the words a refused invitation reads as, the server's own only for a refused value it named no code for.
@@ -37,7 +61,7 @@ import { roleLabels, startingRole } from './roles'
  */
 function refusalWords(error: unknown): string {
 	const unnamed = error instanceof AccountValidationError && error.code === undefined ? error.message : ''
-	return errorMessageOf(error, accountErrorMessages(), unnamed)
+	return addUserErrorMessageOf(error, accountErrorMessages(), unnamed)
 }
 
 /**
@@ -92,8 +116,8 @@ function InvitationForm({
 		onSuccess: async (invitation) => {
 			await queryClient.invalidateQueries({ queryKey: usersQueryKey })
 			if (invitation.delivered) {
-				toaster.show(__('Invitation sent.', 'alphone'))
 				await onDelivered()
+				toaster.show(__('Invitation sent.', 'alphone'))
 				return
 			}
 			onUndelivered(invitation.activation_link)
@@ -109,29 +133,56 @@ function InvitationForm({
 				send.mutate({ email, name, role })
 			}}
 		>
-			<ValidatedInputControl
+			<RequiredField
 				label={__('Email', 'alphone')}
 				type="email"
 				autoComplete="off"
 				value={email}
-				customValidity={refused.email.validity}
+				rejected={refused.email.validity}
+				empty={__('Please enter an email address.', 'alphone')}
 				onChange={(event) => setEmail(event.target.value)}
 			/>
-			<ValidatedInputControl
+			<RequiredField
 				label={__('Name', 'alphone')}
 				autoComplete="off"
 				value={name}
-				customValidity={refused.name.validity}
+				rejected={refused.name.validity}
+				empty={__('Please provide a name.', 'alphone')}
 				onChange={(event) => setName(event.target.value)}
 			/>
 			<RoleSelect grantable={grantable} value={role} onChange={setRole} roleLabels={roleLabels()} />
-			<Button
-				type="submit"
-				disabled={email.trim() === '' || name.trim() === '' || send.isPending}
-			>
+			<Button type="submit" loading={send.isPending}>
 				{__('Send invitation', 'alphone')}
 			</Button>
 		</form>
+	)
+}
+
+/**
+ * Renders the activation link to deliver by hand in place of the form, the focus on its field.
+ * @param props - The link, and what runs once the reader is done with it.
+ * @returns The link and the way back to the list.
+ */
+function ActivationLink({
+	link,
+	onDone,
+}: {
+	link: string
+	onDone: () => void | Promise<void>
+}) {
+	const field = useRef<HTMLInputElement>(null)
+	useEffect(() => {
+		field.current?.focus()
+	}, [])
+
+	return (
+		<div className="godmin-form">
+			<Text role="status">
+				{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
+			</Text>
+			<InputControl ref={field} label={__('Activation link', 'alphone')} readOnly value={link} />
+			<Button onClick={() => onDone()}>{__('Done', 'alphone')}</Button>
+		</div>
 	)
 }
 
@@ -146,7 +197,8 @@ function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> })
 
 	return (
 		<PageScreen
-			title={__('New user', 'alphone')}
+			title={__('Add User', 'alphone')}
+			subtitle={__('Create a brand new user and add them to this site.', 'alphone')}
 			breadcrumbs={
 				<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
 					<PageBreadcrumb render={<Link to="/users" activeOptions={{ exact: true }} />}>
@@ -159,17 +211,7 @@ function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> })
 			{activationLink === null ? (
 				<InvitationForm onDelivered={onCreated} onUndelivered={setActivationLink} />
 			) : (
-				<div className="godmin-form">
-					<Text role="status">
-						{__('No mail server is configured. Deliver the activation link by hand.', 'alphone')}
-					</Text>
-					<InputControl
-						label={__('Activation link', 'alphone')}
-						readOnly
-						value={activationLink}
-					/>
-					<Button onClick={() => onCreated()}>{__('Done', 'alphone')}</Button>
-				</div>
+				<ActivationLink link={activationLink} onDone={onCreated} />
 			)}
 		</PageScreen>
 	)

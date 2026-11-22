@@ -15,18 +15,19 @@ import (
 // adminSettingsResult is the shape the admin settings read answers.
 type adminSettingsResult struct {
 	AdminSettings struct {
-		ToastMilliseconds       int    `json:"toastMilliseconds"`
-		ToastActionMilliseconds int    `json:"toastActionMilliseconds"`
-		ListPageSizes           []int  `json:"listPageSizes"`
-		ListPageSize            int    `json:"listPageSize"`
-		ContactPageCap          int    `json:"contactPageCap"`
-		FormatLocale            string `json:"formatLocale"`
+		ToastMilliseconds              int    `json:"toastMilliseconds"`
+		ToastActionMilliseconds        int    `json:"toastActionMilliseconds"`
+		DialogWriteTimeoutMilliseconds int    `json:"dialogWriteTimeoutMilliseconds"`
+		ListPageSizes                  []int  `json:"listPageSizes"`
+		ListPageSize                   int    `json:"listPageSize"`
+		ContactPageCap                 int    `json:"contactPageCap"`
+		FormatLocale                   string `json:"formatLocale"`
 	} `json:"adminSettings"`
 }
 
 // adminSettingsDocument reads every admin setting.
-const adminSettingsDocument = `{ adminSettings { toastMilliseconds toastActionMilliseconds listPageSizes ` +
-	`listPageSize contactPageCap formatLocale } }`
+const adminSettingsDocument = `{ adminSettings { toastMilliseconds toastActionMilliseconds ` +
+	`dialogWriteTimeoutMilliseconds listPageSizes listPageSize contactPageCap formatLocale } }`
 
 func TestAdminSettingsAnswerTheConfiguredScreens(t *testing.T) {
 	t.Parallel()
@@ -34,7 +35,7 @@ func TestAdminSettingsAnswerTheConfiguredScreens(t *testing.T) {
 	resolver := newStubResolver(&stubContactStore{}, &stubTaskStore{})
 	resolver.Paging = graphres.Paging{Cap: 150}
 	resolver.Screens = graphres.Screens{
-		ToastDuration: 9 * time.Second, ToastActionDuration: 14 * time.Second,
+		ToastDuration: 9 * time.Second, ToastActionDuration: 14 * time.Second, DialogWriteTimeout: 45 * time.Second,
 		PageSizes: []int{5, 15}, PageSize: 15, FormatLocale: "de-DE",
 	}
 	client := newGraphClient(t, resolver, uuid.Must(uuid.NewV7()))
@@ -48,6 +49,9 @@ func TestAdminSettingsAnswerTheConfiguredScreens(t *testing.T) {
 	}
 	if held.ToastActionMilliseconds != 14000 {
 		t.Errorf("toastActionMilliseconds = %d, want the configured 14000", held.ToastActionMilliseconds)
+	}
+	if held.DialogWriteTimeoutMilliseconds != 45000 {
+		t.Errorf("dialogWriteTimeoutMilliseconds = %d, want the configured 45000", held.DialogWriteTimeoutMilliseconds)
 	}
 	if !slices.Equal(held.ListPageSizes, []int{5, 15}) || held.ListPageSize != 15 {
 		t.Errorf("list pages = %v opening on %d, want [5 15] opening on 15", held.ListPageSizes, held.ListPageSize)
@@ -75,6 +79,9 @@ func TestAdminSettingsFallBackToTheDefaults(t *testing.T) {
 	if held.ToastActionMilliseconds != int(graphres.DefaultToastActionDuration.Milliseconds()) {
 		t.Errorf("toastActionMilliseconds = %d, want the default %v",
 			held.ToastActionMilliseconds, graphres.DefaultToastActionDuration)
+	}
+	if held.DialogWriteTimeoutMilliseconds != 60000 {
+		t.Errorf("dialogWriteTimeoutMilliseconds = %d, want the default 60000", held.DialogWriteTimeoutMilliseconds)
 	}
 	if !slices.Equal(held.ListPageSizes, graphres.DefaultListPageSizes()) {
 		t.Errorf("listPageSizes = %v, want the defaults %v", held.ListPageSizes, graphres.DefaultListPageSizes())
