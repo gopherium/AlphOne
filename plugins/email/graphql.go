@@ -92,7 +92,7 @@ func toGraphMail(mail mailView) *model.EmailMessage {
 		From: toGraphAddress(mail.from), SentAt: mail.sentAt, ReceivedAt: mail.receivedAt, Snippet: mail.snippet,
 		BodyState: mail.bodyState, SkippedParts: mail.skippedParts, Automation: mail.automation,
 		Encrypted: mail.encrypted, Signed: mail.signed, Winmail: mail.winmail, InviteMethod: mail.inviteMethod,
-		RawState: mail.rawState, RawSize: float64(mail.rawSize),
+		RawState: mail.rawState, RawSize: float64(mail.rawSize), StoredBytes: float64(mail.storedBytes),
 		OriginalPath: keptPath(mail.rawState, routesRoot+"/messages/"+mail.id.String()+"/original"),
 	}
 }
@@ -239,4 +239,132 @@ func (r EmailMessageResolvers) Attachments(
 // ContactIds names the contacts the mail is linked to.
 func (r EmailMessageResolvers) ContactIds(ctx context.Context, obj *model.EmailMessage) ([]uuid.UUID, error) {
 	return r.plugin.loaders.contactIDs(ctx, obj.ID)
+}
+
+// answerMail returns the mapping of a read of one mail onto the graph, message_not_found for a mail no longer held.
+func answerMail(mail mailView, held bool, err error) (*model.EmailMessage, error) {
+	if err != nil {
+		return nil, err
+	}
+	if !held {
+		return nil, messageNotFound
+	}
+	return toGraphMail(mail), nil
+}
+
+// limitOf returns bytes as a limit of the graph, nil for zero, which means no limit.
+func limitOf(bytes int64) *float64 {
+	if bytes == 0 {
+		return nil
+	}
+	limit := float64(bytes)
+	return &limit
+}
+
+// toGraphUsage maps the space a workspace uses onto its graph model, a limit of zero as none.
+func toGraphUsage(usage workspaceUsage) *model.EmailUsage {
+	return &model.EmailUsage{
+		UsedBytes: float64(usage.usedBytes), FreeingBytes: float64(usage.freeingBytes),
+		LimitBytes: limitOf(usage.limitBytes),
+	}
+}
+
+// EmailUsage reads the space the mail of the calling workspace takes, beside its limit.
+func (q QueryResolvers) EmailUsage(ctx context.Context) (*model.EmailUsage, error) {
+	return answerRead(toGraphUsage)(q.plugin.ingester.files.readUsage(ctx, sdk.TenantOrDefault(ctx)))
+}
+
+// EmailUsageResolvers serves the usage's resolver backed fields.
+type EmailUsageResolvers struct {
+	plugin *Plugin
+}
+
+// EmailUsageResolvers returns the plugin's usage resolver set.
+func (p *Plugin) EmailUsageResolvers() EmailUsageResolvers {
+	return EmailUsageResolvers{plugin: p}
+}
+
+// LargestMessages lists the mail of the calling workspace by the bytes each costs it, the costliest first.
+func (r EmailUsageResolvers) LargestMessages(
+	ctx context.Context, _ *model.EmailUsage, limit *int,
+) ([]*model.EmailMessage, error) {
+	return answerPage(r.plugin.pages, limit, nil, toGraphMailList, func(size, _ int) ([]mailView, error) {
+		return readCostliestMails(ctx, r.plugin.pool, sdk.TenantOrDefault(ctx), size)
+	})
+}
+
+// deletedStoredMail is the message of the line each delete that took mail or files logs.
+const deletedStoredMail = "email: deleted stored mail"
+
+// actingAccount returns the account the request ctx acts as, uuid.Nil when the host names none.
+func actingAccount(ctx context.Context) uuid.UUID {
+	account, _ := sdk.UserFromContext(ctx)
+	return account
+}
+
+// wholeDeleteAction names a delete of whole mail, delete_message when it names a mail and delete_thread when not.
+func wholeDeleteAction(message *uuid.UUID) string {
+	if message == nil {
+		return "delete_thread"
+	}
+	return "delete_message"
+}
+
+// takenAttachment returns the attachment a delete of files took, uuid.Nil when it took none.
+func takenAttachment(request filesDelete, deletion filesDeletion) uuid.UUID {
+	if !deletion.attachment {
+		return uuid.Nil
+	}
+	return *request.attachment
+}
+
+// logFilesDeleted logs by ids the files of one mail a delete took, nothing for a delete that took none.
+func (p *Plugin) logFilesDeleted(ctx context.Context, tenant uuid.UUID, request filesDelete, deletion filesDeletion) {
+	if !deletion.attachment && !deletion.original {
+		return
+	}
+	p.logger.InfoContext(ctx, deletedStoredMail, "account", actingAccount(ctx), "workspace", tenant,
+		"action", "delete_files", "message", request.message, "attachment", takenAttachment(request, deletion),
+		"original", deletion.original)
+}
+
+// MutationResolvers serves the plugin's Mutation root fields.
+type MutationResolvers struct {
+	plugin *Plugin
+}
+
+// MutationResolvers returns the plugin's Mutation resolver set.
+func (p *Plugin) MutationResolvers() MutationResolvers {
+	return MutationResolvers{plugin: p}
+}
+
+// EmailDeleteMessages deletes one mail of a thread of the calling workspace, or every mail of it, and logs it by ids.
+func (m MutationResolvers) EmailDeleteMessages(
+	ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID,
+) (*model.EmailDeletion, error) {
+	tenant := sdk.TenantOrDefault(ctx)
+	deletion, err := deleteThreadMail(ctx, m.plugin.pool, tenant, threadDelete{
+		thread: threadID, message: messageID, at: m.plugin.now(), window: m.plugin.syncWindow,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.plugin.logger.InfoContext(ctx, deletedStoredMail, "account", actingAccount(ctx), "workspace", tenant,
+		"action", wholeDeleteAction(messageID), "thread", threadID, "messages", deletion.messages)
+	return &model.EmailDeletion{DeletedMessages: len(deletion.messages), ThreadDeleted: deletion.threadDeleted}, nil
+}
+
+// EmailDeleteFiles deletes an attachment, the original or both of one mail of the calling workspace and answers it.
+func (m MutationResolvers) EmailDeleteFiles(
+	ctx context.Context, messageID uuid.UUID, attachmentID *uuid.UUID, original bool,
+) (*model.EmailMessage, error) {
+	tenant := sdk.TenantOrDefault(ctx)
+	request := filesDelete{message: messageID, attachment: attachmentID, original: original}
+	deletion, err := deleteFiles(ctx, m.plugin.pool, tenant, request)
+	if err != nil {
+		return nil, err
+	}
+	m.plugin.loaders.forgetFiles(ctx, messageID)
+	m.plugin.logFilesDeleted(ctx, tenant, request, deletion)
+	return answerMail(readMail(ctx, m.plugin.pool, tenant, messageID))
 }

@@ -51,6 +51,22 @@ func TestMigrateIndexesTheFilesAStoredMailHolds(t *testing.T) {
 	}
 }
 
+func TestMigrateIndexesTheMailOfAWorkspaceByWhatItCosts(t *testing.T) {
+	t.Parallel()
+
+	pool := newMigratedPool(t)
+	want := "ON plugin_email.messages USING btree (tenant_id, stored_bytes DESC, id DESC)"
+
+	var definition string
+	err := pool.QueryRow(t.Context(),
+		"SELECT indexdef FROM pg_indexes WHERE schemaname = 'plugin_email' AND indexname = 'messages_stored_bytes_idx'",
+	).Scan(&definition)
+
+	if err != nil || !strings.HasSuffix(definition, want) {
+		t.Errorf("the index messages_stored_bytes_idx = %q, %v, want it to end %q", definition, err, want)
+	}
+}
+
 func TestInsertMessageStoresEveryColumn(t *testing.T) {
 	t.Parallel()
 
@@ -185,23 +201,23 @@ func TestTheMessagesTableTakesTheEightCalendarMethodsOrNone(t *testing.T) {
 	}
 }
 
-func TestTheMessagesTableTakesTheFourRawStatesOnly(t *testing.T) {
+func TestTheMessagesTableTakesTheFiveRawStatesOnly(t *testing.T) {
 	t.Parallel()
 
 	tx, box := newMailbox(t)
 	thread := storeEmptyThread(t, tx, sdk.DefaultTenantID, box)
-	for _, state := range []string{fileStored, fileTooLarge, fileOverLimit, rawNone} {
+	for _, state := range []string{fileStored, fileTooLarge, fileOverLimit, rawNone, fileDeleted} {
 		row := mailRow(box, thread)
 		row.dedupeKey, row.rawState = nil, state
 		storeMail(t, tx, sdk.DefaultTenantID, row)
 	}
 
 	row := mailRow(box, thread)
-	row.rawState = "deleted"
+	row.rawState = "lost"
 	_, err := insertMessage(t.Context(), tx, sdk.DefaultTenantID, row)
 
 	if code := pgCode(err); code != checkViolation {
-		t.Errorf("insertMessage() of the raw state deleted error = %v, want the check to refuse it", err)
+		t.Errorf("insertMessage() of the raw state lost error = %v, want the check to reject it", err)
 	}
 }
 
@@ -234,26 +250,26 @@ func TestTheMessagesTableRefusesAnUnknownDirectionOrBodyState(t *testing.T) {
 	}
 }
 
-func TestTheAttachmentsTableTakesTheThreeFileStatesOnly(t *testing.T) {
+func TestTheAttachmentsTableTakesTheFourFileStatesOnly(t *testing.T) {
 	t.Parallel()
 
 	tx, box := newMailbox(t)
 	id := storeMail(t, tx, sdk.DefaultTenantID, mailRow(box, storeEmptyThread(t, tx, sdk.DefaultTenantID, box)))
 	var files []attachmentRow
-	for position, state := range []string{fileStored, fileTooLarge, fileOverLimit} {
+	for position, state := range []string{fileStored, fileTooLarge, fileOverLimit, fileDeleted} {
 		files = append(files, attachmentRow{position: position, filename: "quote.pdf", contentType: "application/pdf",
 			size: 10, sha256: bytes.Repeat([]byte{2}, 32), state: state})
 	}
 	if err := insertAttachments(t.Context(), tx, sdk.DefaultTenantID, id, files); err != nil {
-		t.Fatalf("insertAttachments() of the three file states error = %v, want nil", err)
+		t.Fatalf("insertAttachments() of the four file states error = %v, want nil", err)
 	}
 
 	err := insertAttachments(t.Context(), tx, sdk.DefaultTenantID, id, []attachmentRow{{
-		filename: "quote.pdf", contentType: "application/pdf", sha256: []byte{2}, state: "deleted",
+		filename: "quote.pdf", contentType: "application/pdf", sha256: []byte{2}, state: "lost",
 	}})
 
 	if code := pgCode(err); code != checkViolation {
-		t.Errorf("insertAttachments() of the state deleted error = %v, want the check to refuse it", err)
+		t.Errorf("insertAttachments() of the state lost error = %v, want the check to reject it", err)
 	}
 }
 

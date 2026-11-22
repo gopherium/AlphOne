@@ -55,6 +55,10 @@ const (
 	defaultSweepBudget = 10 * time.Minute
 	// defaultOrphanAge is how long a file of a stopped run waits for the sweep when ALPHONE_EMAIL_ORPHAN_AGE is unset.
 	defaultOrphanAge = 24 * time.Hour
+	// defaultSyncWindow is how old a synced mail must be before a whole delete when ALPHONE_EMAIL_SYNC_WINDOW is unset.
+	defaultSyncWindow = 30 * 24 * time.Hour
+	// maxSyncWindow is the longest sync window ALPHONE_EMAIL_SYNC_WINDOW takes, 30 days.
+	maxSyncWindow = 30 * 24 * time.Hour
 	// defaultBodiesPerRequest is the most bodies one graph request reads when ALPHONE_EMAIL_BODIES_PER_REQUEST is unset.
 	defaultBodiesPerRequest = 2
 	// defaultListsPerRequest is the most lists one graph request reads when ALPHONE_EMAIL_LISTS_PER_REQUEST is unset.
@@ -69,7 +73,7 @@ type settings struct {
 	caps mailCaps
 	// files bound the bytes one attachment and one workspace keep as files.
 	files fileCaps
-	// times bound the thread window, how long a mail keeps failing and how long a clean up runs.
+	// times bound the thread window, how long a mail keeps failing, how long a clean up runs and the sync window.
 	times timeLimits
 	// sweep paces the loop that deletes the files no stored mail holds.
 	sweep sweepSettings
@@ -103,7 +107,7 @@ type fileCaps struct {
 	workspaceMaxBytes int
 }
 
-// timeLimits bound the thread window, how long a mail keeps failing and how long a clean up runs.
+// timeLimits bound the thread window, how long a mail keeps failing, how long a clean up runs and the sync window.
 type timeLimits struct {
 	// threadWindow is how near a thread a mail must be to join it by its subject or its provider thread id.
 	threadWindow time.Duration
@@ -111,6 +115,8 @@ type timeLimits struct {
 	retryWindow time.Duration
 	// cleanupTimeout bounds the queueing of a failed run's files for deletion and the record of its failure.
 	cleanupTimeout time.Duration
+	// syncWindow is how long ago a mail a mailbox sync brought in was received before a delete takes it whole.
+	syncWindow time.Duration
 }
 
 // sweepSettings pace the loop that deletes the files no stored mail holds.
@@ -232,7 +238,7 @@ func readFileCaps(deps sdk.Deps) (fileCaps, error) {
 	return fileCaps{attachmentMaxBytes: attachmentMaxBytes, workspaceMaxBytes: workspaceMaxBytes}, nil
 }
 
-// readTimeLimits returns the thread window, how long a mail keeps failing and how long a clean up runs.
+// readTimeLimits returns the thread window, how long a mail keeps failing or a clean up runs, and the sync window.
 func readTimeLimits(deps sdk.Deps) (timeLimits, error) {
 	env := deps.Env.Within("EMAIL_")
 	threadWindow, err := env.Duration("THREAD_WINDOW", defaultThreadWindow)
@@ -247,7 +253,13 @@ func readTimeLimits(deps sdk.Deps) (timeLimits, error) {
 	if err != nil {
 		return timeLimits{}, err
 	}
-	return timeLimits{threadWindow: threadWindow, retryWindow: retryWindow, cleanupTimeout: cleanupTimeout}, nil
+	syncWindow, err := env.Duration("SYNC_WINDOW", defaultSyncWindow, sdk.AtMost(int64(maxSyncWindow)))
+	if err != nil {
+		return timeLimits{}, err
+	}
+	return timeLimits{
+		threadWindow: threadWindow, retryWindow: retryWindow, cleanupTimeout: cleanupTimeout, syncWindow: syncWindow,
+	}, nil
 }
 
 // readSweepSettings returns the pace of the loop that deletes the files no stored mail holds.

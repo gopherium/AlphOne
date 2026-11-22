@@ -158,7 +158,7 @@ func TestEveryLightReadAnswersEachColumnOfTheMail(t *testing.T) {
 		from:   &participant{Role: "from", Name: "Maria Perez", Email: "maria.perez@example.com"},
 		sentAt: &sent, receivedAt: mailReceived, snippet: "Could you send me a quote?", bodyState: bodyCut,
 		skippedParts: 1, automation: "auto-reply", encrypted: true, signed: true, winmail: true,
-		inviteMethod: "REQUEST", rawState: fileTooLarge, rawSize: 1200,
+		inviteMethod: "REQUEST", rawState: fileTooLarge, rawSize: 1200, storedBytes: 1300,
 	}
 	ctx, tenant := t.Context(), sdk.DefaultTenantID
 
@@ -185,6 +185,14 @@ func TestEveryLightReadAnswersEachColumnOfTheMail(t *testing.T) {
 		"readContactMails": func() (mailView, error) {
 			page, err := readContactMails(ctx, tt.tx, tenant, maria, readPage, 0)
 			return soleMail(page.items), err
+		},
+		"readMail": func() (mailView, error) {
+			mail, _, err := readMail(ctx, tt.tx, tenant, id)
+			return mail, err
+		},
+		"readCostliestMails": func() (mailView, error) {
+			mails, err := readCostliestMails(ctx, tt.tx, tenant, readPage)
+			return soleMail(mails), err
 		},
 	} {
 		got, err := read()
@@ -302,6 +310,50 @@ func TestReadThreadMailAnswersAMailOfTheThreadAndNoneOfAnotherThread(t *testing.
 	}
 }
 
+func TestReadMailAnswersAMailOfAnyThreadByItsIDAndNoneForAnUnknownID(t *testing.T) {
+	t.Parallel()
+
+	tt := newThreadTest(t)
+	quote := storeThread(t, tt.tx, tt.box, entryAt("Your quote", 0))
+	asked := mailIn(t, tt.tx, tt.box, quote, 0)
+	invoice := storeThread(t, tt.tx, tt.box, entryAt("Invoice", time.Hour))
+	elsewhere := mailIn(t, tt.tx, tt.box, invoice, time.Hour)
+
+	for id, thread := range map[uuid.UUID]uuid.UUID{asked: quote, elsewhere: invoice} {
+		mail, found, err := readMail(t.Context(), tt.tx, sdk.DefaultTenantID, id)
+
+		if err != nil || !found || mail.id != id || mail.threadID != thread {
+			t.Errorf("readMail() of %v = %+v, %t, %v, want it found in the thread %v", id, mail, found, err, thread)
+		}
+	}
+	if held, found, err := readMail(t.Context(), tt.tx, sdk.DefaultTenantID, uuid.Must(uuid.NewV7())); found ||
+		err != nil {
+		t.Errorf("readMail() of an unknown id = %+v, %t, %v, want none found", held, found, err)
+	}
+}
+
+func TestReadMailAnswersNoneForAMailOfAnotherWorkspace(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	acme, box := it.addWorkspace()
+	it.ingestIn(acme, box, lampMail(), "file:quote")
+	it.ingest(it.incoming(lampMail(), "file:quote"))
+	home := it.mailByMessageID("quote@example.com")
+
+	inAcme, foundInAcme, acmeErr := readMail(t.Context(), it.pool, acme, home)
+	atHome, foundAtHome, homeErr := readMail(t.Context(), it.pool, sdk.DefaultTenantID, home)
+
+	if foundInAcme || acmeErr != nil {
+		t.Errorf("readMail() of the default workspace's mail in Acme = %+v, %t, %v, want none found", inAcme,
+			foundInAcme, acmeErr)
+	}
+	if !foundAtHome || homeErr != nil || atHome.id != home {
+		t.Errorf("readMail() of the mail in its own workspace = %+v, %t, %v, want %v", atHome, foundAtHome, homeErr,
+			home)
+	}
+}
+
 func TestReadContactMailsListsTheLinkedMailNewestFirstWithItsTotal(t *testing.T) {
 	t.Parallel()
 
@@ -389,14 +441,22 @@ func TestTheLightReadsSelectNoBodyAndNoListOfPeople(t *testing.T) {
 			_, err := readContactMails(ctx, db, tenant, maria, readPage, 0)
 			return err
 		},
+		"readMail": func() error {
+			_, _, err := readMail(ctx, db, tenant, id)
+			return err
+		},
+		"readCostliestMails": func() error {
+			_, err := readCostliestMails(ctx, db, tenant, readPage)
+			return err
+		},
 	} {
 		if err := read(); err != nil {
 			t.Fatalf("%s() error = %v, want nil", name, err)
 		}
 	}
 
-	if len(sent) != 7 {
-		t.Fatalf("the light reads sent %d statements, want 7", len(sent))
+	if len(sent) != 9 {
+		t.Fatalf("the light reads sent %d statements, want 9", len(sent))
 	}
 	for _, statement := range sent {
 		if strings.Contains(statement, "body_text") || strings.Contains(statement, "safe_html") ||
@@ -446,6 +506,14 @@ func TestTheReadsReportAnEndedTransaction(t *testing.T) {
 		},
 		"email: read the mail of a contact: ": func() error {
 			_, err := readContactMails(ctx, tx, tenant, id, readPage, 0)
+			return err
+		},
+		"email: read a mail: ": func() error {
+			_, _, err := readMail(ctx, tx, tenant, id)
+			return err
+		},
+		"email: read the mail that costs the most: ": func() error {
+			_, err := readCostliestMails(ctx, tx, tenant, readPage)
 			return err
 		},
 	} {

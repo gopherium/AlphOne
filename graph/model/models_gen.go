@@ -116,6 +116,11 @@ type EmailBody struct {
 	HTML string `json:"html"`
 }
 
+type EmailDeletion struct {
+	DeletedMessages int  `json:"deletedMessages"`
+	ThreadDeleted   bool `json:"threadDeleted"`
+}
+
 type EmailMailbox struct {
 	ID      uuid.UUID `json:"id"`
 	Address string    `json:"address"`
@@ -140,6 +145,7 @@ type EmailMessage struct {
 	InviteMethod string              `json:"inviteMethod"`
 	RawState     string              `json:"rawState"`
 	RawSize      float64             `json:"rawSize"`
+	StoredBytes  float64             `json:"storedBytes"`
 	OriginalPath *string             `json:"originalPath,omitempty"`
 	Participants []*EmailParticipant `json:"participants"`
 	Body         *EmailBody          `json:"body"`
@@ -175,6 +181,13 @@ type EmailThreadPage struct {
 	Items []*EmailThread `json:"items"`
 	Total int            `json:"total"`
 	Limit int            `json:"limit"`
+}
+
+type EmailUsage struct {
+	UsedBytes       float64         `json:"usedBytes"`
+	FreeingBytes    float64         `json:"freeingBytes"`
+	LimitBytes      *float64        `json:"limitBytes,omitempty"`
+	LargestMessages []*EmailMessage `json:"largestMessages"`
 }
 
 type FieldDefinition struct {

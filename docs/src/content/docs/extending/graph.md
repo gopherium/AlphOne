@@ -246,6 +246,17 @@ for a missing or negative `offset`.
   before the workspace is known, such as a webhook finding which workspace a
   message is for, goes in `plugins/note/testdata/crosstenant.txt`. Each line
   holds a piece of its text that matches exactly one of your statements.
+- **Holding a field to your own capability.** A field can ask for a
+  capability your plugin declares, such as
+  `@scope(area: "notes", write: true, capability: "note.delete_notes")`.
+  A caller whose role lacks it is rejected with `admin required` and the
+  reason `capability_missing`. Declare the capability and give it to a
+  role first, see [Declare your roles](/extending/roles/#declare-your-roles),
+  and [Ask what a role can do](/extending/roles/#ask-what-a-role-can-do)
+  for the other places that take it. `go test ./graph/` rejects an empty
+  name, but it does not check that a role carries the name, so a
+  misspelled one rejects every caller. Check it against your `Roles()`,
+  the way `plugins/email/graphql_test.go` does for the email deletes.
 - **A fuller example.** `plugins/whatsapp/graph/` is the living reference.
 
 ## When it does not work

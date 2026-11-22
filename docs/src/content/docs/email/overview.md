@@ -1,6 +1,6 @@
 ---
 title: Stored mail
-description: What the email plugin keeps of a mail, how it threads it, how long it keeps it, what its event carries, and how to read it back.
+description: What the email plugin keeps of a mail, how it threads it, how long it keeps it, what its event carries, how to read it back, and how to delete it to free space.
 ---
 
 The email plugin keeps the mail a workspace exchanges with its contacts.
@@ -16,7 +16,9 @@ AlphOne does not connect to a mailbox. Mail reaches it in two ways:
 
 Every member of the workspace can read the stored mail back through the
 API and download its files, see
-[Reading mail through the API](#reading-mail-through-the-api).
+[Reading mail through the API](#reading-mail-through-the-api). An admin
+can delete a mail, a thread or the files of a mail to free space, see
+[Deleting mail and freeing space](#deleting-mail-and-freeing-space).
 
 Each workspace holds one mailbox, which is an address and any aliases
 that also reach it, such as `info@example.com` and `sales@example.com`.
@@ -104,6 +106,15 @@ still being saved, so mails stored at the same moment can together keep
 files past the limit by up to their own size. The next mail sees the
 real total.
 
+To free space, an admin deletes mail or the files of a mail, see
+[Deleting mail and freeing space](#deleting-mail-and-freeing-space).
+[The usage read](#reading-the-space-a-workspace-uses) shows how full the
+workspace is and which mails cost it most. Text frees its space at once.
+A deleted file frees its space at the next sweep, see
+[When the space frees](#when-the-space-frees). Each attachment also sits
+inside the original of its mail, so its bytes stay there until the
+original is deleted too.
+
 ## Copies of one mail
 
 The same mail is stored once, whether it is fed twice or comes once
@@ -126,6 +137,8 @@ from the inbox and once from the Sent folder.
 - A mail cut at the body cap, read by its headers alone, or holding a
   part AlphOne cannot read counts as one mail only when its copies
   match byte for byte.
+- A mail an admin deleted is not stored again, see
+  [The same mail fed again](#the-same-mail-fed-again).
 
 ## Threads
 
@@ -175,17 +188,19 @@ so a forged mail can enter a thread.
 
 ## How long mail is kept
 
-A stored mail stays, with every name it was stored with. AlphOne has no
-way to delete a stored mail, and it deletes no mail because a person
-named on it asks.
+A stored mail stays, with every name it was stored with, until an admin
+of the workspace deletes it, see
+[Deleting mail and freeing space](#deleting-mail-and-freeing-space). The
+workspace's staff decide which mail to delete. AlphOne keeps every other
+mail, and it deletes no mail because a person named on it asks.
 
-AlphOne has no way to delete a contact either, and a contact who holds
-stored mail cannot be deleted.
+AlphOne has no way to delete a contact, and a contact who holds stored
+mail cannot be deleted.
 
 A background sweep removes only the files that no stored mail holds,
-such as the files of a mail that failed to store, or of a run that
-stopped halfway. It runs every `ALPHONE_EMAIL_SWEEP_INTERVAL`, one hour
-by default.
+such as the files an admin deleted, the files of a mail that failed to
+store, or of a run that stopped halfway. Only `alphone serve` runs it,
+every `ALPHONE_EMAIL_SWEEP_INTERVAL`, one hour by default.
 
 ## When a mail cannot be stored
 
@@ -196,8 +211,9 @@ hours by default, it is set aside. AlphOne then keeps only its reference
 and a fixed reason, never its addresses, its subject or its text, and
 answers `failed` for it from then on.
 
-The plugin's log lines name a workspace, a mailbox or a stored mail by
-its id. They never hold an address, a subject or the text of a mail.
+The plugin's log lines name an account, a workspace, a mailbox or a
+stored mail by its id. They never hold an address, a subject or the text
+of a mail.
 
 ## The event
 
@@ -361,8 +377,8 @@ section speaks of.
 | --- | --- |
 | `bodyState` | `whole` when the text and the HTML are kept whole. `cut` when the text or the HTML was cut at the body cap, where a letter starts. It is also `cut` when the HTML grew past the body cap as it was made safe. That HTML is dropped, and the text and the original stay. `headers_only` when AlphOne read only the headers. |
 | `skippedParts` | How many parts AlphOne could not read and left out. The original holds them when it is kept. |
-| `rawState` | `stored` when the original is kept as a file. `too_large` when it was over a size cap. `over_limit` when the workspace was full. `none` when the mail has no original to keep. |
-| `state` of an attachment | `stored`, `too_large` or `over_limit`, with the same meaning as for the original. |
+| `rawState` | `stored` when the original is kept as a file. `too_large` when it was over a size cap. `over_limit` when the workspace was full. `none` when the mail has no original to keep. `deleted` when an admin deleted it. |
+| `state` of an attachment | `stored`, `too_large`, `over_limit` or `deleted`, with the same meaning as for the original. |
 | `snippet` | A short preview. It is empty for an encrypted mail and for a mail read by its headers alone. |
 
 A later version may add a state. To know whether a file downloads, read
@@ -402,8 +418,9 @@ A file never runs as a page in the browser:
   `filename` in the API still answers the name the mail gave, so show it
   as plain text.
 
-A download answers `404` when the file was not kept, when the id is
-unknown, or when the file belongs to another workspace. An id that is not a UUID
+A download answers `404` when the file was not kept, when an admin
+deleted it, when the id is unknown, or when the file belongs to another
+workspace. An id that is not a UUID
 answers `400`. A token without the `email` area answers `403`. Range
 requests and conditional requests work, and the `ETag` is the file's
 SHA-256.
@@ -452,3 +469,210 @@ A request that asks for more is rejected with the reason
 fits. A page of 50, the default size, fits with one of the two. A list
 of threads needs neither, because each mail carries its `from` and each
 thread its `hasAttachments`.
+
+## Deleting mail and freeing space
+
+An admin can delete stored mail to free the space it takes. There are
+four deletes:
+
+- **Delete message** removes one mail of a thread.
+- **Delete thread** removes every mail of a thread.
+- **Delete attachment** removes the file of one attachment. The mail
+  stays.
+- **Delete original message** removes the original of a mail. The mail
+  stays.
+
+A delete is for good. AlphOne cannot bring back what it removed.
+
+Each delete is one call to the [GraphQL API](/reference/graphql-api/),
+with an admin's session or with an admin's API token that holds
+`email:write`. This token reads mail and deletes it:
+
+```sh
+alphone token:create -email admin@example.com -name "mail admin" \
+  -scope email:read -scope email:write
+```
+
+Deleting a mail or a thread needs the capability `email.delete_messages`.
+Deleting an attachment or an original needs `email.delete_files`. The
+email plugin gives both to admin. A top role that a plugin names holds
+them too, see [Name the top role](/extending/roles/#name-the-top-role).
+
+A delete changes nothing when the caller may not delete:
+
+- A member gets `admin required`, with the reason `capability_missing`.
+  Its `capability` names what the role lacks.
+- A token without `email:write` gets `scope required: email:write`.
+- A deactivated workspace gets `tenant deactivated`.
+
+### Deleting a mail or a thread
+
+`emailDeleteMessages` deletes one mail of a thread, or the whole thread.
+Read the ids first, as
+[One thread and one mail](#one-thread-and-one-mail) shows.
+
+```graphql
+mutation DeleteMail($thread: UUID!, $mail: UUID) {
+  emailDeleteMessages(threadId: $thread, messageId: $mail) {
+    deletedMessages
+    threadDeleted
+  }
+}
+```
+
+Name the mail in `messageId` to delete that mail alone. Leave
+`messageId` out to delete every mail of the thread. `deletedMessages`
+counts the mails that went. `threadDeleted` is true when the thread went
+too, which it does once it holds no mail.
+
+A mail that goes takes its text, its people, its links to contacts and
+its files with it. A thread that keeps mail takes its subject from the
+earliest mail left, and its first and last times from the mail left.
+
+### Mail a mailbox sync brought in
+
+Mail that `email:ingest` or `alphone seed -yes` stored deletes at once.
+Mail that a mailbox sync brought in deletes only once the mailbox
+received it longer ago than `ALPHONE_EMAIL_SYNC_WINDOW`. The window is
+720 hours, 30 days, by default, and never longer. AlphOne does not sync
+a mailbox yet, so today every stored mail deletes at once.
+
+A delete that takes a younger synced mail is rejected, and nothing
+changes. The error has the code `CONFLICT` and the reason
+`inside_sync_window`, and `meta.window` names the window, such as
+`720h0m0s`. So a delete of a whole thread that holds one such mail is
+rejected too. Delete each older mail of it on its own, with `messageId`.
+
+### Deleting an attachment or the original
+
+`emailDeleteFiles` deletes the file of one attachment, the original of a
+mail, or both in one call. The mail stays, with its text, its people and
+its thread.
+
+```graphql
+mutation DeleteFiles($mail: UUID!, $file: UUID) {
+  emailDeleteFiles(messageId: $mail, attachmentId: $file, original: true) {
+    rawState
+    originalPath
+    attachments { filename contentType size state downloadPath }
+  }
+}
+```
+
+Name the attachment in `attachmentId`, and set `original: true` for the
+original. `original` is `false` when you leave it out. A call that names
+neither is rejected with the reason `nothing_to_delete`.
+
+The call answers the mail as it is after the delete. The mail still
+names each file it carried, with its name, its type and its size, so
+`hasAttachments` of its thread stays true. A deleted file reads
+`deleted` in `state` or `rawState`, its `downloadPath` or `originalPath`
+is `null`, and its download answers `404`.
+
+A file that is already deleted, or that was never kept, changes nothing.
+So a second call answers the same mail and frees nothing more.
+
+### The same mail fed again
+
+AlphOne keeps a fingerprint of each mail it deletes whole, beside the id
+the mail had and the time it went. The fingerprint is a SHA-256 hash, so
+no address, subject or text can be read from it. When the same mail
+reaches the mailbox again, AlphOne finds its fingerprint and stores
+nothing. `email:ingest` then answers `already_deleted`, see
+[Commands](/self-hosting/commands/#emailingest). A copy from the Sent
+folder answers it too, when the mail has a Message-ID, or a From and a
+Date.
+
+The fingerprint matches the copies that
+[Copies of one mail](#copies-of-one-mail) counts as one mail, and only
+those. A copy that differs is stored as a new mail, such as a copy a
+mail gateway changed by tagging its subject or adding a footer. Each
+workspace keeps its own fingerprints, so a mail deleted in one workspace
+can still be stored in another.
+
+A mail whose attachment or original was deleted still stands. A later
+copy of it finds that mail, so it stores no second mail and keeps none
+of the deleted files again.
+
+### When the space frees
+
+Text frees its space at once. A deleted file frees its space once the
+sweep removes it. Only `alphone serve` runs the sweep, every
+`ALPHONE_EMAIL_SWEEP_INTERVAL`, one hour by default. Until then the file
+still counts toward the [workspace limit](#the-workspace-limit), and
+`freeingBytes` of [the usage read](#reading-the-space-a-workspace-uses)
+shows it.
+
+### Reading the space a workspace uses
+
+Every member can read how much space the mail of the workspace takes,
+with a session or with a token that holds `email:read`:
+
+```graphql
+query Usage {
+  emailUsage {
+    usedBytes
+    freeingBytes
+    limitBytes
+    largestMessages(limit: 5) {
+      id
+      threadId
+      subject
+      storedBytes
+      rawState
+      rawSize
+      attachments { id filename size state }
+    }
+  }
+}
+```
+
+| Field | What it answers |
+| --- | --- |
+| `usedBytes` | The bytes the mail of the workspace takes, the way the [workspace limit](#the-workspace-limit) counts them. It holds `freeingBytes` and the files still being saved. |
+| `freeingBytes` | The bytes of deleted files the sweep has not removed yet. |
+| `limitBytes` | The limit of the workspace. It is `null` when the workspace has no limit. |
+| `largestMessages` | The mails that cost the workspace most, the costliest first. |
+
+`storedBytes` of a mail counts all it keeps: its text, its HTML, its
+preview, its people, its original and its attachments. So a large mail
+that kept no file still shows. `largestMessages` takes `limit` the way a
+page does, and no `offset`.
+
+Each mail's `attachments` counts one list toward
+[`ALPHONE_EMAIL_LISTS_PER_REQUEST`](#how-many-people-and-file-lists-one-request-reads).
+So 50 mails with their files fit in one request by default. Asking for
+the files of more mails is rejected with `lists_per_request_exceeded`.
+
+### What a delete leaves
+
+- Each delete writes one line to the server log,
+  `email: deleted stored mail`. It names the account that deleted, the
+  workspace, the action and the ids of what went. The action is
+  `delete_message`, `delete_thread` or `delete_files`. A rejected delete,
+  or one that took nothing, writes no line. So the log says who deleted
+  what, for as long as the log is kept.
+- A delete fires no event.
+- A webhook delivery keeps its copy of the subject and the text until
+  `ALPHONE_WEBHOOK_PAYLOAD_AGE` after it was sent or failed for good, see
+  [The event](#the-event).
+- A backup keeps the mail until it rotates out, see
+  [Updates and backups](/self-hosting/updates-and-backups/).
+- A later reply to a deleted mail still joins its thread, when the
+  thread keeps other mail.
+
+### When a delete is rejected
+
+A rejected delete changes nothing. Beside the cases above, a delete can
+answer one of these reasons:
+
+| Reason | Code | When |
+| --- | --- | --- |
+| `thread_not_found` | `NOT_FOUND` | The workspace holds no such thread. |
+| `message_not_found` | `NOT_FOUND` | The workspace, or the thread named, holds no such mail. |
+| `attachment_not_found` | `NOT_FOUND` | The mail holds no such attachment. |
+| `inside_sync_window` | `CONFLICT` | A mail a sync brought in is younger than the sync window. `meta.window` names the window. |
+| `nothing_to_delete` | `VALIDATION` | A files delete names no attachment and not the original. |
+
+A thread or a mail of another workspace answers `thread_not_found` or
+`message_not_found`, the same as an unknown id.

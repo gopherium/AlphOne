@@ -17,6 +17,9 @@ import (
 // workspaceMaxBytesSetting is the one setting that takes zero, as no workspace limit.
 const workspaceMaxBytesSetting = "ALPHONE_EMAIL_WORKSPACE_MAX_BYTES"
 
+// syncWindowSetting is the one duration setting with a ceiling, 720h.
+const syncWindowSetting = "ALPHONE_EMAIL_SYNC_WINDOW"
+
 // countKeys lists every setting the plugin reads as a whole number.
 var countKeys = []string{
 	"ALPHONE_EMAIL_MESSAGE_MAX_BYTES",
@@ -47,6 +50,7 @@ var durationKeys = []string{
 	"ALPHONE_EMAIL_SWEEP_INTERVAL",
 	"ALPHONE_EMAIL_SWEEP_BUDGET",
 	"ALPHONE_EMAIL_ORPHAN_AGE",
+	syncWindowSetting,
 }
 
 // distinctValues sets every setting to a value apart from its default and from every other setting's value.
@@ -75,6 +79,7 @@ var distinctValues = map[string]string{
 	"ALPHONE_EMAIL_SWEEP_INTERVAL":          "2s",
 	"ALPHONE_EMAIL_SWEEP_BUDGET":            "90s",
 	"ALPHONE_EMAIL_ORPHAN_AGE":              "2h",
+	syncWindowSetting:                       "240h",
 }
 
 // settingsEnv returns a reader under the program prefix answering only the given variables.
@@ -100,7 +105,10 @@ func TestReadSettingsAnswersEveryDefaultWhenNothingIsSet(t *testing.T) {
 			snippetLetters: 200, threadReferencesMax: 64, eventTextMaxBytes: 16384,
 		},
 		files: fileCaps{attachmentMaxBytes: 26214400, workspaceMaxBytes: 5368709120},
-		times: timeLimits{threadWindow: 336 * time.Hour, retryWindow: 6 * time.Hour, cleanupTimeout: 10 * time.Second},
+		times: timeLimits{
+			threadWindow: 336 * time.Hour, retryWindow: 6 * time.Hour, cleanupTimeout: 10 * time.Second,
+			syncWindow: 720 * time.Hour,
+		},
 		sweep: sweepSettings{interval: time.Hour, batch: 100, budget: 10 * time.Minute, orphanAge: 24 * time.Hour},
 		graph: graphCaps{bodiesPerRequest: 2, listsPerRequest: 50},
 	}
@@ -126,7 +134,10 @@ func TestReadSettingsHoldsTheValueOfEverySetting(t *testing.T) {
 			snippetLetters: 80, threadReferencesMax: 12, eventTextMaxBytes: 32,
 		},
 		files: fileCaps{attachmentMaxBytes: 8, workspaceMaxBytes: 1450},
-		times: timeLimits{threadWindow: 48 * time.Hour, retryWindow: 30 * time.Minute, cleanupTimeout: 3 * time.Second},
+		times: timeLimits{
+			threadWindow: 48 * time.Hour, retryWindow: 30 * time.Minute, cleanupTimeout: 3 * time.Second,
+			syncWindow: 240 * time.Hour,
+		},
 		sweep: sweepSettings{interval: 2 * time.Second, batch: 3, budget: 90 * time.Second, orphanAge: 2 * time.Hour},
 		graph: graphCaps{bodiesPerRequest: 5, listsPerRequest: 7},
 	}
@@ -219,6 +230,22 @@ func TestReadSettingsRefusesZeroForEveryOtherSetting(t *testing.T) {
 				t.Errorf("readSettings() over %s=%s error = %v, want zero refused by its key", key, zero, err)
 			}
 		})
+	}
+}
+
+func TestReadSettingsTakesASyncWindowOfThirtyDaysAndRejectsALongerOne(t *testing.T) {
+	t.Parallel()
+
+	got, err := readSettings(sdk.Deps{Env: settingsEnv(map[string]string{syncWindowSetting: "720h"})})
+	if err != nil || got.times.syncWindow != 720*time.Hour {
+		t.Errorf("readSettings() over %s=720h = %v, %v, want 720h taken", syncWindowSetting, got.times.syncWindow, err)
+	}
+
+	_, err = readSettings(sdk.Deps{Env: settingsEnv(map[string]string{syncWindowSetting: "721h"})})
+
+	if err == nil || !strings.HasPrefix(err.Error(), syncWindowSetting+": must stand at or below 720h0m0s") {
+		t.Errorf("readSettings() over %s=721h error = %v, want the longer window rejected by its key",
+			syncWindowSetting, err)
 	}
 }
 

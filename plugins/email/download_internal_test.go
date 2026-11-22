@@ -282,6 +282,30 @@ func TestTheDownloadRoutesAnswerNotFoundForAFileTheWorkspaceDoesNotKeep(t *testi
 	}
 }
 
+func TestTheDownloadRoutesAnswerNotFoundForADeletedAttachmentAndADeletedOriginal(t *testing.T) {
+	t.Parallel()
+
+	dt := newDownloadTest(t)
+	dt.ingest(dt.incoming(filesMail(), "file:quote-attached"))
+	mail, files := dt.quoteFiles(sdk.DefaultTenantID)
+	deletion, err := dt.freeFiles(filesDelete{message: mail, attachment: &files[0], original: true})
+	if err != nil || !deletion.attachment || !deletion.original {
+		t.Fatalf("deleteFiles() = %+v, %v, want the PDF and the original deleted", deletion, err)
+	}
+
+	for name, target := range map[string]string{
+		"a deleted attachment": attachmentPath(files[0]), "a deleted original": originalPath(mail),
+	} {
+		if recorder := getFile(t, dt.routes, sdk.DefaultTenantID, target, nil); recorder.Code != http.StatusNotFound {
+			t.Errorf("%s answered %d, want %d", name, recorder.Code, http.StatusNotFound)
+		}
+	}
+	photo := getFile(t, dt.routes, sdk.DefaultTenantID, attachmentPath(files[2]), nil)
+	if photo.Code != http.StatusOK {
+		t.Errorf("the photo the delete did not name answered %d, want %d", photo.Code, http.StatusOK)
+	}
+}
+
 func TestTheDownloadRoutesAnswerNotFoundForAFileTheStoreLost(t *testing.T) {
 	t.Parallel()
 

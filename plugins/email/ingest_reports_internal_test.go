@@ -173,7 +173,7 @@ func TestWriteMailReportsEachStatementOfANewMailThatFails(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
-		"FOR NO KEY UPDATE", "SELECT message_id FROM plugin_email.provider_refs", "AND dedupe_key = $3",
+		"FOR NO KEY UPDATE", "SELECT message_id FROM plugin_email.provider_refs", "SELECT id FROM plugin_email.messages",
 		"FROM plugin_email.thread_keys k", "INSERT INTO plugin_email.messages",
 		"INSERT INTO plugin_email.provider_refs", "INSERT INTO plugin_email.message_contacts",
 		"INSERT INTO plugin_email.attachments", "INSERT INTO plugin_email.thread_keys",
@@ -225,7 +225,7 @@ func TestWriteCopyReportsEachStatementThatFails(t *testing.T) {
 	t.Parallel()
 
 	for _, fragment := range []string{
-		"FOR NO KEY UPDATE", "SELECT message_id FROM plugin_email.provider_refs", "AND dedupe_key = $3",
+		"FOR NO KEY UPDATE", "SELECT message_id FROM plugin_email.provider_refs", "SELECT id FROM plugin_email.messages",
 		"INSERT INTO plugin_email.provider_refs",
 	} {
 		t.Run(fragment, func(t *testing.T) {

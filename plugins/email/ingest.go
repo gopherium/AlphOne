@@ -45,6 +45,8 @@ const (
 	outcomeFailed Outcome = "failed"
 	// outcomeWorkspaceClosed marks a mail for a workspace that no longer takes what a channel delivers.
 	outcomeWorkspaceClosed Outcome = "workspace_closed"
+	// outcomeAlreadyDeleted marks a mail of a key its mailbox deleted, which is not stored again.
+	outcomeAlreadyDeleted Outcome = "already_deleted"
 )
 
 const (
@@ -143,7 +145,7 @@ type parsedMail struct {
 type committedMail struct {
 	// outcome is what the transaction did with the mail.
 	outcome Outcome
-	// id names the new row, uuid.Nil for a copy of a stored mail.
+	// id names the new row, uuid.Nil for a copy of a stored mail or a mail of a key its mailbox deleted.
 	id uuid.UUID
 	// row is the new row with its thread.
 	row messageRow
@@ -377,11 +379,14 @@ func (p *ingester) matchContacts(
 	return contacts, nil
 }
 
-// keepMail stores mail as a new row, or links it to the stored mail it copies, unless it names no known contact.
+// keepMail stores mail as a new row or links it to its stored copy, unless it names no known contact or was deleted.
 func (p *ingester) keepMail(ctx context.Context, tenant uuid.UUID, mail parsedMail) (Outcome, announcedMail, error) {
 	if len(mail.contacts) == 0 {
 		p.logUnknown(ctx, tenant, mail)
 		return unknownOutcome(mail), announcedMail{}, nil
+	}
+	if outcome, ended, err := p.readDeletedOutcome(ctx, tenant, mail); ended {
+		return outcome, announcedMail{}, err
 	}
 	stored, err := p.readStoredID(ctx, tenant, mail)
 	if err != nil {
@@ -402,6 +407,9 @@ func (p *ingester) previewMail(ctx context.Context, tenant uuid.UUID, mail parse
 	if len(mail.contacts) == 0 {
 		return unknownOutcome(mail), announcedMail{}, nil
 	}
+	if outcome, ended, err := p.readDeletedOutcome(ctx, tenant, mail); ended {
+		return outcome, announcedMail{}, err
+	}
 	stored, err := p.readStoredID(ctx, tenant, mail)
 	switch {
 	case err != nil:
@@ -414,6 +422,18 @@ func (p *ingester) previewMail(ctx context.Context, tenant uuid.UUID, mail parse
 		return "", announcedMail{}, err
 	}
 	return copyOutcome(newLinks), announcedMail{}, nil
+}
+
+// readDeletedOutcome answers already_deleted when the mailbox of mail deleted a mail of its key, and whether it did.
+func (p *ingester) readDeletedOutcome(ctx context.Context, tenant uuid.UUID, mail parsedMail) (Outcome, bool, error) {
+	deleted, err := wasDeleted(ctx, p.pool, tenant, mail.box.id, mail.dedupeKey)
+	switch {
+	case err != nil:
+		return "", true, err
+	case deleted:
+		return outcomeAlreadyDeleted, true, nil
+	}
+	return "", false, nil
 }
 
 // readStoredID returns the stored mail the dedupe key of mail names in its mailbox, uuid.Nil when none.
@@ -605,12 +625,19 @@ func (p *ingester) commitMail(
 	return written, err
 }
 
-// writeMail stores mail as a new row inside tx under the mailbox lock, or links it to the stored mail it copies.
+// writeMail stores mail as a new row or links it to its copy inside tx under the mailbox lock, unless it was deleted.
 func (p *ingester) writeMail(
 	ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail parsedMail, row messageRow, kept []keptFile,
 ) (committedMail, error) {
 	if err := lockMailbox(ctx, tx, tenant, mail.box.id); err != nil {
 		return committedMail{}, err
+	}
+	deleted, err := wasDeleted(ctx, tx, tenant, mail.box.id, mail.dedupeKey)
+	if err != nil {
+		return committedMail{}, err
+	}
+	if deleted {
+		return committedMail{outcome: outcomeAlreadyDeleted}, markDeleting(ctx, tx, tenant, kept)
 	}
 	stored, err := findStoredMail(ctx, tx, tenant, mail)
 	switch {
@@ -634,10 +661,17 @@ func (p *ingester) commitCopy(ctx context.Context, tenant uuid.UUID, mail parsed
 	return outcome, err
 }
 
-// writeCopy links mail to the stored mail it copies inside tx under the mailbox lock, answering a miss as it reads.
+// writeCopy links mail to its stored copy inside tx under the mailbox lock unless it was deleted, answering a miss.
 func (p *ingester) writeCopy(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, mail parsedMail) (Outcome, error) {
 	if err := lockMailbox(ctx, tx, tenant, mail.box.id); err != nil {
 		return "", err
+	}
+	deleted, err := wasDeleted(ctx, tx, tenant, mail.box.id, mail.dedupeKey)
+	switch {
+	case err != nil:
+		return "", err
+	case deleted:
+		return outcomeAlreadyDeleted, nil
 	}
 	stored, err := findStoredMail(ctx, tx, tenant, mail)
 	if err != nil {

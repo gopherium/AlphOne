@@ -62,6 +62,8 @@ Mail has a doorway of its own, the `email` area. No contact field leads
 to mail, so `contacts:read` reads no mail. A token holding only
 `email:read` reads mail and nothing else, and a mail names its contacts
 by id only. See [Reading mail through the API](/email/overview/#reading-mail-through-the-api).
+Deleting mail needs `email:write` and an admin's role, see
+[Deleting mail and freeing space](/email/overview/#deleting-mail-and-freeing-space).
 
 **A session cookie**, for browsers. Call `login` and the reply sets it.
 Send the address and the password as variables, because a query before sign
@@ -114,7 +116,8 @@ Always read `errors`. A 200 does not mean it worked.
 ## Roles
 
 An account holds one role, and the role decides what the account may do. A stock
-deployment names two. An admin manages users and webhooks. A member works the
+deployment names two. An admin manages users and webhooks, and deletes stored
+mail. A member works the
 product, which is contacts, tasks, and whatever your plugins add. A plugin may
 declare roles of its own, so do not assume the list stops at two.
 
@@ -123,8 +126,8 @@ roles existed. `me` answers an empty `role` and an empty `capabilities` for it.
 Such an account still signs in, still reads `me` and `logout`, and still works
 every field that names no capability, which today is most of the product. What
 it cannot reach is the fields a capability guards, which today are user
-management and creating webhooks. Give it a role and it gains whatever that
-role holds.
+management, creating webhooks and deleting stored mail. Give it a role and it
+gains whatever that role holds.
 
 What a role may do is a set of named capabilities. `me` answers the ones the
 calling account holds, so a client asks what it may do rather than guessing from
@@ -165,6 +168,12 @@ holds in a stock install. An account without it is refused the same way, with
 same capability widens `webhooks` and `deleteWebhook`. A holder lists and
 revokes every webhook of its workspace, and any other account only the ones it
 created, see [webhooks](/reference/webhooks/#managing-subscriptions).
+
+`emailDeleteMessages` needs the `email.delete_messages` capability, and
+`emailDeleteFiles` needs `email.delete_files`. The email plugin gives both to
+admin. An account without one is rejected the same way, with `scope` naming
+`email:write` and `capability` naming the one it lacks, see
+[Deleting mail and freeing space](/email/overview/#deleting-mail-and-freeing-space).
 
 The message reads `admin required` whichever capability was missing, because it
 has said that since before capabilities existed and clients match on it. Read
@@ -500,7 +509,7 @@ Every error carries a `code` in its `extensions`.
 | `UNAUTHORIZED` | The caller does not reach the field. `scope required` means the token lacks the scope `scope` names, `admin required` means the account's role holds no capability the field needs |
 | `VALIDATION` | The input was refused. `message` names the field or rule |
 | `NOT_FOUND` | The id names nothing |
-| `CONFLICT` | The write clashes with what is stored, such as an identity another contact holds, a full list, or an account whose role changed after the check. For an identity, `ownerContactId` names the owner |
+| `CONFLICT` | The write clashes with what is stored, such as an identity another contact holds, a full list, an account whose role changed after the check, or a mail too young to delete. For an identity, `ownerContactId` names the owner |
 | `RATE_LIMITED` | Too many attempts. `retryAfter` is in seconds |
 | `COMPLEXITY_LIMIT_EXCEEDED` | The query asks for too much, see limits below |
 | `INTERNAL` | AlphOne failed. The message is deliberately bare |
@@ -644,7 +653,12 @@ The stock plugins add their own:
 | `number_removed` | | the number the conversation came in on is no longer connected |
 | `channel_number_taken` | | another workspace holds the number, and the answer never names that workspace |
 | `bodies_per_request_exceeded` | `max` | one request asks for the body of more mails than [`ALPHONE_EMAIL_BODIES_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
-| `lists_per_request_exceeded` | `max` | one request asks for more `participants` and `attachments` lists than [`ALPHONE_EMAIL_LISTS_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows |
+| `lists_per_request_exceeded` | `max` | one request asks for more `participants` and `attachments` lists than [`ALPHONE_EMAIL_LISTS_PER_REQUEST`](/self-hosting/configuration/#email-plugin) allows, the files of each mail `largestMessages` lists among them |
+| `thread_not_found` | | the workspace holds no such thread |
+| `message_not_found` | | the workspace, or the thread named, holds no such mail |
+| `attachment_not_found` | | the mail holds no such attachment |
+| `inside_sync_window` | `window` | a mail a mailbox sync brought in is younger than [`ALPHONE_EMAIL_SYNC_WINDOW`](/self-hosting/configuration/#email-plugin), so it cannot be deleted yet. `window` names it, such as `720h0m0s` |
+| `nothing_to_delete` | | a files delete names no attachment and not the original |
 | `import_not_found` | | the id names no import |
 | `file_too_large` | `maxBytes` | the upload is past the cap |
 | `file_unreadable` | | the file is not a CSV or spreadsheet AlphOne reads |
@@ -822,7 +836,7 @@ cannot drift. Point a client at the endpoint, or read
 | Fields | `fields`, `reservedFieldNames`, `Contact.field` | `defineField`, `archiveField`, `orderFields`, `writeContactFields`, `addContactFieldEntry`, `updateContactFieldEntry`, `deleteContactFieldEntry` |
 | Imports | `imports`, `importJob`, `importFields` | `importUpload`, `importSetMapping`, `importCommit` |
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
-| Email | `emailMailbox`, `emailThreads`, `emailThread`, `emailContactMessages` | |
+| Email | `emailMailbox`, `emailThreads`, `emailThread`, `emailContactMessages`, `emailUsage` | `emailDeleteMessages`, `emailDeleteFiles` |
 | Admin settings | `adminSettings` | |
 | Legal links | `legalLinks` | |
 | Version | `version` | |

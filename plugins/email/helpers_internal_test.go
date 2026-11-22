@@ -111,10 +111,11 @@ const foreignKeyViolation = "23503"
 // mailReceived is when the mails of the store tests reach their mailbox.
 var mailReceived = time.Date(2026, time.November, 2, 9, 0, 0, 0, time.UTC)
 
-// mailTables lists the tables the second migration creates.
+// mailTables lists the tables the second migration creates, then the table of the keys of deleted mail.
 var mailTables = []string{
 	"plugin_email.threads", "plugin_email.messages", "plugin_email.provider_refs",
 	"plugin_email.thread_keys", "plugin_email.message_contacts", "plugin_email.attachments",
+	"plugin_email.deleted_dedupe_keys",
 }
 
 // execer runs one statement on a pool or inside a transaction.

@@ -20,6 +20,9 @@ const sampleAddress = "info@example.com"
 // sampleAlias is the other address that reaches the sample mailbox.
 const sampleAlias = "sales@example.com"
 
+// seedPrefix starts every provider reference of the sample mail the seed stores.
+const seedPrefix = "seed:"
+
 // base64LineLetters is the most letters one line of a base64 body holds, the length MIME sets.
 const base64LineLetters = 76
 
@@ -53,14 +56,14 @@ func (m sampleMail) raw(at time.Time) []byte {
 // sampleMails returns the mails of the sample mailbox in the order the mailbox received them.
 func sampleMails() []sampleMail {
 	return []sampleMail{
-		{ref: "seed:lamp-quote", age: 72 * time.Hour, header: []string{
+		{ref: seedPrefix + "lamp-quote", age: 72 * time.Hour, header: []string{
 			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
 			"Subject: Quote for the new lamp", "Message-ID: <seed-lamp-quote@example.com>", "MIME-Version: 1.0",
 			"Content-Type: text/html; charset=utf-8",
 		}, body: []string{
 			"<p>Hello,</p>", "<p>Could you send me a quote for the new wicker lamp?</p>", "<p>Maria Perez</p>",
 		}},
-		{ref: "seed:lamp-quote-reply", age: 70 * time.Hour, sentCopy: true, header: []string{
+		{ref: seedPrefix + "lamp-quote-reply", age: 70 * time.Hour, sentCopy: true, header: []string{
 			"From: Info <info@example.com>", "To: Maria Perez <maria.perez@example.com>",
 			"Subject: Re: Quote for the new lamp", "Message-ID: <seed-lamp-quote-reply@example.com>",
 			"In-Reply-To: <seed-lamp-quote@example.com>", "References: <seed-lamp-quote@example.com>",
@@ -71,7 +74,7 @@ func sampleMails() []sampleMail {
 			"--quote", "Content-Type: application/pdf", `Content-Disposition: attachment; filename="quote.pdf"`,
 			"Content-Transfer-Encoding: base64", "",
 		}, base64Lines(quotePDF()), []string{"--quote--"})},
-		{ref: "seed:lamp-photo", age: 48 * time.Hour, header: []string{
+		{ref: seedPrefix + "lamp-photo", age: 48 * time.Hour, header: []string{
 			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
 			"Subject: Re: Quote for the new lamp", "Message-ID: <seed-lamp-photo@example.com>",
 			"In-Reply-To: <seed-lamp-quote-reply@example.com>",
@@ -84,12 +87,12 @@ func sampleMails() []sampleMail {
 			`Content-Disposition: inline; filename="lamp.png"`, "Content-Transfer-Encoding: base64", "",
 			lampPNG, "--photo--",
 		}},
-		{ref: "seed:site-visit", age: 24 * time.Hour, header: []string{
+		{ref: seedPrefix + "site-visit", age: 24 * time.Hour, header: []string{
 			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
 			"Cc: Ada Lovelace <ada@example.com>", "Subject: Site visit on Friday",
 			"Message-ID: <seed-site-visit@example.com>", "Content-Type: text/plain; charset=utf-8",
 		}, body: []string{"Ada and I can meet you at the shop on Friday at ten to choose the shades."}},
-		{ref: "seed:delivery-date", age: 2 * time.Hour, header: []string{
+		{ref: seedPrefix + "delivery-date", age: 2 * time.Hour, header: []string{
 			"From: Ada Lovelace <ada@example.com>", "To: Info <info@example.com>", "Subject: Delivery date",
 			"Message-ID: <seed-delivery-date@example.com>", "Content-Type: text/plain; charset=utf-8",
 		}, body: []string{"When will the lamps reach the shop?"}},

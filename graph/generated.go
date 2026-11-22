@@ -35,6 +35,7 @@ type ResolverRoot interface {
 	Contact() ContactResolver
 	EmailMessage() EmailMessageResolver
 	EmailThread() EmailThreadResolver
+	EmailUsage() EmailUsageResolver
 	ImportJob() ImportJobResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
@@ -135,6 +136,11 @@ type ComplexityRoot struct {
 		Text func(childComplexity int) int
 	}
 
+	EmailDeletion struct {
+		DeletedMessages func(childComplexity int) int
+		ThreadDeleted   func(childComplexity int) int
+	}
+
 	EmailMailbox struct {
 		Address func(childComplexity int) int
 		Aliases func(childComplexity int) int
@@ -161,6 +167,7 @@ type ComplexityRoot struct {
 		Signed       func(childComplexity int) int
 		SkippedParts func(childComplexity int) int
 		Snippet      func(childComplexity int) int
+		StoredBytes  func(childComplexity int) int
 		Subject      func(childComplexity int) int
 		ThreadID     func(childComplexity int) int
 		Winmail      func(childComplexity int) int
@@ -194,6 +201,13 @@ type ComplexityRoot struct {
 		Items func(childComplexity int) int
 		Limit func(childComplexity int) int
 		Total func(childComplexity int) int
+	}
+
+	EmailUsage struct {
+		FreeingBytes    func(childComplexity int) int
+		LargestMessages func(childComplexity int, limit *int) int
+		LimitBytes      func(childComplexity int) int
+		UsedBytes       func(childComplexity int) int
 	}
 
 	FieldDefinition struct {
@@ -302,6 +316,8 @@ type ComplexityRoot struct {
 		DeleteContactFieldEntry func(childComplexity int, contactID uuid.UUID, field string, entryID uuid.UUID) int
 		DeleteContactIdentity   func(childComplexity int, contactID uuid.UUID, identityID uuid.UUID) int
 		DeleteWebhook           func(childComplexity int, id uuid.UUID) int
+		EmailDeleteFiles        func(childComplexity int, messageID uuid.UUID, attachmentID *uuid.UUID, original bool) int
+		EmailDeleteMessages     func(childComplexity int, threadID uuid.UUID, messageID *uuid.UUID) int
 		ImportCommit            func(childComplexity int, id uuid.UUID) int
 		ImportSetMapping        func(childComplexity int, id uuid.UUID, assignments []*model.ImportAssignmentInput) int
 		ImportUpload            func(childComplexity int, file graphql.Upload) int
@@ -339,6 +355,7 @@ type ComplexityRoot struct {
 		EmailMailbox          func(childComplexity int) int
 		EmailThread           func(childComplexity int, id uuid.UUID) int
 		EmailThreads          func(childComplexity int, limit *int, offset *int) int
+		EmailUsage            func(childComplexity int) int
 		Fields                func(childComplexity int, includeArchived *bool) int
 		ImportFields          func(childComplexity int) int
 		ImportJob             func(childComplexity int, id uuid.UUID) int
@@ -482,6 +499,9 @@ type EmailThreadResolver interface {
 	Messages(ctx context.Context, obj *model.EmailThread, limit *int, offset *int) ([]*model.EmailMessage, error)
 	Message(ctx context.Context, obj *model.EmailThread, id uuid.UUID) (*model.EmailMessage, error)
 }
+type EmailUsageResolver interface {
+	LargestMessages(ctx context.Context, obj *model.EmailUsage, limit *int) ([]*model.EmailMessage, error)
+}
 type ImportJobResolver interface {
 	Rows(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportRow, error)
 	Contacts(ctx context.Context, obj *model.ImportJob, limit *int, offset *int) ([]*model.ImportContact, error)
@@ -507,6 +527,8 @@ type MutationResolver interface {
 	APITokenRevoke(ctx context.Context, id uuid.UUID) (bool, error)
 	CreateWebhook(ctx context.Context, url string, events []string) (*model.CreateWebhookPayload, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (bool, error)
+	EmailDeleteMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) (*model.EmailDeletion, error)
+	EmailDeleteFiles(ctx context.Context, messageID uuid.UUID, attachmentID *uuid.UUID, original bool) (*model.EmailMessage, error)
 	DefineField(ctx context.Context, name string, label string, kind model.FieldKind, subFields []*model.FieldSubFieldInput) (*model.FieldDefinition, error)
 	ArchiveField(ctx context.Context, id uuid.UUID) (bool, error)
 	OrderFields(ctx context.Context, ids []uuid.UUID) (bool, error)
@@ -540,6 +562,7 @@ type QueryResolver interface {
 	EmailThreads(ctx context.Context, limit *int, offset *int) (*model.EmailThreadPage, error)
 	EmailThread(ctx context.Context, id uuid.UUID) (*model.EmailThread, error)
 	EmailContactMessages(ctx context.Context, contactID uuid.UUID, limit *int, offset *int) (*model.EmailMessagePage, error)
+	EmailUsage(ctx context.Context) (*model.EmailUsage, error)
 	Fields(ctx context.Context, includeArchived *bool) ([]*model.FieldDefinition, error)
 	ReservedFieldNames(ctx context.Context) ([]string, error)
 	Imports(ctx context.Context) ([]*model.ImportJob, error)
@@ -898,6 +921,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EmailBody.Text(childComplexity), true
 
+	case "EmailDeletion.deletedMessages":
+		if e.ComplexityRoot.EmailDeletion.DeletedMessages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailDeletion.DeletedMessages(childComplexity), true
+	case "EmailDeletion.threadDeleted":
+		if e.ComplexityRoot.EmailDeletion.ThreadDeleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailDeletion.ThreadDeleted(childComplexity), true
+
 	case "EmailMailbox.address":
 		if e.ComplexityRoot.EmailMailbox.Address == nil {
 			break
@@ -1031,6 +1067,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EmailMessage.Snippet(childComplexity), true
+	case "EmailMessage.storedBytes":
+		if e.ComplexityRoot.EmailMessage.StoredBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailMessage.StoredBytes(childComplexity), true
 	case "EmailMessage.subject":
 		if e.ComplexityRoot.EmailMessage.Subject == nil {
 			break
@@ -1171,6 +1213,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EmailThreadPage.Total(childComplexity), true
+
+	case "EmailUsage.freeingBytes":
+		if e.ComplexityRoot.EmailUsage.FreeingBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailUsage.FreeingBytes(childComplexity), true
+	case "EmailUsage.largestMessages":
+		if e.ComplexityRoot.EmailUsage.LargestMessages == nil {
+			break
+		}
+
+		args, err := ec.field_EmailUsage_largestMessages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.EmailUsage.LargestMessages(childComplexity, args["limit"].(*int)), true
+	case "EmailUsage.limitBytes":
+		if e.ComplexityRoot.EmailUsage.LimitBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailUsage.LimitBytes(childComplexity), true
+	case "EmailUsage.usedBytes":
+		if e.ComplexityRoot.EmailUsage.UsedBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EmailUsage.UsedBytes(childComplexity), true
 
 	case "FieldDefinition.archivedAt":
 		if e.ComplexityRoot.FieldDefinition.ArchivedAt == nil {
@@ -1656,6 +1728,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteWebhook(childComplexity, args["id"].(uuid.UUID)), true
+	case "Mutation.emailDeleteFiles":
+		if e.ComplexityRoot.Mutation.EmailDeleteFiles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_emailDeleteFiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EmailDeleteFiles(childComplexity, args["messageId"].(uuid.UUID), args["attachmentId"].(*uuid.UUID), args["original"].(bool)), true
+	case "Mutation.emailDeleteMessages":
+		if e.ComplexityRoot.Mutation.EmailDeleteMessages == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_emailDeleteMessages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EmailDeleteMessages(childComplexity, args["threadId"].(uuid.UUID), args["messageId"].(*uuid.UUID)), true
 	case "Mutation.importCommit":
 		if e.ComplexityRoot.Mutation.ImportCommit == nil {
 			break
@@ -1959,6 +2053,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EmailThreads(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.emailUsage":
+		if e.ComplexityRoot.Query.EmailUsage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.EmailUsage(childComplexity), true
 	case "Query.fields":
 		if e.ComplexityRoot.Query.Fields == nil {
 			break
@@ -2644,6 +2744,14 @@ var sources = []*ast.Source{
   emailContactMessages(contactId: UUID!, limit: Int, offset: Int): EmailMessagePage!
     @scope(area: "email", write: false)
     @listSize(slicingArguments: ["limit"])
+  emailUsage: EmailUsage! @scope(area: "email", write: false)
+}
+
+extend type Mutation {
+  emailDeleteMessages(threadId: UUID!, messageId: UUID): EmailDeletion!
+    @scope(area: "email", write: true, capability: "email.delete_messages")
+  emailDeleteFiles(messageId: UUID!, attachmentId: UUID, original: Boolean! = false): EmailMessage!
+    @scope(area: "email", write: true, capability: "email.delete_files")
 }
 
 type EmailMailbox {
@@ -2696,6 +2804,7 @@ type EmailMessage {
   inviteMethod: String!
   rawState: String!
   rawSize: Float!
+  storedBytes: Float!
   originalPath: String
   participants: [EmailParticipant!]! @goField(forceResolver: true)
   body: EmailBody! @goField(forceResolver: true)
@@ -2729,6 +2838,20 @@ type EmailAttachment {
   contentId: String!
   state: String!
   downloadPath: String
+}
+
+type EmailUsage {
+  usedBytes: Float!
+  freeingBytes: Float!
+  limitBytes: Float
+  largestMessages(limit: Int): [EmailMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+}
+
+type EmailDeletion {
+  deletedMessages: Int!
+  threadDeleted: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../plugins/fields/graph/schema.graphqls", Input: `extend type Contact {
@@ -3107,6 +3230,16 @@ func (ec *executionContext) childFields_EmailBody(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type EmailBody", field.Name)
 }
 
+func (ec *executionContext) childFields_EmailDeletion(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "deletedMessages":
+		return ec.fieldContext_EmailDeletion_deletedMessages(ctx, field)
+	case "threadDeleted":
+		return ec.fieldContext_EmailDeletion_threadDeleted(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailDeletion", field.Name)
+}
+
 func (ec *executionContext) childFields_EmailMailbox(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -3155,6 +3288,8 @@ func (ec *executionContext) childFields_EmailMessage(ctx context.Context, field 
 		return ec.fieldContext_EmailMessage_rawState(ctx, field)
 	case "rawSize":
 		return ec.fieldContext_EmailMessage_rawSize(ctx, field)
+	case "storedBytes":
+		return ec.fieldContext_EmailMessage_storedBytes(ctx, field)
 	case "originalPath":
 		return ec.fieldContext_EmailMessage_originalPath(ctx, field)
 	case "participants":
@@ -3227,6 +3362,20 @@ func (ec *executionContext) childFields_EmailThreadPage(ctx context.Context, fie
 		return ec.fieldContext_EmailThreadPage_limit(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type EmailThreadPage", field.Name)
+}
+
+func (ec *executionContext) childFields_EmailUsage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "usedBytes":
+		return ec.fieldContext_EmailUsage_usedBytes(ctx, field)
+	case "freeingBytes":
+		return ec.fieldContext_EmailUsage_freeingBytes(ctx, field)
+	case "limitBytes":
+		return ec.fieldContext_EmailUsage_limitBytes(ctx, field)
+	case "largestMessages":
+		return ec.fieldContext_EmailUsage_largestMessages(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EmailUsage", field.Name)
 }
 
 func (ec *executionContext) childFields_FieldDefinition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3811,6 +3960,20 @@ func (ec *executionContext) field_EmailThread_messages_args(ctx context.Context,
 	return args, nil
 }
 
+func (ec *executionContext) field_EmailUsage_largestMessages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_ImportJob_contacts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4146,6 +4309,58 @@ func (ec *executionContext) field_Mutation_deleteWebhook_args(ctx context.Contex
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_emailDeleteFiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "messageId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["messageId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "attachmentId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["attachmentId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "original",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["original"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_emailDeleteMessages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "threadId",
+		func(ctx context.Context, v any) (uuid.UUID, error) {
+			return ec.unmarshalNUUID2githubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["threadId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "messageId",
+		func(ctx context.Context, v any) (*uuid.UUID, error) {
+			return ec.unmarshalOUUID2ᚖgithubᚗcomᚋgoogleᚋuuidᚐUUID(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["messageId"] = arg1
 	return args, nil
 }
 
@@ -6169,6 +6384,52 @@ func (ec *executionContext) fieldContext_EmailBody_html(_ context.Context, field
 	return graphql.NewScalarFieldContext("EmailBody", field, false, false, "String")
 }
 
+func (ec *executionContext) _EmailDeletion_deletedMessages(ctx context.Context, field graphql.CollectedField, obj *model.EmailDeletion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailDeletion_deletedMessages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedMessages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailDeletion_deletedMessages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailDeletion", field, false, false, "Int")
+}
+
+func (ec *executionContext) _EmailDeletion_threadDeleted(ctx context.Context, field graphql.CollectedField, obj *model.EmailDeletion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailDeletion_threadDeleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThreadDeleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailDeletion_threadDeleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailDeletion", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _EmailMailbox_id(ctx context.Context, field graphql.CollectedField, obj *model.EmailMailbox) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6635,6 +6896,29 @@ func (ec *executionContext) _EmailMessage_rawSize(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_EmailMessage_rawSize(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, "Float")
+}
+
+func (ec *executionContext) _EmailMessage_storedBytes(ctx context.Context, field graphql.CollectedField, obj *model.EmailMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailMessage_storedBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StoredBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailMessage_storedBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("EmailMessage", field, false, false, "Float")
 }
 
@@ -7261,6 +7545,119 @@ func (ec *executionContext) _EmailThreadPage_limit(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_EmailThreadPage_limit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("EmailThreadPage", field, false, false, "Int")
+}
+
+func (ec *executionContext) _EmailUsage_usedBytes(ctx context.Context, field graphql.CollectedField, obj *model.EmailUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailUsage_usedBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UsedBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailUsage_usedBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailUsage", field, false, false, "Float")
+}
+
+func (ec *executionContext) _EmailUsage_freeingBytes(ctx context.Context, field graphql.CollectedField, obj *model.EmailUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailUsage_freeingBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FreeingBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailUsage_freeingBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailUsage", field, false, false, "Float")
+}
+
+func (ec *executionContext) _EmailUsage_limitBytes(ctx context.Context, field graphql.CollectedField, obj *model.EmailUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailUsage_limitBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LimitBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EmailUsage_limitBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EmailUsage", field, false, false, "Float")
+}
+
+func (ec *executionContext) _EmailUsage_largestMessages(ctx context.Context, field graphql.CollectedField, obj *model.EmailUsage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EmailUsage_largestMessages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.EmailUsage().LargestMessages(ctx, obj, fc.Args["limit"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EmailMessage) graphql.Marshaler {
+			return ec.marshalNEmailMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EmailUsage_largestMessages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EmailUsage",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_EmailUsage_largestMessages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _FieldDefinition_id(ctx context.Context, field graphql.CollectedField, obj *model.FieldDefinition) (ret graphql.Marshaler) {
@@ -9419,6 +9816,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_emailDeleteMessages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_emailDeleteMessages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EmailDeleteMessages(ctx, fc.Args["threadId"].(uuid.UUID), fc.Args["messageId"].(*uuid.UUID))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailDeletion) graphql.Marshaler {
+			return ec.marshalNEmailDeletion2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailDeletion(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_emailDeleteMessages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailDeletion(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_emailDeleteMessages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_emailDeleteFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_emailDeleteFiles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EmailDeleteFiles(ctx, fc.Args["messageId"].(uuid.UUID), fc.Args["attachmentId"].(*uuid.UUID), fc.Args["original"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailMessage) graphql.Marshaler {
+			return ec.marshalNEmailMessage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_emailDeleteFiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailMessage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_emailDeleteFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_defineField(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10709,6 +11194,38 @@ func (ec *executionContext) fieldContext_Query_emailContactMessages(ctx context.
 	if fc.Args, err = ec.field_Query_emailContactMessages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_emailUsage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_emailUsage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().EmailUsage(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EmailUsage) graphql.Marshaler {
+			return ec.marshalNEmailUsage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailUsage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_emailUsage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EmailUsage(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -14664,6 +15181,44 @@ func (ec *executionContext) _EmailBody(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var emailDeletionImplementors = []string{"EmailDeletion"}
+
+func (ec *executionContext) _EmailDeletion(ctx context.Context, sel ast.SelectionSet, obj *model.EmailDeletion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailDeletionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailDeletion")
+		case "deletedMessages":
+			out.Values[i] = ec._EmailDeletion_deletedMessages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "threadDeleted":
+			out.Values[i] = ec._EmailDeletion_threadDeleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var emailMailboxImplementors = []string{"EmailMailbox"}
 
 func (ec *executionContext) _EmailMailbox(ctx context.Context, sel ast.SelectionSet, obj *model.EmailMailbox) graphql.Marshaler {
@@ -14800,6 +15355,11 @@ func (ec *executionContext) _EmailMessage(ctx context.Context, sel ast.Selection
 			}
 		case "rawSize":
 			out.Values[i] = ec._EmailMessage_rawSize(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "storedBytes":
+			out.Values[i] = ec._EmailMessage_storedBytes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -15036,6 +15596,55 @@ func (ec *executionContext) _EmailThreadPage(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var emailUsageImplementors = []string{"EmailUsage"}
+
+func (ec *executionContext) _EmailUsage(ctx context.Context, sel ast.SelectionSet, obj *model.EmailUsage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, emailUsageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EmailUsage")
+		case "usedBytes":
+			out.Values[i] = ec._EmailUsage_usedBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "freeingBytes":
+			out.Values[i] = ec._EmailUsage_freeingBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "limitBytes":
+			out.Values[i] = ec._EmailUsage_limitBytes(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "largestMessages":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._EmailUsage_largestMessages(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15843,6 +16452,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "emailDeleteMessages":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_emailDeleteMessages(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "emailDeleteFiles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_emailDeleteFiles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "defineField":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_defineField(ctx, field)
@@ -16123,6 +16746,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_emailContactMessages(ctx, field)
+				})
+		case "emailUsage":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_emailUsage(ctx, field)
 				})
 		case "fields":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -17467,6 +18096,14 @@ func (ec *executionContext) marshalNEmailBody2ᚖgithubᚗcomᚋgopheriumᚋalph
 	return ec._EmailBody(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNEmailDeletion2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailDeletion(ctx context.Context, sel ast.SelectionSet, v *model.EmailDeletion) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "EmailDeletion!")
+		return graphql.Null
+	}
+	return ec._EmailDeletion(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNEmailMessage2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EmailMessage) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -17553,6 +18190,14 @@ func (ec *executionContext) marshalNEmailThreadPage2ᚖgithubᚗcomᚋgopherium�
 		return graphql.Null
 	}
 	return ec._EmailThreadPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEmailUsage2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐEmailUsage(ctx context.Context, sel ast.SelectionSet, v *model.EmailUsage) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "EmailUsage!")
+		return graphql.Null
+	}
+	return ec._EmailUsage(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNFieldDefinition2ᚕᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐFieldDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FieldDefinition) graphql.Marshaler {
@@ -18438,6 +19083,23 @@ func (ec *executionContext) unmarshalOFieldSubFieldInput2ᚕᚖgithubᚗcomᚋgo
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) marshalOImportJob2ᚖgithubᚗcomᚋgopheriumᚋalphoneᚋgraphᚋmodelᚐImportJob(ctx context.Context, sel ast.SelectionSet, v *model.ImportJob) graphql.Marshaler {
