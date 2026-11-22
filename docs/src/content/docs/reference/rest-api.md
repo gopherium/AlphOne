@@ -68,6 +68,19 @@ gets that same `403` for a path the plugin does not serve at all, where a
 token holding the area would get `404`. A session is not narrowed this way,
 because only a token carries scopes.
 
+A plugin route that panics answers `500` with `Cache-Control: no-store`, on
+public paths too. The body is AlphOne's internal error and never names the
+plugin:
+
+```json
+{ "error": "internal error", "code": "internal" }
+```
+
+If the route had already begun its answer, the connection is cut instead, so a
+half download never looks complete.
+[Behavior worth knowing](/self-hosting/configuration/#behavior-worth-knowing)
+says what the log records.
+
 ## Live events
 
 Live updates left REST at 0.7.0. The graph serves them as subscriptions over

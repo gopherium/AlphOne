@@ -5,6 +5,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"io/fs"
 	"log/slog"
@@ -29,6 +30,12 @@ import (
 
 // SessionCookieName scopes the login cookie to this product.
 const SessionCookieName = "__Host-alphone_session"
+
+// pluginRoutesPrefix is the path every plugin's routes are mounted under, before the plugin's id.
+const pluginRoutesPrefix = "/api/plugins/"
+
+// routePanicLine is the error the server logs for each panic of a plugin route.
+const routePanicLine = "plugin route panicked"
 
 // Config carries the stores and plugin surfaces the server serves.
 type Config struct {
@@ -62,7 +69,7 @@ type Config struct {
 	// TrustedProxies lists the CIDR ranges of reverse proxies permitted to
 	// set X-Forwarded-For for the graph rate limiter.
 	TrustedProxies []string
-	// Logger receives the line each refused cross-origin write leaves. Nil applies slog.Default.
+	// Logger receives a line for each rejected cross-origin write and each plugin route panic. Nil applies slog.Default.
 	Logger *slog.Logger
 	// MaxStreamLifetime bounds how long an authenticated plugin request or a
 	// graph subscription may stay open. Zero applies the host default.
@@ -96,6 +103,7 @@ func NewServer(cfg Config) http.Handler {
 		users:             cfg.Users,
 		tenants:           cfg.Tenants,
 		tokens:            cfg.Tokens,
+		logger:            cmp.Or(cfg.Logger, slog.Default()),
 		maxStreamLifetime: maxStreamLifetime,
 		streams:           newStreamLimiter(maxStreamsPerUser),
 	}
@@ -114,8 +122,8 @@ func NewServer(cfg Config) http.Handler {
 		router.Method(http.MethodPost, "/api/mcp", s.requireIdentity(mcp.Handler(graph, cfg.Version)))
 	}
 	for id, handler := range cfg.Plugins {
-		prefix := "/api/plugins/" + id
-		guarded := s.protectPlugin(handler, cfg.PluginPublicPaths[id], cfg.PluginAreas[id])
+		prefix := pluginRoutesPrefix + id
+		guarded := s.protectPlugin(id, handler, cfg.PluginPublicPaths[id], cfg.PluginAreas[id])
 		router.Mount(prefix, http.StripPrefix(prefix, guarded))
 	}
 	if cfg.Web != nil {
@@ -129,16 +137,34 @@ type server struct {
 	users             UserStore
 	tenants           TenantStore
 	tokens            TokenStore
+	logger            *slog.Logger
 	maxStreamLifetime time.Duration
 	streams           *streamLimiter
 }
 
-// protectPlugin wraps a plugin handler in the session middleware, letting
-// the plugin's declared public paths through untouched.
-func (s *server) protectPlugin(handler http.Handler, publicPaths []string, area string) http.Handler {
-	return pluginkit.Protect(handler, publicPaths, func(next http.Handler) http.Handler {
-		return s.requireIdentity(s.boundPluginRequest(s.withActingUser(inArea(area, next))))
+// protectPlugin serves a plugin behind the session middleware, its public paths open, and answers each panic.
+func (s *server) protectPlugin(id string, handler http.Handler, publicPaths []string, area string) http.Handler {
+	return pluginkit.Protect(id, handler, publicPaths, pluginkit.RouteSettings{
+		Wrap: func(next http.Handler) http.Handler {
+			return s.requireIdentity(s.boundPluginRequest(s.withActingUser(inArea(area, next))))
+		},
+		Answer: http.HandlerFunc(respondInternal),
+		Report: s.reportRoutePanic,
 	})
+}
+
+// reportRoutePanic logs one panic of a plugin route with the plugin, the request, the panic and its stack.
+func (s *server) reportRoutePanic(failure pluginkit.RouteFailure) {
+	s.logger.Error(routePanicLine, "plugin", failure.ID, "method", failure.Method,
+		"path", pluginRoutesPrefix+failure.ID+failure.Path, "answered", failure.Answered,
+		"error", failure.Err, "stack", failure.Stack)
+}
+
+// respondInternal answers the internal error, kept out of every cache.
+func respondInternal(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	authkit.RespondError(w, http.StatusInternalServerError,
+		authkit.ErrorResponse{Message: "internal error", Code: "internal"})
 }
 
 // inArea serves the request only when the caller's credential reaches the area the routes act in.
