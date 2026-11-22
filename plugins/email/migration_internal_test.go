@@ -3,16 +3,23 @@
 package email
 
 import (
+	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/database"
+
+	"github.com/gopherium/alphone/sdk"
 )
 
 // mailboxTables lists the tables the first migration creates.
 var mailboxTables = []string{"plugin_email.mailboxes", "plugin_email.workspace_usage"}
+
+// versionBeforeDeletes is the migration an install from before the email deletes stands on.
+const versionBeforeDeletes = 5
 
 // emailProvider returns a goose provider over the plugin's migrations and its own version table.
 func emailProvider(t *testing.T, pool *pgxpool.Pool) *goose.Provider {
@@ -111,6 +118,46 @@ func TestTheMigrationsRollBackToNoTableAndUpAgain(t *testing.T) {
 	}
 	if tables := emailTables(t, pool); tables != migrated {
 		t.Errorf("plugin_email holds %d tables after applying again, want %d", tables, migrated)
+	}
+}
+
+func TestTheDeleteMigrationRollsBackAfterAFileDeleteAndLeavesTheFilesKeptWithNoFile(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	it.ingest(it.incoming(invoiceMail("%PDF-1.4 march"), "file:invoice"))
+	id := it.mailTitled("Invoice")
+	file := it.attachmentIDs(id)[0]
+	if _, err := it.freeFiles(filesDelete{message: id, attachment: &file, original: true}); err != nil {
+		t.Fatalf("deleteFiles() error = %v, want nil", err)
+	}
+	mail, files := storedRow(t, it.pool, id), it.attachmentsOf(id)
+	provider := emailProvider(t, it.pool)
+
+	if _, err := provider.DownTo(t.Context(), versionBeforeDeletes); err != nil {
+		t.Fatalf("DownTo(%d) after a file delete error = %v, want nil", versionBeforeDeletes, err)
+	}
+
+	mail.rawState, files[0].state = fileOverLimit, fileOverLimit
+	if got := storedRow(t, it.pool, id); !reflect.DeepEqual(got, mail) {
+		t.Errorf("the mail after the rollback = %+v, want %+v with its original kept with no file", got, mail)
+	}
+	if got := it.attachmentsOf(id); !reflect.DeepEqual(got, files) {
+		t.Errorf("the files after the rollback = %+v, want %+v with the deleted one kept with no file", got, files)
+	}
+	_, attachmentErr := readAttachmentDownload(t.Context(), it.pool, sdk.DefaultTenantID, file)
+	_, originalErr := readOriginalDownload(t.Context(), it.pool, sdk.DefaultTenantID, id)
+	for name, err := range map[string]error{"attachment": attachmentErr, "original": originalErr} {
+		if status := failureStatus(err); status != http.StatusNotFound {
+			t.Errorf("a download of the %s after the rollback answers %d, want %d", name, status, http.StatusNotFound)
+		}
+	}
+	_, err := it.pool.Exec(t.Context(), "UPDATE plugin_email.attachments SET state = 'deleted' WHERE id = $1", file)
+	if code := pgCode(err); code != checkViolation {
+		t.Errorf("an attachment turned deleted after the rollback error = %v, want the old check to reject it", err)
+	}
+	if _, err := provider.Up(t.Context()); err != nil {
+		t.Errorf("Up() after the rollback error = %v, want nil", err)
 	}
 }
 

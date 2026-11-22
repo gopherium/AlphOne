@@ -22,9 +22,11 @@ CREATE INDEX messages_stored_bytes_idx ON plugin_email.messages (tenant_id, stor
 -- +goose Down
 DROP INDEX plugin_email.messages_stored_bytes_idx;
 DROP TABLE plugin_email.deleted_dedupe_keys;
+UPDATE plugin_email.messages SET raw_state = 'over_limit' WHERE raw_state = 'deleted';
 ALTER TABLE plugin_email.messages DROP CONSTRAINT messages_raw_state_check;
 ALTER TABLE plugin_email.messages ADD CONSTRAINT messages_raw_state_check
     CHECK (raw_state IN ('stored', 'too_large', 'over_limit', 'none'));
+UPDATE plugin_email.attachments SET state = 'over_limit' WHERE state = 'deleted';
 ALTER TABLE plugin_email.attachments DROP CONSTRAINT attachments_state_check;
 ALTER TABLE plugin_email.attachments ADD CONSTRAINT attachments_state_check
     CHECK (state IN ('stored', 'too_large', 'over_limit'));
