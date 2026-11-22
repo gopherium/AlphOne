@@ -134,6 +134,8 @@ type servedPage[T any] struct {
 type servedThread struct {
 	ID             string       `json:"id"`
 	Subject        string       `json:"subject"`
+	FirstMessageAt string       `json:"firstMessageAt"`
+	LastMessageAt  string       `json:"lastMessageAt"`
 	MessageCount   int          `json:"messageCount"`
 	HasAttachments bool         `json:"hasAttachments"`
 	Latest         servedMail   `json:"latest"`
@@ -147,10 +149,13 @@ type servedMail struct {
 	ThreadID     string              `json:"threadId"`
 	Subject      string              `json:"subject"`
 	From         *servedAddress      `json:"from"`
+	ReceivedAt   string              `json:"receivedAt"`
 	Snippet      string              `json:"snippet"`
 	BodyState    string              `json:"bodyState"`
 	SkippedParts int                 `json:"skippedParts"`
 	RawState     string              `json:"rawState"`
+	RawSize      float64             `json:"rawSize"`
+	StoredBytes  float64             `json:"storedBytes"`
 	OriginalPath *string             `json:"originalPath"`
 	Participants []servedParticipant `json:"participants"`
 	Body         *servedBody         `json:"body"`
@@ -180,6 +185,8 @@ type servedBody struct {
 type servedFile struct {
 	ID           string  `json:"id"`
 	Filename     string  `json:"filename"`
+	ContentType  string  `json:"contentType"`
+	Size         float64 `json:"size"`
 	State        string  `json:"state"`
 	Inline       bool    `json:"inline"`
 	DownloadPath *string `json:"downloadPath"`
@@ -209,14 +216,23 @@ func initializeEmailRead(t *testing.T) func(*godog.ScenarioContext) {
 	return func(sc *godog.ScenarioContext) {
 		s := newEmailScenario(t)
 		bindEmailSteps(sc, s)
-		r := &readScenario{emailScenario: s, tokens: map[string]string{}, mailIDs: map[string]string{}}
-		r.bindTokens(sc)
-		r.bindReads(sc)
-		r.bindReadAnswers(sc)
-		r.bindMailAnswers(sc)
-		r.bindDownloads(sc)
-		r.bindDownloadAnswers(sc)
+		bindReadSteps(sc, newReadScenario(s))
 	}
+}
+
+// newReadScenario returns the state of one email read scenario beside the state s of its email steps.
+func newReadScenario(s *emailScenario) *readScenario {
+	return &readScenario{emailScenario: s, tokens: map[string]string{}, mailIDs: map[string]string{}}
+}
+
+// bindReadSteps binds every email read step to r.
+func bindReadSteps(sc *godog.ScenarioContext, r *readScenario) {
+	r.bindTokens(sc)
+	r.bindReads(sc)
+	r.bindReadAnswers(sc)
+	r.bindMailAnswers(sc)
+	r.bindDownloads(sc)
+	r.bindDownloadAnswers(sc)
 }
 
 // bindTokens binds the steps that place accounts in workspaces and mint their tokens.
