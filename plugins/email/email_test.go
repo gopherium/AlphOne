@@ -203,6 +203,7 @@ func newWiredPlugin(t *testing.T, env map[string]string) wiredPlugin {
 	}
 	w.plugin, err = email.Register(sdk.Deps{
 		DatabaseURL: address, Matcher: matcher, ContactMatchMax: 100, Events: w.publisher, Env: settingsOf(env),
+		Logger: slog.New(slog.DiscardHandler),
 	})
 	if err != nil {
 		t.Fatalf("Register() error = %v, want nil", err)
@@ -363,14 +364,17 @@ func TestEventsDeclaresTheMessageReceivedEvent(t *testing.T) {
 	}
 }
 
-func TestRolesGiveAdminTheMailboxCapability(t *testing.T) {
+func TestRolesGiveAdminTheMailboxAndBothDeleteCapabilities(t *testing.T) {
 	t.Parallel()
 
 	got := newPlugin(t).Roles()
 
-	want := []sdk.RoleDeclaration{{Name: "admin", Capabilities: []string{"email.manage_mailbox"}}}
+	want := []sdk.RoleDeclaration{{
+		Name: "admin", Capabilities: []string{"email.manage_mailbox", "email.delete_messages", "email.delete_files"},
+	}}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Roles() = %+v, want admin carrying email.manage_mailbox alone", got)
+		t.Errorf("Roles() = %+v, want admin carrying email.manage_mailbox, email.delete_messages and email.delete_files",
+			got)
 	}
 }
 

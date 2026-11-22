@@ -325,6 +325,39 @@ func TestThePeopleAndFileLoadersShareOneBoundAndRejectTheListsPastIt(t *testing.
 	}
 }
 
+func TestForgetFilesHasTheRequestLoadTheFilesOfThatMailAgain(t *testing.T) {
+	t.Parallel()
+
+	tt := newThreadTest(t)
+	thread := storeThread(t, tt.tx, tt.box, entryAt("Your quote", 0))
+	quote := mailIn(t, tt.tx, tt.box, thread, 0)
+	storeFiles(t, tt.tx, quote, fileAt(0, "quote.pdf", false))
+	var sent []string
+	loaders := mailLoaders{db: recordingTx{Tx: tt.tx, sent: &sent}, bodiesPerRequest: 2, listsPerRequest: 3}
+	ctx := inRequest(t, sdk.DefaultTenantID)
+	if _, err := loaders.attachments(ctx, quote); err != nil {
+		t.Fatalf("attachments() error = %v, want nil", err)
+	}
+	if _, err := tt.tx.Exec(t.Context(), `UPDATE plugin_email.attachments SET state = 'deleted', file_id = NULL
+		WHERE message_id = $1`, quote); err != nil {
+		t.Fatalf("deleting the file of the quote: %v", err)
+	}
+
+	cached, cachedErr := loaders.attachments(ctx, quote)
+	loaders.forgetFiles(ctx, quote)
+	loaders.forgetFiles(t.Context(), quote)
+	fresh, freshErr := loaders.attachments(ctx, quote)
+
+	if cachedErr != nil || len(cached) != 1 || cached[0].state != fileStored {
+		t.Errorf("the files read again before the request forgets them = %+v, %v, want the stored file kept",
+			cached, cachedErr)
+	}
+	if freshErr != nil || len(fresh) != 1 || fresh[0].state != fileDeleted || len(sent) != 2 {
+		t.Errorf("the files read after the request forgets them = %+v, %v in %d statements, want the deleted file read again",
+			fresh, freshErr, len(sent))
+	}
+}
+
 func TestTheLoadersKeepToTheirWorkspace(t *testing.T) {
 	t.Parallel()
 

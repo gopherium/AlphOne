@@ -6,7 +6,9 @@ package email
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -18,6 +20,12 @@ const adminRole = "admin"
 
 // pluginID names the plugin, its route namespace and the scope area its fields and routes are held to.
 const pluginID = "email"
+
+// deleteMessagesCapability is the capability an account needs to delete a mail or a whole thread.
+const deleteMessagesCapability = "email.delete_messages"
+
+// deleteFilesCapability is the capability an account needs to delete an attachment or the original of a mail.
+const deleteFilesCapability = "email.delete_files"
 
 // Plugin is the email channel, storing raw mail on the known contacts it names.
 type Plugin struct {
@@ -33,6 +41,12 @@ type Plugin struct {
 	loaders mailLoaders
 	// downloads serves the kept files of mail.
 	downloads *downloads
+	// now answers the time a delete runs at, kept as the time each deleted key went.
+	now func() time.Time
+	// logger records by ids who deleted which mail or files.
+	logger *slog.Logger
+	// syncWindow is how long ago a mail a mailbox sync brought in was received before a delete takes it whole.
+	syncWindow time.Duration
 }
 
 // Register builds the email [Plugin] from the host-provided deps.
@@ -53,7 +67,10 @@ func Register(deps sdk.Deps) (*Plugin, error) {
 		loaders: mailLoaders{
 			db: pool, bodiesPerRequest: held.graph.bodiesPerRequest, listsPerRequest: held.graph.listsPerRequest,
 		},
-		downloads: &downloads{db: pool},
+		downloads:  &downloads{db: pool},
+		now:        time.Now,
+		logger:     deps.Logger,
+		syncWindow: held.times.syncWindow,
 	}, nil
 }
 
@@ -97,9 +114,11 @@ func (p *Plugin) Migrate(ctx context.Context) error {
 	return migrate(ctx, p.pool)
 }
 
-// Roles gives admin the capability to manage the mailbox.
+// Roles gives admin the capabilities to manage the mailbox, to delete mail and to delete its files.
 func (p *Plugin) Roles() []sdk.RoleDeclaration {
-	return []sdk.RoleDeclaration{{Name: adminRole, Capabilities: []string{manageMailbox}}}
+	return []sdk.RoleDeclaration{{
+		Name: adminRole, Capabilities: []string{manageMailbox, deleteMessagesCapability, deleteFilesCapability},
+	}}
 }
 
 // Commands returns the commands the email plugin offers.

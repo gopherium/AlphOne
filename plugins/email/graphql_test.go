@@ -11,16 +11,21 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/99designs/gqlgen/complexity"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/gopherium/gouncer/authkit"
 	gqlparser "github.com/vektah/gqlparser/v2"
+	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/parser"
 	"github.com/vektah/gqlparser/v2/validator/rules"
 
 	"github.com/gopherium/alphone/internal/apitoken"
@@ -110,6 +115,7 @@ type servedMail struct {
 	InviteMethod string             `json:"inviteMethod"`
 	RawState     string             `json:"rawState"`
 	RawSize      float64            `json:"rawSize"`
+	StoredBytes  float64            `json:"storedBytes"`
 	OriginalPath *string            `json:"originalPath"`
 	Participants []servedPerson     `json:"participants"`
 	Body         *servedBody        `json:"body"`
@@ -150,11 +156,13 @@ type servedMailbox struct {
 	Aliases []string `json:"aliases"`
 }
 
-// reader asks the graph as a token holding scopes, inside a request scope unless unscoped.
+// reader asks the graph as a token holding scopes of an account in tier, unscoped or deactivated when flagged so.
 type reader struct {
-	graph    http.Handler
-	scopes   string
-	unscoped bool
+	graph       http.Handler
+	scopes      string
+	tier        string
+	unscoped    bool
+	deactivated bool
 }
 
 // newEmailGraph returns the composed graph over the wired plugin, priced and gated as the host serves it.
@@ -171,12 +179,16 @@ func newEmailGraph(t *testing.T, w wiredPlugin) (http.Handler, graphql.Executabl
 	if err != nil {
 		t.Fatalf("FromPlugins() error = %v, want nil", err)
 	}
+	roles := role.NewRegistry()
+	if err := role.Declare(roles, w.plugin.ID(), w.plugin.Roles()); err != nil {
+		t.Fatalf("role.Declare() of the email roles error = %v, want nil", err)
+	}
 	schema := graphres.ExecutableSchema(root)
 	srv := handler.New(schema)
 	srv.AddTransport(transport.POST{})
 	srv.Use(&graphres.CostLimit{})
 	srv.Use(&graphres.RepeatedFields{})
-	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema()), role.NewRegistry()))
+	srv.AroundOperations(graphres.ScopeGate(graphres.NewScopeMap(schema.Schema()), roles))
 	srv.SetErrorPresenter(graphres.PresentError)
 	return srv, schema
 }
@@ -186,6 +198,14 @@ func newReader(t *testing.T, w wiredPlugin, scopes string) reader {
 	t.Helper()
 	graph, _ := newEmailGraph(t, w)
 	return reader{graph: graph, scopes: scopes}
+}
+
+// newWriter returns a reader of the graph over the wired plugin as a token holding scopes of an account in tier.
+func newWriter(t *testing.T, w wiredPlugin, tier, scopes string) reader {
+	t.Helper()
+	r := newReader(t, w, scopes)
+	r.tier = tier
+	return r
 }
 
 // ask answers what the graph replies to query with variables.
@@ -200,8 +220,12 @@ func (r reader) ask(t *testing.T, query string, variables map[string]any) graphA
 	ctx := credential.WithToken(request.Context(), credential.Token{
 		Name: "reader", Scopes: apitoken.Scopes(strings.Fields(r.scopes)),
 	})
+	ctx = authkit.WithIdentity(ctx, authkit.Identity{Role: r.tier})
 	if !r.unscoped {
 		ctx = sdk.WithRequestScope(ctx, sdk.NewRequestScope())
+	}
+	if r.deactivated {
+		ctx = graphres.WithDeactivatedTenant(ctx)
 	}
 	recorder := httptest.NewRecorder()
 	r.graph.ServeHTTP(recorder, request.WithContext(ctx))
@@ -302,7 +326,7 @@ const mailQuery = `query Mail($thread: UUID!, $id: UUID!) {
 	emailThread(id: $thread) {
 		message(id: $id) {
 			id threadId direction subject from { name email } sentAt receivedAt snippet bodyState skippedParts
-			automation encrypted signed winmail inviteMethod rawState rawSize originalPath
+			automation encrypted signed winmail inviteMethod rawState rawSize storedBytes originalPath
 			participants { role name email }
 			body { text html }
 			attachments { id position filename contentType size inline contentId state downloadPath }
@@ -546,6 +570,7 @@ func TestEveryEmailRootFieldNeedsTheEmailArea(t *testing.T) {
 		`{ emailThreads { total } }`,
 		fmt.Sprintf(`{ emailThread(id: %q) { id } }`, uuid.NewString()),
 		fmt.Sprintf(`{ emailContactMessages(contactId: %q) { total } }`, contact),
+		`{ emailUsage { usedBytes } }`,
 	} {
 		rejected, answered := contacts.ask(t, query, nil), mail.ask(t, query, nil)
 
@@ -571,6 +596,7 @@ func TestAnEmailListPastItsBoundsIsRejected(t *testing.T) {
 			fmt.Sprintf(`{ emailThreads(limit: %d) { total } }`, limit),
 			fmt.Sprintf(`{ emailThread(id: %q) { messages(limit: %d) { id } } }`, thread, limit),
 			fmt.Sprintf(`{ emailContactMessages(contactId: %q, limit: %d) { total } }`, contact, limit),
+			fmt.Sprintf(`{ emailUsage { largestMessages(limit: %d) { id } } }`, limit),
 		} {
 			answer := r.ask(t, query, nil)
 
@@ -611,6 +637,10 @@ func TestTheDownloadPathsNameOnlyAKeptFileAndTheByteCountsAreWhole(t *testing.T)
 
 	if quote.RawSize != float64(len(filesMail)) {
 		t.Errorf("the quote's raw size = %v, want the %d bytes fed", quote.RawSize, len(filesMail))
+	}
+	if quote.StoredBytes <= quote.RawSize+noteBytes || quote.StoredBytes != float64(int(quote.StoredBytes)) {
+		t.Errorf("the quote's stored bytes = %v, want a whole count of its text, its note and its original",
+			quote.StoredBytes)
 	}
 	if len(quote.Attachments) != 2 {
 		t.Fatalf("the quote holds the files %+v, want the note and the plan", quote.Attachments)
@@ -784,6 +814,358 @@ func TestTheMailFieldsOfLoadersNeedARequestScope(t *testing.T) {
 	slices.Sort(failed)
 	if want := []string{"attachments", "body", "contactIds", "participants"}; !slices.Equal(failed, want) {
 		t.Errorf("a mail read with no request scope failed at %q, want %q", failed, want)
+	}
+}
+
+// emailWrite is the scope a token deleting mail holds.
+const emailWrite = "email:write"
+
+// adminTier is the role of an account that may delete mail and its files.
+const adminTier = "admin"
+
+// memberTier is the role of an account that reads mail and deletes none.
+const memberTier = "member"
+
+// defaultLimitBytes is the most bytes a workspace keeps when nothing sets its limit, 5 GiB.
+const defaultLimitBytes = 5 << 30
+
+// deleteMailMutation deletes one mail of a thread, or the whole thread when it names no mail.
+const deleteMailMutation = `mutation DeleteMail($thread: UUID!, $id: UUID) {
+	emailDeleteMessages(threadId: $thread, messageId: $id) { deletedMessages threadDeleted }
+}`
+
+// deleteFilesMutation deletes one attachment of a mail, its original or both, and reads what the mail keeps.
+const deleteFilesMutation = `mutation DeleteFiles($id: UUID!, $file: UUID, $original: Boolean!) {
+	emailDeleteFiles(messageId: $id, attachmentId: $file, original: $original) {
+		id rawState storedBytes originalPath attachments { id filename size state downloadPath }
+	}
+}`
+
+// deleteTwoFilesMutation deletes two attachments of one mail in one request, each answer under its own name.
+const deleteTwoFilesMutation = `mutation DeleteTwo($id: UUID!, $first: UUID!, $second: UUID!) {
+	first: emailDeleteFiles(messageId: $id, attachmentId: $first) { attachments { filename state downloadPath } }
+	second: emailDeleteFiles(messageId: $id, attachmentId: $second) { attachments { filename state downloadPath } }
+}`
+
+// usageQuery reads the space the workspace uses, its limit, the space still being freed and its costliest mails.
+const usageQuery = `query Usage($limit: Int) {
+	emailUsage {
+		usedBytes freeingBytes limitBytes
+		largestMessages(limit: $limit) { id threadId subject storedBytes attachments { filename size state } }
+	}
+}`
+
+// servedDeletion is what a delete of whole mail answers, as the graph answers it.
+type servedDeletion struct {
+	DeletedMessages int  `json:"deletedMessages"`
+	ThreadDeleted   bool `json:"threadDeleted"`
+}
+
+// servedUsage is the space a workspace uses, as the graph answers it.
+type servedUsage struct {
+	UsedBytes       float64      `json:"usedBytes"`
+	FreeingBytes    float64      `json:"freeingBytes"`
+	LimitBytes      *float64     `json:"limitBytes"`
+	LargestMessages []servedMail `json:"largestMessages"`
+}
+
+// capabilitiesNamedIn returns every capability a scope of a field of document names, in order.
+func capabilitiesNamedIn(document *ast.SchemaDocument) []string {
+	var named []string
+	for _, definition := range slices.Concat(document.Definitions, document.Extensions) {
+		for _, field := range definition.Fields {
+			scope := field.Directives.ForName("scope")
+			if scope == nil {
+				continue
+			}
+			if capability := scope.Arguments.ForName("capability"); capability != nil {
+				named = append(named, capability.Value.Raw)
+			}
+		}
+	}
+	slices.Sort(named)
+	return named
+}
+
+// namedFiles returns the name and the state of each file in order, with whether it offers a download.
+func namedFiles(files []servedAttachment) []string {
+	named := make([]string, len(files))
+	for i, file := range files {
+		named[i] = fmt.Sprintf("%s %s %t", file.Filename, file.State, file.DownloadPath != nil)
+	}
+	return named
+}
+
+func TestEveryCapabilityTheSchemaNamesIsOneTheRolesDeclare(t *testing.T) {
+	t.Parallel()
+
+	sdl, err := os.ReadFile("graph/schema.graphqls")
+	if err != nil {
+		t.Fatalf("reading the schema: %v", err)
+	}
+	document, err := parser.ParseSchema(&ast.Source{Name: "graph/schema.graphqls", Input: string(sdl)})
+	if err != nil {
+		t.Fatalf("parsing the schema: %v", err)
+	}
+	var declared []string
+	for _, granted := range newPlugin(t).Roles() {
+		declared = append(declared, granted.Capabilities...)
+	}
+
+	named := capabilitiesNamedIn(document)
+
+	if want := []string{"email.delete_files", "email.delete_messages"}; !slices.Equal(named, want) {
+		t.Errorf("the schema names the capabilities %q, want %q", named, want)
+	}
+	for _, capability := range named {
+		if !slices.Contains(declared, capability) {
+			t.Errorf("the schema names %s, which no role of Roles() %q carries", capability, declared)
+		}
+	}
+}
+
+func TestADeleteIsRejectedForAMemberATokenThatOnlyReadsAndADeactivatedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", filesMail)
+	r := newReader(t, w, emailRead)
+	thread := soleThread(t, r)
+	deactivated := newWriter(t, w, adminTier, emailWrite)
+	deactivated.deactivated = true
+	deletes := map[string]struct {
+		query      string
+		variables  map[string]any
+		capability string
+	}{
+		"the delete of a mail": {
+			query: deleteMailMutation, variables: map[string]any{"thread": thread.ID, "id": thread.Latest.ID},
+			capability: "email.delete_messages",
+		},
+		"the delete of files": {
+			query: deleteFilesMutation, variables: map[string]any{"id": thread.Latest.ID, "original": true},
+			capability: "email.delete_files",
+		},
+	}
+
+	for name, d := range deletes {
+		member := newWriter(t, w, memberTier, emailWrite).ask(t, d.query, d.variables)
+		reading := newWriter(t, w, adminTier, emailRead).ask(t, d.query, d.variables)
+		closed := deactivated.ask(t, d.query, d.variables)
+
+		if len(member.Errors) != 1 || member.Errors[0].Message != "admin required" ||
+			member.Errors[0].Extensions["capability"] != d.capability {
+			t.Errorf("%s by a member answered %+v, want admin required naming %s", name, member.Errors, d.capability)
+		}
+		if len(reading.Errors) != 1 || reading.Errors[0].Message != "scope required: email:write" {
+			t.Errorf("%s with email:read answered %+v, want it rejected for want of email:write", name, reading.Errors)
+		}
+		if !slices.Equal(closed.reasons(), []any{"tenant_deactivated"}) || closed.Errors[0].Message != "tenant deactivated" {
+			t.Errorf("%s from a deactivated workspace answered %+v, want tenant deactivated", name, closed.Errors)
+		}
+	}
+	if kept := openMail(t, r, thread.ID, thread.Latest.ID); kept.RawState != "stored" ||
+		!slices.Equal(namedFiles(kept.Attachments), []string{"note.txt stored true", "plan.pdf stored true"}) {
+		t.Errorf("the quote after every rejected delete = %+v, want it kept whole", kept)
+	}
+}
+
+func TestAnAdminDeletesAMailFedASecondAgoAtOnceThenTheThreadLeft(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	secondsAgo := func(seconds time.Duration) map[string]string {
+		return map[string]string{"received": time.Now().Add(-seconds * time.Second).UTC().Format(time.RFC3339)}
+	}
+	w.feed(t, plainMail(mariaPerez, "Lamp quote", "lamp-quote@example.com", "", "Hello."), secondsAgo(2))
+	w.feed(t, plainMail(mariaPerez, "Re: Lamp quote", "lamp-quote-reply@example.com", "lamp-quote@example.com",
+		"Any news?"), secondsAgo(1))
+	r := newReader(t, w, emailRead)
+	admin := newWriter(t, w, adminTier, emailWrite)
+	thread := soleThread(t, r)
+
+	var reply, rest servedDeletion
+	admin.read(t, deleteMailMutation, map[string]any{"thread": thread.ID, "id": thread.Latest.ID},
+		"emailDeleteMessages", &reply)
+	left := soleThread(t, r)
+	admin.read(t, deleteMailMutation, map[string]any{"thread": thread.ID}, "emailDeleteMessages", &rest)
+
+	if reply != (servedDeletion{DeletedMessages: 1}) || left.MessageCount != 1 || left.Latest.Subject != "Lamp quote" {
+		t.Errorf("the delete of the reply fed a second ago answered %+v and left %+v, want it gone and the quote kept",
+			reply, left)
+	}
+	var page servedPage[servedThread]
+	r.read(t, inboxQuery, nil, "emailThreads", &page)
+	if rest != (servedDeletion{DeletedMessages: 1, ThreadDeleted: true}) || page.Total != 0 {
+		t.Errorf("the delete of the thread answered %+v and left %d threads, want the quote and its thread gone",
+			rest, page.Total)
+	}
+}
+
+func TestAnAdminDeletesAnAttachmentAndTheOriginalAndTheMailShowsWhatItCarried(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", filesMail)
+	r := newReader(t, w, emailRead)
+	admin := newWriter(t, w, adminTier, emailWrite)
+	thread := soleThread(t, r)
+	quote := openMail(t, r, thread.ID, thread.Latest.ID)
+	note := quote.Attachments[0]
+
+	var freed servedMail
+	admin.read(t, deleteFilesMutation, map[string]any{"id": quote.ID, "file": note.ID, "original": true},
+		"emailDeleteFiles", &freed)
+
+	if freed.ID != quote.ID || freed.RawState != "deleted" || freed.OriginalPath != nil ||
+		freed.StoredBytes != quote.StoredBytes-quote.RawSize-note.Size {
+		t.Errorf("the delete answered %+v, want the quote with its original deleted and %v bytes less",
+			freed, quote.RawSize+note.Size)
+	}
+	want := []string{"note.txt deleted false", "plan.pdf stored true"}
+	if got := namedFiles(freed.Attachments); !slices.Equal(got, want) || freed.Attachments[0].Size != note.Size {
+		t.Errorf("the delete answered the files %q, want the note deleted of its old size and the plan kept", got)
+	}
+}
+
+func TestTwoFilesOfOneMailDeletedInOneRequestBothAnswerAsDeleted(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", filesMail)
+	r := newReader(t, w, emailRead)
+	thread := soleThread(t, r)
+	quote := openMail(t, r, thread.ID, thread.Latest.ID)
+	variables := map[string]any{"id": quote.ID, "first": quote.Attachments[0].ID, "second": quote.Attachments[1].ID}
+
+	answer := newWriter(t, w, adminTier, emailWrite).ask(t, deleteTwoFilesMutation, variables)
+
+	if len(answer.Errors) != 0 {
+		t.Fatalf("the two deletes answered %+v, want no error", answer.Errors)
+	}
+	var first, second servedMail
+	if err := json.Unmarshal(answer.Data["first"], &first); err != nil {
+		t.Fatalf("reading the first answer %s: %v", answer.Data["first"], err)
+	}
+	if err := json.Unmarshal(answer.Data["second"], &second); err != nil {
+		t.Fatalf("reading the second answer %s: %v", answer.Data["second"], err)
+	}
+	noteDeleted := []string{"note.txt deleted false", "plan.pdf stored true"}
+	if got := namedFiles(first.Attachments); !slices.Equal(got, noteDeleted) {
+		t.Errorf("the first delete answered the files %q, want the note deleted and the plan kept", got)
+	}
+	if got := namedFiles(second.Attachments); !slices.Equal(got,
+		[]string{"note.txt deleted false", "plan.pdf deleted false"}) {
+		t.Errorf("the second delete answered the files %q, want both deleted with no download", got)
+	}
+}
+
+func TestADeleteOfWhatTheWorkspaceDoesNotHoldOrOfNothingIsRejectedWithItsReason(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", filesMail)
+	r := newReader(t, w, emailRead)
+	admin := newWriter(t, w, adminTier, emailWrite)
+	thread := soleThread(t, r)
+	mail, unknown := thread.Latest.ID, uuid.NewString()
+
+	for name, c := range map[string]struct {
+		query     string
+		variables map[string]any
+		code      string
+		reason    string
+	}{
+		"an unknown thread": {
+			query: deleteMailMutation, variables: map[string]any{"thread": unknown}, code: "NOT_FOUND",
+			reason: "thread_not_found",
+		},
+		"a mail the thread does not hold": {
+			query: deleteMailMutation, variables: map[string]any{"thread": thread.ID, "id": unknown}, code: "NOT_FOUND",
+			reason: "message_not_found",
+		},
+		"the files of an unknown mail": {
+			query: deleteFilesMutation, variables: map[string]any{"id": unknown, "original": true}, code: "NOT_FOUND",
+			reason: "message_not_found",
+		},
+		"a file the mail does not hold": {
+			query: deleteFilesMutation, variables: map[string]any{"id": mail, "file": unknown, "original": false},
+			code: "NOT_FOUND", reason: "attachment_not_found",
+		},
+		"no file at all": {
+			query: deleteFilesMutation, variables: map[string]any{"id": mail, "original": false}, code: "VALIDATION",
+			reason: "nothing_to_delete",
+		},
+	} {
+		answer := admin.ask(t, c.query, c.variables)
+
+		if !slices.Equal(answer.reasons(), []any{c.reason}) || answer.Errors[0].Extensions["code"] != c.code {
+			t.Errorf("a delete of %s answered %+v, want it rejected as %s for %s", name, answer.Errors, c.code, c.reason)
+		}
+	}
+	if kept := openMail(t, r, thread.ID, mail); kept.RawState != "stored" {
+		t.Errorf("the quote after every rejected delete keeps its original as %q, want it stored", kept.RawState)
+	}
+}
+
+func TestTheUsageAnswersTheSpaceTheLimitAndTheCostliestMailsWithTheirFiles(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", plainMail(mariaPerez, "Opening hours", "opening-hours@example.com", "", "When?"))
+	w.receivedAt(t, "09:05", filesMail)
+	r := newReader(t, w, emailRead)
+
+	var usage, one, freeing servedUsage
+	r.read(t, usageQuery, nil, "emailUsage", &usage)
+	r.read(t, usageQuery, map[string]any{"limit": 1}, "emailUsage", &one)
+
+	if got := subjectsOf(usage.LargestMessages); !slices.Equal(got, []string{"Lamp quote", "Opening hours"}) {
+		t.Fatalf("the usage lists %q, want the quote with its files before the plain mail", got)
+	}
+	quote, hours := usage.LargestMessages[0], usage.LargestMessages[1]
+	if usage.UsedBytes != quote.StoredBytes+hours.StoredBytes || usage.FreeingBytes != 0 ||
+		usage.LimitBytes == nil || *usage.LimitBytes != defaultLimitBytes {
+		t.Errorf("the usage = %+v, want the stored bytes of both mails, nothing freeing and the limit of 5 GiB", usage)
+	}
+	bothKept := []string{"note.txt stored false", "plan.pdf stored false"}
+	if got := namedFiles(quote.Attachments); !slices.Equal(got, bothKept) {
+		t.Errorf("the costliest mail lists the files %q, want the note and the plan kept", got)
+	}
+	if got := subjectsOf(one.LargestMessages); !slices.Equal(got, []string{"Lamp quote"}) {
+		t.Errorf("the usage with its one costliest mail lists %q, want the quote alone", got)
+	}
+	plan := openMail(t, r, quote.ThreadID, quote.ID).Attachments[1]
+	newWriter(t, w, adminTier, emailWrite).read(t, deleteFilesMutation,
+		map[string]any{"id": quote.ID, "file": plan.ID, "original": false}, "emailDeleteFiles", &servedMail{})
+	r.read(t, usageQuery, nil, "emailUsage", &freeing)
+	if freeing.UsedBytes != usage.UsedBytes || freeing.FreeingBytes != plan.Size {
+		t.Errorf("the usage after the plan was deleted = %+v, want %v bytes used and the plan's %v freeing",
+			freeing, usage.UsedBytes, plan.Size)
+	}
+}
+
+func TestTheUsageAndTheDeletesAnswerTheFailureOfAClosedPool(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	w.receivedAt(t, "09:00", filesMail)
+	r := newReader(t, w, emailRead)
+	admin := newWriter(t, w, adminTier, emailWrite)
+	thread := soleThread(t, r)
+	if err := w.plugin.Stop(t.Context()); err != nil {
+		t.Fatalf("Stop() error = %v, want nil", err)
+	}
+
+	for name, answer := range map[string]graphAnswer{
+		"the usage":            r.ask(t, `{ emailUsage { usedBytes } }`, nil),
+		"the delete of a mail": admin.ask(t, deleteMailMutation, map[string]any{"thread": thread.ID}),
+		"the delete of files": admin.ask(t, deleteFilesMutation,
+			map[string]any{"id": thread.Latest.ID, "original": true}),
+	} {
+		if len(answer.Errors) != 1 || answer.Errors[0].Extensions["code"] != "INTERNAL" {
+			t.Errorf("%s over a closed pool answered %+v, want one internal error", name, answer.Errors)
+		}
 	}
 }
 

@@ -7,6 +7,14 @@ extend type Query {
   emailContactMessages(contactId: UUID!, limit: Int, offset: Int): EmailMessagePage!
     @scope(area: "email", write: false)
     @listSize(slicingArguments: ["limit"])
+  emailUsage: EmailUsage! @scope(area: "email", write: false)
+}
+
+extend type Mutation {
+  emailDeleteMessages(threadId: UUID!, messageId: UUID): EmailDeletion!
+    @scope(area: "email", write: true, capability: "email.delete_messages")
+  emailDeleteFiles(messageId: UUID!, attachmentId: UUID, original: Boolean! = false): EmailMessage!
+    @scope(area: "email", write: true, capability: "email.delete_files")
 }
 
 type EmailMailbox {
@@ -59,6 +67,7 @@ type EmailMessage {
   inviteMethod: String!
   rawState: String!
   rawSize: Float!
+  storedBytes: Float!
   originalPath: String
   participants: [EmailParticipant!]! @goField(forceResolver: true)
   body: EmailBody! @goField(forceResolver: true)
@@ -92,4 +101,18 @@ type EmailAttachment {
   contentId: String!
   state: String!
   downloadPath: String
+}
+
+type EmailUsage {
+  usedBytes: Float!
+  freeingBytes: Float!
+  limitBytes: Float
+  largestMessages(limit: Int): [EmailMessage!]!
+    @goField(forceResolver: true)
+    @listSize(slicingArguments: ["limit"])
+}
+
+type EmailDeletion {
+  deletedMessages: Int!
+  threadDeleted: Boolean!
 }

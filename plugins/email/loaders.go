@@ -165,6 +165,13 @@ func (m mailLoaders) attachments(ctx context.Context, id uuid.UUID) ([]attachmen
 	return loaders.attachments.load(ctx, id)
 }
 
+// forgetFiles drops the files of the mail id from the loaders of the request ctx.
+func (m mailLoaders) forgetFiles(ctx context.Context, id uuid.UUID) {
+	if loaders, err := m.forRequest(ctx); err == nil {
+		loaders.attachments.loader.Clear(id)
+	}
+}
+
 // contactIDs returns the contacts the mail id is linked to, through the loader of the request.
 func (m mailLoaders) contactIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	loaders, err := m.forRequest(ctx)
