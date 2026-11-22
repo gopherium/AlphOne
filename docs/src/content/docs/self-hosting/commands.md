@@ -348,10 +348,10 @@ with a line such as
 With the roles AlphOne ships, an admin reaches every account. A role a
 plugin declares can carry more than admin does. It reaches an admin's
 account, or gives the admin role, only when it also carries every
-capability admin carries, which are `manage_users`, `manage_webhooks`
-and `email.manage_mailbox`, the last one given by the email plugin. A
-plugin role carrying `manage_users` alone can change members but not
-admins.
+capability admin carries, which are `manage_users`, `manage_webhooks`,
+`email.manage_mailbox`, `email.delete_messages` and `email.delete_files`,
+the last three given by the email plugin. A plugin role carrying
+`manage_users` alone can change members but not admins.
 
 `account:enable` refuses an account holding no role, or a role that
 nothing declares any more, such as one a removed plugin declared. It
@@ -589,6 +589,9 @@ The same file fed twice the same way answers `duplicate`. Fed again with
 `-sent-copy`, it marks the stored mail as sent by the workspace and links
 its Bcc contacts. A mail with no Message-ID that also lacks a From or a
 Date is stored a second time instead, as a mail sent by the workspace.
+Fed again after an admin deleted the mail, the file answers
+`already_deleted` and stores nothing, see
+[Deleting mail and freeing space](/email/overview/#deleting-mail-and-freeing-space).
 It answers one word:
 
 | Answer | Meaning |
@@ -601,6 +604,7 @@ It answers one word:
 | `headers_only_no_known_contact` | The mail was over a limit or too broken to read, and its headers name no known contact, so nothing is stored. |
 | `failed` | The mail is set aside, and this run stores nothing, see [When a mail cannot be stored](/email/overview/#when-a-mail-cannot-be-stored). |
 | `workspace_closed` | The workspace is deactivated and `ALPHONE_TENANT_MACHINE_GRACE` has passed, so nothing is stored. |
+| `already_deleted` | An admin of the workspace deleted this mail before, so nothing is stored, see [The same mail fed again](/email/overview/#the-same-mail-fed-again). |
 
 Any other failure exits 1 and says why, and feeding the same file again
 tries it once more. A mail the command stores raises
