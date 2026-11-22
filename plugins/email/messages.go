@@ -42,6 +42,8 @@ const (
 	fileOverLimit = "over_limit"
 	// rawNone marks a mail that has no raw copy to keep.
 	rawNone = "none"
+	// fileDeleted marks a raw copy or an attachment staff deleted, kept with no file.
+	fileDeleted = "deleted"
 )
 
 // errAlreadyStored reports a mail whose dedupe key the mailbox already holds.

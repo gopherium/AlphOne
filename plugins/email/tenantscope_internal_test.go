@@ -201,6 +201,57 @@ func TestTheReadsKeepToTheirWorkspace(t *testing.T) {
 	}
 }
 
+func TestTheDeletesAndTheGuardKeepToTheirWorkspace(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	acme, box := it.addWorkspace()
+	it.ingestIn(sdk.DefaultTenantID, it.box, lampMail(), "file:quote")
+	it.ingestIn(acme, box, lampMail(), "file:quote")
+	ctx, home := t.Context(), sdk.DefaultTenantID
+	mail := it.mailByMessageID("quote@example.com")
+	thread, key := it.threadOf(mail), storedRow(t, it.pool, mail).dedupeKey
+
+	_, wholeErr := deleteThreadMail(ctx, it.pool, acme,
+		threadDelete{thread: thread, message: &mail, at: ingestNow, window: testSyncWindow})
+	_, filesErr := deleteFiles(ctx, it.pool, acme, filesDelete{message: mail, original: true})
+	tx := beginTx(t, it.pool)
+	deleted, err := deleteMessages(ctx, tx, acme, []uuid.UUID{mail}, ingestNow)
+	if err != nil || deleted != 0 {
+		t.Errorf("deleteMessages() of the default mail in Acme = %d, %v, want nothing deleted", deleted, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("committing the delete in Acme: %v", err)
+	}
+
+	wantRejected(t, wholeErr, "NOT_FOUND", "thread_not_found")
+	wantRejected(t, filesErr, "NOT_FOUND", "message_not_found")
+	if mails := it.mails(); mails != 1 || storedRow(t, it.pool, mail).rawState != fileStored {
+		t.Errorf("the default workspace holds %d mails, want its mail kept whole", mails)
+	}
+	if _, err := it.deleteWhole(thread, &mail, ingestNow); err != nil {
+		t.Fatalf("deleteThreadMail() in the default workspace error = %v, want nil", err)
+	}
+	for name, c := range map[string]struct {
+		tenant  uuid.UUID
+		mailbox uuid.UUID
+		want    bool
+	}{
+		"the workspace that deleted it":                {home, it.box.id, true},
+		"another workspace's own mailbox":              {acme, box.id, false},
+		"another workspace naming the mailbox":         {acme, it.box.id, false},
+		"the workspace that deleted it, other mailbox": {home, box.id, false},
+	} {
+		if deleted, err := wasDeleted(ctx, it.pool, c.tenant, c.mailbox, key); deleted != c.want || err != nil {
+			t.Errorf("wasDeleted() in %s = %t, %v, want %t", name, deleted, err, c.want)
+		}
+	}
+	acmeMails := countRows(t, it.pool, "SELECT count(*) FROM plugin_email.messages WHERE tenant_id = $1", acme)
+	if acmeMails != 1 {
+		t.Errorf("Acme holds %d mails after the default workspace deleted its copy, want its own kept", acmeMails)
+	}
+}
+
 func TestTheSweepDeletesTheFilesOfAFailedIngestInTheWorkspaceItServed(t *testing.T) {
 	t.Parallel()
 
