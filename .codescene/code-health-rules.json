@@ -15,13 +15,15 @@
     {
       "matching_content_path": "**/*.test.ts",
       "rules": [
-        { "name": "String Heavy Function Arguments", "weight": 0.0 }
+        { "name": "String Heavy Function Arguments", "weight": 0.0 },
+        { "name": "Primitive Obsession", "weight": 0.0 }
       ]
     },
     {
       "matching_content_path": "**/*.test.tsx",
       "rules": [
-        { "name": "String Heavy Function Arguments", "weight": 0.0 }
+        { "name": "String Heavy Function Arguments", "weight": 0.0 },
+        { "name": "Primitive Obsession", "weight": 0.0 }
       ]
     },
     {
