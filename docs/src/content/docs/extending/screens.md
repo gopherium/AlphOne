@@ -46,6 +46,61 @@ Commit all of these with your plugin. CI fails when any of them is out
 of date. You never edit `frontend/package.json` or `codegen.ts` for
 your plugin.
 
+## Your plugin's styles
+
+Most screens need no CSS of their own, because the shared kit already
+draws them. When yours does, put the rules in one stylesheet at the root
+of your plugin's `frontend` folder, such as
+`plugins/invoices/frontend/invoices.css`. Never edit
+`frontend/src/index.css` for your plugin.
+
+- Import the sheet from each lazy screen file that draws its classes,
+  never from `index.ts`. The admin loads every plugin's `index.ts`
+  before first paint, so a sheet imported there would grow the first
+  paint. A sheet imported by a screen loads with that screen's code.
+- Start every class you write with `alphone-` and your plugin's id,
+  such as `alphone-invoices-total`. A sheet stays loaded for the rest of
+  the visit once a screen brought it in, so a class name two plugins
+  share would take both plugins' rules. When a rule has to reach a class
+  of the shared kit, start its selector with a class of your own, such
+  as `.alphone-invoices-list .dataviews-view-table__cell-content-wrapper`,
+  so it reaches your screen alone.
+- Put the rules for a phone in one `@media` block at the end of the
+  sheet, at the width where your screen changes its layout. That is
+  `(max-width: 639px)`, the width where the admin turns to its phone
+  layout, unless your screen changes at a width of its own. A list that
+  keeps one column up to 782px uses `(max-width: 782px)`. Coming last,
+  the rules in the block win over the rules above them without a longer
+  selector.
+
+The `lint:css` script of `frontend/package.json` reads every sheet at
+the root of a plugin's `frontend` folder, with the same rules as the
+app's own sheet. A sheet in a folder below it is not read. To test a
+rule, read the sheet's text with `readFileSync` and pass it to
+`declarationsIn` from `@alphone/frontend-sdk/testing`. It answers the
+declarations of one selector, at the top level of the sheet or inside
+the media block you name:
+
+```ts
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { declarationsIn } from '@alphone/frontend-sdk/testing'
+import { expect, test } from 'vitest'
+
+const sheet = readFileSync(join(import.meta.dirname, '..', 'invoices.css'), 'utf8')
+
+test('hides the total on a phone', () => {
+	expect(declarationsIn(sheet, '.alphone-invoices-total', '(max-width: 639px)'))
+		.toEqual({ display: 'none' })
+})
+```
+
+`declarationsIn` reads the sheet as the app's own sheet is written. Each
+rule starts its own line as `selector {`, and the rules inside a media
+block are indented with one tab. It does not find a rule indented with
+spaces, and answers no declarations for it.
+
 ## The contract
 
 A screen puts its title top left and its actions top right. The
@@ -1299,6 +1354,43 @@ loader, the sidebar shows no menu for a moment while the code arrives.
    sidebar with `getByRole('region', { name: 'Navigation' })`, and look
    for the page title at heading level 2, since the sidebar title is the
    only first level heading.
+
+## Hiding your screens in a workspace
+
+Some screens have nothing to show until the workspace holds something.
+The Email row shows only once the workspace holds a mailbox, for
+example. A plugin does the same on its Go side, with the one method of
+`sdk.ScreenGate`:
+
+```go
+var _ sdk.ScreenGate = (*Plugin)(nil)
+
+func (p *Plugin) ShowsScreens(ctx context.Context) (bool, error) {
+	return p.holdsAccount(ctx, sdk.TenantOrDefault(ctx))
+}
+```
+
+`ctx` carries the caller's workspace, and `sdk.TenantOrDefault` reads
+it. Answer `true` to show your screens and `false` to hide them. A
+plugin without the method always shows them.
+
+The admin asks every plugin once as it opens, through the
+[`hiddenPlugins`](/reference/graphql-api/#hidden-plugins) field. It then
+leaves out the sidebar rows and the contact panels of each plugin that
+answered `false`. So a reader sees your row appear the next time the
+admin opens, such as after a reload. Your routes stay in place, and a
+reader who types the address still reaches your screen. Draw an empty
+state there with `ListEmpty` that says what is missing, as the email
+inbox says "No mailbox is connected".
+
+An answer that fails, panics or comes too late keeps your screens shown,
+so a plugin with a bug never takes a row away. All plugins share one
+time limit for their answers, `ALPHONE_PLUGIN_SCREENS_BUDGET`, 50ms by
+default, see [Plugin hooks](/self-hosting/configuration/#plugin-hooks).
+Keep the answer to one short read, such as one row of the database.
+`serve` logs each answer that failed, panicked or came too late on one
+line, `plugin hook failed`, which names your plugin and the hook
+`admin.screens`.
 
 ## Links under the account panel
 
