@@ -966,9 +966,15 @@ tokenAreas: [
 		get label() {
 			return _x('invoices', 'token area', 'alphone-invoices')
 		},
+		get writeDescription() {
+			return __('Reads invoices. Also voids an invoice. Sends no invoice.', 'alphone-invoices')
+		},
 	},
 ],
 ```
+
+The optional `writeDescription` is the line under the area's Write box,
+and it says what Write does in your area.
 
 The screen lists the core areas and every plugin's in order of their
 values. An area the core or another plugin already offers stops the
