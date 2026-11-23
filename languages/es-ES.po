@@ -793,8 +793,8 @@ msgid "Add User"
 msgstr "Añadir usuario"
 
 #, fuzzy
-msgid "Create a brand new user and add them to this site."
-msgstr "Crea un nuevo usuario y añádelo a este sitio."
+msgid "Create a brand new user and add them to this workspace."
+msgstr "Crea un nuevo usuario y añádelo a este espacio de trabajo."
 
 #, fuzzy
 msgid "Please enter an email address."
