@@ -257,6 +257,8 @@ type Resolver struct {
 	Screens Screens
 	// Legal carries the addresses of the install's legal pages.
 	Legal LegalLinks
+	// HiddenScreens answers the ids of the plugins that hide their screens for the caller ctx carries. Nil hides none.
+	HiddenScreens func(ctx context.Context) []string
 }
 
 // publish announces an event in the caller's tenant unless no publisher is wired.
