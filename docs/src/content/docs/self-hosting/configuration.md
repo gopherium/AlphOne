@@ -121,6 +121,19 @@ recipient of a mail, see [Contacts](/extending/contacts/).
 | `ALPHONE_LIST_PAGE_SIZE` | The page size a list screen opens on, and the first page of a repeater on a contact. Defaults to 20. `serve` will not start unless it is one of `ALPHONE_LIST_PAGE_SIZES`. |
 | `ALPHONE_FORMAT_LOCALE` | The locale every screen writes dates, times, numbers and money in, whatever language a reader picked for the interface. Defaults to `es-ES`, which writes a date as 30/09/2026, a time as 09:05 on a 24 hour clock, a number as 1.234,56 and an amount as 1.234,56 €. Numbers always group their thousands, four digit ones too. Names of days, such as Thursday or Today, stay in the interface language. The dates in lists, such as Created in Users, follow the interface language too, as Oct 13, 2026 5:04 pm in English or 13 Oct 2026 17:04 in Spanish. `serve` will not start unless the value is a BCP 47 language tag that names a language, such as `en-GB` or `de-DE`. A tag with no language, such as `und` or the private use tag `x-foo`, stops it too. |
 
+## Plugin hooks
+
+At some points the core asks every plugin a question, such as whether its
+screens show in the caller's workspace. The plugins answer one after the
+other, under one time limit for them all. A value AlphOne rejects stops
+`serve`, and `alphone check` names it, with an error such as
+`ALPHONE_PLUGIN_SCREENS_BUDGET: must stand above zero, got "0s"`.
+
+| Variable | Purpose |
+| --- | --- |
+| `ALPHONE_PLUGIN_SCREENS_BUDGET` | How long the plugins together may take to say whether their screens show, written as a duration such as `50ms` or `1s`. Defaults to `50ms`. The admin asks once as it opens, and leaves out the sidebar rows and the contact panels of each plugin that says no, such as the email plugin while the workspace holds no mailbox. A plugin still working when the time runs out keeps its screens shown, and `serve` logs it as `plugin hook failed`, with the plugin's id. So a budget set too low shows every plugin's screens. `serve` will not start unless the value is a duration above zero. |
+| `ALPHONE_PLUGIN_HOOK_TIMED_FIRINGS` | After one call of a hook runs past its budget, such as the screens budget above, the server times each plugin on the next calls of that hook. This sets how many calls. The timings stay inside the server, and AlphOne does not show them. Defaults to 20. `serve` will not start unless the value is a whole number from 1 to 1000. |
+
 ## Graph limits
 
 Each count and byte size is a positive whole number, and each time is a
