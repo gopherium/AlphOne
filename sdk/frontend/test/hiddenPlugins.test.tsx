@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { createAuthQueryClient } from '@gopherium/react-auth'
+import { adoptSession, createAuthQueryClient, sessionQueryKey } from '@gopherium/react-auth'
 import type { User } from '@gopherium/react-auth'
 import { QueryClientProvider } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 
 import { GraphProvider, createGraphClient, useHiddenPlugins } from '../index'
 import type { GraphClient } from '../index'
-import { HttpResponse, adminSession, graphql, seedSession, server } from '../testing'
+import { HttpResponse, adminSession, graphql, memberSession, seedSession, server } from '../testing'
 
 /** Shows what the hidden plugins hook answers. */
 function Probe() {
@@ -16,17 +17,11 @@ function Probe() {
 }
 
 /**
- * Renders the probe below a graph client, signed in as the given account.
- * @param user - The signed-in account, or null for nobody.
+ * Renders one more probe below the given query client and graph client.
+ * @param client - The query client holding the session.
  * @param graph - The graph client the probe reads through.
- * @returns The graph client the probe reads through.
  */
-function renderProbe(
-	user: (User & { role?: string }) | null,
-	graph: GraphClient = createGraphClient({ onSessionExpired: () => {} }),
-): GraphClient {
-	const client = createAuthQueryClient({ queries: { retry: false, staleTime: Infinity } })
-	seedSession(client, user)
+function mountProbe(client: QueryClient, graph: GraphClient) {
 	render(
 		<QueryClientProvider client={client}>
 			<GraphProvider graph={graph}>
@@ -34,7 +29,22 @@ function renderProbe(
 			</GraphProvider>
 		</QueryClientProvider>,
 	)
-	return graph
+}
+
+/**
+ * Renders the probe below a graph client, signed in as the given account.
+ * @param user - The signed-in account, or null for nobody.
+ * @param graph - The graph client the probe reads through.
+ * @returns The query client holding the session.
+ */
+function renderProbe(
+	user: (User & { role?: string }) | null,
+	graph: GraphClient = createGraphClient({ onSessionExpired: () => {} }),
+): QueryClient {
+	const client = createAuthQueryClient({ queries: { retry: false, staleTime: Infinity } })
+	seedSession(client, user)
+	mountProbe(client, graph)
+	return client
 }
 
 /**
@@ -82,17 +92,87 @@ test('answers no hidden plugin while the read loads', async () => {
 	expect(shown()).toEqual([])
 })
 
-test('answers no hidden plugin once a read fails, though an earlier read named one', async () => {
+test('reads again for the next account that signs in', async () => {
 	serveHidden(['email'])
-	const graph = renderProbe(adminSession)
+	const client = renderProbe(adminSession)
 	await waitFor(() => expect(shown()).toEqual(['email']))
 
-	server.use(
-		graphql.query('HiddenPlugins', () => HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })),
-	)
-	act(() => graph.refetch(['HiddenPlugins']))
+	const asked = serveHidden(['whatsapp'])
+	await act(() => adoptSession(client, memberSession))
 
+	await waitFor(() => expect(shown()).toEqual(['whatsapp']))
+	expect(asked()).toBe(1)
+})
+
+test('answers no hidden plugin for the next account when its read fails, though the last read named one', async () => {
+	serveHidden(['email'])
+	const client = renderProbe(adminSession)
+	await waitFor(() => expect(shown()).toEqual(['email']))
+
+	let failed = 0
+	server.use(
+		graphql.query('HiddenPlugins', () => {
+			failed += 1
+			return HttpResponse.json({ data: null, errors: [{ message: 'internal error' }] })
+		}),
+	)
+	await act(() => adoptSession(client, memberSession))
+
+	await waitFor(() => expect(failed).toBe(1))
 	await waitFor(() => expect(shown()).toEqual([]))
+})
+
+test('reads again when the session turns to another account without a sign-in', async () => {
+	serveHidden(['email'])
+	const client = renderProbe(adminSession)
+	await waitFor(() => expect(shown()).toEqual(['email']))
+
+	const asked = serveHidden(['whatsapp'])
+	act(() => client.setQueryData(sessionQueryKey, memberSession))
+
+	await waitFor(() => expect(shown()).toEqual(['whatsapp']))
+	expect(asked()).toBe(1)
+})
+
+test('reads apart for the next account that signs in while the last read still runs', async () => {
+	let release = () => {}
+	const held = new Promise<void>((resolve) => {
+		release = resolve
+	})
+	let asked = 0
+	server.use(
+		graphql.query('HiddenPlugins', async () => {
+			asked += 1
+			if (asked === 1) {
+				await held
+				return HttpResponse.json({ data: { hiddenPlugins: ['email'] } })
+			}
+			return HttpResponse.json({ data: { hiddenPlugins: ['whatsapp'] } })
+		}),
+	)
+	const client = renderProbe(adminSession)
+	await waitFor(() => expect(asked).toBe(1))
+
+	await act(() => adoptSession(client, memberSession))
+
+	await waitFor(() => expect(shown()).toEqual(['whatsapp']))
+	release()
+	expect(asked).toBe(2)
+})
+
+test('shares one read with a screen that asks after the answer came', async () => {
+	const asked = serveHidden(['email'])
+	const graph = createGraphClient({ onSessionExpired: () => {} })
+	const client = renderProbe(adminSession, graph)
+	client.setQueryDefaults(['hiddenPlugins'], { staleTime: 0 })
+	await waitFor(() => expect(shown()).toEqual(['email']))
+
+	mountProbe(client, graph)
+
+	const answers = screen.getAllByRole('status', { name: 'hidden plugins' }).map((probe) => probe.textContent)
+	expect(answers).toEqual(['["email"]', '["email"]'])
+	expect(client.isFetching()).toBe(0)
+	expect(asked()).toBe(1)
 })
 
 test('asks nothing before anyone signs in', () => {
