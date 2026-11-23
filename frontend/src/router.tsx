@@ -20,7 +20,6 @@ import { Layout } from './Layout'
 import { plugins } from './plugins'
 import { NewTaskRoute, TaskRoute, TasksRoute } from './taskRoutes'
 import { newTaskSearch } from './tasks/newTaskSearch'
-import { NewTokenRoute } from './userRoutes'
 
 const rootRoute = createRootRoute({
 	component: Layout,
@@ -106,7 +105,7 @@ const tokensRoute = createRoute({
 const newTokenRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: '/users/tokens/new',
-	component: NewTokenRoute,
+	component: lazyRouteComponent(() => import('./users/NewTokenScreen'), 'NewTokenScreen'),
 })
 
 const languageRoute = createRoute({
