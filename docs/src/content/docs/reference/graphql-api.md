@@ -421,6 +421,32 @@ query {
 Dates in the data stay ISO 8601, such as `2026-09-30`, in every query,
 mutation and event.
 
+## Hidden plugins
+
+`hiddenPlugins` answers the ids of the plugins that hide their screens in the
+caller's workspace. The admin reads it once as it opens and leaves out the
+sidebar rows and the contact panels of each plugin it names. The email plugin
+is named while the workspace holds no mailbox.
+
+```graphql
+query {
+  hiddenPlugins
+}
+```
+
+```json
+{ "data": { "hiddenPlugins": ["email"] } }
+```
+
+An empty list means every plugin shows its screens. A plugin whose answer
+fails, or comes after `ALPHONE_PLUGIN_SCREENS_BUDGET`, is left out of the list,
+so its screens stay shown, see
+[Plugin hooks](/self-hosting/configuration/#plugin-hooks). Any signed-in caller
+may read it. A token minted with scopes needs `meta:read`. A caller who is not
+signed in gets the `UNAUTHENTICATED` error. A plugin hides its screens as
+[Hiding your screens in a workspace](/extending/screens/#hiding-your-screens-in-a-workspace)
+describes.
+
 ## Legal links
 
 `legalLinks` answers the addresses of the install's legal pages, which the
@@ -839,6 +865,7 @@ cannot drift. Point a client at the endpoint, or read
 | WhatsApp | `whatsAppConversations`, `whatsAppConversation`, `whatsAppNumbers` | `whatsAppSendMessage` |
 | Email | `emailMailbox`, `emailThreads`, `emailThread`, `emailContactMessages`, `emailUsage` | `emailDeleteMessages`, `emailDeleteFiles` |
 | Admin settings | `adminSettings` | |
+| Hidden plugins | `hiddenPlugins` | |
 | Legal links | `legalLinks` | |
 | Version | `version` | |
 
