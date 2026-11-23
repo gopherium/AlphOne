@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, can, sprintf, Text, useGraph, useGraphStream, useSession } from '@alphone/frontend-sdk'
+import { __, can, sprintf, Text, useGraph, useGraphStream, useHiddenPlugins, useSession } from '@alphone/frontend-sdk'
 import { Frame } from '@gopherium/godmin'
 import { Navigation, useCanvas, useFrameLocation } from '@gopherium/godmin/router'
 import { AccountPanel } from '@gopherium/react-auth/wpds'
@@ -23,6 +23,7 @@ export function Layout() {
 		operations: ['DayTasks', 'OverdueTasks', 'Contacts', 'ContactDetail'],
 	})
 	const session = useSession()
+	const hidden = useHiddenPlugins()
 	const version = useAppVersion()
 	return (
 		<Frame.Root location={useFrameLocation()}>
@@ -38,7 +39,7 @@ export function Layout() {
 			>
 				<Navigation
 					title={'AlphOne'}
-					items={[...coreNav, ...plugins.flatMap((plugin) => plugin.nav)]}
+					items={[...coreNav, ...plugins.flatMap((plugin) => (hidden.includes(plugin.id) ? [] : plugin.nav))]}
 					home={<Link to={LANDING} />}
 					can={(capability) => can(session, capability)}
 				/>

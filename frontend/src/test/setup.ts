@@ -31,5 +31,6 @@ beforeEach(() => {
 		graphql.query('DayTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),
 		graphql.query('OverdueTasks', () => HttpResponse.json({ data: { tasks: emptyTaskPage } })),
 		graphql.query('AdminSettings', () => HttpResponse.json({ data: { adminSettings } })),
+		graphql.query('HiddenPlugins', () => HttpResponse.json({ data: { hiddenPlugins: [] } })),
 	)
 })
