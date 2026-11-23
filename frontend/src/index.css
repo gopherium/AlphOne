@@ -444,6 +444,11 @@
 	flex-grow: 0;
 }
 
+.alphone-tokens__grant {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
 .godmin-form__row:has(input[data-validity-visible]:invalid) {
 	align-items: flex-start;
 }

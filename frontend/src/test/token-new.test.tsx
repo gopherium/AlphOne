@@ -104,6 +104,13 @@ function boxLabels(
 		.flatMap((area) => [`${read} ${area.label}`, `${write} ${area.label}`])
 }
 
+/** expectBoxNames checks that the checkboxes on the screen carry the given accessible names, in order. */
+function expectBoxNames(names: string[]) {
+	const boxes = screen.getAllByRole('checkbox')
+	expect(boxes).toHaveLength(names.length)
+	boxes.forEach((box, at) => expect(box).toHaveAccessibleName(names[at]))
+}
+
 beforeEach(servingNoTokens)
 
 test('the expected boxes hold the core areas and every area a plugin grants, by value', () => {
@@ -151,9 +158,7 @@ test('names each core area and every wired plugin area in its read and write box
 	renderAt('/users/tokens/new')
 
 	await screen.findByRole('checkbox', { name: 'Read contacts' })
-	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual(
-		boxLabels(ENGLISH_AREAS, plugins, ['Read', 'Write']),
-	)
+	expectBoxNames(boxLabels(ENGLISH_AREAS, plugins, ['Read', 'Write']))
 })
 
 test('names each area in Spanish inside the Spanish read and write boxes', async () => {
@@ -163,9 +168,24 @@ test('names each area in Spanish inside the Spanish read and write boxes', async
 	renderAt('/users/tokens/new')
 
 	await screen.findByRole('checkbox', { name: 'Leer contactos' })
-	expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual(
-		boxLabels(SPANISH_AREAS, plugins, ['Leer', 'Escribir']),
+	expectBoxNames(boxLabels(SPANISH_AREAS, plugins, ['Leer', 'Escribir']))
+})
+
+test('says in Spanish under the Write email box what writing the email area does', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	renderAt('/users/tokens/new')
+
+	expect(await screen.findByRole('checkbox', { name: 'Escribir correo electrónico' })).toHaveAccessibleDescription(
+		'Lee el correo. Con el token de un administrador, también borra correos y sus archivos. No envía correo.',
 	)
+})
+
+test('gives the Write box of an area without a description none', async () => {
+	renderAt('/users/tokens/new')
+
+	expect(await screen.findByRole('checkbox', { name: 'Write tasks' })).toHaveAccessibleDescription('')
 })
 
 test('refuses to mint until a name and an area are given', async () => {
