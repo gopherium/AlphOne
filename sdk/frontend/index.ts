@@ -26,6 +26,8 @@ export interface ChannelName {
 export interface TokenArea {
 	value: string
 	label: string
+	/** writeDescription is the line under the area's Write box that says what writing the area does. */
+	writeDescription?: string
 }
 
 /** AccountLink is an address outside the admin that a plugin shows under the account panel. */
@@ -59,10 +61,12 @@ export {
 	ButtonLink,
 	Card,
 	Checkbox,
+	CheckboxControl,
 	Collapsible,
 	CollapsibleCard,
 	Drawer,
 	EmptyState,
+	Fieldset,
 	Icon,
 	IconButton,
 	InputControl,
