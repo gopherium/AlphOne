@@ -9,7 +9,7 @@
 		"cover": "vitest run --coverage",
 		"dev": "vite",
 		"lint": "pnpm -w exec oxlint frontend sdk plugins && pnpm -w exec eslint .",
-		"lint:css": "stylelint \"src/**/*.css\"",
+		"lint:css": "stylelint \"src/**/*.css\" \"../plugins/*/frontend/*.css\"",
 		"pot": "node scripts/write-pot.ts",
 		"preview": "vite preview",
 		"translations": "node --env-file-if-exists=../.env scripts/sync-translations.ts",
