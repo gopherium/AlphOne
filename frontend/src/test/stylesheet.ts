@@ -3,17 +3,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { declarationsIn } from '@alphone/frontend-sdk/testing'
+
 /** sheet is the stylesheet the application ships. */
 const sheet = readFileSync(join(import.meta.dirname, '..', 'index.css'), 'utf8')
-
-/**
- * Escapes a string for use inside a regular expression.
- * @param text - The literal text.
- * @returns The escaped text.
- */
-function literal(text: string): string {
-	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 
 /**
  * Returns the declarations of the rule for exactly one selector, at the top level or inside the given media block.
@@ -22,18 +15,5 @@ function literal(text: string): string {
  * @returns The declarations, keyed by property.
  */
 export function declarations(selector: string, media?: string): Record<string, string> {
-	const block =
-		media === undefined ? sheet : (new RegExp(`\\n@media ${literal(media)} \\{([\\s\\S]*?)\\n\\}`).exec(sheet)?.[1] ?? '')
-	const indent = media === undefined ? '' : '\\t'
-	const body = new RegExp(`(?:^|\\n)${indent}${literal(selector)} \\{([^}]*)\\}`).exec(block)?.[1] ?? ''
-	return Object.fromEntries(
-		body
-			.split(';')
-			.map((declaration) => declaration.trim())
-			.filter((declaration) => declaration !== '')
-			.map((declaration) => {
-				const at = declaration.indexOf(':')
-				return [declaration.slice(0, at).trim(), declaration.slice(at + 1).trim()]
-			}),
-	)
+	return declarationsIn(sheet, selector, media)
 }
