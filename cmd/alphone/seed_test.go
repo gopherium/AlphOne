@@ -169,7 +169,7 @@ func TestSeedYesPopulatesTheDemoData(t *testing.T) {
 	if !gouncer.VerifyPassword(admin.PasswordHash, "password1234") {
 		t.Error("stored password hash does not verify against the demo password")
 	}
-	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 3, 5, 2, 6}; got != want {
+	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 5, 7, 3, 8}; got != want {
 		t.Errorf("demo counts = %v, want %v", got, want)
 	}
 	var adas int
@@ -670,7 +670,7 @@ func TestSeedYesIsIdempotentAcrossRuns(t *testing.T) {
 	}
 
 	pool := testPool(t, databaseURL)
-	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 3, 5, 2, 6}; got != want {
+	if got, want := demoCounts(t, pool), [12]int{71, 9, 3, 8, 1, 1, 6, 1, 5, 7, 3, 8}; got != want {
 		t.Errorf("demo counts after two runs = %v, want %v", got, want)
 	}
 	if !strings.Contains(second.Stdout, "admin@example.com already exists") {
