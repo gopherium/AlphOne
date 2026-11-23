@@ -137,6 +137,20 @@ func graphResolver(settings runConfig, built composed, auth *authkit.Handlers, l
 		Screens:       settings.screens,
 		Legal:         settings.legal,
 		Roles:         built.roles,
+		HiddenScreens: screensHidden(built.registered, settings.hooks, logger),
+	}
+}
+
+// screensHidden returns the read of the plugins that hide their screens through one hook, panicking on bad settings.
+func screensHidden(registered []sdk.Plugin, hooks hookSettings, logger *slog.Logger) func(context.Context) []string {
+	hook, err := pluginkit.NewHook[graphres.ScreenGated](graphres.ScreensHook, registered, pluginkit.HookSettings{
+		Budget: hooks.screensBudget, TimedFirings: hooks.timedFirings, Report: graphres.LogHookFailure(logger),
+	})
+	if err != nil {
+		panic(err.Error())
+	}
+	return func(ctx context.Context) []string {
+		return pluginkit.Filter(ctx, hook, []string{}, graphres.HideScreens)
 	}
 }
 
@@ -281,6 +295,7 @@ type runConfig struct {
 	screens        graphres.Screens
 	legal          graphres.LegalLinks
 	graph          graphSettings
+	hooks          hookSettings
 	serving        gonsole.Timeouts
 }
 
@@ -555,10 +570,11 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 	if err != nil {
 		return runConfig{}, err
 	}
-	serving, err := env.Timeouts(servingDefaults)
+	hooks, err := loadHookSettings(env)
 	if err != nil {
 		return runConfig{}, err
 	}
+	serving, err := env.Timeouts(servingDefaults)
 	return runConfig{
 		composeSettings: shared,
 		databaseURL:     databaseURL,
@@ -571,8 +587,9 @@ func loadRunConfig(getenv func(string) string) (runConfig, error) {
 		screens:         screens,
 		legal:           legal,
 		graph:           graph,
+		hooks:           hooks,
 		serving:         serving,
-	}, nil
+	}, err
 }
 
 // valueOr returns the setting's value, or fallback when it is empty.

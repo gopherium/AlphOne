@@ -72,6 +72,8 @@ func coreSettings() map[string]string {
 		"ALPHONE_LIST_PAGE_SIZES":                  "5,15,30",
 		"ALPHONE_LIST_PAGE_SIZE":                   "15",
 		"ALPHONE_FORMAT_LOCALE":                    "de-DE",
+		"ALPHONE_PLUGIN_SCREENS_BUDGET":            "250ms",
+		"ALPHONE_PLUGIN_HOOK_TIMED_FIRINGS":        "40",
 		"ALPHONE_HTTP_READ_HEADER_TIMEOUT":         "5s",
 		"ALPHONE_HTTP_READ_TIMEOUT":                "20s",
 		"ALPHONE_HTTP_IDLE_TIMEOUT":                "90s",
