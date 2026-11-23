@@ -25,6 +25,9 @@ const momentLibrary = 'moment construction falls back'
 /** componentsRules is the class prefix every WordPress components stylesheet rule carries. */
 const componentsRules = '.components-'
 
+/** emailRules is the class prefix every rule of the email plugin's stylesheet carries. */
+const emailRules = '.alphone-email'
+
 /**
  * Returns the built asset whose name starts with the given prefix.
  * @param prefix - The chunk name before its hash.
@@ -103,6 +106,14 @@ test('nothing loaded before first paint carries the WordPress components stylesh
 	expect(carrying, 'eager stylesheets carrying WordPress components rules').toEqual([])
 })
 
+test('nothing loaded before first paint carries the email stylesheet', () => {
+	const carrying = eagerStylesheets().filter((name) =>
+		readFileSync(join(assets, name), 'utf8').includes(emailRules),
+	)
+
+	expect(carrying, 'eager stylesheets carrying email rules').toEqual([])
+})
+
 test('everything loaded before first paint stays under the entry ceiling', () => {
 	const scripts = eagerScripts()
 
@@ -155,4 +166,17 @@ test('the contacts list loads DataViews on demand', () => {
 
 	expect(eagerScripts()).not.toContain(lazy)
 	expect(readFileSync(join(assets, lazy), 'utf8'), lazy).toContain(shared)
+})
+
+test('the email inbox loads DataViews and its stylesheet on demand', () => {
+	const [shared] = dataViewsChunks()
+	const lazy = chunk('EmailInboxScreen-', '.js')
+	const sheets = readdirSync(assets)
+		.filter((name) => name.endsWith('.css'))
+		.filter((name) => readFileSync(join(assets, name), 'utf8').includes(emailRules))
+
+	expect(eagerScripts()).not.toContain(lazy)
+	expect(readFileSync(join(assets, lazy), 'utf8'), lazy).toContain(shared)
+	expect(sheets, 'one stylesheet carries the email rules').toHaveLength(1)
+	expect(eagerStylesheets()).not.toContain(sheets[0])
 })
