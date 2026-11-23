@@ -29,6 +29,12 @@ const base64LineLetters = 76
 // lampPNG is the one pixel image, in base64, the sample mail shows inline.
 const lampPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
+// sealedArmor is the body line of the PGP message the encrypted sample mail carries, which no key opens.
+const sealedArmor = "hF4DAAAAAAAAAAASAQdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+// signatureArmor is the body line of the PGP signature the signed sample mail carries, which no key checks.
+const signatureArmor = "iHUEARYIAB0WIQQAAAAAAAAAAAAAAAAAAAAAAAAAAAUCaQAAAAAKCRAAAAAAAAAA"
+
 // quoteText is the content stream of the one page of the sample quote.
 const quoteText = "BT /F1 18 Tf 72 770 Td (Quote for the new lamp) Tj /F1 12 Tf 0 -32 Td " +
 	"(Wicker lamp, one piece, 120 EUR) Tj 0 -18 Td (Delivery within two weeks) Tj ET"
@@ -87,11 +93,30 @@ func sampleMails() []sampleMail {
 			`Content-Disposition: inline; filename="lamp.png"`, "Content-Transfer-Encoding: base64", "",
 			lampPNG, "--photo--",
 		}},
+		{ref: seedPrefix + "payment-details", age: 36 * time.Hour, header: []string{
+			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
+			"Subject: Payment details", "Message-ID: <seed-payment-details@example.com>", "MIME-Version: 1.0",
+			"Content-Type: text/plain; charset=utf-8",
+		}, body: []string{
+			"-----BEGIN PGP MESSAGE-----", "", sealedArmor, "=AAAA", "-----END PGP MESSAGE-----",
+		}},
 		{ref: seedPrefix + "site-visit", age: 24 * time.Hour, header: []string{
 			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
 			"Cc: Ada Lovelace <ada@example.com>", "Subject: Site visit on Friday",
 			"Message-ID: <seed-site-visit@example.com>", "Content-Type: text/plain; charset=utf-8",
 		}, body: []string{"Ada and I can meet you at the shop on Friday at ten to choose the shades."}},
+		{ref: seedPrefix + "order-confirmed", age: 12 * time.Hour, header: []string{
+			"From: Maria Perez <maria.perez@example.com>", "To: Info <info@example.com>",
+			"Subject: Order confirmed", "Message-ID: <seed-order-confirmed@example.com>", "MIME-Version: 1.0",
+			`Content-Type: multipart/signed; micalg=pgp-sha256; protocol="application/pgp-signature"; ` +
+				`boundary="signed"`,
+		}, body: []string{
+			"--signed", "Content-Type: text/plain; charset=utf-8", "", "I confirm the order of two wicker lamps.",
+			"--signed", `Content-Type: application/pgp-signature; name="signature.asc"`,
+			`Content-Disposition: attachment; filename="signature.asc"`, "",
+			"-----BEGIN PGP SIGNATURE-----", "", signatureArmor, "=AAAA", "-----END PGP SIGNATURE-----",
+			"--signed--",
+		}},
 		{ref: seedPrefix + "delivery-date", age: 2 * time.Hour, header: []string{
 			"From: Ada Lovelace <ada@example.com>", "To: Info <info@example.com>", "Subject: Delivery date",
 			"Message-ID: <seed-delivery-date@example.com>", "Content-Type: text/plain; charset=utf-8",
