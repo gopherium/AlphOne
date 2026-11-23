@@ -13,3 +13,96 @@ msgstr ""
 msgctxt "token area"
 msgid "email"
 msgstr "correo electrónico"
+
+#, fuzzy
+msgid "(no sender)"
+msgstr "(sin remitente)"
+
+#, fuzzy
+msgid "(no subject)"
+msgstr "(sin asunto)"
+
+#, fuzzy
+msgid "Avatar"
+msgstr "Avatar"
+
+#, fuzzy
+msgid "Date"
+msgstr "Fecha"
+
+#, fuzzy
+msgid "Email"
+msgstr "Correo electrónico"
+
+#, fuzzy
+msgid "Encrypted"
+msgstr "Cifrado"
+
+#, fuzzy
+msgid "Encrypted message"
+msgstr "Mensaje cifrado"
+
+#, fuzzy
+msgid "From"
+msgstr "De"
+
+#, fuzzy
+msgid "Has attachments"
+msgstr "Tiene adjuntos"
+
+#, fuzzy
+msgid "Inbox"
+msgstr "Bandeja de entrada"
+
+#, fuzzy
+msgid "Loading mail…"
+msgstr "Cargando el correo…"
+
+#, fuzzy
+msgid "Mail could not be loaded."
+msgstr "No se ha podido cargar el correo."
+
+#, fuzzy
+msgid "Mail shows here once a mailbox is connected to this workspace."
+msgstr "El correo aparecerá aquí cuando se conecte un buzón a este espacio de trabajo."
+
+#, fuzzy
+msgid "Messages"
+msgstr "Mensajes"
+
+#, fuzzy
+msgid "New mail will appear here."
+msgstr "El correo nuevo aparecerá aquí."
+
+#, fuzzy
+msgid "No mailbox is connected"
+msgstr "No hay ningún buzón conectado"
+
+#, fuzzy
+msgid "No text could be read"
+msgstr "No se ha podido leer el texto"
+
+#, fuzzy
+msgid "Read the mail of %(address)s in one place."
+msgstr "Lee el correo de %(address)s en un solo lugar."
+
+#, fuzzy
+msgid "Sent"
+msgstr "Enviado"
+
+#, fuzzy
+msgid "Signed"
+msgstr "Firmado"
+
+#, fuzzy
+msgid "Subject"
+msgstr "Asunto"
+
+#, fuzzy
+msgid "You're set up. No mail yet."
+msgstr "Todo listo. Todavía no hay correo."
+
+#, fuzzy
+msgctxt "admin section"
+msgid "Email"
+msgstr "Correo electrónico"
