@@ -22,9 +22,10 @@ mailbox. A fresh install holds none, so its menu has no Email row. The
 first `email:ingest` run with `-mailbox` and `-yes` stores the mailbox,
 and so does the demo data.
 
-The menu checks for a mailbox once as the admin opens. After the first
-mail reaches a new workspace, reload the admin to see the row. Every
-member of the workspace sees it.
+The menu checks for a mailbox once as the admin opens and again after
+each sign-in. After the first mail reaches a new workspace, reload the
+admin or sign in again to see the row. Every member of the workspace
+sees it.
 
 If the check takes too long, the row shows anyway, see
 [Plugin hooks](/self-hosting/configuration/#plugin-hooks). The inbox

@@ -424,9 +424,9 @@ mutation and event.
 ## Hidden plugins
 
 `hiddenPlugins` answers the ids of the plugins that hide their screens in the
-caller's workspace. The admin reads it once as it opens and leaves out the
-sidebar rows and the contact panels of each plugin it names. The email plugin
-is named while the workspace holds no mailbox.
+caller's workspace. The admin reads it once as it opens and again after each
+sign-in, and leaves out the sidebar rows and the contact panels of each plugin
+it names. The email plugin is named while the workspace holds no mailbox.
 
 ```graphql
 query {

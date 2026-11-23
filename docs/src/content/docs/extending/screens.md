@@ -1374,11 +1374,12 @@ func (p *Plugin) ShowsScreens(ctx context.Context) (bool, error) {
 it. Answer `true` to show your screens and `false` to hide them. A
 plugin without the method always shows them.
 
-The admin asks every plugin once as it opens, through the
-[`hiddenPlugins`](/reference/graphql-api/#hidden-plugins) field. It then
-leaves out the sidebar rows and the contact panels of each plugin that
-answered `false`. So a reader sees your row appear the next time the
-admin opens, such as after a reload. Your routes stay in place, and a
+The admin asks every plugin once as it opens and again after each
+sign-in, through the
+[`hiddenPlugins`](/reference/graphql-api/#hidden-plugins) field. It
+then leaves out the sidebar rows and the contact panels of each plugin
+that answered `false`. So a reader sees your row appear the next time
+they sign in or reload the admin. Your routes stay in place, and a
 reader who types the address still reaches your screen. Draw an empty
 state there with `ListEmpty` that says what is missing, as the email
 inbox says "No mailbox is connected".

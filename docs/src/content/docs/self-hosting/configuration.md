@@ -131,7 +131,7 @@ other, under one time limit for them all. A value AlphOne rejects stops
 
 | Variable | Purpose |
 | --- | --- |
-| `ALPHONE_PLUGIN_SCREENS_BUDGET` | How long the plugins together may take to say whether their screens show, written as a duration such as `50ms` or `1s`. Defaults to `50ms`. The admin asks once as it opens, and leaves out the sidebar rows and the contact panels of each plugin that says no, such as the email plugin while the workspace holds no mailbox. A plugin still working when the time runs out keeps its screens shown, and `serve` logs it as `plugin hook failed`, with the plugin's id. So a budget set too low shows every plugin's screens. `serve` will not start unless the value is a duration above zero. |
+| `ALPHONE_PLUGIN_SCREENS_BUDGET` | How long the plugins together may take to say whether their screens show, written as a duration such as `50ms` or `1s`. Defaults to `50ms`. The admin asks once as it opens and again after each sign-in, and leaves out the sidebar rows and the contact panels of each plugin that says no, such as the email plugin while the workspace holds no mailbox. A plugin still working when the time runs out keeps its screens shown, and `serve` logs it as `plugin hook failed`, with the plugin's id. So a budget set too low shows every plugin's screens. `serve` will not start unless the value is a duration above zero. |
 | `ALPHONE_PLUGIN_HOOK_TIMED_FIRINGS` | After one call of a hook runs past its budget, such as the screens budget above, the server times each plugin on the next calls of that hook. This sets how many calls. The timings stay inside the server, and AlphOne does not show them. Defaults to 20. `serve` will not start unless the value is a whole number from 1 to 1000. |
 
 ## Graph limits
