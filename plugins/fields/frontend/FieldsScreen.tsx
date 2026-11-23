@@ -342,7 +342,7 @@ function useArchive(
 				archivedShown.current.add(field.id)
 				gone.current.add(field.id)
 				setPending({ id: field.id, reading: true, from })
-				toaster.show(__('Field archived.', 'alphone-fields'), undo(field))
+				toaster.show(sprintf(__('"%(label)s" archived.', 'alphone-fields'), { label: field.label }), undo(field))
 			}
 			onChanged()
 		})
@@ -398,7 +398,7 @@ function FieldTable({
 }
 
 /**
- * Keeps focus in the list as its rows change, and returns the report a row makes as it goes.
+ * Keeps focus in the list as its rows change, a trash giving it to the region, and returns a leaving row's report.
  * @param region - The region the list renders in.
  * @param body - The table body the rows render in, empty while no row is left.
  * @param rows - The rows in the order shown.
@@ -422,7 +422,7 @@ function useFocusKept(
 			keepFocusInView(body)
 			return
 		}
-		const row = body.current?.rows[Math.min(lost.at, count - 1)]
+		const row = lost.control === TRASH ? undefined : body.current?.rows[Math.min(lost.at, count - 1)]
 		const target = row?.querySelectorAll('button')[lost.control] ?? (region.current as HTMLDivElement)
 		target.focus()
 	}, [region, body, shown, count])

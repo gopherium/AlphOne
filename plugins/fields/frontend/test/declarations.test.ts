@@ -16,6 +16,14 @@ test('names its area in Spanish in its own catalogue', async () => {
 	expect((catalog?.['token area\u0004fields'] as string[] | undefined)?.[0]).toBe('campos')
 })
 
+test('names the field in Spanish in the toasts of an archive and a restore', async () => {
+	const catalog = await plugin.locale?.load('es-ES')
+	const said = (message: string) => (catalog?.[message] as string[] | undefined)?.[0]
+
+	expect(said('"%(label)s" archived.')).toBe('«%(label)s» archivado.')
+	expect(said('"%(label)s" has been restored.')).toBe('«%(label)s» se ha restaurado.')
+})
+
 test('keys the sub-fields of a definition, which carry no id', () => {
 	expect(Object.keys(plugin.graphKeys ?? {})).toEqual(['FieldSubField'])
 	expect(plugin.graphKeys?.FieldSubField({})).toBeNull()

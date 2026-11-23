@@ -7,6 +7,12 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-fields\n"
 
+msgid "\"%(label)s\" archived."
+msgstr ""
+
+msgid "\"%(label)s\" has been restored."
+msgstr ""
+
 msgid "%(label)s: %(value)s"
 msgstr ""
 
@@ -98,12 +104,6 @@ msgid "Entry saved."
 msgstr ""
 
 msgid "Field added."
-msgstr ""
-
-msgid "Field archived."
-msgstr ""
-
-msgid "Field restored."
 msgstr ""
 
 msgid "Fields"
