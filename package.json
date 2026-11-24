@@ -12,13 +12,13 @@
 	"devDependencies": {
 		"@graphql-codegen/cli": "^7.4.6",
 		"@graphql-codegen/client-preset": "^6.2.3",
-		"@playwright/test": "1.65.0",
-		"eslint": "^10.14.0",
-		"eslint-plugin-jsdoc": "^65.4.7",
+		"@playwright/test": "1.65.1",
+		"eslint": "^10.15.0",
+		"eslint-plugin-jsdoc": "^65.4.12",
 		"eslint-plugin-sonarjs": "^4.2.2",
 		"eslint-plugin-tsdoc": "^0.5.4",
-		"knip": "^6.45.0",
-		"oxlint": "^1.93.0",
-		"typescript-eslint": "^8.72.2"
+		"knip": "^6.45.1",
+		"oxlint": "^1.94.0",
+		"typescript-eslint": "^8.73.0"
 	}
 }
