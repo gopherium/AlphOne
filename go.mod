@@ -40,8 +40,8 @@ require (
 	github.com/vikstrous/dataloadgen v0.0.10
 	github.com/xuri/excelize/v2 v2.11.1
 	gocloud.dev v0.47.0
-	golang.org/x/net v0.62.0
-	golang.org/x/text v0.43.0
+	golang.org/x/net v0.63.0
+	golang.org/x/text v0.44.0
 )
 
 require (
@@ -164,12 +164,12 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
