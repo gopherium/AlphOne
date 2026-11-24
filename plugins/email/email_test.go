@@ -319,6 +319,7 @@ func TestThePluginTakesEachOptionalPartItUses(t *testing.T) {
 		{"SettingStoreConsumer", implements[sdk.SettingStoreConsumer](p), true},
 		{"EncrypterConsumer", implements[sdk.EncrypterConsumer](p), false},
 		{"FileStoreConsumer", implements[sdk.FileStoreConsumer](p), true},
+		{"ScreenGate", implements[sdk.ScreenGate](p), true},
 	}
 
 	for _, part := range parts {
@@ -437,15 +438,66 @@ func TestSeedStoresTheSampleMailboxInTheDefaultWorkspaceOnce(t *testing.T) {
 	if boxes := w.count(t, "SELECT count(*) FROM plugin_email.mailboxes WHERE tenant_id = $1"); boxes != 1 {
 		t.Errorf("the default workspace holds %d mailboxes, want 1", boxes)
 	}
-	if mails := w.count(t, "SELECT count(*) FROM plugin_email.messages WHERE tenant_id = $1"); mails != 5 {
-		t.Errorf("the default workspace holds %d mails, want 5", mails)
+	if mails := w.count(t, "SELECT count(*) FROM plugin_email.messages WHERE tenant_id = $1"); mails != 7 {
+		t.Errorf("the default workspace holds %d mails, want 7", mails)
 	}
-	if again := len(w.store.savedTypes()); saved != 7 || again != saved {
-		t.Errorf("the seeds saved %d files and then %d more, want five raw copies and two attachments, then none",
+	if again := len(w.store.savedTypes()); saved != 10 || again != saved {
+		t.Errorf("the seeds saved %d files and then %d more, want seven raw copies and three attachments, then none",
 			saved, again-saved)
 	}
 	if len(w.publisher.names) != 0 {
 		t.Errorf("the seed published %v, want no event", w.publisher.names)
+	}
+}
+
+func TestTheScreensShowOnlyInAWorkspaceThatHoldsAMailbox(t *testing.T) {
+	t.Parallel()
+
+	w := newWiredPlugin(t, nil)
+	gate, gated := any(w.plugin).(sdk.ScreenGate)
+	if !gated {
+		t.Fatal("the email plugin is no sdk.ScreenGate, want it to say whether its screens show")
+	}
+	elsewhere := sdk.WithTenant(t.Context(), uuid.Must(uuid.NewV7()))
+
+	before, beforeErr := gate.ShowsScreens(t.Context())
+	if err := w.plugin.Seed(t.Context()); err != nil {
+		t.Fatalf("Seed() error = %v, want nil", err)
+	}
+	after, afterErr := gate.ShowsScreens(t.Context())
+	other, otherErr := gate.ShowsScreens(elsewhere)
+
+	if before || beforeErr != nil {
+		t.Errorf("ShowsScreens() with no mailbox = %t, %v, want false", before, beforeErr)
+	}
+	if !after || afterErr != nil {
+		t.Errorf("ShowsScreens() once the workspace holds a mailbox = %t, %v, want true", after, afterErr)
+	}
+	if other || otherErr != nil {
+		t.Errorf("ShowsScreens() in another workspace = %t, %v, want false", other, otherErr)
+	}
+}
+
+func TestTheScreensReportAReadThatFails(t *testing.T) {
+	t.Parallel()
+
+	p, err := email.Register(sdk.Deps{DatabaseURL: silentDatabaseURL})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+	gate, gated := any(p).(sdk.ScreenGate)
+	if !gated {
+		t.Fatal("the email plugin is no sdk.ScreenGate, want it to say whether its screens show")
+	}
+	ended, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	shows, err := gate.ShowsScreens(ended)
+
+	if !errors.Is(err, context.Canceled) || !strings.HasPrefix(err.Error(), "email: ") {
+		t.Errorf("ShowsScreens() under an ended context = %t, %v, want the end of the context named by the email plugin",
+			shows, err)
 	}
 }
 

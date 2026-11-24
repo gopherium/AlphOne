@@ -358,6 +358,7 @@ type ComplexityRoot struct {
 		EmailThreads          func(childComplexity int, limit *int, offset *int) int
 		EmailUsage            func(childComplexity int) int
 		Fields                func(childComplexity int, includeArchived *bool) int
+		HiddenPlugins         func(childComplexity int) int
 		ImportFields          func(childComplexity int) int
 		ImportJob             func(childComplexity int, id uuid.UUID) int
 		Imports               func(childComplexity int) int
@@ -548,6 +549,7 @@ type QueryResolver interface {
 	Locale(ctx context.Context) (string, error)
 	SupportedLocales(ctx context.Context) ([]string, error)
 	AdminSettings(ctx context.Context) (*model.AdminSettings, error)
+	HiddenPlugins(ctx context.Context) ([]string, error)
 	LegalLinks(ctx context.Context) (*model.LegalLinks, error)
 	Me(ctx context.Context) (*model.Identity, error)
 	Users(ctx context.Context) ([]*model.User, error)
@@ -2077,6 +2079,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Fields(childComplexity, args["includeArchived"].(*bool)), true
+	case "Query.hiddenPlugins":
+		if e.ComplexityRoot.Query.HiddenPlugins == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.HiddenPlugins(childComplexity), true
 	case "Query.importFields":
 		if e.ComplexityRoot.Query.ImportFields == nil {
 			break
@@ -10663,6 +10671,29 @@ func (ec *executionContext) fieldContext_Query_adminSettings(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_hiddenPlugins(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_hiddenPlugins(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().HiddenPlugins(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_hiddenPlugins(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, "String")
+}
+
 func (ec *executionContext) _Query_legalLinks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16693,6 +16724,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_adminSettings(ctx, field)
+				})
+		case "hiddenPlugins":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_hiddenPlugins(ctx, field)
 				})
 		case "legalLinks":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,

@@ -7,6 +7,76 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: alphone-email\n"
 
+msgid "(no sender)"
+msgstr ""
+
+msgid "(no subject)"
+msgstr ""
+
+msgid "Avatar"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "Encrypted"
+msgstr ""
+
+msgid "Encrypted message"
+msgstr ""
+
+msgid "From"
+msgstr ""
+
+msgid "Has attachments"
+msgstr ""
+
+msgid "Inbox"
+msgstr ""
+
+msgid "Loading mail…"
+msgstr ""
+
+msgid "Mail could not be loaded."
+msgstr ""
+
+msgid "Mail shows here once a mailbox is connected to this workspace."
+msgstr ""
+
+msgid "Messages"
+msgstr ""
+
+msgid "New mail will appear here."
+msgstr ""
+
+msgid "No mailbox is connected"
+msgstr ""
+
+msgid "No text could be read"
+msgstr ""
+
+msgid "Read the mail of %(address)s in one place."
+msgstr ""
+
+msgid "Sent"
+msgstr ""
+
+msgid "Signed"
+msgstr ""
+
+msgid "Subject"
+msgstr ""
+
+msgid "You're set up. No mail yet."
+msgstr ""
+
+msgctxt "admin section"
+msgid "Email"
+msgstr ""
+
 msgctxt "token area"
 msgid "email"
 msgstr ""

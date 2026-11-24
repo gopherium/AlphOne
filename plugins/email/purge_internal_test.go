@@ -466,7 +466,7 @@ func TestDeleteThreadMailDeletesTheSeededMailAtOnce(t *testing.T) {
 	if err != nil || len(deletion.messages) != 3 || !deletion.threadDeleted {
 		t.Errorf("deleteThreadMail() = %+v, %v, want the 3 seeded mails of the thread deleted", deletion, err)
 	}
-	if got, want := seeded.counts(t, it), [5]int{1, 2, 2, 0, 3}; got != want {
+	if got, want := seeded.counts(t, it), [5]int{1, 4, 4, 1, 5}; got != want {
 		t.Errorf("the seeded workspace holds %v, want %v", got, want)
 	}
 }

@@ -43,6 +43,9 @@ type RouteProvider = pluginkit.RouteProvider
 // PublicPathProvider is implemented by plugins declaring session-exempt public paths.
 type PublicPathProvider = pluginkit.PublicPathProvider
 
+// ScreenGate is implemented by plugins whose menu rows and screens show only in some workspaces.
+type ScreenGate = pluginkit.ScreenGate
+
 // Deps carries the host-provided dependencies a plugin receives at
 // registration. By convention every plugin package exports
 //

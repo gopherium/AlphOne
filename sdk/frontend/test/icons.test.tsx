@@ -2,6 +2,7 @@
 
 import {
 	calendar as wordpressCalendar,
+	caution as wordpressCaution,
 	close as wordpressClose,
 	comment as wordpressComment,
 	commentAuthorAvatar as wordpressCommentAuthorAvatar,
@@ -27,6 +28,7 @@ import { expect, test } from 'vitest'
 
 import {
 	calendar,
+	caution,
 	close,
 	comment,
 	commentAuthorAvatar,
@@ -63,6 +65,10 @@ test('hands plugins the mail, reply, encrypted and attachment icons a mail threa
 	expect(commentReplyLink).toBe(wordpressCommentReplyLink)
 	expect(lock).toBe(wordpressLock)
 	expect(file).toBe(wordpressFile)
+})
+
+test('hands plugins the caution icon an empty state draws when something is missing', () => {
+	expect(caution).toBe(wordpressCaution)
 })
 
 test('hands plugins the bold, italic, link, list, quote and inline image icons a composer toolbar draws', () => {

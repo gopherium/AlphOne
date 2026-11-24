@@ -126,7 +126,7 @@ func TestSeedStoresTheSampleMailboxWithItsThreadsMailsFilesAndLinks(t *testing.T
 
 	seeded := it.seedWorkspace()
 
-	if got, want := seeded.counts(t, it), [5]int{1, 3, 5, 2, 6}; got != want {
+	if got, want := seeded.counts(t, it), [5]int{1, 5, 7, 3, 8}; got != want {
 		t.Errorf("the seed stored %v mailboxes, threads, mails, attachments and links, want %v", got, want)
 	}
 	if seeded.box.address != "info@example.com" || !slices.Equal(seeded.box.aliases, []string{"sales@example.com"}) {
@@ -141,15 +141,19 @@ func TestSeedThreadsTheSampleMailOnTheSeededContacts(t *testing.T) {
 	it := newIngestTest(t)
 	seeded := it.seedWorkspace()
 	threads := map[string]string{
-		"seed:lamp-quote":    "Quote for the new lamp | Re: Quote for the new lamp | Re: Quote for the new lamp",
-		"seed:site-visit":    "Site visit on Friday",
-		"seed:delivery-date": "Delivery date",
+		"seed:lamp-quote":      "Quote for the new lamp | Re: Quote for the new lamp | Re: Quote for the new lamp",
+		"seed:payment-details": "Payment details",
+		"seed:site-visit":      "Site visit on Friday",
+		"seed:order-confirmed": "Order confirmed",
+		"seed:delivery-date":   "Delivery date",
 	}
 	links := map[string][]string{
 		"seed:lamp-quote":       {"maria.perez@example.com"},
 		"seed:lamp-quote-reply": {"maria.perez@example.com"},
 		"seed:lamp-photo":       {"maria.perez@example.com"},
+		"seed:payment-details":  {"maria.perez@example.com"},
 		"seed:site-visit":       {"ada@example.com", "maria.perez@example.com"},
+		"seed:order-confirmed":  {"maria.perez@example.com"},
 		"seed:delivery-date":    {"ada@example.com"},
 	}
 
@@ -205,14 +209,65 @@ func TestSeedKeepsAnHTMLMailAPDFAndAnInlineImage(t *testing.T) {
 	}
 }
 
+func TestSeedKeepsAnEncryptedMailAndASignedMail(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	seeded := it.seedWorkspace()
+
+	encrypted := storedRow(t, it.pool, seeded.mail(t, it, "seed:payment-details"))
+	signed := storedRow(t, it.pool, seeded.mail(t, it, "seed:order-confirmed"))
+	sealed := it.attachmentsOf(seeded.mail(t, it, "seed:payment-details"))
+	signature := it.attachmentsOf(seeded.mail(t, it, "seed:order-confirmed"))
+
+	if !encrypted.encrypted || encrypted.signed || encrypted.snippet != "" ||
+		!strings.Contains(encrypted.bodyText, "-----BEGIN PGP MESSAGE-----") || len(sealed) != 0 {
+		t.Errorf("the payment mail is encrypted %t, signed %t, with the preview %q, the text %q and the files %+v, "+
+			"want an encrypted mail with no preview and no file", encrypted.encrypted, encrypted.signed,
+			encrypted.snippet, encrypted.bodyText, sealed)
+	}
+	if !signed.signed || signed.encrypted || signed.snippet != "I confirm the order of two wicker lamps." {
+		t.Errorf("the order mail is signed %t, encrypted %t, with the preview %q, want a signed mail that reads",
+			signed.signed, signed.encrypted, signed.snippet)
+	}
+	if len(signature) != 1 || signature[0].filename != "signature.asc" ||
+		signature[0].contentType != "application/pgp-signature" || signature[0].inline ||
+		signature[0].state != fileStored {
+		t.Errorf("the order mail keeps %+v, want its signature.asc kept as an attachment", signature)
+	}
+}
+
+func TestSeedListsTheEncryptedAndTheSignedMailAmongTheThreadsByTheirDates(t *testing.T) {
+	t.Parallel()
+
+	it := newIngestTest(t)
+	seeded := it.seedWorkspace()
+
+	page, err := readInbox(t.Context(), it.pool, seeded.tenant, 10, 0)
+
+	if err != nil {
+		t.Fatalf("readInbox() error = %v, want nil", err)
+	}
+	listed := make([]string, 0, len(page.items))
+	for _, thread := range page.items {
+		listed = append(listed, thread.subject)
+	}
+	want := []string{
+		"Delivery date", "Order confirmed", "Site visit on Friday", "Payment details", "Quote for the new lamp",
+	}
+	if !slices.Equal(listed, want) {
+		t.Errorf("the inbox lists %q, want %q, newest mail first", listed, want)
+	}
+}
+
 func TestSeedDatesEachMailAtTheTimeTheMailboxReceivedIt(t *testing.T) {
 	t.Parallel()
 
 	it := newIngestTest(t)
 	seeded := it.seedWorkspace()
 
-	for _, ref := range []string{"seed:lamp-quote", "seed:lamp-quote-reply", "seed:lamp-photo", "seed:site-visit",
-		"seed:delivery-date"} {
+	for _, ref := range []string{"seed:lamp-quote", "seed:lamp-quote-reply", "seed:lamp-photo",
+		"seed:payment-details", "seed:site-visit", "seed:order-confirmed", "seed:delivery-date"} {
 		row := storedRow(t, it.pool, seeded.mail(t, it, ref))
 		if !row.sentAt.Equal(row.receivedAt) || !row.receivedAt.Before(ingestNow) {
 			t.Errorf("the mail %s was sent %v and received %v, want both the same time before %v",

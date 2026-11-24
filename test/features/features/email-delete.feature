@@ -49,7 +49,7 @@ Feature: Staff delete stored mail and free the space a workspace uses
     When the administrator "default.admin@example.com" deletes the mail "Site visit on Friday"
     Then the delete answers 1 mail deleted and the thread deleted
     When the member "default.member@example.com" reads the inbox
-    Then the inbox lists the threads "Delivery date, Quote for the new lamp" in that order
+    Then the inbox lists the threads "Delivery date, Order confirmed, Payment details, Quote for the new lamp" in that order
 
   Scenario: Deleting the last mail of a thread removes the thread
     Given this mail reached "Acme":
@@ -142,7 +142,7 @@ Feature: Staff delete stored mail and free the space a workspace uses
     When the administrator "default.admin@example.com" deletes the thread "Quote for the new lamp"
     Then the delete answers 3 mails deleted and the thread deleted
     When the member "default.member@example.com" reads the inbox
-    Then the inbox lists the threads "Delivery date, Site visit on Friday" in that order
+    Then the inbox lists the threads "Delivery date, Order confirmed, Site visit on Friday, Payment details" in that order
     When the member "default.member@example.com" reads the usage
     Then the usage counts the bytes of every stored mail and frees each deleted file once
 

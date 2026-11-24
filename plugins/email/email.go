@@ -138,6 +138,14 @@ func (p *Plugin) Seed(ctx context.Context) error {
 	return p.ingester.seed(ctx, sdk.TenantOrDefault(ctx))
 }
 
+var _ sdk.ScreenGate = (*Plugin)(nil)
+
+// ShowsScreens reports whether the workspace ctx names, the default one when it names none, holds a mailbox.
+func (p *Plugin) ShowsScreens(ctx context.Context) (bool, error) {
+	_, held, err := readWorkspaceMailbox(ctx, p.pool, sdk.TenantOrDefault(ctx))
+	return held, err
+}
+
 var _ sdk.TenantGateConsumer = (*Plugin)(nil)
 
 // UseTenantGate receives the host's tenant gate.

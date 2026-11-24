@@ -20,6 +20,16 @@ func TestSeederIsTheHostSeederContract(t *testing.T) {
 	}
 }
 
+func TestScreenGateIsTheHostScreenGateContract(t *testing.T) {
+	t.Parallel()
+
+	named, hosted := reflect.TypeFor[ScreenGate](), reflect.TypeFor[pluginkit.ScreenGate]()
+
+	if named != hosted {
+		t.Errorf("ScreenGate = %v, want the host's own %v", named, hosted)
+	}
+}
+
 func TestRoleDeclarationIsTheRegistrysRole(t *testing.T) {
 	t.Parallel()
 

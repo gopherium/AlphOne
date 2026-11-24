@@ -33,6 +33,21 @@ func TestRegisterOpensNothingOverAnUnreachableDatabase(t *testing.T) {
 	}
 }
 
+func TestThePluginSaysWhetherItsScreensShow(t *testing.T) {
+	t.Parallel()
+
+	p, err := email.Register(sdk.Deps{DatabaseURL: silentDatabaseURL})
+	if err != nil {
+		t.Fatalf("Register() error = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = p.Stop(context.Background()) })
+
+	var plugin sdk.Plugin = p
+	if _, gated := plugin.(sdk.ScreenGate); !gated {
+		t.Error("the email plugin is no sdk.ScreenGate, want it to say whether its screens show")
+	}
+}
+
 func TestStopWithoutStartReleasesThePlugin(t *testing.T) {
 	t.Parallel()
 

@@ -78,6 +78,7 @@ export {
 } from '@wordpress/ui'
 export {
 	calendar,
+	caution,
 	check,
 	chevronLeft,
 	chevronRight,
@@ -201,6 +202,7 @@ export type { ListDefaults, ListSearch, ListView } from './listView'
 export { useAdminSettings } from './adminSettings'
 export { FormatLocaleGate } from './FormatLocaleGate'
 export type { AdminSettings, AdminSettingsRead } from './adminSettings'
+export { useHiddenPlugins } from './hiddenPlugins'
 export {
 	stringifyDocument as printGraphDocument,
 	useQuery as useGraphQuery,

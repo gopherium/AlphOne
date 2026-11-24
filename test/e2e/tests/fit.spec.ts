@@ -3,12 +3,51 @@
 import { expect, test } from '@playwright/test'
 
 import { startMailSink } from '../mail'
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 
 import { createTask, graph, graphUpload } from '../graph'
 import { deliverInboundText } from '../inbound'
+import { ingest, knowSender } from '../ingest'
 
 test.use({ viewport: { width: 390, height: 844 } })
+
+/** listedRows names each route whose sweep waits for the first row of its list, beside the name of that list. */
+const listedRows: Record<string, string> = { '/email': 'Inbox' }
+
+/**
+ * Feeds one mail whose sender, subject and body run long with no place to break.
+ * @param request - The Playwright request context.
+ * @param stamp - The stamp that keeps the mail apart from other runs.
+ * @param unbreakable - The text with no place to break.
+ */
+async function seedMail(request: APIRequestContext, stamp: number, unbreakable: string): Promise<void> {
+	const sender = {
+		name: `Maria Perez de la Fuente y Rodriguez ${stamp}`,
+		email: `maria.perez.de.la.fuente.y.rodriguez.${stamp}@example.com`,
+	}
+	await knowSender(request, sender)
+	expect(
+		ingest({
+			from: sender,
+			subject: `${unbreakable} ${stamp}`,
+			id: `fit.${stamp}@example.com`,
+			receivedAt: new Date(Math.floor(stamp / 1000) * 1000),
+			body: [unbreakable],
+		}),
+	).toBe('stored')
+}
+
+/**
+ * Waits for the first row of the route's list when listedRows names one.
+ * @param page - The page showing the route.
+ * @param route - The route on the page.
+ */
+async function awaitListedRow(page: Page, route: string): Promise<void> {
+	const list = listedRows[route]
+	if (list !== undefined) {
+		await expect(page.getByRole('region', { name: list }).getByRole('row').nth(1)).toBeVisible()
+	}
+}
 
 /**
  * Seeds one of every record a detail route needs, and returns their paths.
@@ -48,6 +87,8 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		'{ whatsAppConversations { id } }',
 	)
 
+	await seedMail(request, stamp, unbreakable)
+
 	const staged = await graphUpload<{ importUpload: { id: string } }>(
 		request,
 		'mutation($file: Upload!) { importUpload(file: $file) { id } }',
@@ -76,6 +117,7 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		'/users',
 		'/users/new',
 		'/users/tokens',
+		'/email',
 		'/whatsapp',
 		`/whatsapp/conversations/${conversationID}`,
 		'/import',
@@ -91,6 +133,7 @@ test('every screen fits a phone without spilling sideways', async ({ page, reque
 		await page.goto(route)
 		await expect(page.locator('main h2')).toBeVisible()
 		await expect(page.getByText(/^Loading/)).toHaveCount(0)
+		await awaitListedRow(page, route)
 
 		const report = await page.evaluate(() => {
 			const canvas = document.querySelector('.godmin-layout__canvas')

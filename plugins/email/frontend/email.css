@@ -1,0 +1,100 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.alphone-email-inbox__header {
+	box-sizing: border-box;
+	flex-shrink: 0;
+	min-block-size: 48px;
+	padding-inline: 20px;
+	border-block-end: 1px solid var(--wpds-color-stroke-surface-neutral);
+}
+
+.alphone-email-inbox__callout {
+	min-block-size: 320px;
+	padding-block: 64px;
+	padding-inline: 32px;
+	margin-inline: 0;
+}
+
+.alphone-email-inbox td > .dataviews-view-table__cell-content-wrapper {
+	min-inline-size: 0;
+	max-inline-size: none;
+}
+
+.alphone-email-inbox__cell {
+	display: flex;
+	flex-direction: column;
+	gap: var(--wpds-dimension-gap-xs);
+	min-inline-size: 0;
+	max-inline-size: 100%;
+}
+
+.alphone-email-inbox__line {
+	display: flex;
+	align-items: center;
+	gap: var(--wpds-dimension-gap-xs);
+	max-inline-size: 22em;
+}
+
+.alphone-email-inbox__cell > .alphone-email-inbox__line {
+	flex-wrap: wrap;
+	max-inline-size: none;
+	color: var(--wpds-color-foreground-content-neutral);
+}
+
+.alphone-email-inbox__cell > .alphone-email-inbox__line > .alphone-email-inbox__text {
+	flex: 1 1 4em;
+	max-inline-size: max-content;
+}
+
+.alphone-email-inbox__line > :not(.alphone-email-inbox__text) {
+	flex: none;
+}
+
+.alphone-email-inbox__marks {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--wpds-dimension-gap-xs);
+}
+
+.alphone-email-inbox__address {
+	max-inline-size: 22em;
+}
+
+.alphone-email-inbox__file {
+	display: inline-flex;
+}
+
+.alphone-email-inbox__text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.alphone-email-inbox__weak {
+	color: var(--wpds-color-foreground-content-neutral-weak);
+}
+
+@media (min-width: 783px) and (max-width: 1279px) {
+	.alphone-email-inbox__line {
+		max-inline-size: 14em;
+	}
+
+	.alphone-email-inbox__address {
+		max-inline-size: 14em;
+	}
+}
+
+@media (max-width: 782px) {
+	.alphone-email-inbox .dataviews-view-table__primary-column-content {
+		flex-grow: 1;
+	}
+
+	.alphone-email-inbox__line {
+		inline-size: 0;
+		min-inline-size: 100%;
+	}
+
+	.alphone-email-inbox__marks {
+		margin-block: -2px;
+	}
+}
