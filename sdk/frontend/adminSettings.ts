@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { gql, useQuery } from 'urql'
-import type { TypedDocumentNode } from 'urql'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { QueryCache } from '@tanstack/react-query'
+import { useCallback, useSyncExternalStore } from 'react'
+import { gql } from 'urql'
+import type { Client, TypedDocumentNode } from 'urql'
 
-import { useSession } from './session'
+import { useGraph } from './GraphProvider'
+import { readFromNetwork } from './networkRead'
 
 /** AdminSettings are the settings the admin screens read once, as the environment names them. */
 export interface AdminSettings {
@@ -46,12 +50,55 @@ const adminSettingsQuery: TypedDocumentNode<{ adminSettings: AdminSettings }, Re
 	}
 `
 
+/** The react-query key the admin settings are kept under. */
+const adminSettingsKey = ['adminSettings'] as const
+
 /**
- * Reads the admin settings once somebody is signed in.
+ * Reads the admin settings from the network, failing when the graph could not serve them.
+ * @param client - The graph client reading them.
+ * @param signal - The signal that drops the read.
+ * @returns The settings the graph served.
+ */
+async function readAdminSettings(client: Client, signal: AbortSignal): Promise<AdminSettings> {
+	const answer = await readFromNetwork(client, adminSettingsQuery, signal)
+	if (!answer.data) {
+		throw answer.error
+	}
+	return answer.data.adminSettings
+}
+
+/**
+ * Reads the admin settings once for each sign-in.
  * @returns The settings once served, beside whether the read failed.
  */
 export function useAdminSettings(): AdminSettingsRead {
-	const session = useSession()
-	const [result] = useQuery({ query: adminSettingsQuery, pause: session === null })
-	return { settings: result.data?.adminSettings, failed: result.error !== undefined }
+	const { client } = useGraph()
+	const read = useQuery({
+		queryKey: adminSettingsKey,
+		queryFn: ({ signal }) => readAdminSettings(client, signal),
+		staleTime: 'static',
+		retry: false,
+		retryOnMount: false,
+	})
+	return { settings: read.data, failed: read.isError }
+}
+
+/**
+ * Returns the time limit the admin settings a screen loaded serve, Infinity while none are loaded.
+ * @param cache - The query cache holding the settings.
+ * @returns The time limit in milliseconds.
+ */
+function loadedWriteTimeout(cache: QueryCache): number {
+	const settings = cache.find<AdminSettings>({ queryKey: adminSettingsKey, exact: true })?.state.data
+	return settings?.dialogWriteTimeoutMilliseconds ?? Infinity
+}
+
+/**
+ * Returns the time limit a busy write gets, the one the admin settings serve once a screen loaded them.
+ * @returns The time limit in milliseconds, Infinity while no screen loaded the settings.
+ */
+export function useWriteTimeout(): number {
+	const cache = useQueryClient().getQueryCache()
+	const subscribe = useCallback((changed: () => void) => cache.subscribe(changed), [cache])
+	return useSyncExternalStore(subscribe, () => loadedWriteTimeout(cache))
 }
