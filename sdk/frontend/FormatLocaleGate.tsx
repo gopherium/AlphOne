@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { rememberFormatLocale } from '@gopherium/gottext'
+import { FormatLocaleGate as LocaleGate } from '@gopherium/gottext/react'
 import type { ReactNode } from 'react'
 
 import { useAdminSettings } from './adminSettings'
@@ -12,9 +12,9 @@ import { useAdminSettings } from './adminSettings'
  */
 export function FormatLocaleGate({ children, loading }: { children: ReactNode; loading: ReactNode }) {
 	const { settings, failed } = useAdminSettings()
-	if (settings !== undefined) {
-		rememberFormatLocale(settings.formatLocale)
-		return children
-	}
-	return failed ? children : loading
+	return (
+		<LocaleGate locale={settings?.formatLocale} failed={failed} loading={loading}>
+			{children}
+		</LocaleGate>
+	)
 }

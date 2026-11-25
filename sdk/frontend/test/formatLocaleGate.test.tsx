@@ -124,6 +124,16 @@ test('opens the screens in the interface locale when the settings could not be r
 	expect(await screen.findByText('09/30/2026')).toBeInTheDocument()
 })
 
+test('forgets a remembered format locale when the settings read fails', async () => {
+	rememberFormatLocale('de-DE')
+	rememberLocale('en-US')
+	failSettings()
+
+	renderGate(createAuthQueryClient())
+
+	expect(await screen.findByText('09/30/2026')).toBeInTheDocument()
+})
+
 test('opens the screens on the first failed read through the client the admin builds', async () => {
 	rememberFormatLocale(undefined)
 	rememberLocale('en-US')
