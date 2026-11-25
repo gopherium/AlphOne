@@ -672,7 +672,7 @@ test('reads the accounts again after a rejected role change, then opens again on
 	renderAt('/users')
 
 	await act('Maria Perez', 'Change role')
-	await userEvent.click((await roleDialog()).getByRole('button', { name: 'Change role' }))
+	await changeToAdministrator()
 
 	expect(
 		await (await roleDialog()).findByText('The role of that account just changed. Reload the page and try again.'),
