@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { Button, GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
+import { Button, GraphProvider, createGraphClient, graphKeysOf } from '@alphone/frontend-sdk'
 import {
 	HttpResponse,
 	adminSession,
@@ -125,7 +125,7 @@ function appAt(path: string, user: (User & { role?: string }) | null, version: s
 	seedSession(client, user)
 	const graph = createGraphClient({
 		onSessionExpired: () => client.setQueryData(sessionQueryKey, null),
-		plugins,
+		keys: graphKeysOf(plugins),
 	})
 	server.use(
 		graphql.query('Version', () =>
