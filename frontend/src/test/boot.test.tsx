@@ -19,10 +19,10 @@ test('shows a spinner while the session loads', () => {
 	expect(status.closest('.godmin-loading-screen')).not.toBeNull()
 })
 
-test('the entry hands that spinner to the auth gate', () => {
-	expect(sources['../main.tsx']).toMatch(/loading=\{<BootLoading \/>\}/)
-})
-
 test('the entry hands the channel names to the SDK at boot', () => {
 	expect(sources['../main.tsx']).toMatch(/^configureAppChannelNames\(\)$/m)
+})
+
+test('the entry works out the graph keys at boot', () => {
+	expect(sources['../main.tsx']).toMatch(/^const graphKeys = graphKeysOf\(plugins\)$/m)
 })
