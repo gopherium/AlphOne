@@ -30,7 +30,7 @@ import type { ComponentProps, ReactElement } from 'react'
 import { Client, fetchExchange, subscriptionExchange } from 'urql'
 import { vi } from 'vitest'
 
-import { doorbellExchange, graphCacheExchange, graphRetryExchange } from './graph'
+import { doorbellExchange, graphCacheExchange, graphKeysOf, graphRetryExchange } from './graph'
 import type { GraphClient } from './graph'
 import { GraphProvider } from './GraphProvider'
 import type { FrontendPlugin, MenuItem } from './index'
@@ -93,7 +93,7 @@ export function fakeGraphClient(plugins: readonly Pick<FrontendPlugin, 'id' | 'g
 		preferGetMethod: false,
 		exchanges: [
 			doorbell.exchange,
-			graphCacheExchange(plugins),
+			graphCacheExchange(graphKeysOf(plugins)),
 			subscriptionExchange({
 				forwardSubscription: (request) => {
 					documents.push(String(request.query))

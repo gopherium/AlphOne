@@ -80,7 +80,7 @@ test.each([
 	{
 		client: 'a graph client',
 		typename: 'ClientKeyed',
-		build: (plugins: GraphKeyedPlugins) => createGraphClient({ onSessionExpired: vi.fn(), plugins }),
+		build: (plugins: GraphKeyedPlugins) => createGraphClient({ onSessionExpired: vi.fn(), keys: graphKeysOf(plugins) }),
 	},
 	{
 		client: 'a fake graph client',

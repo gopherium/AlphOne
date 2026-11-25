@@ -396,8 +396,8 @@ reaches `total`. The identities of every contact on a page load in one read.
 
 ## Admin settings
 
-`adminSettings` answers the settings the admin screens read once when they
-start.
+`adminSettings` answers the settings the admin screens read once as the admin
+opens and again after each sign-in.
 
 ```graphql
 query {

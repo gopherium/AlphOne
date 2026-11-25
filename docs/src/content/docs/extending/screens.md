@@ -586,6 +586,9 @@ Give every list that must show changes made somewhere else
 cached page at once, asks the server anyway, and swaps in the fresh
 page when it arrives.
 
+Each account that signs in gets a cache of its own. It starts empty, so
+the first screen that account opens always asks the server.
+
 ### Types without an id
 
 The cache files every answer by its type and its `id`. A type of yours

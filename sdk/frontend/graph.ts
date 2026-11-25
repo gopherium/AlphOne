@@ -316,12 +316,12 @@ export function graphKeysOf(plugins: readonly GraphKeyedPlugin[]): GraphKeys {
 
 /**
  * Returns the normalized cache exchange configured for the AlphOne schema and the plugins' types.
- * @param plugins - The plugins whose types the cache keys beside the core ones.
+ * @param keys - The keys the cache files each type without an id by.
  * @returns The cache exchange.
  */
-export function graphCacheExchange(plugins: readonly GraphKeyedPlugin[] = []): Exchange {
+export function graphCacheExchange(keys: GraphKeys): Exchange {
 	return cacheExchange({
-		keys: graphKeysOf(plugins),
+		keys,
 		resolvers: {
 			Query: {
 				contacts: relayPagination(),
@@ -431,14 +431,11 @@ export async function graphFetch(input: RequestInfo | URL, init?: RequestInit): 
 }
 
 /**
- * Returns the configured graph client every screen and plugin shares.
- * @param options - The session expiry callback bridging to the auth layer, beside the plugins whose types it keys.
+ * Returns the configured graph client every screen and plugin of one signed-in account shares.
+ * @param options - The session expiry callback bridging to the auth layer, beside the keys the cache files answers by.
  * @returns The client beside its doorbell trigger.
  */
-export function createGraphClient(options: {
-	onSessionExpired: () => void
-	plugins?: readonly GraphKeyedPlugin[]
-}): GraphClient {
+export function createGraphClient(options: { onSessionExpired: () => void; keys?: GraphKeys }): GraphClient {
 	const doorbell = doorbellExchange()
 	const stream = eventStreamExchange()
 	const client = new Client({
@@ -448,7 +445,7 @@ export function createGraphClient(options: {
 		preferGetMethod: false,
 		exchanges: [
 			doorbell.exchange,
-			graphCacheExchange(options.plugins),
+			graphCacheExchange(options.keys ?? graphKeysOf([])),
 			sessionExchange(options.onSessionExpired),
 			stream.exchange,
 			graphRetryExchange(),

@@ -3,9 +3,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { gql } from 'urql'
 import type { Client, TypedDocumentNode } from 'urql'
-import { filter, pipe, subscribe, take } from 'wonka'
 
 import { useGraph } from './GraphProvider'
+import { readFromNetwork } from './networkRead'
 import { useSession } from './session'
 
 /** hiddenPluginsQuery reads the ids of the plugins that hide their screens in the caller's workspace. */
@@ -25,15 +25,7 @@ const none: readonly string[] = []
  * @returns The hidden plugin ids, none when the read failed.
  */
 function readHiddenPlugins(client: Client, signal: AbortSignal): Promise<readonly string[]> {
-	return new Promise((resolve) => {
-		const reading = pipe(
-			client.query(hiddenPluginsQuery, {}, { requestPolicy: 'network-only' }),
-			filter((answer) => !answer.stale),
-			take(1),
-			subscribe((answer) => resolve(answer.data?.hiddenPlugins ?? none)),
-		)
-		signal.addEventListener('abort', reading.unsubscribe, { once: true })
-	})
+	return readFromNetwork(client, hiddenPluginsQuery, signal).then((answer) => answer.data?.hiddenPlugins ?? none)
 }
 
 /**

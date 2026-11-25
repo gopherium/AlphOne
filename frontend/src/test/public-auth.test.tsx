@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { HttpResponse, graphql, server } from '@alphone/frontend-sdk/testing'
+import { GraphProvider, createGraphClient } from '@alphone/frontend-sdk'
+import { HttpResponse, graphql, http, server } from '@alphone/frontend-sdk/testing'
 import { resetLocale } from '@gopherium/gottext/testing'
-import { createAuthQueryClient } from '@gopherium/react-auth'
+import { configureAuthTransport, createAuthQueryClient, resetAuthTransport } from '@gopherium/react-auth'
 import { activateOk, resetOk } from '@gopherium/react-auth/testing'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import type { ReactNode } from 'react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, expect, onTestFinished, test, vi } from 'vitest'
 
+import { AdminHost } from '../AdminHost'
+import { PublicToaster } from '../AppToaster'
+import { graphAuthTransport } from '../auth/graphTransport'
 import { LoginSlot, legalLinks, publicAuthScreen } from '../auth/PublicAuth'
 import { startAppLocale } from '../i18n/start'
 
@@ -25,9 +30,63 @@ const ACTIVATE_URL = new URL('https://crm.example.com/activate?token=t-1')
 /** RESET_URL is a mailed password reset link. */
 const RESET_URL = new URL('https://crm.example.com/reset-password?token=t-2')
 
+/** QUIET is how long in milliseconds a test waits for a request the page must never send. */
+const QUIET = 60
+
+/** NO_SESSION is the graph's answer to a caller who is not signed in. */
+const NO_SESSION = { data: null, errors: [{ message: 'no session', extensions: { code: 'UNAUTHENTICATED' } }] }
+
+/** INVITED is the member account an accepted invitation signs in. */
+const INVITED = {
+	id: '00000000-0000-4000-8000-000000000001',
+	email: 'maria@example.com',
+	name: 'Maria Perez',
+	role: 'member',
+	capabilities: [],
+	grantable: [],
+}
+
 afterEach(() => {
 	resetLocale()
 })
+
+/**
+ * Renders a public link page under the strict checks, the admin host and the toast region, beside an idle graph client.
+ * @param page - The page to render.
+ */
+function renderPublicPage(page: ReactNode) {
+	render(
+		<StrictMode>
+			<QueryClientProvider client={createAuthQueryClient()}>
+				<GraphProvider graph={createGraphClient({ onSessionExpired: () => {} })}>
+					<AdminHost>
+						<PublicToaster>{page}</PublicToaster>
+					</AdminHost>
+				</GraphProvider>
+			</QueryClientProvider>
+		</StrictMode>,
+	)
+}
+
+/**
+ * Records every request the page sends until the test ends, a graph operation by its name.
+ * @returns The requests sent so far, in order.
+ */
+function recordRequests(): string[] {
+	const asked: string[] = []
+	server.use(
+		graphql.operation(({ operationName }) => {
+			asked.push(operationName)
+		}),
+		http.all('*', ({ request }) => {
+			const { pathname } = new URL(request.url)
+			if (pathname !== '/api/graphql') {
+				asked.push(`${request.method} ${pathname}`)
+			}
+		}),
+	)
+	return asked
+}
 
 /**
  * Renders one element under a fresh auth query client.
@@ -86,6 +145,30 @@ test('the activation link hands its token to the screen and reports the way on',
 	await userEvent.click(screen.getByRole('button', { name: 'Set password' }))
 
 	await waitFor(() => expect(onDone).toHaveBeenCalled())
+})
+
+test('shows a visitor with no session the page with no error, asking the server only to set the password', async () => {
+	configureAuthTransport(graphAuthTransport)
+	onTestFinished(resetAuthTransport)
+	server.use(
+		graphql.query('Me', () => HttpResponse.json(NO_SESSION)),
+		graphql.query('AdminSettings', () => HttpResponse.json(NO_SESSION)),
+		graphql.mutation('AcceptInvite', () => HttpResponse.json({ data: { acceptInvite: { me: INVITED } } })),
+	)
+	const asked = recordRequests()
+	const errors = vi.spyOn(console, 'error')
+	onTestFinished(() => errors.mockRestore())
+	const onDone = vi.fn()
+	renderPublicPage(publicAuthScreen(ACTIVATE_URL, [], onDone))
+
+	await userEvent.type(await screen.findByLabelText('Password'), 'correct horse battery')
+	await userEvent.click(screen.getByRole('button', { name: 'Set password' }))
+	await waitFor(() => expect(onDone).toHaveBeenCalled())
+	await new Promise((resolve) => setTimeout(resolve, QUIET))
+
+	expect(asked).toEqual(['AcceptInvite'])
+	expect(screen.queryByRole('alert')).toBeNull()
+	expect(errors).not.toHaveBeenCalled()
 })
 
 test('the reset link reports the way on once the password is replaced', async () => {
