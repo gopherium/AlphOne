@@ -252,8 +252,8 @@ github.com/googleapis/gax-go/v2 v2.27.0 h1:qe2iQOUzxb3fd6x6ewpIEixPQhJ+0Ihc/RRZh
 github.com/googleapis/gax-go/v2 v2.27.0/go.mod h1:RofiqDw3ehcG4L0H1zO3D2Itpwd3/uS/7wdmbNDF1DE=
 github.com/gopherium/framework/dbkit v0.3.0 h1:EkMU4dg6YkiIrn3SJH0oJ2KzLNIXrDMu4K+HHoraEIs=
 github.com/gopherium/framework/dbkit v0.3.0/go.mod h1:sGsNkpbHe1LRW7k1qEjTzqbeHVYOnoCI5e1l/81TAvQ=
-github.com/gopherium/framework/dbkit/postgres v0.3.0 h1:W9SoXXu9Y3YRum5vIG10iBHlMMIhmbuUmOPLmZEnW3U=
-github.com/gopherium/framework/dbkit/postgres v0.3.0/go.mod h1:ZUsvp2lOkhX+08sstBErt+jN6FM5HkhxV7hXgToRd+A=
+github.com/gopherium/framework/dbkit/postgres v0.4.0 h1:OZoA9HimFbZ893qfzvH/24ubuyS9BNqvupxUmif/usE=
+github.com/gopherium/framework/dbkit/postgres v0.4.0/go.mod h1:3yVtsgnk6iuj8ThK+K3ifVIuFJNT5U/8ka8cLfw8onU=
 github.com/gopherium/framework/goncierge v0.1.0 h1:9Zn2zxAuWTrhKeMEHNSncAb1jmjFrkEpVYXGdZrxTG8=
 github.com/gopherium/framework/goncierge v0.1.0/go.mod h1:ekTJKyCbU0s659tjHvH/sjEZfPp2S4iuOGaLRRULZuA=
 github.com/gopherium/framework/gonsole v0.9.0 h1:GGj5pZvBN1zmpDlSGJGWuQkel1bRjopkxxVn0g2G86k=
