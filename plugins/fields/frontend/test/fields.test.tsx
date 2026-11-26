@@ -135,6 +135,23 @@ test('the catalogue lists every defined field in a table', async () => {
 	expect(headers.map((header) => header.textContent)).toEqual(['Label', 'Kind', 'API name', ''])
 })
 
+test('each body cell of a field row holds its first line in a cell box', async () => {
+	serveFieldCatalogue([birthDate])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
+	const boxed = cells.map((cell) => cell.firstElementChild?.matches('div.godmin-table__cell'))
+	expect(boxed).toEqual([true, true, true, true])
+	expect(cells.map((cell) => cell.childElementCount)).toEqual([1, 1, 1, 1])
+	const boxes = cells.map((cell) => cell.firstElementChild as HTMLElement)
+	expect(boxes[0]).toHaveTextContent(/^Birth date$/)
+	expect(within(boxes[1]).getByText('Date')).toBeInTheDocument()
+	expect(boxes[2].querySelector(':scope > code')).toHaveTextContent(/^birthDate$/)
+	expect(within(boxes[3]).getByRole('button', { name: 'Archive Birth date' })).toBeInTheDocument()
+})
+
 test('an empty catalogue invites the first field', async () => {
 	serveFieldCatalogue([])
 
@@ -823,6 +840,20 @@ test('the catalogue shows a repeater beside the labels of its sub fields', async
 	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
 	expect(cells[1]).toHaveTextContent('Repeater')
 	expect(cells[1]).toHaveTextContent('Date, Comment')
+})
+
+test('a repeater lists its sub fields on a line right after its kind box, outside it', async () => {
+	serveFieldCatalogue([history])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const kind = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')[1]
+	const box = kind.firstElementChild as HTMLElement
+	expect(box).toHaveClass('godmin-table__cell')
+	expect(box).toHaveTextContent(/^Repeater$/)
+	expect(box.nextElementSibling).toHaveTextContent(/^Date, Comment$/)
+	expect(kind.childElementCount).toBe(2)
 })
 
 test('a field holding no sub fields shows its kind alone', async () => {

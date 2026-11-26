@@ -530,46 +530,50 @@ function FieldTableRow({
 
 	return (
 		<tr ref={element}>
-			<td>{field.label}</td>
+			<td>
+				<div className="godmin-table__cell">{field.label}</div>
+			</td>
 			<td>
 				<KindCell field={field} />
 			</td>
 			<td>
-				<code>{field.name}</code>
+				<div className="godmin-table__cell">
+					<code>{field.name}</code>
+				</div>
 			</td>
 			<td className="godmin-table__actions">
-				<RowControls
-					at={at}
-					count={count}
-					removable={!locked}
-					labels={{
-						moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
-						moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
-						remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
-					}}
-					onMove={onMove}
-					onRemove={onArchive}
-				/>
+				<div className="godmin-table__cell">
+					<RowControls
+						at={at}
+						count={count}
+						removable={!locked}
+						labels={{
+							moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
+							moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
+							remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
+						}}
+						onMove={onMove}
+						onRemove={onArchive}
+					/>
+				</div>
 			</td>
 		</tr>
 	)
 }
 
 /**
- * Renders the kind of one field, with the labels of its sub fields when it holds any.
+ * Renders the kind of one field in its cell box, with the labels of its sub fields on a line after the box.
  * @param props - The catalogue row.
  * @returns The kind cell content.
  */
 function KindCell({ field }: { field: FieldRow }) {
-	const badge = <Badge intent="stable">{kindLabel(field.kind)}</Badge>
-	if (field.subFields.length === 0) {
-		return badge
-	}
 	return (
-		<Stack direction="column" gap="xs" align="start">
-			{badge}
-			<Text variant="body-sm">{labelList(field.subFields)}</Text>
-		</Stack>
+		<>
+			<div className="godmin-table__cell">
+				<Badge intent="stable">{kindLabel(field.kind)}</Badge>
+			</div>
+			{field.subFields.length === 0 ? null : <Text variant="body-sm">{labelList(field.subFields)}</Text>}
+		</>
 	)
 }
 
