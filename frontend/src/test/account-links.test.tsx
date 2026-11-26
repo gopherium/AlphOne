@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { MANAGE_USERS } from '@alphone/frontend-sdk'
-import { memberSession } from '@alphone/frontend-sdk/testing'
+import { HttpResponse, graphql, memberSession, server } from '@alphone/frontend-sdk/testing'
+import { resetLocale } from '@gopherium/gottext/testing'
 import { screen, within } from '@testing-library/react'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 
+import { startAppLocale } from '../i18n/start'
 import { renderAt } from './render'
 
 vi.mock('../plugins', async (importOriginal) => {
@@ -111,6 +113,16 @@ test('opens a link asking for a new tab in one, and tells a screen reader so', a
 
 	const footer = await sidebarFooter()
 	const link = within(footer).getByRole('link', { name: 'Chat with support(opens in a new tab)' })
+	expect(link).toHaveAttribute('target', '_blank')
+})
+
+test('tells a screen reader in Spanish that a link opens a new tab', async () => {
+	server.use(graphql.query('AppLocale', () => HttpResponse.json({ data: { locale: 'es-ES' } })))
+	await startAppLocale()
+	onTestFinished(() => resetLocale())
+	renderAt('/')
+
+	const link = await screen.findByRole('link', { name: 'Chat with support(abre en una nueva pestaña)' })
 	expect(link).toHaveAttribute('target', '_blank')
 })
 
