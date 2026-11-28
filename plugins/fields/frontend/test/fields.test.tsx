@@ -135,6 +135,23 @@ test('the catalogue lists every defined field in a table', async () => {
 	expect(headers.map((header) => header.textContent)).toEqual(['Label', 'Kind', 'API name', ''])
 })
 
+test('each body cell of a field row holds its first line in a cell box', async () => {
+	serveFieldCatalogue([birthDate])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
+	const boxed = cells.map((cell) => cell.firstElementChild?.matches('div.godmin-table__cell'))
+	expect(boxed).toEqual([true, true, true, true])
+	expect(cells.map((cell) => cell.childElementCount)).toEqual([1, 1, 1, 1])
+	const boxes = cells.map((cell) => cell.firstElementChild as HTMLElement)
+	expect(boxes[0]).toHaveTextContent(/^Birth date$/)
+	expect(within(boxes[1]).getByText('Date')).toBeInTheDocument()
+	expect(boxes[2].querySelector(':scope > code')).toHaveTextContent(/^birthDate$/)
+	expect(within(boxes[3]).getByRole('button', { name: 'Archive Birth date' })).toBeInTheDocument()
+})
+
 test('an empty catalogue invites the first field', async () => {
 	serveFieldCatalogue([])
 
@@ -658,9 +675,33 @@ async function toastOf(message: string) {
 	return (await screen.findByText(message)).closest('.godmin-toast') as HTMLElement
 }
 
-/** Presses Undo in the toast that says a field was archived. */
-async function undoArchive() {
-	await userEvent.click(within(await toastOf('Field archived.')).getByRole('button', { name: 'Undo' }))
+/**
+ * Returns what the toast says once the named field is archived.
+ * @param label - The label of the field.
+ * @returns The message.
+ */
+function archivedSaid(label: string) {
+	return `"${label}" archived.`
+}
+
+/**
+ * Returns what the toast says once the named field is restored.
+ * @param label - The label of the field.
+ * @returns The message.
+ */
+function restoredSaid(label: string) {
+	return `"${label}" has been restored.`
+}
+
+/** ARCHIVED matches what the toast of any archive says. */
+const ARCHIVED = /^".+" archived\.$/
+
+/**
+ * Presses Undo in the toast that says the named field was archived.
+ * @param label - The label of the field.
+ */
+async function undoArchive(label: string) {
+	await userEvent.click(within(await toastOf(archivedSaid(label))).getByRole('button', { name: 'Undo' }))
 }
 
 /**
@@ -681,7 +722,7 @@ test('a failed archive is reported', async () => {
 
 	expect(await screen.findByText('Could not archive the field.', TOAST)).toBeInTheDocument()
 	expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-	expect(screen.queryByText('Field archived.')).not.toBeInTheDocument()
+	expect(screen.queryByText(ARCHIVED)).not.toBeInTheDocument()
 })
 
 test('a validation error is reported word for word', async () => {
@@ -799,6 +840,20 @@ test('the catalogue shows a repeater beside the labels of its sub fields', async
 	const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')
 	expect(cells[1]).toHaveTextContent('Repeater')
 	expect(cells[1]).toHaveTextContent('Date, Comment')
+})
+
+test('a repeater lists its sub fields on a line right after its kind box, outside it', async () => {
+	serveFieldCatalogue([history])
+
+	renderScreen()
+
+	const table = await screen.findByRole('table')
+	const kind = within(within(table).getAllByRole('row')[1]).getAllByRole('cell')[1]
+	const box = kind.firstElementChild as HTMLElement
+	expect(box).toHaveClass('godmin-table__cell')
+	expect(box).toHaveTextContent(/^Repeater$/)
+	expect(box.nextElementSibling).toHaveTextContent(/^Date, Comment$/)
+	expect(kind.childElementCount).toBe(2)
 })
 
 test('a field holding no sub fields shows its kind alone', async () => {
@@ -1034,7 +1089,7 @@ test('archiving a field sends its id', async () => {
 	await archiveField('Birth date')
 
 	await waitFor(() => expect(archived).toHaveBeenCalledWith({ id: birthDate.id }))
-	expect(await screen.findByText('Field archived.')).toBeInTheDocument()
+	expect(await screen.findByText(archivedSaid('Birth date'))).toBeInTheDocument()
 })
 
 const shoeSize = {
@@ -1091,12 +1146,13 @@ async function shownLabels() {
 /**
  * Serves the catalogue from a store that orders, archives and defines fields, holding every order until released.
  * @param live - The live fields in their stored order.
- * @returns The recorder of the orders, their release, the count of catalogue reads and a setter of the live fields.
+ * @returns The recorders of the orders and archives, the orders' release, the read count and a fields setter.
  */
 function serveFieldStore(live: (typeof birthDate)[]) {
 	let served = live
 	let reads = 0
 	const ordered = vi.fn()
+	const archived = vi.fn()
 	let release = () => {}
 	const released = new Promise<void>((resolve) => {
 		release = resolve
@@ -1115,6 +1171,7 @@ function serveFieldStore(live: (typeof birthDate)[]) {
 			return HttpResponse.json(accepted)
 		}),
 		graphql.mutation('ArchiveField', ({ variables }) => {
+			archived(variables)
 			served = served.filter((field) => field.id !== variables.id)
 			return HttpResponse.json({ data: { archiveField: true } })
 		}),
@@ -1125,6 +1182,7 @@ function serveFieldStore(live: (typeof birthDate)[]) {
 	)
 	return {
 		ordered,
+		archived,
 		release: () => release(),
 		reads: () => reads,
 		serve: (fields: (typeof birthDate)[]) => {
@@ -1151,7 +1209,7 @@ test('each field row carries arrows that move it and a trash icon that archives 
 	expect(screen.queryByText('Archive')).not.toBeInTheDocument()
 })
 
-test('the trash archives at once, asking nothing, and says so with an Undo', async () => {
+test('the trash archives at once, asking nothing, and names the field in a toast with an Undo', async () => {
 	serveFieldCatalogue([birthDate, shoeSize])
 	const archived = capture('ArchiveField', { data: { archiveField: true } })
 
@@ -1159,7 +1217,7 @@ test('the trash archives at once, asking nothing, and says so with an Undo', asy
 	await archiveField('Birth date')
 
 	await waitFor(() => expect(archived).toHaveBeenCalledWith({ id: birthDate.id }))
-	expect(within(await toastOf('Field archived.')).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+	expect(within(await toastOf('"Birth date" archived.')).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
 	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Archive Birth date' })).toHaveFocus()
 })
@@ -1179,7 +1237,7 @@ test.each([
 	await waitFor(() => expect(trash).toHaveFocus())
 	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Archive Shoe size' })).not.toHaveAttribute('aria-disabled', 'true')
-	expect(screen.queryByText('Field archived.')).not.toBeInTheDocument()
+	expect(screen.queryByText(ARCHIVED)).not.toBeInTheDocument()
 })
 
 /**
@@ -1602,9 +1660,8 @@ test('every trash stays locked until the read drops the archived row', async () 
 	expect(row.getByRole('button', { name: 'Archive Shoe size' })).toHaveAttribute('aria-disabled', 'true')
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
 	releaseRead()
-	const next = screen.getByRole('button', { name: 'Archive Nickname' })
-	await waitFor(() => expect(next).toHaveFocus())
-	expect(next).not.toHaveAttribute('aria-disabled', 'true')
+	await waitFor(() => expect(screen.getByRole('region', { name: 'Fields' })).toHaveFocus())
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 /**
@@ -1740,19 +1797,52 @@ test('an archive lost on the way can be pressed again', async () => {
 })
 
 test.each([
-	['the next row', 'Shoe size', 'Archive Nickname'],
-	['the row above when the last row goes', 'Nickname', 'Archive Shoe size'],
-])('after an archive focus moves to the trash of %s', async (_, archived, next) => {
+	['a middle row', 'Shoe size', 'Archive Nickname'],
+	['the last row', 'Nickname', 'Archive Shoe size'],
+])('after an archive of %s focus moves to the list region', async (_, archived, near) => {
 	serveFieldStore([birthDate, shoeSize, nickname])
 
 	renderScreen()
 	await archiveField(archived)
 	await waitFor(() => expect(screen.queryByText(archived)).not.toBeInTheDocument())
 
-	const trash = screen.getByRole('button', { name: next })
-	expect(trash).toHaveFocus()
+	expect(screen.getByRole('region', { name: 'Fields' })).toHaveFocus()
+	const trash = screen.getByRole('button', { name: near })
+	expect(trash).not.toHaveFocus()
 	expect(trash).not.toHaveAttribute('aria-disabled', 'true')
-	expect(screen.getByText('Field archived.')).toBeInTheDocument()
+	expect(screen.getByText(archivedSaid(archived))).toBeInTheDocument()
+})
+
+test('a second Enter or Space after an archive archives nothing more', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+
+	renderScreen()
+	const trash = await screen.findByRole('button', { name: 'Archive Shoe size' })
+	act(() => trash.focus())
+	await userEvent.keyboard('{Enter}')
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+	await userEvent.keyboard('{Enter}')
+	await userEvent.keyboard(' ')
+	await settle()
+
+	expect(store.archived).toHaveBeenCalledOnce()
+	expect(store.archived).toHaveBeenCalledWith({ id: shoeSize.id })
+	expect(screen.getByText('Nickname')).toBeInTheDocument()
+})
+
+test('a row a read drops while its trash holds focus hands focus to the list region', async () => {
+	const store = serveFieldStore([birthDate, shoeSize, nickname])
+	const { graph } = fakeGraphClient([plugin])
+
+	renderScreen(graph)
+	const trash = await screen.findByRole('button', { name: 'Archive Shoe size' })
+	act(() => trash.focus())
+	store.serve([birthDate, nickname])
+	act(() => graph.refetch(['FieldCatalogue']))
+	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
+
+	expect(screen.getByRole('region', { name: 'Fields' })).toHaveFocus()
+	expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveFocus()
 })
 
 test('a row a read drops hands focus to the same arrow in the next row', async () => {
@@ -1779,7 +1869,7 @@ test('after the last field is archived focus moves to the list region', async ()
 	const region = screen.getByRole('region', { name: 'Fields' })
 	expect(region).toHaveFocus()
 	expect(region).toHaveAttribute('tabindex', '-1')
-	expect(screen.getByText('Field archived.')).toBeInTheDocument()
+	expect(screen.getByText(archivedSaid('Birth date'))).toBeInTheDocument()
 })
 
 test('a field brought back after the reader archived it shows again', async () => {
@@ -1869,15 +1959,15 @@ function serveRevivingStore<Field extends StoredField>(live: Field[], defining: 
 	return { defined, ordered }
 }
 
-test('Undo brings an archived field back in its place and says so', async () => {
+test('Undo brings an archived field back in its place and names it in a toast', async () => {
 	const store = serveRevivingStore([birthDate, shoeSize, nickname])
 
 	renderScreen()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 
-	expect(await screen.findByText('Field restored.', TOAST)).toBeInTheDocument()
+	expect(await screen.findByText('"Shoe size" has been restored.', TOAST)).toBeInTheDocument()
 	await waitFor(async () => expect(await shownLabels()).toEqual(['Birth date', 'Shoe size', 'Nickname']))
 	expect(store.defined).toHaveBeenCalledWith({ name: 'shoeSize', label: 'Shoe size', kind: 'NUMBER', subFields: [] })
 	expect(store.ordered).toHaveBeenCalledWith({ ids: [birthDate.id, shoeSize.id, nickname.id] })
@@ -1888,7 +1978,7 @@ test('Undo sends a repeater back with its sub fields as the catalogue showed the
 
 	renderScreen()
 	await archiveField('History')
-	await undoArchive()
+	await undoArchive('History')
 
 	await waitFor(() => expect(store.defined).toHaveBeenCalledOnce())
 	expect(store.defined).toHaveBeenCalledWith({
@@ -1909,9 +1999,9 @@ test('Undo pressed before the read drops the row frees every trash', async () =>
 
 	renderScreen(graph)
 	await archiveField('Shoe size')
-	await toastOf('Field archived.')
+	await toastOf(archivedSaid('Shoe size'))
 	expect(screen.getByRole('button', { name: 'Archive Nickname' })).toHaveAttribute('aria-disabled', 'true')
-	await undoArchive()
+	await undoArchive('Shoe size')
 
 	await waitFor(() =>
 		expect(screen.getByRole('button', { name: 'Archive Nickname' })).not.toHaveAttribute('aria-disabled', 'true'),
@@ -1928,10 +2018,9 @@ test('Undo of an earlier archive while a later one waits for its read orders onl
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
 	vi.mocked(graph.refetch).mockImplementation(() => {})
 	await archiveField('Nickname')
-	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(2))
-	const [earlier] = screen.getAllByText('Field archived.')
-	await userEvent.click(within(earlier.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
-	await screen.findByText('Field restored.', TOAST)
+	await toastOf(archivedSaid('Nickname'))
+	await undoArchive('Shoe size')
+	await screen.findByText(restoredSaid('Shoe size'), TOAST)
 
 	await waitFor(() => expect(store.ordered).toHaveBeenCalledOnce())
 	expect(store.ordered).toHaveBeenCalledWith({ ids: [birthDate.id, shoeSize.id] })
@@ -1945,9 +2034,9 @@ test('Undo puts focus on the trash of the field it brings back once its row show
 	renderScreen()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 
-	await screen.findByText('Field restored.', TOAST)
+	await screen.findByText(restoredSaid('Shoe size'), TOAST)
 	await waitFor(() => expect(screen.getByRole('button', { name: 'Archive Shoe size' })).toHaveFocus())
 })
 
@@ -1960,8 +2049,8 @@ test('Undo leaves a focus the reader moved before the field came back', async ()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
 	vi.mocked(graph.refetch).mockImplementation(() => {})
-	await undoArchive()
-	await screen.findByText('Field restored.', TOAST)
+	await undoArchive('Shoe size')
+	await screen.findByText(restoredSaid('Shoe size'), TOAST)
 	const label = screen.getByLabelText('Label')
 	await userEvent.click(label)
 	act(() => read(['FieldCatalogue']))
@@ -1978,7 +2067,7 @@ test('a restore that fails puts focus on the field list', async () => {
 	renderScreen()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 
 	await screen.findByText(/^Could not restore the field\./, TOAST)
 	await waitFor(() => expect(screen.getByRole('region', { name: 'Fields' })).toHaveFocus())
@@ -1991,7 +2080,7 @@ test('a restore that fails leaves a focus the reader moved', async () => {
 	renderScreen()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
 	const label = screen.getByLabelText('Label')
 	await userEvent.click(label)
@@ -2008,7 +2097,7 @@ test('a restore that fails after the reader left Fields says so and throws nothi
 
 	const { rehost } = renderScreen()
 	await archiveGone('Shoe size')
-	await undoArchive()
+	await undoArchive('Shoe size')
 	await waitFor(() => expect(defining.called).toHaveBeenCalledOnce())
 	rehost(<p>Contacts</p>)
 	defining.release()
@@ -2044,10 +2133,9 @@ test('Undo of an earlier archive leaves the trashes of a later one locked', asyn
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
 	vi.mocked(graph.refetch).mockImplementation(() => {})
 	await archiveField('Nickname')
-	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(2))
-	const [earlier] = screen.getAllByText('Field archived.')
-	await userEvent.click(within(earlier.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
-	await screen.findByText('Field restored.', TOAST)
+	await toastOf(archivedSaid('Nickname'))
+	await undoArchive('Shoe size')
+	await screen.findByText(restoredSaid('Shoe size'), TOAST)
 
 	expect(screen.getByRole('button', { name: 'Archive Birth date' })).toHaveAttribute('aria-disabled', 'true')
 })
@@ -2067,9 +2155,9 @@ async function archiveGone(label: string) {
  * @returns The buttons.
  */
 async function undoButtons(count: number) {
-	await waitFor(() => expect(screen.getAllByText('Field archived.')).toHaveLength(count))
+	await waitFor(() => expect(screen.getAllByText(ARCHIVED)).toHaveLength(count))
 	return screen
-		.getAllByText('Field archived.')
+		.getAllByText(ARCHIVED)
 		.map((message) => within(message.closest('.godmin-toast') as HTMLElement).getByRole('button', { name: 'Undo' }))
 }
 
@@ -2170,12 +2258,12 @@ test.each([
 	renderScreen(graph)
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 
 	expect(await screen.findByText(/^Could not restore the field\./, TOAST)).toBeInTheDocument()
 	await settle()
 	expect(graph.refetch).toHaveBeenCalledTimes(reads)
-	expect(screen.queryByText('Field restored.')).not.toBeInTheDocument()
+	expect(screen.queryByText(restoredSaid('Shoe size'))).not.toBeInTheDocument()
 	expect(await shownLabels()).toEqual(['Birth date'])
 })
 
@@ -2187,9 +2275,9 @@ test('a rejected order after a restore says so and shows the field last', async 
 	renderScreen()
 	await archiveField('Shoe size')
 	await waitFor(() => expect(screen.queryByText('Shoe size')).not.toBeInTheDocument())
-	await undoArchive()
+	await undoArchive('Shoe size')
 
-	expect(await screen.findByText('Field restored.', TOAST)).toBeInTheDocument()
+	expect(await screen.findByText(restoredSaid('Shoe size'), TOAST)).toBeInTheDocument()
 	expect(await screen.findByText(ORDER_REFUSED, TOAST)).toBeInTheDocument()
 	await waitFor(async () => expect(await shownLabels()).toEqual(['Birth date', 'Nickname', 'Shoe size']))
 })

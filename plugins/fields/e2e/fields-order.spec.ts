@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { expect, test } from '@playwright/test'
-import type { APIRequestContext, Page } from '@playwright/test'
+import type { APIRequestContext, Page, Request } from '@playwright/test'
 
 import { graph } from '../../../test/e2e/graph'
 
@@ -25,11 +25,34 @@ async function defineTextField(request: APIRequestContext, name: string, label: 
  * @returns The answer, once it arrives.
  */
 function orderAnswer(page: Page) {
-	return page.waitForResponse(
-		(response) =>
-			response.url().includes('/api/graphql') &&
-			(response.request().postDataJSON() as { operationName?: string } | null)?.operationName === 'OrderFields',
-	)
+	return page.waitForResponse((response) => operationOf(response.request()) === 'OrderFields')
+}
+
+/**
+ * Returns the name of the graph operation a request sends.
+ * @param request - The request.
+ * @returns The operation name, empty for a request that sends none.
+ */
+function operationOf(request: Request): string {
+	if (request.method() !== 'POST' || !request.url().includes('/api/graphql')) {
+		return ''
+	}
+	return (request.postDataJSON() as { operationName?: string } | null)?.operationName ?? ''
+}
+
+/**
+ * Collects the variables of every archive the page sends to the graph.
+ * @param page - The page sending the archives.
+ * @returns The variables, growing as the page sends them.
+ */
+function archivesSent(page: Page): unknown[] {
+	const sent: unknown[] = []
+	page.on('request', (request) => {
+		if (operationOf(request) === 'ArchiveField') {
+			sent.push((request.postDataJSON() as { variables?: unknown }).variables)
+		}
+	})
+	return sent
 }
 
 test('moves a field up, archives another, brings it back with Undo, and shows the new order on a contact', async ({
@@ -63,9 +86,9 @@ test('moves a field up, archives another, brings it back with Undo, and shows th
 	await middle.click()
 	await expect(rows).toHaveCount(2)
 	await expect(rows).toContainText([second, third])
-	const archived = page.locator('.godmin-toast').filter({ hasText: 'Field archived.' })
+	const archived = page.locator('.godmin-toast').filter({ hasText: `"${first}" archived.` })
 	await archived.getByRole('button', { name: 'Undo', exact: true }).click()
-	await expect(page.locator('.godmin-toast').filter({ hasText: 'Field restored.' })).toBeVisible()
+	await expect(page.locator('.godmin-toast').filter({ hasText: `"${first}" has been restored.` })).toBeVisible()
 	await expect(rows).toHaveCount(3)
 	await expect(rows).toContainText([second, first, third])
 	await expect(middle).toBeFocused()
@@ -76,6 +99,7 @@ test('moves a field up, archives another, brings it back with Undo, and shows th
 	await expect(rows).toHaveCount(2)
 	await expect(rows).toContainText([second, first])
 	await expect(rows.filter({ hasText: third })).toHaveCount(0)
+	await expect(page.getByRole('region', { name: 'Fields' })).toBeFocused()
 
 	await page.goto(`/contacts/${created.createContact.id}`)
 	const forms = page.locator('form').filter({ has: page.getByRole('button', { name: 'Save fields' }) })
@@ -83,4 +107,33 @@ test('moves a field up, archives another, brings it back with Undo, and shows th
 	await expect(inputs).toHaveCount(2)
 	await expect(inputs.nth(0)).toHaveAccessibleName(second)
 	await expect(inputs.nth(1)).toHaveAccessibleName(first)
+})
+
+test('an archive from the keyboard leaves focus on the Fields region, so a second Enter archives nothing', async ({
+	page,
+	request,
+}) => {
+	const stamp = Date.now()
+	const first = `Fax number ${stamp}`
+	const second = `Pager ${stamp}`
+	await defineTextField(request, `faxNumber${stamp}`, first)
+	await defineTextField(request, `pager${stamp}`, second)
+	const archives = archivesSent(page)
+
+	await page.goto('/')
+	await page.getByRole('link', { name: 'Fields' }).click()
+	const region = page.getByRole('region', { name: 'Fields' })
+	const rows = region.getByRole('row').filter({ hasText: String(stamp) })
+	await expect(rows).toContainText([first, second])
+	await page.getByRole('button', { name: `Archive ${first}`, exact: true }).focus()
+	await page.keyboard.press('Enter')
+	await expect(rows).toHaveCount(1)
+	await expect(region).toBeFocused()
+	await page.keyboard.press('Enter')
+	await page.keyboard.press('Space')
+
+	await page.reload()
+	await expect(rows).toHaveCount(1)
+	await expect(rows).toContainText([second])
+	expect(archives).toHaveLength(1)
 })

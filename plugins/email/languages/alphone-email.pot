@@ -61,6 +61,9 @@ msgstr ""
 msgid "Read the mail of %(address)s in one place."
 msgstr ""
 
+msgid "Reads mail. With an admin's token, also deletes mail and its files. Sends no mail."
+msgstr ""
+
 msgid "Sent"
 msgstr ""
 

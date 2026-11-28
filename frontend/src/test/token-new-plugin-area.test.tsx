@@ -12,9 +12,27 @@ vi.mock('../plugins', async (importOriginal) => {
 	return {
 		plugins: [
 			...wired.plugins,
-			{ id: 'probe', routes: () => [], nav: [], tokenAreas: [{ value: 'constructor', label: 'constructor' }] },
+			{
+				id: 'probe',
+				routes: () => [],
+				nav: [],
+				tokenAreas: [
+					{ value: 'constructor', label: 'constructor' },
+					{ value: 'notes', label: 'notes', writeDescription: 'Deletes stored notes.' },
+				],
+			},
 		],
 	}
+})
+
+test("ties an area's write description to its Write box only", async () => {
+	server.use(graphql.query('ApiTokens', () => HttpResponse.json({ data: { apiTokens: [] } })))
+	renderAt('/users/tokens/new')
+
+	expect(await screen.findByRole('checkbox', { name: 'Write notes' })).toHaveAccessibleDescription(
+		'Deletes stored notes.',
+	)
+	expect(screen.getByRole('checkbox', { name: 'Read notes' })).toHaveAccessibleDescription('')
 })
 
 test('asks for no plugin area left unticked, even one named like an object property', async () => {

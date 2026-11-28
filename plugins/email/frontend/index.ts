@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { _x, globCatalogs } from '@alphone/frontend-sdk'
+import { __, _x, globCatalogs } from '@alphone/frontend-sdk'
 import type { Catalog, FrontendPlugin } from '@alphone/frontend-sdk'
 
 import { nav } from './nav'
@@ -20,6 +20,9 @@ export const plugin: FrontendPlugin = {
 		value: 'email',
 		get label() {
 			return _x('email', 'token area', 'alphone-email')
+		},
+		get writeDescription() {
+			return __("Reads mail. With an admin's token, also deletes mail and its files. Sends no mail.", 'alphone-email')
 		},
 	}],
 	graphKeys: {

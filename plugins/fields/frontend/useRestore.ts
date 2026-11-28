@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { __, useGraphMutation, useToaster, writeFailure } from '@alphone/frontend-sdk'
+import { __, sprintf, useGraphMutation, useToaster, writeFailure } from '@alphone/frontend-sdk'
 import { useLayoutEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
@@ -53,7 +53,7 @@ export function useRestore(
 			}
 			return false
 		}
-		toaster.show(__('Field restored.', 'alphone-fields'))
+		toaster.show(sprintf(__('"%(label)s" has been restored.', 'alphone-fields'), { label: field.label }))
 		archived.current.delete(field.id)
 		back.current.add((defined.data as DefineFieldMutation).defineField.id)
 		const live = new Set([...shown.current.filter((id) => !archived.current.has(id)), ...back.current])

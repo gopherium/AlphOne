@@ -90,10 +90,10 @@ test('titles the page Add User, as the list button that opens it reads', async (
 	expect(await screen.findByRole('heading', { level: 2, name: 'Add User' })).toBeInTheDocument()
 })
 
-test('says under the title what the page does, as WordPress does', async () => {
+test('says under the title what the page does, in the WordPress sentence with the workspace', async () => {
 	renderAt('/users/new')
 
-	const subtitle = await screen.findByText('Create a brand new user and add them to this site.')
+	const subtitle = await screen.findByText('Create a brand new user and add them to this workspace.')
 	expect(subtitle).toHaveClass('godmin-page__subtitle')
 })
 
@@ -102,7 +102,10 @@ test('reads the title and the subtitle in Spanish', async () => {
 	renderAt('/users/new')
 
 	expect(await screen.findByRole('heading', { level: 2, name: 'Añadir usuario' })).toBeInTheDocument()
-	expect(screen.getByText('Crea un nuevo usuario y añádelo a este sitio.')).toHaveClass('godmin-page__subtitle')
+	expect(screen.getByText('Crea un nuevo usuario y añádelo a este espacio de trabajo.')).toHaveClass(
+		'godmin-page__subtitle',
+	)
+	expect(screen.queryByText(/sitio/)).toBeNull()
 })
 
 test('marks Email and Name as required in their labels', async () => {

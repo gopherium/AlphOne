@@ -342,7 +342,7 @@ function useArchive(
 				archivedShown.current.add(field.id)
 				gone.current.add(field.id)
 				setPending({ id: field.id, reading: true, from })
-				toaster.show(__('Field archived.', 'alphone-fields'), undo(field))
+				toaster.show(sprintf(__('"%(label)s" archived.', 'alphone-fields'), { label: field.label }), undo(field))
 			}
 			onChanged()
 		})
@@ -398,7 +398,7 @@ function FieldTable({
 }
 
 /**
- * Keeps focus in the list as its rows change, and returns the report a row makes as it goes.
+ * Keeps focus in the list as its rows change, a trash giving it to the region, and returns a leaving row's report.
  * @param region - The region the list renders in.
  * @param body - The table body the rows render in, empty while no row is left.
  * @param rows - The rows in the order shown.
@@ -422,7 +422,7 @@ function useFocusKept(
 			keepFocusInView(body)
 			return
 		}
-		const row = body.current?.rows[Math.min(lost.at, count - 1)]
+		const row = lost.control === TRASH ? undefined : body.current?.rows[Math.min(lost.at, count - 1)]
 		const target = row?.querySelectorAll('button')[lost.control] ?? (region.current as HTMLDivElement)
 		target.focus()
 	}, [region, body, shown, count])
@@ -530,46 +530,50 @@ function FieldTableRow({
 
 	return (
 		<tr ref={element}>
-			<td>{field.label}</td>
+			<td>
+				<div className="godmin-table__cell">{field.label}</div>
+			</td>
 			<td>
 				<KindCell field={field} />
 			</td>
 			<td>
-				<code>{field.name}</code>
+				<div className="godmin-table__cell">
+					<code>{field.name}</code>
+				</div>
 			</td>
 			<td className="godmin-table__actions">
-				<RowControls
-					at={at}
-					count={count}
-					removable={!locked}
-					labels={{
-						moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
-						moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
-						remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
-					}}
-					onMove={onMove}
-					onRemove={onArchive}
-				/>
+				<div className="godmin-table__cell">
+					<RowControls
+						at={at}
+						count={count}
+						removable={!locked}
+						labels={{
+							moveUp: sprintf(__('Move %(label)s up', 'alphone-fields'), { label: field.label }),
+							moveDown: sprintf(__('Move %(label)s down', 'alphone-fields'), { label: field.label }),
+							remove: sprintf(__('Archive %(label)s', 'alphone-fields'), { label: field.label }),
+						}}
+						onMove={onMove}
+						onRemove={onArchive}
+					/>
+				</div>
 			</td>
 		</tr>
 	)
 }
 
 /**
- * Renders the kind of one field, with the labels of its sub fields when it holds any.
+ * Renders the kind of one field in its cell box, with the labels of its sub fields on a line after the box.
  * @param props - The catalogue row.
  * @returns The kind cell content.
  */
 function KindCell({ field }: { field: FieldRow }) {
-	const badge = <Badge intent="stable">{kindLabel(field.kind)}</Badge>
-	if (field.subFields.length === 0) {
-		return badge
-	}
 	return (
-		<Stack direction="column" gap="xs" align="start">
-			{badge}
-			<Text variant="body-sm">{labelList(field.subFields)}</Text>
-		</Stack>
+		<>
+			<div className="godmin-table__cell">
+				<Badge intent="stable">{kindLabel(field.kind)}</Badge>
+			</div>
+			{field.subFields.length === 0 ? null : <Text variant="body-sm">{labelList(field.subFields)}</Text>}
+		</>
 	)
 }
 

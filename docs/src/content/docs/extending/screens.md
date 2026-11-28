@@ -410,18 +410,68 @@ system rather than a bare element.
 ```
 
 Tables use the `godmin-table` class so padding, borders, and header
-weight match every other table, and they sit inside a scrolling region
-so a phone scrolls the columns rather than the whole page.
+weight match every other table. Each table sits in a
+`godmin-table-scroll` region, so a wide table never drags the whole
+page sideways.
 
 ```tsx
 <div className="godmin-table-scroll" role="region" aria-label="Invoices" tabIndex={0}>
-	<table className="godmin-table">…</table>
+	<table className="godmin-table">
+		<thead>
+			<tr>
+				<th scope="col">Invoice</th>
+				<th scope="col">Total</th>
+				<th scope="col" className="godmin-table__actions" />
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>
+					<div className="godmin-table__cell">{invoice.number}</div>
+					<Text variant="body-sm">{invoice.note}</Text>
+				</td>
+				<td>
+					<div className="godmin-table__cell">{invoice.total}</div>
+				</td>
+				<td className="godmin-table__actions">
+					<div className="godmin-table__cell">
+						<Button size="compact" onClick={send}>Send</Button>
+					</div>
+				</td>
+			</tr>
+		</tbody>
+	</table>
 </div>
 ```
 
-The region needs all three attributes. `tabIndex` lets a keyboard reach
-the columns that scrolled out of view, and the label says what they
-belong to.
+The region needs all three attributes. The label says what the table
+holds. `tabIndex` lets a keyboard reach the region. A table wider than
+its region scrolls sideways inside it, on any page, and a keyboard user
+scrolls it from there. Without `tabIndex` they cannot reach the columns
+out of view at all.
+
+A body cell sits at the top of its row, as in the WordPress list
+table. Put the first line of each body cell in a `div` marked
+`godmin-table__cell`. The box is as tall as a compact button and
+centres its line, so the text stays level with the buttons of its row.
+The box holds inline content, such as text, a link, a `code` or a
+`Badge`, and not a paragraph. A line under it, such as a note, goes
+after the box in its own element, such as a `Text`. Draw the buttons
+of a row with `size="compact"`. A default button is taller than the
+box, so the text beside it would sit higher than the button's label.
+
+When the region is narrower than 640px, such as on a phone, each row
+draws as an item of the DataViews list instead. The first cell and the
+cell marked `godmin-table__actions` share the first line. The other
+cells sit under them as small text, the column headers hide, and
+nothing scrolls sideways. So keep the name of the record in the first
+cell, and mark the cell of the row's buttons `godmin-table__actions`.
+At 640px and wider the table keeps its columns.
+
+The region measures its own width to pick a layout. Put it in a parent
+that stretches it, such as a page section, a record page column or a
+column `Stack` with no `align`. In a parent that sizes it to its
+content, such as a row `Stack`, the region shrinks to almost nothing.
 
 Form fields go inside `godmin-form`, which stacks them and keeps the
 column readable. A form inside a dialog is `FormDialog` instead, or
@@ -966,9 +1016,15 @@ tokenAreas: [
 		get label() {
 			return _x('invoices', 'token area', 'alphone-invoices')
 		},
+		get writeDescription() {
+			return __('Reads invoices. Also voids an invoice. Sends no invoice.', 'alphone-invoices')
+		},
 	},
 ],
 ```
+
+The optional `writeDescription` is the line under the area's Write box,
+and it says what Write does in your area.
 
 The screen lists the core areas and every plugin's in order of their
 values. An area the core or another plugin already offers stops the

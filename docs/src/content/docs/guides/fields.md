@@ -175,13 +175,14 @@ moves as a whole. Its sub fields keep the order you gave them when you made it.
 Press the trash icon at the end of the field's row. For a field labelled
 `Birth date` it is named **Archive Birth date**. The field is archived at
 once, and it disappears from the contact screen and from the API. A toast says
-**Field archived.** with an **Undo** button. If the archive fails, the toast
-says so instead and the field stays, so you can try again.
+**"Birth date" archived.** with an **Undo** button. If the archive fails, the
+toast says so instead and the field stays, so you can try again.
 
 Press **Undo** while the toast shows to bring the field back. It returns to
 the place it held in the list, with every value it held, and a toast says
-**Field restored.** If someone else changed the list meanwhile, the field
-comes back at the end instead and a toast says the order was not saved.
+**"Birth date" has been restored.** If someone else changed the list
+meanwhile, the field comes back at the end instead and a toast says the order
+was not saved.
 
 Archiving does not delete anything, even though the icon is a trash can. The
 values stay in the database, and the archived field keeps its name. So a new

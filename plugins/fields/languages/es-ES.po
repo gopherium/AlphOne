@@ -102,8 +102,8 @@ msgid "Field added."
 msgstr "Campo añadido."
 
 #, fuzzy
-msgid "Field archived."
-msgstr "Campo archivado."
+msgid "\"%(label)s\" archived."
+msgstr "«%(label)s» archivado."
 
 #, fuzzy
 msgid "Fields"
@@ -290,8 +290,8 @@ msgid "Could not restore the field."
 msgstr "No se ha podido restaurar el campo."
 
 #, fuzzy
-msgid "Field restored."
-msgstr "Campo restaurado."
+msgid "\"%(label)s\" has been restored."
+msgstr "«%(label)s» se ha restaurado."
 
 #, fuzzy
 msgid "Undo"

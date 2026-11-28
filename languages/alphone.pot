@@ -200,7 +200,7 @@ msgstr ""
 msgid "Could not update the task."
 msgstr ""
 
-msgid "Create a brand new user and add them to this site."
+msgid "Create a brand new user and add them to this workspace."
 msgstr ""
 
 msgid "Create contact"

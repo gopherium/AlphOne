@@ -198,7 +198,7 @@ function NewUserScreen({ onCreated }: { onCreated: () => void | Promise<void> })
 	return (
 		<PageScreen
 			title={__('Add User', 'alphone')}
-			subtitle={__('Create a brand new user and add them to this site.', 'alphone')}
+			subtitle={__('Create a brand new user and add them to this workspace.', 'alphone')}
 			breadcrumbs={
 				<PageBreadcrumbs label={__('Breadcrumbs', 'alphone')}>
 					<PageBreadcrumb render={<Link to="/users" activeOptions={{ exact: true }} />}>

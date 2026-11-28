@@ -9,8 +9,15 @@ import { handlers } from '../handlers'
 import { DOMAIN, plugin } from '../index'
 import { inboxQuery, mailboxQuery } from '../operations'
 
+/** WRITE_DESCRIPTION is the line under the Write email box, in English. */
+const WRITE_DESCRIPTION = "Reads mail. With an admin's token, also deletes mail and its files. Sends no mail."
+
 test('grants the area its mail is held to, named in English until a catalogue loads', () => {
-	expect(plugin.tokenAreas).toEqual([{ value: 'email', label: 'email' }])
+	expect(plugin.tokenAreas).toEqual([{ value: 'email', label: 'email', writeDescription: WRITE_DESCRIPTION }])
+})
+
+test('says what writing the email area does, in English until a catalogue loads', () => {
+	expect(plugin.tokenAreas?.[0]?.writeDescription).toBe(WRITE_DESCRIPTION)
 })
 
 test('reads the label of its area fresh on every use', () => {
@@ -19,10 +26,24 @@ test('reads the label of its area fresh on every use', () => {
 	expect(area && Object.getOwnPropertyDescriptor(area, 'label')?.get).toBeTypeOf('function')
 })
 
+test('reads the write description fresh on every use', () => {
+	const area = plugin.tokenAreas?.[0]
+
+	expect(area && Object.getOwnPropertyDescriptor(area, 'writeDescription')?.get).toBeTypeOf('function')
+})
+
 test('names its area in Spanish in its own catalogue', async () => {
 	const catalog = await plugin.locale?.load('es-ES')
 
 	expect((catalog?.['token area\u0004email'] as string[] | undefined)?.[0]).toBe('correo electrónico')
+})
+
+test('says what writing the email area does in Spanish in its own catalogue', async () => {
+	const catalog = await plugin.locale?.load('es-ES')
+
+	expect((catalog?.[WRITE_DESCRIPTION] as string[] | undefined)?.[0]).toBe(
+		'Lee el correo. Con el token de un administrador, también borra correos y sus archivos. No envía correo.',
+	)
 })
 
 test('answers its strings under its own text domain', () => {

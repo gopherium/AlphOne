@@ -10,6 +10,10 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=((n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2));\n"
 
 #, fuzzy
+msgid "Reads mail. With an admin's token, also deletes mail and its files. Sends no mail."
+msgstr "Lee el correo. Con el token de un administrador, también borra correos y sus archivos. No envía correo."
+
+#, fuzzy
 msgctxt "token area"
 msgid "email"
 msgstr "correo electrónico"

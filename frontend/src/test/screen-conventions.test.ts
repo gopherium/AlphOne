@@ -52,8 +52,6 @@ test('screens title an empty list through ListEmpty, one level under the page ti
 	expect(filesMatching(/EmptyState\.Title/)).toEqual([])
 })
 
-// A table is wider than a phone, so it scrolls inside its own region instead of
-// dragging the page sideways.
 test('screens wrap their table in the scrolling region', () => {
 	const withTable = filesMatching(/className="[^"]*\bgodmin-table\b/)
 	const withRegion = filesMatching(/className="[^"]*\bgodmin-table-scroll\b/)

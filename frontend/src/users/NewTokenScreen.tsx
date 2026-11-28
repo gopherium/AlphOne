@@ -2,6 +2,8 @@
 
 import {
 	Button,
+	CheckboxControl,
+	Fieldset,
 	PageBreadcrumb,
 	PageBreadcrumbs,
 	PageScreen,
@@ -54,12 +56,14 @@ function GrantBox({
 	area,
 	areaLabel,
 	access,
+	description,
 	grants,
 	onGrant,
 }: {
 	area: string
 	areaLabel: string
 	access: 'read' | 'write'
+	description?: string
 	grants: Grants
 	onGrant: (grants: Grants) => void
 }) {
@@ -68,17 +72,13 @@ function GrantBox({
 		{ area: areaLabel },
 	)
 	return (
-		<label>
-			<input
-				type="checkbox"
-				aria-label={label}
-				checked={grants[area] === access}
-				onChange={(event) =>
-					onGrant({ ...grants, [area]: event.target.checked ? access : undefined })
-				}
-			/>
-			{label}
-		</label>
+		<CheckboxControl
+			className="alphone-tokens__grant"
+			label={label}
+			description={description}
+			checked={grants[area] === access}
+			onCheckedChange={(checked) => onGrant({ ...grants, [area]: checked ? access : undefined })}
+		/>
 	)
 }
 
@@ -164,8 +164,8 @@ export function NewTokenScreen() {
 					customValidity={refusedName.validity}
 					onChange={(event) => setName(event.target.value)}
 				/>
-				<fieldset>
-					<legend>{__('Areas', 'alphone')}</legend>
+				<Fieldset.Root>
+					<Fieldset.Legend>{__('Areas', 'alphone')}</Fieldset.Legend>
 					{areas.map((area) => (
 						<Stack key={area.value} direction="row" gap="sm">
 							<GrantBox
@@ -179,12 +179,13 @@ export function NewTokenScreen() {
 								area={area.value}
 								areaLabel={area.label}
 								access="write"
+								description={area.writeDescription}
 								grants={grants}
 								onGrant={setGrants}
 							/>
 						</Stack>
 					))}
-				</fieldset>
+				</Fieldset.Root>
 				<label>
 					{__('Expires', 'alphone')}
 					<select value={lifetime} onChange={(event) => setLifetime(event.target.value)}>

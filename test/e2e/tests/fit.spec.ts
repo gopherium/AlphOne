@@ -117,6 +117,7 @@ async function seedRoutes(request: APIRequestContext): Promise<string[]> {
 		'/users',
 		'/users/new',
 		'/users/tokens',
+		'/users/tokens/new',
 		'/email',
 		'/whatsapp',
 		`/whatsapp/conversations/${conversationID}`,
